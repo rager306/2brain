@@ -18,6 +18,7 @@ use au_core::{
     InstanceField, TypeDef, TypeNameClaim,
 };
 use au_diagnostics::{ByteRange, Diagnostic, Severity, Span, SuggestedFix};
+use au_grammar::{parse_shape_spanned, ShapeSpanRole};
 use au_parser::{
     classify_by_path, is_instance_candidate_path, is_pure_yaml_instance_path, split_frontmatter,
     whole_as_frontmatter,
@@ -42,6 +43,13 @@ pub enum FileParse {
         /// meta blocks), each tagged with its binding declaration. See
         /// [[spec - docstring navigational links - a docstring's wikilinks resolve as navigational edges tagged to their declaration]].
         doc_links: Vec<DocstringLink>,
+        /// Every field shape's classified leaf names, spanned into the source,
+        /// across all fields. Computed here, where the file's bytes are in hand,
+        /// so the `semantic_tokens` read serves per-name leaves for QUOTED shapes
+        /// too — the held parse is source-free, so the normalized `raw_shape`
+        /// alone cannot place them at read time. Empty on a failed structural
+        /// parse. See [`ShapeLeafSpan`].
+        shape_leaves: Vec<ShapeLeafSpan>,
         diagnostics: Vec<Diagnostic>,
     },
     /// An instance file (markdown or pure-YAML) that declared a `type:`.
@@ -176,11 +184,9 @@ fn suffixed_enum_quote_hint(source: &str) -> Option<SuggestedFix> {
         let value = rhs.trim();
         if value.starts_with('[') && (value.contains("][]") || value.contains("][+]")) {
             let key = lhs.trim_start().trim_start_matches("- ").trim();
-            return Some(SuggestedFix {
-                description: format!(
+            return Some(SuggestedFix::advisory(format!(
                     "a suffixed inline enum must be quoted, its bare form is not valid YAML; write `{key}: \"{value}\"`"
-                ),
-            });
+                )));
         }
     }
     None
@@ -194,6 +200,7 @@ fn parse_type_def_file(path: &Path, bytes: &[u8]) -> FileParse {
             return FileParse::TypeDef {
                 type_def: None,
                 doc_links: Vec::new(),
+                shape_leaves: Vec::new(),
                 diagnostics: vec![not_utf8_diag(path, &owned)],
             };
         }
@@ -206,6 +213,7 @@ fn parse_type_def_file(path: &Path, bytes: &[u8]) -> FileParse {
             return FileParse::TypeDef {
                 type_def: None,
                 doc_links: Vec::new(),
+                shape_leaves: Vec::new(),
                 diagnostics: vec![Diagnostic {
                     code: YAML_PARSE_ERROR,
                     severity: Severity::Error,
@@ -228,6 +236,7 @@ fn parse_type_def_file(path: &Path, bytes: &[u8]) -> FileParse {
         return FileParse::TypeDef {
             type_def: None,
             doc_links: Vec::new(),
+            shape_leaves: Vec::new(),
             diagnostics,
         };
     };
@@ -255,10 +264,94 @@ fn parse_type_def_file(path: &Path, bytes: &[u8]) -> FileParse {
                 || !dup_field_spans.contains(&d.span.range)
         });
     }
+    let shape_leaves = res
+        .type_def
+        .as_ref()
+        .map(|def| type_def_shape_leaves(text, def))
+        .unwrap_or_default();
     FileParse::TypeDef {
         type_def: res.type_def,
         doc_links: res.doc_links,
+        shape_leaves,
         diagnostics,
+    }
+}
+
+/// A classified leaf name inside a type-def field shape, spanned into the SOURCE
+/// file.
+///
+/// The source-aligned twin of au-grammar's [`au_grammar::ShapeSpan`], which is
+/// relative to the shape string. Computed in the parse layer, where the file's
+/// bytes and each field's `shape_span` are both in hand, so a QUOTED shape
+/// (`"note*"`) yields correctly-placed leaves like an unquoted one. The held
+/// parse is source-free, so this could not be recovered at read time from the
+/// normalized `raw_shape` alone. Consumed by the `semantic_tokens` read for
+/// per-name go-to-def, hover, and coloring. See [[spec - semantic tokens - the
+/// engine serves a typed highlight-token stream over a file]].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShapeLeafSpan {
+    /// Byte range in the SOURCE file, not relative to `raw_shape`.
+    pub range: ByteRange,
+    /// The leaf's role: a type-def name, a built-in keyword, or an enum literal.
+    pub role: ShapeSpanRole,
+    /// The leaf text, as it appears in the normalized shape.
+    pub text: String,
+}
+
+/// The source-aligned shape leaves for every field of a parsed type-def.
+fn type_def_shape_leaves(source: &str, def: &TypeDef) -> Vec<ShapeLeafSpan> {
+    let mut out = Vec::new();
+    for field in &def.fields {
+        push_source_leaf_spans(source, field.shape_span, &field.raw_shape, &mut out);
+    }
+    out
+}
+
+/// Rebase au-grammar's `raw_shape`-relative leaf spans onto the SOURCE file,
+/// appending them to `out`.
+///
+/// `raw_shape` is the YAML scalar's normalized value, so it is either byte-equal
+/// to the source shape slice (an unquoted scalar or a flow enum) or the source
+/// wraps it in one matching quote each side (a quoted scalar). A field shape
+/// contains no character YAML must escape, so those are the only two mappings,
+/// covered by a verified affine shift. Anything else (an escaped or folded
+/// scalar, unreachable for a legal shape) appends nothing, so the read degrades
+/// to the container only rather than emitting a mis-placed leaf.
+fn push_source_leaf_spans(
+    source: &str,
+    shape_span: ByteRange,
+    raw_shape: &str,
+    out: &mut Vec<ShapeLeafSpan>,
+) {
+    let (_shape, spans) = parse_shape_spanned(raw_shape);
+    if spans.is_empty() {
+        return;
+    }
+    let end = shape_span.end.min(source.len());
+    if shape_span.start > end {
+        return;
+    }
+    let src = &source[shape_span.start..end];
+    let inner_off = if src == raw_shape {
+        0
+    } else if src.len() == raw_shape.len() + 2
+        && src.as_bytes().first() == src.as_bytes().last()
+        && matches!(src.as_bytes().first(), Some(b'"') | Some(b'\''))
+        && &src[1..src.len() - 1] == raw_shape
+    {
+        1
+    } else {
+        // An escaped or folded scalar: the offsets do not map linearly, so
+        // append nothing and let the read serve the container alone.
+        return;
+    };
+    let base = shape_span.start + inner_off;
+    for sp in spans {
+        out.push(ShapeLeafSpan {
+            range: ByteRange::new(base + sp.range.start, base + sp.range.end),
+            role: sp.role,
+            text: raw_shape[sp.range.start..sp.range.end].to_string(),
+        });
     }
 }
 
@@ -361,9 +454,7 @@ pub(crate) fn parse_engine_schema_instance(
                 "engine-schema file carries no written `type:`; the kind assigns the floor `{written_form}` regardless, but the file does not self-describe on disk"
             ),
             related: vec![],
-            fix: Some(SuggestedFix {
-                description: format!("add `type: {written_form}` so the file self-describes"),
-            }),
+            fix: Some(SuggestedFix::advisory(format!("add `type: {written_form}` so the file self-describes"))),
         });
     }
     let claim = match owner {
@@ -730,6 +821,42 @@ mod tests {
                 .iter()
                 .any(|d| d.code.as_str() == "duplicate-key-in-mapping"),
             "duplicate key surfaces in the single parse"
+        );
+    }
+
+    #[test]
+    fn shape_leaves_locate_into_source_quoted_and_unquoted() {
+        // An unquoted reference, a double-quoted union, and a single-quoted
+        // enum. Each field's leaves must be spanned into the source, so a quoted
+        // shape is not dropped for want of an offset mapping at read time.
+        let path = PathBuf::from("type/thing.type.yaml");
+        let src = "fields:\n  a: assumption*\n  b: \"<x | y>\"\n  c: '[low, high]'\n";
+        let FileParse::TypeDef { shape_leaves, .. } = parse_file(&path, src.as_bytes()) else {
+            panic!("expected a TypeDef parse");
+        };
+
+        // Every leaf's source range slices back to its own text, whatever the
+        // quoting — the located-not-mis-placed guarantee.
+        for leaf in &shape_leaves {
+            assert_eq!(
+                &src[leaf.range.start..leaf.range.end],
+                leaf.text,
+                "leaf {leaf:?} must slice to its text",
+            );
+        }
+
+        let texts: Vec<&str> = shape_leaves.iter().map(|l| l.text.as_str()).collect();
+        assert_eq!(texts, vec!["assumption", "x", "y", "low", "high"]);
+        let roles: Vec<ShapeSpanRole> = shape_leaves.iter().map(|l| l.role).collect();
+        assert_eq!(
+            roles,
+            vec![
+                ShapeSpanRole::TypeName,
+                ShapeSpanRole::TypeName,
+                ShapeSpanRole::TypeName,
+                ShapeSpanRole::EnumMember,
+                ShapeSpanRole::EnumMember,
+            ],
         );
     }
 }

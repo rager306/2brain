@@ -7,6 +7,7 @@ pub mod canonical;
 pub mod closure;
 pub mod closure_id;
 pub mod codes;
+pub mod def_closure;
 pub mod graph;
 pub mod instance;
 pub mod load_checks;

@@ -54,7 +54,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use au_diagnostics::{Diagnostic, Severity};
-use au_grammar::{parse_shape_spanned, Shape, ShapeSpanRole};
+use au_grammar::{Shape, ShapeSpanRole};
 use au_parser::{scan_body, BodyEvent};
 use au_references::{extract_field_marker, parse_wikilink, parse_wikilink_inner};
 use serde::{Deserialize, Serialize};
@@ -67,7 +67,7 @@ use tracing::Instrument;
 use crate::engine::{EngineHandle, Read, RefState};
 use crate::gitwriter::{CommitMessage, CommitSha, GitWriter, MutationId, ShellGit};
 use crate::mutate::MutationReject;
-use crate::parse::{served_file_kind, FileParse};
+use crate::parse::{served_file_kind, FileParse, ShapeLeafSpan};
 use crate::wire;
 use crate::{KnowledgeBase, RefSurface};
 
@@ -241,10 +241,15 @@ mod request_deser_tests {
                 path,
                 content,
                 stamps,
+                ensure_mixins,
+                ensure_mixins_strict,
             }) => {
                 assert_eq!(path, "a.md");
                 assert_eq!(content, "x");
                 assert!(stamps.is_empty());
+                // Absent riders default as on the mutation: none, strict.
+                assert!(ensure_mixins.is_empty());
+                assert!(ensure_mixins_strict);
             }
             other => panic!("expected a write op, got {other:?}"),
         }
@@ -276,6 +281,31 @@ mod request_deser_tests {
             delete,
             Request::PreviewMutation(PreviewMutationArgs::DeleteFile { .. })
         ));
+
+        let rename: Request = serde_json::from_value(serde_json::json!({
+            "read": "preview_mutation",
+            "op": "rename",
+            "path": "a.md",
+            "to": "sub/a.md",
+            "ensure_mixins": ["m::peer"],
+            "ensure_mixins_strict": false,
+        }))
+        .unwrap();
+        match rename {
+            Request::PreviewMutation(PreviewMutationArgs::Rename {
+                path,
+                to,
+                stamps,
+                ensure_mixins,
+                ensure_mixins_strict,
+            }) => {
+                assert_eq!((path.as_str(), to.as_str()), ("a.md", "sub/a.md"));
+                assert!(stamps.is_empty());
+                assert_eq!(ensure_mixins, vec!["m::peer".to_string()]);
+                assert!(!ensure_mixins_strict);
+            }
+            other => panic!("expected a rename op, got {other:?}"),
+        }
     }
 }
 
@@ -417,8 +447,10 @@ enum Request {
     /// consumer renders a vocabulary-with-counts overview in one round-trip. The
     /// instances dual of `type_counts`, scoped by the same `repo` / `scope` axis
     /// applied to the SITE'S repo. Closure-inclusive: a count equals the length
-    /// of the matching `instances_of` drill-in. An unknown repo → null.
-    InstanceCounts(TypeCountsArgs),
+    /// of the matching `instances_of` drill-in over the same origins. An
+    /// `origins?` filter (file / nested / meta) mirrors `instances_of`; absent
+    /// counts all three. An unknown repo → null.
+    InstanceCounts(InstanceCountsArgs),
     /// One instance's resolved view, with the full value layer. Null when the
     /// path is not a parsed instance.
     ///
@@ -685,6 +717,10 @@ enum PreviewMutationArgs {
         content: String,
         #[serde(default)]
         stamps: Vec<Stamp>,
+        #[serde(default)]
+        ensure_mixins: Vec<String>,
+        #[serde(default = "default_true")]
+        ensure_mixins_strict: bool,
     },
     EditFile {
         path: String,
@@ -694,39 +730,52 @@ enum PreviewMutationArgs {
         replace_all: bool,
         #[serde(default)]
         stamps: Vec<Stamp>,
+        #[serde(default)]
+        ensure_mixins: Vec<String>,
+        #[serde(default = "default_true")]
+        ensure_mixins_strict: bool,
     },
     DeleteFile {
+        path: String,
+    },
+    /// A file move or rename, the `rename` mutation's `path` / `to`.
+    Rename {
+        path: String,
+        to: String,
+        #[serde(default)]
+        stamps: Vec<Stamp>,
+        #[serde(default)]
+        ensure_mixins: Vec<String>,
+        #[serde(default = "default_true")]
+        ensure_mixins_strict: bool,
+    },
+    /// A folder move or rename, the `move_dir` mutation's `path` / `to`.
+    MoveDir {
+        path: String,
+        to: String,
+    },
+    /// A folder delete, the `delete_dir` mutation's `path`.
+    DeleteDir {
         path: String,
     },
 }
 
 impl PreviewMutationArgs {
-    /// Split into the target path, the engine-side op, and the stamp riders.
-    fn into_parts(
-        self,
-    ) -> (
-        String,
-        crate::mutate::PreviewOp,
-        Vec<crate::mutate::PreviewStamp>,
-    ) {
-        let to_stamps = |ss: Vec<Stamp>| {
-            ss.into_iter()
-                .map(|s| crate::mutate::PreviewStamp {
-                    field: s.field,
-                    record: s.record,
-                    match_on: s.match_on,
-                })
-                .collect()
-        };
-        match self {
+    /// Split into the request shape the handler serves: a single-file op (the
+    /// target path, the engine-side op, the stamp riders), or a multi-file op,
+    /// planned by its own handler.
+    fn into_request(self) -> PreviewRequest {
+        let (path, op, riders) = match self {
             PreviewMutationArgs::WriteFile {
                 path,
                 content,
                 stamps,
+                ensure_mixins,
+                ensure_mixins_strict,
             } => (
                 path,
                 crate::mutate::PreviewOp::Write { content },
-                to_stamps(stamps),
+                preview_riders(stamps, ensure_mixins, ensure_mixins_strict),
             ),
             PreviewMutationArgs::EditFile {
                 path,
@@ -734,6 +783,8 @@ impl PreviewMutationArgs {
                 new_string,
                 replace_all,
                 stamps,
+                ensure_mixins,
+                ensure_mixins_strict,
             } => (
                 path,
                 crate::mutate::PreviewOp::Edit {
@@ -741,13 +792,78 @@ impl PreviewMutationArgs {
                     new_string,
                     replace_all,
                 },
-                to_stamps(stamps),
+                preview_riders(stamps, ensure_mixins, ensure_mixins_strict),
             ),
-            PreviewMutationArgs::DeleteFile { path } => {
-                (path, crate::mutate::PreviewOp::Delete, Vec::new())
+            PreviewMutationArgs::DeleteFile { path } => (
+                path,
+                crate::mutate::PreviewOp::Delete,
+                crate::engine::PreviewRiders::default(),
+            ),
+            PreviewMutationArgs::Rename {
+                path,
+                to,
+                stamps,
+                ensure_mixins,
+                ensure_mixins_strict,
+            } => {
+                return PreviewRequest::Rename {
+                    path,
+                    to,
+                    riders: preview_riders(stamps, ensure_mixins, ensure_mixins_strict),
+                }
             }
-        }
+            PreviewMutationArgs::MoveDir { path, to } => {
+                return PreviewRequest::MoveDir { path, to }
+            }
+            PreviewMutationArgs::DeleteDir { path } => return PreviewRequest::DeleteDir { path },
+        };
+        PreviewRequest::File { path, op, riders }
     }
+}
+
+/// A write's wire riders as the preview's engine-side riders.
+fn preview_riders(
+    stamps: Vec<Stamp>,
+    mixins: Vec<String>,
+    strict: bool,
+) -> crate::engine::PreviewRiders {
+    crate::engine::PreviewRiders {
+        stamps: to_preview_stamps(stamps),
+        mixins,
+        strict,
+    }
+}
+
+/// A `preview_mutation` request, split by how the preview is planned.
+enum PreviewRequest {
+    File {
+        path: String,
+        op: crate::mutate::PreviewOp,
+        riders: crate::engine::PreviewRiders,
+    },
+    Rename {
+        path: String,
+        to: String,
+        riders: crate::engine::PreviewRiders,
+    },
+    MoveDir {
+        path: String,
+        to: String,
+    },
+    DeleteDir {
+        path: String,
+    },
+}
+
+/// A write stamp list as the preview's engine-side riders.
+fn to_preview_stamps(ss: Vec<Stamp>) -> Vec<crate::mutate::PreviewStamp> {
+    ss.into_iter()
+        .map(|s| crate::mutate::PreviewStamp {
+            field: s.field,
+            record: s.record,
+            match_on: s.match_on,
+        })
+        .collect()
 }
 
 /// A mutation request, tagged by `mutate` — the wire's third verb, per
@@ -770,6 +886,15 @@ enum Mutation {
     /// Move a file to a new path, rewriting every inbound reference to follow,
     /// as one saga. Same-repo only; refuses type-def files (that is `rename_type`).
     Rename(RenameArgs),
+    /// Move a folder to a new path, every catalogued file under it plus its
+    /// directory skeleton, rewriting every path-addressed inbound reference to
+    /// follow, as one saga. Same-repo only; refuses a folder holding anything the
+    /// engine does not catalogue.
+    MoveDir(MoveDirArgs),
+    /// Delete a folder, every catalogued file under it plus its directory
+    /// skeleton, as one saga. Raw: no referrer is rewritten, the references the
+    /// delete strands are reported.
+    DeleteDir(DeleteDirArgs),
     /// Extract the inline `^:id` record at a byte offset into its own file,
     /// leaving `[[newFile]]` in its place and rewriting every `[[host^id]]`
     /// referrer to `[[newFile]]`, as one saga.
@@ -826,6 +951,29 @@ enum Mutation {
     /// A byte-splice after the last element (or a seed into an empty `[]`), so
     /// existing elements and their comments stay byte-identical.
     AppendRecord(AppendRecordArgs),
+    /// Add a `{ name, remote?, ref? }` entry to a repo's `deps:` — a
+    /// COMPOSITION-sort mutation authoring `<member>/.arsumbris/repo.yaml`. A
+    /// guard-bypass like `set_config`, but the file is a first-class node, so the
+    /// change re-resolves the mounted set and rebuilds. Does NOT fetch: the new
+    /// peer stays `peer-unmounted` until `resolve`. A duplicate name rejects. See
+    /// [[spec - composition authorship - governed list verbs author workspace members and repo deps, rebuilding on change]].
+    AddDep(AddDepArgs),
+    /// Remove a dep entry from a repo's `deps:` by name — the composition-sort
+    /// dual of `add_dep`. An absent name rejects.
+    RemoveDep(RemoveDepArgs),
+    /// Add a member to a workspace's `edit:` or `discover:` — a COMPOSITION-sort
+    /// mutation authoring `<member>/.arsumbris/workspace.yaml`, created
+    /// self-complete when absent. A member already in either list rejects. See
+    /// [[spec - composition authorship - governed list verbs author workspace members and repo deps, rebuilding on change]].
+    AddWorkspaceMember(AddWorkspaceMemberArgs),
+    /// Remove a member from every one of `edit:` / `discover:` holding it.
+    RemoveWorkspaceMember(RemoveWorkspaceMemberArgs),
+    /// Move a member between `edit:` and `discover:` in one commit.
+    SetWorkspaceMemberRole(SetWorkspaceMemberRoleArgs),
+    /// Switch a declared member off or on through the workspace's `disabled:`
+    /// overlay, one commit. Disabling a name not declared in `edit:` /
+    /// `discover:`, or the containing repo, rejects.
+    SetWorkspaceMemberDisabled(SetWorkspaceMemberDisabledArgs),
 }
 
 /// One `field_path` segment on the wire: a field name (string) or a list index
@@ -1082,6 +1230,109 @@ struct SetIgnoresArgs {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct AddDepArgs {
+    /// The member root whose `repo.yaml` to author. Absent means the served entry.
+    /// Must name a declared, editable member root; a consumed member rejects.
+    #[serde(default)]
+    root: Option<String>,
+    /// The dependency's name, the `deps[].name` and the duplicate-detection key.
+    name: String,
+    /// The dependency's git remote, optional.
+    #[serde(default)]
+    remote: Option<String>,
+    /// The dependency's ref (branch / tag), optional.
+    #[serde(default, rename = "ref")]
+    ref_field: Option<String>,
+    /// Optional compare-and-set against the current `repo.yaml` content hash.
+    #[serde(default)]
+    expected_hash: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RemoveDepArgs {
+    /// The member root whose `repo.yaml` to author. Absent means the served entry.
+    #[serde(default)]
+    root: Option<String>,
+    /// The name of the dep to remove; an absent name rejects.
+    name: String,
+    /// Optional compare-and-set against the current `repo.yaml` content hash.
+    #[serde(default)]
+    expected_hash: Option<String>,
+}
+
+/// A workspace member role on the wire, `edit` or `discover`.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum WorkspaceRole {
+    Edit,
+    Discover,
+}
+
+impl WorkspaceRole {
+    fn other(self) -> WorkspaceRole {
+        match self {
+            WorkspaceRole::Edit => WorkspaceRole::Discover,
+            WorkspaceRole::Discover => WorkspaceRole::Edit,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AddWorkspaceMemberArgs {
+    /// The member root whose `workspace.yaml` to author. Absent means the served
+    /// entry. The file is created (seeded self-complete) when absent.
+    #[serde(default)]
+    root: Option<String>,
+    /// The member name to add to the workspace composition.
+    name: String,
+    /// Which list to add it to, `edit` or `discover`.
+    role: WorkspaceRole,
+    /// Optional compare-and-set against the current `workspace.yaml` content hash.
+    #[serde(default)]
+    expected_hash: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RemoveWorkspaceMemberArgs {
+    #[serde(default)]
+    root: Option<String>,
+    /// The member name to remove from every list holding it; absent rejects.
+    name: String,
+    #[serde(default)]
+    expected_hash: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SetWorkspaceMemberRoleArgs {
+    #[serde(default)]
+    root: Option<String>,
+    /// The member to re-role; must already be a member, absent rejects.
+    name: String,
+    /// The target role to move it to, `edit` or `discover`.
+    role: WorkspaceRole,
+    #[serde(default)]
+    expected_hash: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SetWorkspaceMemberDisabledArgs {
+    #[serde(default)]
+    root: Option<String>,
+    /// The member to switch off or on.
+    name: String,
+    /// `true` adds it to `disabled:`, `false` removes it.
+    disabled: bool,
+    #[serde(default)]
+    expected_hash: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RenameArgs {
     path: String,
     /// The new path. v1 must resolve to the same repo as `path`.
@@ -1095,6 +1346,22 @@ struct RenameArgs {
     ensure_mixins: Vec<String>,
     #[serde(default = "default_true")]
     ensure_mixins_strict: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MoveDirArgs {
+    /// The folder to move.
+    path: String,
+    /// The folder's new path, free, in the same repo as `path`.
+    to: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DeleteDirArgs {
+    /// The folder to delete.
+    path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1556,6 +1823,28 @@ struct TypeCountsArgs {
     /// `all` (default) or `own` (only the user's own primary/editable repos).
     #[serde(default)]
     scope: Scope,
+}
+
+/// Args for the `instance_counts` read: the same `repo` / `scope` pair as
+/// `type_counts`, plus an `origins?` filter mirroring `instances_of`, so the
+/// count read is a true dual of the list read. Absent `origins` counts ALL
+/// origins (file + nested + meta), identical to `instances_of`'s no-arg set, so
+/// the two duals default the same way. A present list narrows the tally, so
+/// `origins:['file']` yields the file-only count that matches a file-only
+/// `instances_of` drill-in. Unknown args are rejected loudly, matching the other
+/// reads.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InstanceCountsArgs {
+    #[serde(default)]
+    repo: Option<String>,
+    /// `all` (default) or `own` (only the user's own editable repos).
+    #[serde(default)]
+    scope: Scope,
+    /// `file` / `nested` / `meta`, same semantics as `instances_of`. Absent =
+    /// all three.
+    #[serde(default)]
+    origins: Option<Vec<wire::Origin>>,
 }
 
 /// Args for the `type` read. `deny_unknown_fields` keeps the documented
@@ -2338,9 +2627,18 @@ enum SemanticTokenKind {
         value_type: wire::WireShape,
     },
     /// A `type:` reference to a type-def, one per claimed name. Serves an
-    /// instance identity claim, a type-def parent claim, and a `meta:`
-    /// sub-region's `type:` alike.
-    TypeClaim { name: String },
+    /// instance identity claim, an inline-record or typed-fence claim, a
+    /// type-def parent claim, and a `meta:` sub-region's `type:` alike.
+    TypeClaim {
+        /// The authored form, bare or `::repo`-qualified.
+        name: String,
+        /// The identity the claim resolves to, `(name, owning repo, closure
+        /// hash)`, the same `TypeId` validation resolves it to. Absent when the
+        /// claim does not resolve (an unknown type, an unmounted peer), so a
+        /// consumer omits rather than guesses.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        resolved: Option<wire::ClosureIdentity>,
+    },
     /// An inline `[:field]` typed fence, spanning the whole fence. A
     /// container: its inner scalars emit their own `field-value` tokens.
     TypedBlock { field: String },
@@ -2928,6 +3226,72 @@ fn resolve_editable_target(
     Ok(target)
 }
 
+/// A file rename planned over the held knowledge base: the repo the move stays
+/// in, the repo-relative paths each referrer's spelling is re-rendered between,
+/// and the inbound referrers, each source with the byte spans of its references
+/// and the content hash the spans were read against.
+struct RenamePlan {
+    repo_root: PathBuf,
+    old_rel: PathBuf,
+    new_rel: PathBuf,
+    referrers: BTreeMap<PathBuf, Vec<au_diagnostics::ByteRange>>,
+    referrer_hashes: BTreeMap<PathBuf, Option<crate::ir::ContentHash>>,
+}
+
+/// Plan a rename of `from` to `to`, or the refusal message. Shared by the
+/// committing `rename` and its preview, so the two refuse, and gather, alike.
+///
+/// Refuses a type-def on either side: a type-def's name derives from its
+/// filename, so moving one renames the type and strands its claims, which are
+/// not wikilinks. That is `rename_type`'s job. Refuses a cross-repo move (v1
+/// moves within one repo).
+///
+/// The referrers come from the backlink index, which locates; the source on
+/// disk is the truth, re-read at write time. A self-reference is included, so
+/// the moved file points at its new name.
+fn plan_rename(v: &KnowledgeBase, from: &Path, to: &Path) -> Result<RenamePlan, String> {
+    if au_parser::classify_by_path(from) == Some(au_parser::FileKind::TypeDef)
+        || au_parser::classify_by_path(to) == Some(au_parser::FileKind::TypeDef)
+    {
+        return Err(
+            "rename does not move type-def files — a type-def's name derives from its \
+                    filename; use rename_type"
+                .to_string(),
+        );
+    }
+    let (rf, rt) = match (v.repos.repo_of(from), v.repos.repo_of(to)) {
+        (Some(rf), Some(rt)) => (rf, rt),
+        _ => return Err("path or destination escapes the workspace".to_string()),
+    };
+    if rf.root != rt.root {
+        return Err(
+            "cross-repo rename is not supported yet — path and to must be in the same repo"
+                .to_string(),
+        );
+    }
+    crate::dirop::check_destination_ancestors(&rf.root, to)?;
+    let old_rel = from.strip_prefix(&rf.root).unwrap_or(from).to_path_buf();
+    let new_rel = to.strip_prefix(&rf.root).unwrap_or(to).to_path_buf();
+    let mut referrers: BTreeMap<PathBuf, Vec<au_diagnostics::ByteRange>> = BTreeMap::new();
+    let mut referrer_hashes: BTreeMap<PathBuf, Option<crate::ir::ContentHash>> = BTreeMap::new();
+    for bl in v.backlinks(from) {
+        referrers
+            .entry(bl.source.clone())
+            .or_default()
+            .push(bl.span);
+        referrer_hashes
+            .entry(bl.source.clone())
+            .or_insert_with(|| v.catalog.get(&bl.source).and_then(|e| e.hash));
+    }
+    Ok(RenamePlan {
+        repo_root: rf.root.clone(),
+        old_rel,
+        new_rel,
+        referrers,
+        referrer_hashes,
+    })
+}
+
 /// Resolve a mutation path against the held knowledge base's members. A write reaches any
 /// declared member, scattered or subdir, the same way a read does. `Err` carries a
 /// ready frame the caller returns as-is: a reject for an escaping/guarded/non-editable
@@ -2979,23 +3343,129 @@ struct SagaMember {
 struct SagaPlan {
     mutation_id: String,
     members: Vec<SagaMember>,
-    /// Absolute paths in the member set that the mutation will NOT write, so the
-    /// clean-at-HEAD guard must not check them.
+    /// Absolute paths in the member set that the mutation will NOT write.
     ///
-    /// A referrer whose every reference is commit-pinned is rewritten to
-    /// byte-identical content, so nothing is written to it. Gating on it lets a
-    /// file the refactor would not touch reject the whole refactor. It stays in
-    /// the member set regardless, because it still needs RECOMPUTING: a frozen
-    /// pin stops resolving live once its target moves.
+    /// A referrer the rewrite leaves byte-identical has nothing written to it:
+    /// an all-commit-pinned one, or a bare `[[name]]` one of a name-keeping file
+    /// move. It stays in the member set, because it still needs RECOMPUTING: a
+    /// frozen pin stops resolving live once its target moves.
+    ///
+    /// Every git-facing step reads [`SagaPlan::written_paths`], which drops these.
+    /// - the clean-at-HEAD guard, so a file the mutation never touches cannot
+    ///   reject it.
+    /// - the commit pathspec, so a human's uncommitted edit to it is never
+    ///   committed under the mutation's `Mutation-Id`.
+    /// - the compensating restore and the intent marker, so a rollback never
+    ///   resets it to HEAD and discards that edit.
     ///
     /// Empty for every mutation that writes everything it touches.
-    exempt_from_clean_check: std::collections::BTreeSet<PathBuf>,
+    not_written: std::collections::BTreeSet<PathBuf>,
+    /// Absolute paths in the member set that git ignores and has never tracked,
+    /// written OUTSIDE git.
+    ///
+    /// Such a path has no HEAD to be clean against, and git refuses to stage
+    /// it, so a commit naming one fails the whole mutation. [`SagaPlan::written_paths`]
+    /// drops these, so they leave every git step: the clean guard, the no-op
+    /// probe, the commit pathspec, the compensating restore, and the intent
+    /// marker's member paths. Still written, still recomputed. See
+    /// [[spec - git write path - commit-per-mutation as a local saga over the workspace's materialized repos#A git-ignored untracked path is written outside git]].
+    outside_git: std::collections::BTreeSet<PathBuf>,
     /// A caller-supplied opaque attribution payload, folded into every commit
     /// this saga makes as trailers beside `Mutation-Id`. Validated against the
     /// reserved keys at the handler boundary. Empty for a mutation carrying no
     /// attribution (and for every refactor today). See
     /// [[spec - git write path - commit-per-mutation as a local saga over the workspace's materialized repos]].
     attribution: Vec<crate::gitwriter::CommitTrailer>,
+    /// The directories the mutation creates or must keep, undone on rollback.
+    /// Empty for a mutation that touches no directory of its own.
+    dirs: DirJournal,
+    /// Why git could not classify the touched paths, when it could not.
+    ///
+    /// The saga refuses before opening, see [`saga_precondition_reject`]. A
+    /// path git cannot classify is one it cannot stage or restore either, e.g.
+    /// a path beyond a symlink, which `git status` still reports clean. The
+    /// clean guard and the no-op probe would pass it, and a rollback would
+    /// delete what it cannot restore.
+    unclassified: Option<String>,
+}
+
+/// The directories a saga acts on, journaled so a rollback puts the directory
+/// skeleton back as well as the files.
+///
+/// Git tracks files, never directories. Restoring the files brings back every
+/// directory that holds one, but not an empty directory the op removed, and it
+/// never removes an empty directory the op created. Worse, removing a created
+/// file prunes every parent it leaves empty, so a directory that existed, empty,
+/// before the op would vanish with it. The journal names both sides, planned
+/// before the saga opens, so the undo is right however far the write got.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct DirJournal {
+    /// Absolute directories the op creates. Undo removes each one left empty,
+    /// deepest first.
+    created: Vec<PathBuf>,
+    /// Absolute directories that must exist after an undo: each one the op
+    /// removes, and each existing one a created file's pruning could take.
+    kept: Vec<PathBuf>,
+}
+
+impl SagaPlan {
+    /// The paths of `m` this mutation writes THROUGH GIT, relative to its tree
+    /// root: its touched paths minus [`SagaPlan::not_written`] and
+    /// [`SagaPlan::outside_git`]. The one path set the clean guard, the commit,
+    /// the compensating restore, and the intent marker take.
+    ///
+    /// Empty when the member holds only paths the mutation does not write. A
+    /// caller skips such a member outright: an empty pathspec is NOT an empty
+    /// scope to git, `git status -- ` and `git commit -- ` with no path cover the
+    /// whole tree.
+    fn written_paths(&self, m: &SagaMember) -> Vec<PathBuf> {
+        m.paths
+            .iter()
+            .filter(|p| {
+                let abs = m.tree_root.join(p);
+                !self.not_written.contains(&abs) && !self.outside_git.contains(&abs)
+            })
+            .cloned()
+            .collect()
+    }
+}
+
+/// Run a mutation's pre-saga planning off the tokio thread. The saga plan
+/// spawns `git check-ignore`, and a refactor's not-written set reads every
+/// referrer; the write that follows already runs in its own blocking task.
+async fn off_thread<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+    tokio::task::spawn_blocking(f)
+        .await
+        .expect("planning task never panics")
+}
+
+/// A reference-rewriting refactor's saga plan, off the tokio thread: the
+/// not-written set over `referrers` (reads each one), the consumed-member
+/// reject over the rest, then [`resolve_saga_plan`] over `touched` carrying
+/// the not-written set. Shared by `promote`, `inline`, and the block-id rename.
+async fn refactor_saga_plan(
+    handle: &EngineHandle,
+    touched: Vec<PathBuf>,
+    referrers: BTreeMap<PathBuf, Vec<au_diagnostics::ByteRange>>,
+) -> Result<SagaPlan, crate::mutate::MutationReject> {
+    let h = handle.clone();
+    off_thread(move || {
+        let not_written = referrers_not_written(&referrers);
+        if let Some(reject) =
+            reject_if_consumed_referrers(&h, &written_referrers(&referrers, &not_written))
+        {
+            return Err(reject);
+        }
+        Ok(resolve_saga_plan_writing(&h, &touched, not_written))
+    })
+    .await
+}
+
+/// [`resolve_saga_plan`] off the tokio thread, for a handler with nothing else
+/// to plan.
+async fn saga_plan_off_thread(handle: &EngineHandle, targets: Vec<PathBuf>) -> SagaPlan {
+    let h = handle.clone();
+    off_thread(move || resolve_saga_plan(&h, &targets)).await
 }
 
 /// Resolve a mutation's member set from the absolute paths it touches.
@@ -3014,6 +3484,18 @@ struct SagaPlan {
 /// Members are tree-root-ordered and every name list is sorted, so the commit
 /// trailer's member list is deterministic.
 fn resolve_saga_plan(handle: &EngineHandle, targets: &[PathBuf]) -> SagaPlan {
+    resolve_saga_plan_writing(handle, targets, std::collections::BTreeSet::new())
+}
+
+/// [`resolve_saga_plan`] for a mutation that leaves some touched paths
+/// byte-identical, `not_written`, absolute. They stay members, so the rebuild
+/// recomputes them, but no gate asks git about them: a path the op never
+/// stages, commits, or restores cannot make it refuse.
+fn resolve_saga_plan_writing(
+    handle: &EngineHandle,
+    targets: &[PathBuf],
+    not_written: std::collections::BTreeSet<PathBuf>,
+) -> SagaPlan {
     // Stage one: absolute touched paths per owning repo.
     let by_repo = handle
         .read(|v| {
@@ -3033,13 +3515,61 @@ fn resolve_saga_plan(handle: &EngineHandle, targets: &[PathBuf]) -> SagaPlan {
         .value()
         .unwrap_or_default();
 
+    let members = coalesce_by_working_tree(by_repo);
+    let (outside_git, unclassified) = match classify_outside_git(&ShellGit, &members, &not_written)
+    {
+        Ok(set) => (set, None),
+        Err(why) => (std::collections::BTreeSet::new(), Some(why)),
+    };
     SagaPlan {
         mutation_id: crate::mutate::generate_mutation_id(),
-        members: coalesce_by_working_tree(by_repo),
-        exempt_from_clean_check: std::collections::BTreeSet::new(),
+        members,
+        not_written,
+        outside_git,
         // Set by a handler that carries a caller attribution payload.
         attribution: Vec::new(),
+        dirs: DirJournal::default(),
+        unclassified,
     }
+}
+
+/// The absolute paths across `members` that git ignores and has never tracked,
+/// the set [`SagaPlan::outside_git`] carries.
+///
+/// One `check-ignore` per git member over the touched paths it writes, both
+/// sides of a move classified independently. A `not_written` path is never
+/// staged, committed, or restored, so it is not asked about. A non-git member has no ignore rules to
+/// consult, its paths are already written without committing.
+///
+/// A classification that fails is an error, never a guess either way.
+/// - guessing "outside git" would drop the path from the clean guard unchecked.
+/// - guessing "git-recorded" trusts a gate git passes silently: a path beyond a
+///   symlink fails `check-ignore`, reads clean to `git status`, then fails
+///   `git add`, and a rollback deletes what it cannot restore.
+///
+/// So the caller refuses the mutation, see [`SagaPlan::unclassified`].
+fn classify_outside_git(
+    git: &impl GitWriter,
+    members: &[SagaMember],
+    not_written: &std::collections::BTreeSet<PathBuf>,
+) -> Result<std::collections::BTreeSet<PathBuf>, String> {
+    let mut out = std::collections::BTreeSet::new();
+    for m in members.iter().filter(|m| m.git) {
+        let written: Vec<PathBuf> = m
+            .paths
+            .iter()
+            .filter(|p| !not_written.contains(&m.tree_root.join(p)))
+            .cloned()
+            .collect();
+        if written.is_empty() {
+            continue;
+        }
+        let ignored = git
+            .ignored_untracked(&m.tree_root, &written)
+            .map_err(|e| e.message)?;
+        out.extend(ignored.into_iter().map(|p| m.tree_root.join(p)));
+    }
+    Ok(out)
 }
 
 /// The referrers a refactor will NOT write: those whose every reference is
@@ -3061,6 +3591,47 @@ fn referrers_not_written(
         .filter(|(path, spans)| match std::fs::read_to_string(path) {
             Ok(content) => !crate::rename::would_rewrite(&content, spans),
             Err(_) => false,
+        })
+        .map(|(path, _)| path.clone())
+        .collect()
+}
+
+/// The referrers a file MOVE will NOT write: those it leaves byte-identical.
+///
+/// Answers from [`crate::rename::move_rewrite`], the same predicate the
+/// committing write and the rename preview use. That is wider than
+/// [`referrers_not_written`]: a move keeping the file's name re-emits a bare
+/// `[[name]]` identically, so a referrer holding only bare-name links is not
+/// written either, not only an all-pinned one.
+///
+/// Conservative in the failure direction, each case stays WRITABLE, so it stays
+/// gated:
+/// - an unreadable referrer.
+/// - a referrer whose bytes drifted from the held hash, its spans are unreliable.
+/// - a rewrite error, the write will reject with the message.
+///
+/// The moved file itself is never not-written, whatever its self-references do:
+/// the move deletes it at `moved`, so it must ride the commit.
+fn move_referrers_not_written(
+    referrers: &BTreeMap<PathBuf, Vec<au_diagnostics::ByteRange>>,
+    held: &BTreeMap<PathBuf, Option<crate::ir::ContentHash>>,
+    moved: &Path,
+    old_rel: &Path,
+    new_rel: &Path,
+) -> std::collections::BTreeSet<PathBuf> {
+    referrers
+        .iter()
+        .filter(|(path, _)| path.as_path() != moved)
+        .filter(|(path, spans)| {
+            let Ok(content) = std::fs::read_to_string(path) else {
+                return false;
+            };
+            let hash = crate::ir::ContentHash::of(content.as_bytes());
+            held.get(*path).copied().flatten() == Some(hash)
+                && matches!(
+                    crate::rename::move_rewrite(&content, spans, old_rel, new_rel),
+                    Ok(None)
+                )
         })
         .map(|(path, _)| path.clone())
         .collect()
@@ -3287,12 +3858,45 @@ fn moves_for(repo_root: &Path, old_rel: &Path, new_rel: &Path) -> MovesByTree {
     moves
 }
 
-/// The commits a saga made, one per committing member, each paired with the repo
-/// that committed it. Name-sorted by member. Empty when nothing committed (every
-/// member off-git, or a no-op that wrote nothing). The mutate result projects
-/// this as `commits: { [repo]: sha }`, and derives the `commit` scalar from the
-/// response file's own repo.
-type SagaCommits = Vec<(crate::repo::RepoName, CommitSha)>;
+/// What a settled saga reports: the commits it made and the paths it wrote
+/// outside any commit.
+#[derive(Debug, Default)]
+struct SagaCommits {
+    /// One commit per committing member, each paired with the repo that
+    /// committed it. Name-sorted by member. Empty when nothing committed (every
+    /// member off-git, or a no-op that wrote nothing). The mutate result
+    /// projects this as `commits: { [repo]: sha }`, and derives the `commit`
+    /// scalar from the response file's own repo.
+    commits: Vec<(crate::repo::RepoName, CommitSha)>,
+    /// The paths written outside git, absolute and path-sorted, see
+    /// [`saga_untracked_files`]. The mutate result's `untracked_files`.
+    untracked_files: Vec<PathBuf>,
+}
+
+impl SagaCommits {
+    fn iter(&self) -> std::slice::Iter<'_, (crate::repo::RepoName, CommitSha)> {
+        self.commits.iter()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.commits.is_empty()
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.commits.len()
+    }
+}
+
+/// The paths a saga writes outside git: the ignored, untracked paths it
+/// writes, absolute and path-sorted. A path it only recomputes is not listed.
+/// Shared by the committing saga and the preview, so the two report one set.
+fn saga_untracked_files(plan: &SagaPlan) -> Vec<PathBuf> {
+    plan.outside_git
+        .difference(&plan.not_written)
+        .cloned()
+        .collect()
+}
 
 /// `apply_saga` for a mutation that records no moves, the common case.
 ///
@@ -3319,6 +3923,54 @@ fn apply_saga<T>(
     )
 }
 
+/// Every precondition a saga checks before it opens, `None` when all hold.
+///
+/// - git classified every touched path, see [`SagaPlan::unclassified`].
+/// - with `require_git`, a git working tree covers every member, see
+///   [`require_git_reject`].
+///
+/// The one gate [`apply_saga_with_moves`] runs, and every preview runs it with
+/// its op's `require_git`, so a preview refuses where the mutation would.
+fn saga_precondition_reject(plan: &SagaPlan, require_git: bool) -> Option<MutationReject> {
+    if let Some(why) = &plan.unclassified {
+        return Some(MutationReject::new(format!(
+            "git cannot classify a path this mutation writes, so it could neither stage nor roll it back ({why}). Refusing. A path under a symlinked directory is the usual cause"
+        )));
+    }
+    if require_git {
+        return require_git_reject(plan);
+    }
+    None
+}
+
+/// The require-git precondition, `None` when it holds.
+///
+/// A structural refactor rewrites references across its member set and a folder
+/// op acts file by file, and both compensate git-only (revert-by-checkout), so a
+/// member written mid-saga with no working tree to revert could not be rolled
+/// back. An all-or-nothing reject before the saga opens, never a half-apply.
+///
+/// A member nested inside a larger working tree IS covered by it, so this
+/// refuses only a member with no enclosing tree anywhere, not every repo lacking
+/// a `.git` of its own. A member holding only paths the op leaves byte-identical
+/// is never written, so it has nothing to roll back and never refuses. Shared by
+/// the saga and the previews of the ops it binds, so a preview refuses where the
+/// op would.
+fn require_git_reject(plan: &SagaPlan) -> Option<MutationReject> {
+    let non_git: Vec<&str> = plan
+        .members
+        .iter()
+        .filter(|m| !m.git && !plan.written_paths(m).is_empty())
+        .flat_map(|m| m.repo_names.iter().map(|n| n.as_str()))
+        .collect();
+    (!non_git.is_empty()).then(|| {
+        MutationReject::new(format!(
+            "mutation spans a member no git working tree covers ({}): compensation is git-only, so a mid-saga failure could not be rolled back. Refusing. Put it under a working tree, its own root or any ancestor",
+            non_git.join(", ")
+        ))
+    })
+}
+
 /// Apply a mutation as one local saga over its member set: the cross-repo
 /// clean-at-HEAD precondition, the durable intent marker, the write, then
 /// commit-each-correlated, with git as the compensation on failure. Returns the
@@ -3340,27 +3992,8 @@ fn apply_saga_with_moves<T>(
     require_git: bool,
     write: impl FnOnce() -> Result<T, MutationReject>,
 ) -> Result<(T, SagaCommits), MutationReject> {
-    // Require-git precondition: a structural refactor rewrites references across
-    // its member set and compensates git-only (revert-by-checkout), so a member
-    // written mid-saga with no working tree to revert could not be rolled back.
-    // An all-or-nothing reject before the saga opens, never a half-apply.
-    //
-    // A member nested inside a larger working tree IS covered by it, so this
-    // refuses only a member with no enclosing tree anywhere, not every repo
-    // lacking a `.git` of its own.
-    if require_git {
-        let non_git: Vec<&str> = plan
-            .members
-            .iter()
-            .filter(|m| !m.git)
-            .flat_map(|m| m.repo_names.iter().map(|n| n.as_str()))
-            .collect();
-        if !non_git.is_empty() {
-            return Err(MutationReject::new(format!(
-                "refactor spans a member no git working tree covers ({}): compensation is git-only, so a mid-saga failure could not be rolled back. Refusing. Put it under a working tree, its own root or any ancestor",
-                non_git.join(", ")
-            )));
-        }
+    if let Some(reject) = saga_precondition_reject(plan, require_git) {
+        return Err(reject);
     }
 
     // Only git working trees commit; a non-git member is written but not committed.
@@ -3386,12 +4019,7 @@ fn apply_saga_with_moves<T>(
         // Only the paths the mutation will actually write. A referrer the
         // refactor leaves byte-identical cannot have its work clobbered, so
         // gating on it would let a file the mutation never touches reject it.
-        let checked: Vec<PathBuf> = m
-            .paths
-            .iter()
-            .filter(|p| !plan.exempt_from_clean_check.contains(&m.tree_root.join(p)))
-            .cloned()
-            .collect();
+        let checked = plan.written_paths(m);
         if checked.is_empty() {
             continue;
         }
@@ -3405,8 +4033,18 @@ fn apply_saga_with_moves<T>(
         }
     }
 
+    // Park every outside-git path's prior state BEFORE the marker names it, so
+    // the marker never points at a half-written copy.
+    let preimages = park_preimages(marker_dir, plan).map_err(|e| {
+        drop_preimages(marker_dir, &plan.mutation_id);
+        MutationReject::new(format!(
+            "could not open the saga: parking a path outside git failed: {e}"
+        ))
+    })?;
+
     // Open the saga: write the intent marker before any working tree is touched.
-    let marker = write_intent_marker(marker_dir, plan).map_err(|e| {
+    let marker = write_intent_marker(marker_dir, plan, &preimages).map_err(|e| {
+        drop_preimages(marker_dir, &plan.mutation_id);
         MutationReject::new(format!(
             "could not open the saga: intent marker write failed: {e}"
         ))
@@ -3421,9 +4059,14 @@ fn apply_saga_with_moves<T>(
         &summary,
         moves,
         marker_dir,
+        &preimages,
         write,
     );
+    // The marker first, then the parked copies: a crash between the two leaves
+    // orphaned copies the next startup sweeps, never a marker whose copies are
+    // gone.
     remove_intent_marker(&marker);
+    drop_preimages(marker_dir, &plan.mutation_id);
     outcome
 }
 
@@ -3439,6 +4082,7 @@ fn settle_saga<T>(
     summary: &str,
     moves: &MovesByTree,
     marker_dir: &Path,
+    preimages: &[Preimage],
     write: impl FnOnce() -> Result<T, MutationReject>,
 ) -> Result<(T, SagaCommits), MutationReject> {
     let mutation_id = MutationId(plan.mutation_id.clone());
@@ -3448,7 +4092,9 @@ fn settle_saga<T>(
     let value = match write() {
         Ok(v) => v,
         Err(reject) => {
-            let errors = compensate(git, &[], git_members, &mutation_id);
+            let mut errors = compensate(git, &[], git_members, plan, &mutation_id);
+            errors.extend(restore_preimages(preimages));
+            errors.extend(undo_dirs(&plan.dirs));
             return Err(note_incomplete_rollback(
                 marker_dir,
                 &plan.mutation_id,
@@ -3459,31 +4105,35 @@ fn settle_saga<T>(
     };
 
     // Commit each member, correlated by the shared Mutation-Id.
-    let mut commits: SagaCommits = Vec::new();
+    let mut commits = SagaCommits {
+        commits: Vec::new(),
+        untracked_files: saga_untracked_files(plan),
+    };
     let mut committed: Vec<&SagaMember> = Vec::new();
     for m in git_members {
         // A no-op write leaves the member's paths clean at HEAD: no diff to
         // commit. Skip it rather than letting `git commit` fail on an empty diff,
         // the spec's "a no-op write makes no commit". An is_clean error is not a
         // clean signal, so fall through and let the commit decide.
-        if git.is_clean(&m.tree_root, &m.paths).unwrap_or(false) {
+        let written = plan.written_paths(m);
+        if written.is_empty() || git.is_clean(&m.tree_root, &written).unwrap_or(false) {
             continue;
         }
         let message = CommitMessage {
             summary: summary.to_string(),
             mutation_id: mutation_id.clone(),
             members: member_names.to_vec(),
-            moves: moves.get(&m.tree_root).cloned().unwrap_or_default(),
+            moves: committed_moves(moves, plan, &m.tree_root),
             reverts: None,
             attribution: plan.attribution.clone(),
         };
-        match git.commit(&m.tree_root, &m.paths, &message) {
+        match git.commit(&m.tree_root, &written, &message) {
             Ok(sha) => {
                 // The wire serves `commits: { [repo]: sha }`, so every repo this
                 // tree covers names the one commit that carries its change. A
                 // coalesced member yields several entries sharing a sha.
                 for name in &m.repo_names {
-                    commits.push((name.clone(), sha.clone()));
+                    commits.commits.push((name.clone(), sha.clone()));
                 }
                 committed.push(*m);
             }
@@ -3491,7 +4141,9 @@ fn settle_saga<T>(
                 // Compensate: revert those already committed by Mutation-Id, then
                 // restore every member's paths to HEAD. A compensation error is
                 // recorded durably, never swallowed.
-                let errors = compensate(git, &committed, git_members, &mutation_id);
+                let mut errors = compensate(git, &committed, git_members, plan, &mutation_id);
+                errors.extend(restore_preimages(preimages));
+                errors.extend(undo_dirs(&plan.dirs));
                 let reject = MutationReject::new(format!("commit failed: {}", e.message));
                 return Err(note_incomplete_rollback(
                     marker_dir,
@@ -3503,6 +4155,209 @@ fn settle_saga<T>(
         }
     }
     Ok((value, commits))
+}
+
+/// The marker line tag for a path written outside git. Never an absolute path,
+/// so it cannot collide with a member line's tree root.
+const PREIMAGE_LINE: &str = "preimage";
+
+/// The marker line tag for a directory the saga creates, see [`DirJournal`].
+const DIR_CREATED_LINE: &str = "dir-created";
+
+/// The marker line tag for a directory a rollback must leave in place.
+const DIR_KEPT_LINE: &str = "dir-kept";
+
+/// Put a saga's directory skeleton back, after its files are restored, returning
+/// the directories it could not. Removes each created directory left empty,
+/// deepest first, then ensures every kept one exists. Both halves are idempotent,
+/// so a partial write, a repeat after a crash mid-rollback, and a directory the
+/// write never reached all land the same skeleton.
+///
+/// A created directory still holding something after the files are restored
+/// holds content the saga did not write, so it is left in place and reported,
+/// never removed.
+fn undo_dirs(journal: &DirJournal) -> Vec<(PathBuf, String)> {
+    let mut errors = Vec::new();
+    let mut created = journal.created.clone();
+    created.sort();
+    // Reverse path order visits every child before its parent.
+    for dir in created.iter().rev() {
+        match std::fs::remove_dir(dir) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => errors.push((
+                dir.clone(),
+                format!("removing a directory the saga created failed: {e}"),
+            )),
+        }
+    }
+    for dir in &journal.kept {
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            errors.push((
+                dir.clone(),
+                format!("recreating a directory the saga removed failed: {e}"),
+            ));
+        }
+    }
+    errors
+}
+
+/// A marker directory line back into the journal it belongs to, `false` for any
+/// other line.
+fn parse_dir_line(line: &str, journal: &mut DirJournal) -> bool {
+    let Some((tag, path)) = line.split_once('\t') else {
+        return false;
+    };
+    match tag {
+        DIR_CREATED_LINE => journal.created.push(PathBuf::from(path)),
+        DIR_KEPT_LINE => journal.kept.push(PathBuf::from(path)),
+        _ => return false,
+    }
+    true
+}
+
+/// One path the saga writes outside git, and how to put it back.
+///
+/// Git cannot roll such a path back, it has no HEAD, so the saga parks its
+/// prior state before the write: a copy of its bytes when it exists, nothing
+/// when it does not. One rule covers every op without knowing which ran, a
+/// move parks the source and records the destination absent, an overwrite or a
+/// delete parks the file, a creation records it absent. See
+/// [[spec - git write path - commit-per-mutation as a local saga over the workspace's materialized repos#A git-ignored untracked path is written outside git]].
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Preimage {
+    /// The working tree the path sits in.
+    tree_root: PathBuf,
+    /// The path, relative to `tree_root`.
+    path: PathBuf,
+    /// The parked copy of its prior bytes, `None` when it did not exist.
+    parked: Option<PathBuf>,
+}
+
+/// The directory a saga parks its outside-git copies in, beside the marker.
+fn preimage_dir(marker_dir: &Path, mutation_id: &str) -> PathBuf {
+    marker_dir.join(format!("preimage.{mutation_id}"))
+}
+
+/// Park the prior state of every path the saga writes outside git, before any
+/// is touched. A path the saga does not write is skipped, restoring it would
+/// discard a human's edit. Each copy is fsynced, so a crash after the marker
+/// names it finds the whole prior bytes.
+fn park_preimages(marker_dir: &Path, plan: &SagaPlan) -> std::io::Result<Vec<Preimage>> {
+    let dir = preimage_dir(marker_dir, &plan.mutation_id);
+    let mut out = Vec::new();
+    for m in plan.members.iter().filter(|m| m.git) {
+        for p in &m.paths {
+            let abs = m.tree_root.join(p);
+            if !plan.outside_git.contains(&abs) || plan.not_written.contains(&abs) {
+                continue;
+            }
+            let parked = if abs.is_file() {
+                crate::ignored_dir::ensure_git_ignored_dir(marker_dir)?;
+                std::fs::create_dir_all(&dir)?;
+                let copy = dir.join(out.len().to_string());
+                std::fs::copy(&abs, &copy)?;
+                std::fs::File::open(&copy)?.sync_all()?;
+                Some(copy)
+            } else {
+                None
+            };
+            out.push(Preimage {
+                tree_root: m.tree_root.clone(),
+                path: p.clone(),
+                parked,
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// Put every outside-git path back to its parked state, returning the paths it
+/// could not restore. A parked copy is copied back, never moved, so restoring
+/// twice (a crash mid-rollback, then recovery) lands the same bytes. A path
+/// that did not exist is removed, with the empty directories its creation left.
+fn restore_preimages(preimages: &[Preimage]) -> Vec<(PathBuf, String)> {
+    let mut errors = Vec::new();
+    for pi in preimages {
+        let abs = pi.tree_root.join(&pi.path);
+        let restored = match &pi.parked {
+            Some(parked) => abs
+                .parent()
+                .map_or(Ok(()), std::fs::create_dir_all)
+                .and_then(|()| std::fs::copy(parked, &abs).map(|_| ())),
+            None => match std::fs::remove_file(&abs) {
+                Ok(()) => {
+                    crate::gitwriter::prune_empty_parents(&pi.tree_root, &pi.path);
+                    Ok(())
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(e) => Err(e),
+            },
+        };
+        if let Err(e) = restored {
+            errors.push((abs, format!("restoring the path outside git failed: {e}")));
+        }
+    }
+    errors
+}
+
+/// Drop a saga's parked copies, once nothing can need them.
+fn drop_preimages(marker_dir: &Path, mutation_id: &str) {
+    let _ = std::fs::remove_dir_all(preimage_dir(marker_dir, mutation_id));
+}
+
+/// Drop every saga's parked copies, the startup sweep after recovery.
+fn sweep_preimages(marker_dir: &Path) {
+    let Ok(entries) = std::fs::read_dir(marker_dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if entry.file_name().to_string_lossy().starts_with("preimage.") {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+/// A marker `preimage` line back into its [`Preimage`], `None` for any other
+/// line.
+fn parse_preimage_line(line: &str) -> Option<Preimage> {
+    let mut fields = line.split('\t');
+    if fields.next()? != PREIMAGE_LINE {
+        return None;
+    }
+    let tree_root = PathBuf::from(fields.next()?);
+    let path = PathBuf::from(fields.next()?);
+    let parked = fields.next().filter(|s| !s.is_empty()).map(PathBuf::from);
+    Some(Preimage {
+        tree_root,
+        path,
+        parked,
+    })
+}
+
+/// The `Moved:` records a member's commit carries: its tree's moves, minus any
+/// with either side outside git. A source git never tracked has no committed
+/// history for a forward trace to follow from, and a destination git never
+/// records has none to follow to, so either record would chain through a path
+/// history does not hold.
+fn committed_moves(
+    moves: &MovesByTree,
+    plan: &SagaPlan,
+    tree_root: &Path,
+) -> Vec<crate::gitwriter::MovedRecord> {
+    moves
+        .get(tree_root)
+        .map(|records| {
+            records
+                .iter()
+                .filter(|r| {
+                    !plan.outside_git.contains(&tree_root.join(&r.from))
+                        && !plan.outside_git.contains(&tree_root.join(&r.to))
+                })
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// The saga intent marker's file name under [`saga_marker_dir`]. The write
@@ -3524,8 +4379,11 @@ fn saga_marker_dir(root: &Path) -> PathBuf {
 /// path so the caller closes it on settle.
 ///
 /// Format: a `mutation-id=<id>` line, then one line per committing member, the
-/// member's absolute WORKING-TREE root, then its touched tree-relative paths,
-/// all tab-separated. One line per tree, so a member covering several repos of a
+/// member's absolute WORKING-TREE root, then the tree-relative paths it writes,
+/// all tab-separated. Then one `preimage` line per path written outside git,
+/// its tree root, its tree-relative path, and its parked copy (empty when the
+/// path did not exist), see [`Preimage`]. Then one `dir-created` or `dir-kept`
+/// line per journaled directory, absolute, see [`DirJournal`]. One line per tree, so a member covering several repos of a
 /// monorepo records once, matching the one commit it makes. The per-member paths
 /// are what crash recovery path-restores a written-but-not-committed member by;
 /// the tree root makes recovery self-contained, no rebuilt IR needed. It records
@@ -3544,17 +4402,48 @@ fn saga_marker_dir(root: &Path) -> PathBuf {
 /// trees but before the first commit leaves dirty trees and zero trailers,
 /// indistinguishable from an unmediated edit without the marker. Crash recovery
 /// reads it back to compensate an interrupted saga.
-fn write_intent_marker(marker_dir: &Path, plan: &SagaPlan) -> std::io::Result<PathBuf> {
+fn write_intent_marker(
+    marker_dir: &Path,
+    plan: &SagaPlan,
+    preimages: &[Preimage],
+) -> std::io::Result<PathBuf> {
     use std::io::Write;
-    std::fs::create_dir_all(marker_dir)?;
+    crate::ignored_dir::ensure_git_ignored_dir(marker_dir)?;
     let mut body = format!("mutation-id={}\n", plan.mutation_id);
     for m in plan.members.iter().filter(|m| m.git) {
+        let written = plan.written_paths(m);
+        if written.is_empty() {
+            continue;
+        }
         body.push_str(&m.tree_root.to_string_lossy());
-        for p in &m.paths {
+        for p in &written {
             body.push('\t');
             body.push_str(&p.to_string_lossy());
         }
         body.push('\n');
+    }
+    for pi in preimages {
+        body.push_str(PREIMAGE_LINE);
+        body.push('\t');
+        body.push_str(&pi.tree_root.to_string_lossy());
+        body.push('\t');
+        body.push_str(&pi.path.to_string_lossy());
+        body.push('\t');
+        if let Some(parked) = &pi.parked {
+            body.push_str(&parked.to_string_lossy());
+        }
+        body.push('\n');
+    }
+    for (tag, dirs) in [
+        (DIR_CREATED_LINE, &plan.dirs.created),
+        (DIR_KEPT_LINE, &plan.dirs.kept),
+    ] {
+        for dir in dirs {
+            body.push_str(tag);
+            body.push('\t');
+            body.push_str(&dir.to_string_lossy());
+            body.push('\n');
+        }
     }
     let path = marker_dir.join(INTENT_MARKER_NAME);
     let mut file = std::fs::File::create(&path)?;
@@ -3617,6 +4506,9 @@ pub struct SagaRecoveryReport {
 pub fn recover_crashed_saga(root: &Path) -> SagaRecoveryReport {
     let marker_dir = saga_marker_dir(root);
     let recovered = recover_intent_marker(&marker_dir);
+    // Every parked copy is spent once the marker is processed, and one with no
+    // marker is an orphan of a crash between closing the marker and dropping it.
+    sweep_preimages(&marker_dir);
     let failures = scan_failure_sentinels(&marker_dir);
     SagaRecoveryReport {
         recovered,
@@ -3637,7 +4529,16 @@ fn recover_intent_marker(marker_dir: &Path) -> Option<SagaRecovery> {
     let mut reverted = Vec::new();
     let mut restored = Vec::new();
     let mut errors: Vec<(PathBuf, String)> = Vec::new();
+    let mut preimages = Vec::new();
+    let mut dirs = DirJournal::default();
     for line in lines {
+        if let Some(pi) = parse_preimage_line(line) {
+            preimages.push(pi);
+            continue;
+        }
+        if parse_dir_line(line, &mut dirs) {
+            continue;
+        }
         let mut fields = line.split('\t');
         let Some(root_str) = fields.next().filter(|s| !s.is_empty()) else {
             continue;
@@ -3658,6 +4559,8 @@ fn recover_intent_marker(marker_dir: &Path) -> Option<SagaRecovery> {
             Err(e) => errors.push((tree_root, format!("classify failed: {}", e.message))),
         }
     }
+    errors.extend(restore_preimages(&preimages));
+    errors.extend(undo_dirs(&dirs));
     if !errors.is_empty() {
         write_failure_sentinel(marker_dir, &mutation_id, &errors);
     }
@@ -3711,7 +4614,7 @@ fn failure_sentinel_name(mutation_id: &str) -> String {
 /// Best-effort: a sentinel write that fails cannot itself be compensated.
 fn write_failure_sentinel(marker_dir: &Path, mutation_id: &str, errors: &[(PathBuf, String)]) {
     use std::io::Write;
-    if std::fs::create_dir_all(marker_dir).is_err() {
+    if crate::ignored_dir::ensure_git_ignored_dir(marker_dir).is_err() {
         return;
     }
     let mut body = format!("mutation-id={mutation_id}\n");
@@ -3750,7 +4653,7 @@ fn note_incomplete_rollback(
 /// Roll a failed saga back, returning the per-member errors it could not
 /// compensate. Each already-committed member is reverted by its `Mutation-Id`
 /// (idempotent, race-free against a concurrent human commit), then every member's
-/// touched paths are restored to HEAD. Restoring a committed-then-reverted member
+/// written paths ([`SagaPlan::written_paths`]) are restored to HEAD. Restoring a committed-then-reverted member
 /// is a no-op, so passing all members is safe and removes the need to track which
 /// were written-with-changes (a no-op write skips its commit but stays in the
 /// member list).
@@ -3762,6 +4665,7 @@ fn compensate(
     git: &impl GitWriter,
     committed: &[&SagaMember],
     members: &[&SagaMember],
+    plan: &SagaPlan,
     mutation_id: &MutationId,
 ) -> Vec<(PathBuf, String)> {
     let mut errors = Vec::new();
@@ -3771,7 +4675,13 @@ fn compensate(
         }
     }
     for m in members {
-        if let Err(e) = git.restore_paths(&m.tree_root, &m.paths) {
+        // Only what the mutation wrote. A path it never wrote may hold a human's
+        // uncommitted edit, and restoring it to HEAD would discard that work.
+        let written = plan.written_paths(m);
+        if written.is_empty() {
+            continue;
+        }
+        if let Err(e) = git.restore_paths(&m.tree_root, &written) {
             errors.push((
                 m.tree_root.clone(),
                 format!("restore failed: {}", e.message),
@@ -3809,46 +4719,11 @@ fn default_true() -> bool {
     true
 }
 
-/// One `ensure_mixins` entry's outcome, reported on the success response so a
-/// LENIENT skip is never silent
-/// ([[spec - ensure-mixin write directive - a governed write ensures a type-claim mixin idempotently, folded into the write's own commit]]).
-#[derive(Debug, Serialize)]
-struct MixinOutcome {
-    mixin: String,
-    /// `applied`, `no_op`, or `skipped`.
-    outcome: &'static str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    reason: Option<String>,
-}
-
-impl MixinOutcome {
-    fn applied(mixin: &str) -> Self {
-        Self {
-            mixin: mixin.to_string(),
-            outcome: "applied",
-            reason: None,
-        }
-    }
-    fn no_op(mixin: &str) -> Self {
-        Self {
-            mixin: mixin.to_string(),
-            outcome: "no_op",
-            reason: None,
-        }
-    }
-    fn skipped(mixin: &str, reason: String) -> Self {
-        Self {
-            mixin: mixin.to_string(),
-            outcome: "skipped",
-            reason: Some(reason),
-        }
-    }
-}
-
-/// Fold a write's `ensure_mixins` into the just-written file, in order, AFTER the
-/// stamps (so a mixin validates against the stamped content), returning the
-/// response hash and each entry's outcome. Runs INSIDE the write closure, so an
-/// applied mixin shares the write's commit. Under STRICT an un-appliable mixin
+/// Fold a write's `ensure_mixins` into the just-written file, AFTER the stamps (so
+/// a mixin validates against the stamped content), returning the response hash
+/// and each entry's outcome. Runs INSIDE the write closure, so an applied mixin
+/// shares the write's commit. The decision is [`crate::ensure_mixin::fold`], the
+/// same fold `preview_mutation` runs. Under STRICT an un-appliable mixin
 /// propagates a `MutationReject`, so the saga compensates and nothing lands;
 /// under LENIENT it is a reported skip and the write proceeds.
 fn fold_write_mixins(
@@ -3857,49 +4732,36 @@ fn fold_write_mixins(
     mixins: &[String],
     strict: bool,
     primary: crate::ir::ContentHash,
-) -> Result<(crate::ir::ContentHash, Vec<MixinOutcome>), crate::mutate::MutationReject> {
-    let mut hash = primary;
-    let mut outcomes = Vec::new();
-    for mixin in mixins {
-        // Re-read the just-written bytes, so a second mixin sees the first's claim.
-        let content = std::fs::read_to_string(target).map_err(|e| {
-            crate::mutate::MutationReject::new(format!(
-                "ensure_mixin could not read {} to fold into: {e}",
-                target.display()
-            ))
-        })?;
-        let decision =
-            match handle.read(|kb| crate::ensure_mixin::decide(kb, target, &content, mixin)) {
-                Read::Ready { value, .. } => value,
-                _ => {
-                    return Err(crate::mutate::MutationReject::new(
-                        "engine is not ready to resolve an ensure_mixin",
-                    ))
-                }
-            };
-        match decision {
-            crate::ensure_mixin::MixinDecision::NoOp => outcomes.push(MixinOutcome::no_op(mixin)),
-            crate::ensure_mixin::MixinDecision::Apply(new_content) => {
-                std::fs::write(target, &new_content).map_err(|e| {
-                    crate::mutate::MutationReject::new(format!(
-                        "ensure_mixin could not write {}: {e}",
-                        target.display()
-                    ))
-                })?;
-                hash = crate::ir::ContentHash::of(new_content.as_bytes());
-                outcomes.push(MixinOutcome::applied(mixin));
-            }
-            crate::ensure_mixin::MixinDecision::UnAppliable(reason) => {
-                if strict {
-                    return Err(crate::mutate::MutationReject::new(format!(
-                        "ensure_mixin '{mixin}' cannot be applied cleanly and ensure_mixins_strict is set: {reason}"
-                    )));
-                }
-                outcomes.push(MixinOutcome::skipped(mixin, reason));
-            }
-        }
+) -> Result<(crate::ir::ContentHash, Vec<wire::MixinOutcome>), crate::mutate::MutationReject> {
+    if mixins.is_empty() {
+        return Ok((primary, Vec::new()));
     }
-    Ok((hash, outcomes))
+    let content = std::fs::read_to_string(target).map_err(|e| {
+        crate::mutate::MutationReject::new(format!(
+            "ensure_mixin could not read {} to fold into: {e}",
+            target.display()
+        ))
+    })?;
+    let (folded, outcomes) = match handle
+        .read(|kb| crate::ensure_mixin::fold(kb, target, content.clone(), mixins, strict))
+    {
+        Read::Ready { value, .. } => value?,
+        _ => {
+            return Err(crate::mutate::MutationReject::new(
+                "engine is not ready to resolve an ensure_mixin",
+            ))
+        }
+    };
+    if folded == content {
+        return Ok((primary, outcomes));
+    }
+    std::fs::write(target, &folded).map_err(|e| {
+        crate::mutate::MutationReject::new(format!(
+            "ensure_mixin could not write {}: {e}",
+            target.display()
+        ))
+    })?;
+    Ok((crate::ir::ContentHash::of(folded.as_bytes()), outcomes))
 }
 
 /// Whether a `stamps` / `ensure_mixins` rider may ride this write's target, and
@@ -3924,7 +4786,9 @@ fn rider_target_reject(write_path: &Path) -> Option<crate::mutate::MutationRejec
 
 /// Project mixin outcomes into a mutation response's `extra` map, under
 /// `ensure_mixins`, omitted when the write carried none.
-fn mixin_outcomes_extra(outcomes: Vec<MixinOutcome>) -> serde_json::Map<String, serde_json::Value> {
+fn mixin_outcomes_extra(
+    outcomes: Vec<wire::MixinOutcome>,
+) -> serde_json::Map<String, serde_json::Value> {
     let mut extra = serde_json::Map::new();
     if !outcomes.is_empty() {
         extra.insert(
@@ -3970,7 +4834,7 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 Ok(a) => a,
                 Err(frame) => return frame,
             };
-            let mut plan = resolve_saga_plan(handle, &[write_path.clone()]);
+            let mut plan = saga_plan_off_thread(handle, vec![write_path.clone()]).await;
             plan.attribution = attribution;
             let marker_dir = saga_marker_dir(handle.root());
             let summary = format!("write_file {}", args.path);
@@ -4029,7 +4893,7 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 Ok(a) => a,
                 Err(frame) => return frame,
             };
-            let mut plan = resolve_saga_plan(handle, &[write_path.clone()]);
+            let mut plan = saga_plan_off_thread(handle, vec![write_path.clone()]).await;
             plan.attribution = attribution;
             let marker_dir = saga_marker_dir(handle.root());
             let summary = format!("edit_file {}", args.path);
@@ -4079,7 +4943,7 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 Ok(a) => a,
                 Err(frame) => return frame,
             };
-            let mut plan = resolve_saga_plan(handle, &[write_path.clone()]);
+            let mut plan = saga_plan_off_thread(handle, vec![write_path.clone()]).await;
             plan.attribution = attribution;
             let marker_dir = saga_marker_dir(handle.root());
             let summary = format!("delete_file {}", args.path);
@@ -4098,6 +4962,7 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 let last_live = crate::gitwriter::head_commit_fast(&blocking_path);
                 let ((), commits) =
                     apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {
+                        guard_unchanged_before_touch(&blocking_path, None)?;
                         crate::mutate::delete_file(&blocking_path, args.expected_hash.as_deref())
                     })?;
                 blocking_handle.rebuild_paths(saga_dirty_set(&plan));
@@ -4139,52 +5004,14 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 Ok(t) => t,
                 Err(frame) => return frame,
             };
-            // `rename` moves content/instance files. A type-def's name derives
-            // from its filename, so moving one renames the type and strands its
-            // claims — and the claims are not wikilinks, so the rewrite here
-            // would not touch them. That is `rename_type`'s job, not this.
-            if au_parser::classify_by_path(&from) == Some(au_parser::FileKind::TypeDef)
-                || au_parser::classify_by_path(&to) == Some(au_parser::FileKind::TypeDef)
-            {
-                return mutation_reject_frame(crate::mutate::MutationReject::new(
-                    "rename does not move type-def files — a type-def's name derives from its \
-                     filename; use rename_type",
-                ));
-            }
-            // Over the held knowledge base: the same-repo guard (v1 moves within one
-            // repo), and the inbound referrers to rewrite — each source and the
-            // byte spans of its references to `from`, grouped by source. The
-            // index locates; the source on disk is the truth, re-read in the
-            // saga. A self-reference is included, so the moved file points at
-            // its new name.
-            let gathered = handle.read(|v| {
-                let (rf, rt) = match (v.repos.repo_of(&from), v.repos.repo_of(&to)) {
-                    (Some(rf), Some(rt)) => (rf, rt),
-                    _ => return Err("path or destination escapes the workspace".to_string()),
-                };
-                if rf.root != rt.root {
-                    return Err(
-                        "cross-repo rename is not supported yet — path and to must be in the same repo"
-                            .to_string(),
-                    );
-                }
-                // The repo-relative paths the references resolve against, so the
-                // rewrite can preserve each referrer's spelling mode.
-                let old_rel = from.strip_prefix(&rf.root).unwrap_or(&from).to_path_buf();
-                let new_rel = to.strip_prefix(&rf.root).unwrap_or(&to).to_path_buf();
-                let mut by_source: BTreeMap<PathBuf, Vec<au_diagnostics::ByteRange>> =
-                    BTreeMap::new();
-                let mut referrer_hashes: BTreeMap<PathBuf, Option<crate::ir::ContentHash>> =
-                    BTreeMap::new();
-                for bl in v.backlinks(&from) {
-                    by_source.entry(bl.source.clone()).or_default().push(bl.span);
-                    referrer_hashes
-                        .entry(bl.source.clone())
-                        .or_insert_with(|| v.catalog.get(&bl.source).and_then(|e| e.hash));
-                }
-                Ok((rf.root.clone(), old_rel, new_rel, by_source, referrer_hashes))
-            });
-            let (move_repo_root, old_rel, new_rel, referrers, referrer_hashes) = match gathered {
+            let gathered = handle.read(|v| plan_rename(v, &from, &to));
+            let RenamePlan {
+                repo_root: move_repo_root,
+                old_rel,
+                new_rel,
+                referrers,
+                referrer_hashes,
+            } = match gathered {
                 crate::Read::Ready { value: Ok(g), .. } => g,
                 crate::Read::Ready {
                     value: Err(msg), ..
@@ -4201,16 +5028,47 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
             // touched set via the move, so it is not added twice.
             let mut touched = vec![from.clone(), to.clone()];
             touched.extend(referrers.keys().filter(|p| **p != from).cloned());
-            let not_written = referrers_not_written(&referrers);
-            // A referrer this rename would rewrite that lives in a consumed member
-            // rejects the whole refactor (GAP 2).
-            if let Some(reject) =
-                reject_if_consumed_referrers(handle, &written_referrers(&referrers, &not_written))
-            {
-                return mutation_reject_frame(reject);
-            }
-            let mut plan = resolve_saga_plan(handle, &touched);
-            plan.exempt_from_clean_check = not_written;
+            // A move that keeps the name leaves a bare `[[name]]` referrer
+            // byte-identical, so it is not written: not clean-gated, not
+            // consumed-member-gated, not committed. Still recomputed.
+            let planned = {
+                let h = handle.clone();
+                let (referrers, referrer_hashes) = (referrers.clone(), referrer_hashes.clone());
+                let (from, old_rel, new_rel) = (from.clone(), old_rel.clone(), new_rel.clone());
+                off_thread(move || {
+                    let not_written = move_referrers_not_written(
+                        &referrers,
+                        &referrer_hashes,
+                        &from,
+                        &old_rel,
+                        &new_rel,
+                    );
+                    // A referrer this rename would rewrite that lives in a consumed
+                    // member rejects the whole refactor.
+                    if let Some(reject) = reject_if_consumed_referrers(
+                        &h,
+                        &written_referrers(&referrers, &not_written),
+                    ) {
+                        return Err(reject);
+                    }
+                    Ok(resolve_saga_plan_writing(&h, &touched, not_written))
+                })
+                .await
+            };
+            let mut plan = match planned {
+                Ok(plan) => plan,
+                Err(reject) => return mutation_reject_frame(reject),
+            };
+            let not_written = plan.not_written.clone();
+            // The rollback removes the created destination and prunes each parent
+            // it leaves empty, so a parent that existed, empty, would vanish.
+            plan.dirs.kept = to
+                .ancestors()
+                .skip(1)
+                .find(|d| d.exists())
+                .map(Path::to_path_buf)
+                .into_iter()
+                .collect();
             let marker_dir = saga_marker_dir(handle.root());
             let summary = format!("rename {} -> {}", args.path, args.to);
             let blocking_handle = handle.clone();
@@ -4232,27 +5090,44 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                     &moves,
                     true,
                     || {
-                        // Rewrite every referrer first, then move the file.
+                        // Rewrite every referrer first, then move the file. The
+                        // moved file's own rewrite, when it self-references, is
+                        // the baseline its pre-move re-check compares against.
+                        let mut self_written: Option<String> = None;
                         for (path, spans) in &referrers {
                             let content = read_referrer_checked(
                                 path,
                                 referrer_hashes.get(path).copied().flatten(),
                             )?;
-                            let rewritten =
-                                crate::rename::rewrite_links(&content, spans, &old_rel, &new_rel)?;
-                            // A referrer whose every reference is commit-pinned
-                            // yields no edits, so the rewrite is byte-identical.
-                            // Writing it anyway costs a disk write and wakes the
-                            // watcher for a file that did not change.
-                            if rewritten != content {
-                                std::fs::write(path, rewritten).map_err(|e| {
-                                    crate::mutate::MutationReject::new(format!(
-                                        "cannot write referrer {}: {e}",
-                                        path.display()
-                                    ))
-                                })?;
+                            // A byte-identical rewrite is not written: a bare
+                            // `[[name]]` on a name-keeping move, or an all-pinned
+                            // referrer. Writing it anyway costs a disk write and
+                            // wakes the watcher for a file that did not change.
+                            let Some(rewritten) =
+                                crate::rename::move_rewrite(&content, spans, &old_rel, &new_rel)?
+                            else {
+                                continue;
+                            };
+                            // The plan left this path out of the clean guard and
+                            // the commit. Writing it now would land an
+                            // uncommitted change, so refuse instead.
+                            if not_written.contains(path) {
+                                return Err(crate::mutate::MutationReject::new(format!(
+                                    "referrer {} changed since the rename was planned — retry",
+                                    path.display()
+                                )));
+                            }
+                            std::fs::write(path, &rewritten).map_err(|e| {
+                                crate::mutate::MutationReject::new(format!(
+                                    "cannot write referrer {}: {e}",
+                                    path.display()
+                                ))
+                            })?;
+                            if *path == blocking_from {
+                                self_written = Some(rewritten);
                             }
                         }
+                        guard_unchanged_before_touch(&blocking_from, self_written.as_deref())?;
                         let written = crate::mutate::rename_file(&blocking_from, &blocking_to)?;
                         // Fold the stamps then the mixins into the RENAMED file,
                         // after the move, so they ride the rename's commit.
@@ -4282,6 +5157,8 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 ),
             }
         }
+        Mutation::MoveDir(args) => move_dir(handle, args).await,
+        Mutation::DeleteDir(args) => delete_dir(handle, args).await,
         Mutation::RenameType(args) => {
             // A rename_type cascades across the def file and every referrer, so it
             // has NO single target file for a stamp. It rejects any stamp here; when
@@ -4450,40 +5327,54 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 touched_set.insert(path.clone());
             }
             let touched: Vec<PathBuf> = touched_set.into_iter().collect();
-            let mut plan = resolve_saga_plan(handle, &touched);
-            // `rename_type` writes a referrer for either of two reasons, so being
-            // left unwritten needs both to be absent: a type-name CLAIM edit
-            // rewrites the file even when every wikilink in it is frozen.
-            {
-                let mut exempt: std::collections::BTreeSet<PathBuf> =
-                    std::collections::BTreeSet::new();
-                let mut written: std::collections::BTreeSet<PathBuf> =
-                    std::collections::BTreeSet::new();
-                for path in &referrers {
-                    let claim_edit = type_edits.get(path).is_some_and(|e| !e.is_empty());
-                    // Unreadable reads as WRITTEN, so it stays gated: guessing
-                    // exempt would write over uncommitted work unchecked.
-                    let link_edit = link_spans.get(path).is_some_and(|spans| {
-                        read_referrer_checked(path, referrer_hashes.get(path).copied().flatten())
+            let planned = {
+                let h = handle.clone();
+                let referrers = referrers.clone();
+                let (type_edits, link_spans) = (type_edits.clone(), link_spans.clone());
+                let referrer_hashes = referrer_hashes.clone();
+                off_thread(move || {
+                    // `rename_type` writes a referrer for either of two reasons, so
+                    // being left unwritten needs both to be absent: a type-name
+                    // CLAIM edit rewrites the file even when every wikilink in it
+                    // is frozen.
+                    let mut exempt: std::collections::BTreeSet<PathBuf> =
+                        std::collections::BTreeSet::new();
+                    let mut written: std::collections::BTreeSet<PathBuf> =
+                        std::collections::BTreeSet::new();
+                    for path in &referrers {
+                        let claim_edit = type_edits.get(path).is_some_and(|e| !e.is_empty());
+                        // Unreadable reads as WRITTEN, so it stays gated: guessing
+                        // exempt would write over uncommitted work unchecked.
+                        let link_edit = link_spans.get(path).is_some_and(|spans| {
+                            read_referrer_checked(
+                                path,
+                                referrer_hashes.get(path).copied().flatten(),
+                            )
                             .map(|c| crate::rename::would_rewrite(&c, spans))
                             .unwrap_or(true)
-                    });
-                    if claim_edit || link_edit {
-                        written.insert(path.clone());
-                    } else {
-                        exempt.insert(path.clone());
+                        });
+                        if claim_edit || link_edit {
+                            written.insert(path.clone());
+                        } else {
+                            exempt.insert(path.clone());
+                        }
                     }
-                }
-                exempt.retain(|p| !written.contains(p));
-                // A referrer this rename_type would rewrite (a claim edit or a live
-                // wikilink) that lives in a consumed member rejects the whole
-                // refactor (GAP 2). `written` is referrers only; the def file's own
-                // editability is gated earlier (GAP 1).
-                if let Some(reject) = reject_if_consumed_referrers(handle, &written) {
-                    return mutation_reject_frame(reject);
-                }
-                plan.exempt_from_clean_check = exempt;
-            }
+                    exempt.retain(|p| !written.contains(p));
+                    // A referrer this rename_type would rewrite (a claim edit or a
+                    // live wikilink) that lives in a consumed member rejects the
+                    // whole refactor. `written` is referrers only; the def
+                    // file's own editability is gated earlier.
+                    if let Some(reject) = reject_if_consumed_referrers(&h, &written) {
+                        return Err(reject);
+                    }
+                    Ok(resolve_saga_plan_writing(&h, &touched, exempt))
+                })
+                .await
+            };
+            let plan = match planned {
+                Ok(plan) => plan,
+                Err(reject) => return mutation_reject_frame(reject),
+            };
             let marker_dir = saga_marker_dir(handle.root());
             let summary = format!("rename_type {} -> {}", old_name.as_str(), new_name.as_str());
             // A rename records the def file's move for the pinned-reference
@@ -4503,9 +5394,11 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                     || {
                         // Rewrite every referrer (both surfaces merged) first, then
                         // relocate the def. A self-referencing def is rewritten under
-                        // its old name, then the file move carries it.
+                        // its old name, then the file move carries it; that rewrite
+                        // is the baseline its pre-move re-check compares against.
+                        let mut self_written: Option<String> = None;
                         for path in &referrers {
-                            rewrite_referrer(
+                            let wrote = rewrite_referrer(
                                 path,
                                 referrer_hashes.get(path).copied().flatten(),
                                 type_edits.get(path),
@@ -4513,7 +5406,11 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                                 &old_rel,
                                 &new_rel,
                             )?;
+                            if *path == blocking_from && wrote.is_some() {
+                                self_written = wrote;
+                            }
                         }
+                        guard_unchanged_before_touch(&blocking_from, self_written.as_deref())?;
                         crate::mutate::rename_file(&blocking_from, &blocking_to)
                     },
                 )?;
@@ -4753,17 +5650,12 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
             // host is already present when it is also a self-referrer).
             let mut touched = vec![from.clone(), to.clone()];
             touched.extend(located.referrers.keys().filter(|p| **p != from).cloned());
-            let not_written = referrers_not_written(&located.referrers);
             // A referrer this promote would rewrite that lives in a consumed member
-            // rejects the whole refactor (GAP 2).
-            if let Some(reject) = reject_if_consumed_referrers(
-                handle,
-                &written_referrers(&located.referrers, &not_written),
-            ) {
-                return mutation_reject_frame(reject);
-            }
-            let mut plan = resolve_saga_plan(handle, &touched);
-            plan.exempt_from_clean_check = not_written;
+            // rejects the whole refactor.
+            let plan = match refactor_saga_plan(handle, touched, located.referrers.clone()).await {
+                Ok(plan) => plan,
+                Err(reject) => return mutation_reject_frame(reject),
+            };
             let marker_dir = saga_marker_dir(handle.root());
             let summary = format!("promote {} -> {}", args.path, args.to);
             let blocking_handle = handle.clone();
@@ -5201,16 +6093,12 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
             }
             let mut touched = vec![into.clone(), file.clone()];
             touched.extend(cross.keys().filter(|p| **p != into && **p != file).cloned());
-            let not_written = referrers_not_written(&cross);
             // A cross-referrer this inline would rewrite that lives in a consumed
-            // member rejects the whole refactor (GAP 2).
-            if let Some(reject) =
-                reject_if_consumed_referrers(handle, &written_referrers(&cross, &not_written))
-            {
-                return mutation_reject_frame(reject);
-            }
-            let mut plan = resolve_saga_plan(handle, &touched);
-            plan.exempt_from_clean_check = not_written;
+            // member rejects the whole refactor.
+            let plan = match refactor_saga_plan(handle, touched, cross.clone()).await {
+                Ok(plan) => plan,
+                Err(reject) => return mutation_reject_frame(reject),
+            };
             let marker_dir = saga_marker_dir(handle.root());
             let summary = format!("inline {} into {}", args.path, args.into);
             let blocking_handle = handle.clone();
@@ -5364,6 +6252,7 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                         }
                         // Write the host with the folded record, then delete the file.
                         let written = crate::mutate::write_file(&blocking_into, &into_after, None)?;
+                        guard_unchanged_before_touch(&blocking_file, None)?;
                         std::fs::remove_file(&blocking_file).map_err(|e| {
                             crate::mutate::MutationReject::new(format!(
                                 "cannot delete {}: {e}",
@@ -5488,16 +6377,12 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
             };
             let mut touched = vec![host.clone()];
             touched.extend(referrers.keys().filter(|p| **p != host).cloned());
-            let not_written = referrers_not_written(&referrers);
             // A referrer this block-id rename would rewrite that lives in a consumed
-            // member rejects the whole refactor (GAP 2).
-            if let Some(reject) =
-                reject_if_consumed_referrers(handle, &written_referrers(&referrers, &not_written))
-            {
-                return mutation_reject_frame(reject);
-            }
-            let mut plan = resolve_saga_plan(handle, &touched);
-            plan.exempt_from_clean_check = not_written;
+            // member rejects the whole refactor.
+            let plan = match refactor_saga_plan(handle, touched, referrers.clone()).await {
+                Ok(plan) => plan,
+                Err(reject) => return mutation_reject_frame(reject),
+            };
             let marker_dir = saga_marker_dir(handle.root());
             let summary = format!(
                 "rename block-id {} -> {} in {}",
@@ -5586,7 +6471,391 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
         Mutation::SetIgnores(args) => set_ignores(handle, args).await,
         Mutation::SetConfig(args) => set_config(handle, args).await,
         Mutation::Register(args) => register(handle, args).await,
+        Mutation::AddDep(args) => add_dep(handle, args).await,
+        Mutation::RemoveDep(args) => remove_dep(handle, args).await,
+        Mutation::AddWorkspaceMember(args) => add_workspace_member(handle, args).await,
+        Mutation::RemoveWorkspaceMember(args) => remove_workspace_member(handle, args).await,
+        Mutation::SetWorkspaceMemberRole(args) => set_workspace_member_role(handle, args).await,
+        Mutation::SetWorkspaceMemberDisabled(args) => {
+            set_workspace_member_disabled(handle, args).await
+        }
     }
+}
+
+/// Resolve an EDITABLE member root for a composition write. `root` names a
+/// declared member root; absent means the served entry. `Err` carries the exact
+/// frame to return: not-ready, the not-editable reject (a consumed member), or a
+/// no-such-member reject. The composition-verb prelude, mirroring
+/// `set_config_repo`'s member gate.
+fn resolve_editable_member_root(
+    handle: &EngineHandle,
+    root: Option<&str>,
+) -> Result<(PathBuf, crate::repo::RepoName), serde_json::Value> {
+    let want_root = root.map(|r| member_root_arg(handle.root(), r));
+    let resolved = handle.read(move |v| {
+        let m = match &want_root {
+            Some(p) => v.repos.by_root(p),
+            None => v.repos.entry(),
+        };
+        match m {
+            None => Ok(None),
+            Some(r) => {
+                let role = crate::wire::member_role(v, &r.name);
+                if role.editable() {
+                    Ok(Some((r.root.clone(), r.name.clone())))
+                } else {
+                    Err(not_editable_reject(&r.name, role))
+                }
+            }
+        }
+    });
+    match resolved.value() {
+        None => Err(serde_json::to_value(Response::not_ready()).expect("response serializes")),
+        Some(Err(reject)) => Err(mutation_reject_frame(reject)),
+        Some(Ok(None)) => Err(mutation_reject_frame(crate::mutate::MutationReject::new(
+            format!(
+                "no declared member root for `{}`",
+                root.unwrap_or("<entry>")
+            ),
+        ))),
+        Some(Ok(Some(r))) => Ok(r),
+    }
+}
+
+/// Run a COMPOSITION-sort write over `<member>/.arsumbris/<file>`: resolve the
+/// editable member, splice via `produce`, CAS-write, commit per mutation, then
+/// rebuild. A `.arsumbris/` path forces a full re-resolve (`classify_dirty` →
+/// `NeedsFull`), so the mounted set / identity change lands. The shared
+/// scaffolding for the composition-authorship verbs, the `set_config_repo` shape
+/// plus a rebuild (like `write_file`).
+///
+/// `produce` receives the current file content (`None` when the file is absent, so
+/// a create path can seed it) and the containing repo's name (for a `workspace.yaml`
+/// seed that must list its own repo in `edit:`). See
+/// [[spec - composition authorship - governed list verbs author workspace members and repo deps, rebuilding on change]].
+async fn composition_write(
+    handle: &EngineHandle,
+    root: Option<&str>,
+    file: &str,
+    summary: String,
+    expected_hash: Option<String>,
+    produce: impl FnOnce(Option<&str>, &Path, &str) -> Result<String, crate::mutate::MutationReject>
+        + Send
+        + 'static,
+) -> serde_json::Value {
+    let (member_root, member_name) = match resolve_editable_member_root(handle, root) {
+        Ok(r) => r,
+        Err(frame) => return frame,
+    };
+    let path = member_root.join(".arsumbris").join(file);
+    let plan = saga_plan_off_thread(handle, vec![path.clone()]).await;
+    let marker_dir = saga_marker_dir(handle.root());
+    let write_path = path.clone();
+    let containing = member_name.0;
+    let blocking_handle = handle.clone();
+    let outcome = tokio::task::spawn_blocking(move || {
+        let (hash, commits) = apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {
+            // Absent is `None`, so a create path seeds a fresh file; a real read
+            // error propagates as a reject.
+            let current = match std::fs::read_to_string(&write_path) {
+                Ok(s) => Some(s),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+                Err(e) => {
+                    return Err(crate::mutate::MutationReject::new(format!(
+                        "cannot read {}: {e}",
+                        write_path.display()
+                    )))
+                }
+            };
+            let new = produce(current.as_deref(), &write_path, &containing)?;
+            crate::mutate::write_file(&write_path, &new, expected_hash.as_deref())
+        })?;
+        // A `.arsumbris/` composition change re-resolves the whole mounted set.
+        blocking_handle.rebuild_paths(saga_dirty_set(&plan));
+        Ok::<_, crate::mutate::MutationReject>((hash, commits))
+    })
+    .await
+    .expect("mutation task never panics");
+    match outcome {
+        Err(reject) => mutation_reject_frame(reject),
+        Ok((hash, commits)) => mutation_response(handle, &path, Some(hash), commits),
+    }
+}
+
+/// The `add_dep` composition mutation: add a `{ name, remote?, ref? }` entry to a
+/// repo's `deps:`, authoring `<member>/.arsumbris/repo.yaml`. Does NOT fetch; the
+/// new peer stays `peer-unmounted` until `resolve`. A duplicate `name` rejects.
+async fn add_dep(handle: &EngineHandle, args: AddDepArgs) -> serde_json::Value {
+    let mut dep = serde_json::Map::new();
+    dep.insert("name".into(), serde_json::Value::String(args.name.clone()));
+    if let Some(remote) = args.remote {
+        dep.insert("remote".into(), serde_json::Value::String(remote));
+    }
+    if let Some(r) = args.ref_field {
+        dep.insert("ref".into(), serde_json::Value::String(r));
+    }
+    let element = serde_json::Value::Object(dep);
+    let mut m = serde_json::Map::new();
+    m.insert("name".into(), serde_json::Value::String(args.name.clone()));
+    let matcher = crate::mutate::ElementMatch::Fields(m);
+    composition_write(
+        handle,
+        args.root.as_deref(),
+        "repo.yaml",
+        format!("add_dep {}", args.name),
+        args.expected_hash,
+        move |content, path, _containing| {
+            // A repo always has a repo.yaml; None means it vanished mid-write.
+            let content = content
+                .ok_or_else(|| crate::mutate::MutationReject::new("repo.yaml is missing"))?;
+            crate::mutate::splice_append_element(content, path, "deps", &element, &matcher)
+        },
+    )
+    .await
+}
+
+/// The `remove_dep` composition mutation: remove a dep entry by name from a
+/// repo's `deps:`. An absent name rejects.
+async fn remove_dep(handle: &EngineHandle, args: RemoveDepArgs) -> serde_json::Value {
+    let mut m = serde_json::Map::new();
+    m.insert("name".into(), serde_json::Value::String(args.name));
+    let matcher = crate::mutate::ElementMatch::Fields(m);
+    composition_write(
+        handle,
+        args.root.as_deref(),
+        "repo.yaml",
+        "remove_dep".to_string(),
+        args.expected_hash,
+        move |content, path, _containing| {
+            let content = content
+                .ok_or_else(|| crate::mutate::MutationReject::new("repo.yaml is missing"))?;
+            crate::mutate::splice_remove_element(content, path, "deps", &matcher)
+        },
+    )
+    .await
+}
+
+/// The wire field name for a workspace member role.
+fn role_field(role: WorkspaceRole) -> &'static str {
+    match role {
+        WorkspaceRole::Edit => "edit",
+        WorkspaceRole::Discover => "discover",
+    }
+}
+
+/// The `add_workspace_member` composition mutation: add a member to a workspace's
+/// `edit:` or `discover:` list, authoring `<member>/.arsumbris/workspace.yaml`.
+/// Creates the file (seeded with the containing repo in `edit:`) when absent. A
+/// member already in EITHER list rejects (use `set_workspace_member_role` to
+/// change a role). The containing repo cannot be a `discover` member.
+async fn add_workspace_member(
+    handle: &EngineHandle,
+    args: AddWorkspaceMemberArgs,
+) -> serde_json::Value {
+    let target = role_field(args.role);
+    let other = role_field(args.role.other());
+    let name = args.name.clone();
+    composition_write(
+        handle,
+        args.root.as_deref(),
+        "workspace.yaml",
+        format!("add_workspace_member {name}"),
+        args.expected_hash,
+        move |content, path, containing| {
+            if matches!(args.role, WorkspaceRole::Discover) && name == containing {
+                return Err(crate::mutate::MutationReject::new(
+                    "the containing repo belongs in 'edit', not 'discover'",
+                ));
+            }
+            let element = serde_json::Value::String(name.clone());
+            let matcher = crate::mutate::ElementMatch::Scalar(element.clone());
+            match content {
+                // Create: seed a self-describing, self-complete workspace.yaml
+                // (the containing repo in edit:), then add the member to its role.
+                None => {
+                    let mut seed = format!(
+                        "type: au.engine.workspace::au-engine\n{}",
+                        crate::yaml_render::field(
+                            "edit",
+                            &serde_json::Value::Array(vec![serde_json::Value::String(
+                                containing.to_string()
+                            )]),
+                            0,
+                        )
+                    );
+                    if name != containing {
+                        seed = crate::mutate::splice_append_element(
+                            &seed, path, target, &element, &matcher,
+                        )?;
+                    }
+                    Ok(seed)
+                }
+                Some(content) => {
+                    // A member holds one role, so reject if it is already in the
+                    // other list; the mover is set_workspace_member_role.
+                    if crate::mutate::sequence_has(content, path, other, &matcher)? {
+                        return Err(crate::mutate::MutationReject::new(format!(
+                            "'{name}' is already a '{other}' member; use set_workspace_member_role to change its role"
+                        )));
+                    }
+                    crate::mutate::splice_append_element(content, path, target, &element, &matcher)
+                }
+            }
+        },
+    )
+    .await
+}
+
+/// The `remove_workspace_member` composition mutation: remove a member from
+/// `edit:` / `discover:`, every one holding it. An absent member rejects.
+///
+/// The containing repo cannot be removed: a `workspace.yaml` lists its own repo in
+/// `edit:`, so removing it would author `workspace-omits-containing-repo`. A
+/// member also named in the `disabled:` overlay leaves it in the same splice, so
+/// the removal never strands a `disabled-member-not-declared` entry.
+async fn remove_workspace_member(
+    handle: &EngineHandle,
+    args: RemoveWorkspaceMemberArgs,
+) -> serde_json::Value {
+    let name = args.name.clone();
+    composition_write(
+        handle,
+        args.root.as_deref(),
+        "workspace.yaml",
+        format!("remove_workspace_member {name}"),
+        args.expected_hash,
+        move |content, path, containing| {
+            let content = content.ok_or_else(|| {
+                crate::mutate::MutationReject::new("workspace.yaml is absent, nothing to remove")
+            })?;
+            if name == containing {
+                return Err(crate::mutate::MutationReject::new(format!(
+                    "'{name}' is the containing repo; a workspace.yaml lists its own repo in 'edit', so it cannot be removed"
+                )));
+            }
+            let matcher =
+                crate::mutate::ElementMatch::Scalar(serde_json::Value::String(name.clone()));
+            // The name leaves the workspace, so it leaves EVERY list holding it. A
+            // hand-authored role conflict (`edit:` and `discover:` both) would
+            // otherwise keep the name declared in the other list, and the
+            // `disabled:` drop below would silently re-mount it.
+            let mut removed = content.to_string();
+            let mut found = false;
+            for role in ["edit", "discover"] {
+                if crate::mutate::sequence_has(&removed, path, role, &matcher)? {
+                    removed = crate::mutate::splice_remove_element(&removed, path, role, &matcher)?;
+                    found = true;
+                }
+            }
+            if !found {
+                return Err(crate::mutate::MutationReject::new(format!(
+                    "'{name}' is not a workspace member, nothing to remove"
+                )));
+            }
+            if crate::mutate::sequence_has(&removed, path, "disabled", &matcher)? {
+                crate::mutate::splice_remove_element(&removed, path, "disabled", &matcher)
+            } else {
+                Ok(removed)
+            }
+        },
+    )
+    .await
+}
+
+/// The `set_workspace_member_role` composition mutation: move a member between
+/// `edit:` and `discover:` in one commit. Rejects if the member is absent, already
+/// in the target role, or (into `discover`) the containing repo.
+async fn set_workspace_member_role(
+    handle: &EngineHandle,
+    args: SetWorkspaceMemberRoleArgs,
+) -> serde_json::Value {
+    let target = role_field(args.role);
+    let source = role_field(args.role.other());
+    let name = args.name.clone();
+    composition_write(
+        handle,
+        args.root.as_deref(),
+        "workspace.yaml",
+        format!("set_workspace_member_role {name}"),
+        args.expected_hash,
+        move |content, path, containing| {
+            let content = content.ok_or_else(|| {
+                crate::mutate::MutationReject::new("workspace.yaml is absent, no member to re-role")
+            })?;
+            if matches!(args.role, WorkspaceRole::Discover) && name == containing {
+                return Err(crate::mutate::MutationReject::new(
+                    "the containing repo belongs in 'edit', not 'discover'",
+                ));
+            }
+            let element = serde_json::Value::String(name.clone());
+            let matcher = crate::mutate::ElementMatch::Scalar(element.clone());
+            crate::mutate::splice_move_element(content, path, source, target, &element, &matcher)
+        },
+    )
+    .await
+}
+
+/// The `set_workspace_member_disabled` composition mutation: add a member to, or
+/// remove it from, the workspace's `disabled:` overlay, in one commit.
+///
+/// Disabling needs a DECLARED member, one in `edit:` or `discover:`: the overlay
+/// silences a declared member, so an undeclared name would author
+/// `disabled-member-not-declared`. The containing repo cannot be disabled, it is
+/// the workspace's own home. Re-enabling needs the name present in `disabled:`,
+/// and removing the last one leaves `disabled: []`, the list-verb convention. The
+/// role lists are never touched, disabling overlays a role, it does not rewrite it.
+async fn set_workspace_member_disabled(
+    handle: &EngineHandle,
+    args: SetWorkspaceMemberDisabledArgs,
+) -> serde_json::Value {
+    let name = args.name.clone();
+    let disabled = args.disabled;
+    composition_write(
+        handle,
+        args.root.as_deref(),
+        "workspace.yaml",
+        format!(
+            "set_workspace_member_disabled {name} {}",
+            if disabled { "off" } else { "on" }
+        ),
+        args.expected_hash,
+        move |content, path, containing| {
+            let content = content.ok_or_else(|| {
+                crate::mutate::MutationReject::new(
+                    "workspace.yaml is absent, it declares no member to switch",
+                )
+            })?;
+            let element = serde_json::Value::String(name.clone());
+            let matcher = crate::mutate::ElementMatch::Scalar(element.clone());
+            if !disabled {
+                if !crate::mutate::sequence_has(content, path, "disabled", &matcher)? {
+                    return Err(crate::mutate::MutationReject::new(format!(
+                        "'{name}' is not disabled, nothing to re-enable"
+                    )));
+                }
+                return crate::mutate::splice_remove_element(content, path, "disabled", &matcher);
+            }
+            if name == containing {
+                return Err(crate::mutate::MutationReject::new(format!(
+                    "'{name}' is the containing repo; the workspace's own repo cannot be disabled"
+                )));
+            }
+            let declared = crate::mutate::sequence_has(content, path, "edit", &matcher)?
+                || crate::mutate::sequence_has(content, path, "discover", &matcher)?;
+            if !declared {
+                return Err(crate::mutate::MutationReject::new(format!(
+                    "'{name}' is not a declared member; list it in 'edit' or 'discover' before disabling it"
+                )));
+            }
+            if crate::mutate::sequence_has(content, path, "disabled", &matcher)? {
+                return Err(crate::mutate::MutationReject::new(format!(
+                    "'{name}' is already disabled"
+                )));
+            }
+            crate::mutate::splice_append_element(content, path, "disabled", &element, &matcher)
+        },
+    )
+    .await
 }
 
 /// The `register` config mutation: write or update one `{ name, remote, path }`
@@ -5788,7 +7057,7 @@ async fn set_config_machine(handle: &EngineHandle, ctx: SetConfigCtx) -> serde_j
                 "hash".into(),
                 serde_json::Value::String(crate::mutate::hash_hex(hash)),
             );
-            mutation_response_extra(handle, &path, None, Vec::new(), extra)
+            mutation_response_extra(handle, &path, None, SagaCommits::default(), extra)
         }
     }
 }
@@ -5803,15 +7072,18 @@ async fn set_config_repo(handle: &EngineHandle, ctx: SetConfigCtx) -> serde_json
     // Resolve the member root: an explicit `root` (a declared member), else the
     // served entry. The type is validated only where it resolves; the write itself
     // is store-and-advisory, never refused on a shape verdict.
-    let want_root = ctx.root.as_deref().map(|r| abs_arg(handle.root(), r));
+    let want_root = ctx
+        .root
+        .as_deref()
+        .map(|r| member_root_arg(handle.root(), r));
     // Resolve the owning member AND gate it on editability: repo-scope config is a
     // committed write into the member's `.arsumbris/`, so a consumed (`discover` /
     // `dep`) member is not the engine's to author, exactly like any other write.
     // `Ok(None)` names no member, `Err` is the not-editable reject.
     let resolved = handle.read(move |v| {
         let m = match &want_root {
-            Some(p) => v.repos.repos().iter().find(|r| &r.root == p),
-            None => v.repos.root(),
+            Some(p) => v.repos.by_root(p),
+            None => v.repos.entry(),
         };
         match m {
             None => Ok(None),
@@ -5843,7 +7115,7 @@ async fn set_config_repo(handle: &EngineHandle, ctx: SetConfigCtx) -> serde_json
             Err(e) => return mutation_reject_frame(crate::mutate::MutationReject::new(e)),
         };
 
-    let plan = resolve_saga_plan(handle, &[path.clone()]);
+    let plan = saga_plan_off_thread(handle, vec![path.clone()]).await;
     let marker_dir = saga_marker_dir(handle.root());
     let summary = format!("set_config {}/{}", ctx.consumer, ctx.file);
     let write_path = path.clone();
@@ -5906,19 +7178,17 @@ async fn set_config_repo(handle: &EngineHandle, ctx: SetConfigCtx) -> serde_json
 async fn set_ignores(handle: &EngineHandle, args: SetIgnoresArgs) -> serde_json::Value {
     // The caller `handle_mutation` already holds the write lock and gated on
     // readiness; re-taking the lock here would deadlock (it is not re-entrant).
-    // `root` must name a declared member root exactly (the `ignores` read
-    // surfaces it). A subdir or a path under no member rejects: the `.auignore`
-    // is per-member-root.
-    let member_root = abs_arg(handle.root(), &args.root);
+    // `root` must name a declared member root (the `ignores` read surfaces it),
+    // any spelling that canonicalizes to one. A subdir or a path under no member
+    // rejects: the `.auignore` is per-member-root.
+    let member_root = member_root_arg(handle.root(), &args.root);
     // Resolve the owning member AND gate on editability: `.auignore` is a committed
     // write into the member's `.arsumbris/`, so a consumed (`discover` / `dep`)
     // member is not the engine's to author. `None` names no member.
     let member = handle
         .read(|v| {
             v.repos
-                .repos()
-                .iter()
-                .find(|r| r.root == member_root)
+                .by_root(&member_root)
                 .map(|r| (r.name.clone(), crate::wire::member_role(v, &r.name)))
         })
         .value()
@@ -5946,7 +7216,7 @@ async fn set_ignores(handle: &EngineHandle, args: SetIgnoresArgs) -> serde_json:
 
     let auignore = member_root.join(".arsumbris").join(".auignore");
     let remove = args.patterns.is_empty();
-    let plan = resolve_saga_plan(handle, &[auignore.clone()]);
+    let plan = saga_plan_off_thread(handle, vec![auignore.clone()]).await;
     let marker_dir = saga_marker_dir(handle.root());
     let summary = format!("set_ignores {}", args.root);
 
@@ -5958,6 +7228,7 @@ async fn set_ignores(handle: &EngineHandle, args: SetIgnoresArgs) -> serde_json:
                 // excludes. An already-absent file is a clean no-op (the saga
                 // sees no diff and makes no commit), never the reject
                 // `delete_file` gives for a missing target.
+                guard_unchanged_before_touch(&auignore, None)?;
                 match std::fs::remove_file(&auignore) {
                     Ok(()) => Ok(()),
                     Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -6265,7 +7536,7 @@ async fn nested_record_saga(
     stamps: Vec<Stamp>,
     splice: impl FnOnce(&str) -> Result<String, crate::mutate::MutationReject> + Send + 'static,
 ) -> serde_json::Value {
-    let plan = resolve_saga_plan(handle, &[target.clone()]);
+    let plan = saga_plan_off_thread(handle, vec![target.clone()]).await;
     let marker_dir = saga_marker_dir(handle.root());
     let blocking_handle = handle.clone();
     let write_target = target.clone();
@@ -6432,7 +7703,7 @@ async fn assign_block_id(handle: &EngineHandle, args: AssignBlockIdArgs) -> serd
                 "ref".into(),
                 serde_json::Value::String(block_ref(handle, &target, id)),
             );
-            return mutation_response_extra(handle, &target, None, Vec::new(), extra);
+            return mutation_response_extra(handle, &target, None, SagaCommits::default(), extra);
         }
     }
 
@@ -6440,7 +7711,7 @@ async fn assign_block_id(handle: &EngineHandle, args: AssignBlockIdArgs) -> serd
     let blocking_target = target.clone();
     let at = args.at;
     let stamps = args.stamps;
-    let saga = resolve_saga_plan(handle, &[target.clone()]);
+    let saga = saga_plan_off_thread(handle, vec![target.clone()]).await;
     let marker_dir = saga_marker_dir(handle.root());
     let summary = format!("assign_block_id {}", args.path);
     let outcome = tokio::task::spawn_blocking(move || {
@@ -6624,7 +7895,120 @@ fn read_referrer_checked(
     Ok(content)
 }
 
-/// Rewrite one `rename_type` referrer in place. Merges the precomputed type-name
+/// The write-time re-check for a path the saga is about to MOVE or REMOVE,
+/// rejecting if it changed since the upfront clean sweep.
+///
+/// A referrer is guarded by [`read_referrer_checked`] as it is re-read for its
+/// rewrite. A moved or removed file is not re-read, a move relocates whatever
+/// bytes are on disk and a delete drops them, so a human edit landing between
+/// the sweep and the move would be carried to the new path and committed under
+/// the mutation's `Mutation-Id`, or silently deleted. This closes that window at
+/// the moment the path is touched.
+///
+/// The baseline is what the path should hold now:
+/// - `engine_wrote: None`, the path is untouched by this mutation so far, so it
+///   must still be clean at HEAD. HEAD, not a held hash, because an asset is
+///   catalogued unread and carries none.
+/// - `engine_wrote: Some(bytes)`, this mutation already rewrote it (a moved file
+///   with a self-reference), so it must still hold exactly those bytes.
+///
+/// A path under no git working tree has no clean-at-HEAD precondition at all,
+/// so it passes, as the upfront sweep does.
+fn guard_unchanged_before_touch(
+    path: &Path,
+    engine_wrote: Option<&str>,
+) -> Result<(), crate::mutate::MutationReject> {
+    let drifted = || {
+        crate::mutate::MutationReject::new(format!(
+            "{} changed since the mutation was planned — it has uncommitted changes; \
+             commit or discard them, then retry",
+            path.display()
+        ))
+    };
+    if let Some(expected) = engine_wrote {
+        let now = std::fs::read(path).map_err(|e| {
+            crate::mutate::MutationReject::new(format!("cannot read {}: {e}", path.display()))
+        })?;
+        return if now == expected.as_bytes() {
+            Ok(())
+        } else {
+            Err(drifted())
+        };
+    }
+    let Some(tree) = path.parent().and_then(crate::gitwriter::working_tree_of) else {
+        return Ok(());
+    };
+    let rel = path.strip_prefix(&tree).unwrap_or(path).to_path_buf();
+    match ShellGit.is_clean(&tree, &[rel]) {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(drifted()),
+        Err(e) => Err(crate::mutate::MutationReject::new(format!(
+            "git precondition failed: {}",
+            e.message
+        ))),
+    }
+}
+
+/// The write-time re-check for a folder op's files, batched: every path the op
+/// is about to move or remove, checked once, immediately before the move or
+/// removal phase, rather than one `git status` per file.
+///
+/// The same baselines as [`guard_unchanged_before_touch`].
+/// - a path this mutation already rewrote is byte-compared to those bytes, a
+///   read, not a git call.
+/// - every other path must still be clean at HEAD: one `is_clean` per working
+///   tree over all of them. A path under no working tree passes.
+///
+/// A dirty tree is re-checked path by path, so the reject names the file that
+/// drifted. The window between this check and the last file's move is the
+/// phase's own duration, where one-per-file checking paid a git process per
+/// file under the write lock.
+fn guard_unchanged_before_touch_all(
+    paths: &[(&Path, Option<&str>)],
+) -> Result<(), crate::mutate::MutationReject> {
+    let mut by_tree: BTreeMap<PathBuf, Vec<&Path>> = BTreeMap::new();
+    let mut tree_of: BTreeMap<PathBuf, Option<PathBuf>> = BTreeMap::new();
+    for (path, engine_wrote) in paths {
+        if engine_wrote.is_some() {
+            guard_unchanged_before_touch(path, *engine_wrote)?;
+            continue;
+        }
+        let Some(parent) = path.parent() else {
+            continue;
+        };
+        let tree = tree_of
+            .entry(parent.to_path_buf())
+            .or_insert_with(|| crate::gitwriter::working_tree_of(parent));
+        if let Some(tree) = tree {
+            by_tree.entry(tree.clone()).or_default().push(path);
+        }
+    }
+    for (tree, paths) in by_tree {
+        let rels: Vec<PathBuf> = paths
+            .iter()
+            .map(|p| p.strip_prefix(&tree).unwrap_or(p).to_path_buf())
+            .collect();
+        match ShellGit.is_clean(&tree, &rels) {
+            Ok(true) => {}
+            // Name the drifted file: the per-path check on the failure path only.
+            Ok(false) => {
+                for p in paths {
+                    guard_unchanged_before_touch(p, None)?;
+                }
+            }
+            Err(e) => {
+                return Err(crate::mutate::MutationReject::new(format!(
+                    "git precondition failed: {}",
+                    e.message
+                )))
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Rewrite one `rename_type` referrer in place, returning the bytes written, or
+/// `None` when the rewrite was byte-identical and nothing was written. Merges the precomputed type-name
 /// edits with the wikilink edits derived now, applies them, then writes back.
 fn rewrite_referrer(
     path: &Path,
@@ -6633,7 +8017,7 @@ fn rewrite_referrer(
     link_spans: Option<&Vec<au_diagnostics::ByteRange>>,
     old_rel: &Path,
     new_rel: &Path,
-) -> Result<(), crate::mutate::MutationReject> {
+) -> Result<Option<String>, crate::mutate::MutationReject> {
     let content = read_referrer_checked(path, held)?;
     let mut edits = type_edits.cloned().unwrap_or_default();
     if let Some(spans) = link_spans {
@@ -6648,11 +8032,12 @@ fn rewrite_referrer(
     // reach here with only TYPE-NAME edits, which do change the bytes, so this is
     // a byte comparison rather than an is-the-edit-list-empty test.
     if rewritten == content {
-        return Ok(());
+        return Ok(None);
     }
-    std::fs::write(path, rewritten).map_err(|e| {
+    std::fs::write(path, &rewritten).map_err(|e| {
         crate::mutate::MutationReject::new(format!("cannot write referrer {}: {e}", path.display()))
-    })
+    })?;
+    Ok(Some(rewritten))
 }
 
 /// Every block-id declared in a host file, across both addressable surfaces:
@@ -7483,7 +8868,14 @@ async fn run_recent_commits(
 }
 
 async fn preview_mutation(handle: &EngineHandle, args: PreviewMutationArgs) -> Response {
-    let (path_arg, op, stamps) = args.into_parts();
+    let (path_arg, op, riders) = match args.into_request() {
+        PreviewRequest::File { path, op, riders } => (path, op, riders),
+        PreviewRequest::Rename { path, to, riders } => {
+            return preview_rename(handle, path, to, riders).await
+        }
+        PreviewRequest::MoveDir { path, to } => return preview_move_dir(handle, path, to).await,
+        PreviewRequest::DeleteDir { path } => return preview_delete_dir(handle, path).await,
+    };
     let root = handle.root().to_path_buf();
     // Resolve the path against the mounted members, with the mutation channel's
     // path rules AND the editability gate. A failure is a refusal, folded into the
@@ -7494,26 +8886,437 @@ async fn preview_mutation(handle: &EngineHandle, args: PreviewMutationArgs) -> R
         Read::Ready {
             version,
             value: Err(reject),
-        } => {
-            return enveloped(
-                "preview_mutation",
-                Read::Ready {
-                    version,
-                    value: preview_reject_view(reject),
-                },
-            )
-        }
+        } => return rejected_preview(version, reject),
         Read::Ready {
-            value: Ok(target), ..
-        } => target,
+            version,
+            value: Ok(target),
+        } => {
+            // A stamp or a mixin rides an instance's frontmatter, so the write
+            // refuses one on a type-def target before anything else; so does its
+            // preview.
+            if !riders.stamps.is_empty() || !riders.mixins.is_empty() {
+                if let Some(reject) = rider_target_reject(&target) {
+                    return rejected_preview(version, reject);
+                }
+            }
+            target
+        }
     };
 
-    let input = crate::engine::PreviewInput { target, op, stamps };
     let h = handle.clone();
-    let read = tokio::task::spawn_blocking(move || h.preview(input, preview_product_view))
-        .await
-        .expect("preview task never panics");
+    let read = tokio::task::spawn_blocking(move || {
+        // The saga plan the committing write would build, classified the same
+        // way, refusing where the write's saga would.
+        let saga = resolve_saga_plan(&h, &[target.clone()]);
+        if let Some(reject) = saga_precondition_reject(&saga, false) {
+            return h.read(move |_| preview_reject_view(reject));
+        }
+        let untracked = saga_untracked_files(&saga);
+        let input = crate::engine::PreviewInput::File { target, op, riders };
+        h.preview(input, move |outcome| {
+            with_extras(
+                preview_product_view(outcome),
+                PreviewExtras {
+                    untracked_files: untracked,
+                    ..Default::default()
+                },
+            )
+        })
+    })
+    .await
+    .expect("preview task never panics");
     enveloped("preview_mutation", read)
+}
+
+/// Run a multi-file preview off the tokio thread, planning included: `plan`
+/// runs over the held knowledge base (a folder op's subtree audit walks the
+/// disk), then `build` finishes it (its disk reads, its saga classification)
+/// into the change set plus the product's extra fields. Either may refuse.
+async fn preview_change_set<P: Send + 'static>(
+    handle: &EngineHandle,
+    plan: impl FnOnce(&KnowledgeBase) -> Result<P, crate::mutate::MutationReject> + Send + 'static,
+    build: impl FnOnce(
+            &EngineHandle,
+            P,
+        )
+            -> Result<(crate::engine::ChangeSet, PreviewExtras), crate::mutate::MutationReject>
+        + Send
+        + 'static,
+) -> Response {
+    let h = handle.clone();
+    let read = tokio::task::spawn_blocking(move || {
+        let (version, planned) = match h.read(plan) {
+            Read::NotReady => return Read::NotReady,
+            Read::Ready { version, value } => (version, value),
+        };
+        match planned.and_then(|p| build(&h, p)) {
+            Err(reject) => Read::Ready {
+                version,
+                value: preview_reject_view(reject),
+            },
+            Ok((set, extras)) => h.preview(crate::engine::PreviewInput::Set(set), move |outcome| {
+                with_extras(preview_product_view(outcome), extras)
+            }),
+        }
+    })
+    .await
+    .expect("preview task never panics");
+    enveloped("preview_mutation", read)
+}
+
+/// Preview a `rename`: its would-change referrer set, the moved file's verdict
+/// at its destination, and the blast radius, without writing or committing.
+///
+/// Runs the committing rename's own steps up to the write, in its order, so the
+/// two cannot disagree: the target resolution and editability gate,
+/// [`plan_rename`], the byte-change not-written set, the consumed-member
+/// reject, the require-git precondition, and each referrer's rewrite through
+/// [`crate::rename::move_rewrite`]. The clean-at-HEAD precondition is a git
+/// step about the write moment, not previewed, like every preview's
+/// concurrency guard.
+async fn preview_rename(
+    handle: &EngineHandle,
+    path_arg: String,
+    to_arg: String,
+    riders: crate::engine::PreviewRiders,
+) -> Response {
+    let root = handle.root().to_path_buf();
+    let planned = move |v: &KnowledgeBase| {
+        let from = resolve_editable_target(v, &root, &path_arg)?;
+        let to = resolve_editable_target(v, &root, &to_arg)?;
+        let plan = plan_rename(v, &from, &to).map_err(crate::mutate::MutationReject::new)?;
+        Ok((from, to, plan))
+    };
+    preview_change_set(handle, planned, move |h, (from, to, plan)| {
+        let not_written = move_referrers_not_written(
+            &plan.referrers,
+            &plan.referrer_hashes,
+            &from,
+            &plan.old_rel,
+            &plan.new_rel,
+        );
+        if let Some(reject) =
+            reject_if_consumed_referrers(h, &written_referrers(&plan.referrers, &not_written))
+        {
+            return Err(reject);
+        }
+        // The committing rename's saga plan: its touched set, its not-written set.
+        let mut touched = vec![from.clone(), to.clone()];
+        touched.extend(plan.referrers.keys().filter(|p| **p != from).cloned());
+        let saga = resolve_saga_plan_writing(h, &touched, not_written.clone());
+        if let Some(reject) = saga_precondition_reject(&saga, true) {
+            return Err(reject);
+        }
+        let (set, rewrites, mixins) =
+            plan_move_preview(h, &from, &to, &plan, &not_written, &riders)?;
+        Ok((
+            set,
+            PreviewExtras {
+                rewrites: Some(rewrites),
+                ensure_mixins: mixins,
+                untracked_files: saga_untracked_files(&saga),
+                ..Default::default()
+            },
+        ))
+    })
+    .await
+}
+
+/// Preview a `move_dir`: the referrers it would rewrite, the moved files'
+/// verdict under the destination, the blast radius, and what it would move
+/// outside git, without writing or committing.
+///
+/// Shares the committing verb's steps up to the write, in its order: the
+/// target resolution, [`crate::dirop::plan_move_dir`] with every folder
+/// refusal, the not-written set, the consumed-member reject, the require-git
+/// precondition, and [`move_dir_rewrites`]. The clean-at-HEAD precondition is
+/// not previewed, as for every op.
+async fn preview_move_dir(handle: &EngineHandle, path_arg: String, to_arg: String) -> Response {
+    let root = handle.root().to_path_buf();
+    let planned = move |v: &KnowledgeBase| {
+        let from = resolve_editable_target(v, &root, &path_arg)?;
+        let to = resolve_editable_target(v, &root, &to_arg)?;
+        crate::dirop::plan_move_dir(v, &from, &to).map_err(crate::mutate::MutationReject::new)
+    };
+    preview_change_set(handle, planned, move |h, dir_plan| {
+        let not_written = dir_plan.not_written();
+        let written: std::collections::BTreeSet<PathBuf> = dir_plan
+            .referrers
+            .keys()
+            .filter(|p| !not_written.contains(*p))
+            .cloned()
+            .collect();
+        if let Some(reject) = reject_if_consumed_referrers(h, &written) {
+            return Err(reject);
+        }
+        let saga = resolve_saga_plan_writing(h, &dir_plan.touched(), not_written.clone());
+        if let Some(reject) = saga_precondition_reject(&saga, true) {
+            return Err(reject);
+        }
+        let (rewritten, rewrites) = move_dir_rewrites(&dir_plan, &not_written)?;
+        let rewritten: BTreeMap<PathBuf, String> = rewritten.into_iter().collect();
+        // Each file leaves its old path and lands at its new one, carrying its
+        // rewritten bytes when it is a referrer too, else read from the source
+        // only when the recompute asks (an asset never is).
+        let mut overrides = Vec::new();
+        for (old, new) in &dir_plan.files {
+            overrides.push(crate::overlay::Override::Remove { path: old.clone() });
+            overrides.push(match rewritten.get(old) {
+                Some(content) => crate::overlay::Override::Replace {
+                    path: new.clone(),
+                    content: content.clone().into_bytes(),
+                },
+                None => crate::overlay::Override::Moved {
+                    path: new.clone(),
+                    from: old.clone(),
+                },
+            });
+        }
+        for (path, content) in &rewritten {
+            if !dir_plan.moves(path) {
+                overrides.push(crate::overlay::Override::Replace {
+                    path: path.clone(),
+                    content: content.clone().into_bytes(),
+                });
+            }
+        }
+        // A referrer the move leaves byte-identical still recomputes, its edge
+        // flips to the new path, the committing verb's rebuild set.
+        let also_dirty = dir_plan
+            .referrers
+            .keys()
+            .filter(|p| !rewritten.contains_key(*p) && !dir_plan.moves(p))
+            .cloned()
+            .collect();
+        let extras = PreviewExtras {
+            rewrites: Some(rewrites),
+            untracked_files: saga_untracked_files(&saga),
+            untracked_dirs: Some(dir_plan.untracked_dirs(&saga.outside_git)),
+            ..Default::default()
+        };
+        Ok((
+            crate::engine::ChangeSet {
+                target: dir_plan.to.clone(),
+                overrides,
+                also_dirty,
+                gone: vec![dir_plan.subtree.dir.clone()],
+            },
+            extras,
+        ))
+    })
+    .await
+}
+
+/// Preview a `delete_dir`: the references it would strand, the blast radius,
+/// and what it would remove outside git, without writing or committing.
+///
+/// Shares the committing verb's plan, [`crate::dirop::plan_delete_dir`], with
+/// every folder refusal and the stranded report, and its require-git
+/// precondition over the same saga plan.
+async fn preview_delete_dir(handle: &EngineHandle, path_arg: String) -> Response {
+    let root = handle.root().to_path_buf();
+    let planned = move |v: &KnowledgeBase| {
+        let dir = resolve_editable_target(v, &root, &path_arg)?;
+        crate::dirop::plan_delete_dir(v, &dir).map_err(crate::mutate::MutationReject::new)
+    };
+    preview_change_set(handle, planned, move |h, dir_plan| {
+        let saga = resolve_saga_plan(h, &dir_plan.subtree.files);
+        if let Some(reject) = saga_precondition_reject(&saga, true) {
+            return Err(reject);
+        }
+        let overrides = dir_plan
+            .subtree
+            .files
+            .iter()
+            .map(|f| crate::overlay::Override::Remove { path: f.clone() })
+            .collect();
+        let extras = PreviewExtras {
+            untracked_files: saga_untracked_files(&saga),
+            untracked_dirs: Some(dir_plan.untracked_dirs(&saga.outside_git)),
+            stranded: Some(dir_plan.stranded),
+            ..Default::default()
+        };
+        Ok((
+            crate::engine::ChangeSet {
+                target: dir_plan.subtree.dir.clone(),
+                overrides,
+                also_dirty: Vec::new(),
+                gone: vec![dir_plan.subtree.dir],
+            },
+            extras,
+        ))
+    })
+    .await
+}
+
+/// A preview refused before any product, in the read envelope.
+fn rejected_preview(version: u64, reject: crate::mutate::MutationReject) -> Response {
+    enveloped(
+        "preview_mutation",
+        Read::Ready {
+            version,
+            value: preview_reject_view(reject),
+        },
+    )
+}
+
+/// What a preview's product carries beyond its target and blast radius, each
+/// the value the committing op's result reports.
+#[derive(Default)]
+struct PreviewExtras {
+    /// A rename's or a folder move's would-change referrers.
+    rewrites: Option<Vec<wire::PreviewRewriteView>>,
+    /// A folder delete's stranded references.
+    stranded: Option<Vec<wire::StrandedView>>,
+    /// The paths the op would write outside git, every op.
+    untracked_files: Vec<PathBuf>,
+    /// A folder op's directories no commit records.
+    untracked_dirs: Option<Vec<PathBuf>>,
+    /// A rename's `ensure_mixins` outcomes, folded into its change set by the
+    /// caller. A single-file op's ride the outcome instead.
+    ensure_mixins: Option<Vec<wire::MixinOutcome>>,
+}
+
+/// Attach a preview's extra fields to its product; a reject passes.
+fn with_extras(view: wire::PreviewProductView, extras: PreviewExtras) -> wire::PreviewProductView {
+    let strings = |ps: &[PathBuf]| ps.iter().map(|p| p.display().to_string()).collect();
+    match view {
+        wire::PreviewProductView::Product {
+            target,
+            blast_radius,
+            ensure_mixins,
+            ..
+        } => wire::PreviewProductView::Product {
+            target,
+            blast_radius,
+            rewrites: extras.rewrites,
+            stranded: extras.stranded,
+            untracked_files: strings(&extras.untracked_files),
+            untracked_dirs: extras.untracked_dirs.as_deref().map(strings),
+            ensure_mixins: extras.ensure_mixins.or(ensure_mixins),
+        },
+        reject => reject,
+    }
+}
+
+/// Compute a move's change set, the committing rename's steps up to the write,
+/// in its order, minus the disk write and the git steps.
+///
+/// Returns the engine-side [`crate::engine::ChangeSet`] and the wire's
+/// would-change list: only referrers whose bytes change, each with the links it
+/// re-spells, the moved file's own self-links reported at its destination. The
+/// moved file carries its rewritten bytes, or its riders folded in, else it is
+/// read from the source only when the recompute asks, so a moved asset is
+/// never read. The mixin outcomes are `None` when the rename carried no mixin.
+#[allow(clippy::type_complexity)]
+fn plan_move_preview(
+    h: &EngineHandle,
+    from: &Path,
+    to: &Path,
+    plan: &RenamePlan,
+    not_written: &std::collections::BTreeSet<PathBuf>,
+    riders: &crate::engine::PreviewRiders,
+) -> Result<
+    (
+        crate::engine::ChangeSet,
+        Vec<wire::PreviewRewriteView>,
+        Option<Vec<wire::MixinOutcome>>,
+    ),
+    crate::mutate::MutationReject,
+> {
+    use crate::overlay::Override;
+    let mut overrides = vec![Override::Remove {
+        path: from.to_path_buf(),
+    }];
+    let mut also_dirty = Vec::new();
+    let mut views = Vec::new();
+    let mut self_rewrite = None;
+    for (path, spans) in &plan.referrers {
+        let content =
+            read_referrer_checked(path, plan.referrer_hashes.get(path).copied().flatten())?;
+        let Some(rewritten) =
+            crate::rename::move_rewrite(&content, spans, &plan.old_rel, &plan.new_rel)?
+        else {
+            if path.as_path() != from {
+                also_dirty.push(path.clone());
+            }
+            continue;
+        };
+        if not_written.contains(path) {
+            return Err(crate::mutate::MutationReject::new(format!(
+                "referrer {} changed since the rename was planned — retry",
+                path.display()
+            )));
+        }
+        let links =
+            crate::rename::move_link_changes(&content, spans, &plan.old_rel, &plan.new_rel)?
+                .into_iter()
+                .map(|(from, to)| wire::PreviewLinkChangeView { from, to })
+                .collect();
+        let shown = if path.as_path() == from { to } else { path };
+        views.push(wire::PreviewRewriteView {
+            path: shown.display().to_string(),
+            links,
+        });
+        if path.as_path() == from {
+            self_rewrite = Some(rewritten);
+        } else {
+            overrides.push(Override::Replace {
+                path: path.clone(),
+                content: rewritten.into_bytes(),
+            });
+        }
+    }
+    crate::mutate::rename_precheck(from, to)?;
+    // The riders fold into the moved file, as the committing rename folds them
+    // into the renamed file after the move, the mixins decided at the destination
+    // against the held knowledge base.
+    let mut mixins = None;
+    let moved = if riders.stamps.is_empty() && riders.mixins.is_empty() {
+        match self_rewrite {
+            Some(text) => Override::Replace {
+                path: to.to_path_buf(),
+                content: text.into_bytes(),
+            },
+            None => Override::Moved {
+                path: to.to_path_buf(),
+                from: from.to_path_buf(),
+            },
+        }
+    } else {
+        let text = match self_rewrite {
+            Some(text) => text,
+            None => std::fs::read(from)
+                .ok()
+                .and_then(|b| String::from_utf8(b).ok())
+                .ok_or_else(|| crate::mutate::MutationReject::new("the file is not valid UTF-8"))?,
+        };
+        let (content, outcomes) = match h.read(|kb| riders.fold(kb, to, text)) {
+            Read::Ready { value, .. } => value?,
+            _ => {
+                return Err(crate::mutate::MutationReject::new(
+                    "engine is not ready to resolve an ensure_mixin",
+                ))
+            }
+        };
+        mixins = outcomes;
+        Override::Replace {
+            path: to.to_path_buf(),
+            content: content.into_bytes(),
+        }
+    };
+    overrides.push(moved);
+    views.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok((
+        crate::engine::ChangeSet {
+            target: to.to_path_buf(),
+            overrides,
+            also_dirty,
+            gone: vec![from.to_path_buf()],
+        },
+        views,
+        mixins,
+    ))
 }
 
 /// Assemble a preview's wire product from its outcome: the built product, or a
@@ -7524,7 +9327,28 @@ fn preview_product_view(outcome: crate::engine::PreviewOutcome) -> wire::Preview
             preview,
             held,
             target,
-        } => wire::preview_product_view(preview, held, target),
+            gone,
+            mixins,
+        } => match wire::preview_product_view(preview, held, target, gone) {
+            wire::PreviewProductView::Product {
+                target,
+                blast_radius,
+                rewrites,
+                stranded,
+                untracked_files,
+                untracked_dirs,
+                ..
+            } => wire::PreviewProductView::Product {
+                target,
+                blast_radius,
+                rewrites,
+                stranded,
+                untracked_files,
+                untracked_dirs,
+                ensure_mixins: mixins,
+            },
+            reject => reject,
+        },
         crate::engine::PreviewOutcome::Reject(reject) => preview_reject_view(reject),
     }
 }
@@ -7554,6 +9378,320 @@ fn mutation_response(
     )
 }
 
+/// `move_dir`: move a folder as one saga, per
+/// [[spec - directory mutation verbs - move_dir and delete_dir fold a subtree into one per-file saga]].
+///
+/// Two phases in a fixed order: every referrer is rewritten at its OLD path,
+/// then every file moves, a moved referrer carrying its new bytes. Interleaving
+/// per file would find a sibling referrer already moved. Then the directory
+/// skeleton follows: each mapped directory is created, empty ones included, and
+/// each emptied source directory removed. The saga's directory journal undoes
+/// the skeleton on any failure.
+async fn move_dir(handle: &EngineHandle, args: MoveDirArgs) -> serde_json::Value {
+    let from = match resolve_mutation_target(handle, &args.path) {
+        Ok(t) => t,
+        Err(frame) => return frame,
+    };
+    let to = match resolve_mutation_target(handle, &args.to) {
+        Ok(t) => t,
+        Err(frame) => return frame,
+    };
+    let marker_dir = saga_marker_dir(handle.root());
+    let summary = format!("move_dir {} -> {}", args.path, args.to);
+    let blocking_handle = handle.clone();
+    let blocking_to = to.clone();
+    // Planned off the tokio thread: the subtree audit walks the folder, the
+    // not-written set reads every referrer, the saga plan spawns git.
+    let outcome = tokio::task::spawn_blocking(move || {
+        let handle = blocking_handle;
+        let dir_plan = match handle.read(|v| crate::dirop::plan_move_dir(v, &from, &blocking_to)) {
+            crate::Read::Ready { value: Ok(p), .. } => p,
+            crate::Read::Ready {
+                value: Err(msg), ..
+            } => {
+                return Err(mutation_reject_frame(crate::mutate::MutationReject::new(
+                    msg,
+                )));
+            }
+            crate::Read::NotReady => {
+                return Err(
+                    serde_json::to_value(Response::not_ready()).expect("response serializes")
+                );
+            }
+        };
+        let not_written = dir_plan.not_written();
+        let written: std::collections::BTreeSet<PathBuf> = dir_plan
+            .referrers
+            .keys()
+            .filter(|p| !not_written.contains(*p))
+            .cloned()
+            .collect();
+        if let Some(reject) = reject_if_consumed_referrers(&handle, &written) {
+            return Err(mutation_reject_frame(reject));
+        }
+        let mut plan = resolve_saga_plan_writing(&handle, &dir_plan.touched(), not_written.clone());
+        plan.dirs = DirJournal {
+            created: dir_plan.created_dirs(),
+            kept: dir_plan.kept_dirs(),
+        };
+        let untracked_dirs = dir_plan.untracked_dirs(&plan.outside_git);
+        let mut moves = MovesByTree::new();
+        for (old_rel, new_rel) in dir_plan.moved_rels() {
+            for (tree, records) in moves_for(&dir_plan.subtree.repo_root, old_rel, new_rel) {
+                moves.entry(tree).or_default().extend(records);
+            }
+        }
+        let (rewrites, commits) =
+            apply_saga_with_moves(&ShellGit, &marker_dir, &plan, summary, &moves, true, || {
+                move_dir_write(&dir_plan, &not_written)
+            })
+            .map_err(mutation_reject_frame)?;
+        handle.rebuild_paths(saga_dirty_set(&plan));
+        Ok((rewrites, commits, untracked_dirs))
+    })
+    .await
+    .expect("mutation task never panics");
+    match outcome {
+        Err(frame) => frame,
+        Ok((rewrites, commits, untracked_dirs)) => {
+            let mut extra = serde_json::Map::new();
+            extra.insert(
+                "rewrites".into(),
+                serde_json::to_value(rewrites).expect("rewrites serialize"),
+            );
+            extra.insert(
+                "untracked_dirs".into(),
+                serde_json::Value::Array(
+                    untracked_dirs
+                        .iter()
+                        .map(|p| serde_json::Value::String(p.display().to_string()))
+                        .collect(),
+                ),
+            );
+            mutation_response_extra(handle, &to, None, commits, extra)
+        }
+    }
+}
+
+/// `delete_dir`: delete a folder as one saga, per
+/// [[spec - directory mutation verbs - move_dir and delete_dir fold a subtree into one per-file saga]].
+///
+/// Raw like `delete_file`: every catalogued file under the folder is removed,
+/// no referrer is rewritten, and the references the delete strands are
+/// reported. The commit stages the enumerated file list, never the directory,
+/// so a file created in the folder after the plan is never touched and its
+/// directory stays. Every emptied directory is then removed; the saga's
+/// directory journal puts them back on any failure.
+///
+/// Needs a git working tree, unlike `delete_file`: one file deletes atomically,
+/// but a folder removed file by file off-git could not be rolled back from a
+/// failure part way.
+async fn delete_dir(handle: &EngineHandle, args: DeleteDirArgs) -> serde_json::Value {
+    let dir = match resolve_mutation_target(handle, &args.path) {
+        Ok(t) => t,
+        Err(frame) => return frame,
+    };
+    let marker_dir = saga_marker_dir(handle.root());
+    let summary = format!("delete_dir {}", args.path);
+    let blocking_handle = handle.clone();
+    let blocking_dir = dir.clone();
+    // Planned off the tokio thread: the subtree audit walks the folder, the
+    // saga plan spawns git.
+    let outcome = tokio::task::spawn_blocking(move || {
+        let handle = blocking_handle;
+        let dir_plan = match handle.read(|v| crate::dirop::plan_delete_dir(v, &blocking_dir)) {
+            crate::Read::Ready { value: Ok(p), .. } => p,
+            crate::Read::Ready {
+                value: Err(msg), ..
+            } => {
+                return Err(mutation_reject_frame(crate::mutate::MutationReject::new(
+                    msg,
+                )));
+            }
+            crate::Read::NotReady => {
+                return Err(
+                    serde_json::to_value(Response::not_ready()).expect("response serializes")
+                );
+            }
+        };
+        let mut plan = resolve_saga_plan(&handle, &dir_plan.subtree.files);
+        plan.dirs = DirJournal {
+            created: Vec::new(),
+            kept: dir_plan.kept_dirs(),
+        };
+        let untracked_dirs = dir_plan.untracked_dirs(&plan.outside_git);
+        let files = &dir_plan.subtree.files;
+        let dirs = &dir_plan.subtree.dirs;
+        // The last-live commit, HEAD before the delete: the deletion commit's
+        // parent, where every contained file still existed. Clean-at-HEAD
+        // guarantees each was there, and the serialized write lock keeps this
+        // HEAD the parent. See `delete_file`.
+        let last_live = crate::gitwriter::head_commit_fast(&blocking_dir);
+        let ((), commits) = apply_saga(&ShellGit, &marker_dir, &plan, summary, true, || {
+            delete_dir_write(files, dirs)
+        })
+        .map_err(mutation_reject_frame)?;
+        handle.rebuild_paths(saga_dirty_set(&plan));
+        Ok((commits, last_live, dir_plan.stranded, untracked_dirs))
+    })
+    .await
+    .expect("mutation task never panics");
+    match outcome {
+        Err(frame) => frame,
+        Ok((commits, last_live, stranded, untracked_dirs)) => {
+            let mut extra = serde_json::Map::new();
+            // Only a delete that committed has a last-live commit to pin.
+            if !commits.is_empty() {
+                if let Some(sha) = last_live {
+                    extra.insert("last_live_commit".into(), serde_json::Value::String(sha));
+                }
+            }
+            extra.insert(
+                "stranded".into(),
+                serde_json::to_value(&stranded).expect("stranded serializes"),
+            );
+            extra.insert(
+                "untracked_dirs".into(),
+                serde_json::Value::Array(
+                    untracked_dirs
+                        .iter()
+                        .map(|p| serde_json::Value::String(p.display().to_string()))
+                        .collect(),
+                ),
+            );
+            mutation_response_extra(handle, &dir, None, commits, extra)
+        }
+    }
+}
+
+/// The write half of [`delete_dir`], run inside its saga: remove exactly the
+/// enumerated `files`, re-checked unchanged once before the removals, then every
+/// directory of `dirs` left empty, children first. A directory still holding a
+/// file created after the plan stays, with that file.
+fn delete_dir_write(
+    files: &[PathBuf],
+    dirs: &[PathBuf],
+) -> Result<(), crate::mutate::MutationReject> {
+    let guarded: Vec<(&Path, Option<&str>)> = files.iter().map(|f| (f.as_path(), None)).collect();
+    guard_unchanged_before_touch_all(&guarded)?;
+    for f in files {
+        std::fs::remove_file(f).map_err(|e| {
+            crate::mutate::MutationReject::new(format!("cannot delete {}: {e}", f.display()))
+        })?;
+    }
+    for d in dirs.iter().rev() {
+        let _ = std::fs::remove_dir(d);
+    }
+    Ok(())
+}
+
+/// A folder move's referrer rewrites, computed at the referrers' OLD paths
+/// without writing: each changed referrer's new bytes, and the wire list, each
+/// shown at the path it ends at, path-sorted.
+///
+/// Shared by [`move_dir_write`] and the folder-move preview, so the previewed
+/// `rewrites` are exactly the ones the verb writes. Refuses when a referrer the
+/// plan left out of the clean guard and the commit turns out to change: writing
+/// it would land an uncommitted change.
+fn move_dir_rewrites(
+    plan: &crate::dirop::MoveDirPlan,
+    not_written: &std::collections::BTreeSet<PathBuf>,
+) -> Result<(Vec<(PathBuf, String)>, Vec<wire::PreviewRewriteView>), crate::mutate::MutationReject>
+{
+    let mut rewritten = Vec::new();
+    let mut views = Vec::new();
+    for path in plan.referrers.keys() {
+        let content =
+            read_referrer_checked(path, plan.referrer_hashes.get(path).copied().flatten())?;
+        let Some(new) = plan.rewrite(path, &content)? else {
+            continue;
+        };
+        if not_written.contains(path) {
+            return Err(crate::mutate::MutationReject::new(format!(
+                "referrer {} changed since the move was planned — retry",
+                path.display()
+            )));
+        }
+        let links = plan
+            .link_changes(path, &content)?
+            .into_iter()
+            .map(|(from, to)| wire::PreviewLinkChangeView { from, to })
+            .collect();
+        let shown = plan
+            .files
+            .iter()
+            .find(|(old, _)| old == path)
+            .map_or(path, |(_, new)| new);
+        views.push(wire::PreviewRewriteView {
+            path: shown.display().to_string(),
+            links,
+        });
+        rewritten.push((path.clone(), new));
+    }
+    views.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok((rewritten, views))
+}
+
+/// The write half of [`move_dir`], run inside its saga. Returns the referrers
+/// whose bytes changed, each shown at the path it ends at, path-sorted.
+fn move_dir_write(
+    plan: &crate::dirop::MoveDirPlan,
+    not_written: &std::collections::BTreeSet<PathBuf>,
+) -> Result<Vec<wire::PreviewRewriteView>, crate::mutate::MutationReject> {
+    use crate::mutate::MutationReject;
+    // Phase one: every referrer rewritten at its old path. A moved file's own
+    // rewrite is the baseline its pre-move re-check compares against.
+    let (rewritten, views) = move_dir_rewrites(plan, not_written)?;
+    let mut self_written: BTreeMap<PathBuf, String> = BTreeMap::new();
+    for (path, new) in rewritten {
+        std::fs::write(&path, &new).map_err(|e| {
+            MutationReject::new(format!("cannot write referrer {}: {e}", path.display()))
+        })?;
+        if plan.moves(&path) {
+            self_written.insert(path, new);
+        }
+    }
+    // Phase two: every file moves, re-checked unchanged once, immediately
+    // before the phase.
+    let guarded: Vec<(&Path, Option<&str>)> = plan
+        .files
+        .iter()
+        .map(|(old, _)| (old.as_path(), self_written.get(old).map(String::as_str)))
+        .collect();
+    guard_unchanged_before_touch_all(&guarded)?;
+    for (old, new) in &plan.files {
+        if new.symlink_metadata().is_ok() {
+            return Err(MutationReject::new(format!(
+                "destination appeared since the move was planned: {}",
+                new.display()
+            )));
+        }
+        if let Some(parent) = new.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                MutationReject::new(format!("cannot create {}: {e}", parent.display()))
+            })?;
+        }
+        std::fs::rename(old, new).map_err(|e| {
+            MutationReject::new(format!(
+                "cannot move {} to {}: {e}",
+                old.display(),
+                new.display()
+            ))
+        })?;
+    }
+    // The skeleton: every mapped directory created, empty ones included, then
+    // each emptied source removed, children first. A source still holding a
+    // file created after the plan stays, with that file.
+    for (_, new) in &plan.dirs {
+        std::fs::create_dir_all(new)
+            .map_err(|e| MutationReject::new(format!("cannot create {}: {e}", new.display())))?;
+    }
+    for (old, _) in plan.dirs.iter().rev() {
+        let _ = std::fs::remove_dir(old);
+    }
+    Ok(views)
+}
+
 /// The success frame for a mutation: the read-response envelope, `version`
 /// the post-mutation knowledge base version (the consumer's echo-suppression
 /// correlation), the result carrying the file's identity, fresh diagnostics,
@@ -7581,9 +9719,17 @@ fn mutation_response_extra(
     commits: SagaCommits,
     extra: serde_json::Map<String, serde_json::Value>,
 ) -> serde_json::Value {
-    let scope = DiagnosticsScope {
-        path: Some(target.to_path_buf()),
-        ..Default::default()
+    // A folder op's target is a directory, whose diagnostics are its files'.
+    let scope = if target.is_dir() {
+        DiagnosticsScope {
+            path_prefix: Some(target.to_path_buf()),
+            ..Default::default()
+        }
+    } else {
+        DiagnosticsScope {
+            path: Some(target.to_path_buf()),
+            ..Default::default()
+        }
     };
     let read = handle.read(|v| {
         let diagnostics: Vec<Diagnostic> = v
@@ -7637,7 +9783,7 @@ fn mutation_response_extra(
             .iter()
             .find(|(repo, _)| *repo == own_name)
             .map(|(_, sha)| sha.0.clone())
-            .or_else(|| ShellGit.head_commit(&own_root))
+            .or_else(|| crate::gitwriter::head_commit_fast(&own_root))
             .map(serde_json::Value::String)
             .unwrap_or(serde_json::Value::Null),
         None => serde_json::Value::Null,
@@ -7658,6 +9804,16 @@ fn mutation_response_extra(
     result.insert("reflected".into(), serde_json::Value::Bool(reflected));
     result.insert("commit".into(), commit);
     result.insert("commits".into(), serde_json::Value::Object(commits_obj));
+    result.insert(
+        "untracked_files".into(),
+        serde_json::Value::Array(
+            commits
+                .untracked_files
+                .iter()
+                .map(|p| serde_json::Value::String(p.display().to_string()))
+                .collect(),
+        ),
+    );
     result.extend(extra);
     serde_json::to_value(Response::ready(version, serde_json::Value::Object(result)))
         .expect("response serializes")
@@ -8669,11 +10825,12 @@ async fn handle_request(handle: &EngineHandle, req: Request, shutdown_tx: &Shutd
         Request::InstanceCounts(args) => {
             let repo = args.repo;
             let own = args.scope.own_only();
+            let origins = args.origins;
             enveloped(
                 "instance_counts",
                 handle.read(move |v| {
                     let scope = wire::TypeScope::new(own);
-                    wire::introspect_instance_counts(v, repo.as_deref(), scope)
+                    wire::introspect_instance_counts(v, repo.as_deref(), scope, origins.as_deref())
                 }),
             )
         }
@@ -9054,21 +11211,24 @@ async fn config_response(handle: &EngineHandle, args: ConfigArgs) -> Response {
         BadRoot(String),
     }
     let base = handle.config().base();
-    let want_root = args.root.as_deref().map(|r| abs_arg(handle.root(), r));
+    let want_root = args
+        .root
+        .as_deref()
+        .map(|r| member_root_arg(handle.root(), r));
     let scope = args.scope;
     let resolved = handle.read(move |v| match scope {
         ConfigScope::Machine => {
             let entry = v
                 .repos
-                .root()
+                .entry()
                 .map(|r| r.name.as_str().to_string())
                 .unwrap_or_default();
             Scope::Ready(base, entry)
         }
         ConfigScope::Repo => {
             let member = match &want_root {
-                Some(p) => v.repos.repos().iter().find(|r| &r.root == p),
-                None => v.repos.root(),
+                Some(p) => v.repos.by_root(p),
+                None => v.repos.entry(),
             };
             match member {
                 Some(r) => {
@@ -9404,6 +11564,13 @@ fn read_body_at(target: &Path) -> Option<String> {
         Ok(None) => Some(text),
         Err(_) => None,
     }
+}
+
+/// A wire `root` argument naming a member root, made absolute against the entry
+/// and canonicalized, the form [`crate::repo::RepoMap::by_root`] matches. Runs the
+/// filesystem canonicalize here, before a caller takes the held-state lock.
+fn member_root_arg(entry: &Path, arg: &str) -> PathBuf {
+    crate::repo::canonical_root(&abs_arg(entry, arg))
 }
 
 /// Resolve a request path argument against the root: absolute paths pass
@@ -9883,11 +12050,12 @@ fn semantic_tokens_view(kb: &KnowledgeBase, target: &Path) -> Option<Vec<Semanti
     // A type-def file emits the shape layer.
     if let FileParse::TypeDef {
         type_def: Some(def),
+        shape_leaves,
         ..
     } = parse
     {
         let lines = kb.line_index(target);
-        type_def_tokens(def, lines, &mut tokens);
+        type_def_tokens(kb, target, def, shape_leaves, lines, &mut tokens);
         tokens.sort_by_key(|t| t.range.start);
         return Some(tokens);
     }
@@ -9912,10 +12080,6 @@ fn semantic_tokens_view(kb: &KnowledgeBase, target: &Path) -> Option<Vec<Semanti
     Some(tokens)
 }
 
-/// The type-def shape layer: `type-claim` for parent and `meta:` claims,
-/// `type-ref` for sealed branches, and per field a `field-shape` container
-/// (carrying the parsed `WireShape`) enclosing `type-ref` / `shape-builtin` /
-/// `enum-member` leaves. `lines` is the file's index.
 /// A claim / parent / meta type-name for a semantic token, carrying its `::repo`
 /// qualifier so a consumer can tell a peer type from an own one. Parity with the
 /// other wire projections (`InstanceMatch.claim`, meta / body-use targets), which
@@ -9927,8 +12091,54 @@ fn qualified_token_name(base: &au_core::TypeName, repo: Option<&str>) -> String 
     }
 }
 
+/// A `type-claim` token for one authored claim in `source`: its authored name
+/// plus the identity it resolves to.
+///
+/// The claim resolves in `source`'s repo, through
+/// [`crate::resolution_build::resolve_claim_tid`], the per-claim rule validation
+/// and `instance_counts` seed from, so the token's `(name, hash)` joins onto
+/// every identity-keyed read. Every token-bearing position (a frontmatter,
+/// inline-record, or typed-fence claim, a parent, a meta `type:`) seeds its
+/// `::repo` form into that repo's fold, so the one scope covers them all.
+///
+/// The owner is the repo the claim names: its `::repo` qualifier, else the
+/// source's own repo. Resolution keys on that authored form, a bare name
+/// resolves only to the own def and `name::repo` only to that peer's, so a
+/// resolved claim reached exactly that repo. Never the fold node's stored
+/// `origin`: an in-sync identity own and peer both define folds to ONE node
+/// whose origin is processing-order-dependent (see `ResolvedNode::authored`).
+fn type_claim_kind(
+    kb: &KnowledgeBase,
+    source: &Path,
+    base: &au_core::TypeName,
+    qualifier: Option<&str>,
+) -> SemanticTokenKind {
+    let repo = kb.repos.repo_of(source).map(|r| r.name.clone());
+    let own = kb.graph_for_path(source);
+    let rg = repo.as_ref().and_then(|r| kb.resolution_graphs.of(r));
+    let owner = qualifier.or(repo.as_ref().map(|r| r.as_str()));
+    let resolved = crate::resolution_build::resolve_claim_tid(own, rg, base, qualifier)
+        .zip(owner)
+        .map(|(tid, owner)| wire::ClosureIdentity {
+            name: tid.name.as_str().to_string(),
+            repo: owner.to_string(),
+            hash: format!("{:016x}", tid.hash.0),
+        });
+    SemanticTokenKind::TypeClaim {
+        name: qualified_token_name(base, qualifier),
+        resolved,
+    }
+}
+
+/// The type-def shape layer: `type-claim` for parent and `meta:` claims,
+/// `type-ref` for sealed branches, and per field a `field-shape` container
+/// (carrying the parsed `WireShape`) enclosing `type-ref` / `shape-builtin` /
+/// `enum-member` leaves. `lines` is the file's index.
 fn type_def_tokens(
+    kb: &KnowledgeBase,
+    target: &Path,
     def: &au_core::TypeDef,
+    shape_leaves: &[ShapeLeafSpan],
     lines: Option<&au_diagnostics::LineIndex>,
     out: &mut Vec<SemanticToken>,
 ) {
@@ -9944,9 +12154,7 @@ fn type_def_tokens(
         emit(
             out,
             parent.span,
-            SemanticTokenKind::TypeClaim {
-                name: qualified_token_name(&parent.name, parent.repo.as_deref()),
-            },
+            type_claim_kind(kb, target, &parent.name, parent.repo.as_deref()),
         );
     }
     if let Some(blocks) = &def.meta_blocks {
@@ -9954,9 +12162,7 @@ fn type_def_tokens(
             emit(
                 out,
                 block.type_name_span,
-                SemanticTokenKind::TypeClaim {
-                    name: qualified_token_name(&block.type_name, block.repo.as_deref()),
-                },
+                type_claim_kind(kb, target, &block.type_name, block.repo.as_deref()),
             );
         }
     }
@@ -9972,7 +12178,7 @@ fn type_def_tokens(
         );
     }
 
-    // Each field: a field-shape container plus its decomposed leaves.
+    // Each field: a field-shape container carrying the parsed shape.
     for field in &def.fields {
         let value_type = match &field.parsed_shape {
             Ok(shape) => Some(wire::WireShape::from(shape)),
@@ -9986,29 +12192,25 @@ fn type_def_tokens(
                 value_type,
             },
         );
+    }
 
-        // Leaf name / keyword / literal spans. They are relative to
-        // `raw_shape`, which is the normalized scalar value. It maps linearly
-        // onto `shape_span` only when byte-identical to the source slice, which
-        // holds for unquoted scalars and flow enums but not for a quoted shape
-        // (the quotes shift every offset). Lengths differing flags the
-        // misaligned case; emit the container only, never a wrong leaf span.
-        let shape_len = field.shape_span.end - field.shape_span.start;
-        if field.raw_shape.len() != shape_len {
-            continue;
-        }
-        let base = field.shape_span.start;
-        let (_shape, spans) = parse_shape_spanned(&field.raw_shape);
-        for sp in spans {
-            let text = field.raw_shape[sp.range.start..sp.range.end].to_string();
-            let abs = au_diagnostics::ByteRange::new(base + sp.range.start, base + sp.range.end);
-            let kind = match sp.role {
-                ShapeSpanRole::TypeName => SemanticTokenKind::TypeRef { name: text },
-                ShapeSpanRole::Builtin => SemanticTokenKind::ShapeBuiltin { name: text },
-                ShapeSpanRole::EnumMember => SemanticTokenKind::EnumMember { value: text },
-            };
-            emit(out, abs, kind);
-        }
+    // The decomposed leaf name / keyword / literal tokens. Their source spans
+    // are computed once in the parse layer, where the file's bytes were in hand,
+    // so a QUOTED shape (`"note*"`) carries leaves like an unquoted one rather
+    // than being dropped for want of an offset mapping at read time.
+    for leaf in shape_leaves {
+        let kind = match leaf.role {
+            ShapeSpanRole::TypeName => SemanticTokenKind::TypeRef {
+                name: leaf.text.clone(),
+            },
+            ShapeSpanRole::Builtin => SemanticTokenKind::ShapeBuiltin {
+                name: leaf.text.clone(),
+            },
+            ShapeSpanRole::EnumMember => SemanticTokenKind::EnumMember {
+                value: leaf.text.clone(),
+            },
+        };
+        emit(out, leaf.range, kind);
     }
 }
 
@@ -10162,9 +12364,7 @@ fn frontmatter_tokens(
     for claim in inst.type_claim.iter() {
         out.push(SemanticToken {
             range: located(claim.span, lines),
-            kind: SemanticTokenKind::TypeClaim {
-                name: qualified_token_name(&claim.name, claim.repo.as_deref()),
-            },
+            kind: type_claim_kind(kb, target, &claim.name, claim.repo.as_deref()),
         });
     }
 
@@ -10266,9 +12466,7 @@ fn walk_value_tokens(
             for claim in inline.type_claim.iter().flat_map(|tc| tc.iter()) {
                 out.push(SemanticToken {
                     range: located(claim.span, lines),
-                    kind: SemanticTokenKind::TypeClaim {
-                        name: qualified_token_name(&claim.name, claim.repo.as_deref()),
-                    },
+                    kind: type_claim_kind(kb, source, &claim.name, claim.repo.as_deref()),
                 });
             }
             // The record's type, from its explicit claim or the type the slot
@@ -12262,6 +14460,13 @@ mod saga_tests {
         fn is_clean(&self, repo: &Path, paths: &[PathBuf]) -> Result<bool, GitWriteError> {
             ShellGit.is_clean(repo, paths)
         }
+        fn ignored_untracked(
+            &self,
+            repo: &Path,
+            paths: &[PathBuf],
+        ) -> Result<std::collections::BTreeSet<PathBuf>, GitWriteError> {
+            ShellGit.ignored_untracked(repo, paths)
+        }
     }
 
     #[test]
@@ -12269,7 +14474,10 @@ mod saga_tests {
         let (a, b, c) = (init_repo(), init_repo(), init_repo());
         let plan = SagaPlan {
             attribution: Vec::new(),
-            exempt_from_clean_check: Default::default(),
+            dirs: DirJournal::default(),
+            unclassified: None,
+            not_written: Default::default(),
+            outside_git: Default::default(),
             mutation_id: "m-saga-1".to_string(),
             members: vec![
                 member(a.path(), "ra"),
@@ -12327,12 +14535,225 @@ mod saga_tests {
         }
     }
 
+    /// A member touching `f.md` (written) and `g.md` (in the set, not written),
+    /// with `g.md` committed then dirtied by a human. The `not_written` shape a
+    /// refactor gives a commit-pinned referrer.
+    fn member_with_unwritten_dirty(root: &Path, name: &str) -> SagaMember {
+        fs::write(root.join("g.md"), "committed\n").unwrap();
+        run(root, &["add", "g.md"]);
+        run(root, &["commit", "-q", "-m", "g"]);
+        fs::write(root.join("g.md"), "human edit\n").unwrap();
+        SagaMember {
+            tree_root: root.to_path_buf(),
+            repo_names: vec![RepoName(name.to_string())],
+            paths: vec![PathBuf::from("f.md"), PathBuf::from("g.md")],
+            git: true,
+        }
+    }
+
+    #[test]
+    fn the_pre_touch_guard_passes_a_clean_path_and_rejects_a_drifted_one() {
+        let a = init_repo();
+        let seed = a.path().join("seed.md");
+        guard_unchanged_before_touch(&seed, None).expect("a clean path passes");
+        // A human edit after the sweep: the move or delete must not carry it.
+        fs::write(&seed, "human edit\n").unwrap();
+        let err = guard_unchanged_before_touch(&seed, None).unwrap_err();
+        assert!(
+            err.message
+                .contains("changed since the mutation was planned"),
+            "{}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn the_pre_touch_guard_compares_an_engine_rewritten_path_to_its_bytes() {
+        let a = init_repo();
+        let seed = a.path().join("seed.md");
+        // The engine rewrote it (a self-reference): dirty at HEAD by design, so
+        // the baseline is the bytes it wrote, not HEAD.
+        fs::write(&seed, "engine rewrite\n").unwrap();
+        guard_unchanged_before_touch(&seed, Some("engine rewrite\n"))
+            .expect("the engine's own write is the baseline");
+        fs::write(&seed, "human edit on top\n").unwrap();
+        assert!(guard_unchanged_before_touch(&seed, Some("engine rewrite\n")).is_err());
+    }
+
+    #[test]
+    fn the_pre_touch_guard_passes_a_path_under_no_working_tree() {
+        let dir = TempDir::new().unwrap();
+        let f = dir.path().join("f.md");
+        fs::write(&f, "anything\n").unwrap();
+        guard_unchanged_before_touch(&f, None).expect("off-git has no clean precondition");
+    }
+
+    #[test]
+    fn the_batched_guard_checks_every_path_once_and_names_the_drifted_one() {
+        let (a, b) = (init_repo(), init_repo());
+        for r in [&a, &b] {
+            fs::create_dir_all(r.path().join("d")).unwrap();
+            for f in ["d/x.md", "d/y.md"] {
+                fs::write(r.path().join(f), "x\n").unwrap();
+            }
+            run(r.path(), &["add", "."]);
+            run(r.path(), &["commit", "-q", "-m", "d"]);
+        }
+        let off = TempDir::new().unwrap();
+        fs::write(off.path().join("z.md"), "off-git\n").unwrap();
+        let rewritten = a.path().join("seed.md");
+        fs::write(&rewritten, "engine rewrite\n").unwrap();
+        let paths = |a: &Path, b: &Path| {
+            vec![
+                a.join("d/x.md"),
+                a.join("d/y.md"),
+                b.join("d/x.md"),
+                b.join("d/y.md"),
+                off.path().join("z.md"),
+            ]
+        };
+        let all = paths(a.path(), b.path());
+        let mut guarded: Vec<(&Path, Option<&str>)> =
+            all.iter().map(|p| (p.as_path(), None)).collect();
+        guarded.push((rewritten.as_path(), Some("engine rewrite\n")));
+        // Clean across two trees, an off-git path, and the engine's own rewrite.
+        guard_unchanged_before_touch_all(&guarded).expect("everything is as planned");
+
+        // One human edit among many: rejected, the drifted file named.
+        fs::write(b.path().join("d/y.md"), "human edit\n").unwrap();
+        let err = guard_unchanged_before_touch_all(&guarded).unwrap_err();
+        assert!(err.message.contains("d/y.md"), "{}", err.message);
+        assert!(
+            err.message
+                .contains("changed since the mutation was planned"),
+            "{}",
+            err.message
+        );
+
+        // An edit on top of the engine's rewrite is caught by its byte compare.
+        run(b.path(), &["checkout", "--", "d/y.md"]);
+        fs::write(&rewritten, "human edit on top\n").unwrap();
+        assert!(guard_unchanged_before_touch_all(&guarded).is_err());
+    }
+
+    #[test]
+    fn saga_never_commits_a_path_it_does_not_write() {
+        let a = init_repo();
+        let plan = SagaPlan {
+            attribution: Vec::new(),
+            dirs: DirJournal::default(),
+            unclassified: None,
+            not_written: [a.path().join("g.md")].into_iter().collect(),
+            outside_git: Default::default(),
+            mutation_id: "m-unwritten-commit".to_string(),
+            members: vec![member_with_unwritten_dirty(a.path(), "ra")],
+        };
+        let marker = TempDir::new().unwrap();
+        apply_saga(
+            &ShellGit,
+            marker.path(),
+            &plan,
+            "s".to_string(),
+            false,
+            || {
+                fs::write(a.path().join("f.md"), "content\n").unwrap();
+                Ok::<(), MutationReject>(())
+            },
+        )
+        .expect("a dirty path the saga does not write does not block it");
+        let changed = run(a.path(), &["show", "--name-only", "--format=", "HEAD"]);
+        assert_eq!(changed, "f.md", "the mutation's commit swept in: {changed}");
+        assert_eq!(
+            fs::read_to_string(a.path().join("g.md")).unwrap(),
+            "human edit\n",
+            "the human's uncommitted edit was lost"
+        );
+        assert!(
+            !ShellGit
+                .is_clean(a.path(), &[PathBuf::from("g.md")])
+                .unwrap(),
+            "the human's edit should still be uncommitted"
+        );
+    }
+
+    #[test]
+    fn saga_rollback_never_restores_a_path_it_does_not_write() {
+        let a = init_repo();
+        let plan = SagaPlan {
+            attribution: Vec::new(),
+            dirs: DirJournal::default(),
+            unclassified: None,
+            not_written: [a.path().join("g.md")].into_iter().collect(),
+            outside_git: Default::default(),
+            mutation_id: "m-unwritten-restore".to_string(),
+            members: vec![member_with_unwritten_dirty(a.path(), "ra")],
+        };
+        let marker = TempDir::new().unwrap();
+        let git = FailAt {
+            fail_repo: a.path().to_path_buf(),
+        };
+        let res = apply_saga(&git, marker.path(), &plan, "s".to_string(), false, || {
+            fs::write(a.path().join("f.md"), "content\n").unwrap();
+            Ok::<(), MutationReject>(())
+        });
+        assert!(res.is_err(), "the forced commit failure rejects");
+        assert!(
+            !a.path().join("f.md").exists(),
+            "the written path was not rolled back"
+        );
+        assert_eq!(
+            fs::read_to_string(a.path().join("g.md")).unwrap(),
+            "human edit\n",
+            "the rollback discarded the human's uncommitted edit"
+        );
+    }
+
+    #[test]
+    fn saga_skips_a_member_it_writes_nothing_in() {
+        let (a, b) = (init_repo(), init_repo());
+        // b touches only g.md, which the mutation does not write: no commit, no
+        // whole-tree pathspec, its dirty edit untouched.
+        let mut mb = member_with_unwritten_dirty(b.path(), "rb");
+        mb.paths = vec![PathBuf::from("g.md")];
+        let plan = SagaPlan {
+            attribution: Vec::new(),
+            dirs: DirJournal::default(),
+            unclassified: None,
+            not_written: [b.path().join("g.md")].into_iter().collect(),
+            outside_git: Default::default(),
+            mutation_id: "m-unwritten-member".to_string(),
+            members: vec![member(a.path(), "ra"), mb],
+        };
+        let marker = TempDir::new().unwrap();
+        let (_, commits) = apply_saga(
+            &ShellGit,
+            marker.path(),
+            &plan,
+            "s".to_string(),
+            false,
+            || {
+                fs::write(a.path().join("f.md"), "content\n").unwrap();
+                Ok::<(), MutationReject>(())
+            },
+        )
+        .expect("the saga commits the written member");
+        assert_eq!(commits.len(), 1, "only the written member commits");
+        assert_eq!(commits_carrying(b.path(), "m-unwritten-member"), 0);
+        assert_eq!(
+            fs::read_to_string(b.path().join("g.md")).unwrap(),
+            "human edit\n"
+        );
+    }
+
     #[test]
     fn three_repo_saga_failure_compensates_every_member() {
         let (a, b, c) = (init_repo(), init_repo(), init_repo());
         let plan = SagaPlan {
             attribution: Vec::new(),
-            exempt_from_clean_check: Default::default(),
+            dirs: DirJournal::default(),
+            unclassified: None,
+            not_written: Default::default(),
+            outside_git: Default::default(),
             mutation_id: "m-saga-2".to_string(),
             members: vec![
                 member(a.path(), "ra"),
@@ -12408,7 +14829,10 @@ mod saga_tests {
         seed_nested(tree.path(), &["repo-a", "repo-b", "repo-c"]);
         let plan = SagaPlan {
             attribution: Vec::new(),
-            exempt_from_clean_check: Default::default(),
+            dirs: DirJournal::default(),
+            unclassified: None,
+            not_written: Default::default(),
+            outside_git: Default::default(),
             mutation_id: "m-shared-1".to_string(),
             members: nested_members(tree.path(), &["repo-a", "repo-b", "repo-c"]),
         };
@@ -12522,7 +14946,10 @@ mod saga_tests {
         members.push(member(other.path(), "other"));
         let plan = SagaPlan {
             attribution: Vec::new(),
-            exempt_from_clean_check: Default::default(),
+            dirs: DirJournal::default(),
+            unclassified: None,
+            not_written: Default::default(),
+            outside_git: Default::default(),
             mutation_id: "m-shared-2".to_string(),
             members,
         };
@@ -12574,7 +15001,10 @@ mod saga_tests {
     fn dirty_set_spans_every_member_path() {
         let plan = SagaPlan {
             attribution: Vec::new(),
-            exempt_from_clean_check: Default::default(),
+            dirs: DirJournal::default(),
+            unclassified: None,
+            not_written: Default::default(),
+            outside_git: Default::default(),
             mutation_id: "m".to_string(),
             members: vec![
                 SagaMember {
@@ -12609,13 +15039,17 @@ mod saga_tests {
     fn crashed_marker(marker_root: &Path, id: &str, members: &[(&Path, &str)]) {
         let plan = SagaPlan {
             attribution: Vec::new(),
-            exempt_from_clean_check: Default::default(),
+            dirs: DirJournal::default(),
+            unclassified: None,
+            not_written: Default::default(),
+            outside_git: Default::default(),
             mutation_id: id.to_string(),
             members: members.iter().map(|(p, n)| member(p, n)).collect(),
         };
         write_intent_marker(
             &marker_root.join(".arsumbris").join("au-engine").join("run"),
             &plan,
+            &[],
         )
         .unwrap();
     }
@@ -12651,13 +15085,17 @@ mod saga_tests {
 
         let plan = SagaPlan {
             attribution: Vec::new(),
-            exempt_from_clean_check: Default::default(),
+            dirs: DirJournal::default(),
+            unclassified: None,
+            not_written: Default::default(),
+            outside_git: Default::default(),
             mutation_id: "m-crash-shared".to_string(),
             members: nested_members(tree.path(), &subs),
         };
         write_intent_marker(
             &ws.path().join(".arsumbris").join("au-engine").join("run"),
             &plan,
+            &[],
         )
         .unwrap();
 
@@ -12844,5 +15282,549 @@ mod saga_tests {
             "no intent marker the second time"
         );
         assert_eq!(again.failures.len(), 1, "the sentinel is re-surfaced");
+    }
+
+    /// A repo ignoring `scratch.md` (the rule committed), with a tracked `f.md`
+    /// and an untracked `scratch.md` holding `old`, plus the one member touching
+    /// both, classified the way `resolve_saga_plan` does.
+    fn repo_with_an_ignored_scratch() -> (TempDir, SagaPlan) {
+        let dir = init_repo();
+        let p = dir.path();
+        fs::write(p.join(".gitignore"), "scratch.md\n").unwrap();
+        fs::write(p.join("f.md"), "seed\n").unwrap();
+        run(p, &["add", "."]);
+        run(p, &["commit", "-q", "-m", "ignore scratch"]);
+        fs::write(p.join("scratch.md"), "old\n").unwrap();
+        let mut m = member(p, "r");
+        m.paths.push(PathBuf::from("scratch.md"));
+        let members = vec![m];
+        let outside_git = classify_outside_git(&ShellGit, &members, &Default::default()).unwrap();
+        let plan = SagaPlan {
+            attribution: Vec::new(),
+            dirs: DirJournal::default(),
+            unclassified: None,
+            not_written: Default::default(),
+            outside_git,
+            mutation_id: "m-ignored".to_string(),
+            members,
+        };
+        (dir, plan)
+    }
+
+    #[test]
+    fn classification_finds_ignored_untracked_paths_only() {
+        let (dir, plan) = repo_with_an_ignored_scratch();
+        let p = dir.path();
+        assert_eq!(
+            plan.outside_git,
+            [p.join("scratch.md")].into_iter().collect(),
+            "only the ignored, untracked path is outside git"
+        );
+        assert_eq!(
+            plan.written_paths(&plan.members[0]),
+            vec![PathBuf::from("f.md")],
+            "the git-facing path set drops it"
+        );
+
+        // A tracked file stays git-recorded whatever the ignore rules say, and a
+        // not-yet-existing destination classifies by pattern.
+        fs::write(p.join(".gitignore"), "scratch.md\nf.md\nlater/\n").unwrap();
+        let m = SagaMember {
+            tree_root: p.to_path_buf(),
+            repo_names: vec![RepoName("r".to_string())],
+            paths: vec![PathBuf::from("f.md"), PathBuf::from("later/new.md")],
+            git: true,
+        };
+        assert_eq!(
+            classify_outside_git(&ShellGit, &[m], &Default::default()).unwrap(),
+            [p.join("later/new.md")].into_iter().collect(),
+            "tracked f.md stays in git, the absent destination is ignored by pattern"
+        );
+    }
+
+    #[test]
+    fn an_ignored_path_is_written_but_never_committed() {
+        let (dir, plan) = repo_with_an_ignored_scratch();
+        let p = dir.path().to_path_buf();
+        let marker = TempDir::new().unwrap();
+        let (_, commits) = apply_saga(
+            &ShellGit,
+            marker.path(),
+            &plan,
+            "mixed write".to_string(),
+            false,
+            || {
+                fs::write(p.join("f.md"), "changed\n").unwrap();
+                fs::write(p.join("scratch.md"), "new\n").unwrap();
+                Ok::<(), MutationReject>(())
+            },
+        )
+        .expect("a commit beside an ignored path succeeds");
+        assert_eq!(commits.len(), 1, "the tracked change committed");
+        assert_eq!(
+            run(&p, &["show", "--name-only", "--format=", "HEAD"]),
+            "f.md",
+            "the commit names only the tracked path"
+        );
+        assert_eq!(fs::read_to_string(p.join("scratch.md")).unwrap(), "new\n");
+    }
+
+    #[test]
+    fn a_failed_saga_restores_an_ignored_path_byte_identical() {
+        let (dir, plan) = repo_with_an_ignored_scratch();
+        let p = dir.path().to_path_buf();
+        let marker = TempDir::new().unwrap();
+        let git = FailAt {
+            fail_repo: p.clone(),
+        };
+        let result = apply_saga(
+            &git,
+            marker.path(),
+            &plan,
+            "mixed write".to_string(),
+            false,
+            || {
+                fs::write(p.join("f.md"), "changed\n").unwrap();
+                fs::write(p.join("scratch.md"), "new\n").unwrap();
+                Ok::<(), MutationReject>(())
+            },
+        );
+        assert!(result.is_err(), "the forced commit failure rejects");
+        assert_eq!(
+            fs::read_to_string(p.join("f.md")).unwrap(),
+            "seed\n",
+            "the tracked path is restored to HEAD"
+        );
+        assert_eq!(
+            fs::read_to_string(p.join("scratch.md")).unwrap(),
+            "old\n",
+            "the ignored path is restored from its parked copy, byte-identical"
+        );
+        assert!(
+            !preimage_dir(marker.path(), "m-ignored").exists(),
+            "the parked copies are dropped once the saga settles"
+        );
+    }
+
+    /// A repo holding a tracked `d/a.md`, an empty `d/empty`, and an empty
+    /// `notes/` that existed before the op, plus the plan moving `d/` to
+    /// `notes/x/`: the file, the skeleton (`notes/x/empty` created, `d/empty`
+    /// and `d` removed), and `notes/` kept, since the rollback's pruning of the
+    /// created file would otherwise take it.
+    fn folder_move_fixture() -> (TempDir, SagaPlan) {
+        let dir = init_repo();
+        let p = dir.path();
+        fs::create_dir_all(p.join("d/empty")).unwrap();
+        fs::create_dir_all(p.join("notes")).unwrap();
+        fs::write(p.join("d/a.md"), "a\n").unwrap();
+        run(p, &["add", "."]);
+        run(p, &["commit", "-q", "-m", "seed d"]);
+        let plan = SagaPlan {
+            attribution: Vec::new(),
+            unclassified: None,
+            dirs: DirJournal {
+                created: vec![p.join("notes/x"), p.join("notes/x/empty")],
+                kept: vec![p.join("d"), p.join("d/empty"), p.join("notes")],
+            },
+            not_written: Default::default(),
+            outside_git: Default::default(),
+            mutation_id: "m-folder".to_string(),
+            members: vec![SagaMember {
+                tree_root: p.to_path_buf(),
+                repo_names: vec![RepoName("r".to_string())],
+                paths: vec![PathBuf::from("d/a.md"), PathBuf::from("notes/x/a.md")],
+                git: true,
+            }],
+        };
+        (dir, plan)
+    }
+
+    /// The folder move's writes, stopping early when `upto_skeleton` is false.
+    fn do_folder_move(p: &Path, upto_skeleton: bool) {
+        fs::create_dir_all(p.join("notes/x")).unwrap();
+        fs::rename(p.join("d/a.md"), p.join("notes/x/a.md")).unwrap();
+        if upto_skeleton {
+            fs::create_dir_all(p.join("notes/x/empty")).unwrap();
+            fs::remove_dir(p.join("d/empty")).unwrap();
+            fs::remove_dir(p.join("d")).unwrap();
+        }
+    }
+
+    fn assert_folder_unmoved(p: &Path) {
+        assert_eq!(fs::read_to_string(p.join("d/a.md")).unwrap(), "a\n");
+        assert!(
+            p.join("d/empty").is_dir(),
+            "the removed empty directory is back"
+        );
+        assert!(
+            p.join("notes").is_dir(),
+            "the pre-existing empty parent survives"
+        );
+        assert!(
+            !p.join("notes/x").exists(),
+            "every created directory is gone"
+        );
+    }
+
+    #[test]
+    fn a_folder_delete_leaves_a_file_created_after_the_plan_uncommitted_and_in_place() {
+        let (dir, _) = folder_move_fixture();
+        let p = dir.path().to_path_buf();
+        let plan = SagaPlan {
+            attribution: Vec::new(),
+            unclassified: None,
+            dirs: DirJournal {
+                created: Vec::new(),
+                kept: vec![p.join("d"), p.join("d/empty")],
+            },
+            not_written: Default::default(),
+            outside_git: Default::default(),
+            mutation_id: "m-delete-dir".to_string(),
+            members: vec![SagaMember {
+                tree_root: p.clone(),
+                repo_names: vec![RepoName("r".to_string())],
+                paths: vec![PathBuf::from("d/a.md")],
+                git: true,
+            }],
+        };
+        let marker = TempDir::new().unwrap();
+        let files = vec![p.join("d/a.md")];
+        let dirs = vec![p.join("d"), p.join("d/empty")];
+        let (_, commits) = apply_saga(
+            &ShellGit,
+            marker.path(),
+            &plan,
+            "delete".to_string(),
+            true,
+            || {
+                // A human creates a file in the folder after it was enumerated.
+                fs::write(p.join("d/late.md"), "late\n").unwrap();
+                delete_dir_write(&files, &dirs)
+            },
+        )
+        .unwrap();
+        assert_eq!(commits.commits.len(), 1);
+        assert!(!p.join("d/a.md").exists(), "the enumerated file is deleted");
+        assert!(
+            !p.join("d/empty").exists(),
+            "the emptied directory is removed"
+        );
+        assert_eq!(
+            fs::read_to_string(p.join("d/late.md")).unwrap(),
+            "late\n",
+            "the late file survives, with its directory"
+        );
+        let committed = run(&p, &["show", "--name-status", "--format=", "HEAD"]);
+        assert_eq!(
+            committed, "D\td/a.md",
+            "only the enumerated file is in the commit"
+        );
+        assert_eq!(
+            run(&p, &["status", "--porcelain", "--untracked-files=all"]),
+            "?? d/late.md"
+        );
+    }
+
+    #[test]
+    fn require_git_ignores_a_non_git_member_the_op_never_writes() {
+        let off = PathBuf::from("/off-git");
+        let mut plan = SagaPlan {
+            attribution: Vec::new(),
+            unclassified: None,
+            dirs: DirJournal::default(),
+            not_written: [off.join("r.md")].into_iter().collect(),
+            outside_git: Default::default(),
+            mutation_id: "m-require-git".to_string(),
+            members: vec![SagaMember {
+                tree_root: off.clone(),
+                repo_names: vec![RepoName("off".to_string())],
+                paths: vec![PathBuf::from("r.md")],
+                git: false,
+            }],
+        };
+        assert!(
+            require_git_reject(&plan).is_none(),
+            "a member holding only byte-identical referrers is never written"
+        );
+        plan.members[0].paths.push(PathBuf::from("w.md"));
+        let reject = require_git_reject(&plan).expect("a written path still needs a tree");
+        assert!(reject.message.contains("off"), "{}", reject.message);
+    }
+
+    #[test]
+    fn a_folder_move_leaves_a_file_created_after_the_plan_uncommitted_in_its_source_dir() {
+        let dir = init_repo();
+        let p = fs::canonicalize(dir.path()).unwrap();
+        fs::create_dir_all(p.join(".arsumbris")).unwrap();
+        fs::write(p.join(".arsumbris/repo.yaml"), "name: r\n").unwrap();
+        fs::create_dir_all(p.join("d/empty")).unwrap();
+        fs::write(p.join("d/a.md"), "a\n").unwrap();
+        run(&p, &["add", "."]);
+        run(&p, &["commit", "-q", "-m", "seed d"]);
+        let kb = crate::build::build(&p, &au_parser::RealFileSystem).unwrap();
+        let dir_plan = crate::dirop::plan_move_dir(&kb, &p.join("d"), &p.join("notes/x")).unwrap();
+        let plan = SagaPlan {
+            attribution: Vec::new(),
+            unclassified: None,
+            dirs: DirJournal {
+                created: dir_plan.created_dirs(),
+                kept: dir_plan.kept_dirs(),
+            },
+            not_written: Default::default(),
+            outside_git: Default::default(),
+            mutation_id: "m-move-dir".to_string(),
+            members: vec![SagaMember {
+                tree_root: p.clone(),
+                repo_names: vec![RepoName("r".to_string())],
+                paths: vec![PathBuf::from("d/a.md"), PathBuf::from("notes/x/a.md")],
+                git: true,
+            }],
+        };
+        let marker = TempDir::new().unwrap();
+        let (_, commits) = apply_saga(
+            &ShellGit,
+            marker.path(),
+            &plan,
+            "move".to_string(),
+            true,
+            || {
+                // A human creates a file in the folder after it was enumerated.
+                fs::write(p.join("d/late.md"), "late\n").unwrap();
+                move_dir_write(&dir_plan, &Default::default())
+            },
+        )
+        .unwrap();
+        assert_eq!(commits.commits.len(), 1);
+        assert_eq!(fs::read_to_string(p.join("notes/x/a.md")).unwrap(), "a\n");
+        assert!(
+            p.join("notes/x/empty").is_dir(),
+            "the empty directory moves with the folder"
+        );
+        assert!(
+            !p.join("d/empty").exists(),
+            "the emptied source directory is removed"
+        );
+        assert_eq!(
+            fs::read_to_string(p.join("d/late.md")).unwrap(),
+            "late\n",
+            "the late file stays in its source directory, which is kept"
+        );
+        let committed = run(&p, &["show", "-M", "--name-status", "--format=", "HEAD"]);
+        assert_eq!(
+            committed, "R100\td/a.md\tnotes/x/a.md",
+            "only the enumerated file is in the commit"
+        );
+        assert_eq!(
+            run(&p, &["status", "--porcelain", "--untracked-files=all"]),
+            "?? d/late.md"
+        );
+    }
+
+    #[test]
+    fn a_failed_commit_puts_the_directory_skeleton_back() {
+        let (dir, plan) = folder_move_fixture();
+        let p = dir.path().to_path_buf();
+        let marker = TempDir::new().unwrap();
+        let git = FailAt {
+            fail_repo: p.clone(),
+        };
+        let result = apply_saga(&git, marker.path(), &plan, "move".to_string(), true, || {
+            do_folder_move(&p, true);
+            Ok::<(), MutationReject>(())
+        });
+        let err = result.unwrap_err();
+        assert!(!err.message.contains("incomplete"), "{}", err.message);
+        assert_folder_unmoved(&p);
+    }
+
+    #[test]
+    fn a_write_failing_part_way_puts_the_directory_skeleton_back() {
+        let (dir, plan) = folder_move_fixture();
+        let p = dir.path().to_path_buf();
+        let marker = TempDir::new().unwrap();
+        let result = apply_saga(
+            &ShellGit,
+            marker.path(),
+            &plan,
+            "move".to_string(),
+            true,
+            || {
+                do_folder_move(&p, false);
+                Err::<(), _>(MutationReject::new("forced write failure"))
+            },
+        );
+        assert!(result.is_err());
+        assert_folder_unmoved(&p);
+    }
+
+    #[test]
+    fn crash_recovery_puts_the_directory_skeleton_back() {
+        let ws = TempDir::new().unwrap();
+        let (dir, plan) = folder_move_fixture();
+        let p = dir.path().to_path_buf();
+        let marker_dir = ws.path().join(".arsumbris").join("au-engine").join("run");
+        write_intent_marker(&marker_dir, &plan, &[]).unwrap();
+        do_folder_move(&p, true);
+        let report = recover_crashed_saga(ws.path());
+        assert!(report.recovered.is_some());
+        assert!(
+            report.failures.is_empty(),
+            "failures: {:?}",
+            report.failures
+        );
+        assert_folder_unmoved(&p);
+    }
+
+    #[test]
+    fn a_created_directory_holding_foreign_content_is_left_and_reported() {
+        let ws = TempDir::new().unwrap();
+        let (dir, plan) = folder_move_fixture();
+        let p = dir.path().to_path_buf();
+        let marker_dir = ws.path().join(".arsumbris").join("au-engine").join("run");
+        write_intent_marker(&marker_dir, &plan, &[]).unwrap();
+        do_folder_move(&p, true);
+        // A file the saga never wrote lands in a directory it created.
+        fs::write(p.join("notes/x/empty/human.md"), "mine\n").unwrap();
+        let report = recover_crashed_saga(ws.path());
+        assert_eq!(report.failures.len(), 1, "the undo is reported incomplete");
+        assert!(report.failures[0].detail.contains("notes/x/empty"));
+        assert_eq!(
+            fs::read_to_string(p.join("notes/x/empty/human.md")).unwrap(),
+            "mine\n",
+            "content the saga did not write is never removed"
+        );
+        assert_eq!(fs::read_to_string(p.join("d/a.md")).unwrap(), "a\n");
+    }
+
+    /// A member moving the ignored `scratch.md` to `sub/scratch.md` (ignored at
+    /// any depth) beside a tracked `f.md` change.
+    fn ignored_move_plan(p: &Path) -> SagaPlan {
+        let m = SagaMember {
+            tree_root: p.to_path_buf(),
+            repo_names: vec![RepoName("r".to_string())],
+            paths: vec![
+                PathBuf::from("f.md"),
+                PathBuf::from("scratch.md"),
+                PathBuf::from("sub/scratch.md"),
+            ],
+            git: true,
+        };
+        let members = vec![m];
+        SagaPlan {
+            attribution: Vec::new(),
+            dirs: DirJournal::default(),
+            unclassified: None,
+            not_written: Default::default(),
+            outside_git: classify_outside_git(&ShellGit, &members, &Default::default()).unwrap(),
+            mutation_id: "m-ignored-move".to_string(),
+            members,
+        }
+    }
+
+    fn do_ignored_move(p: &Path) {
+        fs::write(p.join("f.md"), "changed\n").unwrap();
+        fs::create_dir_all(p.join("sub")).unwrap();
+        fs::rename(p.join("scratch.md"), p.join("sub/scratch.md")).unwrap();
+    }
+
+    #[test]
+    fn a_failed_saga_moves_an_ignored_path_back() {
+        let (dir, _) = repo_with_an_ignored_scratch();
+        let p = dir.path().to_path_buf();
+        let plan = ignored_move_plan(&p);
+        assert_eq!(
+            plan.outside_git.len(),
+            2,
+            "both sides of the move are outside git"
+        );
+        let marker = TempDir::new().unwrap();
+        let git = FailAt {
+            fail_repo: p.clone(),
+        };
+        let result = apply_saga(
+            &git,
+            marker.path(),
+            &plan,
+            "move".to_string(),
+            false,
+            || {
+                do_ignored_move(&p);
+                Ok::<(), MutationReject>(())
+            },
+        );
+        assert!(result.is_err());
+        assert_eq!(fs::read_to_string(p.join("scratch.md")).unwrap(), "old\n");
+        assert!(
+            !p.join("sub/scratch.md").exists(),
+            "the destination is removed"
+        );
+        assert!(
+            !p.join("sub").exists(),
+            "the directory the move created is pruned"
+        );
+        assert_eq!(fs::read_to_string(p.join("f.md")).unwrap(), "seed\n");
+    }
+
+    #[test]
+    fn a_settled_saga_keeps_the_ignored_write_and_drops_the_copies() {
+        let (dir, _) = repo_with_an_ignored_scratch();
+        let p = dir.path().to_path_buf();
+        let plan = ignored_move_plan(&p);
+        let marker = TempDir::new().unwrap();
+        apply_saga(
+            &ShellGit,
+            marker.path(),
+            &plan,
+            "move".to_string(),
+            false,
+            || {
+                do_ignored_move(&p);
+                Ok::<(), MutationReject>(())
+            },
+        )
+        .expect("the saga settles");
+        assert_eq!(
+            fs::read_to_string(p.join("sub/scratch.md")).unwrap(),
+            "old\n"
+        );
+        assert!(!p.join("scratch.md").exists());
+        assert!(
+            !preimage_dir(marker.path(), "m-ignored-move").exists(),
+            "the parked copies are dropped"
+        );
+        assert!(!marker.path().join(INTENT_MARKER_NAME).exists());
+    }
+
+    #[test]
+    fn crash_recovery_restores_an_ignored_path_from_its_parked_copy() {
+        let ws = TempDir::new().unwrap();
+        let (dir, _) = repo_with_an_ignored_scratch();
+        let p = dir.path().to_path_buf();
+        let plan = ignored_move_plan(&p);
+        let marker_dir = ws.path().join(".arsumbris").join("au-engine").join("run");
+
+        // The saga parked, opened its marker, wrote, then crashed before settling.
+        let preimages = park_preimages(&marker_dir, &plan).unwrap();
+        write_intent_marker(&marker_dir, &plan, &preimages).unwrap();
+        do_ignored_move(&p);
+        // An orphan from an earlier crash between closing its marker and
+        // dropping its copies.
+        fs::create_dir_all(preimage_dir(&marker_dir, "m-orphan")).unwrap();
+
+        let report = recover_crashed_saga(ws.path());
+        assert!(report.recovered.is_some(), "the open marker is recovered");
+        assert!(
+            report.failures.is_empty(),
+            "failures: {:?}",
+            report.failures
+        );
+        assert_eq!(fs::read_to_string(p.join("scratch.md")).unwrap(), "old\n");
+        assert!(!p.join("sub/scratch.md").exists());
+        assert_eq!(fs::read_to_string(p.join("f.md")).unwrap(), "seed\n");
+        assert!(
+            !preimage_dir(&marker_dir, "m-ignored-move").exists()
+                && !preimage_dir(&marker_dir, "m-orphan").exists(),
+            "recovery sweeps every parked copy"
+        );
     }
 }

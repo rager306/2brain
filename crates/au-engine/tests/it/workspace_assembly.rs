@@ -319,6 +319,50 @@ fn a_workspace_yaml_omitting_its_containing_repo_errors_but_still_mounts_it() {
             .is_some(),
         "the entry repo mounts regardless of the omission (role Entry)"
     );
+    // Applicable fix: add the containing repo (`home`) to `edit:` via
+    // `add_workspace_member`. `root` is the consumer's, derived from the span.
+    let d = kb
+        .diagnostics()
+        .find(|d| d.code.as_str() == "workspace-omits-containing-repo")
+        .expect("the code fires");
+    let fix = d.fix.as_ref().expect("carries an applicable fix");
+    assert_eq!(fix.actions.len(), 1);
+    let a = &fix.actions[0];
+    assert_eq!(a.verb, "add_workspace_member");
+    assert_eq!(a.args.get("name").map(String::as_str), Some("home"));
+    assert_eq!(a.args.get("role").map(String::as_str), Some("edit"));
+    assert!(!a.args.contains_key("root"), "root is the consumer's");
+}
+
+#[test]
+fn omits_containing_repo_fix_moves_it_when_hand_listed_under_discover() {
+    // The containing repo `home` is hand-listed under `discover:`, not `edit:`.
+    // The code still fires (not in edit), but `add_workspace_member` would REJECT
+    // (already in a list), so the fix MOVES it with `set_workspace_member_role`.
+    let dir = tempfile::tempdir().unwrap();
+    let tmp = fs::canonicalize(dir.path()).unwrap();
+    write(&tmp, ".arsumbris/repo.yaml", "name: home\n");
+    write(
+        &tmp,
+        ".arsumbris/workspace.yaml",
+        "edit:\n  - sub\ndiscover:\n  - home\n",
+    );
+    write(&tmp, "type/note.type.yaml", "fields:\n  title: String\n");
+    write(&tmp, "sub/.arsumbris/repo.yaml", "name: sub\n");
+
+    let kb = build(&tmp, &RealFileSystem).expect("build");
+
+    let d = kb
+        .diagnostics()
+        .find(|d| d.code.as_str() == "workspace-omits-containing-repo")
+        .expect("the code fires even when the repo is in discover");
+    let a = &d.fix.as_ref().expect("carries a fix").actions[0];
+    assert_eq!(
+        a.verb, "set_workspace_member_role",
+        "in discover -> move, not add"
+    );
+    assert_eq!(a.args.get("name").map(String::as_str), Some("home"));
+    assert_eq!(a.args.get("role").map(String::as_str), Some("edit"));
 }
 
 #[test]
@@ -497,6 +541,18 @@ fn a_discover_member_that_is_also_a_dep_is_a_redundant_hint() {
         !cs.iter().any(|c| c == "workspace-member-role-conflict"),
         "a redundant discover is not a role conflict, got {cs:?}"
     );
+    // Applicable fix: drop the redundant `shared` from `discover:` via
+    // `remove_workspace_member`. `root` is the consumer's.
+    let d = kb
+        .diagnostics()
+        .find(|d| d.code.as_str() == "discover-member-is-a-dependency")
+        .expect("the code fires");
+    let fix = d.fix.as_ref().expect("carries an applicable fix");
+    assert_eq!(fix.actions.len(), 1);
+    let a = &fix.actions[0];
+    assert_eq!(a.verb, "remove_workspace_member");
+    assert_eq!(a.args.get("name").map(String::as_str), Some("shared"));
+    assert!(!a.args.contains_key("root"), "root is the consumer's");
 }
 
 #[test]

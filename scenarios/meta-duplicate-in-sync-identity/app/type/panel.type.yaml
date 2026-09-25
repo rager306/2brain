@@ -1,0 +1,8 @@
+# app's view-meta is byte-identical to base's, so `view-meta` and
+# `view-meta::base` name ONE meta type: two blocks of it on one def.
+fields: {}
+meta:
+  - type: view-meta
+    tldr: "own"
+  - type: view-meta::base
+    tldr: "peer"

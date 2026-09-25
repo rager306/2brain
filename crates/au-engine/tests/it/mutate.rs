@@ -4378,6 +4378,245 @@ fn an_all_frozen_referrer_is_not_written_at_all() {
     assert!(d.contains("[[c]]"), "the rename did not run at all: {d}");
 }
 
+// ----- a name-keeping move writes only the referrers whose bytes change -----
+//
+// A move re-renders each reference in its referrer's own spelling, so a move
+// keeping the file's name leaves a bare `[[a]]` byte-identical. Such a referrer
+// is not written: not clean-gated, not committed, its uncommitted work untouched.
+
+#[test]
+fn a_pure_move_lands_over_a_dirty_bare_name_referrer_and_leaves_its_edit() {
+    let mut h = started_in_git();
+    wr(
+        &h.root,
+        "b.md",
+        "---\ntype: note\ndescription: refers\n---\nsee [[a]]\n",
+    );
+    git(&h.root, &["add", "."]);
+    git(&h.root, &["commit", "-q", "-m", "add referrer"]);
+    // A human edit to the referrer, uncommitted, keeping its bare link.
+    let dirty = "---\ntype: note\ndescription: human edit\n---\nsee [[a]]\n";
+    wr(&h.root, "b.md", dirty);
+    h.engine.rebuild();
+
+    let resp = h
+        .client
+        .query(&json!({"mutate": "rename", "path": "a.md", "to": "sub/a.md"}))
+        .unwrap();
+    assert_eq!(resp["ready"], true, "got {resp:?}");
+
+    assert_eq!(
+        fs::read_to_string(h.root.join("b.md")).unwrap(),
+        dirty,
+        "the human's uncommitted edit was touched"
+    );
+    let committed = git_out(&h.root, &["show", "--name-only", "--format=", "HEAD"]);
+    assert!(
+        !committed.lines().any(|l| l == "b.md"),
+        "the move's commit swept in the untouched referrer: {committed}"
+    );
+    let status = git_out(&h.root, &["status", "--porcelain"]);
+    assert_eq!(
+        status, "M b.md",
+        "only the human's edit stays dirty: {status}"
+    );
+}
+
+#[test]
+fn a_rename_previews_exactly_the_referrers_the_committed_rename_writes() {
+    let mut h = started_in_git();
+    // The moved file: a self-link by path, so it rewrites itself.
+    fs::create_dir_all(h.root.join("x")).unwrap();
+    git(&h.root, &["mv", "a.md", "x/a.md"]);
+    wr(
+        &h.root,
+        "x/a.md",
+        "---\ntype: note\ndescription: self\n---\nsee [[x/a]]\n",
+    );
+    // A bare-name referrer, byte-identical on the move: previewed as unchanged,
+    // and absent from the commit.
+    wr(
+        &h.root,
+        "b.md",
+        "---\ntype: note\ndescription: bare\n---\nsee [[a]]\n",
+    );
+    // A path-addressed referrer, re-spelled.
+    wr(
+        &h.root,
+        "c.md",
+        "---\ntype: note\ndescription: path\n---\nsee [[x/a]]\n",
+    );
+    git(&h.root, &["add", "."]);
+    git(&h.root, &["commit", "-q", "-m", "referrers"]);
+    h.engine.rebuild();
+
+    let resp = h
+        .client
+        .query(&json!({
+            "read": "preview_mutation", "op": "rename", "path": "x/a.md", "to": "y/a.md",
+        }))
+        .unwrap();
+    let rewrites = resp["result"]["preview_mutation"]["rewrites"]
+        .as_array()
+        .unwrap_or_else(|| panic!("a product with rewrites: {resp:?}"))
+        .clone();
+    let rel = |p: &str| {
+        std::path::Path::new(p)
+            .strip_prefix(&h.root)
+            .unwrap()
+            .to_string_lossy()
+            .into_owned()
+    };
+    let mut previewed: Vec<String> = rewrites
+        .iter()
+        .map(|r| rel(r["path"].as_str().unwrap()))
+        .collect();
+    previewed.sort();
+    assert_eq!(previewed, vec!["c.md", "y/a.md"], "{rewrites:?}");
+
+    let resp = h
+        .client
+        .query(&json!({"mutate": "rename", "path": "x/a.md", "to": "y/a.md"}))
+        .unwrap();
+    assert_eq!(resp["ready"], true, "got {resp:?}");
+
+    // The commit's content changes, beyond the move itself, are exactly the
+    // previewed rewrites; the moved file counts when its bytes changed.
+    let changed = git_out(
+        &h.root,
+        &[
+            "show",
+            "--name-status",
+            "--find-renames=100%",
+            "--format=",
+            "HEAD",
+        ],
+    );
+    let mut written: Vec<String> = changed
+        .lines()
+        .filter_map(|l| {
+            let cols: Vec<&str> = l.split('\t').collect();
+            match cols[0] {
+                // A byte-identical move (R100) rewrote nothing.
+                "R100" => None,
+                "M" => Some(cols[1].to_string()),
+                // The moved file with changed bytes: an add at the destination.
+                "A" => Some(cols[1].to_string()),
+                _ => None,
+            }
+        })
+        .collect();
+    written.sort();
+    assert_eq!(written, previewed, "commit: {changed}");
+
+    // And each previewed link is what landed.
+    for r in &rewrites {
+        let on_disk = fs::read_to_string(r["path"].as_str().unwrap()).unwrap();
+        for l in r["links"].as_array().unwrap() {
+            assert!(on_disk.contains(l["to"].as_str().unwrap()), "{on_disk}");
+            assert!(!on_disk.contains(l["from"].as_str().unwrap()), "{on_disk}");
+        }
+    }
+}
+
+#[test]
+fn a_pure_move_of_a_top_level_file_leaves_its_extension_spelled_referrer_alone() {
+    // At the root `[[a.md]]` is both the relpath and the basename; without a `/`
+    // it resolves by name, so moving `a.md` keeps it valid and unwritten.
+    let mut h = started_in_git();
+    let body = "---\ntype: note\ndescription: refers\n---\nsee [[a.md]]\n";
+    wr(&h.root, "b.md", body);
+    git(&h.root, &["add", "."]);
+    git(&h.root, &["commit", "-q", "-m", "add referrer"]);
+    h.engine.rebuild();
+
+    let resp = h
+        .client
+        .query(&json!({"mutate": "rename", "path": "a.md", "to": "sub/a.md"}))
+        .unwrap();
+    assert_eq!(resp["ready"], true, "got {resp:?}");
+    assert_eq!(fs::read_to_string(h.root.join("b.md")).unwrap(), body);
+    let committed = git_out(&h.root, &["show", "--name-only", "--format=", "HEAD"]);
+    assert!(
+        !committed.lines().any(|l| l == "b.md"),
+        "the unchanged referrer was committed: {committed}"
+    );
+    // Still resolves: no dangling-link diagnostic on the referrer.
+    let diags = h
+        .client
+        .query(&json!({"read": "diagnostics", "path": "b.md"}))
+        .unwrap();
+    assert!(
+        !diags.to_string().contains("not-found"),
+        "the kept link no longer resolves: {diags}"
+    );
+}
+
+#[test]
+fn a_pure_move_still_rejects_over_a_dirty_path_addressed_referrer() {
+    let mut h = started_in_git();
+    // A path-addressed link, which a move DOES rewrite.
+    wr(
+        &h.root,
+        "c.md",
+        "---\ntype: note\ndescription: refers\n---\nsee [[x/a]]\n",
+    );
+    fs::create_dir_all(h.root.join("x")).unwrap();
+    git(&h.root, &["mv", "a.md", "x/a.md"]);
+    git(&h.root, &["add", "."]);
+    git(&h.root, &["commit", "-q", "-m", "path-addressed referrer"]);
+    wr(
+        &h.root,
+        "c.md",
+        "---\ntype: note\ndescription: human edit\n---\nsee [[x/a]]\n",
+    );
+    h.engine.rebuild();
+
+    let resp = h
+        .client
+        .query(&json!({"mutate": "rename", "path": "x/a.md", "to": "y/a.md"}))
+        .unwrap();
+    assert_eq!(resp["type"], "error", "got {resp:?}");
+    assert!(
+        resp["error"]
+            .as_str()
+            .unwrap()
+            .contains("uncommitted changes"),
+        "a written referrer stays clean-gated: {resp:?}"
+    );
+    assert!(
+        h.root.join("x/a.md").exists(),
+        "a rejected move moves nothing"
+    );
+}
+
+#[test]
+fn a_pure_move_of_a_bare_self_referencing_file_commits_the_move_whole() {
+    // The moved file's own bare `[[a]]` re-emits identically, but the file is
+    // never "not written": the move deletes it at the old path.
+    let mut h = started_in_git();
+    wr(
+        &h.root,
+        "a.md",
+        "---\ntype: note\ndescription: self\n---\nsee [[a]]\n",
+    );
+    git(&h.root, &["add", "."]);
+    git(&h.root, &["commit", "-q", "-m", "self-ref"]);
+    h.engine.rebuild();
+
+    let resp = h
+        .client
+        .query(&json!({"mutate": "rename", "path": "a.md", "to": "sub/a.md"}))
+        .unwrap();
+    assert_eq!(resp["ready"], true, "got {resp:?}");
+    let tracked = git_out(&h.root, &["ls-files"]);
+    assert!(
+        !tracked.lines().any(|l| l == "a.md") && tracked.lines().any(|l| l == "sub/a.md"),
+        "the move was not committed whole: {tracked}"
+    );
+    assert_eq!(git_out(&h.root, &["status", "--porcelain"]), "");
+}
+
 #[test]
 fn a_dirty_all_frozen_referrer_does_not_block_the_refactor() {
     // clean-at-HEAD exists because the engine is the writer: it must never
@@ -5616,5 +5855,358 @@ fn a_cross_repo_mixin_applies_via_the_on_demand_fold() {
     assert!(
         on_disk.contains("type: [note::base, pmark::base]"),
         "the peer mixin was added to the qualified claim: {on_disk}"
+    );
+}
+
+/// Git-initialize the fixture with a committed `.gitignore` covering
+/// `scratch.md`, then write `scratch.md` (ignored, never tracked) and start the
+/// engine, so the file is catalogued like any note while git never records it.
+fn started_in_git_with_an_ignored_note() -> Harness {
+    let (dir, root) = fixture();
+    fs::write(root.join(".gitignore"), "scratch.md\n").unwrap();
+    git(&root, &["init", "-q", "-b", "main"]);
+    git(&root, &["config", "user.name", "Tester"]);
+    git(&root, &["config", "user.email", "tester@example.com"]);
+    git(&root, &["add", "."]);
+    git(&root, &["commit", "-q", "-m", "seed"]);
+    fs::write(root.join("scratch.md"), IGNORED_NOTE).unwrap();
+    assert!(
+        git_out(&root, &["status", "--porcelain", "--", "scratch.md"]).is_empty(),
+        "the fixture file is ignored, so git status never shows it"
+    );
+    start(dir, root)
+}
+
+const IGNORED_NOTE: &str = "---\ntype: note\ndescription: ignored by git\n---\n";
+
+/// The paths a result lists as written outside git.
+fn untracked_files(resp: &serde_json::Value) -> Vec<String> {
+    resp["result"]["untracked_files"]
+        .as_array()
+        .map(|a| a.iter().map(|v| v.as_str().unwrap().to_string()).collect())
+        .unwrap_or_default()
+}
+
+#[test]
+fn edit_file_of_a_git_ignored_file_never_loses_it() {
+    let mut h = started_in_git_with_an_ignored_note();
+    let head = git_out(&h.root, &["rev-parse", "HEAD"]);
+
+    let resp = h
+        .client
+        .query(&json!({
+            "mutate": "edit_file", "path": "scratch.md",
+            "old_string": "ignored by git", "new_string": "edited outside git",
+        }))
+        .unwrap();
+
+    // Data safety first: the file must still exist, edited or original.
+    let on_disk = fs::read_to_string(h.root.join("scratch.md"))
+        .unwrap_or_else(|e| panic!("the ignored file was lost ({e}); response: {resp:?}"));
+
+    assert_eq!(resp["type"], "response", "the edit lands: {resp:?}");
+    assert!(
+        on_disk.contains("edited outside git"),
+        "the edit landed: {on_disk}"
+    );
+    assert_eq!(
+        git_out(&h.root, &["rev-parse", "HEAD"]),
+        head,
+        "an ignored path is never committed"
+    );
+    assert!(
+        untracked_files(&resp)
+            .iter()
+            .any(|p| p.ends_with("scratch.md")),
+        "the result lists it as written outside git: {resp:?}"
+    );
+}
+
+#[test]
+fn write_file_over_a_git_ignored_file_never_loses_it() {
+    let mut h = started_in_git_with_an_ignored_note();
+    let head = git_out(&h.root, &["rev-parse", "HEAD"]);
+
+    let resp = h
+        .client
+        .query(&json!({
+            "mutate": "write_file", "path": "scratch.md",
+            "content": "---\ntype: note\ndescription: rewritten outside git\n---\n",
+        }))
+        .unwrap();
+
+    let on_disk = fs::read_to_string(h.root.join("scratch.md"))
+        .unwrap_or_else(|e| panic!("the ignored file was lost ({e}); response: {resp:?}"));
+
+    assert_eq!(resp["type"], "response", "the write lands: {resp:?}");
+    assert!(
+        on_disk.contains("rewritten outside git"),
+        "the write landed: {on_disk}"
+    );
+    assert_eq!(
+        git_out(&h.root, &["rev-parse", "HEAD"]),
+        head,
+        "an ignored path is never committed"
+    );
+    assert!(
+        untracked_files(&resp)
+            .iter()
+            .any(|p| p.ends_with("scratch.md")),
+        "the result lists it as written outside git: {resp:?}"
+    );
+}
+
+#[test]
+fn rename_of_a_git_ignored_file_never_loses_it() {
+    let mut h = started_in_git_with_an_ignored_note();
+    let head = git_out(&h.root, &["rev-parse", "HEAD"]);
+
+    let resp = h
+        .client
+        .query(&json!({ "mutate": "rename", "path": "scratch.md", "to": "moved/scratch.md" }))
+        .unwrap();
+
+    // Data safety first: the bytes must survive at the source or the destination.
+    let src = fs::read_to_string(h.root.join("scratch.md")).ok();
+    let dst = fs::read_to_string(h.root.join("moved/scratch.md")).ok();
+    assert!(
+        src.as_deref() == Some(IGNORED_NOTE) || dst.as_deref() == Some(IGNORED_NOTE),
+        "the ignored file was lost, neither path holds it; response: {resp:?}"
+    );
+
+    assert_eq!(resp["type"], "response", "the rename lands: {resp:?}");
+    assert_eq!(
+        dst.as_deref(),
+        Some(IGNORED_NOTE),
+        "moved to the destination"
+    );
+    assert!(src.is_none(), "gone from the source");
+    assert_eq!(
+        git_out(&h.root, &["rev-parse", "HEAD"]),
+        head,
+        "an ignored path is never committed"
+    );
+    assert!(
+        untracked_files(&resp)
+            .iter()
+            .any(|p| p.ends_with("scratch.md")),
+        "the result lists it as written outside git: {resp:?}"
+    );
+}
+
+#[test]
+fn delete_file_of_a_git_ignored_file_succeeds_without_a_commit() {
+    let mut h = started_in_git_with_an_ignored_note();
+    let head = git_out(&h.root, &["rev-parse", "HEAD"]);
+
+    let resp = h
+        .client
+        .query(&json!({ "mutate": "delete_file", "path": "scratch.md" }))
+        .unwrap();
+
+    // The delete must not remove the file AND report failure, the silently
+    // wrong outcome: either it succeeded, or the file is still there.
+    assert!(
+        resp["type"] == "response" || h.root.join("scratch.md").exists(),
+        "the file is gone yet the delete reported failure: {resp:?}"
+    );
+
+    assert_eq!(resp["type"], "response", "the delete lands: {resp:?}");
+    assert!(!h.root.join("scratch.md").exists(), "the file is gone");
+    assert_eq!(
+        git_out(&h.root, &["rev-parse", "HEAD"]),
+        head,
+        "an ignored path is never committed"
+    );
+    assert!(
+        resp["result"]["last_live_commit"].is_null(),
+        "never committed, so there is no last-live commit: {resp:?}"
+    );
+    assert!(
+        untracked_files(&resp)
+            .iter()
+            .any(|p| p.ends_with("scratch.md")),
+        "the result lists it as removed outside git: {resp:?}"
+    );
+}
+
+/// Git-initialize the fixture with a committed `.gitignore` covering the
+/// `ignored/` folder and `scratch.md` at any depth, a tracked `a.md` path-addressing
+/// the ignored note, then write the ignored note and start the engine.
+///
+/// A rename of the ignored note rewrites the TRACKED referrer, so the saga's
+/// commit names the ignored path beside a real change: the mixed case.
+fn started_in_git_with_a_tracked_referrer_of_an_ignored_note() -> Harness {
+    let (dir, root) = fixture();
+    fs::write(root.join(".gitignore"), "scratch.md\nignored/\n").unwrap();
+    fs::write(
+        root.join("a.md"),
+        "---\ntype: note\ndescription: see [[notes/scratch]]\n---\n",
+    )
+    .unwrap();
+    git(&root, &["init", "-q", "-b", "main"]);
+    git(&root, &["config", "user.name", "Tester"]);
+    git(&root, &["config", "user.email", "tester@example.com"]);
+    git(&root, &["add", "."]);
+    git(&root, &["commit", "-q", "-m", "seed"]);
+    fs::create_dir_all(root.join("notes")).unwrap();
+    fs::write(root.join("notes/scratch.md"), IGNORED_NOTE).unwrap();
+    start(dir, root)
+}
+
+#[test]
+fn rename_of_a_git_ignored_file_with_a_tracked_referrer_never_loses_it() {
+    let mut h = started_in_git_with_a_tracked_referrer_of_an_ignored_note();
+
+    let resp = h
+        .client
+        .query(&json!({
+            "mutate": "rename", "path": "notes/scratch.md", "to": "moved/scratch.md",
+        }))
+        .unwrap();
+
+    // Data safety first: the bytes must survive at the source or the destination.
+    let src = fs::read_to_string(h.root.join("notes/scratch.md")).ok();
+    let dst = fs::read_to_string(h.root.join("moved/scratch.md")).ok();
+    assert!(
+        src.as_deref() == Some(IGNORED_NOTE) || dst.as_deref() == Some(IGNORED_NOTE),
+        "the ignored file was lost, neither path holds it; response: {resp:?}"
+    );
+
+    assert_eq!(resp["type"], "response", "the rename lands: {resp:?}");
+    assert_eq!(
+        dst.as_deref(),
+        Some(IGNORED_NOTE),
+        "moved to the destination"
+    );
+    let referrer = fs::read_to_string(h.root.join("a.md")).unwrap();
+    assert!(
+        referrer.contains("[[moved/scratch]]"),
+        "the tracked referrer follows the move: {referrer}"
+    );
+    let committed = git_out(&h.root, &["show", "--name-only", "--format=", "HEAD"]);
+    assert_eq!(committed, "a.md", "only the tracked referrer is committed");
+    assert!(
+        untracked_files(&resp)
+            .iter()
+            .any(|p| p.ends_with("scratch.md")),
+        "the result lists it as written outside git: {resp:?}"
+    );
+}
+
+#[test]
+fn rename_of_a_tracked_file_into_an_ignored_folder_commits_its_deletion() {
+    let mut h = started_in_git_with_a_tracked_referrer_of_an_ignored_note();
+    let original = fs::read_to_string(h.root.join("a.md")).unwrap();
+
+    let resp = h
+        .client
+        .query(&json!({ "mutate": "rename", "path": "a.md", "to": "ignored/a.md" }))
+        .unwrap();
+
+    // Data safety first: the bytes must survive at the source or the destination.
+    let src = fs::read_to_string(h.root.join("a.md")).ok();
+    let dst = fs::read_to_string(h.root.join("ignored/a.md")).ok();
+    assert!(
+        src.as_deref() == Some(original.as_str()) || dst.as_deref() == Some(original.as_str()),
+        "the file was lost, neither path holds it; response: {resp:?}"
+    );
+
+    assert_eq!(resp["type"], "response", "the rename lands: {resp:?}");
+    assert_eq!(
+        dst.as_deref(),
+        Some(original.as_str()),
+        "moved to the destination"
+    );
+    let committed = git_out(&h.root, &["show", "--name-status", "--format=", "HEAD"]);
+    assert_eq!(
+        committed, "D\ta.md",
+        "the commit records only the source's deletion"
+    );
+    // The destination never enters history, so the commit records no move to it.
+    let body = git_out(&h.root, &["log", "-1", "--format=%B"]);
+    assert!(
+        !body.contains("Moved:"),
+        "no Moved: trailer to a destination git never records: {body}"
+    );
+    assert!(
+        untracked_files(&resp)
+            .iter()
+            .any(|p| p.ends_with("ignored/a.md")),
+        "the destination is listed as written outside git: {resp:?}"
+    );
+}
+
+#[test]
+fn rename_of_a_git_ignored_file_to_a_tracked_path_brings_it_under_version_control() {
+    let mut h = started_in_git_with_an_ignored_note();
+
+    let resp = h
+        .client
+        .query(&json!({ "mutate": "rename", "path": "scratch.md", "to": "moved/kept.md" }))
+        .unwrap();
+    assert_eq!(resp["type"], "response", "the rename lands: {resp:?}");
+    assert_eq!(
+        fs::read_to_string(h.root.join("moved/kept.md")).unwrap(),
+        IGNORED_NOTE
+    );
+
+    // The destination is not ignored, so the commit adds it; the never-tracked
+    // source has no history, so the commit records no move from it.
+    let committed = git_out(&h.root, &["show", "--name-status", "--format=", "HEAD"]);
+    assert_eq!(
+        committed, "A\tmoved/kept.md",
+        "the destination is committed as new"
+    );
+    let body = git_out(&h.root, &["log", "-1", "--format=%B"]);
+    assert!(
+        !body.contains("Moved:"),
+        "no Moved: trailer from a never-tracked source: {body}"
+    );
+    let listed = untracked_files(&resp);
+    assert!(
+        listed.len() == 1 && listed[0].ends_with("/scratch.md"),
+        "only the ignored source is outside git: {listed:?}"
+    );
+}
+
+#[test]
+fn promote_into_a_git_ignored_folder_commits_only_the_host() {
+    let mut h = started_in_git();
+    wr(&h.root, ".gitignore", "ignored/\n");
+    wr(
+        &h.root,
+        "type/canvas.type.yaml",
+        "fields:\n  nodes: node&[]\n",
+    );
+    wr(
+        &h.root,
+        "type/node.type.yaml",
+        "fields:\n  content?: String\n",
+    );
+    let host = "---\ntype: canvas\nnodes:\n  - type: node\n    content: x\n---\nbody\n";
+    wr(&h.root, "canvas.md", host);
+    git(&h.root, &["add", "."]);
+    git(&h.root, &["commit", "-q", "-m", "add canvas"]);
+    h.engine.rebuild();
+
+    let at = host.find("content: x").unwrap();
+    let resp = h
+        .client
+        .query(&json!({
+            "mutate": "promote", "path": "canvas.md", "at": at, "to": "ignored/promoted.md",
+        }))
+        .unwrap();
+    assert_eq!(resp["type"], "response", "the promote lands: {resp:?}");
+    assert_eq!(
+        fs::read_to_string(h.root.join("ignored/promoted.md")).unwrap(),
+        "---\ntype: node\ncontent: x\n---\n"
+    );
+    let committed = git_out(&h.root, &["show", "--name-only", "--format=", "HEAD"]);
+    assert_eq!(committed, "canvas.md", "only the tracked host is committed");
+    let listed = untracked_files(&resp);
+    assert!(
+        listed.len() == 1 && listed[0].ends_with("ignored/promoted.md"),
+        "the new file is listed as outside git: {listed:?}"
     );
 }

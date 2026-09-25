@@ -3,3 +3,6 @@
 
 #[cfg(unix)]
 pub mod daemon;
+
+#[cfg(unix)]
+pub mod members;

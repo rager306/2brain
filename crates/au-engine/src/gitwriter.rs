@@ -6,7 +6,7 @@
 //! working tree. The trait is the contract; the adapter is swappable — shell-git
 //! today, a plumbing-write adapter later for the materialization spectrum.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -330,6 +330,18 @@ pub(crate) trait GitWriter {
     /// The clean-at-HEAD precondition reads this before a mutation applies. A
     /// path absent both at HEAD and in the working tree is clean.
     fn is_clean(&self, repo: &Path, paths: &[PathBuf]) -> Result<bool, GitWriteError>;
+
+    /// The subset of `paths` git ignores and has never tracked, tree-relative.
+    ///
+    /// Such a path has no HEAD and git refuses to stage it, so the saga writes
+    /// it outside git. A tracked path is never in the result, whatever the
+    /// ignore rules say. A path that does not exist yet is matched by pattern,
+    /// so a move's destination classifies before the move creates it.
+    fn ignored_untracked(
+        &self,
+        repo: &Path,
+        paths: &[PathBuf],
+    ) -> Result<BTreeSet<PathBuf>, GitWriteError>;
 }
 
 /// The engine commit identity, used when the repo configures none.
@@ -339,6 +351,59 @@ const COMMIT_AUTHOR_EMAIL: &str = "au-engine@arsumbris.ai";
 
 /// `index.lock` contention retries before giving up.
 const LOCK_RETRIES: u32 = 10;
+
+/// `git -C <repo>`, reading every pathspec LITERALLY.
+///
+/// Git reads a pathspec as a glob by default, so a file named `a[1].md` also
+/// matches `a1.md`. A mutation would then stage, commit, check, or restore a
+/// file it never touched, a human's edit committed under the engine's
+/// `Mutation-Id`, or discarded by a rollback. `GIT_LITERAL_PATHSPECS` makes every
+/// path the engine passes mean exactly that path. Every `ShellGit` spawn is
+/// built here; `check-ignore` alone drops the switch, its input is pathnames,
+/// already literal.
+fn git_command(repo: &Path) -> Command {
+    let mut cmd = Command::new("git");
+    cmd.arg("-C").arg(repo).env("GIT_LITERAL_PATHSPECS", "1");
+    cmd
+}
+
+/// Run `cmd` with `input` on its stdin, collecting its output.
+///
+/// Stdin is written on a SEPARATE thread while `wait_with_output` drains
+/// stdout on this one. Writing the whole input before reading any output
+/// deadlocks once both pipe buffers fill (~64 KB each way): git blocks writing
+/// stdout, we block writing stdin, forever. A `BrokenPipe` (git exited early on
+/// bad input) is not ours to report; the caller's status check carries the
+/// real failure.
+fn output_with_stdin(cmd: &mut Command, input: Vec<u8>) -> std::io::Result<std::process::Output> {
+    use std::io::Write;
+    use std::process::Stdio;
+    let mut child = cmd
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| std::io::Error::other("could not open git stdin"))?;
+    let writer = std::thread::spawn(move || {
+        let _ = stdin.write_all(&input);
+        // `stdin` drops here, closing git's stdin (EOF).
+    });
+    let output = child.wait_with_output();
+    let _ = writer.join();
+    output
+}
+
+/// The most path bytes one `git status` call carries on its command line.
+///
+/// A path set passed as arguments is bounded by the OS argument limit (1 MiB on
+/// macOS, environment included), so a large folder op would fail to start git.
+/// `status` has no `--pathspec-from-file`, so it runs in batches of at most this
+/// many bytes, well under the limit. Every other path-set step reads its paths
+/// from stdin instead, see [`ShellGit::git_pathspec`].
+const STATUS_BATCH_BYTES: usize = 128 * 1024;
 
 /// The shell-git `GitWriter`, shelling out to `git -C <repo>`.
 ///
@@ -355,9 +420,7 @@ impl ShellGit {
         let mut tries = 0;
         loop {
             tries += 1;
-            let output = Command::new("git")
-                .arg("-C")
-                .arg(repo)
+            let output = git_command(repo)
                 .args(args)
                 .output()
                 .map_err(|e| GitWriteError::new(format!("could not run git: {e}")))?;
@@ -377,11 +440,56 @@ impl ShellGit {
         }
     }
 
+    /// Run `git -C <repo> <args>` over a path set read from stdin,
+    /// `--pathspec-from-file=- --pathspec-file-nul`, retrying on `index.lock`
+    /// contention like [`ShellGit::git`]. Returns trimmed stdout on success.
+    ///
+    /// The path set never touches the command line, so no size of set can
+    /// exceed the OS argument limit. An empty set is refused: git reads no
+    /// pathspec as the whole tree, and a mutation must never widen to that.
+    fn git_pathspec(
+        &self,
+        repo: &Path,
+        args: &[OsString],
+        paths: &[PathBuf],
+    ) -> Result<String, GitWriteError> {
+        if paths.is_empty() {
+            return Err(GitWriteError::new(format!(
+                "git {}: no paths; an empty pathspec would cover the whole tree",
+                display_args(args)
+            )));
+        }
+        let mut input = Vec::new();
+        for p in paths {
+            input.extend_from_slice(p.as_os_str().as_encoded_bytes());
+            input.push(0);
+        }
+        let mut full = args.to_vec();
+        full.extend([os("--pathspec-from-file=-"), os("--pathspec-file-nul")]);
+        let mut tries = 0;
+        loop {
+            tries += 1;
+            let output = output_with_stdin(git_command(repo).args(&full), input.clone())
+                .map_err(|e| GitWriteError::new(format!("could not run git: {e}")))?;
+            if output.status.success() {
+                return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
+            }
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if tries < LOCK_RETRIES && lock_contended(&stderr) {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                continue;
+            }
+            return Err(GitWriteError::new(format!(
+                "git {} failed: {}",
+                display_args(args),
+                stderr.trim()
+            )));
+        }
+    }
+
     /// A query whose non-zero exit is a legitimate "no", not an error.
     fn git_succeeds(&self, repo: &Path, args: &[OsString]) -> Result<bool, GitWriteError> {
-        let output = Command::new("git")
-            .arg("-C")
-            .arg(repo)
+        let output = git_command(repo)
             .args(args)
             .output()
             .map_err(|e| GitWriteError::new(format!("could not run git: {e}")))?;
@@ -393,9 +501,7 @@ impl ShellGit {
     /// Bytes are not trimmed or lossily decoded, so a binary blob round-trips.
     #[allow(dead_code)] // wired to the resolver / mutation channel in subsequent slices
     fn git_bytes(&self, repo: &Path, args: &[OsString]) -> Result<Option<Vec<u8>>, GitWriteError> {
-        let output = Command::new("git")
-            .arg("-C")
-            .arg(repo)
+        let output = git_command(repo)
             .args(args)
             .output()
             .map_err(|e| GitWriteError::new(format!("could not run git: {e}")))?;
@@ -404,44 +510,16 @@ impl ShellGit {
 
     /// Run `git -C <repo> <args>` feeding `stdin` to the process, trimmed stdout
     /// on success. For the batch plumbing (`cat-file --batch-check`) that reads
-    /// its object list from stdin, one process over a whole set.
-    ///
-    /// Stdin is written on a SEPARATE thread while `wait_with_output` drains
-    /// stdout on this one. Writing the whole input before reading any output
-    /// deadlocks once both pipe buffers fill (~64 KB each way, a few-thousand-
-    /// commit batch): git blocks writing stdout, we block writing stdin, forever.
-    /// A `BrokenPipe` (git exited early on bad input) is not ours to report; the
-    /// status check below carries the real failure.
+    /// its object list from stdin, one process over a whole set. The stdin is
+    /// written through [`output_with_stdin`], so a large batch cannot deadlock.
     fn git_stdin(
         &self,
         repo: &Path,
         args: &[OsString],
         stdin: &str,
     ) -> Result<String, GitWriteError> {
-        use std::io::Write;
-        use std::process::Stdio;
-        let mut child = Command::new("git")
-            .arg("-C")
-            .arg(repo)
-            .args(args)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
+        let output = output_with_stdin(git_command(repo).args(args), stdin.as_bytes().to_vec())
             .map_err(|e| GitWriteError::new(format!("could not run git: {e}")))?;
-        let mut si = child
-            .stdin
-            .take()
-            .ok_or_else(|| GitWriteError::new("could not open git stdin"))?;
-        let input = stdin.as_bytes().to_vec();
-        let writer = std::thread::spawn(move || {
-            let _ = si.write_all(&input);
-            // `si` drops here, closing git's stdin (EOF).
-        });
-        let output = child
-            .wait_with_output()
-            .map_err(|e| GitWriteError::new(format!("git wait failed: {e}")))?;
-        let _ = writer.join();
         if !output.status.success() {
             return Err(GitWriteError::new(format!(
                 "git {} failed: {}",
@@ -452,6 +530,47 @@ impl ShellGit {
         Ok(String::from_utf8_lossy(&output.stdout)
             .trim_end()
             .to_string())
+    }
+
+    /// Which of `paths` exist at HEAD, positionally, in one `cat-file
+    /// --batch-check` over the whole set rather than a git process per path.
+    ///
+    /// The batch protocol is line-based, so a path holding a newline is checked
+    /// on its own. A missing object answers `<input> missing`; anything else is
+    /// present.
+    fn exist_at_head(&self, repo: &Path, paths: &[PathBuf]) -> Result<Vec<bool>, GitWriteError> {
+        let spec = |p: &Path| format!("HEAD:{}", p.to_string_lossy());
+        let batched: Vec<&PathBuf> = paths
+            .iter()
+            .filter(|p| !p.to_string_lossy().contains('\n'))
+            .collect();
+        let mut answers: HashMap<&Path, bool> = HashMap::new();
+        if !batched.is_empty() {
+            let mut probe = String::new();
+            for p in &batched {
+                probe.push_str(&spec(p));
+                probe.push('\n');
+            }
+            let out = self.git_stdin(repo, &[os("cat-file"), os("--batch-check")], &probe)?;
+            let lines: Vec<&str> = out.lines().collect();
+            if lines.len() != batched.len() {
+                return Err(GitWriteError::new(format!(
+                    "git cat-file --batch-check answered {} lines for {} paths",
+                    lines.len(),
+                    batched.len()
+                )));
+            }
+            for (p, line) in batched.iter().zip(lines) {
+                answers.insert(p.as_path(), line != format!("{} missing", spec(p)));
+            }
+        }
+        paths
+            .iter()
+            .map(|p| match answers.get(p.as_path()) {
+                Some(&present) => Ok(present),
+                None => self.exists_at_head(repo, p),
+            })
+            .collect()
     }
 
     fn exists_at_head(&self, repo: &Path, path: &Path) -> Result<bool, GitWriteError> {
@@ -1058,10 +1177,6 @@ fn os(s: impl Into<OsString>) -> OsString {
     s.into()
 }
 
-fn path_args(paths: &[PathBuf]) -> impl Iterator<Item = OsString> + '_ {
-    paths.iter().map(|p| p.as_os_str().to_os_string())
-}
-
 /// `-c user.name=... -c user.email=...`, so a commit never fails on a repo that
 /// configures no identity.
 fn identity_args() -> Vec<OsString> {
@@ -1082,7 +1197,7 @@ fn lock_contended(stderr: &str) -> bool {
 /// directory holding other content stops the walk. Best-effort, a removal error
 /// just ends the walk. Git does not track empty directories, so a pre-existing
 /// intentionally-empty directory being pruned is low-impact.
-fn prune_empty_parents(repo: &Path, path: &Path) {
+pub(crate) fn prune_empty_parents(repo: &Path, path: &Path) {
     let mut dir = repo.join(path);
     dir.pop();
     while dir.as_path() != repo && dir.starts_with(repo) {
@@ -1405,6 +1520,47 @@ pub(crate) fn merge_recent_commits(
     rows
 }
 
+/// A commit message written to a file for `git commit -F`, removed on drop.
+///
+/// Never `-m`: a folder move's `Moved:` block grows one line per moved file, and
+/// one argument is capped at 128 KiB on Linux, the whole command line at 1 MiB
+/// on macOS. Never stdin either, the commit's pathspec already rides it.
+///
+/// The file sits in the repo's git dir, where git keeps its own
+/// `COMMIT_EDITMSG`: no working-tree operation sees it, so it is never staged.
+/// Named per mutation, so two daemons committing in one repo never share it.
+struct MessageFile(PathBuf);
+
+impl MessageFile {
+    fn write(repo: &Path, message: &CommitMessage) -> Result<Self, GitWriteError> {
+        let gitdir = match discover_gitdir(repo) {
+            GitAnchor::Gitdir(dir) => dir,
+            GitAnchor::Unresolved | GitAnchor::Absent => {
+                let dir = ShellGit.git(repo, &[os("rev-parse"), os("--absolute-git-dir")])?;
+                PathBuf::from(dir)
+            }
+        };
+        let path = gitdir.join(format!("AU_COMMIT_MSG.{}", message.mutation_id.0));
+        std::fs::write(&path, format_message(message)).map_err(|e| {
+            GitWriteError::new(format!(
+                "cannot write the commit message to {}: {e}",
+                path.display()
+            ))
+        })?;
+        Ok(MessageFile(path))
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for MessageFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
 /// The commit message, summary then the `Mutation-Id` and `Mutation-Members`
 /// trailers crash recovery reads back.
 fn format_message(message: &CommitMessage) -> String {
@@ -1501,23 +1657,20 @@ impl GitWriter for ShellGit {
         message: &CommitMessage,
     ) -> Result<CommitSha, GitWriteError> {
         // Stage exactly our paths: -A captures new, modified, and deleted.
-        let mut add = vec![os("add"), os("-A"), os("--")];
-        add.extend(path_args(paths));
-        self.git(repo, &add)?;
+        self.git_pathspec(repo, &[os("add"), os("-A")], paths)?;
 
         // Commit only our paths. The pathspec limits the commit, so a human's
         // unrelated staged work stays in the index.
+        let msg = MessageFile::write(repo, message)?;
         let mut commit = identity_args();
         commit.extend([
             os("commit"),
             os("--no-verify"),
             os("--no-gpg-sign"),
-            os("-m"),
-            os(format_message(message)),
-            os("--"),
+            os("-F"),
+            msg.path().as_os_str().to_os_string(),
         ]);
-        commit.extend(path_args(paths));
-        self.git(repo, &commit)?;
+        self.git_pathspec(repo, &commit, paths)?;
 
         let sha = self.git(repo, &[os("rev-parse"), os("HEAD")])?;
         Ok(CommitSha(sha))
@@ -1600,20 +1753,25 @@ impl GitWriter for ShellGit {
             reverts: Some(sha),
             attribution: Vec::new(),
         };
+        let msg = match MessageFile::write(repo, &message) {
+            Ok(m) => m,
+            Err(e) => {
+                self.unwind_revert(repo, &scope);
+                return Err(e);
+            }
+        };
         let mut commit = identity_args();
         commit.extend([
             os("commit"),
             os("--no-verify"),
             os("--no-gpg-sign"),
-            os("-m"),
-            os(format_message(&message)),
-            os("--"),
+            os("-F"),
+            msg.path().as_os_str().to_os_string(),
         ]);
-        commit.extend(path_args(&scope));
         // The second window, and it is newer than the conflict above: the revert
         // SUCCEEDED and staged its changes, so a failure here leaves staged revert
         // content plus `REVERT_HEAD` behind.
-        if let Err(e) = self.git(repo, &commit) {
+        if let Err(e) = self.git_pathspec(repo, &commit, &scope) {
             self.unwind_revert(repo, &scope);
             return Err(e);
         }
@@ -1622,8 +1780,9 @@ impl GitWriter for ShellGit {
 
     fn restore_paths(&self, repo: &Path, paths: &[PathBuf]) -> Result<(), GitWriteError> {
         let mut tracked = Vec::new();
-        for path in paths {
-            if self.exists_at_head(repo, path)? {
+        let at_head = self.exist_at_head(repo, paths)?;
+        for (path, at_head) in paths.iter().zip(at_head) {
+            if at_head {
                 tracked.push(path.clone());
             } else {
                 // Absent at HEAD: created by the mutation, remove it to restore absence.
@@ -1639,18 +1798,75 @@ impl GitWriter for ShellGit {
             }
         }
         if !tracked.is_empty() {
-            let mut checkout = vec![os("checkout"), os("HEAD"), os("--")];
-            checkout.extend(path_args(&tracked));
-            self.git(repo, &checkout)?;
+            self.git_pathspec(repo, &[os("checkout"), os("HEAD")], &tracked)?;
         }
         Ok(())
     }
 
+    /// Clean iff every batch of at most [`STATUS_BATCH_BYTES`] of paths is:
+    /// `status` cannot read its pathspec from stdin, so a large set runs in
+    /// batches rather than overflow the argument limit.
     fn is_clean(&self, repo: &Path, paths: &[PathBuf]) -> Result<bool, GitWriteError> {
-        let mut status = vec![os("status"), os("--porcelain"), os("--")];
-        status.extend(path_args(paths));
-        let out = self.git(repo, &status)?;
-        Ok(out.is_empty())
+        let mut batch: Vec<&PathBuf> = Vec::new();
+        let mut bytes = 0;
+        let mut rest = paths.iter().peekable();
+        while let Some(p) = rest.next() {
+            bytes += p.as_os_str().len() + 1;
+            batch.push(p);
+            if bytes >= STATUS_BATCH_BYTES || rest.peek().is_none() {
+                let mut status = vec![os("status"), os("--porcelain"), os("--")];
+                status.extend(batch.iter().map(|p| p.as_os_str().to_os_string()));
+                if !self.git(repo, &status)?.is_empty() {
+                    return Ok(false);
+                }
+                batch.clear();
+                bytes = 0;
+            }
+        }
+        Ok(true)
+    }
+
+    /// `git check-ignore -z --stdin`, which skips tracked paths by default and
+    /// matches a not-yet-existing path by pattern. Its exit status is the
+    /// answer's shape: 0 some paths are ignored, 1 none are, anything else a
+    /// real failure.
+    fn ignored_untracked(
+        &self,
+        repo: &Path,
+        paths: &[PathBuf],
+    ) -> Result<BTreeSet<PathBuf>, GitWriteError> {
+        if paths.is_empty() {
+            return Ok(BTreeSet::new());
+        }
+        let mut input = Vec::new();
+        for p in paths {
+            input.extend_from_slice(p.as_os_str().as_encoded_bytes());
+            input.push(0);
+        }
+        // `check-ignore` takes pathnames, not pathspecs, already literal, and
+        // rejects the literal-pathspec switch outright.
+        let output = output_with_stdin(
+            git_command(repo).env_remove("GIT_LITERAL_PATHSPECS").args([
+                "check-ignore",
+                "-z",
+                "--stdin",
+            ]),
+            input,
+        )
+        .map_err(|e| GitWriteError::new(format!("could not run git: {e}")))?;
+        match output.status.code() {
+            Some(0) => Ok(output
+                .stdout
+                .split(|b| *b == 0)
+                .filter(|chunk| !chunk.is_empty())
+                .map(bytes_to_path)
+                .collect()),
+            Some(1) => Ok(BTreeSet::new()),
+            _ => Err(GitWriteError::new(format!(
+                "git check-ignore failed: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ))),
+        }
     }
 }
 
@@ -2696,6 +2912,96 @@ mod tests {
             "dirty\n",
             "unrelated path disturbed"
         );
+    }
+
+    #[test]
+    fn a_bracketed_path_is_literal_never_a_glob() {
+        // `a[1].md` as a glob also matches `a1.md`. Every step must touch only
+        // the path it names, never a human's dirty sibling.
+        let repo = init_repo();
+        let p = repo.path();
+        fs::write(p.join("a1.md"), "x\n").unwrap();
+        fs::write(p.join("a[1].md"), "y\n").unwrap();
+        run(p, &["add", "."]);
+        run(p, &["commit", "-q", "-m", "two"]);
+        fs::write(p.join("a1.md"), "human edit\n").unwrap();
+        let ours = [PathBuf::from("a[1].md")];
+        let sg = ShellGit;
+        assert!(
+            sg.is_clean(p, &ours).unwrap(),
+            "the named path is clean, its glob sibling is not ours"
+        );
+        fs::write(p.join("a[1].md"), "engine\n").unwrap();
+        sg.commit(p, &ours, &msg("m-lit", &["r"])).unwrap();
+        assert_eq!(
+            run(p, &["show", "--name-only", "--format=", "HEAD"]).trim(),
+            "a[1].md",
+            "the commit holds only the named path"
+        );
+        fs::write(p.join("a[1].md"), "engine again\n").unwrap();
+        sg.restore_paths(p, &ours).unwrap();
+        assert_eq!(fs::read_to_string(p.join("a[1].md")).unwrap(), "engine\n");
+        assert_eq!(
+            fs::read_to_string(p.join("a1.md")).unwrap(),
+            "human edit\n",
+            "the human's edit to the glob sibling survives"
+        );
+    }
+
+    #[test]
+    fn a_path_set_larger_than_the_argument_limit_commits_checks_and_restores() {
+        // Deep, long paths, about 620 bytes each, so under two thousand files
+        // pass 1 MiB of arguments and the test stays quick.
+        let repo = init_repo();
+        let p = repo.path();
+        let deep = format!(
+            "{}/{}/{}",
+            "a".repeat(200),
+            "b".repeat(200),
+            "c".repeat(200)
+        );
+        fs::create_dir_all(p.join(&deep)).unwrap();
+        let paths: Vec<PathBuf> = (0..1800)
+            .map(|i| PathBuf::from(format!("{deep}/f-{i:05}.md")))
+            .collect();
+        let bytes: usize = paths.iter().map(|q| q.as_os_str().len() + 1).sum();
+        assert!(
+            bytes > 1 << 20,
+            "the set must exceed the argument limit: {bytes}"
+        );
+        for q in &paths {
+            fs::write(p.join(q), "x\n").unwrap();
+        }
+        let sg = ShellGit;
+        assert!(!sg.is_clean(p, &paths).unwrap(), "new files are dirty");
+        // A `Moved:` trailer per path, as a folder move writes: the message alone
+        // is about 2 MiB, over one argument's limit and the whole command line's.
+        let mut big = msg("m-big", &["r"]);
+        big.moves = paths
+            .iter()
+            .map(|q| MovedRecord {
+                from: PathBuf::from(format!("{}.old", q.display())),
+                to: q.clone(),
+            })
+            .collect();
+        sg.commit(p, &paths, &big).unwrap();
+        assert!(sg.is_clean(p, &paths).unwrap(), "all committed");
+        let body = run(p, &["log", "-1", "--format=%B"]);
+        assert_eq!(
+            body.lines().filter(|l| l.starts_with("Moved: ")).count(),
+            paths.len(),
+            "every trailer rides the commit"
+        );
+        let leftover = fs::read_dir(p.join(".git"))
+            .unwrap()
+            .flatten()
+            .any(|e| e.file_name().to_string_lossy().starts_with("AU_COMMIT_MSG"));
+        assert!(!leftover, "the message file is removed after the commit");
+        for q in &paths {
+            fs::write(p.join(q), "changed\n").unwrap();
+        }
+        sg.restore_paths(p, &paths).unwrap();
+        assert!(sg.is_clean(p, &paths).unwrap(), "all restored to HEAD");
     }
 
     #[test]

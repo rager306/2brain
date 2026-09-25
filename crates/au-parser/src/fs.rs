@@ -228,6 +228,15 @@ enum WalkEvent {
     /// A `<dir>/.arsumbris/repo.yaml` marker surfaced at the floor, the one
     /// carve-out: a repo-root discovery signal, never a kept file.
     RepoMarker(PathBuf),
+    /// A directory the walk entered, the walk root included.
+    EnteredDir(PathBuf),
+    /// A hard-floor directory (`.git`, or an `.arsumbris` holding no
+    /// `repo.yaml`), skipped unwalked. An `.arsumbris` holding a `repo.yaml` is
+    /// a [`WalkEvent::RepoMarker`] instead.
+    FlooredDir(PathBuf),
+    /// An entry that is a symbolic link. The walk still follows it; this only
+    /// reports that it did.
+    Symlink(PathBuf),
 }
 
 /// Iterative directory walk with a depth cap and symlink cycle detection,
@@ -295,6 +304,7 @@ fn walk_core(
             Item::PrunedDir(p) => on_event(WalkEvent::PrunedDir(p)),
             Item::DroppedFile(p) => on_event(WalkEvent::DroppedFile(p)),
             Item::Dir(dir, depth) => {
+                on_event(WalkEvent::EnteredDir(dir.clone()));
                 let read_dir = match std::fs::read_dir(&dir) {
                     Ok(rd) => rd,
                     Err(e) => {
@@ -318,6 +328,9 @@ fn walk_core(
                         }
                     };
                     let path = entry.path();
+                    if entry.file_type().map(|t| t.is_symlink()).unwrap_or(false) {
+                        on_event(WalkEvent::Symlink(path.clone()));
+                    }
                     // metadata() follows symlinks; file_type() does not.
                     // Following is required so a symlinked directory is
                     // traversed instead of silently dropped. A broken
@@ -342,14 +355,15 @@ fn walk_core(
                         // a repo root, surfaced as a discovery marker (never
                         // walked as content), so a repo is found content-free.
                         if is_floored_name(&name_str) {
-                            if name_str == ".arsumbris" {
-                                let marker = path.join("repo.yaml");
-                                if std::fs::metadata(&marker)
+                            let marker = path.join("repo.yaml");
+                            if name_str == ".arsumbris"
+                                && std::fs::metadata(&marker)
                                     .map(|m| m.is_file())
                                     .unwrap_or(false)
-                                {
-                                    on_event(WalkEvent::RepoMarker(marker));
-                                }
+                            {
+                                on_event(WalkEvent::RepoMarker(marker));
+                            } else {
+                                on_event(WalkEvent::FlooredDir(path));
                             }
                             continue;
                         }
@@ -431,7 +445,11 @@ fn walk(root: &Path, max_depth: usize, filter: &WalkFilter) -> io::Result<Walk> 
     let errors = walk_core(root, max_depth, filter, |ev| match ev {
         WalkEvent::KeptFile(p) => files.push(p),
         WalkEvent::RepoMarker(p) => repo_markers.push(p),
-        WalkEvent::PrunedDir(_) | WalkEvent::DroppedFile(_) => {}
+        WalkEvent::PrunedDir(_)
+        | WalkEvent::DroppedFile(_)
+        | WalkEvent::EnteredDir(_)
+        | WalkEvent::FlooredDir(_)
+        | WalkEvent::Symlink(_) => {}
     })?;
     // Sort the markers so the real walk matches `MemoryFileSystem`, whose walk
     // sorts them. Consumers re-sort into a `BTreeMap` today, so this is parity,
@@ -456,9 +474,82 @@ fn walk_boundaries(
     let errors = walk_core(root, max_depth, filter, |ev| match ev {
         WalkEvent::PrunedDir(p) => boundaries.ignored_dirs.push(p),
         WalkEvent::DroppedFile(p) => boundaries.ignored_files.push(p),
-        WalkEvent::KeptFile(_) | WalkEvent::RepoMarker(_) => {}
+        WalkEvent::KeptFile(_)
+        | WalkEvent::RepoMarker(_)
+        | WalkEvent::EnteredDir(_)
+        | WalkEvent::FlooredDir(_)
+        | WalkEvent::Symlink(_) => {}
     })?;
     Ok((boundaries, errors))
+}
+
+/// Everything a walk of one subtree decided, for a mutation that must act on
+/// exactly the files the engine catalogues there. See [`audit_subtree`].
+///
+/// Every list is sorted. The first six are what the catalog cannot show, each a
+/// reason the subtree holds content outside it.
+#[derive(Debug, Default)]
+pub struct SubtreeAudit {
+    /// Every regular file the filter kept, the set the catalog should hold.
+    pub files: Vec<PathBuf>,
+    /// Every directory the walk entered, the subtree root included. The
+    /// directory skeleton, empty directories included.
+    pub dirs: Vec<PathBuf>,
+    /// Directories the filter pruned, a default exclude or an `.auignore` match.
+    pub pruned_dirs: Vec<PathBuf>,
+    /// Files the filter dropped.
+    pub dropped_files: Vec<PathBuf>,
+    /// Hard-floor directories, a nested `.git`, or an `.arsumbris` with no
+    /// `repo.yaml`.
+    pub floored_dirs: Vec<PathBuf>,
+    /// Each nested `.arsumbris/repo.yaml`, the subtree root's own included.
+    pub repo_markers: Vec<PathBuf>,
+    /// Every symbolic link, file or directory.
+    pub symlinks: Vec<PathBuf>,
+    /// Per-entry failures, each an entry whose content could not be seen.
+    pub errors: Vec<WalkError>,
+}
+
+/// Walk the subtree at `root` over the real filesystem, recording every scope
+/// decision the catalog-building walk makes there, plus the directory skeleton
+/// and the symlinks.
+///
+/// The same traversal as [`FileSystem::walk_files`], so a path it reports as
+/// pruned, dropped, floored, or a nested repo is exactly one the build left out
+/// of the catalog. `filter` is the owning member's, anchored at the member root,
+/// so a subtree below the root is scoped as the member walk scoped it.
+///
+/// `depth` is `root`'s depth below the member root, so the depth cap counts
+/// from the member root as the catalog-building walk's does: a directory the
+/// build could not descend is one the audit cannot either.
+///
+/// Real-filesystem only: it serves a write handler auditing the disk it is about
+/// to move, the same disk the handler then touches directly.
+pub fn audit_subtree(root: &Path, filter: &WalkFilter, depth: usize) -> io::Result<SubtreeAudit> {
+    let mut audit = SubtreeAudit::default();
+    let max_depth = MAX_WALK_DEPTH.saturating_sub(depth);
+    let errors = walk_core(root, max_depth, filter, |ev| match ev {
+        WalkEvent::KeptFile(p) => audit.files.push(p),
+        WalkEvent::EnteredDir(p) => audit.dirs.push(p),
+        WalkEvent::PrunedDir(p) => audit.pruned_dirs.push(p),
+        WalkEvent::DroppedFile(p) => audit.dropped_files.push(p),
+        WalkEvent::FlooredDir(p) => audit.floored_dirs.push(p),
+        WalkEvent::RepoMarker(p) => audit.repo_markers.push(p),
+        WalkEvent::Symlink(p) => audit.symlinks.push(p),
+    })?;
+    audit.errors = errors;
+    for list in [
+        &mut audit.files,
+        &mut audit.dirs,
+        &mut audit.pruned_dirs,
+        &mut audit.dropped_files,
+        &mut audit.floored_dirs,
+        &mut audit.repo_markers,
+        &mut audit.symlinks,
+    ] {
+        list.sort();
+    }
+    Ok(audit)
 }
 
 #[derive(Debug, Default, Clone)]
@@ -1010,6 +1101,96 @@ mod tests {
         let (b, _) = walk_boundaries(tmp.path(), 8, &filter).unwrap();
         assert_eq!(kept, vec![tmp.path().join("keep.md")]);
         assert_eq!(b.ignored_files, vec![tmp.path().join("scratch.log")]);
+    }
+
+    #[test]
+    fn audit_reports_a_clean_subtree_with_its_directory_skeleton() {
+        // The subtree root is walked with a filter anchored at the MEMBER root,
+        // one level up, so it is scoped as the member walk scoped it.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("drafts");
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::create_dir_all(dir.join("empty")).unwrap();
+        std::fs::write(dir.join("a.md"), b"").unwrap();
+        std::fs::write(dir.join("sub").join("b.png"), b"").unwrap();
+        let filter = WalkFilter::default_excludes(tmp.path());
+        let a = audit_subtree(&dir, &filter, 1).unwrap();
+        assert_eq!(
+            a.files,
+            vec![dir.join("a.md"), dir.join("sub").join("b.png")]
+        );
+        assert_eq!(
+            a.dirs,
+            vec![dir.clone(), dir.join("empty"), dir.join("sub")]
+        );
+        assert!(a.pruned_dirs.is_empty() && a.dropped_files.is_empty());
+        assert!(a.floored_dirs.is_empty() && a.repo_markers.is_empty());
+        assert!(a.symlinks.is_empty() && a.errors.is_empty());
+    }
+
+    #[test]
+    fn audit_counts_its_depth_cap_from_the_member_root() {
+        // Two levels below the folder is fine for a folder at the top, and past
+        // the cap for a folder already MAX_WALK_DEPTH - 1 below the member root,
+        // exactly where the member walk would have stopped.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("drafts");
+        std::fs::create_dir_all(dir.join("a").join("b")).unwrap();
+        std::fs::write(dir.join("a").join("b").join("n.md"), b"").unwrap();
+        let filter = WalkFilter::default_excludes(tmp.path());
+        assert!(audit_subtree(&dir, &filter, 1).is_ok());
+        let err = audit_subtree(&dir, &filter, MAX_WALK_DEPTH - 1).unwrap_err();
+        assert!(err.to_string().contains("max depth"), "{err}");
+    }
+
+    #[test]
+    fn audit_reports_every_kind_of_content_outside_the_catalog() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("drafts");
+        std::fs::create_dir_all(dir.join("node_modules")).unwrap();
+        std::fs::write(dir.join("node_modules").join("x.js"), b"").unwrap();
+        std::fs::write(dir.join("scratch.log"), b"").unwrap();
+        std::fs::create_dir_all(dir.join("clone").join(".git")).unwrap();
+        std::fs::create_dir_all(dir.join("stray").join(".arsumbris")).unwrap();
+        std::fs::create_dir_all(dir.join("inner").join(".arsumbris")).unwrap();
+        std::fs::write(
+            dir.join("inner").join(".arsumbris").join("repo.yaml"),
+            b"name: inner\n",
+        )
+        .unwrap();
+        // The member's `.auignore` pattern is member-root-anchored.
+        let filter = WalkFilter::with_auignore(tmp.path(), "drafts/*.log\n").unwrap();
+        let a = audit_subtree(&dir, &filter, 1).unwrap();
+        assert_eq!(a.pruned_dirs, vec![dir.join("node_modules")]);
+        assert_eq!(a.dropped_files, vec![dir.join("scratch.log")]);
+        assert_eq!(
+            a.floored_dirs,
+            vec![
+                dir.join("clone").join(".git"),
+                dir.join("stray").join(".arsumbris")
+            ]
+        );
+        assert_eq!(
+            a.repo_markers,
+            vec![dir.join("inner").join(".arsumbris").join("repo.yaml")]
+        );
+        assert!(a.files.is_empty(), "nothing under the folder is catalogued");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn audit_reports_symlinks_to_files_and_directories() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("drafts");
+        let elsewhere = tmp.path().join("elsewhere");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        std::fs::write(elsewhere.join("t.md"), b"").unwrap();
+        std::os::unix::fs::symlink(&elsewhere, dir.join("linkdir")).unwrap();
+        std::os::unix::fs::symlink(elsewhere.join("t.md"), dir.join("link.md")).unwrap();
+        let filter = WalkFilter::default_excludes(tmp.path());
+        let a = audit_subtree(&dir, &filter, 1).unwrap();
+        assert_eq!(a.symlinks, vec![dir.join("link.md"), dir.join("linkdir")]);
     }
 
     #[test]

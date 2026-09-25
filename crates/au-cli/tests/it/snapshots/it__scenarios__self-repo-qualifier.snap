@@ -69,6 +69,20 @@ expression: rendered
     },
     {
       "code": "type-repo-self",
+      "fix": {
+        "actions": [
+          {
+            "args": {
+              "new_string": "note",
+              "old_string": "note::app",
+              "path": "<root>/scenarios/self-repo-qualifier/note-self.md"
+            },
+            "title": "Drop the redundant '::app'",
+            "verb": "edit_file"
+          }
+        ],
+        "description": "write bare 'note', the own-repo form"
+      },
       "message": "type 'note::app' qualifies the own repo; bare 'note' is the own form",
       "severity": "hint",
       "span": {

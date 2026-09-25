@@ -10,4 +10,5 @@
 
 mod daemon;
 mod file_io_diagnostics;
+mod members;
 mod scenarios;

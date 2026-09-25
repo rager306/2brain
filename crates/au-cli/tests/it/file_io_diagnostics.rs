@@ -125,7 +125,7 @@ fn codes_of(kb: &KnowledgeBase) -> Vec<&str> {
 }
 
 fn has_type(kb: &KnowledgeBase, name: &str) -> bool {
-    kb.root_graph().iter().any(|(n, _)| n.as_str() == name)
+    kb.entry_graph().iter().any(|(n, _)| n.as_str() == name)
 }
 
 /// Wraps an inner `FakeFs` and tallies `walk_files` invocations. Pins the

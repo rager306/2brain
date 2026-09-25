@@ -684,7 +684,8 @@ fn install_tracing(entry: &Path) -> Option<TraceGuards> {
         .join("au-engine")
         .join("logs")
         .join("trace");
-    if let Err(e) = std::fs::create_dir_all(&dir) {
+    // Runtime output, never committed: the directory ignores itself.
+    if let Err(e) = au_engine::ensure_git_ignored_dir(&dir) {
         eprintln!("au: AU_TRACE set but cannot create {}: {e}", dir.display());
         return None;
     }

@@ -9,6 +9,24 @@ expression: rendered
       "abstract": false,
       "body": null,
       "effective_body": null,
+      "effective_fields": [
+        {
+          "divergent": false,
+          "name": "slug",
+          "origin": {
+            "hash": "d76210580dd86ed6",
+            "name": "plan",
+            "repo": "location-wire"
+          },
+          "required": true,
+          "shape": "String",
+          "shape_ast": {
+            "kind": "primitive",
+            "name": "String"
+          }
+        }
+      ],
+      "effective_meta": [],
       "fields": [
         {
           "key_span": {

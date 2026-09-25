@@ -76,10 +76,10 @@ fn started() -> Harness {
     fs::write(dep.join("note.md"), "consumed member content\n").unwrap();
     // A file in the consumed member with a cross-repo value link INTO the entry,
     // so renaming the entry's `a.md` would want to rewrite a referrer the engine
-    // does not own (GAP 2).
+    // does not own.
     fs::write(dep.join("refs.md"), "see [[a::v]]\n").unwrap();
     // A type-def OWNED by the consumed member, so `rename_type` has a consumed
-    // def file to refuse (GAP 1).
+    // def file to refuse.
     fs::create_dir(dep.join("type")).unwrap();
     fs::write(
         dep.join("type/widget.type.yaml"),
@@ -173,6 +173,37 @@ fn writes_to_a_discover_member_reject_without_touching_disk() {
 }
 
 #[test]
+fn composition_verbs_to_a_discover_member_reject_without_touching_disk() {
+    let mut h = started();
+
+    // Each composition verb resolves its target member through the shared
+    // `resolve_editable_member_root` gate; a consumed (`discover`) `root` rejects.
+    for req in [
+        json!({ "mutate": "add_dep", "name": "x", "root": "dep" }),
+        json!({ "mutate": "remove_dep", "name": "x", "root": "dep" }),
+        json!({ "mutate": "add_workspace_member", "name": "x", "role": "edit", "root": "dep" }),
+        json!({ "mutate": "remove_workspace_member", "name": "x", "root": "dep" }),
+        json!({ "mutate": "set_workspace_member_role", "name": "x", "role": "discover", "root": "dep" }),
+        json!({ "mutate": "set_workspace_member_disabled", "name": "x", "disabled": true, "root": "dep" }),
+    ] {
+        let resp = h.client.query(&req).unwrap();
+        assert_not_editable(&resp);
+    }
+
+    // Nothing landed in the consumed member: its repo.yaml is byte-for-byte and no
+    // workspace.yaml was created by a rejected write.
+    assert_eq!(
+        fs::read_to_string(h.root.join("dep/.arsumbris/repo.yaml")).unwrap(),
+        "name: dep\ntype: au.engine.repo::au-engine\n",
+        "a rejected composition write leaves the consumed member's repo.yaml"
+    );
+    assert!(
+        !h.root.join("dep/.arsumbris/workspace.yaml").exists(),
+        "a rejected composition write creates no workspace.yaml"
+    );
+}
+
+#[test]
 fn preview_over_a_discover_member_reports_the_same_reject() {
     let mut h = started();
     let resp = h
@@ -195,10 +226,36 @@ fn preview_over_a_discover_member_reports_the_same_reject() {
 }
 
 #[test]
+fn a_rename_preview_refuses_exactly_where_the_rename_would() {
+    let mut h = started();
+    let preview = |h: &mut Harness, to: &str| {
+        let resp = h
+            .client
+            .query(&json!({
+                "read": "preview_mutation", "op": "rename", "path": "a.md", "to": to,
+            }))
+            .unwrap();
+        assert_eq!(resp["ready"], true, "{resp:?}");
+        resp["result"]["preview_mutation"].clone()
+    };
+    // A rename re-spells `dep/refs.md`'s `[[a::v]]`, a consumed-member write.
+    let p = preview(&mut h, "moved.md");
+    let msg = p["reject"]["message"].as_str().unwrap_or_default();
+    assert!(
+        msg.contains("consumed member") && msg.contains("dep"),
+        "the preview reports the rename's consumed-member reject: {p:?}"
+    );
+    // A name-keeping move leaves it byte-identical, so the preview has a product.
+    let p = preview(&mut h, "sub/a.md");
+    assert!(p["reject"].is_null(), "{p:?}");
+    assert!(p["rewrites"].as_array().unwrap().is_empty(), "{p:?}");
+}
+
+#[test]
 fn rename_type_of_a_consumed_members_def_rejects_and_moves_nothing() {
     let mut h = started();
     // `widget` is owned by the discover member `dep`. Renaming it would move a
-    // type-def file the engine does not author (GAP 1).
+    // type-def file the engine does not author.
     let resp = h
         .client
         .query(&json!({
@@ -225,10 +282,31 @@ fn rename_type_of_a_consumed_members_def_rejects_and_moves_nothing() {
 }
 
 #[test]
+fn a_pure_move_leaves_a_bare_consumed_referrer_alone_and_lands() {
+    let mut h = started();
+    // `dep/refs.md` spells `[[a::v]]`, bare-name. A move keeping the name
+    // re-emits it byte-identical, so the move never writes the consumed member
+    // and has nothing to be refused for.
+    let resp = h
+        .client
+        .query(&json!({
+            "mutate": "rename", "path": "a.md", "to": "sub/a.md",
+        }))
+        .unwrap();
+    assert_eq!(resp["ready"], true, "the pure move lands: {resp:?}");
+    assert!(h.root.join("sub/a.md").exists() && !h.root.join("a.md").exists());
+    assert_eq!(
+        fs::read_to_string(h.root.join("dep/refs.md")).unwrap(),
+        "see [[a::v]]\n",
+        "the consumed referrer is untouched"
+    );
+}
+
+#[test]
 fn a_rename_whose_referrer_is_in_a_consumed_member_rejects_with_the_blocking_list() {
     let mut h = started();
     // `dep/refs.md` (a consumed member) links to the entry's `a.md`. Renaming
-    // `a.md` would rewrite that referrer, which the engine may not author (GAP 2).
+    // `a.md` would rewrite that referrer, which the engine may not author.
     let resp = h
         .client
         .query(&json!({

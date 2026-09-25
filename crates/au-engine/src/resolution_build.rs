@@ -426,6 +426,31 @@ pub(crate) fn collect_imports(
     out
 }
 
+/// One authored claim, `name` with its optional `::repo` qualifier, resolved to
+/// the `TypeId` it names in the claiming repo. `None` when it does not resolve.
+///
+/// Over the repo's resolution graph when it imports (so a `::repo` claim resolves
+/// to its folded peer identity, a self-qualifier to the own one), else its own
+/// graph, where only a bare claim resolves. The single per-claim rule
+/// [`instance_closure_tids`] seeds from, so every reader that names a claim's
+/// identity (the `type-claim` semantic token, `instance_counts`) agrees with it.
+pub(crate) fn resolve_claim_tid(
+    own_graph: &TypeGraph,
+    resolution: Option<&ResolutionGraph>,
+    name: &TypeName,
+    repo: Option<&str>,
+) -> Option<TypeId> {
+    match resolution {
+        Some(rg) => rg.resolve_authored(name, repo).cloned(),
+        // A `::repo` claim never resolves against the own graph.
+        None if repo.is_some() => None,
+        None => own_graph.closure_id(name).map(|hash| TypeId {
+            name: name.clone(),
+            hash,
+        }),
+    }
+}
+
 /// An instance's closure as two `TypeId` sets: the identities it directly
 /// CLAIMS, and the ancestor identities it INHERITS (reached by walking the
 /// parents of a claimed type). The two can overlap, a mixin that claims `note`
@@ -433,7 +458,8 @@ pub(crate) fn collect_imports(
 ///
 /// Over the repo's resolution graph when it imports (so a `::repo` claim resolves
 /// to its folded peer identity), else its own graph (a non-importing repo, whose
-/// claims and parents are all bare).
+/// claims and parents are all bare). Each claim resolves through
+/// [`resolve_claim_tid`].
 pub(crate) fn instance_closure_tids(
     own_graph: &TypeGraph,
     resolution: Option<&ResolutionGraph>,
@@ -444,12 +470,14 @@ pub(crate) fn instance_closure_tids(
             let mut claimed = BTreeSet::new();
             let mut ancestors = BTreeSet::new();
             for c in claim.iter() {
-                let Some(tid) = rg.resolve_authored(&c.name, c.repo.as_deref()) else {
+                let Some(tid) =
+                    resolve_claim_tid(own_graph, resolution, &c.name, c.repo.as_deref())
+                else {
                     continue;
                 };
-                claimed.insert(tid.clone());
                 let mut stack: Vec<TypeId> =
-                    rg.get(tid).map(|n| n.parents.clone()).unwrap_or_default();
+                    rg.get(&tid).map(|n| n.parents.clone()).unwrap_or_default();
+                claimed.insert(tid);
                 while let Some(p) = stack.pop() {
                     if ancestors.insert(p.clone()) {
                         if let Some(n) = rg.get(&p) {
@@ -485,7 +513,7 @@ pub(crate) fn instance_closure_tids(
                 if c.repo.is_some() {
                     continue; // a `::repo` claim never resolves against the own graph
                 }
-                if let Some(t) = tid(&c.name) {
+                if let Some(t) = resolve_claim_tid(own_graph, None, &c.name, None) {
                     claimed.insert(t);
                 }
                 let mut stack = bare_parents(&c.name);
@@ -1833,11 +1861,13 @@ mod qualified_demand_tests {
         );
     }
 
-    // Finding 3.4a: an own meta and a same-named PEER meta are distinct types.
+    // Finding 3.4a: an own meta and a DIVERGED same-named peer meta are distinct
+    // types. An in-sync pair is one identity and does duplicate, see the
+    // `build` tests.
     #[test]
-    fn an_own_and_a_peer_meta_of_the_same_name_are_not_a_duplicate() {
+    fn an_own_and_a_diverged_peer_meta_of_the_same_name_are_not_a_duplicate() {
         let v = build_repos(
-            &[("type/dm.type.yaml", "fields: {}\n")],
+            &[("type/dm.type.yaml", "fields:\n  extra?: String\n")],
             &[
                 ("type/dm.type.yaml", "fields: {}\n"),
                 (
@@ -1848,7 +1878,7 @@ mod qualified_demand_tests {
         );
         assert!(
             !codes_on(&v, "type/card.type.yaml").contains(&"duplicate-meta-block".to_string()),
-            "own dm and peer dm::base are distinct, not a duplicate: {:?}",
+            "own dm and a diverged peer dm::base are distinct, not a duplicate: {:?}",
             codes_on(&v, "type/card.type.yaml")
         );
     }

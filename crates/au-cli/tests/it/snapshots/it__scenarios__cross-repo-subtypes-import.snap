@@ -11,6 +11,39 @@ expression: rendered
         "abstract": false,
         "body": null,
         "effective_body": null,
+        "effective_fields": [
+          {
+            "divergent": false,
+            "name": "n",
+            "origin": {
+              "hash": "128530c01b25bdea",
+              "name": "card",
+              "repo": "app"
+            },
+            "required": true,
+            "shape": "Number",
+            "shape_ast": {
+              "kind": "primitive",
+              "name": "Number"
+            }
+          },
+          {
+            "divergent": false,
+            "name": "title",
+            "origin": {
+              "hash": "5e0e7832792eff4c",
+              "name": "note",
+              "repo": "base"
+            },
+            "required": true,
+            "shape": "String",
+            "shape_ast": {
+              "kind": "primitive",
+              "name": "String"
+            }
+          }
+        ],
+        "effective_meta": [],
         "fields": [
           {
             "key_span": {
@@ -68,6 +101,54 @@ expression: rendered
         "abstract": false,
         "body": null,
         "effective_body": null,
+        "effective_fields": [
+          {
+            "divergent": false,
+            "name": "detail",
+            "origin": {
+              "hash": "77a0161af99e2c2a",
+              "name": "card-detail",
+              "repo": "app"
+            },
+            "required": true,
+            "shape": "String",
+            "shape_ast": {
+              "kind": "primitive",
+              "name": "String"
+            }
+          },
+          {
+            "divergent": false,
+            "name": "n",
+            "origin": {
+              "hash": "128530c01b25bdea",
+              "name": "card",
+              "repo": "app"
+            },
+            "required": true,
+            "shape": "Number",
+            "shape_ast": {
+              "kind": "primitive",
+              "name": "Number"
+            }
+          },
+          {
+            "divergent": false,
+            "name": "title",
+            "origin": {
+              "hash": "5e0e7832792eff4c",
+              "name": "note",
+              "repo": "base"
+            },
+            "required": true,
+            "shape": "String",
+            "shape_ast": {
+              "kind": "primitive",
+              "name": "String"
+            }
+          }
+        ],
+        "effective_meta": [],
         "fields": [
           {
             "key_span": {
@@ -125,6 +206,39 @@ expression: rendered
         "abstract": false,
         "body": null,
         "effective_body": null,
+        "effective_fields": [
+          {
+            "divergent": false,
+            "name": "tag",
+            "origin": {
+              "hash": "a0a96eb524d22c38",
+              "name": "note.local",
+              "repo": "base"
+            },
+            "required": true,
+            "shape": "String",
+            "shape_ast": {
+              "kind": "primitive",
+              "name": "String"
+            }
+          },
+          {
+            "divergent": false,
+            "name": "title",
+            "origin": {
+              "hash": "5e0e7832792eff4c",
+              "name": "note",
+              "repo": "base"
+            },
+            "required": true,
+            "shape": "String",
+            "shape_ast": {
+              "kind": "primitive",
+              "name": "String"
+            }
+          }
+        ],
+        "effective_meta": [],
         "fields": [
           {
             "key_span": {

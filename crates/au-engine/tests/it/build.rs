@@ -26,13 +26,13 @@ fn build_catalogs_every_file_with_its_parse() {
     let v = build(&repo, &RealFileSystem).expect("build");
 
     assert_eq!(
-        v.root_outcome(),
+        v.entry_outcome(),
         BuildOutcome::Complete,
         "clean scenario completes"
     );
     assert!(!v.catalog.is_empty(), "catalog holds the walked files");
     assert!(
-        v.root_graph().len() >= 1,
+        v.entry_graph().len() >= 1,
         "type graph built from the type-def"
     );
 

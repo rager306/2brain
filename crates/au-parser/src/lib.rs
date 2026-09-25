@@ -27,7 +27,10 @@ pub use file_kind::{
 pub use frontmatter::{
     split_frontmatter, whole_as_frontmatter, FrontmatterError, FrontmatterSplit,
 };
-pub use fs::{FileSystem, MemoryFileSystem, RealFileSystem, ScopeBoundaries, Walk, WalkError};
+pub use fs::{
+    audit_subtree, FileSystem, MemoryFileSystem, RealFileSystem, ScopeBoundaries, SubtreeAudit,
+    Walk, WalkError,
+};
 pub use scope::{WalkFilter, DEFAULT_EXCLUDE_DIR_NAMES, FLOOR_DIR_NAMES};
 pub use yaml::{
     index_source, parse, scan_duplicate_keys, span_to_byte_range, take_cp_fallback_count,

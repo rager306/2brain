@@ -1264,9 +1264,9 @@ fn unresolved_target_diagnostic(
                  repo-scoped, so it can never resolve"
             ),
             related,
-            fix: Some(SuggestedFix {
-                description: au_references::ESCAPES_REPO_FIX.to_string(),
-            }),
+            fix: Some(SuggestedFix::advisory(
+                au_references::ESCAPES_REPO_FIX.to_string(),
+            )),
         };
     }
     Diagnostic {
@@ -1426,6 +1426,7 @@ fn check_value_against_shape_inner(
                 field_key,
                 origin,
                 element_index,
+                None,
             ),
             _ => Vec::new(),
         },
@@ -1737,6 +1738,7 @@ fn check_value_against_shape_inner(
                     field_key,
                     origin,
                     element_index,
+                    None,
                 ),
                 _ => vec![field_shape_mismatch_diag(
                     scope,
@@ -1792,6 +1794,7 @@ fn check_value_against_shape_inner(
                     field_key,
                     origin,
                     element_index,
+                    None,
                 );
             }
             Vec::new()
@@ -1854,6 +1857,7 @@ fn check_value_against_shape_inner(
                     field_key,
                     origin,
                     element_index,
+                    None,
                 ),
                 InstanceValue::String(_) => reference_check(
                     scope,
@@ -1907,6 +1911,9 @@ fn check_value_against_shape_inner(
                         field_key,
                         origin,
                         element_index,
+                        // The full authored union, so a mismatch names it in full
+                        // (the `*` branches `collect_inline_branches` drops included).
+                        Some(shape),
                     );
                 }
                 // No record-shape branches — fall through to the per-
@@ -2062,6 +2069,9 @@ fn check_value_against_shape_inner(
                         field_key,
                         origin,
                         element_index,
+                        // The full authored intersection, so a mismatch names it in
+                        // full (the `*` branches dropped from the check included).
+                        Some(shape),
                     );
                 }
                 // No record-shape branches — fall through to per-branch
@@ -2141,6 +2151,9 @@ fn check_value_against_shape_inner(
                     field_key,
                     origin,
                     element_index,
+                    // A compound-reference builds its compat from ALL branches (no
+                    // drop), so `compat.render()` already names the full slot.
+                    None,
                 )
             }
             // Wikilink string → reuse the same compound-reference
@@ -2588,20 +2601,31 @@ impl<'a> QualBranch<'a> {
     }
 }
 
-/// Pull reference-shape branches out of a Union or Intersection branch list,
-/// keeping each branch's `::repo` qualifier. Primitive / Enum / List /
-/// nested-compound branches are skipped — they can't host an inline value, so
-/// they contribute no candidate identity for [[type-def shape record::au-type-system]] cases 3/4.
+/// Pull INLINE-CAPABLE branches out of a Union or Intersection branch list,
+/// keeping each branch's `::repo` qualifier. A branch admits an inline value
+/// only when it is a bare record (`name`) or inline-or-reference (`name&`); a
+/// `*` reference branch (`Shape::Reference`) is REFERENCE-ONLY per
+/// [[type reference::au-type-system]], so it hosts no inline value and is
+/// skipped — the same as a primitive / enum / list / nested-compound branch. So
+/// an inline value at a union's `*` branch matches no candidate identity and
+/// fails [[type-def shape record::au-type-system]] cases 3/4, rather than being
+/// descended into. This mirrors the single-slot [`InlineCompat`] dispatch, which
+/// admits inline for `Record` / `InlineOrReference` only.
+///
+/// A MIXED union (`<transform& | object*>`) keeps its inline-capable branch, so
+/// an incompatible inline value fires `inline-value-type-not-compatible`. An
+/// ALL-`*` union (`<a* | b*>`) collects EMPTY here, the caller falls through to
+/// the any-of branch loop, and an inline value there fires `field-shape-mismatch`.
+/// Two codes for the one "an inline value where a reference belongs" shape: the
+/// mixed case has an inline-capable branch to name, the all-`*` case does not.
 fn collect_inline_branches(branches: &[Shape]) -> Vec<QualBranch<'_>> {
     branches
         .iter()
         .filter_map(|b| match b {
-            Shape::Reference(n) | Shape::Record(n) | Shape::InlineOrReference(n) => {
-                Some(QualBranch {
-                    base: n.as_str(),
-                    repo: n.repo.as_deref(),
-                })
-            }
+            Shape::Record(n) | Shape::InlineOrReference(n) => Some(QualBranch {
+                base: n.as_str(),
+                repo: n.repo.as_deref(),
+            }),
             _ => None,
         })
         .collect()
@@ -2741,7 +2765,19 @@ pub(crate) fn check_fence_record_against_slot(
         // record), and an `any` slot deliberately imposes nothing.
         _ => return Vec::new(),
     };
-    check_inline_claim_compat(&scope, shape, identity_claim, &compat, &prefix, &origin)
+    // Full slot for the message at the raw union / intersection sites, where a
+    // `*` branch is dropped from `compat`; a compound-reference or single slot
+    // renders from `compat` as before.
+    let msg_slot = matches!(slot, Shape::Union(_) | Shape::Intersection(_)).then_some(slot);
+    check_inline_claim_compat(
+        &scope,
+        shape,
+        identity_claim,
+        &compat,
+        &prefix,
+        &origin,
+        msg_slot,
+    )
 }
 
 /// The [[type-def shape record::au-type-system]] compat check: does a DECLARED inline claim satisfy
@@ -2766,7 +2802,20 @@ fn check_inline_claim_compat(
     compat: &InlineCompat<'_>,
     prefix: &str,
     outer_origin: &Origin,
+    // The full authored slot, for the message ONLY. `compat` carries just the
+    // INLINE-CAPABLE branches (`collect_inline_branches` drops a `*`
+    // reference-only branch), so rendering `compat` in a mismatch message would
+    // name a union that omits the very branch the author wrote. Passed `Some` at
+    // the raw `Shape::Union` / `Shape::Intersection` sites, where a branch can be
+    // dropped; `None` elsewhere falls back to `compat.render()`, byte-identical.
+    slot: Option<&Shape>,
 ) -> Vec<Diagnostic> {
+    // The slot form the message names: the full authored slot when given, else
+    // the inline-capable-branch render.
+    let slot_render = || {
+        slot.map(|s| format!("'{}'", s))
+            .unwrap_or_else(|| compat.render())
+    };
     let mut diags: Vec<Diagnostic> = Vec::new();
     let unified_closure = shape.instance_closure();
     let in_closure = |name: &str| unified_closure.iter().any(|tn| tn.as_str() == name);
@@ -2820,10 +2869,10 @@ fn check_inline_claim_compat(
                 None => None,
                 Some(oks) if oks.iter().any(|&ok| ok) => None,
                 Some(_) => Some(format!(
-                    "{}: inline value claims '{}' but no branch of union slot {} is in its closure",
+                    "{}: inline value claims '{}' but no inline-capable branch of union slot {} is in its closure; only a bare-record or '&' branch of a union hosts an inline value",
                     &prefix,
                     claim_summary.join(", "),
-                    compat.render()
+                    slot_render()
                 )),
             }
         }
@@ -2848,7 +2897,7 @@ fn check_inline_claim_compat(
                         "{}: inline value claims '{}' but its closure does not satisfy intersection slot {} — missing: {}",
                         prefix,
                         claim_summary.join(", "),
-                        compat.render(),
+                        slot_render(),
                         missing.join(", ")
                     ))
                 }
@@ -2892,6 +2941,10 @@ fn validate_inline_value(
     field_key: &str,
     outer_origin: &Origin,
     element_index: Option<usize>,
+    // The full authored slot, forwarded to `check_inline_claim_compat` for the
+    // mismatch message. `Some` at the raw union / intersection sites; `None`
+    // elsewhere. See that function's `slot` parameter.
+    slot: Option<&Shape>,
 ) -> Vec<Diagnostic> {
     let mut diags: Vec<Diagnostic> = Vec::new();
     let prefix = format_field_prefix(field_key, element_index);
@@ -3059,6 +3112,7 @@ fn validate_inline_value(
             compat,
             &prefix,
             outer_origin,
+            slot,
         );
         if !compat_diags.is_empty() {
             diags.extend(compat_diags);
@@ -3563,6 +3617,12 @@ pub fn unmet_required_meta(
 }
 
 fn check_subtype_required_meta(ctx: &ValidateContext, td: &TypeDef) -> Vec<Diagnostic> {
+    // No resolution graph is not a silent skip in the engine: every repo's own
+    // `.arsumbris/repo.yaml` is an `au.engine.repo::au-engine` instance, stamped
+    // with that claim even when no `type:` is written, so every repo imports the
+    // builtin peer and gets one. Only the builtin `au-engine` repo itself lacks
+    // it, and it authors no obligation on user types. `None` here is au-core's
+    // own graph-only callers.
     let Some(rg) = ctx.resolution else {
         return Vec::new();
     };
@@ -6202,6 +6262,9 @@ fn check_structural_brand_value(
                 field_key,
                 origin,
                 element_index,
+                // A union brand's members are all records (inline-capable), so no
+                // branch is dropped and `compat.render()` names them all.
+                None,
             )
         }
         InstanceValue::String(_) => {
@@ -9477,6 +9540,60 @@ mod tests {
         assert!(validate_with(&g, &idx, &claims, &by_ref).is_empty());
         assert!(validate_with(&g, &idx, &claims, &by_inline_rationale).is_empty());
         assert!(validate_with(&g, &idx, &claims, &by_inline_thesis).is_empty());
+    }
+
+    #[test]
+    fn an_inline_record_at_a_star_union_branch_is_reference_only() {
+        // `<transform& | object*>` — the `*` branch is REFERENCE-ONLY, so an
+        // inline record can satisfy only the `&` branch. An inline value claiming
+        // the `*` branch's type (`object`, not `transform`) matches no inline
+        // branch, so the verdict is `inline-value-type-not-compatible`, never a
+        // descent into object's own field validation. Regression guard for the
+        // au-sandbox report: a union's `*` branch was wrongly treated as
+        // inline-capable, so the engine accepted the inline record and validated
+        // object's fields.
+        let shape = au_grammar::parse_shape("<transform& | object*>")
+            .expect("a per-branch `&` / `*` union should parse");
+        let g = build_graph(vec![
+            td("transform", &[], &[]),
+            // `object` carries a REQUIRED field, so a wrongful descent into it
+            // would fire `required-field-absent` — the tell this test forbids.
+            td(
+                "object",
+                &[],
+                &[("f", false, Ok(Shape::Primitive(Primitive::String)))],
+            ),
+            td("host", &[], &[("of", false, Ok(shape))]),
+        ])
+        .graph;
+        // An inline record claiming `object` (the `*` branch's type), with
+        // object's required `f` omitted.
+        let inst = instance(
+            bare("host"),
+            vec![("of", inline(Some(bare("object")), vec![]))],
+        );
+        let diags = validate_simple(&g, &inst);
+        let codes = codes_of(&diags);
+        assert!(
+            codes.contains(&"inline-value-type-not-compatible"),
+            "a `*` union branch is reference-only, so an inline value there is incompatible: {codes:?}",
+        );
+        assert!(
+            !codes.contains(&"required-field-absent") && !codes.contains(&"field-shape-mismatch"),
+            "the inline value must be rejected outright, never descended into object's fields: {codes:?}",
+        );
+        // The message names the FULL authored slot, not the inline-capable subset
+        // — rendering `<transform>` (the kept branch only) would name a union that
+        // appears nowhere in source and omit the very branch the author used.
+        let msg = &diags
+            .iter()
+            .find(|d| d.code.as_str() == "inline-value-type-not-compatible")
+            .expect("the compat diagnostic")
+            .message;
+        assert!(
+            msg.contains("<transform& | object*>"),
+            "message must name the full authored slot: {msg}",
+        );
     }
 
     #[test]

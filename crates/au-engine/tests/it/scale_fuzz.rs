@@ -77,7 +77,7 @@ fn resolution_facts(v: &KnowledgeBase) -> Vec<String> {
 /// per-path content hashes, closure ids, the reverse-dependency indices
 /// (backlinks + closure membership), each instance's resolved effective-shape,
 /// and each repo's folded resolution graph.
-fn assert_same_projections(a: &KnowledgeBase, b: &KnowledgeBase, ctx: &str) {
+pub(crate) fn assert_same_projections(a: &KnowledgeBase, b: &KnowledgeBase, ctx: &str) {
     assert!(
         a.diagnostics().eq(b.diagnostics()),
         "{ctx}: diagnostics differ"

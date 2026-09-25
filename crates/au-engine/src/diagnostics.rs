@@ -64,10 +64,9 @@ pub fn file_too_large_diag(file: &Path, size: u64, cap: u64) -> Diagnostic {
             "file is {size} bytes, over the {cap}-byte read cap; it is skipped and not analysed"
         ),
         related: vec![],
-        fix: Some(au_diagnostics::SuggestedFix {
-            description: "split the file, or exclude it from the graph via `.arsumbris/.auignore`"
-                .to_string(),
-        }),
+        fix: Some(au_diagnostics::SuggestedFix::advisory(
+            "split the file, or exclude it from the graph via `.arsumbris/.auignore`".to_string(),
+        )),
     }
 }
 

@@ -140,6 +140,17 @@ pub const REQUIRED_META_NOT_A_META_TYPE: DiagnosticCode =
 pub const SUBTYPE_MISSING_REQUIRED_META: DiagnosticCode =
     DiagnosticCode::from_static("subtype-missing-required-meta");
 
+/// A type-def's effective meta holds two or more DISTINCT surviving blocks of
+/// one meta type, arriving through unrelated parents so neither shadows the
+/// other. Every survivor is still reported by the effective-meta read, none is
+/// picked. Token-equal survivors unify and never fire this. Grouped by meta
+/// type IDENTITY, `(name, ClosureHash)`: an in-sync own and peer copy are one
+/// type and can conflict, a diverged pair is two and never does.
+/// A `warning`, resolved by the def declaring its own block of that type. See
+/// [[type-def meta::au-type-system]].
+pub const META_INHERITANCE_CONFLICT: DiagnosticCode =
+    DiagnosticCode::from_static("meta-inheritance-conflict");
+
 /// A claim (file-level, inline record, or meta sub-region) names a declared-
 /// abstract, non-sealed type. Abstract types are non-claimable; claim a concrete
 /// subtype. A sealed claim keeps firing the more specific `sealed-parent-claimed`,
@@ -189,7 +200,11 @@ pub const CYCLE_IN_TYPE_CHAIN: DiagnosticCode = DiagnosticCode::from_static("cyc
 pub const TYPE_CHAIN_DEPTH_EXCEEDED: DiagnosticCode =
     DiagnosticCode::from_static("type-chain-depth-exceeded");
 
-/// Two `meta:` sub-regions on the same host type-def use the same `type:` discriminator.
+/// Two `meta:` sub-regions on the same host type-def name the same meta type, by
+/// identity `(name, ClosureHash)`: the same written `type:` twice (the
+/// own-graph check), or two written forms of one in-sync meta type (the
+/// resolver-backed `meta::duplicate_meta_identities`). A diverged same-named
+/// pair are distinct types and coexist.
 pub const DUPLICATE_META_BLOCK: DiagnosticCode =
     DiagnosticCode::from_static("duplicate-meta-block");
 

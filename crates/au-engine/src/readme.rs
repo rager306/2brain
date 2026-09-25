@@ -130,10 +130,8 @@ fn missing_readme_diag(name: &RepoName, root: &Path) -> Diagnostic {
             name.as_str()
         ),
         related: vec![],
-        fix: Some(SuggestedFix {
-            description: "add a README.md at the repo root declaring `type: au.engine.readme::au-engine`, a `tldr:` field, and a `# Repo Overview` section holding `## What this is`, `## How to use this`, `## How to extend this`"
-                .to_string(),
-        }),
+        fix: Some(SuggestedFix::advisory("add a README.md at the repo root declaring `type: au.engine.readme::au-engine`, a `tldr:` field, and a `# Repo Overview` section holding `## What this is`, `## How to use this`, `## How to extend this`"
+                .to_string())),
     }
 }
 
@@ -146,10 +144,8 @@ fn type_undeclared_diag(readme: &Path) -> Diagnostic {
             "README.md does not declare `type: au.engine.readme::au-engine`; the canonical README self-declares its type"
                 .to_string(),
         related: vec![],
-        fix: Some(SuggestedFix {
-            description: "add `type: au.engine.readme::au-engine` to the README frontmatter"
-                .to_string(),
-        }),
+        fix: Some(SuggestedFix::advisory("add `type: au.engine.readme::au-engine` to the README frontmatter"
+                .to_string())),
     }
 }
 
@@ -162,9 +158,7 @@ fn misplaced_diag(path: &Path, span: ByteRange) -> Diagnostic {
             "file claims `au.engine.readme` but is not the repo's root README.md; the readme type is a singleton at `<root>/README.md`"
                 .to_string(),
         related: vec![],
-        fix: Some(SuggestedFix {
-            description: "move this to the repo root as README.md, or drop the `au.engine.readme` claim"
-                .to_string(),
-        }),
+        fix: Some(SuggestedFix::advisory("move this to the repo root as README.md, or drop the `au.engine.readme` claim"
+                .to_string())),
     }
 }

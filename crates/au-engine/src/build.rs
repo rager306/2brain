@@ -183,245 +183,19 @@ pub fn build_reusing(
     // bare `.enter()` only exits, leaving the close to fire at end of function,
     // which reports a misleading idle and stretches the span's bar over every
     // later phase. Fields are recorded through the guard's `Deref`.
-    let compose = tracing::info_span!("phase.compose", members = tracing::field::Empty).entered();
-
-    // The entry MUST be a folder-repo: a directory carrying a valid, named
-    // `.arsumbris/repo.yaml`. `resolve_entry` refuses anything else. The
-    // workspace is composed from its `.arsumbris/workspace.yaml` when present,
-    // else it is the entry repo plus its own `deps` (an entry-only workspace).
-    let entry_span = tracing::info_span!("compose.entry").entered();
-    let EntryResolution {
-        workspace_dir,
-        manifest,
-    } = resolve_entry(repo, fs)?;
-    // Read the entry manifest once, for both composition and cataloging. A
-    // transient read failure at build time (the file existed at `resolve_entry`)
-    // degrades to the entry-only workspace, the error surfaced.
-    let entry_ws_file: Option<(PathBuf, Vec<u8>)> = match &manifest {
-        Some(m) => match fs.read_file(m) {
-            Ok(bytes) => Some((m.clone(), bytes)),
-            Err(e) => {
-                diags.push(DiagSource::KnowledgeBase, read_error_diag(m, &e));
-                None
-            }
-        },
-        None => None,
-    };
-    drop(entry_span);
-
-    // The local walk-resolve fixpoint, shared with `assembly_roots` so the watcher
-    // and fingerprint watch exactly the members `build` reads (including a member
-    // nested under a declared member). Cache-free; the cache tier is located below.
-    let LocalAssembly {
-        ws: mut entry_ws,
-        mut walked,
-        mut walk_errors,
-        mut unwalkable,
-        mut seed_roots,
-        mut auignore_diags,
-    } = local_fixpoint(&workspace_dir, &entry_ws_file, registry, fs);
-    compose.record("members", entry_ws.member_paths.len());
-    drop(compose);
-
-    // Mounting: locate the locked dependencies in the device cache and walk the
-    // members that adds. Separate from composition so a dependency-heavy
-    // workspace's mount cost is distinguishable from its local assembly.
-    let _mount = tracing::info_span!("phase.mount").entered();
-
-    // Locate the workspace's locked dependencies from the device-global package
-    // cache, offline, once the local member set is stable. A pinned dependency
-    // present in the cache mounts from its immutable snapshot as a member; the walk
-    // then treats it like any member. Unix-only (the cache shells git) and only
-    // when a cache root exists. A dependency the location maps to a local path
-    // stays editable (a `dependency-path-overridden` advisory). The cache snapshot
-    // is mounted here yet never watched or fingerprinted — immutable by sha,
-    // outside any workspace, so there is nothing to watch, and `assembly_roots`
-    // excludes it.
-    #[cfg(unix)]
-    if let Some(root) = cache_root {
-        let cache = crate::pkgcache::PackageCache::new(root.to_path_buf());
-        let conflicts = crate::pkgcache::locate_locked_dependencies(&mut entry_ws, &cache, fs);
-        diags.extend(DiagSource::KnowledgeBase, conflicts);
-    }
-    #[cfg(not(unix))]
-    let _ = cache_root;
-    // The cache tier mounts by locked sha, outside the fixpoint, so its snapshot
-    // paths get the same one-spelling normalization before they are walked.
-    for path in entry_ws.member_paths.values_mut() {
-        *path = crate::repo::canonical_root(path);
-    }
-    // Walk any cache members just added (their bounded content); the cache closure
-    // is complete from the lock, so no further resolution round is needed.
-    for root in entry_ws.member_paths.values().cloned().collect::<Vec<_>>() {
-        walk_member_once(
-            &root,
-            fs,
-            &mut walked,
-            &mut walk_errors,
-            &mut unwalkable,
-            &mut seed_roots,
-            &mut auignore_diags,
-        );
-    }
-    drop(_mount);
-
-    // Discovery: union the member walks into one file set, then discover the
-    // repos over its roots and resolve their declared deps.
-    let discover = tracing::info_span!(
-        "phase.discover",
-        files = tracing::field::Empty,
-        repos = tracing::field::Empty
-    )
-    .entered();
-
-    // Union the bounded member walks into one file set with absolute-path identity.
-    // Each member's content is its own bounded walk (no overlap, no
-    // undeclared-nested content), so the union is deduped by construction. Every
-    // walked root is a member (the member set only grows across the fixpoint).
-    // `bound_nested_repos` warns for an undeclared nested marker under a member
-    // root; its file-drop is a no-op now that the walk is bounded up front.
-    let union_span = tracing::info_span!("discover.union").entered();
-    let (files, roots, member_names, member_walk_errors, repo_markers): (
-        Vec<PathBuf>,
-        Vec<PathBuf>,
-        BTreeMap<PathBuf, RepoName>,
-        BTreeMap<PathBuf, std::io::Error>,
-        Vec<PathBuf>,
-    ) = {
-        let ws = &entry_ws;
-        let member_roots: BTreeSet<PathBuf> = ws.member_paths.values().cloned().collect();
-        let mut files: Vec<PathBuf> = Vec::new();
-        let mut markers: Vec<PathBuf> = Vec::new();
-        let mut roots: Vec<PathBuf> = Vec::new();
-        for (root, (mfiles, mmarkers)) in &walked {
-            if !member_roots.contains(root) {
-                continue;
-            }
-            roots.push(root.clone());
-            files.extend(mfiles.iter().cloned());
-            markers.extend(mmarkers.iter().cloned());
-        }
-        files.sort();
-        files.dedup();
-        roots.sort();
-        roots.dedup();
-        // A disabled member contributes nothing, exactly as if absent: drop its
-        // marker so no repo is discovered for it (it never enters `kb.repos`, the
-        // catalog, or the graph). Its declared role stays on the `Workspace` for
-        // the members read. A NESTED disabled member's marker is surfaced by the
-        // walk, so without this it would be discovered as an empty repo; a
-        // sibling / registry disabled member is already absent (never mounted, no
-        // marker under a member root), so this makes both cases uniform.
-        //
-        // Dep-aware: a name that is disabled AND still mounts (a `dep` edge from
-        // an active member re-pulls it, `disabled` overlays the ROLE lists not an
-        // intrinsic type-dependency) keeps its marker and discovers normally. So
-        // the drop is gated on NOT being a mounted member root, which also skips
-        // the `declared_name_at` disk read for every mounted marker.
-        if !ws.disabled.is_empty() {
-            let mounted_roots: BTreeSet<&Path> =
-                ws.member_paths.values().map(PathBuf::as_path).collect();
-            markers.retain(|m| {
-                let root = m.parent().and_then(|p| p.parent());
-                match root {
-                    // A mounted member root is never dropped (a disabled-and-dep
-                    // member discovers as its dep); no read needed.
-                    Some(r) if mounted_roots.contains(r) => true,
-                    Some(r) => crate::repo::declared_name_at(r, fs)
-                        .is_none_or(|name| !ws.disabled.contains(&name)),
-                    None => true,
-                }
-            });
-        }
-        // Declared members that did NOT mount (ambiguous / unresolved). A nested
-        // repo sharing such a name is owned by duplicate-repo-name, not undeclared.
-        let declared_unmounted: BTreeSet<RepoName> = ws
-            .edit
-            .iter()
-            .chain(ws.discover.iter())
-            .filter(|n| !ws.member_paths.contains_key(*n))
-            .cloned()
-            .collect();
-        auignore_diags.extend(report_undeclared_nested_repos(
-            &mut markers,
-            &member_roots,
-            &declared_unmounted,
-            fs,
-        ));
-        let member_names = ws
-            .member_paths
-            .iter()
-            .map(|(name, path)| (path.clone(), name.clone()))
-            .collect();
-        (files, roots, member_names, unwalkable, markers)
-    };
-    diags.extend(
-        DiagSource::KnowledgeBase,
-        walk_errors.iter().map(walk_error_diag),
-    );
-    diags.extend(DiagSource::KnowledgeBase, auignore_diags);
-    drop(union_span);
-
-    // Repo discovery over the roots.
-    // The registry is an engine-schema file: read once, parsed into membership,
-    // and catalogued as a first-class node. The diagnostics are advisory.
-    //
-    // Split three ways: reading every member's registry file, building the repo
-    // map from them, and resolving each repo's declared deps. They are separately
-    // spanned because they scale differently — the first with member count and
-    // disk, the third with the dependency graph — so a fix aimed at the wrong one
-    // would measure flat.
-    let reg_files = {
-        let _s = tracing::info_span!("discover.registry_files").entered();
-        crate::repo::registry_files(&roots, &files, &repo_markers, fs)
-    };
-    let (mut repos, repo_diags) = {
-        let _s = tracing::info_span!("discover.repos").entered();
-        crate::repo::discover_repos(&roots, &reg_files, &member_names, cache_root)
-    };
-    // Every `.arsumbris/repo.yaml` marker the walker surfaced should parse. A
-    // broken one denies its repo a name, so it drops out of membership before
-    // discovery can surface the parse error: a nested broken repo reads only as
-    // `undeclared-nested-repo`, a broken member silently vanishes. Validate the
-    // surfaced markers directly so the malformed file names itself, deduped by
-    // path against whatever discovery already reported for the same file.
-    let registry_parse_diags: Vec<Diagnostic> = {
-        let _s = tracing::info_span!("discover.validate_markers").entered();
-        let mut seen: BTreeSet<&Path> = repo_diags
-            .iter()
-            .filter(|d| {
-                matches!(
-                    d.code.as_str(),
-                    "repo-registry-parse-error" | "repo-name-missing"
-                )
-            })
-            .map(|d| d.span.file.as_path())
-            .collect();
-        let mut out = Vec::new();
-        for (_root, (_files, mmarkers)) in &walked {
-            for marker in mmarkers {
-                if !seen.insert(marker.as_path()) {
-                    continue;
-                }
-                if let Some(d) = crate::repo::validate_registry_marker(marker, fs) {
-                    out.push(d);
-                }
-            }
-        }
-        out
-    };
-    diags.extend(DiagSource::KnowledgeBase, repo_diags);
-    diags.extend(DiagSource::KnowledgeBase, registry_parse_diags);
-    // Resolve each repo's declared deps to local paths via the resolution order
-    // (sibling -> registry -> cache). Fills peer_paths for the peer diagnostics;
-    // the advisory notes ride to consistency_diagnostics.
-    let dep_notes = {
-        let _s = tracing::info_span!("discover.resolve_deps").entered();
-        repos.resolve_deps(registry, fs)
-    };
-    discover.record("files", files.len());
-    discover.record("repos", repos.repos().len());
-    drop(discover);
+    let Composition {
+        entry_ws_file,
+        entry_ws,
+        files,
+        roots,
+        member_walk_errors,
+        repo_markers,
+        reg_files,
+        mut repos,
+        dep_notes,
+        diagnostics: compose_diags,
+    } = compose(repo, fs, registry, cache_root)?;
+    diags.extend(DiagSource::KnowledgeBase, compose_diags);
 
     // Engine-schema nodes: the workspace manifests, the repo registries, and the
     // locks, each read by targeted path and catalogued as a first-class node.
@@ -832,6 +606,10 @@ pub fn build_reusing(
     // every typed-reference surface, frontmatter, body slots, and meta bodies,
     // so cross-repo references are type-checked uniformly.
     let target_claims = crate::crossref::CatalogTargetClaims { catalog: &catalog };
+    let graph_resolver = crate::resolution_build::RepoGraphResolver {
+        graphs: &graphs,
+        repos: &repos,
+    };
     let cross_repo_resolver = crate::crossref::EngineCrossRepoResolver {
         repos: &repos,
         indexes: &indexes,
@@ -876,11 +654,27 @@ pub fn build_reusing(
             Some(&cross_repo_resolver),
             resolution_graphs.of(&repo.name),
         );
-        let meta_diags = validate_meta_bodies(&ctx);
+        let mut meta_diags = validate_meta_bodies(&ctx);
+        // Two written forms naming one meta identity on a def, the half of the
+        // singleton rule that needs the resolver. An error like its own-graph
+        // twin, so it aborts the repo's instance validation the same way.
+        meta_diags.extend(au_core::meta::duplicate_meta_identities(
+            &graph_resolver,
+            repo.name.as_str(),
+            graph,
+        ));
         if meta_diags.iter().any(|d| d.severity == Severity::Error) {
             meta_aborted.insert(repo.name.clone());
         }
         diags.extend(DiagSource::Repo(repo.name.clone()), meta_diags);
+        // Distinct effective meta blocks from unrelated parents, over the
+        // owner-relative walk so a `::repo` parent's block counts. A warning,
+        // never an abort. A type-def edit takes the full path, so this Repo
+        // slice is never patched incrementally.
+        diags.extend(
+            DiagSource::Repo(repo.name.clone()),
+            au_core::meta::meta_conflicts(&graph_resolver, repo.name.as_str(), graph),
+        );
     }
 
     // A repo aborts instance validation when its own vocabulary or meta bodies
@@ -922,11 +716,18 @@ pub fn build_reusing(
         // Placement check: the file's repo-relative path against its type's
         // effective location. au-core is I/O-free, so the engine strips the
         // member root here, the same pattern as `type-def-outside-type-dir`.
-        if let Some(root) = repos.repo_of(path).map(|r| r.root.clone()) {
-            let rel = path.strip_prefix(&root).unwrap_or(path);
+        // Each def is read in its owning repo, never the fold's one node per
+        // identity, so an in-sync twin's `location:` stays its own.
+        if let Some(repo) = repos.repo_of(path) {
+            let rel = path.strip_prefix(&repo.root).unwrap_or(path);
             diags.extend(
                 DiagSource::Instance(path.clone()),
-                au_core::location_check::validate_location(ctx.graph, ctx.resolution, inst, rel),
+                au_core::location_check::validate_location(
+                    &graph_resolver,
+                    repo.name.as_str(),
+                    inst,
+                    rel,
+                ),
             );
         }
         // The Instance slice, matching the incremental path (both the changed
@@ -1021,12 +822,10 @@ pub fn build_reusing(
                         crate::engine_schema::BUILTIN_ENGINE_REPO
                     ),
                     related: vec![],
-                    fix: Some(SuggestedFix {
-                        description: format!(
+                    fix: Some(SuggestedFix::advisory(format!(
                             "include `{floor_name}::{}` in the `type:` claim; mixing in more is fine",
                             crate::engine_schema::BUILTIN_ENGINE_REPO
-                        ),
-                    }),
+                        ))),
                 },
             );
         }
@@ -1310,6 +1109,306 @@ pub(crate) struct EntryResolution {
     /// The `.arsumbris/workspace.yaml` composition, when the entry declares one.
     /// `None` means the workspace is the entry repo plus its own `deps`.
     pub manifest: Option<PathBuf>,
+}
+
+/// The workspace composition a build starts from: the entry resolved, the member
+/// set assembled and mounted, every member walked, and the repos discovered with
+/// their declared deps resolved. Everything before the first file is parsed.
+///
+/// One function for every caller that needs the member set, so the build and the
+/// daemon-less [`crate::members::resolve_members`] read cannot disagree on what
+/// mounts.
+pub(crate) struct Composition {
+    /// The entry `.arsumbris/workspace.yaml` and its bytes, when present and read.
+    pub(crate) entry_ws_file: Option<(PathBuf, Vec<u8>)>,
+    /// The assembled entry workspace, cache mounts included.
+    pub(crate) entry_ws: crate::repo::Workspace,
+    /// The union of the member walks, absolute paths, sorted.
+    pub(crate) files: Vec<PathBuf>,
+    /// The walked member roots, sorted.
+    pub(crate) roots: Vec<PathBuf>,
+    /// Member roots whose walk failed, by root.
+    pub(crate) member_walk_errors: BTreeMap<PathBuf, std::io::Error>,
+    /// The `.arsumbris/repo.yaml` markers the walks surfaced, undeclared nested
+    /// and disabled ones dropped.
+    pub(crate) repo_markers: Vec<PathBuf>,
+    /// Each member's registry file and its bytes.
+    pub(crate) reg_files: Vec<(PathBuf, Vec<u8>)>,
+    /// The discovered repos, their deps resolved to local paths.
+    pub(crate) repos: RepoMap,
+    /// The advisory notes dep resolution raised.
+    pub(crate) dep_notes: Vec<(RepoName, crate::repo::ResolveNote)>,
+    /// The knowledge-base-level diagnostics composition raised, in emission order.
+    pub(crate) diagnostics: Vec<Diagnostic>,
+}
+
+/// Compose the workspace an entry opens: resolve the entry, run the local
+/// walk-resolve fixpoint, mount the locked dependencies from the cache, walk the
+/// members that adds, and discover the repos with their deps resolved.
+///
+/// Reads only: no fetch, no write, the cache is consulted by locked sha. Refuses a
+/// non-repo entry exactly as the build does.
+pub(crate) fn compose(
+    repo: &std::path::Path,
+    fs: &impl FileSystem,
+    registry: &crate::repo::UserRegistry,
+    cache_root: Option<&std::path::Path>,
+) -> Result<Composition, BuildError> {
+    let mut diags: Vec<Diagnostic> = Vec::new();
+    let compose = tracing::info_span!("phase.compose", members = tracing::field::Empty).entered();
+
+    // The entry MUST be a folder-repo: a directory carrying a valid, named
+    // `.arsumbris/repo.yaml`. `resolve_entry` refuses anything else. The
+    // workspace is composed from its `.arsumbris/workspace.yaml` when present,
+    // else it is the entry repo plus its own `deps` (an entry-only workspace).
+    let entry_span = tracing::info_span!("compose.entry").entered();
+    let EntryResolution {
+        workspace_dir,
+        manifest,
+    } = resolve_entry(repo, fs)?;
+    // Read the entry manifest once, for both composition and cataloging. A
+    // transient read failure at build time (the file existed at `resolve_entry`)
+    // degrades to the entry-only workspace, the error surfaced.
+    let entry_ws_file: Option<(PathBuf, Vec<u8>)> = match &manifest {
+        Some(m) => match fs.read_file(m) {
+            Ok(bytes) => Some((m.clone(), bytes)),
+            Err(e) => {
+                diags.push(read_error_diag(m, &e));
+                None
+            }
+        },
+        None => None,
+    };
+    drop(entry_span);
+
+    // The local walk-resolve fixpoint, shared with `assembly_roots` so the watcher
+    // and fingerprint watch exactly the members `build` reads (including a member
+    // nested under a declared member). Cache-free; the cache tier is located below.
+    let LocalAssembly {
+        ws: mut entry_ws,
+        mut walked,
+        mut walk_errors,
+        mut unwalkable,
+        mut seed_roots,
+        mut auignore_diags,
+    } = local_fixpoint(&workspace_dir, &entry_ws_file, registry, fs);
+    compose.record("members", entry_ws.member_paths.len());
+    drop(compose);
+
+    // Mounting: locate the locked dependencies in the device cache and walk the
+    // members that adds. Separate from composition so a dependency-heavy
+    // workspace's mount cost is distinguishable from its local assembly.
+    let _mount = tracing::info_span!("phase.mount").entered();
+
+    // Locate the workspace's locked dependencies from the device-global package
+    // cache, offline, once the local member set is stable. A pinned dependency
+    // present in the cache mounts from its immutable snapshot as a member; the walk
+    // then treats it like any member. Unix-only (the cache shells git) and only
+    // when a cache root exists. A dependency the location maps to a local path
+    // stays editable (a `dependency-path-overridden` advisory). The cache snapshot
+    // is mounted here yet never watched or fingerprinted — immutable by sha,
+    // outside any workspace, so there is nothing to watch, and `assembly_roots`
+    // excludes it.
+    #[cfg(unix)]
+    if let Some(root) = cache_root {
+        let cache = crate::pkgcache::PackageCache::new(root.to_path_buf());
+        let conflicts = crate::pkgcache::locate_locked_dependencies(&mut entry_ws, &cache, fs);
+        diags.extend(conflicts);
+    }
+    #[cfg(not(unix))]
+    let _ = cache_root;
+    // The cache tier mounts by locked sha, outside the fixpoint, so its snapshot
+    // paths get the same one-spelling normalization before they are walked.
+    for path in entry_ws.member_paths.values_mut() {
+        *path = crate::repo::canonical_root(path);
+    }
+    // Walk any cache members just added (their bounded content); the cache closure
+    // is complete from the lock, so no further resolution round is needed.
+    for root in entry_ws.member_paths.values().cloned().collect::<Vec<_>>() {
+        walk_member_once(
+            &root,
+            fs,
+            &mut walked,
+            &mut walk_errors,
+            &mut unwalkable,
+            &mut seed_roots,
+            &mut auignore_diags,
+        );
+    }
+    drop(_mount);
+
+    // Discovery: union the member walks into one file set, then discover the
+    // repos over its roots and resolve their declared deps.
+    let discover = tracing::info_span!(
+        "phase.discover",
+        files = tracing::field::Empty,
+        repos = tracing::field::Empty
+    )
+    .entered();
+
+    // Union the bounded member walks into one file set with absolute-path identity.
+    // Each member's content is its own bounded walk (no overlap, no
+    // undeclared-nested content), so the union is deduped by construction. Every
+    // walked root is a member (the member set only grows across the fixpoint).
+    // `bound_nested_repos` warns for an undeclared nested marker under a member
+    // root; its file-drop is a no-op now that the walk is bounded up front.
+    let union_span = tracing::info_span!("discover.union").entered();
+    let (files, roots, member_names, member_walk_errors, repo_markers): (
+        Vec<PathBuf>,
+        Vec<PathBuf>,
+        BTreeMap<PathBuf, RepoName>,
+        BTreeMap<PathBuf, std::io::Error>,
+        Vec<PathBuf>,
+    ) = {
+        let ws = &entry_ws;
+        let member_roots: BTreeSet<PathBuf> = ws.member_paths.values().cloned().collect();
+        let mut files: Vec<PathBuf> = Vec::new();
+        let mut markers: Vec<PathBuf> = Vec::new();
+        let mut roots: Vec<PathBuf> = Vec::new();
+        for (root, (mfiles, mmarkers)) in &walked {
+            if !member_roots.contains(root) {
+                continue;
+            }
+            roots.push(root.clone());
+            files.extend(mfiles.iter().cloned());
+            markers.extend(mmarkers.iter().cloned());
+        }
+        files.sort();
+        files.dedup();
+        roots.sort();
+        roots.dedup();
+        // A disabled member contributes nothing, exactly as if absent: drop its
+        // marker so no repo is discovered for it (it never enters `kb.repos`, the
+        // catalog, or the graph). Its declared role stays on the `Workspace` for
+        // the members read. A NESTED disabled member's marker is surfaced by the
+        // walk, so without this it would be discovered as an empty repo; a
+        // sibling / registry disabled member is already absent (never mounted, no
+        // marker under a member root), so this makes both cases uniform.
+        //
+        // Dep-aware: a name that is disabled AND still mounts (a `dep` edge from
+        // an active member re-pulls it, `disabled` overlays the ROLE lists not an
+        // intrinsic type-dependency) keeps its marker and discovers normally. So
+        // the drop is gated on NOT being a mounted member root, which also skips
+        // the `declared_name_at` disk read for every mounted marker.
+        if !ws.disabled.is_empty() {
+            let mounted_roots: BTreeSet<&Path> =
+                ws.member_paths.values().map(PathBuf::as_path).collect();
+            markers.retain(|m| {
+                let root = m.parent().and_then(|p| p.parent());
+                match root {
+                    // A mounted member root is never dropped (a disabled-and-dep
+                    // member discovers as its dep); no read needed.
+                    Some(r) if mounted_roots.contains(r) => true,
+                    Some(r) => crate::repo::declared_name_at(r, fs)
+                        .is_none_or(|name| !ws.disabled.contains(&name)),
+                    None => true,
+                }
+            });
+        }
+        // Declared members that did NOT mount (ambiguous / unresolved). A nested
+        // repo sharing such a name is owned by duplicate-repo-name, not undeclared.
+        let declared_unmounted: BTreeSet<RepoName> = ws
+            .edit
+            .iter()
+            .chain(ws.discover.iter())
+            .filter(|n| !ws.member_paths.contains_key(*n))
+            .cloned()
+            .collect();
+        auignore_diags.extend(report_undeclared_nested_repos(
+            &mut markers,
+            &member_roots,
+            &declared_unmounted,
+            fs,
+        ));
+        let member_names = ws
+            .member_paths
+            .iter()
+            .map(|(name, path)| (path.clone(), name.clone()))
+            .collect();
+        (files, roots, member_names, unwalkable, markers)
+    };
+    diags.extend(walk_errors.iter().map(walk_error_diag));
+    diags.extend(auignore_diags);
+    drop(union_span);
+
+    // Repo discovery over the roots.
+    // The registry is an engine-schema file: read once, parsed into membership,
+    // and catalogued as a first-class node. The diagnostics are advisory.
+    //
+    // Split three ways: reading every member's registry file, building the repo
+    // map from them, and resolving each repo's declared deps. They are separately
+    // spanned because they scale differently — the first with member count and
+    // disk, the third with the dependency graph — so a fix aimed at the wrong one
+    // would measure flat.
+    let reg_files = {
+        let _s = tracing::info_span!("discover.registry_files").entered();
+        crate::repo::registry_files(&roots, &files, &repo_markers, fs)
+    };
+    let (mut repos, repo_diags) = {
+        let _s = tracing::info_span!("discover.repos").entered();
+        crate::repo::discover_repos(
+            &roots,
+            &reg_files,
+            &member_names,
+            cache_root,
+            Some(&crate::repo::canonical_root(&workspace_dir)),
+        )
+    };
+    // Every `.arsumbris/repo.yaml` marker the walker surfaced should parse. A
+    // broken one denies its repo a name, so it drops out of membership before
+    // discovery can surface the parse error: a nested broken repo reads only as
+    // `undeclared-nested-repo`, a broken member silently vanishes. Validate the
+    // surfaced markers directly so the malformed file names itself, deduped by
+    // path against whatever discovery already reported for the same file.
+    let registry_parse_diags: Vec<Diagnostic> = {
+        let _s = tracing::info_span!("discover.validate_markers").entered();
+        let mut seen: BTreeSet<&Path> = repo_diags
+            .iter()
+            .filter(|d| {
+                matches!(
+                    d.code.as_str(),
+                    "repo-registry-parse-error" | "repo-name-missing"
+                )
+            })
+            .map(|d| d.span.file.as_path())
+            .collect();
+        let mut out = Vec::new();
+        for (_root, (_files, mmarkers)) in &walked {
+            for marker in mmarkers {
+                if !seen.insert(marker.as_path()) {
+                    continue;
+                }
+                if let Some(d) = crate::repo::validate_registry_marker(marker, fs) {
+                    out.push(d);
+                }
+            }
+        }
+        out
+    };
+    diags.extend(repo_diags);
+    diags.extend(registry_parse_diags);
+    // Resolve each repo's declared deps to local paths via the resolution order
+    // (sibling -> registry -> cache). Fills peer_paths for the peer diagnostics;
+    // the advisory notes ride to consistency_diagnostics.
+    let dep_notes = {
+        let _s = tracing::info_span!("discover.resolve_deps").entered();
+        repos.resolve_deps(registry, fs)
+    };
+    discover.record("files", files.len());
+    discover.record("repos", repos.repos().len());
+    drop(discover);
+    Ok(Composition {
+        entry_ws_file,
+        entry_ws,
+        files,
+        roots,
+        member_walk_errors,
+        repo_markers,
+        reg_files,
+        repos,
+        dep_notes,
+        diagnostics: diags,
+    })
 }
 
 /// Resolve the entry into a folder-repo workspace directory and its optional
@@ -1671,6 +1770,8 @@ pub(crate) fn local_fixpoint(
     let mut unwalkable: BTreeMap<PathBuf, std::io::Error> = BTreeMap::new();
     let mut seed_roots: BTreeSet<PathBuf> = BTreeSet::new();
     let mut auignore_diags: Vec<Diagnostic> = Vec::new();
+    let mut first_located: BTreeMap<RepoName, (PathBuf, crate::repo::ResolutionTier)> =
+        BTreeMap::new();
     walk_member_once(
         workspace_dir,
         fs,
@@ -1699,6 +1800,19 @@ pub(crate) fn local_fixpoint(
         // set is keyed by directory rather than by how it was addressed.
         for path in ws.member_paths.values_mut() {
             *path = crate::repo::canonical_root(path);
+        }
+        // A walked member's own marker seeds the next round's sibling index, so a
+        // member the registry located re-resolves there as a sibling at the same
+        // path. The tier that FIRST located a path is the one that found it, so it
+        // is kept while the path holds; a changed path is a new location.
+        for (name, tier) in ws.member_tiers.iter_mut() {
+            let path = &ws.member_paths[name];
+            match first_located.get(name) {
+                Some((first_path, first_tier)) if first_path == path => *tier = *first_tier,
+                _ => {
+                    first_located.insert(name.clone(), (path.clone(), *tier));
+                }
+            }
         }
         let mut grew = false;
         for root in ws.member_paths.values().cloned().collect::<Vec<_>>() {
@@ -1798,11 +1912,9 @@ fn report_undeclared_nested_repos(
                     "nested repo '{name}' is not a declared member; its subtree is skipped and contributes nothing"
                 ),
                 related: vec![],
-                fix: Some(SuggestedFix {
-                    description: format!(
+                fix: Some(SuggestedFix::advisory(format!(
                         "declare '{name}' as an 'edit' / 'discover' member in workspace.yaml, or as a 'dep' in repo.yaml"
-                    ),
-                }),
+                    ))),
             }
         })
         .collect()
@@ -1853,7 +1965,7 @@ fn workspace_entry(path: &Path, bytes: &[u8]) -> FileEntry {
 /// The workspace-scoped checks (the member-state taxonomy) run over `workspaces`,
 /// which holds the single entry workspace (the entry repo's
 /// `.arsumbris/workspace.yaml` composition, else the entry repo plus its `deps`).
-fn consistency_diagnostics(
+pub(crate) fn consistency_diagnostics(
     repos: &RepoMap,
     workspaces: &[crate::repo::Workspace],
     member_walk_errors: &BTreeMap<PathBuf, std::io::Error>,
@@ -1861,7 +1973,7 @@ fn consistency_diagnostics(
     registry: &crate::repo::UserRegistry,
     cache_root: Option<&std::path::Path>,
 ) -> Vec<Diagnostic> {
-    use au_diagnostics::{ByteRange, Severity, Span, SuggestedFix};
+    use au_diagnostics::{ByteRange, FixAction, Severity, Span, SuggestedFix};
 
     let warn = |code, span: Span, message: String, fix: String| Diagnostic {
         code,
@@ -1869,7 +1981,7 @@ fn consistency_diagnostics(
         span,
         message,
         related: Vec::new(),
-        fix: Some(SuggestedFix { description: fix }),
+        fix: Some(SuggestedFix::advisory(fix)),
     };
     let err = |code, span: Span, message: String, fix: String| Diagnostic {
         code,
@@ -1877,15 +1989,7 @@ fn consistency_diagnostics(
         span,
         message,
         related: Vec::new(),
-        fix: Some(SuggestedFix { description: fix }),
-    };
-    let hint = |code, span: Span, message: String, fix: String| Diagnostic {
-        code,
-        severity: Severity::Hint,
-        span,
-        message,
-        related: Vec::new(),
-        fix: Some(SuggestedFix { description: fix }),
+        fix: Some(SuggestedFix::advisory(fix)),
     };
     let mut diags = Vec::new();
     // A malformed dep `repo.yaml` can be reported by both the dep-notes and the
@@ -2117,15 +2221,29 @@ fn consistency_diagnostics(
         // pins it, and lets its types be crossed. A hint, not a conflict.
         for name in &ws.discover {
             if ws.member_roles.get(name) == Some(&MemberRole::Dep) {
-                diags.push(hint(
-                    crate::repo::DISCOVER_MEMBER_IS_A_DEPENDENCY,
-                    Span::new(ws.manifest_path.clone(), ByteRange::new(0, 0)),
-                    format!(
+                // Applicable fix: drop the redundant `discover:` listing (the dep
+                // stays). The engine supplies the member NAME; the consumer derives
+                // `root` (the member owning this workspace.yaml) from the span's
+                // file. See [[decision - 2609171207 - applicable-fix actions on
+                // diagnostics name mutation verbs with engine-supplied args]].
+                diags.push(Diagnostic {
+                    code: crate::repo::DISCOVER_MEMBER_IS_A_DEPENDENCY,
+                    severity: Severity::Hint,
+                    span: Span::new(ws.manifest_path.clone(), ByteRange::new(0, 0)),
+                    message: format!(
                         "workspace member '{}' is listed in 'discover' but is also a declared dependency; the 'discover' listing is redundant",
                         name.as_str()
                     ),
-                    format!("drop '{}' from 'discover'; its dep already mounts and pins it", name.as_str()),
-                ));
+                    related: Vec::new(),
+                    fix: Some(SuggestedFix::with_actions(
+                        format!("drop '{}' from 'discover'; its dep already mounts and pins it", name.as_str()),
+                        vec![FixAction {
+                            verb: "remove_workspace_member".to_string(),
+                            title: format!("Remove redundant '{}' from discover", name.as_str()),
+                            args: BTreeMap::from([("name".to_string(), name.as_str().to_string())]),
+                        }],
+                    )),
+                });
             }
         }
         // A `disabled:` overlay silences a DECLARED member, so a disabled name must
@@ -2163,26 +2281,57 @@ fn consistency_diagnostics(
                 .and_then(|root| repos.repos().iter().find(|r| r.root.as_path() == root))
             {
                 if !ws.edit.contains(&entry_repo.name) {
-                    diags.push(err(
-                        crate::repo::WORKSPACE_OMITS_CONTAINING_REPO,
-                        Span::new(ws.manifest_path.clone(), ByteRange::new(0, 0)),
-                        format!(
+                    // Applicable fix: get the containing repo into `edit:`. The engine
+                    // supplies the NAME and ROLE; the consumer derives `root` from the
+                    // span's file. The VERB depends on the current state: if the repo
+                    // is hand-listed under `discover:`, `add_workspace_member` would
+                    // reject (already in a list), so MOVE it with
+                    // `set_workspace_member_role`; otherwise ADD it. Both take the same
+                    // `{ name, role }`. See [[decision - 2609171207 - applicable-fix
+                    // actions on diagnostics name mutation verbs with engine-supplied
+                    // args]].
+                    let in_discover = ws.discover.contains(&entry_repo.name);
+                    let verb = if in_discover {
+                        "set_workspace_member_role"
+                    } else {
+                        "add_workspace_member"
+                    };
+                    let title = if in_discover {
+                        format!("Move '{}' to edit members", entry_repo.name.as_str())
+                    } else {
+                        format!("Add '{}' to edit members", entry_repo.name.as_str())
+                    };
+                    diags.push(Diagnostic {
+                        code: crate::repo::WORKSPACE_OMITS_CONTAINING_REPO,
+                        severity: Severity::Error,
+                        span: Span::new(ws.manifest_path.clone(), ByteRange::new(0, 0)),
+                        message: format!(
                             "workspace.yaml does not list its containing repo '{}' in 'edit'; the entry repo is a live working tree and belongs in 'edit'",
                             entry_repo.name.as_str()
                         ),
-                        format!("add '{}' to the 'edit' list", entry_repo.name.as_str()),
-                    ));
+                        related: Vec::new(),
+                        fix: Some(SuggestedFix::with_actions(
+                            format!("add '{}' to the 'edit' list", entry_repo.name.as_str()),
+                            vec![FixAction {
+                                verb: verb.to_string(),
+                                title,
+                                args: BTreeMap::from([
+                                    ("name".to_string(), entry_repo.name.as_str().to_string()),
+                                    ("role".to_string(), "edit".to_string()),
+                                ]),
+                            }],
+                        )),
+                    });
                 }
             }
         }
         for member in &ws.members {
+            let mount = member_mount(ws, &member.name, repos, member_walk_errors);
             // A member resolving to the reserved device root `~/.arsumbris` is
             // excluded from the mount set (its `.arsumbris/` IS the device area, so
             // walking it would treat the whole home directory as content). Specific,
             // and takes precedence over the generic unmounted signal below.
-            if ws.member_notes.iter().any(|(n, note)| {
-                n == &member.name && matches!(note, crate::repo::ResolveNote::ReservedRoot)
-            }) {
+            if matches!(mount, MemberMount::ReservedRoot) {
                 diags.push(warn(
                     crate::repo::MEMBER_AT_RESERVED_ROOT,
                     Span::new(ws.manifest_path.clone(), ByteRange::new(0, 0)),
@@ -2205,11 +2354,7 @@ fn consistency_diagnostics(
             // `peer-unmounted` loop above, so it emits nothing here (no double-signal).
             let role = ws.member_roles.get(&member.name).copied();
             let editable = role.is_some_and(|r| r.editable());
-            let mounted_root = ws
-                .member_paths
-                .get(&member.name)
-                .filter(|path| repos.repos().iter().any(|r| &r.root == *path));
-            if let Some(root) = mounted_root {
+            if let MemberMount::Mounted(root) = mount {
                 let read_only = cache_root.is_some_and(|c| root.starts_with(c));
                 if editable && read_only {
                     diags.push(warn(
@@ -2227,14 +2372,7 @@ fn consistency_diagnostics(
                 }
                 continue;
             }
-            // A resolved path present but unwalkable (a file, or unreadable) is
-            // distinct from no resolution. `NotFound` reads as unmounted.
-            let unwalkable = ws
-                .member_paths
-                .get(&member.name)
-                .and_then(|path| member_walk_errors.get(path))
-                .filter(|err| err.kind() != std::io::ErrorKind::NotFound);
-            if let Some(err) = unwalkable {
+            if let MemberMount::Unwalkable(err) = mount {
                 diags.push(warn(
                     crate::repo::WORKSPACE_MEMBER_UNWALKABLE,
                     Span::new(ws.manifest_path.clone(), ByteRange::new(0, 0)),
@@ -2285,6 +2423,52 @@ fn consistency_diagnostics(
     diags
 }
 
+/// Whether a declared workspace member mounted, and if not, why.
+///
+/// The one decision the build's member-outcome diagnostics and the daemon-less
+/// [`crate::members::resolve_members`] read both take, so the two cannot drift.
+pub(crate) enum MemberMount<'a> {
+    /// A repo was discovered at the member's resolved root.
+    Mounted(&'a Path),
+    /// The member resolved to the reserved device root `~/.arsumbris` and was
+    /// excluded from the mount set.
+    ReservedRoot,
+    /// The member resolved to a path that exists but could not be walked (a file,
+    /// or unreadable).
+    Unwalkable(&'a std::io::Error),
+    /// No tier located the member, or its located root held no loadable repo.
+    Unmounted,
+}
+
+/// Classify one declared member of `ws` against the discovered `repos`.
+///
+/// Reserved root wins over every other state. A resolved path whose walk failed
+/// with anything but `NotFound` is unwalkable, a missing one reads as unmounted.
+pub(crate) fn member_mount<'a>(
+    ws: &'a crate::repo::Workspace,
+    name: &RepoName,
+    repos: &RepoMap,
+    member_walk_errors: &'a BTreeMap<PathBuf, std::io::Error>,
+) -> MemberMount<'a> {
+    if ws
+        .member_notes
+        .iter()
+        .any(|(n, note)| n == name && matches!(note, crate::repo::ResolveNote::ReservedRoot))
+    {
+        return MemberMount::ReservedRoot;
+    }
+    let Some(path) = ws.member_paths.get(name) else {
+        return MemberMount::Unmounted;
+    };
+    if repos.repos().iter().any(|r| &r.root == path) {
+        return MemberMount::Mounted(path);
+    }
+    match member_walk_errors.get(path) {
+        Some(err) if err.kind() != std::io::ErrorKind::NotFound => MemberMount::Unwalkable(err),
+        _ => MemberMount::Unmounted,
+    }
+}
+
 /// A `.type.yaml` type-def file that does not live under a `type/` directory.
 /// Advisory `warning`: the `.type.yaml` suffix is the classification marker, so
 /// the file is a valid type-def regardless; the `type/` directory is an
@@ -2313,20 +2497,18 @@ fn type_def_outside_type_dir_diag(
             "type-def does not live under a `type/` directory; by convention every type-def sits under the repo's `type/`"
                 .to_string(),
         related: vec![],
-        fix: Some(SuggestedFix {
-            description: "move this file under the repo's `type/` directory".to_string(),
-        }),
+        fix: Some(SuggestedFix::advisory("move this file under the repo's `type/` directory".to_string())),
     })
 }
 
-/// The declared name of the repo a path belongs to. Falls back to the root
+/// The declared name of the repo a path belongs to. Falls back to the entry
 /// repo's name, so a path always routes to a graph. `None` only for a
 /// repo-less workspace, which discovery never produces.
 fn repo_of(repos: &RepoMap, path: &std::path::Path) -> RepoName {
     repos
         .repo_of(path)
         .map(|r| r.name.clone())
-        .or_else(|| repos.root().map(|r| r.name.clone()))
+        .or_else(|| repos.entry().map(|r| r.name.clone()))
         .unwrap_or_else(|| RepoName(String::new()))
 }
 
@@ -2733,6 +2915,167 @@ mod tests {
     use au_parser::MemoryFileSystem;
     use std::path::Path;
 
+    /// `base` owns `view-meta` and a `card` carrying one. `app` owns its own
+    /// `view-meta` (`app_meta`, in-sync with base's or diverged), a `panel`
+    /// carrying `panel_meta`, and `card-panel` extending both `card::base` and
+    /// `panel`. Blocks naming ONE meta identity from the unrelated parents
+    /// conflict across the repo boundary.
+    fn meta_conflict_fs(app_meta: &str, panel_meta: &str) -> MemoryFileSystem {
+        let mut fs = MemoryFileSystem::new();
+        fs.insert("/ws/.arsumbris/repo.yaml", b"name: ws\n".to_vec());
+        fs.insert(
+            "/ws/.arsumbris/workspace.yaml",
+            b"edit:\n  - ws\n  - base\n  - app\n".to_vec(),
+        );
+        fs.insert("/ws/base/.arsumbris/repo.yaml", b"name: base\n".to_vec());
+        fs.insert(
+            "/ws/base/type/view-meta.type.yaml",
+            b"extends: au.engine.meta::au-engine\nfields:\n  tldr: String\n".to_vec(),
+        );
+        fs.insert(
+            "/ws/base/type/card.type.yaml",
+            b"fields: {}\nmeta:\n  - type: view-meta\n    tldr: card\n".to_vec(),
+        );
+        fs.insert(
+            "/ws/app/.arsumbris/repo.yaml",
+            b"name: app\ndeps:\n  - name: base\n".to_vec(),
+        );
+        fs.insert(
+            "/ws/app/type/view-meta.type.yaml",
+            app_meta.as_bytes().to_vec(),
+        );
+        fs.insert(
+            "/ws/app/type/panel.type.yaml",
+            format!("fields: {{}}\nmeta:\n{panel_meta}").into_bytes(),
+        );
+        fs.insert(
+            "/ws/app/type/card-panel.type.yaml",
+            b"extends:\n  - card::base\n  - panel\n".to_vec(),
+        );
+        fs
+    }
+
+    /// `meta_conflict_fs`'s workspace plus `app/type/host` carrying `blocks`.
+    fn duplicate_fs(app_meta: &str, blocks: &str) -> MemoryFileSystem {
+        let mut fs = meta_conflict_fs(app_meta, "  - type: view-meta\n    tldr: p\n");
+        fs.insert(
+            "/ws/app/type/host.type.yaml",
+            format!("fields: {{}}\nmeta:\n{blocks}").into_bytes(),
+        );
+        fs
+    }
+
+    fn duplicates(kb: &KnowledgeBase) -> Vec<&au_diagnostics::Diagnostic> {
+        kb.diagnostics()
+            .filter(|d| d.code == au_core::codes::DUPLICATE_META_BLOCK)
+            .collect()
+    }
+
+    const OWN_AND_PEER: &str =
+        "  - type: view-meta\n    tldr: a\n  - type: view-meta::base\n    tldr: b\n";
+
+    #[test]
+    fn an_own_and_an_in_sync_peer_form_on_one_def_are_a_duplicate() {
+        let kb = build(Path::new("/ws"), &duplicate_fs(IN_SYNC, OWN_AND_PEER)).unwrap();
+        let d = duplicates(&kb);
+        assert_eq!(d.len(), 1, "{d:?}");
+        assert_eq!(d[0].span.file, Path::new("/ws/app/type/host.type.yaml"));
+        assert!(
+            d[0].message.contains("'view-meta::base'"),
+            "{}",
+            d[0].message
+        );
+        // Both blocks sit on host itself: a duplicate, never an inheritance
+        // conflict.
+        assert!(
+            !conflicts(&kb)
+                .iter()
+                .any(|c| c.span.file.ends_with("host.type.yaml")),
+            "{:?}",
+            conflicts(&kb)
+        );
+    }
+
+    #[test]
+    fn an_own_and_a_diverged_peer_form_on_one_def_coexist() {
+        let kb = build(Path::new("/ws"), &duplicate_fs(DIVERGED, OWN_AND_PEER)).unwrap();
+        assert!(duplicates(&kb).is_empty(), "{:?}", duplicates(&kb));
+    }
+
+    #[test]
+    fn a_bare_and_a_self_qualified_form_on_one_def_are_a_duplicate() {
+        let blocks = "  - type: view-meta\n    tldr: a\n  - type: view-meta::app\n    tldr: b\n";
+        let kb = build(Path::new("/ws"), &duplicate_fs(DIVERGED, blocks)).unwrap();
+        assert_eq!(duplicates(&kb).len(), 1, "{:?}", duplicates(&kb));
+    }
+
+    #[test]
+    fn the_same_written_form_twice_fires_once() {
+        let blocks =
+            "  - type: view-meta::base\n    tldr: a\n  - type: view-meta::base\n    tldr: b\n";
+        let kb = build(Path::new("/ws"), &duplicate_fs(DIVERGED, blocks)).unwrap();
+        assert_eq!(duplicates(&kb).len(), 1, "{:?}", duplicates(&kb));
+    }
+
+    fn conflicts(kb: &KnowledgeBase) -> Vec<&au_diagnostics::Diagnostic> {
+        kb.diagnostics()
+            .filter(|d| d.code == au_core::codes::META_INHERITANCE_CONFLICT)
+            .collect()
+    }
+
+    const IN_SYNC: &str = "extends: au.engine.meta::au-engine\nfields:\n  tldr: String\n";
+    const DIVERGED: &str =
+        "extends: au.engine.meta::au-engine\nfields:\n  tldr: String\n  extra?: String\n";
+
+    #[test]
+    fn a_meta_conflict_through_a_cross_repo_parent_fires_on_the_importer() {
+        let fs = meta_conflict_fs(DIVERGED, "  - type: view-meta::base\n    tldr: panel\n");
+        let kb = build(Path::new("/ws"), &fs).unwrap();
+        let c = conflicts(&kb);
+        assert_eq!(c.len(), 1, "{c:?}");
+        assert_eq!(
+            c[0].span.file,
+            Path::new("/ws/app/type/card-panel.type.yaml")
+        );
+        assert!(
+            c[0].message.contains("'view-meta::base'")
+                && c[0].message.contains("(card::base, panel)"),
+            "{}",
+            c[0].message
+        );
+    }
+
+    #[test]
+    fn a_diverged_own_and_peer_same_named_meta_type_never_conflict() {
+        // panel's bare `view-meta` is app's own, diverged from base's, so a
+        // distinct type.
+        let fs = meta_conflict_fs(DIVERGED, "  - type: view-meta\n    tldr: panel\n");
+        let kb = build(Path::new("/ws"), &fs).unwrap();
+        assert!(conflicts(&kb).is_empty(), "{:?}", conflicts(&kb));
+    }
+
+    #[test]
+    fn an_in_sync_own_and_peer_same_named_meta_type_are_one_and_conflict() {
+        // panel's bare `view-meta` is app's own, in-sync with base's: ONE
+        // identity, so its block conflicts with card's.
+        let fs = meta_conflict_fs(IN_SYNC, "  - type: view-meta\n    tldr: panel\n");
+        let kb = build(Path::new("/ws"), &fs).unwrap();
+        let c = conflicts(&kb);
+        assert_eq!(c.len(), 1, "{c:?}");
+        assert!(
+            c[0].message.contains("'view-meta'"),
+            "own form preferred: {}",
+            c[0].message
+        );
+    }
+
+    #[test]
+    fn a_token_equal_cross_repo_block_unifies() {
+        let fs = meta_conflict_fs(DIVERGED, "  - type: view-meta::base\n    tldr: card\n");
+        let kb = build(Path::new("/ws"), &fs).unwrap();
+        assert!(conflicts(&kb).is_empty(), "{:?}", conflicts(&kb));
+    }
+
     /// A folder-repo workspace in memory: the entry `/ws` is a content-free repo
     /// whose `.arsumbris/workspace.yaml` composes the members `base` and `app`,
     /// each a subdirectory repo declaring its own name.
@@ -2967,7 +3310,7 @@ mod tests {
         // An unread type-def is a vocabulary error, so its repo aborts its own
         // instance validation, exactly like an unreadable type-def.
         assert!(
-            kb.root_outcome().aborted(),
+            kb.entry_outcome().aborted(),
             "an over-cap type-def aborts its repo's validation"
         );
     }

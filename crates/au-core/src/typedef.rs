@@ -534,11 +534,8 @@ pub fn parse_type_def(
                             value_span,
                             "`fields:` must be a map keyed by field name, not a list",
                         );
-                        d.fix = Some(au_diagnostics::SuggestedFix {
-                            description:
-                                "write each field as `name: shape` under `fields:`, not `- name: shape`"
-                                    .to_string(),
-                        });
+                        d.fix = Some(au_diagnostics::SuggestedFix::advisory("write each field as `name: shape` under `fields:`, not `- name: shape`"
+                                    .to_string()));
                         diagnostics.push(d);
                     }
                     _ => {
@@ -618,7 +615,7 @@ pub fn parse_type_def(
                     // Buffer locally so a list whose sub-regions all fail
                     // to parse stays distinguishable from explicit
                     // suppression — without this guard, `Some(vec![])`
-                    // would halt `lookup_meta` and hide ancestor metas
+                    // would shadow every ancestor's meta in `effective_meta`
                     // because of authoring mistakes.
                     let mut parsed: Vec<MetaBlock> = Vec::new();
                     for item in items {
@@ -2624,8 +2621,8 @@ fields: {}
         assert!(mixin_diags[0].message.contains("`type: []`"));
         // The block is rejected and not stored. With no sub-region
         // successfully parsed, `meta_blocks` stays `None` — the type-def
-        // is effectively as if `meta:` was absent, so `lookup_meta` walks
-        // ancestors instead of treating a bad-author list as suppression.
+        // is effectively as if `meta:` was absent, so `effective_meta` keeps
+        // ancestors' blocks instead of treating a bad-author list as suppression.
         let td = res.type_def.unwrap();
         assert_eq!(td.meta_blocks, None);
     }
@@ -2745,8 +2742,8 @@ fields: {}
     fn meta_with_only_bad_subregions_leaves_meta_blocks_none() {
         // `meta:` written with sub-regions that all fail to parse must NOT
         // collapse to `Some(vec![])` — that's the [[type-def meta::au-type-system]] suppression state
-        // (explicit `meta: []`), and conflating the two halts `lookup_meta`
-        // and hides ancestor metas because of authoring mistakes. With no
+        // (explicit `meta: []`), and conflating the two shadows every
+        // ancestor's meta in `effective_meta` because of authoring mistakes. With no
         // sub-regions parsed, the type-def is effectively as if `meta:`
         // was absent; diagnostics already explain why per entry.
         let res = parse_one(

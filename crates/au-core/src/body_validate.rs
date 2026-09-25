@@ -765,13 +765,11 @@ fn check_frontmatter_visibility(
                 canonical.1.origin_path.clone(),
                 canonical.1.decl.name_span,
             )],
-            fix: Some(au_diagnostics::SuggestedFix {
-                description: format!(
+            fix: Some(au_diagnostics::SuggestedFix::advisory(format!(
                     "add `{}:` to the frontmatter; an empty value (`{}: `) is fine — it marks the key as filled by the body",
                     field.as_str(),
                     field.as_str()
-                ),
-            }),
+                ))),
         });
     }
 }
@@ -1828,8 +1826,8 @@ fn check_navigational_target(
                         format!("wikilink `[[{raw}]]` resolves to no repo file")
                     },
                     related: vec![],
-                    fix: escapes.then(|| SuggestedFix {
-                        description: au_references::ESCAPES_REPO_FIX.to_string(),
+                    fix: escapes.then(|| {
+                        SuggestedFix::advisory(au_references::ESCAPES_REPO_FIX.to_string())
                     }),
                 });
                 return;
@@ -1849,10 +1847,9 @@ fn check_navigational_target(
                         matches.len()
                     ),
                     related: matches.iter().map(|p| Span::for_file(p.clone())).collect(),
-                    fix: Some(SuggestedFix {
-                        description: "resolve by explicit extension, explicit path, or rename"
-                            .to_string(),
-                    }),
+                    fix: Some(SuggestedFix::advisory(
+                        "resolve by explicit extension, explicit path, or rename".to_string(),
+                    )),
                 });
                 return;
             }
@@ -2636,11 +2633,8 @@ fn check_marked_fences(
                         "marked fence cannot fill slot '{slot_raw}' for field '{marker_field}' — the slot admits only a reference, which has no inline form"
                     ),
                     related: Vec::new(),
-                    fix: Some(au_diagnostics::SuggestedFix {
-                        description:
-                            "contribute a wikilink instead (`[[target:field]]`), or widen the slot to admit an inline value"
-                                .to_string(),
-                    }),
+                    fix: Some(au_diagnostics::SuggestedFix::advisory("contribute a wikilink instead (`[[target:field]]`), or widen the slot to admit an inline value"
+                                .to_string())),
                 });
                 continue;
             }
@@ -2680,11 +2674,8 @@ fn check_marked_fences(
                     "marked fence for '{marker_field}' does not fill record slot '{slot_raw}' — the content is not a record (needs a `type:` and fields)"
                 ),
                 related: Vec::new(),
-                fix: Some(au_diagnostics::SuggestedFix {
-                    description:
-                        "write the fence as a YAML record with a `type:`, or change the slot to `String` for prose"
-                            .to_string(),
-                }),
+                fix: Some(au_diagnostics::SuggestedFix::advisory("write the fence as a YAML record with a `type:`, or change the slot to `String` for prose"
+                            .to_string())),
             });
             continue;
         };
@@ -2873,11 +2864,8 @@ fn fence_read_as_record_hint(
             "marked fence for '{field}' read as the record branch of its union slot, because the content parses as a mapping declaring `type: {claimed_type}`; if it was meant as text, reword it so the content does not parse as a yaml mapping"
         ),
         related: Vec::new(),
-        fix: Some(au_diagnostics::SuggestedFix {
-            description:
-                "reword the content so it does not parse as a yaml mapping, or correct the record"
-                    .to_string(),
-        }),
+        fix: Some(au_diagnostics::SuggestedFix::advisory("reword the content so it does not parse as a yaml mapping, or correct the record"
+                    .to_string())),
     }
 }
 

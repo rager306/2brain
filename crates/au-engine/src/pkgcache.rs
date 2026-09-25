@@ -473,7 +473,7 @@ pub(crate) fn resolve_dependencies(
         if conflicted.contains(&name) {
             continue;
         }
-        ws.member_paths.insert(name.clone(), located);
+        ws.mount(name.clone(), located, crate::repo::ResolutionTier::Cache);
         ws.member_roles.entry(name).or_insert(MemberRole::Dep);
     }
 
@@ -629,9 +629,9 @@ fn detect_version_conflicts<'a>(
                 shas.len()
             ),
             related: Vec::new(),
-            fix: Some(SuggestedFix {
-                description: format!("align the members [{names_list}] to one version"),
-            }),
+            fix: Some(SuggestedFix::advisory(format!(
+                "align the members [{names_list}] to one version"
+            ))),
         });
         for n in names {
             conflicted.insert((*n).clone());
@@ -686,12 +686,10 @@ fn detect_identity_conflicts<'a>(
                 packages.len()
             ),
             related: Vec::new(),
-            fix: Some(SuggestedFix {
-                description: format!(
-                    "give '{}' a single source, or rename one of the colliding repos",
-                    name.as_str()
-                ),
-            }),
+            fix: Some(SuggestedFix::advisory(format!(
+                "give '{}' a single source, or rename one of the colliding repos",
+                name.as_str()
+            ))),
         });
         conflicted.insert((*name).clone());
     }
@@ -1145,7 +1143,7 @@ pub(crate) fn locate_locked_dependencies(
         if let Some(snapshot) = cache.lookup(&pkg.sha) {
             match member_path(&snapshot, &pkg.path) {
                 Some(located) => {
-                    ws.member_paths.insert(name.clone(), located);
+                    ws.mount(name.clone(), located, crate::repo::ResolutionTier::Cache);
                     ws.member_roles
                         .entry(name.clone())
                         .or_insert(MemberRole::Dep);
@@ -1176,12 +1174,10 @@ pub(crate) fn locate_locked_dependencies(
                     pkg.sha
                 ),
                 related: Vec::new(),
-                fix: Some(SuggestedFix {
-                    description: format!(
-                        "run resolve to fetch '{}' at its locked commit into the device cache",
-                        name.as_str()
-                    ),
-                }),
+                fix: Some(SuggestedFix::advisory(format!(
+                    "run resolve to fetch '{}' at its locked commit into the device cache",
+                    name.as_str()
+                ))),
             });
         }
     }
@@ -1385,6 +1381,7 @@ mod tests {
                 path: None,
             }],
             member_paths: BTreeMap::new(),
+            member_tiers: BTreeMap::new(),
             edit: Vec::new(),
             discover: Vec::new(),
             disabled: Vec::new(),
@@ -1524,6 +1521,7 @@ mod tests {
                 path: None,
             }],
             member_paths,
+            member_tiers: BTreeMap::new(),
             edit: vec![RepoName("app".into())],
             discover: Vec::new(),
             disabled: Vec::new(),
@@ -1606,6 +1604,7 @@ mod tests {
                 },
             ],
             member_paths,
+            member_tiers: BTreeMap::new(),
             edit: vec![RepoName("app".into()), RepoName("base".into())],
             discover: Vec::new(),
             disabled: Vec::new(),
@@ -1683,6 +1682,7 @@ mod tests {
                 },
             ],
             member_paths: BTreeMap::new(),
+            member_tiers: BTreeMap::new(),
             edit: Vec::new(),
             discover: Vec::new(),
             disabled: Vec::new(),
@@ -1736,6 +1736,7 @@ mod tests {
             name: "demo".into(),
             members: vec![],
             member_paths,
+            member_tiers: BTreeMap::new(),
             edit: Vec::new(),
             discover: Vec::new(),
             disabled: Vec::new(),
@@ -1865,6 +1866,7 @@ mod tests {
                 path: Some("../../etc".into()),
             }],
             member_paths: BTreeMap::new(),
+            member_tiers: BTreeMap::new(),
             edit: Vec::new(),
             discover: Vec::new(),
             disabled: Vec::new(),
@@ -1928,6 +1930,7 @@ mod tests {
                 },
             ],
             member_paths: BTreeMap::new(),
+            member_tiers: BTreeMap::new(),
             edit: Vec::new(),
             discover: Vec::new(),
             disabled: Vec::new(),
@@ -1983,6 +1986,7 @@ mod tests {
                 },
             ],
             member_paths: BTreeMap::new(),
+            member_tiers: BTreeMap::new(),
             edit: Vec::new(),
             discover: Vec::new(),
             disabled: Vec::new(),
@@ -2118,6 +2122,7 @@ mod tests {
                 },
             ],
             member_paths: BTreeMap::new(),
+            member_tiers: BTreeMap::new(),
             edit: Vec::new(),
             discover: Vec::new(),
             disabled: Vec::new(),
@@ -2202,6 +2207,7 @@ mod tests {
                 path: None,
             }],
             member_paths: BTreeMap::new(),
+            member_tiers: BTreeMap::new(),
             edit: Vec::new(),
             discover: Vec::new(),
             disabled: Vec::new(),
@@ -2390,6 +2396,7 @@ mod tests {
             name: "demo".into(),
             members: vec![],
             member_paths,
+            member_tiers: BTreeMap::new(),
             member_roles,
             edit: Vec::new(),
             discover: Vec::new(),
@@ -2461,6 +2468,7 @@ mod tests {
             name: "demo".into(),
             members: vec![],
             member_paths,
+            member_tiers: BTreeMap::new(),
             member_roles: BTreeMap::new(),
             edit: Vec::new(),
             discover: Vec::new(),
@@ -2585,6 +2593,7 @@ mod tests {
             name: "demo".into(),
             members: vec![mk("a"), mk("b")],
             member_paths: BTreeMap::new(),
+            member_tiers: BTreeMap::new(),
             edit: Vec::new(),
             discover: Vec::new(),
             disabled: Vec::new(),
@@ -2997,6 +3006,7 @@ mod tests {
                     },
                 ],
                 member_paths: paths,
+                member_tiers: BTreeMap::new(),
                 edit: vec![RepoName("ws".into())],
                 discover: vec![RepoName("shared".into())],
                 disabled: Vec::new(),

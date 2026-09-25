@@ -125,7 +125,7 @@ fn render_scenario_engine(scenario_dir: &Path, command: &str, root: &Path) -> St
         }),
         "instance_counts" => serde_json::json!({
             "diagnostics": kb.diagnostics().filter(|d| !is_suppressed(d)).collect::<Vec<_>>(),
-            "instance_counts": au_engine::wire::introspect_instance_counts(&kb, None, au_engine::wire::TypeScope::all()),
+            "instance_counts": au_engine::wire::introspect_instance_counts(&kb, None, au_engine::wire::TypeScope::all(), None),
         }),
         "subtypes" => {
             let base = read_optional_field(&scenario_dir.join("scenario.yaml"), "base")

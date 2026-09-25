@@ -1,137 +1,53 @@
 //! Per-instance location-constraint resolution ([[spec - location constraints - a name template and path predicate as an advisory placement meet]]).
 //!
 //! The RESOLUTION here is pure graph logic: which `location:` block(s) an
-//! instance's claim is subject to, after whole-block closest-wins override and
-//! token-equal auto-unify. The MATCHING against a file's actual placement takes
+//! instance's claim is subject to, after whole-block shadowing by a more
+//! specific declaration and token-equal auto-unify. The MATCHING against a file's actual placement takes
 //! the repo-relative path as data (the engine supplies it), so au-core stays
 //! I/O-free.
 
-use std::collections::BTreeSet;
 use std::path::Path;
 
 use au_diagnostics::{ByteRange, Diagnostic, Severity, Span};
 
-use crate::closure::{closure_of, folded_closure_ids};
 use crate::codes;
-use crate::graph::TypeGraph;
+use crate::def_closure::DefClosure;
 use crate::instance::{Instance, InstanceValue, TypeClaim};
 use crate::location::{GlobSegment, LocationSpec, NameSegment, NameTemplate};
-use crate::resolution::{ResolutionGraph, TypeId};
+use crate::resolution::PeerGraphResolver;
 use crate::typedef::TypeName;
 
 /// Resolve the effective location constraint(s) an instance's claim is subject
-/// to.
+/// to, the claim made in `own_repo`.
 ///
-/// Whole-block closest-wins ([[type-def meta::au-type-system]] model): a declared `location:` is
-/// SHADOWED by any declared location on a strict descendant in the instance's
-/// closure, so the declaration nearest the claimed leaf survives. Token-equal
-/// survivors auto-unify to one.
+/// Whole-block shadowing ([[type-def location::au-type-system]]): a declared
+/// `location:` is shadowed by any declared location on a strict descendant in
+/// the claim's closure, so the most specific declarations survive, whatever the
+/// `extends:` order or the path reaching them. Token-equal survivors
+/// auto-unify to one.
 ///
 /// - empty result, no location constraint.
 /// - one, a single constraint, matched normally.
-/// - more than one, a RAW MIXIN of unrelated declared locations, satisfy-any.
+/// - more than one, unrelated declared locations (a raw mixin claim, or
+///   unrelated parents of one def), satisfy-any.
 ///
-/// When `resolution` is present (R imports peers) the walk runs over the FOLDED
-/// resolution graph, so a `type: foo::repo` claim (and a cross-repo `extends:`
-/// parent) is subject to the peer type's location. Absent (a non-importing repo,
-/// or a direct au-core caller), it runs over the own graph and a `::repo` claim
-/// cannot resolve (nothing to import). The two paths agree for a purely-own
-/// claim, the parity [`crate::closure::effective_shape_resolved`] holds.
+/// The closure is the owner-relative [`DefClosure`]: each def is read in the
+/// repo that owns it, a bare name in the claiming def's repo, `name::repo` in
+/// that repo. Never the resolution fold, whose one node per identity would
+/// carry whichever in-sync def it reached first, and `location:` is outside
+/// the identity hash.
 pub fn effective_locations<'g>(
-    graph: &'g TypeGraph,
-    resolution: Option<&'g ResolutionGraph>,
+    resolver: &'g dyn PeerGraphResolver,
+    own_repo: &str,
     claim: &TypeClaim,
 ) -> Vec<(&'g TypeName, &'g LocationSpec)> {
-    match resolution {
-        Some(rg) => effective_locations_resolved(rg, claim),
-        None => effective_locations_own(graph, claim),
-    }
-}
-
-/// Own-graph resolution: a `::repo` claim cannot resolve here and is skipped.
-fn effective_locations_own<'g>(
-    graph: &'g TypeGraph,
-    claim: &TypeClaim,
-) -> Vec<(&'g TypeName, &'g LocationSpec)> {
-    let mut closure: BTreeSet<TypeName> = BTreeSet::new();
-    for c in claim.iter() {
-        if c.is_qualified() {
-            continue;
-        }
-        closure.extend(closure_of(graph, &c.name));
-    }
-
-    // Types in the closure that declare a location.
-    let declared: Vec<&TypeName> = closure
-        .iter()
-        .filter(|n| graph.get(n).is_some_and(|td| td.location.is_some()))
+    let closure = DefClosure::of_claim(resolver, own_repo, claim);
+    let survivors = closure
+        .survivors(|_, td| td.location.is_some())
+        .into_iter()
+        .filter_map(|(_, td)| td.location.as_ref().map(|loc| (&td.name, loc)))
         .collect();
-
-    // A declared X survives iff no OTHER declared Y has X as a proper ancestor
-    // (Y a strict descendant of X): a closer declaration overrides a farther one.
-    let mut survivors: Vec<(&TypeName, &LocationSpec)> = Vec::new();
-    for &x in &declared {
-        let overridden = declared
-            .iter()
-            .any(|&y| y != x && closure_of(graph, y).contains(x));
-        if !overridden {
-            // Borrow the owner name from the GRAPH (`'g`), not the local closure set.
-            if let Some(td) = graph.get(x) {
-                if let Some(loc) = td.location.as_ref() {
-                    survivors.push((&td.name, loc));
-                }
-            }
-        }
-    }
     auto_unify(survivors)
-}
-
-/// Folded-graph resolution: every claim (bare or `::repo`) resolves through the
-/// fold, so a peer type's location is reached without the peer's graph. The
-/// closest-wins and auto-unify logic mirror the own-graph path, over `TypeId`s.
-fn effective_locations_resolved<'g>(
-    rg: &'g ResolutionGraph,
-    claim: &TypeClaim,
-) -> Vec<(&'g TypeName, &'g LocationSpec)> {
-    let closure = folded_closure_ids(rg, claim);
-    let declared: Vec<&TypeId> = closure
-        .iter()
-        .filter(|tid| rg.get(tid).is_some_and(|n| n.location.is_some()))
-        .collect();
-
-    let mut survivors: Vec<(&'g TypeName, &'g LocationSpec)> = Vec::new();
-    for &x in &declared {
-        let overridden = declared
-            .iter()
-            .any(|&y| y != x && folded_ancestors(rg, y).contains(x));
-        if !overridden {
-            if let Some(node) = rg.get(x) {
-                if let Some(loc) = node.location.as_ref() {
-                    survivors.push((&node.id.name, loc));
-                }
-            }
-        }
-    }
-    auto_unify(survivors)
-}
-
-/// The folded ancestor set of `tid` (itself included), over the resolution
-/// graph's parent-`TypeId` edges. `y`'s set containing `x` means `y` is a strict
-/// descendant of `x`, so `x`'s location is overridden.
-fn folded_ancestors(rg: &ResolutionGraph, tid: &TypeId) -> BTreeSet<TypeId> {
-    let mut set = BTreeSet::new();
-    let mut stack = vec![tid.clone()];
-    while let Some(t) = stack.pop() {
-        if !set.insert(t.clone()) {
-            continue;
-        }
-        if let Some(n) = rg.get(&t) {
-            for p in &n.parents {
-                stack.push(p.clone());
-            }
-        }
-    }
-    set
 }
 
 /// Token-equal blocks auto-unify: one representative per distinct constraint,
@@ -156,12 +72,12 @@ fn auto_unify<'g>(
 /// - satisfy-any met, each unmet SOFT location is `location-partial-unmet` (hint).
 /// - matched no claimed location, one `location-mismatch` (warning).
 pub fn validate_location(
-    graph: &TypeGraph,
-    resolution: Option<&ResolutionGraph>,
+    resolver: &dyn PeerGraphResolver,
+    own_repo: &str,
     instance: &Instance,
     rel_path: &Path,
 ) -> Vec<Diagnostic> {
-    let locs = effective_locations(graph, resolution, &instance.type_claim);
+    let locs = effective_locations(resolver, own_repo, &instance.type_claim);
     if locs.is_empty() {
         return Vec::new();
     }
@@ -344,6 +260,7 @@ fn glob_matches(glob: &[GlobSegment], dir: &[&str]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::def_closure::SingleGraph;
     use crate::graph::build_graph;
     use crate::instance::TypeClaim;
     use crate::typedef::{parse_type_def, TypeDef, TypeNameClaim};
@@ -372,7 +289,8 @@ mod tests {
     #[test]
     fn single_declared_location_resolves() {
         let g = build_graph(vec![def("plan", "location:\n  path: \"p/\"\n")]).graph;
-        let locs = effective_locations(&g, None, &claim("plan"));
+        let r = SingleGraph(&g);
+        let locs = effective_locations(&r, "r", &claim("plan"));
         assert_eq!(locs.len(), 1);
     }
 
@@ -384,7 +302,8 @@ mod tests {
             def("leaf", "extends: base\nlocation:\n  path: \"leaf/\"\n"),
         ])
         .graph;
-        let locs = effective_locations(&g, None, &claim("leaf"));
+        let r = SingleGraph(&g);
+        let locs = effective_locations(&r, "r", &claim("leaf"));
         assert_eq!(locs.len(), 1);
         assert_eq!(locs[0].1.path.as_ref().unwrap().raw, "leaf/");
     }
@@ -396,7 +315,8 @@ mod tests {
             def("leaf", "extends: base\nfields: {}\n"),
         ])
         .graph;
-        let locs = effective_locations(&g, None, &claim("leaf"));
+        let r = SingleGraph(&g);
+        let locs = effective_locations(&r, "r", &claim("leaf"));
         assert_eq!(locs.len(), 1);
         assert_eq!(locs[0].1.path.as_ref().unwrap().raw, "base/");
     }
@@ -410,7 +330,8 @@ mod tests {
             def("leaf", "extends: base\nlocation: {}\n"),
         ])
         .graph;
-        let locs = effective_locations(&g, None, &claim("leaf"));
+        let r = SingleGraph(&g);
+        let locs = effective_locations(&r, "r", &claim("leaf"));
         assert_eq!(locs.len(), 1);
         assert!(locs[0].1.path.is_none() && locs[0].1.name.is_none());
     }
@@ -429,7 +350,7 @@ mod tests {
             ],
             value_span: ByteRange::new(0, 0),
         };
-        assert_eq!(effective_locations(&g, None, &mixin).len(), 2);
+        assert_eq!(effective_locations(&SingleGraph(&g), "r", &mixin).len(), 2);
     }
 
     #[test]
@@ -446,13 +367,13 @@ mod tests {
             ],
             value_span: ByteRange::new(0, 0),
         };
-        assert_eq!(effective_locations(&g, None, &mixin).len(), 1);
+        assert_eq!(effective_locations(&SingleGraph(&g), "r", &mixin).len(), 1);
     }
 
     #[test]
     fn no_location_is_empty() {
         let g = build_graph(vec![def("plain", "fields: {}\n")]).graph;
-        assert!(effective_locations(&g, None, &claim("plain")).is_empty());
+        assert!(effective_locations(&SingleGraph(&g), "r", &claim("plain")).is_empty());
     }
 
     fn inst(path: &str, src: &str) -> crate::instance::Instance {
@@ -474,7 +395,12 @@ mod tests {
         )])
         .graph;
         let i = inst("/v/plans/plan - hello.md", "type: plan\nslug: hello\n");
-        let d = validate_location(&g, None, &i, Path::new("plans/plan - hello.md"));
+        let d = validate_location(
+            &SingleGraph(&g),
+            "r",
+            &i,
+            Path::new("plans/plan - hello.md"),
+        );
         assert!(d.is_empty(), "{:?}", codes_of(&d));
     }
 
@@ -482,7 +408,7 @@ mod tests {
     fn wrong_path_is_a_soft_mismatch_warning() {
         let g = build_graph(vec![def("plan", "location:\n  path: \"plans/\"\n")]).graph;
         let i = inst("/v/wrong/x.md", "type: plan\n");
-        let d = validate_location(&g, None, &i, Path::new("wrong/x.md"));
+        let d = validate_location(&SingleGraph(&g), "r", &i, Path::new("wrong/x.md"));
         assert_eq!(codes_of(&d), vec!["location-mismatch"]);
         assert_eq!(d[0].severity, au_diagnostics::Severity::Warning);
     }
@@ -495,7 +421,7 @@ mod tests {
         )])
         .graph;
         let i = inst("/v/other.md", "type: note\nslug: hello\n");
-        let d = validate_location(&g, None, &i, Path::new("other.md")); // stem "other" != "hello"
+        let d = validate_location(&SingleGraph(&g), "r", &i, Path::new("other.md")); // stem "other" != "hello"
         assert_eq!(codes_of(&d), vec!["location-mismatch"]);
     }
 
@@ -507,7 +433,7 @@ mod tests {
         )])
         .graph;
         let i = inst("/v/elsewhere/gov.yaml", "type: gov\n");
-        let d = validate_location(&g, None, &i, Path::new("elsewhere/gov.yaml"));
+        let d = validate_location(&SingleGraph(&g), "r", &i, Path::new("elsewhere/gov.yaml"));
         assert_eq!(codes_of(&d), vec!["location-strict-violation"]);
         assert_eq!(d[0].severity, au_diagnostics::Severity::Error);
     }
@@ -516,7 +442,7 @@ mod tests {
     fn deep_glob_matches_nested_dir() {
         let g = build_graph(vec![def("plan", "location:\n  path: \"**/plan/\"\n")]).graph;
         let i = inst("/v/a/b/plan/x.md", "type: plan\n");
-        let d = validate_location(&g, None, &i, Path::new("a/b/plan/x.md"));
+        let d = validate_location(&SingleGraph(&g), "r", &i, Path::new("a/b/plan/x.md"));
         assert!(d.is_empty(), "{:?}", codes_of(&d));
     }
 
@@ -529,7 +455,7 @@ mod tests {
         .graph;
         // claims both; file sits in aa/, so it matches a, not b.
         let i = inst("/v/aa/x.md", "type:\n  - a\n  - b\n");
-        let d = validate_location(&g, None, &i, Path::new("aa/x.md"));
+        let d = validate_location(&SingleGraph(&g), "r", &i, Path::new("aa/x.md"));
         assert_eq!(codes_of(&d), vec!["location-partial-unmet"]);
         assert_eq!(d[0].severity, au_diagnostics::Severity::Hint);
     }
@@ -542,13 +468,13 @@ mod tests {
         ])
         .graph;
         let i = inst("/v/cc/x.md", "type:\n  - a\n  - b\n");
-        let d = validate_location(&g, None, &i, Path::new("cc/x.md"));
+        let d = validate_location(&SingleGraph(&g), "r", &i, Path::new("cc/x.md"));
         assert_eq!(codes_of(&d), vec!["location-mismatch"]);
     }
 
     #[test]
     fn cross_repo_claim_is_subject_to_the_peer_location() {
-        use crate::resolution::{fold, PeerGraphResolver};
+        use crate::resolution::PeerGraphResolver;
         use std::collections::BTreeMap;
 
         // base owns `note` with a location; app owns nothing and claims `note::base`.
@@ -569,23 +495,62 @@ mod tests {
         let r = R {
             g: BTreeMap::from([("app".into(), app.clone()), ("base".into(), base)]),
         };
-        let rg = fold("app", &[(TypeName("note".into()), "base".into())], &r);
-
         let claim = TypeClaim::Bare(TypeNameClaim::parse("note::base", ByteRange::new(0, 0)));
 
-        // The peer location resolves over the fold, `${.type}` renders the peer's name.
-        let locs = effective_locations(&app, Some(&rg), &claim);
+        // The peer location is read in its owner repo, `${.type}` renders the peer's name.
+        let locs = effective_locations(&r, "app", &claim);
         assert_eq!(locs.len(), 1, "peer location resolved: {locs:?}");
         assert_eq!(locs[0].1.path.as_ref().unwrap().raw, "notes/");
 
         // Placement is checked relative to the CLAIMING repo's root.
         let i = inst("/app/notes/note.md", "type: note::base\n");
-        let clean = validate_location(&app, Some(&rg), &i, Path::new("notes/note.md"));
+        let clean = validate_location(&r, "app", &i, Path::new("notes/note.md"));
         assert!(clean.is_empty(), "{:?}", codes_of(&clean));
-        let wrong = validate_location(&app, Some(&rg), &i, Path::new("elsewhere/note.md"));
+        let wrong = validate_location(&r, "app", &i, Path::new("elsewhere/note.md"));
         assert_eq!(codes_of(&wrong), vec!["location-mismatch"]);
 
-        // Without a resolution graph the `::repo` claim cannot resolve, so it is skipped.
-        assert!(effective_locations(&app, None, &claim).is_empty());
+        // A `::repo` naming no mounted repo resolves nothing.
+        let ghost = TypeClaim::Bare(TypeNameClaim::parse("note::ghost", ByteRange::new(0, 0)));
+        assert!(effective_locations(&r, "app", &ghost).is_empty());
+    }
+
+    #[test]
+    fn in_sync_twins_each_validate_against_their_own_location() {
+        use crate::resolution::PeerGraphResolver;
+        use std::collections::BTreeMap;
+
+        // app and base define `note` with identical fields, ONE identity (location
+        // is out of the hash), but different locations. Each claim reads its own def.
+        struct R(BTreeMap<String, crate::graph::TypeGraph>);
+        impl PeerGraphResolver for R {
+            fn graph_of(&self, repo: &str) -> Option<&crate::graph::TypeGraph> {
+                self.0.get(repo)
+            }
+        }
+        let note = |path: &str| {
+            def(
+                "note",
+                &format!("fields:\n  t?: String\nlocation:\n  path: \"{path}\"\n"),
+            )
+        };
+        let r = R(BTreeMap::from([
+            ("app".into(), build_graph(vec![note("notes/")]).graph),
+            ("base".into(), build_graph(vec![note("elsewhere/")]).graph),
+        ]));
+        assert_eq!(
+            r.0["app"].closure_id(&TypeName("note".into())),
+            r.0["base"].closure_id(&TypeName("note".into())),
+            "the twins are one identity"
+        );
+
+        let own = inst("/app/notes/a.md", "type: note\n");
+        let peer = inst("/app/notes/b.md", "type: note::base\n");
+        let at = Path::new("notes/a.md");
+        assert!(validate_location(&r, "app", &own, at).is_empty());
+        assert_eq!(
+            codes_of(&validate_location(&r, "app", &peer, at)),
+            vec!["location-mismatch"],
+            "the peer claim is held to base's own location"
+        );
     }
 }

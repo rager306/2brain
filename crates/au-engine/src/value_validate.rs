@@ -314,12 +314,12 @@ fn validate_scoped_instance(
     let mut diagnostics = diagnostics;
 
     // A value validates against `type_name` in a repo's scope: `None` is the
-    // root repo (the no-scope default), `Some(name)` that repo's graph. An
+    // entry repo (the no-scope default), `Some(name)` that repo's graph. An
     // unknown repo resolves against the empty graph, so the type is absent and
     // the value gets `unknown-type-claim`, the same verdict a file claiming an
     // absent type gets.
     let graph = match repo {
-        None => kb.root_graph(),
+        None => kb.entry_graph(),
         Some(name) => kb.graph_for_repo(name).unwrap_or_else(|| kb.graphs.empty()),
     };
     // An unknown repo has no build outcome. `Complete` is the deliberate
@@ -328,7 +328,7 @@ fn validate_scoped_instance(
     // the type verdict entirely. The empty graph above and `Complete` here are
     // the same "unknown repo, validate as if a healthy empty vocabulary" stance.
     let outcome = match repo {
-        None => kb.root_outcome(),
+        None => kb.entry_outcome(),
         Some(name) => kb
             .outcome_for_repo(name)
             .unwrap_or(crate::ir::BuildOutcome::Complete),
@@ -345,7 +345,7 @@ fn validate_scoped_instance(
         // resolve, the value's shape still validates.
         let empty;
         let index = match repo {
-            None => kb.root_index(),
+            None => kb.entry_index(),
             Some(name) => match kb.index_for_repo(name) {
                 Some(ix) => ix,
                 None => {

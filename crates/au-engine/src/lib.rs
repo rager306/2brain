@@ -14,6 +14,7 @@ mod build;
 mod crossref;
 mod crosstype;
 pub mod diagnostics;
+mod dirop;
 mod engine;
 mod engine_schema;
 mod ensure_mixin;
@@ -21,10 +22,12 @@ mod ensure_mixin;
 mod gitwatch;
 #[cfg(unix)]
 mod gitwriter;
+mod ignored_dir;
 mod incremental;
 #[cfg(unix)]
 mod inline;
 mod ir;
+pub mod members;
 #[cfg(unix)]
 mod mutate;
 mod neighborhood;
@@ -54,16 +57,17 @@ pub mod wire;
 mod yaml_render;
 
 pub use backlinks::{Backlink, RefSurface};
-pub use build::{build, build_reusing, verify_entry, BuildError};
+pub use build::{build, build_reusing, default_package_cache_root, verify_entry, BuildError};
 pub use engine::{Engine, EngineHandle, EngineState, Read, ReconcilePolicy, RefState};
+pub use ignored_dir::ensure_git_ignored_dir;
 // The incremental fast path, exposed only so `examples/rebuild_bench.rs` can
 // time the live recompute + clone-and-patch apply. Not part of the documented
 // API: consumers drive rebuilds through the engine, never these directly.
 #[doc(hidden)]
 pub use incremental::{apply_recompute, recompute_dirty, InstanceRecompute};
 pub use ir::{
-    BuildOutcome, ContentHash, DiagStream, FileEntry, KnowledgeBase, OrdMap, ParseLayer,
-    RepoGraphs, RepoIndexes, ResolutionGraphs, ResolvedInstance,
+    BuildOutcome, ContentHash, DiagSource, DiagStream, FileEntry, KnowledgeBase, OrdMap,
+    ParseLayer, RepoGraphs, RepoIndexes, ResolutionGraphs, ResolvedInstance,
 };
 pub use parse::{parse_file, FileParse};
 pub use repo::{

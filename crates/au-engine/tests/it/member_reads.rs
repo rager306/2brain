@@ -81,6 +81,13 @@ fn members_lists_declared_members_with_absolute_roots() {
     assert_eq!(base["editable"], true);
     assert_eq!(app["local"], true);
     assert_eq!(base["local"], true);
+    // Nested under the entry, so located as co-present siblings; the entry is its
+    // own tier.
+    assert_eq!(app["tier"], "sibling");
+    assert_eq!(base["tier"], "sibling");
+    for m in members.iter().filter(|m| m["role"] == "entry") {
+        assert_eq!(m["tier"], "entry");
+    }
 
     // Stable order: sorted by name.
     let names: Vec<&str> = members

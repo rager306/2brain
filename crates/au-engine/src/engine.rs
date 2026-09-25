@@ -998,46 +998,58 @@ impl Inner {
         };
         let ready = |value| Read::Ready { version, value };
 
-        // Compute the would-be content, reading the target's current bytes for an
-        // edit or delete (the same read the real mutation does). A structural
+        // Compute the overlay: the would-be changes, the paths the recompute
+        // dirties, and the path the product's target verdict reads. A structural
         // refusal short-circuits to a reject outcome, no product.
-        let current = RealFileSystem.read_file(&input.target).ok();
-        let would_be = match crate::mutate::preview_content(&input.op, current.as_deref()) {
-            Ok(c) => c,
-            Err(reject) => return ready(f(PreviewOutcome::Reject(reject))),
-        };
-        // Fold any stamps into a write or edit product; a delete carries none.
-        let would_be = match would_be {
-            Some(content) => {
-                match crate::mutate::fold_stamps_content(content, &input.target, &input.stamps) {
-                    Ok(c) => Some(c),
+        let mut mixins = None;
+        let (overrides, seeds, product_target, gone) = match input {
+            PreviewInput::File { target, op, riders } => {
+                // Read the target's current bytes for an edit or delete (the
+                // same read the real mutation does).
+                let current = RealFileSystem.read_file(&target).ok();
+                let would_be = match crate::mutate::preview_content(&op, current.as_deref()) {
+                    Ok(c) => c,
                     Err(reject) => return ready(f(PreviewOutcome::Reject(reject))),
-                }
+                };
+                // Fold the riders into a write or edit product; a delete carries none.
+                let over = match would_be {
+                    Some(content) => match riders.fold(&held, &target, content) {
+                        Ok((c, outcomes)) => {
+                            mixins = outcomes;
+                            Override::Replace {
+                                path: target.clone(),
+                                content: c.into_bytes(),
+                            }
+                        }
+                        Err(reject) => return ready(f(PreviewOutcome::Reject(reject))),
+                    },
+                    None => Override::Remove {
+                        path: target.clone(),
+                    },
+                };
+                (vec![over], vec![target.clone()], target, Vec::new())
             }
-            None => None,
+            PreviewInput::Set(set) => {
+                // Every overridden path is dirty, plus the paths the op leaves
+                // byte-identical whose edges still flip (a move's unchanged
+                // referrers), the same set the committing op rebuilds.
+                let mut seeds: Vec<PathBuf> = set
+                    .overrides
+                    .iter()
+                    .map(|o| o.path().to_path_buf())
+                    .collect();
+                seeds.extend(set.also_dirty);
+                (set.overrides, seeds, set.target, set.gone)
+            }
         };
-
-        // Overlay the snapshot with the one change, then run the engine's own
-        // rebuild dispatch over it: the incremental fast path for an instance
-        // change, the scoped whole-knowledge-base build for a type-def or
-        // engine-schema change. Neither swaps into `held`.
-        let over = match &would_be {
-            Some(content) => Override::Replace {
-                path: input.target.clone(),
-                content: content.clone().into_bytes(),
-            },
-            None => Override::Remove {
-                path: input.target.clone(),
-            },
-        };
-        let overlay = OverlayFileSystem::new(&RealFileSystem, over);
+        let overlay = OverlayFileSystem::with_all(&RealFileSystem, overrides);
 
         // Scope-filter before the recompute, exactly as `rebuild_paths_locked`
         // does: an out-of-scope (auignored) or floored target must not re-enter
         // the graph via the preview's recompute, or the preview would diagnose a
         // file the committed write leaves absent. The overlay is the FS, so the
         // scope decision reflects the would-be state, not disk.
-        let dirty: BTreeSet<PathBuf> = std::iter::once(input.target.clone()).collect();
+        let dirty: BTreeSet<PathBuf> = seeds.into_iter().collect();
         let dirty = expand_removed_directories(
             &held,
             &scope_filter_dirty(&held, &dirty, &overlay),
@@ -1053,7 +1065,9 @@ impl Inner {
             let value = f(PreviewOutcome::Built {
                 preview: &held,
                 held: &held,
-                target: &input.target,
+                target: &product_target,
+                gone: &gone,
+                mixins,
             });
             return ready(value);
         }
@@ -1078,7 +1092,9 @@ impl Inner {
         let value = f(PreviewOutcome::Built {
             preview: &preview_kb,
             held: &held,
-            target: &input.target,
+            target: &product_target,
+            gone: &gone,
+            mixins,
         });
         ready(value)
         // `preview_kb` drops here: the throwaway state, never swapped in.
@@ -1110,11 +1126,66 @@ impl Inner {
     }
 }
 
-/// The op a preview simulates, resolved to its target path plus any stamps.
-pub(crate) struct PreviewInput {
-    pub target: PathBuf,
-    pub op: PreviewOp,
+/// What a preview simulates.
+pub(crate) enum PreviewInput {
+    /// A single-file op on `target`, its riders folded in by the preview.
+    File {
+        target: PathBuf,
+        op: PreviewOp,
+        riders: PreviewRiders,
+    },
+    /// A multi-file op, its would-be changes precomputed by the caller through
+    /// the same seams the committing op writes through, so the two cannot
+    /// diverge: a move, a folder move, a folder delete.
+    Set(ChangeSet),
+}
+
+/// The riders a write folds into its target after the op, stamps then mixins,
+/// the write path's order.
+#[derive(Default)]
+pub(crate) struct PreviewRiders {
     pub stamps: Vec<PreviewStamp>,
+    /// `ensure_mixins`, folded by [`crate::ensure_mixin::fold`].
+    pub mixins: Vec<String>,
+    /// `ensure_mixins_strict`.
+    pub strict: bool,
+}
+
+impl PreviewRiders {
+    /// Fold the riders into a would-be `content`: the stamps, then the mixins,
+    /// decided against the held knowledge base as the committing write decides
+    /// them. The mixin outcomes are `None` when the op carried no mixin.
+    pub(crate) fn fold(
+        &self,
+        held: &KnowledgeBase,
+        target: &Path,
+        content: String,
+    ) -> Result<(String, Option<Vec<crate::wire::MixinOutcome>>), crate::mutate::MutationReject>
+    {
+        let content = crate::mutate::fold_stamps_content(content, target, &self.stamps)?;
+        if self.mixins.is_empty() {
+            return Ok((content, None));
+        }
+        let (content, outcomes) =
+            crate::ensure_mixin::fold(held, target, content, &self.mixins, self.strict)?;
+        Ok((content, Some(outcomes)))
+    }
+}
+
+/// A multi-file op's would-be change set, riders already folded.
+pub(crate) struct ChangeSet {
+    /// The path the target verdict reads: a moved file's destination, or the
+    /// folder a folder op acts on, whose verdict is every file under it.
+    pub target: PathBuf,
+    /// Every path the op writes, moves, or removes, each at most once.
+    pub overrides: Vec<Override>,
+    /// Paths the op leaves byte-identical that still recompute: a referrer of
+    /// a moved file, whose edge flips to the new path.
+    pub also_dirty: Vec<PathBuf>,
+    /// Paths gone in the preview, each with everything under it: a moved
+    /// file's source, a moved or deleted folder. No blast-radius entry, they
+    /// are the target, elsewhere or removed.
+    pub gone: Vec<PathBuf>,
 }
 
 /// The result handed to a preview's read-off closure: a structural reject, or the
@@ -1128,7 +1199,14 @@ pub(crate) enum PreviewOutcome<'a> {
     Built {
         preview: &'a KnowledgeBase,
         held: &'a KnowledgeBase,
+        /// The path the target verdict reads, a move's destination, a folder.
         target: &'a Path,
+        /// Paths gone in the preview, with everything under them, so they are
+        /// no blast-radius entry. See [`ChangeSet::gone`].
+        gone: &'a [PathBuf],
+        /// A single-file op's `ensure_mixins` outcomes, `None` when it carried
+        /// none. A multi-file op reports its own through the caller.
+        mixins: Option<Vec<crate::wire::MixinOutcome>>,
     },
 }
 
@@ -1633,7 +1711,9 @@ mod tests {
                         preview,
                         held,
                         target,
-                    } => crate::wire::preview_product_view(preview, held, target),
+                        gone,
+                        ..
+                    } => crate::wire::preview_product_view(preview, held, target, gone),
                     PreviewOutcome::Reject(r) => crate::wire::PreviewProductView::Reject {
                         reject: crate::wire::PreviewRejectView {
                             message: r.message,
@@ -1647,16 +1727,17 @@ mod tests {
 
         // A write of a valid note: identity `note`, no diagnostics, and no disk write.
         let good = root.join("good.md");
-        match product(PreviewInput {
+        match product(PreviewInput::File {
             target: good.clone(),
             op: PreviewOp::Write {
                 content: "---\ntype: note\ntitle: Hi\n---\n".to_string(),
             },
-            stamps: Vec::new(),
+            riders: Default::default(),
         }) {
             crate::wire::PreviewProductView::Product {
                 target,
                 blast_radius,
+                ..
             } => {
                 assert!(
                     target.identities.iter().any(|i| i.name == "note"),
@@ -1673,12 +1754,12 @@ mod tests {
 
         // A write claiming note but missing the required title: the note identity
         // still resolves, and the diagnostics carry the required-field failure.
-        match product(PreviewInput {
+        match product(PreviewInput::File {
             target: root.join("bad.md"),
             op: PreviewOp::Write {
                 content: "---\ntype: note\n---\n".to_string(),
             },
-            stamps: Vec::new(),
+            riders: Default::default(),
         }) {
             crate::wire::PreviewProductView::Product { target, .. } => {
                 assert!(target.identities.iter().any(|i| i.name == "note"));
@@ -1695,14 +1776,14 @@ mod tests {
         }
 
         // An edit of a file that does not exist: a structural reject, no product.
-        match product(PreviewInput {
+        match product(PreviewInput::File {
             target: root.join("absent.md"),
             op: PreviewOp::Edit {
                 old_string: "x".to_string(),
                 new_string: "y".to_string(),
                 replace_all: false,
             },
-            stamps: Vec::new(),
+            riders: Default::default(),
         }) {
             crate::wire::PreviewProductView::Reject { reject } => {
                 assert!(

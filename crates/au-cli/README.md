@@ -11,6 +11,7 @@ The `au` binary: the per-workspace daemon and its management commands.
 | `au daemon stop <entry>` | ask a serving daemon to shut down (over the socket) |
 | `au daemon stop --force <entry>` | also reclaim a booting or wedged daemon by signalling its recorded pid |
 | `au open <name>` | resolve a named workspace folder, then serve it like `daemon start <folder>` |
+| `au members <entry> [--json]` | resolve the entry's declared members without a daemon: role, resolution tier, path, unmounted cause |
 
 The `<entry>` is a folder-repo: a directory carrying a valid, named `.arsumbris/repo.yaml`. A non-repo directory is refused (exit 5). An optional `.arsumbris/workspace.yaml` beside it composes `edit` and `discover` members; without one, the workspace is the entry repo plus its own `deps`.
 
@@ -20,7 +21,9 @@ The `<entry>` is a folder-repo: a directory carrying a valid, named `.arsumbris/
 
 The socket binds only after the cold build, so a daemon that is still booting (or wedged) holds its entry without answering the socket. To reach it, `start` records its pid in a `<hash>.pid` file beside the socket the instant it begins (removed on a clean stop). `status` reads it to report a booting daemon ("present but not yet serving", exit 0) rather than "no daemon running"; `stop --force` reads it to reclaim a booting or wedged daemon by signalling the pid (a graceful window, then SIGTERM, then SIGKILL). Plain `stop` stays socket-only, so it never signals a mid-build daemon.
 
-The binary carries no read capabilities of its own. Consumers start a daemon and speak the wire themselves. The contract — transport, framing, the closed read and subscription catalogs, byte-offset encoding, and the schema-evolution policy — lives in `crates/au-engine/WIRE.md`; the serde structs in `crates/au-engine/src/wire.rs` are the schema. `examples/watch.py` is a reference external consumer.
+`au members` answers, before any daemon runs, which declared members would mount and through which tier: `entry`, a co-present `sibling`, the per-user `registry`, the package `cache`, `unmounted`, or `disabled`. It runs the build's own composition with the inputs a daemon over the same entry would use, so it cannot disagree with `au daemon start`. Reads only: no write, no registry change, no fetch. An unmounted member is an answer, not a failure (exit 0); a non-repo entry exits 5. `--json` prints the contract in `crates/au-engine/WIRE.md`, §Daemon-less member resolution.
+
+Beyond that one topology check, the binary carries no read capabilities of its own. Consumers start a daemon and speak the wire themselves. The contract — transport, framing, the closed read and subscription catalogs, byte-offset encoding, and the schema-evolution policy — lives in `crates/au-engine/WIRE.md`; the serde structs in `crates/au-engine/src/wire.rs` are the schema. `examples/watch.py` is a reference external consumer.
 
 ## Tracing
 
@@ -28,6 +31,7 @@ The binary carries no read capabilities of its own. Consumers start a daemon and
 
 - off by default. Unset, no subscriber runs and the engine pays nothing.
 - two outputs land under `<repo>/.arsumbris/au-engine/logs/trace/`, per run, named by start time.
+- the trace directory ignores itself in git (a `.gitignore` holding `*`), so traces are never committed.
   - `trace-<stamp>.json`, a Chrome/Perfetto trace, open it at [ui.perfetto.dev](https://ui.perfetto.dev) or `chrome://tracing`.
   - `timing-<stamp>.log`, one line per operation close with its wall-clock busy/idle split.
 - spans cover builds, incremental recomputes, reads (by verb), and mutations, each carrying the fields that shape its cost.

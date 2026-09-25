@@ -642,9 +642,7 @@ fn emit(
         span: Span::new(source.to_path_buf(), span),
         message,
         related: Vec::new(),
-        fix: escapes.then(|| SuggestedFix {
-            description: au_references::ESCAPES_REPO_FIX.to_string(),
-        }),
+        fix: escapes.then(|| SuggestedFix::advisory(au_references::ESCAPES_REPO_FIX.to_string())),
     });
 }
 
@@ -706,7 +704,14 @@ mod tests {
             b"name: app\n".to_vec(),
         )];
         let roots = vec![PathBuf::from("/v/app")];
-        discover_repos(&roots, &registries, &BTreeMap::new(), None).0
+        discover_repos(
+            &roots,
+            &registries,
+            &BTreeMap::new(),
+            None,
+            Some(Path::new("/v/app")),
+        )
+        .0
     }
 
     fn workspace(name: &str, members: &[&str]) -> Workspace {
@@ -724,6 +729,7 @@ mod tests {
                 })
                 .collect(),
             member_paths: BTreeMap::new(),
+            member_tiers: BTreeMap::new(),
             member_roles: BTreeMap::new(),
             edit: members.iter().map(|m| RepoName((*m).to_string())).collect(),
             discover: Vec::new(),

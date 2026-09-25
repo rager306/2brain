@@ -5,6 +5,7 @@
 //! string codes are kebab-case, e.g. `reserved-key-location`.
 
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -172,11 +173,92 @@ impl Span {
     }
 }
 
-/// Currently advisory text only — never auto-applied. A future structured-edit
-/// form may replace `description` once a mutation pipeline lands.
+/// A suggested fix for a diagnostic: a human-readable `description`, plus an
+/// optional list of machine-applicable `actions`.
+///
+/// `description` is always the human label and the advisory fallback. `actions`
+/// is empty for an advisory-only fix (the common case), and non-empty when the
+/// engine can hand a consumer enough to RUN a mutation without parsing the
+/// message or slicing the span. It is a LIST so a fix can offer a CHOICE of
+/// alternatives (e.g. pick among candidate rename targets); a single action is a
+/// length-1 list.
+///
+/// The serde shape is the wire contract, `Diagnostic` serializes directly. The
+/// `actions` field is `skip_serializing_if` empty, so an advisory-only fix
+/// serializes byte-identically to the description-only form: adding `actions`
+/// is ADDITIVE, no `schema_version` bump. See `crates/au-engine/WIRE.md`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SuggestedFix {
     pub description: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub actions: Vec<FixAction>,
+}
+
+impl SuggestedFix {
+    /// An advisory-only fix: a description with no machine-applicable action.
+    pub fn advisory(description: impl Into<String>) -> Self {
+        Self {
+            description: description.into(),
+            actions: Vec::new(),
+        }
+    }
+
+    /// A machine-applicable fix: a description plus one or more actions a
+    /// consumer can run.
+    pub fn with_actions(description: impl Into<String>, actions: Vec<FixAction>) -> Self {
+        Self {
+            description: description.into(),
+            actions,
+        }
+    }
+}
+
+/// One machine-applicable action a consumer can run to resolve a diagnostic.
+///
+/// `verb` names a mutation from the engine's own closed catalog (e.g. `add_dep`),
+/// so a generic consumer runs `mutate({ verb, ...args, ...topology })` with no
+/// per-code switch. `args` carries the args the ENGINE parsed, keyed by the
+/// verb's own argument names so they splat straight into the mutation call. Args
+/// are PARTIAL by design: the engine supplies what it parsed (e.g. the `::repo`
+/// qualifier), and the consumer completes workspace-topology args (e.g. `root`,
+/// derived from `resolve_member`), which are not parsed source.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct FixAction {
+    /// The mutation verb this action runs, from the engine's closed catalog.
+    pub verb: String,
+    /// This action's human-readable label.
+    pub title: String,
+    /// The engine-supplied args, keyed by the verb's own argument names. Empty
+    /// when the verb needs only consumer-supplied topology args.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub args: BTreeMap<String, String>,
+}
+
+impl FixAction {
+    /// An `edit_file` action: an exact string replacement in `path`.
+    ///
+    /// Fully self-contained, the consumer runs `mutate(edit_file, args)` as-is.
+    /// `old_string` must match UNIQUELY in the file or `edit_file` rejects, which
+    /// is the safety net: an ambiguous match (a substring, or a repeated token)
+    /// rejects cleanly and the consumer falls back to the advisory `description`,
+    /// never a wrong-place edit. A caller reconstructs `old_string` from the
+    /// structure it parsed, no source read required.
+    pub fn edit_file(
+        path: impl Into<String>,
+        old_string: impl Into<String>,
+        new_string: impl Into<String>,
+        title: impl Into<String>,
+    ) -> Self {
+        Self {
+            verb: "edit_file".to_string(),
+            title: title.into(),
+            args: BTreeMap::from([
+                ("path".to_string(), path.into()),
+                ("old_string".to_string(), old_string.into()),
+                ("new_string".to_string(), new_string.into()),
+            ]),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -226,6 +308,43 @@ mod tests {
         let json = serde_json::to_string(&diag).unwrap();
         assert!(!json.contains("related"));
         assert!(!json.contains("fix"));
+    }
+
+    #[test]
+    fn advisory_fix_serializes_without_an_actions_key() {
+        // An advisory-only fix carries no `actions`, so it serializes exactly like
+        // the description-only form: adding `actions` is ADDITIVE on the wire.
+        let fix = SuggestedFix::advisory("do the thing");
+        let json = serde_json::to_string(&fix).unwrap();
+        assert_eq!(json, r#"{"description":"do the thing"}"#);
+        let back: SuggestedFix = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, fix);
+        assert!(back.actions.is_empty());
+    }
+
+    #[test]
+    fn a_multi_action_fix_serializes_as_a_list_and_round_trips() {
+        // The `actions` field is a LIST so a fix can offer a CHOICE of N
+        // alternatives (the tier-3 multi-option shape). Here two `edit_file`
+        // actions, e.g. the disambiguation of an ambiguous wikilink target.
+        let fix = SuggestedFix::with_actions(
+            "resolve the ambiguous link",
+            vec![
+                FixAction::edit_file("n.md", "[[note]]", "[[a/note]]", "Point at a/note"),
+                FixAction::edit_file("n.md", "[[note]]", "[[b/note]]", "Point at b/note"),
+            ],
+        );
+        let json = serde_json::to_value(&fix).unwrap();
+        assert_eq!(
+            json["actions"].as_array().map(|a| a.len()),
+            Some(2),
+            "actions serializes as a JSON array of N"
+        );
+        assert_eq!(json["actions"][0]["args"]["new_string"], "[[a/note]]");
+        assert_eq!(json["actions"][1]["args"]["new_string"], "[[b/note]]");
+        let back: SuggestedFix = serde_json::from_value(json).unwrap();
+        assert_eq!(back, fix);
+        assert_eq!(back.actions.len(), 2);
     }
 
     #[test]

@@ -16,10 +16,13 @@
 //! `undeclared-peer` consistency family, which reports the declaration
 //! topology once per peer, not per use.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use au_core::{BodyItem, InlineValue, InstanceValue, TypeName, TypeNameClaim};
-use au_diagnostics::{ByteRange, Diagnostic, DiagnosticCode, Severity, Span};
+use au_diagnostics::{
+    ByteRange, Diagnostic, DiagnosticCode, FixAction, Severity, Span, SuggestedFix,
+};
 use au_grammar::{DefBound, QualifiedName, RefMode, Shape};
 
 use crate::crossref::{resolve_repo_scope, RepoScope};
@@ -38,9 +41,9 @@ pub const TYPE_REPO_EMPTY: DiagnosticCode = DiagnosticCode::from_static("type-re
 /// `reference-repo-unknown`.
 pub const TYPE_REPO_UNKNOWN: DiagnosticCode = DiagnosticCode::from_static("type-repo-unknown");
 /// A `::repo` type name names a declared dependency that is not present here (not
-/// mounted, not cached), so its type cannot be folded. Warning — resolve / vendor
-/// the closure is the fix that survives an absent peer. The type-side sibling of
-/// `reference-repo-unavailable`.
+/// mounted, not cached), so its type cannot be folded. Warning. Running `resolve`
+/// to fetch the dep into the package cache is the fix that survives an absent
+/// peer. The type-side sibling of `reference-repo-unavailable`.
 pub const TYPE_REPO_UNAVAILABLE: DiagnosticCode =
     DiagnosticCode::from_static("type-repo-unavailable");
 /// A `::repo` type name names a mounted workspace member (an `edit` or `discover`
@@ -181,13 +184,45 @@ fn emit(
         )),
     };
     if let Some((code, severity, message)) = diag {
+        // Applicable fixes, built at this single emit site, so the fix is produced
+        // identically on the full build and the incremental cross-repo path. The
+        // engine supplies the parsed args; the consumer completes any topology arg
+        // it owns. See [[decision - 2609171207 - applicable-fix actions on
+        // diagnostics name mutation verbs with engine-supplied args]].
+        let fix = if code == TYPE_REPO_NOT_A_DEPENDENCY {
+            // The peer is a mounted member: declare it a dep. The consumer
+            // completes `root` (the owning member) via `resolve_member`.
+            Some(SuggestedFix::with_actions(
+                format!("add '{repo_q}' to this repo's deps"),
+                vec![FixAction {
+                    verb: "add_dep".to_string(),
+                    title: format!("Add '{repo_q}' to deps"),
+                    args: BTreeMap::from([("name".to_string(), repo_q.to_string())]),
+                }],
+            ))
+        } else if code == TYPE_REPO_EMPTY {
+            // Strip the empty `::`; bare `base` is the own-repo form. `old_string`
+            // is reconstructed from `base` (repo_q is empty here); edit_file's
+            // uniqueness is the safety net, an ambiguous match rejects to advisory.
+            Some(SuggestedFix::with_actions(
+                format!("write bare '{base}', the own-repo form"),
+                vec![FixAction::edit_file(
+                    source.to_string_lossy(),
+                    format!("{base}::"),
+                    base.to_string(),
+                    format!("Drop the empty '::' from '{base}'"),
+                )],
+            ))
+        } else {
+            None
+        };
         diags.push(Diagnostic {
             code,
             severity,
             span: Span::new(source.to_path_buf(), span),
             message,
             related: Vec::new(),
-            fix: None,
+            fix,
         });
     }
     // A self-`::repo` qualifier resolves to the own type (the fold registers the
@@ -198,6 +233,9 @@ fn emit(
             .repo_of(source)
             .is_some_and(|r| r.name.as_str() == repo_q)
     {
+        // Strip the redundant own-repo qualifier: `base::<own>` -> `base`.
+        // `old_string` is reconstructed from `base` + `repo_q`; edit_file's
+        // uniqueness is the safety net.
         diags.push(Diagnostic {
             code: TYPE_REPO_SELF,
             severity: Severity::Hint,
@@ -206,7 +244,15 @@ fn emit(
                 "type '{base}::{repo_q}' qualifies the own repo; bare '{base}' is the own form"
             ),
             related: Vec::new(),
-            fix: None,
+            fix: Some(SuggestedFix::with_actions(
+                format!("write bare '{base}', the own-repo form"),
+                vec![FixAction::edit_file(
+                    source.to_string_lossy(),
+                    format!("{base}::{repo_q}"),
+                    base.to_string(),
+                    format!("Drop the redundant '::{repo_q}'"),
+                )],
+            )),
         });
     }
     outcome
@@ -578,12 +624,10 @@ pub(crate) fn cross_repo_type_diagnostics_for(
                                 repo_q,
                             ),
                             related: vec![],
-                            fix: Some(au_diagnostics::SuggestedFix {
-                                description: format!(
+                            fix: Some(au_diagnostics::SuggestedFix::advisory(format!(
                                     "drop the '{}' suffix, write the slot as '{}::{}'",
                                     suffix, q.base, repo_q
-                                ),
-                            }),
+                                ))),
                         });
                     }
                 }
@@ -834,6 +878,18 @@ mod tests {
         let d = only(&diags);
         assert_eq!(d.code, TYPE_REPO_NOT_A_DEPENDENCY);
         assert_eq!(d.severity, Severity::Error);
+        // The applicable fix: one `add_dep` action carrying the parsed peer name
+        // (`b`, the `::repo` qualifier), verb-keyed. `root` is NOT carried; the
+        // consumer completes it via `resolve_member`.
+        let fix = d
+            .fix
+            .as_ref()
+            .expect("not-a-dependency carries an applicable fix");
+        assert_eq!(fix.actions.len(), 1, "a single deterministic action");
+        let action = &fix.actions[0];
+        assert_eq!(action.verb, "add_dep");
+        assert_eq!(action.args.get("name").map(String::as_str), Some("b"));
+        assert!(!action.args.contains_key("root"), "root is the consumer's");
     }
 
     #[test]
@@ -871,10 +927,89 @@ mod tests {
         // empty `::` only reaches the claim parse when quoted. At the field-shape
         // position au-grammar rejects `foo::` as `shape-syntax-error`, so this
         // code is a claim / parent concern.
-        let diags = type_diags(&[("n.md", "---\ntype: \"note::\"\n---\n")]);
+        let src = "---\ntype: \"note::\"\n---\n";
+        let diags = type_diags(&[("n.md", src)]);
         let d = only(&diags);
         assert_eq!(d.code, TYPE_REPO_EMPTY);
         assert_eq!(d.severity, Severity::Error);
+        // Applicable fix: strip the empty `::` via edit_file, `note::` -> `note`.
+        let a = &d.fix.as_ref().expect("empty carries a fix").actions[0];
+        assert_eq!(a.verb, "edit_file");
+        assert_eq!(a.args.get("old_string").map(String::as_str), Some("note::"));
+        assert_eq!(a.args.get("new_string").map(String::as_str), Some("note"));
+        // Reconstruction is correct and unique here, so edit_file applies cleanly;
+        // the corrected source reads bare `note`.
+        assert_eq!(
+            src.matches("note::").count(),
+            1,
+            "unique => edit_file applies"
+        );
+        assert_eq!(src.replace("note::", "note"), "---\ntype: \"note\"\n---\n");
+    }
+
+    #[test]
+    fn self_qualifier_is_type_repo_self_with_a_strip_fix() {
+        // `app` owns `thing`; a file in `app` writes `type: thing::app`, its own
+        // repo. Redundant: type-repo-self (hint), carrying an edit_file fix that
+        // strips the `::app` qualifier.
+        let src = "---\ntype: thing::app\n---\n";
+        let diags = type_diags(&[("type/thing.type.yaml", "fields: {}\n"), ("n.md", src)]);
+        let d = only(&diags);
+        assert_eq!(d.code, TYPE_REPO_SELF);
+        assert_eq!(d.severity, Severity::Hint);
+        let fix = d.fix.as_ref().expect("self carries a fix");
+        assert_eq!(fix.actions.len(), 1);
+        let a = &fix.actions[0];
+        assert_eq!(a.verb, "edit_file");
+        assert_eq!(
+            a.args.get("old_string").map(String::as_str),
+            Some("thing::app")
+        );
+        assert_eq!(a.args.get("new_string").map(String::as_str), Some("thing"));
+        assert!(a.args.contains_key("path"), "edit_file is self-contained");
+        // Reconstruction is the exact source token, unique, so edit_file applies;
+        // an ambiguous token would be NON-unique and edit_file rejects (its own
+        // guard, `edit_file_replaces_exactly_and_guards_uniqueness`), never a
+        // wrong-place edit.
+        assert_eq!(
+            src.matches("thing::app").count(),
+            1,
+            "unique => edit_file applies"
+        );
+        assert_eq!(
+            src.replace("thing::app", "thing"),
+            "---\ntype: thing\n---\n"
+        );
+    }
+
+    #[test]
+    fn the_not_a_dependency_fix_is_identical_at_a_field_shape_position() {
+        // The same `add_dep` fix whether the ungated `::repo` sits in a claim (the
+        // seed test) or a field shape here: emit is the single choke point, so
+        // every emission position carries the fix identically.
+        let mut fs = MemoryFileSystem::new();
+        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
+        fs.insert(
+            "/v/.arsumbris/workspace.yaml",
+            "edit:\n  - v\n  - a\n  - b\n",
+        );
+        fs.insert("/v/a/.arsumbris/repo.yaml", "name: a\n"); // no dep on b
+        fs.insert("/v/a/type/holder.type.yaml", "fields:\n  ref: thing::b*\n");
+        fs.insert("/v/b/.arsumbris/repo.yaml", "name: b\n");
+        fs.insert("/v/b/type/thing.type.yaml", "fields: {}\n");
+        let kb = build(Path::new("/v"), &fs).unwrap();
+        let diags = cross_repo_type_diagnostics(
+            &kb.catalog,
+            &kb.repos,
+            &kb.graphs,
+            &kb.resolution_graphs,
+            &kb.workspaces,
+        );
+        let d = only(&diags);
+        assert_eq!(d.code, TYPE_REPO_NOT_A_DEPENDENCY);
+        let a = &d.fix.as_ref().expect("carries a fix").actions[0];
+        assert_eq!(a.verb, "add_dep");
+        assert_eq!(a.args.get("name").map(String::as_str), Some("b"));
     }
 
     #[test]

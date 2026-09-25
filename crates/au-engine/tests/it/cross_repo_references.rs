@@ -407,3 +407,208 @@ fn a_cross_repo_type_claim_token_carries_its_repo() {
         "the instance claim token must carry ::repo, got {tokens:?}"
     );
 }
+
+/// The `type-claim` tokens of one file, via the daemon.
+fn claim_tokens(h: &mut Harness, path: &str) -> Vec<serde_json::Value> {
+    let resp = h
+        .client
+        .query(&json!({ "read": "semantic_tokens", "path": path }))
+        .unwrap();
+    resp["result"]["semantic_tokens"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|t| t["kind"] == "type-claim")
+        .cloned()
+        .collect()
+}
+
+#[test]
+fn a_type_claim_token_carries_the_identity_it_resolves_to() {
+    // `app` and `base` each own a DIVERGED `note`, so the two identities share a
+    // name and differ by hash. Every claim position must carry the identity the
+    // claim resolves to, so a consumer joins it onto an identity-keyed read.
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    crate::seed_workspace(&root, &["base", "app"]);
+    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(
+        &root,
+        "base/type/note.type.yaml",
+        "fields:\n  title: String\n",
+    );
+    write(
+        &root,
+        "app/.arsumbris/repo.yaml",
+        "name: app\ndeps:\n  - name: base\n",
+    );
+    write(
+        &root,
+        "app/type/note.type.yaml",
+        "fields:\n  body: String\n",
+    );
+    write(&root, "app/type/card.type.yaml", "extends: note::base\n");
+    write(
+        &root,
+        "app/type/holder.type.yaml",
+        "fields:\n  item?: note::base\n  items?: note::base[]\n",
+    );
+    // `base` imports nothing, so it resolves in its own graph (no fold).
+    write(&root, "base/local.md", "---\ntype: note\ntitle: t\n---\n");
+    write(&root, "app/own.md", "---\ntype: note\nbody: b\n---\n");
+    write(
+        &root,
+        "app/peer.md",
+        "---\ntype: note::base\ntitle: t\n---\n",
+    );
+    write(
+        &root,
+        "app/selfq.md",
+        "---\ntype: note::app\nbody: b\n---\n",
+    );
+    write(&root, "app/ghost.md", "---\ntype: ghost\n---\n");
+    write(
+        &root,
+        "app/holder.md",
+        "---\ntype: holder\nitem:\n  type: note::base\n  title: inline\nitems:\n---\n\
+         ```[:items]\ntype: note::base\ntitle: fenced\n```\n",
+    );
+    let mut h = started(&root);
+
+    let resolved = |t: &serde_json::Value| -> (String, String, String) {
+        let r = &t["resolved"];
+        (
+            r["name"].as_str().unwrap().to_string(),
+            r["repo"].as_str().unwrap().to_string(),
+            r["hash"].as_str().unwrap().to_string(),
+        )
+    };
+    let single = |h: &mut Harness, path: &str| {
+        let toks = claim_tokens(h, path);
+        assert_eq!(toks.len(), 1, "{path}: {toks:?}");
+        toks[0].clone()
+    };
+
+    // A bare claim resolves in its own repo, a qualified one in the peer.
+    let (own_name, own_repo, own_hash) = resolved(&single(&mut h, "app/own.md"));
+    let (peer_name, peer_repo, peer_hash) = resolved(&single(&mut h, "app/peer.md"));
+    assert_eq!((own_name.as_str(), own_repo.as_str()), ("note", "app"));
+    assert_eq!((peer_name.as_str(), peer_repo.as_str()), ("note", "base"));
+    assert_ne!(
+        own_hash, peer_hash,
+        "diverged same-named types are two identities"
+    );
+
+    // The owner's own bare claim, resolved in its own graph with no fold, is the
+    // identity the importer reaches through `note::base`.
+    let local = resolved(&single(&mut h, "base/local.md"));
+    assert_eq!(
+        local,
+        (peer_name.clone(), peer_repo.clone(), peer_hash.clone())
+    );
+
+    // A self-qualifier is the own type.
+    let selfq = single(&mut h, "app/selfq.md");
+    assert_eq!(selfq["name"], "note::app", "the authored form stays");
+    assert_eq!(
+        resolved(&selfq),
+        (own_name.clone(), own_repo, own_hash.clone())
+    );
+
+    // An unresolved claim omits `resolved` rather than guessing.
+    let ghost = single(&mut h, "app/ghost.md");
+    assert!(ghost.get("resolved").is_none(), "{ghost:?}");
+
+    // A type-def parent claim resolves like an instance claim.
+    let parent = single(&mut h, "app/type/card.type.yaml");
+    assert_eq!(parent["name"], "note::base");
+    assert_eq!(resolved(&parent).2, peer_hash);
+
+    // Inline-record and typed-fence claims resolve too.
+    let nested: Vec<(String, String, String)> = claim_tokens(&mut h, "app/holder.md")
+        .iter()
+        .filter(|t| t["name"] == "note::base")
+        .map(resolved)
+        .collect();
+    assert_eq!(
+        nested.len(),
+        2,
+        "the inline record and the fence: {nested:?}"
+    );
+    for r in &nested {
+        assert_eq!((r.1.as_str(), r.2.as_str()), ("base", peer_hash.as_str()));
+    }
+
+    // The token's `(name, hash)` joins onto the identity-keyed instance_counts
+    // row, the join its doc prescribes.
+    let resp = h
+        .client
+        .query(&json!({ "read": "instance_counts", "origins": ["file"] }))
+        .unwrap();
+    let rows = resp["result"]["instance_counts"]["by_type"]
+        .as_array()
+        .unwrap();
+    let row = |hash: &str| {
+        rows.iter()
+            .find(|r| r["name"] == "note" && r["hash"] == hash)
+            .unwrap_or_else(|| panic!("no note row for {hash}: {rows:?}"))
+    };
+    assert_eq!(row(&own_hash)["type_owners"], json!(["app"]));
+    assert_eq!(row(&peer_hash)["type_owners"], json!(["base"]));
+}
+
+#[test]
+fn an_in_sync_type_claim_token_names_the_repo_the_claim_names() {
+    // `app` and `base` define a byte-identical `note`, ONE identity that folds to
+    // one node. The owner must follow the claim (bare is `app`'s, `::base` is
+    // `base`'s), never the shared node's processing-order-dependent origin.
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    crate::seed_workspace(&root, &["base", "app"]);
+    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(
+        &root,
+        "base/type/note.type.yaml",
+        "fields:\n  title: String\n",
+    );
+    write(
+        &root,
+        "app/.arsumbris/repo.yaml",
+        "name: app\ndeps:\n  - name: base\n",
+    );
+    write(
+        &root,
+        "app/type/note.type.yaml",
+        "fields:\n  title: String\n",
+    );
+    write(&root, "app/own.md", "---\ntype: note\ntitle: t\n---\n");
+    write(
+        &root,
+        "app/peer.md",
+        "---\ntype: note::base\ntitle: t\n---\n",
+    );
+    write(
+        &root,
+        "app/type/card.type.yaml",
+        "extends:\n  - note\n  - note::base\n",
+    );
+    let mut h = started(&root);
+
+    let identity =
+        |t: &serde_json::Value| (t["resolved"]["repo"].clone(), t["resolved"]["hash"].clone());
+    let own = claim_tokens(&mut h, "app/own.md");
+    let peer = claim_tokens(&mut h, "app/peer.md");
+    assert_eq!(own[0]["resolved"]["repo"], "app", "{own:?}");
+    assert_eq!(peer[0]["resolved"]["repo"], "base", "{peer:?}");
+    assert_eq!(
+        own[0]["resolved"]["hash"], peer[0]["resolved"]["hash"],
+        "an in-sync type is one identity"
+    );
+
+    // Both claims in ONE file, so they meet the same folded node.
+    let parents = claim_tokens(&mut h, "app/type/card.type.yaml");
+    let by_name = |n: &str| identity(parents.iter().find(|t| t["name"] == n).unwrap());
+    assert_eq!(by_name("note").0, "app", "{parents:?}");
+    assert_eq!(by_name("note::base").0, "base", "{parents:?}");
+    assert_eq!(by_name("note").1, by_name("note::base").1);
+}

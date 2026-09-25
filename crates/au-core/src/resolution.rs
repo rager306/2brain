@@ -657,32 +657,34 @@ mod tests {
                 "extends: note::base\nfields:\n  n: Number\n",
             ),
         ]);
-        let r = resolver(&[("app", app.clone()), ("base", base)]);
-        let rg = fold("app", &[(TypeName("note".into()), "base".into())], &r);
+        let r = resolver(&[("app", app), ("base", base)]);
 
-        // The peer parent's meta is inherited across the repo boundary.
+        // The peer parent's meta is inherited across the repo boundary. Its
+        // bare `type: display-meta` is written in base, so it is base's
+        // display-meta, `display-meta::base` from app.
         let display = crate::meta::lookup_meta(
-            &app,
-            Some(&rg),
+            &r,
+            "app",
             &TypeName("card".into()),
             &TypeName("display-meta".into()),
-            None,
+            Some("base"),
         );
-        assert!(
-            display.is_some(),
-            "card inherits the peer note::base's display-meta over the fold"
+        assert_eq!(
+            display.len(),
+            1,
+            "card inherits the peer note::base's display-meta across the boundary"
         );
 
         // The local same-named `note`'s meta is NOT surfaced in the peer's place.
         let runtime = crate::meta::lookup_meta(
-            &app,
-            Some(&rg),
+            &r,
+            "app",
             &TypeName("card".into()),
             &TypeName("runtime-meta".into()),
             None,
         );
         assert!(
-            runtime.is_none(),
+            runtime.is_empty(),
             "card's parent is the peer note, so app's local note's runtime-meta must not surface"
         );
     }

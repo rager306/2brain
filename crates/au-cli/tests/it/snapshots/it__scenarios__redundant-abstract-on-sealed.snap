@@ -6,6 +6,20 @@ expression: rendered
   "diagnostics": [
     {
       "code": "redundant-abstract-on-sealed",
+      "fix": {
+        "actions": [
+          {
+            "args": {
+              "new_string": "",
+              "old_string": "abstract: true\n",
+              "path": "<root>/scenarios/redundant-abstract-on-sealed/type/decision.type.yaml"
+            },
+            "title": "Remove redundant 'abstract: true'",
+            "verb": "edit_file"
+          }
+        ],
+        "description": "remove the redundant `abstract: true`"
+      },
       "message": "type-def 'decision' is sealed, which already implies abstract; the explicit `abstract: true` is redundant",
       "severity": "hint",
       "span": {

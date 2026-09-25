@@ -12,6 +12,13 @@ use std::path::PathBuf;
 use au_engine::{serve, Client, ConfigSource, Engine, ServeHandle};
 use serde_json::{json, Value};
 
+/// A type-def whose every field shape is a QUOTED scalar: a reference, a union,
+/// and an enum. Held as a const so the test can slice each leaf's source range
+/// back to its text — the file is pure YAML at offset 0, so a token range indexes
+/// straight into this string.
+const QUOTED_DEF: &str =
+    "fields:\n  q?: \"assumption*\"\n  u?: \"<assumption | note>\"\n  e?: \"[low, high]\"\n";
+
 /// A knowledge base whose `research.md` carries every body-surface signal: a heading,
 /// a resolving wikilink, a bare `^id` marker, plus a typed fence with a
 /// trailing id and a frontmatter `^:` record — the latter two are value /
@@ -40,6 +47,10 @@ fn fixture() -> (tempfile::TempDir, PathBuf) {
         "extends: note\nfields:\n  level: [low, high]\n  kind?: type<note>*\n  link?: assumption*\n",
     )
     .unwrap();
+    // A type-def whose every field shape is QUOTED: a reference, a union, and a
+    // suffixed enum. The leaves must be located inside the quoted scalar, not
+    // dropped for the container alone.
+    fs::write(root.join("type/quoted.type.yaml"), QUOTED_DEF).unwrap();
     fs::write(
         root.join("content/research.md"),
         "---\ntype: note\ndescription: research\nrelated:\n  - ^: rec-1\n    description: an inline assumption\n---\n# Findings\n\nSee [[decision]] and [[ghost]].\n\nA paragraph. ^wal-tradeoff\n\n```yaml [:assumptions]\ntype: assumption\ndescription: stable\n```\n^extractor-stability\n",
@@ -161,6 +172,15 @@ fn body_and_value_tokens_for_a_typed_instance() {
         .collect();
     assert!(claims.contains(&"note"), "frontmatter claim: {claims:?}");
     assert!(claims.contains(&"assumption"), "fence claim: {claims:?}");
+
+    // A single repo resolves every claim in its own graph, each carrying the
+    // identity it resolved to, owned by the one repo.
+    for claim in of_kind(&toks, "type-claim") {
+        let r = &claim["resolved"];
+        assert_eq!(r["name"], claim["name"], "{claim:?}");
+        assert_eq!(r["repo"], "v", "{claim:?}");
+        assert_eq!(r["hash"].as_str().unwrap().len(), 16, "{claim:?}");
+    }
 
     // The typed fence is a `typed-block` container over field `assumptions`.
     let blocks = of_kind(&toks, "typed-block");
@@ -600,8 +620,16 @@ fn type_def_emits_the_shape_layer() {
     let toks = tokens(&mut h, "type/widget.type.yaml");
     assert!(is_sorted(&toks), "tokens sorted by start: {toks:#?}");
 
-    // The `type: note` parent claim is a type-claim, like an instance's.
+    // The `type: note` parent claim is a type-claim, like an instance's, and
+    // resolves to the same identity an instance claim of `note` does.
     assert_eq!(names(&toks, "type-claim", "name"), vec!["note"]);
+    let parent = &of_kind(&toks, "type-claim")[0]["resolved"];
+    let research = tokens(&mut h, "content/research.md");
+    let instance = of_kind(&research, "type-claim")
+        .into_iter()
+        .find(|t| t["name"] == "note")
+        .unwrap();
+    assert_eq!(parent, &instance["resolved"]);
 
     // One field-shape container per declared field, carrying the WireShape.
     let shapes = of_kind(&toks, "field-shape");
@@ -626,6 +654,47 @@ fn type_def_emits_the_shape_layer() {
         names(&toks, "shape-builtin", "name").contains(&"type".to_string()),
         "{toks:#?}"
     );
+}
+
+#[test]
+fn quoted_field_shapes_emit_located_leaves() {
+    let mut h = started();
+    let toks = tokens(&mut h, "type/quoted.type.yaml");
+    assert!(is_sorted(&toks), "{toks:#?}");
+
+    // One field-shape container per field, each carrying the parsed WireShape.
+    assert_eq!(of_kind(&toks, "field-shape").len(), 3, "{toks:#?}");
+
+    // The leaves are emitted despite the quoting: the quoted reference and the
+    // quoted union's two operands, then the quoted enum's members, in order.
+    assert_eq!(
+        names(&toks, "type-ref", "name"),
+        vec!["assumption", "assumption", "note"],
+        "quoted reference and union leaves: {toks:#?}"
+    );
+    assert_eq!(
+        names(&toks, "enum-member", "value"),
+        vec!["low", "high"],
+        "quoted enum leaves: {toks:#?}"
+    );
+
+    // Every leaf's SOURCE range slices back to its own text inside the quoted
+    // scalar — located, not mis-placed, and not dropped for the container alone.
+    for t in &toks {
+        let text = match t["kind"].as_str().unwrap() {
+            "type-ref" | "shape-builtin" => t["name"].as_str(),
+            "enum-member" => t["value"].as_str(),
+            _ => None,
+        };
+        let Some(text) = text else { continue };
+        let s = t["range"]["start"].as_u64().unwrap() as usize;
+        let e = t["range"]["end"].as_u64().unwrap() as usize;
+        assert_eq!(
+            &QUOTED_DEF[s..e],
+            text,
+            "leaf {t:?} range must slice to its own text in the source"
+        );
+    }
 }
 
 #[test]

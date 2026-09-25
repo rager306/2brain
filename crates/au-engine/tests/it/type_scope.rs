@@ -10,7 +10,8 @@ use std::path::Path;
 
 use au_engine::build;
 use au_engine::wire::{
-    introspect_instance_counts, introspect_list_imports, introspect_type_counts, TypeScope,
+    introspect_instance_counts, introspect_instances_of, introspect_list_imports,
+    introspect_type_counts, Origin, TypeScope,
 };
 use au_parser::RealFileSystem;
 
@@ -152,7 +153,7 @@ fn instance_counts_are_closure_inclusive() {
     );
     let kb = build(&root, &RealFileSystem).expect("build");
 
-    let counts = introspect_instance_counts(&kb, None, TypeScope::all()).unwrap();
+    let counts = introspect_instance_counts(&kb, None, TypeScope::all(), None).unwrap();
     // Three authored docs plus the repo's own `.arsumbris/repo.yaml`, itself an
     // `au.engine.repo` engine-schema instance.
     assert_eq!(
@@ -213,7 +214,7 @@ fn instance_counts_tally_a_cross_repo_slot_pinned_nested_record() {
     );
     let kb = build(&root, &RealFileSystem).expect("build");
 
-    let counts = introspect_instance_counts(&kb, None, TypeScope::all()).unwrap();
+    let counts = introspect_instance_counts(&kb, None, TypeScope::all(), None).unwrap();
     let cc = counts
         .by_type
         .iter()
@@ -264,11 +265,11 @@ fn instance_counts_scope_by_site_repo() {
 
     // `all` counts both members' instances (site-repo scoping is on WHERE the
     // instance lives, not its type's owner).
-    let all = introspect_instance_counts(&kb, None, TypeScope::all()).unwrap();
+    let all = introspect_instance_counts(&kb, None, TypeScope::all(), None).unwrap();
     assert!(has(&all, "task") && has(&all, "thing"), "all: both members");
 
     // `own` keeps the editable `app`, hides the dependency `base`.
-    let own = introspect_instance_counts(&kb, None, TypeScope::new(true)).unwrap();
+    let own = introspect_instance_counts(&kb, None, TypeScope::new(true), None).unwrap();
     assert!(
         has(&own, "task"),
         "own keeps the app instance: {:?}",
@@ -281,27 +282,28 @@ fn instance_counts_scope_by_site_repo() {
     );
 
     // A named repo pins to that member's own instances.
-    let pinned = introspect_instance_counts(&kb, Some("base"), TypeScope::all()).unwrap();
+    let pinned = introspect_instance_counts(&kb, Some("base"), TypeScope::all(), None).unwrap();
     assert!(has(&pinned, "thing"), "base pins to its own instance");
     assert!(!has(&pinned, "task"), "base does not count app's instance");
 
     // `scope` still applies UNDER a pin, matching `type_counts`: pinning the
     // dependency `base` under `own` counts nothing (a dependency is not yours).
-    let pinned_own = introspect_instance_counts(&kb, Some("base"), TypeScope::new(true)).unwrap();
+    let pinned_own =
+        introspect_instance_counts(&kb, Some("base"), TypeScope::new(true), None).unwrap();
     assert!(
         pinned_own.by_type.is_empty() && pinned_own.total == 0,
         "repo=base + own is empty, base is a dependency: {:?}",
         pinned_own.by_type
     );
     // Pinning the editable `app` under `own` still counts it.
-    let app_own = introspect_instance_counts(&kb, Some("app"), TypeScope::new(true)).unwrap();
+    let app_own = introspect_instance_counts(&kb, Some("app"), TypeScope::new(true), None).unwrap();
     assert!(
         has(&app_own, "task"),
         "repo=app + own keeps the editable member"
     );
 
     assert!(
-        introspect_instance_counts(&kb, Some("nope"), TypeScope::all()).is_none(),
+        introspect_instance_counts(&kb, Some("nope"), TypeScope::all(), None).is_none(),
         "an unknown repo is the null signal"
     );
 }
@@ -332,5 +334,110 @@ fn scope_own_hides_the_engine_fold_from_list_imports() {
         own.iter()
             .map(|i| (&i.importer, &i.name, &i.owner))
             .collect::<Vec<_>>()
+    );
+}
+
+/// `instance_counts` is the cheap dual of `instances_of`: for EVERY origin set,
+/// each `by_type` row's count equals the number of `instances_of` matches for
+/// that same identity over the same origins. A single-repo fixture with unique
+/// type names, so a bare `instances_of(name)` names exactly one identity.
+/// Exercises file, nested, and meta origins plus the all-origins default.
+#[test]
+fn instance_counts_is_the_dual_of_instances_of_per_origin() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    write(&root, ".arsumbris/repo.yaml", "name: proj\n");
+    write(&root, "type/note.type.yaml", "fields:\n  title: String\n");
+    write(&root, "type/part.type.yaml", "fields:\n  label: String\n");
+    // A meta type: mixes in the engine meta marker so it is legal in a `meta:` block.
+    write(
+        &root,
+        "type/display-meta.type.yaml",
+        "extends: au.engine.meta::au-engine\nfields:\n  icon: String\n",
+    );
+    // A host def carrying a nested-record slot AND a meta block (the meta site).
+    write(
+        &root,
+        "type/widget.type.yaml",
+        "fields:\n  title: String\n  parts?: part&[]\nmeta:\n  - type: display-meta\n    icon: gear\n",
+    );
+    write(&root, "n.md", "---\ntype: note\ntitle: a\n---\n");
+    // A widget with an inline nested `part` record → a nested site.
+    write(
+        &root,
+        "w.md",
+        "---\ntype: widget\ntitle: b\nparts:\n  - type: part\n    label: p1\n---\n",
+    );
+    let kb = build(&root, &RealFileSystem).expect("build");
+
+    // The dual, checked generically per identity and per origin set: every held
+    // by_type count must equal the matching instances_of drill-in for that hash.
+    let origin_sets: Vec<Option<Vec<Origin>>> = vec![
+        None,
+        Some(vec![Origin::File]),
+        Some(vec![Origin::Nested]),
+        Some(vec![Origin::Meta]),
+        Some(vec![Origin::File, Origin::Nested]),
+    ];
+    for origins in &origin_sets {
+        let o: Option<&[Origin]> = origins.as_ref().map(|v| v.as_slice());
+        let counts = introspect_instance_counts(&kb, None, TypeScope::all(), o).unwrap();
+        for c in &counts.by_type {
+            let n = introspect_instances_of(&kb, &c.name, o)
+                .iter()
+                .filter(|m| m.hash == c.hash)
+                .count();
+            assert_eq!(
+                c.count, n,
+                "instance_counts != instances_of for {} over origins {:?}",
+                c.name, origins
+            );
+        }
+    }
+
+    // The meta origin is genuinely exercised, not vacuous.
+    let by = |v: &au_engine::wire::InstanceCountsView, name: &str| {
+        v.by_type.iter().find(|c| c.name == name).map(|c| c.count)
+    };
+    let meta =
+        introspect_instance_counts(&kb, None, TypeScope::all(), Some(&[Origin::Meta])).unwrap();
+    assert_eq!(
+        by(&meta, "display-meta"),
+        Some(1),
+        "display-meta counts once as a meta site"
+    );
+
+    // A file-only count excludes nested and meta sites; the unified default includes them.
+    let file_only =
+        introspect_instance_counts(&kb, None, TypeScope::all(), Some(&[Origin::File])).unwrap();
+    assert_eq!(by(&file_only, "note"), Some(1), "note is a file site");
+    assert_eq!(
+        by(&file_only, "display-meta"),
+        None,
+        "no meta site in a file-only count"
+    );
+    assert_eq!(
+        by(&file_only, "part"),
+        None,
+        "no nested site in a file-only count"
+    );
+    let all = introspect_instance_counts(&kb, None, TypeScope::all(), None).unwrap();
+    assert_eq!(
+        by(&all, "part"),
+        Some(1),
+        "the default counts the nested part"
+    );
+    assert_eq!(
+        by(&all, "display-meta"),
+        Some(1),
+        "the default counts the meta site"
+    );
+
+    // total follows the requested origins.
+    let nested_only =
+        introspect_instance_counts(&kb, None, TypeScope::all(), Some(&[Origin::Nested])).unwrap();
+    assert_eq!(
+        nested_only.total, 1,
+        "exactly one nested site (the inline part)"
     );
 }

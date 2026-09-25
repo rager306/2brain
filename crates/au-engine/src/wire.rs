@@ -71,10 +71,24 @@ pub struct TypeIntrospection {
     ///   consumer walks at this node.
     /// - `Some(vec![..])` → one entry per declared sub-region.
     ///
-    /// Resolved walks (consumer-facing `lookup_meta` results) are NOT
-    /// serialized — clients compose them from this raw per-TypeDef data
-    /// at their layer if needed.
+    /// The def's OWN blocks only. The inherited, resolved view is
+    /// `effective_meta`.
     pub meta_blocks: Option<Vec<MetaBlockIntrospection>>,
+    /// The effective field set, the closure's fields the validator checks an
+    /// instance against, each tagged with the def that declares it. A divergent
+    /// field ([[type-def fields collision - auto-unify and qualified field::au-type-system]])
+    /// is one entry per origin, flagged `divergent`. Absent from the graph-only
+    /// builders (`introspect_graph`), present on every served full-mode read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_fields: Option<Vec<ClosureFieldView>>,
+    /// The effective meta, one entry per meta type identity with its surviving
+    /// blocks ([[type-def meta::au-type-system]]): shadowed by a declaration on a
+    /// strict descendant, `meta: []` shadowing every ancestor, each def read in
+    /// its own repo. More than one block is a `meta-inheritance-conflict`.
+    /// Absent from the graph-only builders, present on every served full-mode
+    /// read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_meta: Option<Vec<EffectiveMetaView>>,
     /// Source-form `body:` template per [[type-def body::au-type-system]]. `None` when the type-def
     /// has no `body:` key. `Some(vec![])` for explicit empty `body: []`
     /// (treated as "no template" by validation but distinct on the
@@ -873,11 +887,14 @@ fn introspect_graph_with<'a>(
 ) -> GraphIntrospection {
     let types = graph
         .iter()
-        .map(|(name, def)| introspect_type(graph, name, def, &site_of(def), peer, resolution))
+        .map(|(name, def)| introspect_type(graph, name, def, &site_of(def), peer, resolution, None))
         .collect();
     GraphIntrospection { types }
 }
 
+/// `effective` is the knowledge base and the def's member repo, the context the
+/// effective fields and meta need. `None` from the graph-only builders, which
+/// then leave both absent.
 fn introspect_type(
     graph: &TypeGraph,
     name: &TypeName,
@@ -885,6 +902,7 @@ fn introspect_type(
     site: &SourceSite<'_>,
     peer: Option<&dyn au_core::CrossRepoResolver>,
     resolution: Option<&au_core::ResolutionGraph>,
+    effective: Option<(&KnowledgeBase, &str)>,
 ) -> TypeIntrospection {
     let parents = def.parents.iter().map(|p| p.authored()).collect();
     let sealed_branches = graph.sealed_branches_of(name);
@@ -944,6 +962,9 @@ fn introspect_type(
         unmet_required_meta,
         fields,
         meta_blocks,
+        effective_fields: effective
+            .map(|(kb, member)| closure_fields(kb, graph, resolution, member, name)),
+        effective_meta: effective.map(|(kb, member)| effective_meta_views(kb, member, name)),
         body,
         effective_body,
         doc: def.doc.clone(),
@@ -1294,10 +1315,10 @@ pub fn introspect_kb_graph(kb: &KnowledgeBase) -> GraphIntrospection {
     };
     let root_resolution = kb
         .repos
-        .root()
+        .entry()
         .and_then(|r| kb.resolution_graphs.of(&r.name));
     introspect_graph_with(
-        kb.root_graph(),
+        kb.entry_graph(),
         &|def| SourceSite::of_def(kb, def),
         Some(&peer_body),
         root_resolution,
@@ -1563,23 +1584,25 @@ pub struct InstanceTypeCount {
     pub count: usize,
 }
 
-/// The `instance_counts` read result: the total authored instances in scope
-/// plus a per-identity histogram. CLOSURE-INCLUSIVE — a site counts toward every
-/// type in its closure (claim + ancestors), so a `by_type` count equals the
-/// length of the matching `instances_of` drill-in over the same origins, and the
-/// counts do NOT sum to `total`. The instances dual of `type_counts`.
+/// The `instance_counts` read result: the total instance sites in scope of the
+/// requested origins plus a per-identity histogram. CLOSURE-INCLUSIVE — a site
+/// counts toward every type in its closure (claim + ancestors), so a `by_type`
+/// count equals the length of the matching `instances_of` drill-in over the same
+/// origins, and the counts do NOT sum to `total`. The instances dual of
+/// `type_counts`.
 #[derive(Debug, Default, Serialize)]
 pub struct InstanceCountsView {
     /// True when a broken vocabulary aborted a repo's load, matching
     /// `candidate_counts`: closures can be incomplete then, so a count from an
     /// aborted load is distinct from a settled one.
     pub aborted_at_load: bool,
-    /// Total authored instance SITES in scope, each counted once regardless of
-    /// how broad its closure is. AUTHORED instances only: file-level instances
-    /// and nested inline records. Type-def `meta` blocks (the `Meta` origin
-    /// `instances_of` also serves) are EXCLUDED — they are type-def annotations,
-    /// not browsable documents, and the always-present `au.engine.*` builtins'
-    /// meta would otherwise inflate every vocabulary overview.
+    /// Total instance SITES in scope of the requested origins, each counted once
+    /// regardless of how broad its closure is. The sites are the same the
+    /// `origins` filter selects: file-level instances (`Origin::File`), nested
+    /// inline records (`Origin::Nested`), and type-def `meta` blocks
+    /// (`Origin::Meta`). Absent `origins` counts all three, so a `meta:` block on
+    /// a type-def — including the always-present `au.engine.*` builtins' meta —
+    /// rides in a plain no-arg total; pass `origins` to exclude it.
     pub total: usize,
     /// Per-identity instance counts, sorted by (name, hash).
     pub by_type: Vec<InstanceTypeCount>,
@@ -1597,19 +1620,33 @@ pub struct InstanceCountsView {
 ///
 /// CLOSURE-INCLUSIVE (see [`InstanceCountsView`]): every type in a site's
 /// closure is credited, reusing the same `instance_closure_tids` pass as
-/// `instances_of` over its file and nested-inline-record origins, so a row's
-/// count equals its `instances_of` drill-in length over those origins. Meta
-/// origins are excluded (see [`InstanceCountsView::total`]).
+/// `instances_of`, so a row's count equals its `instances_of` drill-in length
+/// over the same origins and scope.
+///
+/// `origins` is the `instances_of`-parity filter (file / nested / meta). Absent
+/// counts ALL THREE, identical to `instances_of`'s no-arg set, so the two duals
+/// default the same way. This INCLUDES meta by default: a `meta:` block sits on
+/// a type-def, so the always-present `au.engine.*` builtins' meta rides in a plain
+/// no-arg count; a consumer wanting the clean authored-document overview passes
+/// `origins:['file']` / `['file','nested']` to exclude it (matching an
+/// `instances_of` drill-in over those origins).
 pub fn introspect_instance_counts(
     kb: &KnowledgeBase,
     repo: Option<&str>,
     scope: TypeScope,
+    origins: Option<&[Origin]>,
 ) -> Option<InstanceCountsView> {
     // A present-but-unknown repo is the wire's unresolved-lookup null, matching
     // `type_counts`.
     if let Some(r) = repo {
         kb.graph_for_repo(r)?;
     }
+
+    // Absent = all origins, mirroring `instances_of`'s `wants`.
+    let wants = |o: Origin| match origins {
+        None => true,
+        Some(list) => list.contains(&o),
+    };
 
     let owners = owners_by_identity(kb);
     let mut total = 0usize;
@@ -1633,43 +1670,89 @@ pub fn introspect_instance_counts(
     };
 
     // File and nested-inline-record sites walk the held instances.
-    for (path, _resolved) in &kb.instances {
-        let Some(FileParse::Instance {
-            instance: Some(instance),
-            ..
-        }) = kb.file_parse(path)
-        else {
-            continue;
-        };
-        let Some(repo_ref) = kb.repos.repo_of(path) else {
-            continue;
-        };
-        // A site is in scope when the repo it lives in (where the instance is
-        // authored, not the type identity's owner) passes the repo pin AND the
-        // own/all filter. Gating on `includes_repo` in BOTH branches keeps parity
-        // with `type_counts`, whose pinned branch honors `scope` too: a
-        // `repo=<dependency>, scope=own` counts nothing. The `&Repo` is already in
-        // hand from `repo_of`, so this stays O(instances), not O(instances×repos).
-        let name_ok = match repo {
-            Some(r) => repo_ref.name.0 == r,
-            None => true,
-        };
-        if !(name_ok && scope.includes_repo(kb, repo_ref)) {
-            continue;
+    if wants(Origin::File) || wants(Origin::Nested) {
+        for (path, _resolved) in &kb.instances {
+            let Some(FileParse::Instance {
+                instance: Some(instance),
+                ..
+            }) = kb.file_parse(path)
+            else {
+                continue;
+            };
+            let Some(repo_ref) = kb.repos.repo_of(path) else {
+                continue;
+            };
+            // A site is in scope when the repo it lives in (where the instance is
+            // authored, not the type identity's owner) passes the repo pin AND the
+            // own/all filter. Gating on `includes_repo` in BOTH branches keeps parity
+            // with `type_counts`, whose pinned branch honors `scope` too: a
+            // `repo=<dependency>, scope=own` counts nothing. The `&Repo` is already in
+            // hand from `repo_of`, so this stays O(instances), not O(instances×repos).
+            let name_ok = match repo {
+                Some(r) => repo_ref.name.0 == r,
+                None => true,
+            };
+            if !(name_ok && scope.includes_repo(kb, repo_ref)) {
+                continue;
+            }
+            let site_repo = repo_ref.name.clone();
+            let own = kb.graphs.of(&site_repo);
+            let res = kb.resolution_graphs.of(&site_repo);
+
+            if wants(Origin::File) {
+                let (claimed, ancestors) =
+                    crate::resolution_build::instance_closure_tids(own, res, &instance.type_claim);
+                tally(&claimed, &ancestors);
+            }
+
+            if wants(Origin::Nested) {
+                for nr in enumerate_nested_records(
+                    own,
+                    res,
+                    Some(&resolver),
+                    site_repo.as_str(),
+                    instance,
+                ) {
+                    let claim = tclaim_from_claims(&nr.qualified);
+                    let (claimed, ancestors) = nested_closure_tids(kb, own, res, &claim);
+                    tally(&claimed, &ancestors);
+                }
+            }
         }
-        let site_repo = repo_ref.name.clone();
-        let own = kb.graphs.of(&site_repo);
-        let res = kb.resolution_graphs.of(&site_repo);
+    }
 
-        let (claimed, ancestors) =
-            crate::resolution_build::instance_closure_tids(own, res, &instance.type_claim);
-        tally(&claimed, &ancestors);
-
-        for nr in enumerate_nested_records(own, res, Some(&resolver), site_repo.as_str(), instance)
-        {
-            let claim = tclaim_from_claims(&nr.qualified);
-            let (claimed, ancestors) = nested_closure_tids(kb, own, res, &claim);
-            tally(&claimed, &ancestors);
+    // Meta sites walk each repo's own type-defs, scoped by the type-def's repo
+    // (the site) with the same pin + own/all filter file and nested sites use.
+    // Structurally the `instances_of` meta pass; at the default `all` scope the
+    // filter is a no-op, so the meta count is an exact dual of the meta drill-in.
+    if wants(Origin::Meta) {
+        for (site_repo, graph) in kb.graphs.iter() {
+            let name_ok = match repo {
+                Some(r) => site_repo.0 == r,
+                None => true,
+            };
+            let Some(repo_ref) = kb.repos.by_name(site_repo.as_str()) else {
+                continue;
+            };
+            if !(name_ok && scope.includes_repo(kb, repo_ref)) {
+                continue;
+            }
+            let res = kb.resolution_graphs.of(site_repo);
+            for (_name, td) in graph.iter() {
+                let Some(blocks) = &td.meta_blocks else {
+                    continue;
+                };
+                for mb in blocks {
+                    let claim = TypeClaim::Bare(TypeNameClaim {
+                        name: mb.type_name.clone(),
+                        repo: mb.repo.clone(),
+                        span: mb.type_name_span,
+                    });
+                    let (claimed, ancestors) =
+                        crate::resolution_build::instance_closure_tids(graph, res, &claim);
+                    tally(&claimed, &ancestors);
+                }
+            }
         }
     }
 
@@ -1708,6 +1791,7 @@ pub fn introspect_type_named(graph: &TypeGraph, name: &str) -> Option<TypeIntros
         &SourceSite::plain(&def.source_path, None),
         None,
         // Graph-only, no repo resolution graph: `unmet_required_meta` is empty.
+        None,
         None,
     ))
 }
@@ -2301,6 +2385,14 @@ pub struct MemberView {
     /// the cache is `editable: true, local: false` (yours but read-only here). A
     /// consumer scopes physical writes with `editable && local`.
     pub local: bool,
+    /// Which tier of the resolution order located the member: `entry`,
+    /// `sibling`, `registry`, `cache`, or `disabled` for a member the workspace
+    /// switches off. Refines `local`: a live tree is `entry` / `sibling` /
+    /// `registry`, a snapshot is `cache`. The tier that FIRST located the
+    /// member's root, as `au members` reports it. Absent only for a repo no member
+    /// mount produced, which assembly never yields.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tier: Option<&'static str>,
     /// The member's workspace role: `entry`, `edit`, `discover`, or `dep`. The
     /// full signal `editable` derives from (`entry` / `edit` are editable). Lets
     /// a consumer distinguish a `discover` mount from a plain `dep`. For a
@@ -2462,6 +2554,7 @@ pub fn introspect_members(
                 scattered: !r.root.starts_with(workspace_root),
                 editable: role.editable(),
                 local: root_is_local(&r.root, cache_root),
+                tier: mount_tier(kb, &r.root).map(|t| t.as_str()),
                 role: role.as_str().to_string(),
                 // A repo present in `kb.repos` mounted, so it is never disabled: a
                 // disabled member is dropped before discovery and added below.
@@ -2509,6 +2602,7 @@ pub fn introspect_members(
                 scattered: false,
                 editable,
                 local: false,
+                tier: Some("disabled"),
                 role: role.to_string(),
                 disabled: true,
                 git: MemberGitView {
@@ -2520,6 +2614,18 @@ pub fn introspect_members(
     }
     members.sort_by(|a, b| a.repo.cmp(&b.repo));
     MembersView { members }
+}
+
+/// The tier that mounted the member at `root`, by root rather than name: a
+/// repo whose `repo.yaml` failed to load is discovered under its folder name, not
+/// the member name that mounted it.
+fn mount_tier(kb: &KnowledgeBase, root: &Path) -> Option<crate::repo::ResolutionTier> {
+    kb.workspaces.iter().find_map(|w| {
+        w.member_paths
+            .iter()
+            .find(|(_, p)| p.as_path() == root)
+            .and_then(|(name, _)| w.tier_of(name))
+    })
 }
 
 /// Whether a member `root` is a LIVE working tree (not under the read-only package
@@ -2711,9 +2817,9 @@ pub fn config_view(
                 d.message = format!(
                     "config file carries no written `type:`; the declared type `{type_name}` is applied regardless, but the file does not self-describe on disk"
                 );
-                d.fix = Some(au_diagnostics::SuggestedFix {
-                    description: format!("add `type: {type_name}` so the file self-describes"),
-                });
+                d.fix = Some(au_diagnostics::SuggestedFix::advisory(format!(
+                    "add `type: {type_name}` so the file self-describes"
+                )));
             }
         }
     } else {
@@ -3046,7 +3152,12 @@ pub struct ClosureFieldView {
     pub field: FieldIntrospection,
     /// The declaring type-def. A field auto-unified across several origins
     /// reports the lex-min one, the same canonical choice the validator makes.
+    /// A divergent field reports each origin as its own entry.
     pub origin: ClosureIdentity,
+    /// True for one origin's entry of a divergent field, a same name reached
+    /// with non-token-equal shapes. An instance fills each such origin by the
+    /// qualified key `field{origin}`, validated against that origin's shape.
+    pub divergent: bool,
 }
 
 /// One resolved closure: a type identity, its ancestors, and its effective
@@ -3199,15 +3310,17 @@ pub(crate) fn closure_fields(
     let Some(shape) = shape else {
         return Vec::new();
     };
-    // Resolved fields, then divergent fields ([[type-def fields collision - auto-unify and qualified field::au-type-system]]) so the type-level
-    // read does not omit a field the instance read surfaces. A divergent field
-    // reports its canonical (lex-min) origin here; the per-origin shapes are on
-    // the instance-level effective shape.
-    shape
-        .iter()
-        .chain(shape.divergent())
-        .map(|(_, origin)| {
-            let (origin_id, info) = origin.canonical();
+    // Resolved fields, then each divergent field once per origin
+    // ([[type-def fields collision - auto-unify and qualified field::au-type-system]]),
+    // the validator's own view: a divergent field has no single shape, and an
+    // instance fills each origin separately.
+    let resolved = shape.iter().map(|(_, origin)| (origin.canonical(), false));
+    let divergent = shape
+        .divergent()
+        .flat_map(|(_, origin)| origin.origins().map(|o| (o, true)));
+    resolved
+        .chain(divergent)
+        .map(|((origin_id, info), divergent)| {
             // The `OriginId` is `name` or `name::repo`; the repo half names the
             // OWNER for a folded peer, else this member owns it. The closure-id
             // lookup needs the BARE name, which `info.type_name` carries.
@@ -3228,7 +3341,120 @@ pub(crate) fn closure_fields(
                     repo: origin_repo,
                     hash,
                 },
+                divergent,
             }
+        })
+        .collect()
+}
+
+/// A meta type's identity on the wire: an identity several repos can own, so
+/// `type_owners` rather than one `repo`, the `instance_counts` precedent.
+#[derive(Debug, Serialize)]
+pub struct MetaTypeIdentity {
+    pub name: String,
+    /// The closure hash, hex. `""` when the meta type does not resolve (its
+    /// diagnostic fires elsewhere), the block still surfaces.
+    pub hash: String,
+    /// Every mounted repo whose own def of `name` has this hash, sorted. Empty
+    /// when unresolved.
+    pub type_owners: Vec<String>,
+}
+
+/// One meta type's effective blocks on a type-def.
+#[derive(Debug, Serialize)]
+pub struct EffectiveMetaView {
+    /// The meta type's identity, `(name, hash)`. An in-sync own and peer copy
+    /// are one meta type, a diverged pair two.
+    pub meta_type: MetaTypeIdentity,
+    /// The surviving blocks, each with the def that declares it. More than one
+    /// is a `meta-inheritance-conflict`, none is picked.
+    pub blocks: Vec<EffectiveMetaBlockView>,
+}
+
+/// One surviving meta block: the block as written on its declaring def (its
+/// `type_name` authored relative to that def's repo, its `source` in that def's
+/// file), plus `from`, the declaring def's identity.
+#[derive(Debug, Serialize)]
+pub struct EffectiveMetaBlockView {
+    pub from: ClosureIdentity,
+    #[serde(flatten)]
+    pub block: MetaBlockIntrospection,
+}
+
+/// The `(name, repo, hash)` identity of a def read in its owner repo, the hash
+/// empty when the repo or name does not resolve.
+fn def_identity(kb: &KnowledgeBase, key: &au_core::def_closure::DefKey) -> ClosureIdentity {
+    ClosureIdentity {
+        name: key.name.as_str().to_string(),
+        repo: key.repo.clone(),
+        hash: kb
+            .graph_for_repo(&key.repo)
+            .and_then(|g| g.closure_id(&key.name))
+            .map_or_else(String::new, |h| format!("{:016x}", h.0)),
+    }
+}
+
+/// The effective meta of `name` in `member`, over the same owner-relative walk
+/// validation's `meta-inheritance-conflict` uses, so the read and the
+/// diagnostic cannot disagree.
+///
+/// Beside `effective_fields`, which walks the resolution fold: fields are in
+/// the identity hash, so the fold's one node per identity carries the right
+/// fields. Meta is outside the hash, so it walks each def in its own repo.
+fn effective_meta_views(
+    kb: &KnowledgeBase,
+    member: &str,
+    name: &TypeName,
+) -> Vec<EffectiveMetaView> {
+    let resolver = crate::resolution_build::RepoGraphResolver {
+        graphs: &kb.graphs,
+        repos: &kb.repos,
+    };
+    au_core::meta::effective_meta(&resolver, member, name)
+        .into_iter()
+        .map(|entry| EffectiveMetaView {
+            meta_type: MetaTypeIdentity {
+                name: entry.name.as_str().to_string(),
+                hash: entry
+                    .hash
+                    .map_or_else(String::new, |h| format!("{:016x}", h.0)),
+                type_owners: entry
+                    .hash
+                    .map(|h| {
+                        kb.repos
+                            .repos()
+                            .iter()
+                            .filter(|r| kb.graphs.of(&r.name).closure_id(&entry.name) == Some(h))
+                            .map(|r| r.name.as_str().to_string())
+                            .collect::<std::collections::BTreeSet<_>>()
+                            .into_iter()
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            },
+            blocks: entry
+                .blocks
+                .iter()
+                .map(|(from, block)| {
+                    // A block's span is in its DECLARING def's file, which may
+                    // be a peer's. `from` is a def the walk resolved, so it is
+                    // always in its repo's graph; the fallback is unreachable.
+                    let def = kb
+                        .graph_for_repo(&from.repo)
+                        .and_then(|g| g.get(&from.name));
+                    debug_assert!(
+                        def.is_some(),
+                        "effective meta block from an unresolved def {from:?}"
+                    );
+                    let site = def
+                        .map(|def| SourceSite::of_def(kb, def))
+                        .unwrap_or_else(|| SourceSite::plain(Path::new(""), None));
+                    EffectiveMetaBlockView {
+                        from: def_identity(kb, from),
+                        block: introspect_meta_block(block, &site),
+                    }
+                })
+                .collect(),
         })
         .collect()
 }
@@ -3329,6 +3555,7 @@ pub fn introspect_subtypes(kb: &KnowledgeBase, base: &str, scope: TypeScope) -> 
                         &site,
                         Some(&peer_body),
                         kb.resolution_graphs.of(&member.name),
+                        Some((kb, member.name.as_str())),
                     ),
                 });
             }
@@ -3464,6 +3691,7 @@ fn project_types_page<'a>(
                             &site,
                             Some(&peer_body),
                             kb.resolution_graphs.of(&RepoName(repo.to_string())),
+                            Some((kb, repo)),
                         ),
                     }
                 })
@@ -3610,7 +3838,15 @@ pub fn introspect_workspace_types(kb: &KnowledgeBase, scope: TypeScope) -> Vec<W
             let site = SourceSite::of_def(kb, def);
             out.push(WorkspaceTypeView {
                 repo: member.name.as_str().to_string(),
-                def: introspect_type(graph, name, def, &site, Some(&peer_body), resolution),
+                def: introspect_type(
+                    graph,
+                    name,
+                    def,
+                    &site,
+                    Some(&peer_body),
+                    resolution,
+                    Some((kb, member.name.as_str())),
+                ),
             });
         }
     }
@@ -3670,6 +3906,7 @@ pub fn introspect_workspace_type_named(
                     &SourceSite::of_def(kb, def),
                     Some(&peer_body),
                     kb.resolution_graphs.of(&member.name),
+                    Some((kb, member.name.as_str())),
                 ),
             });
         }
@@ -3702,6 +3939,7 @@ pub fn introspect_repo_type_named(
             &SourceSite::of_def(kb, def),
             Some(&peer_body),
             kb.resolution_graphs.of(&RepoName(repo.to_string())),
+            Some((kb, repo)),
         ),
     })
 }
@@ -4294,6 +4532,40 @@ pub struct PreviewBlastView {
     pub diagnostics: Vec<au_diagnostics::Diagnostic>,
 }
 
+/// One referrer a previewed move rewrites: its path and every link it
+/// re-spells. Only a referrer whose bytes change appears, a byte-identical one
+/// (a bare `[[name]]` on a name-keeping move) is absent. The moved file's own
+/// self-links report at its destination.
+#[derive(Debug, Serialize)]
+pub struct PreviewRewriteView {
+    pub path: String,
+    pub links: Vec<PreviewLinkChangeView>,
+}
+
+/// One link a move re-spells, as it reads before and after.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct PreviewLinkChangeView {
+    pub from: String,
+    pub to: String,
+}
+
+/// One surviving file whose references a folder delete strands.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct StrandedView {
+    /// The referrer, absolute.
+    pub path: String,
+    pub links: Vec<StrandedLinkView>,
+}
+
+/// One stranded reference: the link, rendered from the referrer's parse, and the
+/// deleted file it resolved to.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct StrandedLinkView {
+    pub target: String,
+    /// The deleted file, absolute.
+    pub to_file: String,
+}
+
 /// A structural reject: the op refused before any product existed.
 #[derive(Debug, Serialize)]
 pub struct PreviewRejectView {
@@ -4304,7 +4576,8 @@ pub struct PreviewRejectView {
 
 /// The `preview_mutation` result: the target verdict plus the blast radius, or a
 /// structural reject. Serialized untagged, so a reject is `{ reject: {...} }` and
-/// a product is `{ target: {...}, blast_radius: [...] }`.
+/// a product is `{ target: {...}, blast_radius: [...] }`, plus `rewrites` for a
+/// rename.
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub enum PreviewProductView {
@@ -4314,20 +4587,86 @@ pub enum PreviewProductView {
     Product {
         target: PreviewTargetView,
         blast_radius: Vec<PreviewBlastView>,
+        /// A rename's or a folder move's would-change referrers, absent
+        /// otherwise.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        rewrites: Option<Vec<PreviewRewriteView>>,
+        /// A folder delete's stranded references, absent otherwise.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        stranded: Option<Vec<StrandedView>>,
+        /// The paths the write would make outside git, ignored and never
+        /// tracked, so no commit would record them. Absolute and path-sorted,
+        /// the set the committing mutation's result lists. Every op carries it,
+        /// empty when every touched path is git-recorded.
+        untracked_files: Vec<String>,
+        /// A folder op's directories no commit records, absolute and
+        /// path-sorted, the set the committing verb's result lists. Absent for
+        /// a file op.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        untracked_dirs: Option<Vec<String>>,
+        /// Each `ensure_mixins` entry's outcome, the report the committing
+        /// write's response carries, absent when the op carried none.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        ensure_mixins: Option<Vec<MixinOutcome>>,
     },
+}
+
+/// One `ensure_mixins` entry's outcome, reported on a write's success response
+/// and on its `preview_mutation` product, so a LENIENT skip is never silent
+/// ([[spec - ensure-mixin write directive - a governed write ensures a type-claim mixin idempotently, folded into the write's own commit]]).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MixinOutcome {
+    pub mixin: String,
+    /// `applied`, `no_op`, or `skipped`.
+    pub outcome: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+impl MixinOutcome {
+    pub(crate) fn applied(mixin: &str) -> Self {
+        Self {
+            mixin: mixin.to_string(),
+            outcome: "applied",
+            reason: None,
+        }
+    }
+    pub(crate) fn no_op(mixin: &str) -> Self {
+        Self {
+            mixin: mixin.to_string(),
+            outcome: "no_op",
+            reason: None,
+        }
+    }
+    pub(crate) fn skipped(mixin: &str, reason: String) -> Self {
+        Self {
+            mixin: mixin.to_string(),
+            outcome: "skipped",
+            reason: Some(reason),
+        }
+    }
 }
 
 /// Read off a preview's product from the throwaway knowledge base: the target's
 /// resolved identities and diagnostics, plus every OTHER file whose diagnostics
-/// differ from the held knowledge base. Pure over the two knowledge bases, so it
-/// is testable without a daemon.
+/// differ from the held knowledge base. Each `gone` path, with everything under
+/// it, is gone in the preview (a move's source, a moved or deleted folder), so
+/// it is no blast entry. Pure over the two knowledge bases, so it is testable
+/// without a daemon.
+///
+/// A folder target reads as its files: its diagnostics are every file's under
+/// it, and it has no hash and no identities, the committing folder verb's
+/// result shape.
 pub(crate) fn preview_product_view(
     preview: &KnowledgeBase,
     held: &KnowledgeBase,
     target: &Path,
+    gone: &[PathBuf],
 ) -> PreviewProductView {
+    // A file target's own diagnostics, a folder target's every file's: the
+    // served stream is path-ordered, so a prefix covers either.
     let diagnostics: Vec<au_diagnostics::Diagnostic> =
-        preview.diagnostics_for_file(target).cloned().collect();
+        preview.diagnostics_under(target).cloned().collect();
     let hash = preview
         .catalog
         .get(target)
@@ -4340,7 +4679,12 @@ pub(crate) fn preview_product_view(
             identities: preview_target_identities(preview, target),
             diagnostics,
         },
-        blast_radius: preview_blast_radius(preview, held, target),
+        blast_radius: preview_blast_radius(preview, held, target, gone),
+        rewrites: None,
+        stranded: None,
+        untracked_files: Vec::new(),
+        untracked_dirs: None,
+        ensure_mixins: None,
     }
 }
 
@@ -4384,16 +4728,18 @@ fn preview_blast_radius(
     preview: &KnowledgeBase,
     held: &KnowledgeBase,
     target: &Path,
+    gone: &[PathBuf],
 ) -> Vec<PreviewBlastView> {
     use crate::ir::DiagSource;
     // Candidate files: every per-file diagnostic source in either knowledge base,
-    // minus the target. The held side is needed too, so a file that LOST its only
-    // diagnostic still surfaces as changed.
+    // minus the target and the gone paths, each with everything under it. The
+    // held side is needed too, so a file that LOST its only diagnostic still
+    // surfaces as changed.
     let mut paths: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
     for kb in [preview, held] {
         for (src, _) in &kb.diagnostics_by_source {
             if let DiagSource::File(p) | DiagSource::Instance(p) = src {
-                if p != target {
+                if !p.starts_with(target) && !gone.iter().any(|g| p.starts_with(g)) {
                     paths.insert(p.clone());
                 }
             }

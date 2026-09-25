@@ -233,7 +233,7 @@ pub fn build_index(
     index
 }
 
-/// The repo a source belongs to, falling back to the root repo so a key always
+/// The repo a source belongs to, falling back to the entry repo so a key always
 /// has a repo, matching [`crate::build`]'s `repo_of`. The repo a source's
 /// unqualified links resolve within, and the one the fast path keys its delta
 /// by.
@@ -241,7 +241,7 @@ pub fn source_repo(repos: &RepoMap, path: &Path) -> RepoName {
     repos
         .repo_of(path)
         .map(|r| r.name.clone())
-        .or_else(|| repos.root().map(|r| r.name.clone()))
+        .or_else(|| repos.entry().map(|r| r.name.clone()))
         .unwrap_or_else(|| RepoName(String::new()))
 }
 

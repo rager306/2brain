@@ -356,6 +356,10 @@ pub struct Workspace {
     /// `locate_locked_dependencies`, preserving the sibling → registry → cache
     /// order. A member absent here is unmounted.
     pub member_paths: BTreeMap<RepoName, PathBuf>,
+    /// The tier that located each member in `member_paths`, keyed the same, so a
+    /// member absent here is unmounted. The sibling / registry split a path alone
+    /// cannot show. Written only through [`Workspace::mount`], alongside the path.
+    pub member_tiers: BTreeMap<RepoName, ResolutionTier>,
     /// Each member's role, the list it entered scope through. An `edit` member
     /// is editable, a `discover` or a computed transitive dependency is
     /// consumed, see [`MemberRole`].
@@ -379,6 +383,12 @@ pub struct RepoMap {
     /// A `BTreeMap`, not a `HashMap`: the derived `Debug` feeds the knowledge-base-parity
     /// check, so its key order must be deterministic across builds.
     root_index: BTreeMap<PathBuf, Vec<usize>>,
+    /// The canonical root of the served entry, the folder-repo the build was
+    /// given. Recorded at discovery from the entry itself, never inferred from
+    /// path depth: sibling members sit at the entry's own depth, so depth
+    /// cannot tell them apart. `None` only for a map built without an entry (a
+    /// unit-test fixture). See [`RepoMap::entry`].
+    entry: Option<PathBuf>,
 }
 
 impl RepoMap {
@@ -414,24 +424,30 @@ impl RepoMap {
         None
     }
 
+    /// The member rooted exactly at `root`, compared against the canonical roots
+    /// discovery records. The caller canonicalizes a wire-supplied path first
+    /// (see [`canonical_root`]), so any spelling of a member root, a symlinked
+    /// temp dir included, resolves to the one member. The builtin is never a
+    /// match, its root is a sentinel.
+    pub fn by_root(&self, root: &Path) -> Option<&Repo> {
+        self.repos.iter().find(|r| !r.builtin && r.root == root)
+    }
+
     /// A repo by its declared name.
     pub fn by_name(&self, name: &str) -> Option<&Repo> {
         self.repos.iter().find(|r| r.name.as_str() == name)
     }
 
-    /// The workspace-tree root repo, the one rooted at the shallowest path.
+    /// The served entry repo, the folder-repo the workspace was opened on.
     ///
-    /// Present whenever the workspace is a single walked tree, the only shape
-    /// `build` represents today: discovery guarantees a repo at the walked
-    /// root, declared or implicit, so single / mono / nested always have one.
-    /// A scattered multi-repo workspace, members with no common ancestor, has
-    /// no such root; that topology is not yet assembled, and the type-name
-    /// reads that lean on this will carry an explicit repo scope when it lands.
-    pub fn root(&self) -> Option<&Repo> {
-        self.repos
-            .iter()
-            .filter(|r| !r.builtin)
-            .min_by_key(|r| r.root.components().count())
+    /// The default scope of every read or write that names no repo: a
+    /// composition verb with no `root`, the repo-scope config channel, the
+    /// scopeless type-name and value reads. Matched by the entry root recorded
+    /// at discovery, so a sibling member at the entry's own depth never stands
+    /// in for it. `None` only for a map built without an entry.
+    pub fn entry(&self) -> Option<&Repo> {
+        let entry = self.entry.as_ref()?;
+        self.repos.iter().find(|r| !r.builtin && &r.root == entry)
     }
 
     pub fn repos(&self) -> &[Repo] {
@@ -465,12 +481,24 @@ impl RepoMap {
 
     /// Build a `RepoMap` from an explicit member set, indexing each repo's root
     /// for `repo_of`. The one construction seam, so the index is always built.
-    pub(crate) fn from_repos(repos: Vec<Repo>) -> Self {
+    /// `entry` is the served entry's canonical root, see [`RepoMap::entry`].
+    pub(crate) fn from_repos(repos: Vec<Repo>, entry: Option<PathBuf>) -> Self {
         let mut root_index: BTreeMap<PathBuf, Vec<usize>> = BTreeMap::new();
         for (i, r) in repos.iter().enumerate() {
             root_index.entry(r.root.clone()).or_default().push(i);
         }
-        RepoMap { repos, root_index }
+        // A named entry is always a repo root: the entry is mounted outside the
+        // `disabled:` filter and a folder-repo entry is refused unless declared.
+        // A miss would make every repo-less read fall to the empty scope silently.
+        debug_assert!(
+            entry.as_ref().is_none_or(|e| root_index.contains_key(e)),
+            "the entry root {entry:?} names no repo"
+        );
+        RepoMap {
+            repos,
+            root_index,
+            entry,
+        }
     }
 
     /// Resolve each repo's declared deps to local paths via the resolution
@@ -508,8 +536,8 @@ impl RepoMap {
                 let resolved = seen
                     .entry(name.clone())
                     .or_insert_with(|| resolve_repo_name(name, &siblings, registry, |_| None, fs));
-                if let ResolveOutcome::Local(p) | ResolveOutcome::Cache(p) = &resolved.outcome {
-                    paths.insert(name.clone(), p.clone());
+                if let Some(p) = resolved.outcome.root() {
+                    paths.insert(name.clone(), p.to_path_buf());
                 }
                 for note in &resolved.notes {
                     notes.push((repo.name.clone(), note.clone()));
@@ -1501,16 +1529,82 @@ pub struct Resolved {
     pub notes: Vec<ResolveNote>,
 }
 
+/// Which tier of the resolution order located a member, or that none did.
+///
+/// A neutral mechanical fact a consumer explains to the user: a sibling hit and a
+/// registry hit are both a live local tree, yet only the registry one is fixed by
+/// editing the per-user `repos.yaml`. The entry is its own tier, located as the
+/// entry directory, never looked up by name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ResolutionTier {
+    /// The entry repo, the workspace home, located as the entry directory.
+    Entry,
+    /// A co-present sibling, tier 1.
+    Sibling,
+    /// A per-user registry `path:`, tier 2.
+    Registry,
+    /// A read-only package-cache snapshot by locked sha, tier 3.
+    Cache,
+    /// None of the tiers located it.
+    Unmounted,
+}
+
+impl ResolutionTier {
+    /// The wire token, `entry` / `sibling` / `registry` / `cache` / `unmounted`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ResolutionTier::Entry => "entry",
+            ResolutionTier::Sibling => "sibling",
+            ResolutionTier::Registry => "registry",
+            ResolutionTier::Cache => "cache",
+            ResolutionTier::Unmounted => "unmounted",
+        }
+    }
+}
+
 /// The tier a repo name resolved through, or that it did not resolve.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolveOutcome {
-    /// An editable local working tree: a co-present sibling (tier 1) or a
-    /// registry `path:` (tier 2).
-    Local(PathBuf),
+    /// An editable local working tree, and which tier located it: the entry
+    /// directory, a co-present sibling (tier 1), or a registry `path:` (tier 2).
+    Local(PathBuf, LocalTier),
     /// A read-only cache snapshot, by locked sha (tier 3).
     Cache(PathBuf),
     /// None of the tiers resolved: advisory unmounted.
     Unmounted,
+}
+
+impl ResolveOutcome {
+    /// The resolved root, `None` when unmounted.
+    pub fn root(&self) -> Option<&Path> {
+        match self {
+            ResolveOutcome::Local(p, _) | ResolveOutcome::Cache(p) => Some(p),
+            ResolveOutcome::Unmounted => None,
+        }
+    }
+
+    /// The tier this outcome was located through, carried by the outcome itself
+    /// so the two cannot disagree.
+    pub fn tier(&self) -> ResolutionTier {
+        match self {
+            ResolveOutcome::Local(_, LocalTier::Entry) => ResolutionTier::Entry,
+            ResolveOutcome::Local(_, LocalTier::Sibling) => ResolutionTier::Sibling,
+            ResolveOutcome::Local(_, LocalTier::Registry) => ResolutionTier::Registry,
+            ResolveOutcome::Cache(_) => ResolutionTier::Cache,
+            ResolveOutcome::Unmounted => ResolutionTier::Unmounted,
+        }
+    }
+}
+
+/// Which tier located a live local working tree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum LocalTier {
+    /// The entry directory itself, never looked up by name.
+    Entry,
+    /// A co-present sibling, tier 1.
+    Sibling,
+    /// A per-user registry `path:`, tier 2.
+    Registry,
 }
 
 /// An advisory note the resolver raises, mapped to a diagnostic by the caller.
@@ -1572,7 +1666,7 @@ pub fn resolve_repo_name(
                 notes.push(ResolveNote::PathOverridden { name: name.clone() });
             }
             return Resolved {
-                outcome: ResolveOutcome::Local(root),
+                outcome: ResolveOutcome::Local(root, LocalTier::Sibling),
                 notes,
             };
         }
@@ -1612,7 +1706,7 @@ pub fn resolve_repo_name(
                     notes.push(ResolveNote::PathOverridden { name: name.clone() });
                 }
                 return Resolved {
-                    outcome: ResolveOutcome::Local(loc.path.clone()),
+                    outcome: ResolveOutcome::Local(loc.path.clone(), LocalTier::Registry),
                     notes,
                 };
             }
@@ -1680,10 +1774,7 @@ pub struct ResolvedMember {
 impl ResolvedMember {
     /// The resolved root, `None` when unmounted.
     pub fn root(&self) -> Option<&Path> {
-        match &self.outcome {
-            ResolveOutcome::Local(p) | ResolveOutcome::Cache(p) => Some(p),
-            ResolveOutcome::Unmounted => None,
-        }
+        self.outcome.root()
     }
 
     /// Whether the member resolved to a live LOCAL working tree, versus an
@@ -1693,7 +1784,7 @@ impl ResolvedMember {
     /// so a local-tree `dep` / `discover` is watched but still not editable (the
     /// path-override case). See [`MemberRole::editable`].
     pub fn is_local_tree(&self) -> bool {
-        matches!(self.outcome, ResolveOutcome::Local(_))
+        matches!(self.outcome, ResolveOutcome::Local(..))
     }
 }
 
@@ -1773,7 +1864,7 @@ pub fn assemble_members(
         members.insert(
             name.clone(),
             ResolvedMember {
-                outcome: ResolveOutcome::Local(root.to_path_buf()),
+                outcome: ResolveOutcome::Local(root.to_path_buf(), LocalTier::Entry),
                 role: MemberRole::Entry,
                 entry: RepoEntry {
                     name: name.clone(),
@@ -1834,10 +1925,10 @@ pub fn assemble_members(
         for note in resolved.notes {
             notes.push((entry.name.clone(), note));
         }
-        if let ResolveOutcome::Local(root) | ResolveOutcome::Cache(root) = &resolved.outcome {
-            if !roots.contains(root) {
+        if let Some(root) = resolved.outcome.root().map(Path::to_path_buf) {
+            if !roots.contains(&root) {
                 roots.push(root.clone());
-                siblings.insert_root(root, fs);
+                siblings.insert_root(&root, fs);
             }
             // Read this member's own deps and add them to the frontier as `dep`
             // reaches, so the closure grows past the selection into its transitive
@@ -1981,11 +2072,15 @@ pub fn lock_files(
 /// graph and index is keyed by `RepoName`, so the name must be unique across the
 /// final set: a residual collision is diagnosed and disambiguated, never silently
 /// merged.
+///
+/// `entry_root` is the served entry's canonical root, recorded on the map so
+/// [`RepoMap::entry`] names the entry by identity rather than by path depth.
 pub fn discover_repos(
     roots: &[PathBuf],
     registries: &[(PathBuf, Vec<u8>)],
     member_names: &BTreeMap<PathBuf, RepoName>,
     cache_root: Option<&Path>,
+    entry_root: Option<&Path>,
 ) -> (RepoMap, Vec<Diagnostic>) {
     let mut diagnostics = Vec::new();
     let mut repos: Vec<Repo> = Vec::new();
@@ -2100,7 +2195,10 @@ pub fn discover_repos(
     }
 
     repos.sort_by(|a, b| a.root.cmp(&b.root));
-    (RepoMap::from_repos(repos), diagnostics)
+    (
+        RepoMap::from_repos(repos, entry_root.map(Path::to_path_buf)),
+        diagnostics,
+    )
 }
 
 /// A unique `RepoName` for an implicit (undeclared) repo, the backstop that
@@ -2215,11 +2313,9 @@ fn unquoted_colon_hint(text: &str) -> Option<SuggestedFix> {
         let embedded_colon = value.contains(": ") || value.contains(":\t") || value.ends_with(':');
         if embedded_colon {
             let key = lhs.trim_start().trim_start_matches("- ").trim();
-            return Some(SuggestedFix {
-                description: format!(
+            return Some(SuggestedFix::advisory(format!(
                     "an unquoted `:` in a value is not valid YAML; quote it, write `{key}: \"{value}\"`"
-                ),
-            });
+                )));
         }
     }
     None
@@ -2502,14 +2598,22 @@ fn assemble_workspace(
         fs,
     );
 
-    let mut members = Vec::new();
-    let mut member_paths = BTreeMap::new();
-    let mut member_roles = BTreeMap::new();
-    let mut member_notes = assembled.notes;
+    let mut ws = Workspace {
+        manifest_path: anchor.to_path_buf(),
+        name,
+        edit,
+        discover,
+        disabled,
+        members: Vec::new(),
+        member_paths: BTreeMap::new(),
+        member_tiers: BTreeMap::new(),
+        member_roles: BTreeMap::new(),
+        member_notes: assembled.notes,
+    };
     for (member, resolved) in &assembled.members {
         // The carried entry holds the dep's remote / ref (a bare name for a
         // named member), so the resolve verb can fetch a not-yet-present dep.
-        members.push(resolved.entry.clone());
+        ws.members.push(resolved.entry.clone());
         if let Some(root) = resolved.root() {
             // A member resolving to the reserved device root `~/.arsumbris` is
             // EXCLUDED from the mount set: its `.arsumbris/` IS the device area, so
@@ -2518,24 +2622,29 @@ fn assemble_workspace(
             // `member-at-reserved-root`. Equality not subtree, so a cache-mounted
             // member under `~/.arsumbris` is unaffected, see [`is_reserved_root`].
             if is_reserved_root(root) {
-                member_notes.push((member.clone(), ResolveNote::ReservedRoot));
+                ws.member_notes
+                    .push((member.clone(), ResolveNote::ReservedRoot));
             } else {
-                member_paths.insert(member.clone(), root.to_path_buf());
+                ws.mount(member.clone(), root.to_path_buf(), resolved.outcome.tier());
             }
         }
-        member_roles.insert(member.clone(), resolved.role);
+        ws.member_roles.insert(member.clone(), resolved.role);
+    }
+    ws
+}
+
+impl Workspace {
+    /// Mount a member at `root`, located through `tier`. The one way a member
+    /// enters `member_paths`, so every mounted member carries the tier that
+    /// located it.
+    pub(crate) fn mount(&mut self, name: RepoName, root: PathBuf, tier: ResolutionTier) {
+        self.member_tiers.insert(name.clone(), tier);
+        self.member_paths.insert(name, root);
     }
 
-    Workspace {
-        manifest_path: anchor.to_path_buf(),
-        name,
-        edit,
-        discover,
-        disabled,
-        members,
-        member_paths,
-        member_roles,
-        member_notes,
+    /// The tier that located a mounted member, `None` when it is not mounted.
+    pub fn tier_of(&self, name: &RepoName) -> Option<ResolutionTier> {
+        self.member_tiers.get(name).copied()
     }
 }
 
@@ -2726,7 +2835,7 @@ mod tests {
         // assembled walk's `repo_markers` to `registry_files`.
         let (_, markers) = assemble_walk(fs, Path::new("/v"));
         let regs = registry_files(&roots, files, &markers, fs);
-        discover_repos(&roots, &regs, &BTreeMap::new(), None)
+        discover_repos(&roots, &regs, &BTreeMap::new(), None, Some(Path::new("/v")))
     }
 
     #[test]
@@ -2925,7 +3034,10 @@ mod tests {
             no_cache,
             &fs,
         );
-        assert_eq!(r.outcome, ResolveOutcome::Local(PathBuf::from("/kb/lib")));
+        assert_eq!(
+            r.outcome,
+            ResolveOutcome::Local(PathBuf::from("/kb/lib"), LocalTier::Sibling)
+        );
         assert!(r.notes.is_empty());
     }
 
@@ -2943,7 +3055,10 @@ mod tests {
             no_cache,
             &fs,
         );
-        assert_eq!(r.outcome, ResolveOutcome::Local(PathBuf::from("/reg/lib")));
+        assert_eq!(
+            r.outcome,
+            ResolveOutcome::Local(PathBuf::from("/reg/lib"), LocalTier::Registry)
+        );
         assert!(r.notes.is_empty());
     }
 
@@ -3046,7 +3161,10 @@ mod tests {
             no_cache,
             &fs,
         );
-        assert_eq!(r.outcome, ResolveOutcome::Local(PathBuf::from("/reg/lib")));
+        assert_eq!(
+            r.outcome,
+            ResolveOutcome::Local(PathBuf::from("/reg/lib"), LocalTier::Registry)
+        );
         assert!(r.notes.is_empty());
     }
 
@@ -3097,7 +3215,10 @@ mod tests {
             with_cache,
             &fs,
         );
-        assert_eq!(r.outcome, ResolveOutcome::Local(PathBuf::from("/kb/lib")));
+        assert_eq!(
+            r.outcome,
+            ResolveOutcome::Local(PathBuf::from("/kb/lib"), LocalTier::Sibling)
+        );
         assert_eq!(
             r.notes,
             vec![ResolveNote::PathOverridden {
@@ -3173,7 +3294,7 @@ mod tests {
         let base = &out.members[&RepoName("base".into())];
         assert_eq!(
             base.outcome,
-            ResolveOutcome::Local(PathBuf::from("/kb/base"))
+            ResolveOutcome::Local(PathBuf::from("/kb/base"), LocalTier::Sibling)
         );
         assert_eq!(base.role, MemberRole::Edit);
         assert!(base.is_local_tree());
@@ -3181,7 +3302,7 @@ mod tests {
         let leaf = &out.members[&RepoName("leaf".into())];
         assert_eq!(
             leaf.outcome,
-            ResolveOutcome::Local(PathBuf::from("/kb/leaf"))
+            ResolveOutcome::Local(PathBuf::from("/kb/leaf"), LocalTier::Sibling)
         );
         assert_eq!(leaf.role, MemberRole::Dep);
         // A local tree (watched), but role Dep, so consumed not editable: the
@@ -4065,8 +4186,10 @@ mod tests {
                 peer_paths: BTreeMap::new(),
             }
         }
-        let forward = RepoMap::from_repos(vec![repo_at("/v", "alpha"), repo_at("/v", "beta")]);
-        let reversed = RepoMap::from_repos(vec![repo_at("/v", "beta"), repo_at("/v", "alpha")]);
+        let forward =
+            RepoMap::from_repos(vec![repo_at("/v", "alpha"), repo_at("/v", "beta")], None);
+        let reversed =
+            RepoMap::from_repos(vec![repo_at("/v", "beta"), repo_at("/v", "alpha")], None);
         let p = Path::new("/v/note.md");
         assert_eq!(forward.repo_of(p).unwrap().name.as_str(), "beta");
         assert_eq!(reversed.repo_of(p).unwrap().name.as_str(), "beta");

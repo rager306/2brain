@@ -15,7 +15,9 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::Path;
 
-use au_diagnostics::{ByteRange, Diagnostic, DiagnosticCode, Severity, Span};
+use au_diagnostics::{
+    ByteRange, Diagnostic, DiagnosticCode, FixAction, Severity, Span, SuggestedFix,
+};
 use au_grammar::{CompoundRefOp, Primitive, Shape};
 
 use crate::closure::{
@@ -80,6 +82,10 @@ fn check_redundant_abstract_on_sealed(
     diags: &mut Vec<Diagnostic>,
 ) {
     if td.declared_abstract && graph.is_sealed(&td.name) {
+        // Applicable fix: remove the redundant `abstract: true` line. `old_string`
+        // is reconstructed as the whole line (the marker is a bool `true`), no
+        // source read; edit_file's exact + unique match is the safety net, an odd
+        // formatting or a duplicate rejects cleanly to the advisory.
         diags.push(Diagnostic {
             code: codes::REDUNDANT_ABSTRACT_ON_SEALED,
             severity: Severity::Hint,
@@ -89,7 +95,15 @@ fn check_redundant_abstract_on_sealed(
                 td.name.as_str()
             ),
             related: vec![],
-            fix: None,
+            fix: Some(SuggestedFix::with_actions(
+                "remove the redundant `abstract: true`".to_string(),
+                vec![FixAction::edit_file(
+                    td.source_path.to_string_lossy(),
+                    "abstract: true\n",
+                    "",
+                    "Remove redundant 'abstract: true'",
+                )],
+            )),
         });
     }
 }
@@ -129,10 +143,8 @@ fn check_brand_xor_record(td: &TypeDef, diags: &mut Vec<Diagnostic>) {
                 .join(", ")
         ),
         related: vec![],
-        fix: Some(au_diagnostics::SuggestedFix {
-            description: "keep `shape:` for a brand, or the record keys for a record, not both"
-                .to_string(),
-        }),
+        fix: Some(au_diagnostics::SuggestedFix::advisory("keep `shape:` for a brand, or the record keys for a record, not both"
+                .to_string())),
     });
 }
 
@@ -1083,13 +1095,11 @@ fn check_brand_not_referenceable(td: &TypeDef, graph: &TypeGraph, diags: &mut Ve
                         detail,
                     ),
                     related: vec![],
-                    fix: Some(au_diagnostics::SuggestedFix {
-                        description: format!(
-                            "drop the '{}' suffix, write the slot as '{}'",
-                            suffix,
-                            qn.as_str()
-                        ),
-                    }),
+                    fix: Some(au_diagnostics::SuggestedFix::advisory(format!(
+                        "drop the '{}' suffix, write the slot as '{}'",
+                        suffix,
+                        qn.as_str()
+                    ))),
                 });
             }
         }
@@ -1556,9 +1566,11 @@ fn collect_slot_compound_branch_names(shape: &Shape, op: CompoundRefOp) -> Vec<V
 // ----- duplicate meta sub-regions -----
 
 fn check_duplicate_meta(td: &TypeDef, diags: &mut Vec<Diagnostic>) {
-    // Keyed on (type_name, repo): an own meta and a same-named PEER meta
-    // (`display-meta` and `display-meta::other`) are DISTINCT types, so both may
-    // coexist. Only a same-(name, repo) pair is a real duplicate.
+    // Keyed on the WRITTEN form (type_name, repo), the own-graph half of the
+    // singleton rule: this pass has no resolver. Two forms naming one meta
+    // identity (an own `display-meta` beside an in-sync `display-meta::other`)
+    // are the resolver-backed `meta::duplicate_meta_identities`'s, and a
+    // diverged pair are distinct types that coexist.
     let mut first_seen: HashMap<(&TypeName, Option<&str>), &crate::typedef::MetaBlock> =
         HashMap::new();
     // `Option<Vec<MetaBlock>>::iter().flatten()` yields `&MetaBlock`. The
@@ -2518,6 +2530,17 @@ mod tests {
             .collect();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].severity, Severity::Hint);
+        // Applicable fix: remove the redundant `abstract: true` line via edit_file.
+        // old_string is the reconstructed whole line; edit_file's uniqueness is the
+        // safety net (an odd formatting or duplicate rejects cleanly to advisory).
+        let a = &hits[0].fix.as_ref().expect("carries a fix").actions[0];
+        assert_eq!(a.verb, "edit_file");
+        assert_eq!(
+            a.args.get("old_string").map(String::as_str),
+            Some("abstract: true\n")
+        );
+        assert_eq!(a.args.get("new_string").map(String::as_str), Some(""));
+        assert!(a.args.contains_key("path"), "edit_file is self-contained");
     }
 
     #[test]

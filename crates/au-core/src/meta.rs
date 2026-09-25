@@ -1,188 +1,443 @@
-//! Consumer walk over the type-graph's `meta:` blocks ([[type-def meta::au-type-system]]).
+//! Effective meta: which `meta:` blocks a type-def surfaces, per meta type
+//! ([[type-def meta::au-type-system]]).
 //!
-//! `lookup_meta` is the canonical helper: ask "does this host type-def
-//! carry — directly or via ancestor inheritance — a `meta:` sub-region for
-//! this named meta-type?" Returns the matching `MetaBlock` if any.
+//! `meta:` is NOT inherited as data, it is computed at read time over the
+//! owner-relative [`DefClosure`], each def read in the repo that owns it.
+//! - a def DECLARES a meta type `T` when it carries a block of `T`, or `meta: []`.
+//! - a declaration is shadowed by any declaration of `T` on a strict descendant.
+//! - the survivors are the effective meta for `T`, a surviving `meta: []`
+//!   contributing nothing, token-equal blocks unifying to one.
+//! - more than one distinct survivor is a conflict, every one reported, and
+//!   [`meta_conflicts`] emits `meta-inheritance-conflict`.
 //!
-//! Semantics summary (see [[type-def meta::au-type-system]] for the full statement):
-//! - `meta:` is NOT inherited as data — each query walks ancestors at
-//!   read time. The host's own metas are consulted first; missing
-//!   queries fall through to parents.
-//! - `meta: []` on any traversed type-def is a stop signal — walks
-//!   originating at or below that node halt there and return `None`.
-//! - The walk does NOT recurse into the metas of type-defs it
-//!   encounters inside `meta:` ([[type-def meta::au-type-system]]). It targets the host's `type:`
-//!   ancestor chain, not the chains of named meta-type-defs.
-//! - Termination is bounded by the `cycle-in-type-chain` load check —
-//!   the inheritance graph is acyclic at lookup time. A
-//!   defensive `visited` set guards diamond ancestors so each is
-//!   visited at most once (and would short-circuit any pathological
-//!   cycle if one ever slipped past the load check).
+//! Order- and path-independent: neither the `extends:` order nor the path
+//! reaching an ancestor changes the answer. The same whole-block rule as
+//! `location:` ([`crate::location_check::effective_locations`]).
+//!
+//! A meta TYPE is identity, a block is per-def data. A block's `type:` is read
+//! relative to its declaring def's repo (a bare `type: myMeta` on a peer def
+//! names the peer's `myMeta`), then resolved to its `(name, ClosureHash)`
+//! identity in that owner's graph, the same `TypeId` the required-meta check
+//! uses. So an in-sync own `myMeta` and peer `myMeta::peer` are ONE meta type,
+//! and a diverged pair is two.
+//!
+//! The walk targets the host's `extends:` chain, never the chains of the meta
+//! type-defs the blocks name ([[type-def meta::au-type-system]]).
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet};
 
+use au_diagnostics::{Diagnostic, Severity, Span};
+
+use crate::closure_id::ClosureHash;
+use crate::codes;
+use crate::def_closure::{DefClosure, DefKey};
 use crate::graph::TypeGraph;
-use crate::resolution::{ResolutionGraph, TypeId};
-use crate::typedef::{MetaBlock, TypeName};
+use crate::instance::{InlineValue, InstanceField, InstanceValue};
+use crate::resolution::PeerGraphResolver;
+use crate::typedef::{MetaBlock, TypeDef, TypeName};
 
-/// Resolve which `MetaBlock` answers a `meta_type` query at `host`.
+/// A meta type's grouping key: its identity when it resolves, else the one
+/// written form it came from, so two different unresolvable types stay apart.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum MetaKey {
+    Resolved(TypeName, ClosureHash),
+    Unresolved(DefKey),
+}
+
+/// One meta type's effective blocks on a type-def.
+#[derive(Debug)]
+pub struct MetaEntry<'g> {
+    /// The meta type's name.
+    pub name: TypeName,
+    /// Its closure hash, the identity half beside `name`. `None` when the meta
+    /// type does not resolve (diagnosed elsewhere), the block still surfaces.
+    pub hash: Option<ClosureHash>,
+    /// The resolved written forms the surviving blocks name, each `name` read
+    /// in the repo it resolves in. More than one when in-sync copies in several
+    /// repos are named.
+    pub forms: Vec<DefKey>,
+    /// The surviving blocks, each with the def that declares it, key-ordered.
+    /// Never empty. More than one is a conflict.
+    pub blocks: Vec<(DefKey, &'g MetaBlock)>,
+}
+
+impl MetaEntry<'_> {
+    /// True when unrelated parents surface distinct blocks of this meta type:
+    /// the surviving blocks come from two or more defs. Distinct blocks on ONE
+    /// def are a `duplicate-meta-block`, not an inheritance conflict.
+    pub fn is_conflict(&self) -> bool {
+        self.blocks
+            .iter()
+            .map(|(k, _)| k)
+            .collect::<BTreeSet<_>>()
+            .len()
+            > 1
+    }
+}
+
+/// The written form a block's meta type names, relative to its declaring def's
+/// repo.
+fn block_form(block: &MetaBlock, declaring: &DefKey) -> DefKey {
+    DefKey {
+        name: block.type_name.clone(),
+        repo: block.repo.clone().unwrap_or_else(|| declaring.repo.clone()),
+    }
+}
+
+/// The identity a written form resolves to in its owner's graph.
+fn key_of(resolver: &dyn PeerGraphResolver, form: &DefKey) -> MetaKey {
+    match resolver
+        .graph_of(&form.repo)
+        .and_then(|g| g.closure_id(&form.name))
+    {
+        Some(hash) => MetaKey::Resolved(form.name.clone(), hash),
+        None => MetaKey::Unresolved(form.clone()),
+    }
+}
+
+/// True when some def in the closure carries at least one meta block.
+fn carries_meta(td: &TypeDef) -> bool {
+    td.meta_blocks.as_ref().is_some_and(|b| !b.is_empty())
+}
+
+/// The effective meta of `host` read in `own_repo`, one entry per meta type
+/// with at least one surviving block, ordered by meta type.
 ///
-/// Walks host's own metas first; on no-match (or no metas at all) walks
-/// `host.parents` in claim-list order. For mixin parents the first
-/// branch to yield a match wins. A `meta: []` (`Some(vec![])`)
-/// encountered anywhere along the walk halts it and returns `None`.
+/// Empty when `host` does not resolve, or no def in its closure carries a
+/// block (the common case, answered without a shadowing pass).
+pub fn effective_meta<'g>(
+    resolver: &'g dyn PeerGraphResolver,
+    own_repo: &str,
+    host: &TypeName,
+) -> Vec<MetaEntry<'g>> {
+    let closure = DefClosure::walk(
+        resolver,
+        [DefKey {
+            name: host.clone(),
+            repo: own_repo.to_string(),
+        }],
+    );
+    if closure.none(carries_meta) {
+        return Vec::new();
+    }
+    let mut keys: BTreeSet<MetaKey> = BTreeSet::new();
+    for (key, td) in closure.iter() {
+        for block in td.meta_blocks.iter().flatten() {
+            keys.insert(key_of(resolver, &block_form(block, key)));
+        }
+    }
+    keys.into_iter()
+        .filter_map(|mk| {
+            let entry = entry_for(&closure, resolver, &mk);
+            (!entry.blocks.is_empty()).then_some(entry)
+        })
+        .collect()
+}
+
+/// The surviving blocks of one meta type over a closure.
+fn entry_for<'g>(
+    closure: &DefClosure<'g>,
+    resolver: &dyn PeerGraphResolver,
+    mk: &MetaKey,
+) -> MetaEntry<'g> {
+    // Every block of this meta type on the def. One def can name one identity
+    // twice (an own and an in-sync peer form), and each is kept rather than
+    // silently dropping the second.
+    let blocks_of = |key: &DefKey, td: &'g TypeDef| -> Vec<&'g MetaBlock> {
+        td.meta_blocks
+            .iter()
+            .flatten()
+            .filter(|b| key_of(resolver, &block_form(b, key)) == *mk)
+            .collect()
+    };
+    let declares = |key: &DefKey, td: &TypeDef| match &td.meta_blocks {
+        Some(blocks) if blocks.is_empty() => true,
+        Some(blocks) => blocks
+            .iter()
+            .any(|b| key_of(resolver, &block_form(b, key)) == *mk),
+        None => false,
+    };
+    let mut blocks: Vec<(DefKey, &'g MetaBlock)> = Vec::new();
+    let mut forms: BTreeSet<DefKey> = BTreeSet::new();
+    for (key, td) in closure.survivors(declares) {
+        // A surviving `meta: []` declares the type with no block.
+        for block in blocks_of(key, td) {
+            forms.insert(block_form(block, key));
+            if !blocks
+                .iter()
+                .any(|(k, b)| block_eq(resolver, (b, &k.repo), (block, &key.repo)))
+            {
+                blocks.push((key.clone(), block));
+            }
+        }
+    }
+    let (name, hash) = match mk {
+        MetaKey::Resolved(name, hash) => (name.clone(), Some(*hash)),
+        MetaKey::Unresolved(form) => (form.name.clone(), None),
+    };
+    MetaEntry {
+        name,
+        hash,
+        forms: forms.into_iter().collect(),
+        blocks,
+    }
+}
+
+/// The surviving blocks of ONE meta type on `host`, the single-type query.
 ///
-/// `resolution` selects the graph the walk runs over, so surfacing is correct on
-/// both surfaces (the parity `location`'s `effective_locations` already has):
-/// - `Some(rg)`, walk the FOLDED resolution graph, so a `::repo` parent's meta is
-///   inherited through the fold. Parents are resolved to ids at fold time, so a
-///   peer parent is never confused for a local same-named type.
-/// - `None`, walk the local `TypeGraph` only; a `::repo` parent cannot resolve
-///   here, so it is skipped and its branch contributes nothing.
-///
-/// Returns `None` when:
-/// - `host` is not in the graph, OR
-/// - no traversed type-def carries a matching sub-region, OR
-/// - a `meta: []` suppression marker was hit before any match.
-///
-/// Pure read; no diagnostics. `meta_repo` is the `::repo` qualifier of the SOUGHT
-/// meta type, `None` for an own meta; an own `display-meta` and a peer
-/// `display-meta::other` are distinct, so the match keys on (name, repo).
+/// `meta_repo` is the meta type's `::repo` qualifier as written from
+/// `own_repo`, `None` for an own meta type. The query resolves to the meta
+/// type's identity, so it also finds blocks naming an in-sync copy of it in
+/// another repo. Empty when none surfaces; more than one is a conflict, see
+/// [`MetaEntry::is_conflict`].
 pub fn lookup_meta<'g>(
-    graph: &'g TypeGraph,
-    resolution: Option<&'g ResolutionGraph>,
+    resolver: &'g dyn PeerGraphResolver,
+    own_repo: &str,
     host: &TypeName,
     meta_type: &TypeName,
     meta_repo: Option<&str>,
-) -> Option<&'g MetaBlock> {
-    match resolution {
-        // Folded path: resolve the host to its id, then walk parent ids the fold
-        // already crossed `::repo` boundaries for.
-        Some(rg) => {
-            let host_id = rg.resolve_authored(host, None)?;
-            let mut visited: HashSet<TypeId> = HashSet::new();
-            visit_resolved(rg, host_id, meta_type, meta_repo, &mut visited)
-        }
-        // Own-graph path: no fold to resolve a peer, so a `::repo` parent is
-        // skipped rather than mistaken for a local same-named type.
-        None => {
-            let mut visited: HashSet<TypeName> = HashSet::new();
-            visit(graph, host, meta_type, meta_repo, &mut visited)
-        }
+) -> Vec<(DefKey, &'g MetaBlock)> {
+    let wanted = key_of(
+        resolver,
+        &DefKey {
+            name: meta_type.clone(),
+            repo: meta_repo.unwrap_or(own_repo).to_string(),
+        },
+    );
+    effective_meta(resolver, own_repo, host)
+        .into_iter()
+        .find(|e| entry_key(e) == wanted)
+        .map(|e| e.blocks)
+        .unwrap_or_default()
+}
+
+fn entry_key(e: &MetaEntry) -> MetaKey {
+    match e.hash {
+        Some(h) => MetaKey::Resolved(e.name.clone(), h),
+        None => MetaKey::Unresolved(e.forms[0].clone()),
     }
 }
 
-fn visit<'g>(
-    graph: &'g TypeGraph,
-    name: &TypeName,
-    meta_type: &TypeName,
-    meta_repo: Option<&str>,
-    visited: &mut HashSet<TypeName>,
-) -> Option<&'g MetaBlock> {
-    // Diamond / cycle short-circuit. The load-time cycle check makes
-    // the cycle case unreachable in practice, but visited-deduplication
-    // is also a performance guard for mixin diamonds where two parent
-    // branches meet at a shared ancestor — without it we'd traverse
-    // the shared ancestor's subtree twice.
-    if !visited.insert(name.clone()) {
-        return None;
-    }
-
-    let td = graph.get(name)?;
-
-    match &td.meta_blocks {
-        // [[type-def meta::au-type-system]] suppression: stop the walk entirely. Ancestors are not
-        // visited from this branch. Other branches (siblings in a mixin
-        // chain) may still resolve via their own walks — that's by
-        // design; suppression is per-chain, not global.
-        Some(blocks) if blocks.is_empty() => return None,
-        Some(blocks) => {
-            if let Some(b) = blocks
-                .iter()
-                .find(|b| &b.type_name == meta_type && b.repo.as_deref() == meta_repo)
-            {
-                return Some(b);
+/// `meta-inheritance-conflict` for every def in `repo`'s own graph whose
+/// effective meta holds two or more distinct blocks of one meta type.
+///
+/// Anchored at the def, `related` at each surviving block. The meta type and
+/// each source render relative to `repo`, bare when owned there, `name::repo`
+/// otherwise.
+pub fn meta_conflicts(
+    resolver: &dyn PeerGraphResolver,
+    repo: &str,
+    graph: &TypeGraph,
+) -> Vec<Diagnostic> {
+    let authored = |k: &DefKey| {
+        if k.repo == repo {
+            k.name.as_str().to_string()
+        } else {
+            format!("{}::{}", k.name.as_str(), k.repo)
+        }
+    };
+    let mut diags = Vec::new();
+    for (name, td) in graph.iter() {
+        for entry in effective_meta(resolver, repo, name) {
+            if !entry.is_conflict() {
+                continue;
             }
-            // Has metas, but none for `meta_type` — fall through to
-            // ancestors per [[type-def meta::au-type-system]] ("the consumer walks up the type
-            // chain"). The suppression rule applies only to the empty-
-            // list form, not to "has metas, different names."
-        }
-        None => {
-            // No `meta:` key at all. Per [[type-def meta::au-type-system]]: "Absence of `meta:`
-            // entirely means 'this type-def contributes nothing of its
-            // own; the walk continues to ancestors as usual.'"
+            // An in-sync meta type may be named by several forms; prefer the
+            // one this repo would write bare.
+            let form = entry
+                .forms
+                .iter()
+                .find(|f| f.repo == repo)
+                .unwrap_or(&entry.forms[0]);
+            let meta = authored(form);
+            let sources: Vec<String> = entry.blocks.iter().map(|(k, _)| authored(k)).collect();
+            let related: Vec<Span> = entry
+                .blocks
+                .iter()
+                .filter_map(|(k, b)| {
+                    resolver
+                        .graph_of(&k.repo)
+                        .and_then(|g| g.get(&k.name))
+                        .map(|def| Span::new(def.source_path.clone(), b.block_span))
+                })
+                .collect();
+            diags.push(Diagnostic {
+                code: codes::META_INHERITANCE_CONFLICT,
+                severity: Severity::Warning,
+                span: Span::new(td.source_path.clone(), td.source_span),
+                message: format!(
+                    "type-def '{}' inherits {} different '{}' blocks from unrelated parents ({}); declare its own '{}' block to choose",
+                    td.name.as_str(),
+                    entry.blocks.len(),
+                    meta,
+                    sources.join(", "),
+                    meta
+                ),
+                related,
+                fix: None,
+            });
         }
     }
-
-    // Walk parents in claim-list order. For mixin (`type: [a, b]`),
-    // `a`'s chain is explored fully before `b`'s — per-claim
-    // discipline. Order matters for diagnostics' determinism even
-    // though both branches are mathematically equivalent paths.
-    //
-    // Walks do NOT recurse into the metas of the named meta-type-def
-    // the host points at ([[type-def meta::au-type-system]]). We only traverse `td.parents` — the
-    // host's `type:` chain — not the meta-type-defs encountered along
-    // the way.
-    for parent in &td.parents {
-        // A `::repo` parent is a peer type the own graph cannot resolve; without
-        // the fold (the `Some(rg)` path) its branch contributes nothing. Skipping
-        // avoids re-entering a local same-named type and surfacing its meta.
-        if parent.is_qualified() {
-            continue;
-        }
-        if let Some(found) = visit(graph, &parent.name, meta_type, meta_repo, visited) {
-            return Some(found);
-        }
-    }
-
-    None
+    diags
 }
 
-/// Folded-graph sibling of [`visit`], over `TypeId` ids. Parents are resolved
-/// cross-repo at fold time, so a peer parent's `meta:` is inherited without the
-/// peer's graph and a `::repo` parent is never mistaken for a local same-named
-/// type. Own-first, `meta: []` suppression, first-match in claim order, and the
-/// no-recurse-into-encountered-metas rule all mirror [`visit`].
-fn visit_resolved<'g>(
-    rg: &'g ResolutionGraph,
-    id: &TypeId,
-    meta_type: &TypeName,
-    meta_repo: Option<&str>,
-    visited: &mut HashSet<TypeId>,
-) -> Option<&'g MetaBlock> {
-    if !visited.insert(id.clone()) {
-        return None;
-    }
-    let node = rg.get(id)?;
-    match &node.meta_blocks {
-        Some(blocks) if blocks.is_empty() => return None,
-        Some(blocks) => {
-            if let Some(b) = blocks
-                .iter()
-                .find(|b| &b.type_name == meta_type && b.repo.as_deref() == meta_repo)
-            {
-                return Some(b);
+/// `duplicate-meta-block` for a def carrying two blocks that name ONE meta
+/// identity through DIFFERENT written forms, an own `myMeta` beside an in-sync
+/// `myMeta::peer`, or a bare and a self-qualified form.
+///
+/// The singleton rule is per meta type ([[type-def meta::au-type-system]]), and a
+/// meta type is its identity. A same-form pair is the own-graph structure
+/// pass's (`load_checks`), which needs no resolver, so it is skipped here and
+/// never double-fires. An unresolvable form has no identity to share.
+pub fn duplicate_meta_identities(
+    resolver: &dyn PeerGraphResolver,
+    repo: &str,
+    graph: &TypeGraph,
+) -> Vec<Diagnostic> {
+    let authored = |f: &DefKey| {
+        if f.repo == repo {
+            f.name.as_str().to_string()
+        } else {
+            format!("{}::{}", f.name.as_str(), f.repo)
+        }
+    };
+    let mut diags = Vec::new();
+    for (_, td) in graph.iter() {
+        let host = DefKey {
+            name: td.name.clone(),
+            repo: repo.to_string(),
+        };
+        // Keyed by identity; the WRITTEN form (name, qualifier as authored) is
+        // what the own-graph pass keys on, so an equal written form is its case.
+        type Written<'a> = (&'a TypeName, Option<&'a str>);
+        let mut first: BTreeMap<MetaKey, (Written, DefKey, &MetaBlock)> = BTreeMap::new();
+        for block in td.meta_blocks.iter().flatten() {
+            let written: Written = (&block.type_name, block.repo.as_deref());
+            let form = block_form(block, &host);
+            let key = key_of(resolver, &form);
+            if matches!(key, MetaKey::Unresolved(_)) {
+                continue;
+            }
+            match first.get(&key) {
+                Some((prev_written, prev_form, prev)) if *prev_written != written => {
+                    diags.push(Diagnostic {
+                        code: codes::DUPLICATE_META_BLOCK,
+                        severity: Severity::Error,
+                        span: Span::new(td.source_path.clone(), block.block_span),
+                        message: format!(
+                            "duplicate `meta:` sub-region for '{}' on type-def '{}': '{}' names the same meta type",
+                            written_form(block),
+                            td.name.as_str(),
+                            authored(prev_form)
+                        ),
+                        related: vec![Span::new(td.source_path.clone(), prev.block_span)],
+                        fix: None,
+                    });
+                }
+                Some(_) => {}
+                None => {
+                    first.insert(key, (written, form, block));
+                }
             }
         }
-        None => {}
     }
-    for parent in &node.parents {
-        if let Some(found) = visit_resolved(rg, parent, meta_type, meta_repo, visited) {
-            return Some(found);
+    diags
+}
+
+/// A block's meta type as authored, `name` or `name::repo`.
+fn written_form(block: &MetaBlock) -> String {
+    match &block.repo {
+        Some(r) => format!("{}::{}", block.type_name.as_str(), r),
+        None => block.type_name.as_str().to_string(),
+    }
+}
+
+/// Token-equal blocks of one meta type: structurally equal fields, spans and
+/// docstrings aside, each block read relative to its declaring repo. The
+/// written `type:` is not compared, the caller already grouped by identity. A
+/// record's `^:` id is not part of its value
+/// ([[type value container::au-type-system]]), so it is ignored too.
+fn block_eq(
+    resolver: &dyn PeerGraphResolver,
+    (a, a_repo): (&MetaBlock, &str),
+    (b, b_repo): (&MetaBlock, &str),
+) -> bool {
+    fields_eq(resolver, (&a.fields, a_repo), (&b.fields, b_repo))
+}
+
+fn fields_eq(
+    resolver: &dyn PeerGraphResolver,
+    (a, a_repo): (&[InstanceField], &str),
+    (b, b_repo): (&[InstanceField], &str),
+) -> bool {
+    let keyed = |fs: &[InstanceField]| -> BTreeMap<String, InstanceValue> {
+        fs.iter()
+            .map(|f| (f.key.clone(), f.value.clone()))
+            .collect()
+    };
+    let (ka, kb) = (keyed(a), keyed(b));
+    ka.len() == kb.len()
+        && ka.iter().all(|(k, va)| {
+            kb.get(k)
+                .is_some_and(|vb| value_eq(resolver, (va, a_repo), (vb, b_repo)))
+        })
+}
+
+fn value_eq(
+    resolver: &dyn PeerGraphResolver,
+    (a, a_repo): (&InstanceValue, &str),
+    (b, b_repo): (&InstanceValue, &str),
+) -> bool {
+    use InstanceValue as V;
+    match (a, b) {
+        (V::Sequence(x), V::Sequence(y)) => {
+            x.len() == y.len()
+                && x.iter()
+                    .zip(y)
+                    .all(|(p, q)| value_eq(resolver, (&p.value, a_repo), (&q.value, b_repo)))
         }
+        (V::Mapping(x), V::Mapping(y)) => {
+            claim_keys(resolver, x, a_repo) == claim_keys(resolver, y, b_repo)
+                && fields_eq(resolver, (&x.fields, a_repo), (&y.fields, b_repo))
+        }
+        // An unmodelled value has no known equality: never equal, so a
+        // conflict is reported rather than hidden.
+        (V::NotYetSupported, _) | (_, V::NotYetSupported) => false,
+        (V::Sequence(_), _) | (V::Mapping(_), _) => false,
+        _ => a == b,
     }
-    None
+}
+
+/// A nested record's claim as resolved identities, each name read relative to
+/// the repo of the block that wrote it, so a peer's bare `foo` and an
+/// importer's `foo::peer` compare equal.
+fn claim_keys(
+    resolver: &dyn PeerGraphResolver,
+    record: &InlineValue,
+    repo: &str,
+) -> Option<Vec<MetaKey>> {
+    record.type_claim.as_ref().map(|c| {
+        c.iter()
+            .map(|n| {
+                key_of(
+                    resolver,
+                    &DefKey {
+                        name: n.name.clone(),
+                        repo: n.repo.clone().unwrap_or_else(|| repo.to_string()),
+                    },
+                )
+            })
+            .collect()
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::def_closure::SingleGraph;
     use crate::graph::build_graph;
-    use crate::typedef::{
-        FieldDecl, FieldName, MetaBlock, ParentClaim, ParentClaimForm, TypeDef, TypeName,
-        TypeNameClaim,
-    };
+    use crate::resolution::PeerGraphResolver;
+    use crate::typedef::{FieldDecl, FieldName, ParentClaim, ParentClaimForm, TypeNameClaim};
     use au_diagnostics::ByteRange;
     use std::path::PathBuf;
 
@@ -274,6 +529,22 @@ mod tests {
         }
     }
 
+    fn field(key: &str, value: &str) -> crate::instance::InstanceField {
+        crate::instance::InstanceField {
+            key: key.into(),
+            key_span: ByteRange::new(0, 0),
+            value: crate::instance::InstanceValue::String(value.into()),
+            value_span: ByteRange::new(0, 0),
+            nav_links: vec![],
+        }
+    }
+
+    fn meta_block_with(type_name: &str, tldr: &str) -> MetaBlock {
+        let mut b = meta_block(type_name);
+        b.fields = vec![field("tldr", tldr)];
+        b
+    }
+
     fn tn(s: &str) -> TypeName {
         TypeName(s.into())
     }
@@ -287,9 +558,10 @@ mod tests {
             with_meta(td("decision", &[]), vec![meta_block("display-meta")]),
         ])
         .graph;
-        let found = lookup_meta(&g, None, &tn("decision"), &tn("display-meta"), None);
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().type_name.as_str(), "display-meta");
+        let r = SingleGraph(&g);
+        let found = lookup_meta(&r, "v", &tn("decision"), &tn("display-meta"), None);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].1.type_name.as_str(), "display-meta");
     }
 
     fn peer_meta_block(type_name: &str, repo: &str) -> MetaBlock {
@@ -305,28 +577,86 @@ mod tests {
         }
     }
 
+    struct TwoRepos(BTreeMap<&'static str, crate::graph::TypeGraph>);
+    impl PeerGraphResolver for TwoRepos {
+        fn graph_of(&self, repo: &str) -> Option<&crate::graph::TypeGraph> {
+            self.0.get(repo)
+        }
+    }
+
+    /// A host in `v` carrying an own `display-meta` block and a
+    /// `display-meta::other` block with a different value; `other` defines its
+    /// own `display-meta`, identical to `v`'s or not.
+    fn own_and_peer(peer_meta: TypeDef) -> TwoRepos {
+        let mut own = meta_block_with("display-meta", "own");
+        own.block_span = ByteRange::new(1, 2);
+        let mut peer = peer_meta_block("display-meta", "other");
+        peer.fields = vec![field("tldr", "peer")];
+        peer.block_span = ByteRange::new(3, 4);
+        TwoRepos(BTreeMap::from([
+            (
+                "v",
+                build_graph(vec![
+                    meta_typedef("display-meta"),
+                    with_meta(td("host", &[]), vec![own, peer]),
+                ])
+                .graph,
+            ),
+            ("other", build_graph(vec![peer_meta]).graph),
+        ]))
+    }
+
     #[test]
-    fn lookup_distinguishes_own_from_a_same_named_peer_meta() {
-        // A host with both `display-meta` (own) and `display-meta::other` (peer),
-        // distinct types. lookup_meta disambiguates by repo (finding 3.4b).
+    fn a_diverged_same_named_peer_meta_is_a_distinct_type() {
+        let mut diverged = meta_typedef("display-meta");
+        diverged.fields[0].raw_shape = "Number".into();
+        diverged.fields[0].parsed_shape =
+            Ok(au_grammar::Shape::Primitive(au_grammar::Primitive::Number));
+        let r = own_and_peer(diverged);
+        let own = lookup_meta(&r, "v", &tn("host"), &tn("display-meta"), None);
+        let peer = lookup_meta(&r, "v", &tn("host"), &tn("display-meta"), Some("other"));
+        assert_eq!((own.len(), own[0].1.block_span.start), (1, 1));
+        assert_eq!((peer.len(), peer[0].1.block_span.start), (1, 3));
+        assert_eq!(effective_meta(&r, "v", &tn("host")).len(), 2);
+    }
+
+    #[test]
+    fn an_in_sync_same_named_peer_meta_is_one_type() {
+        // Identical `display-meta` in both repos: one identity, so the own and
+        // the `::other` block are two blocks of ONE meta type on one def, both
+        // kept (a `duplicate-meta-block`, not an inheritance conflict), and
+        // both queries answer the same.
+        let r = own_and_peer(meta_typedef("display-meta"));
+        let entries = effective_meta(&r, "v", &tn("host"));
+        assert_eq!(entries.len(), 1, "{entries:?}");
+        assert_eq!(entries[0].forms.len(), 2, "named from both repos");
+        let own = lookup_meta(&r, "v", &tn("host"), &tn("display-meta"), None);
+        let peer = lookup_meta(&r, "v", &tn("host"), &tn("display-meta"), Some("other"));
+        assert_eq!(own.len(), 2);
+        assert_eq!(own.len(), peer.len());
+        assert!(
+            !entries[0].is_conflict(),
+            "one def's two blocks are a duplicate"
+        );
+    }
+
+    #[test]
+    fn an_unsupported_value_never_unifies() {
+        let mut a = meta_block("display-meta");
+        a.fields = vec![field("tldr", "x")];
+        a.fields[0].value = crate::instance::InstanceValue::NotYetSupported;
+        let b = a.clone();
         let g = build_graph(vec![
             meta_typedef("display-meta"),
-            with_meta(
-                td("host", &[]),
-                vec![
-                    meta_block("display-meta"),
-                    peer_meta_block("display-meta", "other"),
-                ],
-            ),
+            with_meta(td("a", &[]), vec![a]),
+            with_meta(td("b", &[]), vec![b]),
+            td("host", &["a", "b"]),
         ])
         .graph;
-        let own = lookup_meta(&g, None, &tn("host"), &tn("display-meta"), None).unwrap();
-        assert!(own.repo.is_none(), "bare lookup returns the own meta");
-        let peer = lookup_meta(&g, None, &tn("host"), &tn("display-meta"), Some("other")).unwrap();
+        let r = SingleGraph(&g);
         assert_eq!(
-            peer.repo.as_deref(),
-            Some("other"),
-            "qualified lookup returns the peer meta"
+            lookup_meta(&r, "v", &tn("host"), &tn("display-meta"), None).len(),
+            2
         );
     }
 
@@ -340,8 +670,9 @@ mod tests {
             td("decision", &["note"]),
         ])
         .graph;
-        let found = lookup_meta(&g, None, &tn("decision"), &tn("display-meta"), None);
-        assert!(found.is_some());
+        let r = SingleGraph(&g);
+        let found = lookup_meta(&r, "v", &tn("decision"), &tn("display-meta"), None);
+        assert_eq!(found.len(), 1);
     }
 
     #[test]
@@ -354,7 +685,8 @@ mod tests {
             td("decision", &["note"]),
         ])
         .graph;
-        assert!(lookup_meta(&g, None, &tn("decision"), &tn("display-meta"), None).is_none());
+        let r = SingleGraph(&g);
+        assert!(lookup_meta(&r, "v", &tn("decision"), &tn("display-meta"), None).is_empty());
     }
 
     #[test]
@@ -367,7 +699,8 @@ mod tests {
             with_suppressed_meta(td("decision", &["note"])),
         ])
         .graph;
-        assert!(lookup_meta(&g, None, &tn("decision"), &tn("display-meta"), None).is_none());
+        let r = SingleGraph(&g);
+        assert!(lookup_meta(&r, "v", &tn("decision"), &tn("display-meta"), None).is_empty());
     }
 
     #[test]
@@ -383,12 +716,13 @@ mod tests {
             with_meta(td("decision", &["note"]), vec![meta_block("runtime-meta")]),
         ])
         .graph;
-        let host_owned = lookup_meta(&g, None, &tn("decision"), &tn("runtime-meta"), None);
-        let inherited = lookup_meta(&g, None, &tn("decision"), &tn("display-meta"), None);
-        assert!(host_owned.is_some());
-        assert_eq!(host_owned.unwrap().type_name.as_str(), "runtime-meta");
-        assert!(inherited.is_some());
-        assert_eq!(inherited.unwrap().type_name.as_str(), "display-meta");
+        let r = SingleGraph(&g);
+        let host_owned = lookup_meta(&r, "v", &tn("decision"), &tn("runtime-meta"), None);
+        let inherited = lookup_meta(&r, "v", &tn("decision"), &tn("display-meta"), None);
+        assert_eq!(host_owned.len(), 1);
+        assert_eq!(host_owned[0].1.type_name.as_str(), "runtime-meta");
+        assert_eq!(inherited.len(), 1);
+        assert_eq!(inherited[0].1.type_name.as_str(), "display-meta");
     }
 
     #[test]
@@ -408,39 +742,102 @@ mod tests {
             with_meta(td("committed", &["decision"]), vec![display_for_committed]),
         ])
         .graph;
+        let r = SingleGraph(&g);
         let display_at_committed =
-            lookup_meta(&g, None, &tn("committed"), &tn("display-meta"), None);
-        assert!(display_at_committed.is_some());
+            lookup_meta(&r, "v", &tn("committed"), &tn("display-meta"), None);
+        assert_eq!(display_at_committed.len(), 1);
         // Verify we got committed's block specifically — span is 100..200,
         // not 0..0 like note's.
-        assert_eq!(display_at_committed.unwrap().block_span.start, 100);
+        assert_eq!(display_at_committed[0].1.block_span.start, 100);
 
         let runtime_at_committed =
-            lookup_meta(&g, None, &tn("committed"), &tn("runtime-meta"), None);
-        assert!(runtime_at_committed.is_none());
+            lookup_meta(&r, "v", &tn("committed"), &tn("runtime-meta"), None);
+        assert!(runtime_at_committed.is_empty());
     }
 
     #[test]
-    fn mixin_parents_walk_in_claim_list_order() {
-        // Host has `type: [a, b]`; a declares display-meta with span
-        // 10..20, b declares display-meta with span 30..40. Per the
-        // claim-list-order convention, a's block wins.
+    fn unrelated_parents_with_distinct_blocks_are_a_conflict_in_either_order() {
+        // host extends [a, b], each declaring a different display-meta block.
+        // Neither shadows the other, so BOTH surface, whatever the listing order.
         let mut a_block = meta_block("display-meta");
         a_block.block_span = ByteRange::new(10, 20);
+        a_block.fields = vec![field("tldr", "a")];
         let mut b_block = meta_block("display-meta");
         b_block.block_span = ByteRange::new(30, 40);
+        b_block.fields = vec![field("tldr", "b")];
+        for parents in [["a", "b"], ["b", "a"]] {
+            let g = build_graph(vec![
+                meta_typedef("display-meta"),
+                with_meta(td("a", &[]), vec![a_block.clone()]),
+                with_meta(td("b", &[]), vec![b_block.clone()]),
+                td("host", &parents),
+            ])
+            .graph;
+            let r = SingleGraph(&g);
+            let found = lookup_meta(&r, "v", &tn("host"), &tn("display-meta"), None);
+            let starts: Vec<usize> = found.iter().map(|(_, b)| b.block_span.start).collect();
+            assert_eq!(starts, vec![10, 30], "parents {parents:?}");
+            let diags = meta_conflicts(&r, "v", &g);
+            assert_eq!(diags.len(), 1, "{diags:?}");
+            assert_eq!(diags[0].code, codes::META_INHERITANCE_CONFLICT);
+            assert_eq!(diags[0].related.len(), 2);
+            assert!(diags[0].message.contains("(a, b)"), "{}", diags[0].message);
+        }
+    }
 
+    #[test]
+    fn token_equal_blocks_from_unrelated_parents_unify() {
         let g = build_graph(vec![
             meta_typedef("display-meta"),
-            with_meta(td("a", &[]), vec![a_block]),
-            with_meta(td("b", &[]), vec![b_block]),
+            with_meta(td("a", &[]), vec![meta_block_with("display-meta", "same")]),
+            with_meta(td("b", &[]), vec![meta_block_with("display-meta", "same")]),
             td("host", &["a", "b"]),
         ])
         .graph;
-        let found = lookup_meta(&g, None, &tn("host"), &tn("display-meta"), None);
-        assert!(found.is_some());
-        // First parent claim's chain wins — `a`'s span, not `b`'s.
-        assert_eq!(found.unwrap().block_span.start, 10);
+        let r = SingleGraph(&g);
+        assert_eq!(
+            lookup_meta(&r, "v", &tn("host"), &tn("display-meta"), None).len(),
+            1
+        );
+        assert!(meta_conflicts(&r, "v", &g).is_empty());
+    }
+
+    #[test]
+    fn a_break_shadows_its_ancestor_on_every_path() {
+        // host extends [broken, other]; both extend note, which declares
+        // display-meta; broken declares `meta: []`. broken is note's strict
+        // descendant, so note's block is shadowed even though other reaches it.
+        let g = build_graph(vec![
+            meta_typedef("display-meta"),
+            with_meta(td("note", &[]), vec![meta_block("display-meta")]),
+            with_suppressed_meta(td("broken", &["note"])),
+            td("other", &["note"]),
+            td("host", &["broken", "other"]),
+        ])
+        .graph;
+        let r = SingleGraph(&g);
+        assert!(lookup_meta(&r, "v", &tn("host"), &tn("display-meta"), None).is_empty());
+        assert!(effective_meta(&r, "v", &tn("host")).is_empty());
+    }
+
+    #[test]
+    fn a_nearer_block_on_a_sibling_branch_does_not_beat_a_deeper_one() {
+        // host extends [a, b]; a -> x declares, b declares. Unrelated, so both,
+        // depth and listing order irrelevant.
+        let g = build_graph(vec![
+            meta_typedef("display-meta"),
+            with_meta(td("x", &[]), vec![meta_block_with("display-meta", "x")]),
+            td("a", &["x"]),
+            with_meta(td("b", &[]), vec![meta_block_with("display-meta", "b")]),
+            td("host", &["a", "b"]),
+        ])
+        .graph;
+        let r = SingleGraph(&g);
+        let from: Vec<String> = lookup_meta(&r, "v", &tn("host"), &tn("display-meta"), None)
+            .into_iter()
+            .map(|(k, _)| k.name.as_str().to_string())
+            .collect();
+        assert_eq!(from, vec!["b", "x"]);
     }
 
     #[test]
@@ -464,9 +861,10 @@ mod tests {
             with_meta(td("decision", &[]), vec![meta_block("display-meta")]),
         ])
         .graph;
-        assert!(lookup_meta(&g, None, &tn("decision"), &tn("runtime-meta"), None).is_none());
+        let r = SingleGraph(&g);
+        assert!(lookup_meta(&r, "v", &tn("decision"), &tn("runtime-meta"), None).is_empty());
         // And display-meta should still resolve.
-        assert!(lookup_meta(&g, None, &tn("decision"), &tn("display-meta"), None).is_some());
+        assert!(!lookup_meta(&r, "v", &tn("decision"), &tn("display-meta"), None).is_empty());
     }
 
     #[test]
@@ -474,6 +872,7 @@ mod tests {
         // Defensive: looking up a host that isn't in the graph returns
         // None. Callers can pass any TypeName without pre-checking.
         let g = build_graph(vec![meta_typedef("display-meta")]).graph;
-        assert!(lookup_meta(&g, None, &tn("nonexistent"), &tn("display-meta"), None).is_none());
+        let r = SingleGraph(&g);
+        assert!(lookup_meta(&r, "v", &tn("nonexistent"), &tn("display-meta"), None).is_empty());
     }
 }

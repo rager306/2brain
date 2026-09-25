@@ -32,6 +32,17 @@ enum TopCommand {
         /// else the folder's basename).
         name: String,
     },
+    /// Resolve the entry's declared members without a daemon: each member's role,
+    /// the tier that located it (entry / sibling / registry / cache / unmounted /
+    /// disabled), its path, and why an unmounted one did not mount. Reads only.
+    Members {
+        /// The entry: a folder-repo directory. Defaults to the current directory.
+        #[arg(default_value = ".")]
+        entry: PathBuf,
+        /// Print the JSON contract instead of a table.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// Per-workspace daemon lifecycle. The daemon serves the engine's reads and
@@ -77,6 +88,7 @@ fn main() -> ExitCode {
             DaemonCommand::Status { entry } => au_cli::daemon::status(&entry),
         },
         TopCommand::Open { name } => au_cli::daemon::open(&name),
+        TopCommand::Members { entry, json } => au_cli::members::members(&entry, json),
     }
 }
 

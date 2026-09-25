@@ -1,0 +1,5 @@
+fields:
+  title: String
+meta:
+  - type: display-meta
+    icon: gear

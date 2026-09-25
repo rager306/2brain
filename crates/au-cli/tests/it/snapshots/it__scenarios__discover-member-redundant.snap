@@ -7,6 +7,15 @@ expression: rendered
     {
       "code": "discover-member-is-a-dependency",
       "fix": {
+        "actions": [
+          {
+            "args": {
+              "name": "shared"
+            },
+            "title": "Remove redundant 'shared' from discover",
+            "verb": "remove_workspace_member"
+          }
+        ],
         "description": "drop 'shared' from 'discover'; its dep already mounts and pins it"
       },
       "message": "workspace member 'shared' is listed in 'discover' but is also a declared dependency; the 'discover' listing is redundant",

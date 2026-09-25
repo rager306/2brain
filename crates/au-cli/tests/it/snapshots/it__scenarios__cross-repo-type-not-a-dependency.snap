@@ -6,6 +6,18 @@ expression: rendered
   "diagnostics": [
     {
       "code": "type-repo-not-a-dependency",
+      "fix": {
+        "actions": [
+          {
+            "args": {
+              "name": "base"
+            },
+            "title": "Add 'base' to deps",
+            "verb": "add_dep"
+          }
+        ],
+        "description": "add 'base' to this repo's deps"
+      },
       "message": "type 'note::base' names repo 'base', a workspace member but not a declared dependency of this repo; add 'base' to this repo's deps to cross its types",
       "severity": "error",
       "span": {

@@ -35,7 +35,7 @@ use crate::mutate::MutationReject;
 /// A pinned reference never reaches here through a refactor: [`ref_edits`]
 /// freezes it upstream. The `@commit` arm stays because this is the general
 /// serializer, and a future caller constructing a pin needs it to round-trip.
-fn serialize_wikilink(w: &WikilinkRef) -> String {
+pub(crate) fn serialize_wikilink(w: &WikilinkRef) -> String {
     let mut s = String::from("[[");
     s.push_str(&w.target);
     if w.repo.is_some() || w.commit.is_some() {
@@ -101,7 +101,12 @@ fn rewritten_target(original: &str, old_rel: &Path, new_rel: &Path) -> String {
 
     // Most specific first: full relpath, then dir-stem, then basename, then the
     // type-name (a def file's `.type`-stripped name), then the bare stem.
-    if orig == ci(&old_rel.to_string_lossy()) {
+    //
+    // The resolver decides a link's mode by its text alone, a `/`-bearing target
+    // is a path, anything else a name ([[reference name resolution::au-type-system]]).
+    // So the relpath mode needs the `/`: a top-level file's relpath equals its
+    // basename, and `[[a.md]]` there is a basename link, re-rendered as a basename.
+    if orig.contains('/') && orig == ci(&old_rel.to_string_lossy()) {
         new_relpath
     } else if dir_stem(old_rel).is_some_and(|d| orig == ci(&d)) {
         dir_stem(new_rel).unwrap_or(new_stem)
@@ -260,21 +265,8 @@ pub(crate) fn apply_edits(
     Ok(out)
 }
 
-/// Rewrite every reference at `spans` to point at the file's new path, preserving
-/// each referrer's spelling mode and every fragment — the rename case of
-/// [`rewrite_refs`]. `old_rel` and `new_rel` are the file's repo-relative paths
-/// before and after the move.
-pub(crate) fn rewrite_links(
-    content: &str,
-    spans: &[ByteRange],
-    old_rel: &Path,
-    new_rel: &Path,
-) -> Result<String, MutationReject> {
-    apply_edits(content, link_edits(content, spans, old_rel, new_rel)?)
-}
-
 /// The (span, replacement) edits a file move's reference rewrite produces, the
-/// mergeable form of [`rewrite_links`]. A caller can union these with other
+/// mergeable form of a file move's rewrite. A caller can union these with other
 /// edits on the same file — e.g. `rename_type`'s type-name-claim edits — and
 /// apply the whole set in one [`apply_edits`] pass.
 pub(crate) fn link_edits(
@@ -290,14 +282,260 @@ pub(crate) fn link_edits(
     })
 }
 
+/// One moved file as a referrer sees it: the spans of the referrer's references
+/// to it, and its repo-relative paths before and after the move.
+pub(crate) struct MovedTarget<'a> {
+    pub spans: &'a [ByteRange],
+    pub old_rel: &'a Path,
+    pub new_rel: &'a Path,
+}
+
+/// The edits a set of file moves makes to one referrer, the union of each moved
+/// file's [`link_edits`]. A referrer's links resolve to distinct files, so the
+/// per-target span sets never overlap, and [`apply_edits`] enforces it.
+fn moves_link_edits(
+    content: &str,
+    targets: &[MovedTarget<'_>],
+) -> Result<Vec<(ByteRange, String)>, MutationReject> {
+    let mut edits = Vec::new();
+    for t in targets {
+        edits.extend(link_edits(content, t.spans, t.old_rel, t.new_rel)?);
+    }
+    Ok(edits)
+}
+
+/// What a set of file moves does to one referrer: `Some(new content)` when the
+/// rewrite changes its bytes, `None` when it leaves them identical. Every moved
+/// file the referrer points at is re-pointed in one content pass, one write.
+///
+/// A rewrite re-renders each reference in the referrer's own spelling mode, so a
+/// move that keeps the file's name leaves a bare `[[name]]` byte-identical, only
+/// a path-addressed `[[dir/name]]` changes. A commit-pinned reference is frozen,
+/// see [`ref_edits`]. `None` is therefore "this referrer is not written".
+///
+/// The one predicate the committing move, its preview, and the saga planner's
+/// not-written set all answer from, for a single-file `rename` and a folder
+/// `move_dir` alike, so none of them can disagree about which referrers a move
+/// writes.
+pub(crate) fn moves_rewrite(
+    content: &str,
+    targets: &[MovedTarget<'_>],
+) -> Result<Option<String>, MutationReject> {
+    let rewritten = apply_edits(content, moves_link_edits(content, targets)?)?;
+    Ok((rewritten != content).then_some(rewritten))
+}
+
+/// [`moves_rewrite`] for one moved file.
+pub(crate) fn move_rewrite(
+    content: &str,
+    spans: &[ByteRange],
+    old_rel: &Path,
+    new_rel: &Path,
+) -> Result<Option<String>, MutationReject> {
+    moves_rewrite(
+        content,
+        &[MovedTarget {
+            spans,
+            old_rel,
+            new_rel,
+        }],
+    )
+}
+
+/// The links a set of file moves re-spells in one referrer, each as
+/// `(before, after)`, in document order. A link the move re-renders identically,
+/// or a frozen pin, is absent. Answers from the same edits [`moves_rewrite`]
+/// applies, so a referrer lists a change exactly when `moves_rewrite` reports one.
+pub(crate) fn moves_link_changes(
+    content: &str,
+    targets: &[MovedTarget<'_>],
+) -> Result<Vec<(String, String)>, MutationReject> {
+    let mut edits = moves_link_edits(content, targets)?;
+    edits.sort_by_key(|(span, _)| span.start);
+    Ok(edits
+        .into_iter()
+        .filter_map(|(span, text)| {
+            let before = &content[span.start..span.end];
+            (before != text).then(|| (before.to_string(), text))
+        })
+        .collect())
+}
+
+/// [`moves_link_changes`] for one moved file.
+pub(crate) fn move_link_changes(
+    content: &str,
+    spans: &[ByteRange],
+    old_rel: &Path,
+    new_rel: &Path,
+) -> Result<Vec<(String, String)>, MutationReject> {
+    moves_link_changes(
+        content,
+        &[MovedTarget {
+            spans,
+            old_rel,
+            new_rel,
+        }],
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    #[test]
+    fn link_changes_list_only_the_re_spelled_links_in_source_order() {
+        let content = "[[x/a]] then [[a]] then [[x/a.md]]\n";
+        let spans: Vec<ByteRange> = ["[[x/a]]", "[[a]]", "[[x/a.md]]"]
+            .iter()
+            .map(|n| span_of(content, n))
+            .collect();
+        let changes = move_link_changes(
+            content,
+            &spans,
+            &PathBuf::from("x/a.md"),
+            &PathBuf::from("y/a.md"),
+        )
+        .unwrap();
+        assert_eq!(
+            changes,
+            vec![
+                ("[[x/a]]".to_string(), "[[y/a]]".to_string()),
+                ("[[x/a.md]]".to_string(), "[[y/a.md]]".to_string()),
+            ]
+        );
+    }
+
+    /// A file move's rewrite applied unconditionally, the content whether or not
+    /// it changed.
+    fn rewrite_links(
+        content: &str,
+        spans: &[ByteRange],
+        old_rel: &Path,
+        new_rel: &Path,
+    ) -> Result<String, MutationReject> {
+        apply_edits(content, link_edits(content, spans, old_rel, new_rel)?)
+    }
+
     fn span_of(content: &str, needle: &str) -> ByteRange {
         let start = content.find(needle).expect("needle present");
         ByteRange::new(start, start + needle.len())
+    }
+
+    fn moved(content: &str, needles: &[&str], old_rel: &str, new_rel: &str) -> Option<String> {
+        let spans: Vec<ByteRange> = needles.iter().map(|n| span_of(content, n)).collect();
+        move_rewrite(
+            content,
+            &spans,
+            &PathBuf::from(old_rel),
+            &PathBuf::from(new_rel),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn several_moved_targets_rewrite_in_one_pass() {
+        // A folder move: one referrer points at two moved files, path-addressed,
+        // plus a bare-name link that stays byte-identical and a pin that freezes.
+        let content = "[[drafts/a]] and [[drafts/sub/b.md]], [[a]], [[drafts/a::@abc1]]\n";
+        let a = [span_of(content, "[[drafts/a]]"), span_of(content, "[[a]]")];
+        let b = [span_of(content, "[[drafts/sub/b.md]]")];
+        let targets = [
+            MovedTarget {
+                spans: &a,
+                old_rel: Path::new("drafts/a.md"),
+                new_rel: Path::new("notes/a.md"),
+            },
+            MovedTarget {
+                spans: &b,
+                old_rel: Path::new("drafts/sub/b.md"),
+                new_rel: Path::new("notes/sub/b.md"),
+            },
+        ];
+        assert_eq!(
+            moves_rewrite(content, &targets).unwrap().as_deref(),
+            Some("[[notes/a]] and [[notes/sub/b.md]], [[a]], [[drafts/a::@abc1]]\n")
+        );
+        assert_eq!(
+            moves_link_changes(content, &targets).unwrap(),
+            vec![
+                ("[[drafts/a]]".to_string(), "[[notes/a]]".to_string()),
+                (
+                    "[[drafts/sub/b.md]]".to_string(),
+                    "[[notes/sub/b.md]]".to_string()
+                ),
+            ],
+            "document order, identical and frozen links absent"
+        );
+    }
+
+    #[test]
+    fn several_moved_targets_all_bare_leave_the_referrer_unwritten() {
+        let content = "[[a]] [[b]]\n";
+        let a = [span_of(content, "[[a]]")];
+        let b = [span_of(content, "[[b]]")];
+        let targets = [
+            MovedTarget {
+                spans: &a,
+                old_rel: Path::new("d/a.md"),
+                new_rel: Path::new("e/a.md"),
+            },
+            MovedTarget {
+                spans: &b,
+                old_rel: Path::new("d/b.md"),
+                new_rel: Path::new("e/b.md"),
+            },
+        ];
+        assert_eq!(moves_rewrite(content, &targets).unwrap(), None);
+    }
+
+    #[test]
+    fn a_pure_move_leaves_a_bare_name_referrer_unchanged() {
+        assert_eq!(moved("see [[a]]\n", &["[[a]]"], "a.md", "sub/a.md"), None);
+        assert_eq!(
+            moved("see [[a.md]]\n", &["[[a.md]]"], "x/a.md", "y/a.md"),
+            None
+        );
+    }
+
+    #[test]
+    fn a_top_level_files_basename_spelling_stays_a_basename_on_a_move() {
+        // At the root, `a.md` is both the relpath and the basename, but a link
+        // without `/` resolves by name, so the move leaves it byte-identical.
+        assert_eq!(
+            moved("see [[a.md]]\n", &["[[a.md]]"], "a.md", "sub/a.md"),
+            None
+        );
+        // A rename still re-renders it, in the basename mode.
+        assert_eq!(
+            moved("see [[a.md]]\n", &["[[a.md]]"], "a.md", "b.md").as_deref(),
+            Some("see [[b.md]]\n")
+        );
+    }
+
+    #[test]
+    fn a_pure_move_changes_a_path_addressed_referrer() {
+        assert_eq!(
+            moved("see [[x/a]]\n", &["[[x/a]]"], "x/a.md", "y/a.md").as_deref(),
+            Some("see [[y/a]]\n")
+        );
+    }
+
+    #[test]
+    fn one_changed_reference_makes_the_referrer_changed() {
+        let content = "[[a]] and [[x/a]]\n";
+        assert_eq!(
+            moved(content, &["[[a]]", "[[x/a]]"], "x/a.md", "y/a.md").as_deref(),
+            Some("[[a]] and [[y/a]]\n")
+        );
+    }
+
+    #[test]
+    fn a_rename_changes_a_bare_name_referrer() {
+        assert_eq!(
+            moved("see [[a]]\n", &["[[a]]"], "a.md", "b.md").as_deref(),
+            Some("see [[b]]\n")
+        );
     }
 
     /// Rewrite one reference `link` as if renaming `old_rel` to `new_rel`.

@@ -324,17 +324,26 @@ pub(crate) fn delete_file(
     Ok(())
 }
 
-/// `rename`: move `from` to `to`, returning the hash of the moved content so the
-/// caller can tell whether the rebuilt knowledge base has caught up. `from` must exist,
-/// `to` must not, and `to` must not collide case-insensitively with any existing
-/// sibling — so a rename never clobbers, and a name that would clash on a
-/// case-insensitive filesystem is rejected on every filesystem. The case-only
-/// rename (`a.md` to `A.md`) is rejected too, since the source itself is a
-/// colliding sibling; v1 has no need for it.
-pub(crate) fn rename_file(from: &Path, to: &Path) -> Result<ContentHash, MutationReject> {
-    let content = std::fs::read(from)
-        .map_err(|_| MutationReject::new("path does not exist — nothing to rename"))?;
-    if to.exists() {
+/// The refusals a `rename` of `from` to `to` makes before touching disk, and
+/// `from`'s bytes when it would proceed. `from` must exist, `to` must not, and
+/// `to` must not collide case-insensitively with any existing sibling, so a
+/// rename never clobbers, and a name that would clash on a case-insensitive
+/// filesystem is rejected on every filesystem. The case-only rename (`a.md` to
+/// `A.md`) is rejected too, since the source itself is a colliding sibling; v1
+/// has no need for it.
+///
+/// Read-only, so [`rename_file`] and the rename preview share it and cannot
+/// disagree about which renames refuse. It never reads the file's bytes, so a
+/// preview of a large moved asset costs a stat, not a read.
+pub(crate) fn rename_precheck(from: &Path, to: &Path) -> Result<(), MutationReject> {
+    if !from.is_file() {
+        return Err(MutationReject::new(
+            "path does not exist — nothing to rename",
+        ));
+    }
+    // `symlink_metadata`, not `exists`: a dangling symlink at `to` is taken too,
+    // and `exists` follows it and reports false.
+    if to.symlink_metadata().is_ok() {
         return Err(MutationReject::new(format!(
             "destination already exists: {}",
             to.display()
@@ -352,6 +361,18 @@ pub(crate) fn rename_file(from: &Path, to: &Path) -> Result<ContentHash, Mutatio
                 }
             }
         }
+    }
+    Ok(())
+}
+
+/// `rename`: move `from` to `to`, returning the hash of the moved content so the
+/// caller can tell whether the rebuilt knowledge base has caught up. Refuses per
+/// [`rename_precheck`].
+pub(crate) fn rename_file(from: &Path, to: &Path) -> Result<ContentHash, MutationReject> {
+    rename_precheck(from, to)?;
+    let content = std::fs::read(from)
+        .map_err(|_| MutationReject::new("path does not exist — nothing to rename"))?;
+    if let Some(parent) = to.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| MutationReject::new(format!("cannot create parent directories: {e}")))?;
     }
@@ -855,6 +876,249 @@ fn seed_first_element(content: &str, value_span: ByteRange, value: &Value) -> St
     )
 }
 
+/// How [`splice_remove_element`] identifies the element to drop.
+pub(crate) enum ElementMatch {
+    /// A scalar element equal to this value, e.g. a workspace member name.
+    Scalar(Value),
+    /// A mapping element carrying every one of these pairs, e.g. a dep by `name`.
+    Fields(Map<String, Value>),
+}
+
+impl ElementMatch {
+    fn matches(&self, el: &InstanceValue) -> bool {
+        match self {
+            ElementMatch::Scalar(want) => instance_value_eq_json(el, want),
+            ElementMatch::Fields(m) => element_matches_all(el, m),
+        }
+    }
+}
+
+/// Remove one element from a block-sequence field, the element matched by
+/// `matcher`. Returns the new file content; the caller CAS-guards, commits, and
+/// rebuilds. Sibling elements and their comments stay byte-identical. A
+/// sole-element removal collapses the field to an empty `[]`, so it stays a valid
+/// sequence a later [`splice_append_record`] re-seeds.
+///
+/// Type-agnostic: the composition files (`.arsumbris/workspace.yaml`,
+/// `repo.yaml`) carry no `type:` claim, so it parses the frontmatter the way a
+/// stamp does. Rejects loudly (nothing written): an absent or non-sequence field,
+/// a populated flow-style sequence, no matching element, or a splice that would
+/// break the YAML.
+pub(crate) fn splice_remove_element(
+    content: &str,
+    path: &Path,
+    field: &str,
+    matcher: &ElementMatch,
+) -> Result<String, MutationReject> {
+    let split = match au_parser::split_frontmatter(content) {
+        Ok(Some(s)) => s,
+        Ok(None) => au_parser::whole_as_frontmatter(content),
+        Err(_) => {
+            return Err(MutationReject::new(
+                "frontmatter opens with '---' but never closes",
+            ))
+        }
+    };
+    let instance = parse_frontmatter_stamped(path, content, &split)?;
+    let f = instance
+        .fields
+        .iter()
+        .find(|f| f.key == field)
+        .ok_or_else(|| {
+            MutationReject::new(format!("field '{field}' is absent, nothing to remove"))
+        })?;
+    let InstanceValue::Sequence(elements) = &f.value else {
+        return Err(MutationReject::new(format!(
+            "field '{field}' is not a block sequence"
+        )));
+    };
+    // A populated flow sequence ([a, b]) has no per-line item spans to splice; v1
+    // removes from block-style sequences only. An empty [] matches nothing below.
+    if !elements.is_empty() && content.as_bytes().get(f.value_span.start) == Some(&b'[') {
+        return Err(MutationReject::new(
+            "the sequence is flow-style ([ .. ]); v1 removes from block-style sequences only",
+        ));
+    }
+    let Some(pos) = elements.iter().position(|el| matcher.matches(&el.value)) else {
+        return Err(MutationReject::new(format!(
+            "no matching element in '{field}', nothing removed"
+        )));
+    };
+    let target_span = elements[pos].span;
+    // The item's last content byte, past any span over-extension to the doc end.
+    let item_end = after_line(content, trim_trailing_ws(content, target_span.end));
+
+    let result = if elements.len() == 1 {
+        // Sole element: collapse to `field: []`, so the field stays a valid empty
+        // sequence a later append re-seeds. Replace from just after the key's colon
+        // through the item line, so an over-extended value span cannot matter.
+        // Unlike the multi-element path, this intentionally does NOT preserve a
+        // key-line trailing comment (`field:  # note`) or a comment line above the
+        // sole item, both fall inside the replaced range. Acceptable, composition
+        // files rarely carry inline comments and it only hits the last element.
+        let colon = content[f.key_span.end..]
+            .find(':')
+            .map(|i| f.key_span.end + i + 1)
+            .expect("a mapping field key is followed by ':'");
+        apply_edits(
+            content,
+            vec![Edit {
+                start: colon,
+                end: item_end,
+                text: " []\n".to_string(),
+            }],
+        )
+    } else {
+        // Remove the whole item: its `- ` line through its last line's newline. A
+        // multi-line record element spans all its own lines.
+        let start = line_start(content, target_span.start);
+        apply_edits(
+            content,
+            vec![Edit {
+                start,
+                end: item_end,
+                text: String::new(),
+            }],
+        )
+    };
+    stamp_structural_check(path, &result)?;
+    Ok(result)
+}
+
+/// Append one element to a block-sequence field, rejecting a duplicate the
+/// `matcher` already finds. Returns the new file content; the caller CAS-guards,
+/// commits, and rebuilds. Seeds the field when absent (inserts `field:\n  - <el>`)
+/// or empty (`[]`); otherwise appends after the last element, leaving every
+/// existing element and its comments byte-identical.
+///
+/// Type-agnostic, the sibling of [`splice_remove_element`]. Unlike the stamp's
+/// idempotent ensure, a match here is a REJECT (the add of an already-present
+/// element), not a no-op. Rejects loudly (nothing written): a duplicate, a
+/// non-sequence field, a populated flow-style sequence, or unparseable output.
+pub(crate) fn splice_append_element(
+    content: &str,
+    path: &Path,
+    field: &str,
+    element: &Value,
+    matcher: &ElementMatch,
+) -> Result<String, MutationReject> {
+    let split = match au_parser::split_frontmatter(content) {
+        Ok(Some(s)) => s,
+        Ok(None) => au_parser::whole_as_frontmatter(content),
+        Err(_) => {
+            return Err(MutationReject::new(
+                "frontmatter opens with '---' but never closes",
+            ))
+        }
+    };
+    let instance = parse_frontmatter_stamped(path, content, &split)?;
+    let result = match instance.fields.iter().find(|f| f.key == field) {
+        // Absent: insert `field:\n  - <element>` at the frontmatter end, anchored
+        // on the frontmatter RANGE, not a field's over-extending value span, the
+        // same anchor the stamp's absent branch uses.
+        None => {
+            let block = crate::yaml_render::field(field, &Value::Array(vec![element.clone()]), 0);
+            let at = split.frontmatter_range.end;
+            let text = if at == 0 || content[..at].ends_with('\n') {
+                block
+            } else {
+                format!("\n{block}")
+            };
+            apply_edits(
+                content,
+                vec![Edit {
+                    start: at,
+                    end: at,
+                    text,
+                }],
+            )
+        }
+        Some(f) => {
+            let InstanceValue::Sequence(elements) = &f.value else {
+                return Err(MutationReject::new(format!(
+                    "field '{field}' is not a block sequence"
+                )));
+            };
+            if elements.iter().any(|el| matcher.matches(&el.value)) {
+                return Err(MutationReject::new(format!(
+                    "'{field}' already contains this element, nothing added"
+                )));
+            }
+            if elements.is_empty() {
+                seed_first_element(content, f.value_span, element)
+            } else {
+                if content.as_bytes().get(f.value_span.start) == Some(&b'[') {
+                    return Err(MutationReject::new(
+                        "the sequence is flow-style ([ .. ]); v1 appends to block-style sequences only",
+                    ));
+                }
+                let spans: Vec<ByteRange> = elements.iter().map(|e| e.span).collect();
+                append_after_last_element(content, &spans, element)
+            }
+        }
+    };
+    stamp_structural_check(path, &result)?;
+    Ok(result)
+}
+
+/// Whether a block-sequence field contains an element the matcher finds.
+/// Type-agnostic; false when the field is absent, not a sequence, or has no
+/// matching element. A parse failure surfaces as an error, the caller is about to
+/// splice the same bytes.
+pub(crate) fn sequence_has(
+    content: &str,
+    path: &Path,
+    field: &str,
+    matcher: &ElementMatch,
+) -> Result<bool, MutationReject> {
+    let split = match au_parser::split_frontmatter(content) {
+        Ok(Some(s)) => s,
+        Ok(None) => au_parser::whole_as_frontmatter(content),
+        Err(_) => {
+            return Err(MutationReject::new(
+                "frontmatter opens with '---' but never closes",
+            ))
+        }
+    };
+    let instance = parse_frontmatter_stamped(path, content, &split)?;
+    Ok(instance
+        .fields
+        .iter()
+        .find(|f| f.key == field)
+        .and_then(|f| match &f.value {
+            InstanceValue::Sequence(els) => Some(els),
+            _ => None,
+        })
+        .is_some_and(|els| els.iter().any(|el| matcher.matches(&el.value))))
+}
+
+/// Move one element between two block-sequence fields (`from` -> `to`) in one
+/// splice, matched by `matcher`, `element` the value appended to `to`. Backs
+/// `set_workspace_member_role` (edit <-> discover). Rejects: already in `to`, or
+/// absent from `from`. The two splices are pure content transforms, so a mid-way
+/// reject leaves nothing written (the caller writes only the final result).
+pub(crate) fn splice_move_element(
+    content: &str,
+    path: &Path,
+    from: &str,
+    to: &str,
+    element: &Value,
+    matcher: &ElementMatch,
+) -> Result<String, MutationReject> {
+    if sequence_has(content, path, to, matcher)? {
+        return Err(MutationReject::new(format!(
+            "element is already in '{to}', nothing to move"
+        )));
+    }
+    if !sequence_has(content, path, from, matcher)? {
+        return Err(MutationReject::new(format!(
+            "element is not in '{from}', nothing to move"
+        )));
+    }
+    let removed = splice_remove_element(content, path, from, matcher)?;
+    splice_append_element(&removed, path, to, element, matcher)
+}
+
 /// The outcome of an idempotent stamp ensure: a dedup match wrote nothing, or the
 /// new file content with the record ensured. The caller writes only on `Applied`,
 /// so a no-op contributes no change to its commit.
@@ -1273,6 +1537,22 @@ pub(crate) fn splice_ensure_mixin(
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
+    #[test]
+    fn a_dangling_symlink_at_the_rename_destination_is_taken() {
+        let dir = tempfile::tempdir().unwrap();
+        let from = dir.path().join("a.md");
+        let to = dir.path().join("b.md");
+        std::fs::write(&from, "a\n").unwrap();
+        std::os::unix::fs::symlink(dir.path().join("gone.md"), &to).unwrap();
+        let err = rename_precheck(&from, &to).unwrap_err();
+        assert!(
+            err.message.contains("destination already exists"),
+            "refused as taken, not as a case collision: {}",
+            err.message
+        );
+    }
+
     #[test]
     fn compute_edit_matches_edit_file_guards() {
         // Single unique occurrence replaces once.
@@ -1430,8 +1710,10 @@ mod tests {
             }
         }
         // The workspace root `/v`, plus a SCATTERED member rooted outside it.
-        let repos =
-            RepoMap::from_repos(vec![member("/v", "root"), member("/scattered", "content")]);
+        let repos = RepoMap::from_repos(
+            vec![member("/v", "root"), member("/scattered", "content")],
+            Some(PathBuf::from("/v")),
+        );
         let root = Path::new("/v");
 
         // Relative joins the fallback root and lands in the root member.
@@ -2054,5 +2336,216 @@ mod tests {
         // A sequence frontmatter is not a typed record and has no claim to splice.
         let content = "---\n- a\n- b\n---\n";
         assert!(splice_ensure_mixin(content, md_path(), MIXIN).is_err());
+    }
+
+    fn scalar(s: &str) -> ElementMatch {
+        ElementMatch::Scalar(json!(s))
+    }
+
+    #[test]
+    fn remove_element_drops_a_middle_scalar_keeping_siblings() {
+        let content = "edit:\n  - alpha\n  - beta\n  - gamma\n";
+        let out = splice_remove_element(content, yaml_path(), "edit", &scalar("beta")).unwrap();
+        assert_eq!(out, "edit:\n  - alpha\n  - gamma\n");
+    }
+
+    #[test]
+    fn remove_element_drops_first_then_last_scalar() {
+        let content = "edit:\n  - alpha\n  - beta\n  - gamma\n";
+        let first = splice_remove_element(content, yaml_path(), "edit", &scalar("alpha")).unwrap();
+        assert_eq!(first, "edit:\n  - beta\n  - gamma\n");
+        let last = splice_remove_element(content, yaml_path(), "edit", &scalar("gamma")).unwrap();
+        assert_eq!(last, "edit:\n  - alpha\n  - beta\n");
+    }
+
+    #[test]
+    fn remove_element_keeps_sibling_comments() {
+        // A leading comment on a kept item survives; the removed item's own
+        // trailing comment goes with it.
+        let content = "edit:\n  # keep alpha\n  - alpha\n  - beta  # drop me\n  - gamma\n";
+        let out = splice_remove_element(content, yaml_path(), "edit", &scalar("beta")).unwrap();
+        assert_eq!(out, "edit:\n  # keep alpha\n  - alpha\n  - gamma\n");
+    }
+
+    #[test]
+    fn remove_element_matches_a_record_by_name_field() {
+        let content = "deps:\n  - name: one\n    remote: r1\n  - name: two\n";
+        let out = splice_remove_element(
+            content,
+            yaml_path(),
+            "deps",
+            &ElementMatch::Fields(obj(json!({ "name": "one" }))),
+        )
+        .unwrap();
+        assert_eq!(out, "deps:\n  - name: two\n");
+    }
+
+    #[test]
+    fn remove_sole_element_collapses_to_empty_list() {
+        let content = "edit:\n  - only\n";
+        let out = splice_remove_element(content, yaml_path(), "edit", &scalar("only")).unwrap();
+        assert_eq!(out, "edit: []\n");
+    }
+
+    #[test]
+    fn remove_element_rejects_absent_field() {
+        let content = "edit:\n  - a\n";
+        assert!(splice_remove_element(content, yaml_path(), "discover", &scalar("a")).is_err());
+    }
+
+    #[test]
+    fn remove_element_rejects_no_match() {
+        let content = "edit:\n  - a\n  - b\n";
+        assert!(splice_remove_element(content, yaml_path(), "edit", &scalar("c")).is_err());
+    }
+
+    #[test]
+    fn remove_element_rejects_populated_flow_style() {
+        let content = "edit: [a, b]\n";
+        assert!(splice_remove_element(content, yaml_path(), "edit", &scalar("a")).is_err());
+    }
+
+    #[test]
+    fn append_element_adds_a_scalar_after_the_last() {
+        let content = "edit:\n  - alpha\n  - beta\n";
+        let out = splice_append_element(
+            content,
+            yaml_path(),
+            "edit",
+            &json!("gamma"),
+            &scalar("gamma"),
+        )
+        .unwrap();
+        assert_eq!(out, "edit:\n  - alpha\n  - beta\n  - gamma\n");
+    }
+
+    #[test]
+    fn append_element_seeds_an_absent_field() {
+        let content = "name: notes\n";
+        let out = splice_append_element(
+            content,
+            yaml_path(),
+            "edit",
+            &json!("alpha"),
+            &scalar("alpha"),
+        )
+        .unwrap();
+        assert_eq!(out, "name: notes\nedit:\n  - alpha\n");
+    }
+
+    #[test]
+    fn append_element_seeds_an_empty_list() {
+        let content = "edit: []\n";
+        let out = splice_append_element(
+            content,
+            yaml_path(),
+            "edit",
+            &json!("alpha"),
+            &scalar("alpha"),
+        )
+        .unwrap();
+        assert_eq!(out, "edit:\n  - alpha\n");
+    }
+
+    #[test]
+    fn append_element_appends_a_dep_record_keeping_comments() {
+        let content = "deps:\n  - name: one   # the first\n";
+        let element = json!({ "name": "two", "remote": "r2" });
+        let matcher = ElementMatch::Fields(obj(json!({ "name": "two" })));
+        let out = splice_append_element(content, yaml_path(), "deps", &element, &matcher).unwrap();
+        assert_eq!(
+            out,
+            "deps:\n  - name: one   # the first\n  - name: two\n    remote: r2\n"
+        );
+    }
+
+    #[test]
+    fn append_element_rejects_a_duplicate_scalar() {
+        let content = "edit:\n  - alpha\n";
+        assert!(splice_append_element(
+            content,
+            yaml_path(),
+            "edit",
+            &json!("alpha"),
+            &scalar("alpha")
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn append_element_rejects_a_duplicate_dep_name() {
+        let content = "deps:\n  - name: one\n    remote: r1\n";
+        let element = json!({ "name": "one", "remote": "other" });
+        let matcher = ElementMatch::Fields(obj(json!({ "name": "one" })));
+        assert!(splice_append_element(content, yaml_path(), "deps", &element, &matcher).is_err());
+    }
+
+    #[test]
+    fn append_element_rejects_populated_flow_style() {
+        let content = "edit: [a, b]\n";
+        assert!(
+            splice_append_element(content, yaml_path(), "edit", &json!("c"), &scalar("c")).is_err()
+        );
+    }
+
+    #[test]
+    fn move_element_moves_between_lists() {
+        let content = "edit:\n  - a\n  - b\ndiscover:\n  - c\n";
+        let out = splice_move_element(
+            content,
+            yaml_path(),
+            "edit",
+            "discover",
+            &json!("b"),
+            &scalar("b"),
+        )
+        .unwrap();
+        assert_eq!(out, "edit:\n  - a\ndiscover:\n  - c\n  - b\n");
+    }
+
+    #[test]
+    fn move_element_seeds_an_absent_target_list() {
+        // Moving the sole `edit` member to a not-yet-present `discover` list.
+        let content = "edit:\n  - a\n";
+        let out = splice_move_element(
+            content,
+            yaml_path(),
+            "edit",
+            "discover",
+            &json!("a"),
+            &scalar("a"),
+        )
+        .unwrap();
+        assert_eq!(out, "edit: []\ndiscover:\n  - a\n");
+    }
+
+    #[test]
+    fn move_element_rejects_when_absent_from_source() {
+        let content = "edit:\n  - a\ndiscover:\n  - c\n";
+        assert!(splice_move_element(
+            content,
+            yaml_path(),
+            "discover",
+            "edit",
+            &json!("z"),
+            &scalar("z")
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn move_element_rejects_when_already_in_target() {
+        let content = "edit:\n  - a\ndiscover:\n  - a\n";
+        // `a` is already in the target `edit`, so the move rejects (a broken
+        // double-membership would otherwise result).
+        assert!(splice_move_element(
+            content,
+            yaml_path(),
+            "discover",
+            "edit",
+            &json!("a"),
+            &scalar("a")
+        )
+        .is_err());
     }
 }

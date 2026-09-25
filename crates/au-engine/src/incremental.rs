@@ -795,6 +795,13 @@ pub fn recompute_dirty(
         target_claims: &ref_data,
     };
 
+    // The owner-relative graph resolver the placement check reads each def
+    // through, the same one the full build uses.
+    let graph_resolver = crate::resolution_build::RepoGraphResolver {
+        graphs: &held.graphs,
+        repos: &held.repos,
+    };
+
     let mut resolved: BTreeMap<PathBuf, Option<ResolvedInstance>> = BTreeMap::new();
     let mut file_diags: BTreeMap<PathBuf, Vec<Diagnostic>> = BTreeMap::new();
     let mut instance_diags: BTreeMap<PathBuf, Vec<Diagnostic>> = BTreeMap::new();
@@ -877,11 +884,11 @@ pub fn recompute_dirty(
             diags.extend(validate(&ctx, inst));
             diags.extend(validate_body(&ctx, inst, body, body_offset, is_markdown));
             diags.extend(validate_docstring_links(&ctx, path, doc_links));
-            if let Some(root) = held.repos.repo_of(path).map(|r| r.root.clone()) {
-                let rel = path.strip_prefix(&root).unwrap_or(path.as_path());
+            if let Some(repo) = held.repos.repo_of(path) {
+                let rel = path.strip_prefix(&repo.root).unwrap_or(path.as_path());
                 diags.extend(au_core::location_check::validate_location(
-                    ctx.graph,
-                    ctx.resolution,
+                    &graph_resolver,
+                    repo.name.as_str(),
                     inst,
                     rel,
                 ));
@@ -1080,11 +1087,11 @@ pub fn recompute_dirty(
                 diags.extend(validate(&ctx, inst));
                 diags.extend(validate_body(&ctx, inst, body, *body_offset, *is_markdown));
                 diags.extend(validate_docstring_links(&ctx, dep, doc_links));
-                if let Some(root) = held.repos.repo_of(dep).map(|r| r.root.clone()) {
-                    let rel = dep.strip_prefix(&root).unwrap_or(dep.as_path());
+                if let Some(repo) = held.repos.repo_of(dep) {
+                    let rel = dep.strip_prefix(&repo.root).unwrap_or(dep.as_path());
                     diags.extend(au_core::location_check::validate_location(
-                        ctx.graph,
-                        ctx.resolution,
+                        &graph_resolver,
+                        repo.name.as_str(),
                         inst,
                         rel,
                     ));
@@ -1479,6 +1486,67 @@ mod tests {
             !next.catalog.contains_key(Path::new("/v/sub")),
             "a directory must never be catalogued"
         );
+        crate::ir::assert_kb_parity(&next, &build(Path::new("/v"), &fs).unwrap());
+    }
+
+    #[test]
+    fn in_sync_twins_check_placement_against_their_own_location_full_and_incremental() {
+        // `app` and `base` define `note` with identical fields, ONE identity
+        // (`location:` is outside the hash), but different locations. Each claim
+        // must be held to the def it names, in the full build and after an
+        // incremental edit alike.
+        let note = |path: &str| {
+            format!("fields:\n  t?: String\nlocation:\n  path: \"{path}\"\n").into_bytes()
+        };
+        let mut fs = MemoryFileSystem::new();
+        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert(
+            "/v/.arsumbris/workspace.yaml",
+            b"edit:\n  - v\n  - app\n  - base\n".to_vec(),
+        );
+        fs.insert(
+            "/v/app/.arsumbris/repo.yaml",
+            b"name: app\ndeps:\n  - name: base\n".to_vec(),
+        );
+        fs.insert("/v/base/.arsumbris/repo.yaml", b"name: base\n".to_vec());
+        fs.insert("/v/app/type/note.type.yaml", note("notes/"));
+        fs.insert("/v/base/type/note.type.yaml", note("elsewhere/"));
+        fs.insert("/v/app/notes/own.md", b"---\ntype: note\n---\n".to_vec());
+        fs.insert(
+            "/v/app/notes/peer.md",
+            b"---\ntype: note::base\n---\n".to_vec(),
+        );
+
+        let mismatches = |kb: &KnowledgeBase, file: &str| {
+            kb.diagnostics_for_file(Path::new(file))
+                .filter(|d| d.code.as_str() == "location-mismatch")
+                .count()
+        };
+        let held = build(Path::new("/v"), &fs).unwrap();
+        assert_eq!(
+            mismatches(&held, "/v/app/notes/own.md"),
+            0,
+            "own claim, own location"
+        );
+        assert_eq!(
+            mismatches(&held, "/v/app/notes/peer.md"),
+            1,
+            "the peer claim is held to base's location"
+        );
+
+        // An instance edit swaps the claims; the incremental result must equal
+        // a from-scratch build.
+        fs.insert(
+            "/v/app/notes/own.md",
+            b"---\ntype: note::base\n---\n".to_vec(),
+        );
+        fs.insert("/v/app/notes/peer.md", b"---\ntype: note\n---\n".to_vec());
+        let dirty = set(&["/v/app/notes/own.md", "/v/app/notes/peer.md"]);
+        assert_eq!(classify_dirty(&held, &dirty), DirtyClass::Incremental);
+        let rc = recompute_dirty(&held, &dirty, &fs).expect("handled");
+        let next = apply_recompute(&held, rc);
+        assert_eq!(mismatches(&next, "/v/app/notes/own.md"), 1);
+        assert_eq!(mismatches(&next, "/v/app/notes/peer.md"), 0);
         crate::ir::assert_kb_parity(&next, &build(Path::new("/v"), &fs).unwrap());
     }
 

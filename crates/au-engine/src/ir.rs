@@ -649,11 +649,10 @@ impl KnowledgeBase {
         }
     }
 
-    /// The root repo's graph, the repo-root repo. The transitional scope for
-    /// type-name reads that do not yet carry a repo, and a single-repo knowledge base's
-    /// only graph.
-    pub fn root_graph(&self) -> &TypeGraph {
-        match self.repos.root() {
+    /// The entry repo's graph, the default scope for a type-name read that
+    /// names no repo, and a single-repo knowledge base's only graph.
+    pub fn entry_graph(&self) -> &TypeGraph {
+        match self.repos.entry() {
             Some(r) => self.graphs.of(&r.name),
             None => self.graphs.empty(),
         }
@@ -674,10 +673,9 @@ impl KnowledgeBase {
         self.repos.by_name(repo).map(|r| self.indexes.of(&r.name))
     }
 
-    /// The root repo's index, the transitional scope for a scopeless read that
-    /// does not yet carry a repo.
-    pub fn root_index(&self) -> &RepoIndex {
-        match self.repos.root() {
+    /// The entry repo's index, the default scope for a read that names no repo.
+    pub fn entry_index(&self) -> &RepoIndex {
+        match self.repos.entry() {
             Some(r) => self.indexes.of(&r.name),
             None => self.indexes.empty(),
         }
@@ -691,9 +689,9 @@ impl KnowledgeBase {
 
     /// The graph of a repo named on the wire, `None` when no such repo exists.
     /// The explicit scope a repo-scoped type read resolves against; distinct
-    /// from [`root_graph`], which is the no-scope default.
+    /// from [`entry_graph`], which is the no-scope default.
     ///
-    /// [`root_graph`]: KnowledgeBase::root_graph
+    /// [`entry_graph`]: KnowledgeBase::entry_graph
     pub fn graph_for_repo(&self, repo: &str) -> Option<&TypeGraph> {
         self.repos.by_name(repo).map(|r| self.graphs.of(&r.name))
     }
@@ -713,10 +711,10 @@ impl KnowledgeBase {
             .unwrap_or(BuildOutcome::Complete)
     }
 
-    /// How far the build got for the root repo, the scope of type-name reads.
-    pub fn root_outcome(&self) -> BuildOutcome {
+    /// How far the build got for the entry repo, the scope of type-name reads.
+    pub fn entry_outcome(&self) -> BuildOutcome {
         self.repos
-            .root()
+            .entry()
             .and_then(|r| self.outcomes.get(&r.name).copied())
             .unwrap_or(BuildOutcome::Complete)
     }

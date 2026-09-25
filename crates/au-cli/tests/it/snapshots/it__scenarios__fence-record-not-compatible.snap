@@ -6,7 +6,7 @@ expression: rendered
   "diagnostics": [
     {
       "code": "inline-value-type-not-compatible",
-      "message": "field 'detail': inline value claims 'unrelated' but no branch of union slot '<point>' is in its closure",
+      "message": "field 'detail': inline value claims 'unrelated' but no inline-capable branch of union slot '<String | point>' is in its closure; only a bare-record or '&' branch of a union hosts an inline value",
       "related": [
         {
           "file": "<root>/scenarios/fence-record-not-compatible/type/capture.type.yaml",

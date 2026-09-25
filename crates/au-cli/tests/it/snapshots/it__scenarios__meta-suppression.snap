@@ -141,24 +141,6 @@ expression: rendered
               "start": 102
             },
             "text": "Suppression demo"
-          },
-          {
-            "content": "memory/gap - 2605110100 - meta blocks not on the json wire.md",
-            "kind": "inline_code",
-            "span": {
-              "end": 350,
-              "line_col": {
-                "end": {
-                  "col": 229,
-                  "line": 8
-                },
-                "start": {
-                  "col": 166,
-                  "line": 8
-                }
-              },
-              "start": 287
-            }
           }
         ],
         "claim": [

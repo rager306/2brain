@@ -6,12 +6,14 @@
 //!   the named meta-type-def's effective shape. Mirrors instance
 //!   validation (required-field-absent, field-shape-mismatch, sealed-leaf
 //!   rule, unknown-type-claim).
-//! - `lookup_meta` — canonical ancestor walk. Suppression stops it (§8.5);
-//!   walks don't recurse into encountered meta-type-defs (§8.2).
+//! - `lookup_meta` — the effective-meta query, shadowing by descent. A
+//!   `meta: []` shadows every ancestor (§8.5); the walk never recurses into
+//!   encountered meta-type-defs (§8.2).
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use au_core::def_closure::SingleGraph;
 use au_core::{
     build_graph, instance::InstanceField, lookup_meta, validate_meta_bodies, InstanceValue,
     MapRefData, MetaBlock, TypeDef, TypeGraph, TypeName, ValidateContext,
@@ -100,7 +102,7 @@ fn meta_block(type_name: &str, fields: Vec<(&str, InstanceValue)>) -> MetaBlock 
 
 proptest! {
     /// For any host with `meta: []` and any meta-type-name, `lookup_meta`
-    /// returns None regardless of ancestor declarations. Locks the §8.5
+    /// surfaces nothing regardless of ancestor declarations. Locks the §8.5
     /// "stop signal" semantic: walks originating at the suppressed node
     /// see no ancestor metas.
     #[test]
@@ -119,9 +121,10 @@ proptest! {
             type_def_with_fields("runtime-meta", &[], &[]),
         ])
         .graph;
+        let r = SingleGraph(&g);
         // For ANY meta name (including ones that exist on the ancestor),
         // the suppressed host returns None.
-        prop_assert!(lookup_meta(&g, None, &tn("decision"), &tn(&meta_name), None).is_none());
+        prop_assert!(lookup_meta(&r, "v", &tn("decision"), &tn(&meta_name), None).is_empty());
     }
 }
 
@@ -153,21 +156,21 @@ fn re_declaration_unblocks_only_for_that_name() {
         ),
     ])
     .graph;
+    let r = SingleGraph(&g);
 
-    let display = lookup_meta(&g, None, &tn("committed"), &tn("display-meta"), None);
+    let display = lookup_meta(&r, "v", &tn("committed"), &tn("display-meta"), None);
     assert!(
-        display.is_some(),
+        display.len() == 1,
         "committed's re-declared display-meta should resolve"
     );
     assert_eq!(
-        display.unwrap().block_span.start,
-        100,
+        display[0].1.block_span.start, 100,
         "committed's own block, not note's"
     );
 
-    let runtime = lookup_meta(&g, None, &tn("committed"), &tn("runtime-meta"), None);
+    let runtime = lookup_meta(&r, "v", &tn("committed"), &tn("runtime-meta"), None);
     assert!(
-        runtime.is_none(),
+        runtime.is_empty(),
         "runtime-meta is suppressed at decision; committed's re-declaration of display-meta doesn't lift the suppression for OTHER names"
     );
 }
@@ -305,14 +308,15 @@ fn walk_does_not_recurse_into_encountered_meta_typedefs() {
         ),
     ])
     .graph;
+    let r = SingleGraph(&g);
 
     // The host points at display-meta — but display-meta's own runtime-meta
     // is NOT reachable from the host's query.
     assert!(
-        lookup_meta(&g, None, &tn("decision"), &tn("runtime-meta"), None).is_none(),
+        lookup_meta(&r, "v", &tn("decision"), &tn("runtime-meta"), None).is_empty(),
         "walk must not recurse into encountered meta-type-defs' own metas (§8.2)"
     );
     // Sanity: display-meta is still resolvable from the host (host declares
     // it directly).
-    assert!(lookup_meta(&g, None, &tn("decision"), &tn("display-meta"), None).is_some());
+    assert!(!lookup_meta(&r, "v", &tn("decision"), &tn("display-meta"), None).is_empty());
 }
