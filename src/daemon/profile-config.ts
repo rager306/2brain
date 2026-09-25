@@ -1,4 +1,4 @@
-// Resolve an agent-profile's typed hook config into a per-hook config map (Phase 6, decision
+// Resolve an agent-profile's typed hook config into a per-hook config map (decision
 // 2609020302). This replaces the untyped AU_MCP_PLUGIN_CONFIG channel for hooks: the daemon reads
 // the active profile from the graph at session-open and groups its `hookConfig` entries by the hook
 // they configure.
@@ -9,7 +9,7 @@
 // - `hookConfig` (mcp.hook&[+]): a list where an INLINE entry is a FLAT record
 //     { type: 'mcp.hook.<x>::<repo>', ...configFields }
 //   and a REF entry is a raw wikilink STRING '[[<instance>]]' (the engine does NOT follow it here —
-//   the daemon follow-reads it, see Phase 6b action 3).
+//   the daemon follow-reads it, see `resolveProfileHookConfig`).
 // - `hooks` (type<mcp.hook>*[]): the whitelist, a list of raw def-ref wikilink STRINGS
 //     '[[mcp.hook.<x>::<repo>]]'
 //   (again unresolved). ABSENT = no restriction; present = exactly those non-critical hooks.
@@ -71,7 +71,7 @@ export function parseProfileHookConfig(rows: ProfileRow[], profile: string | und
   const entries = row?.fields?.hookConfig
   if (!Array.isArray(entries)) return new Map()
   // INLINE entries only — a REF entry is a wikilink STRING with no `type`, followed by
-  // `resolveProfileHookConfig` (Phase 6b action 3), which needs the broker this pure fn lacks.
+  // `resolveProfileHookConfig`, which needs the broker this pure fn lacks.
   return groupHookConfigRecords(entries.filter(isInlineRecord))
 }
 
@@ -130,7 +130,7 @@ async function followHookRef(ref: string, origin: string | undefined, read: Engi
 }
 
 /**
- * The full config resolve (Phase 6b action 3): like `parseProfileHookConfig`, but ALSO follows REF
+ * The full config resolve: like `parseProfileHookConfig`, but ALSO follows REF
  * entries (the `&` inline-or-ref shape) via the engine resolve verb, so a shared standalone hook
  * instance configures its hook too. INLINE and followed-REF records interleave in authoring order.
  * A ref that does not resolve is skipped (best-effort — a bad ref never wedges session-open).
@@ -155,7 +155,7 @@ export async function resolveProfileHookConfig(
 }
 
 /**
- * Advisory cross-field checks on a profile's hook selection (Phase 6b action 2). ADVISORY by
+ * Advisory cross-field checks on a profile's hook selection. ADVISORY by
  * decision 2609021655: a violating config is IGNORED + warned, never a hard refusal — matching the
  * family's open-world posture (the engine validator never rejects on diagnostics). Engine typing
  * already covers per-field correctness (bad field, dangling ref); this adds the two cross-field
@@ -189,8 +189,8 @@ export function validateProfileHooks(
 
 /**
  * The active profile's `hooks` WHITELIST as a set of hook MANIFEST IDS, or `undefined` when the field
- * is absent (no restriction — every hook runs). The off-switch for NON-critical hooks (Phase 6b,
- * decision 2609020302): a `critical` hook always runs regardless.
+ * is absent (no restriction — every hook runs). The off-switch for NON-critical hooks (decision
+ * 2609020302): a `critical` hook always runs regardless.
  *
  * Tri-state, mirroring the profile's `tools` allowlist:
  * - field ABSENT -> `undefined` (no restriction; every non-critical hook runs).

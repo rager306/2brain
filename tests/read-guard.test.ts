@@ -3,7 +3,7 @@ import { currentContentHash } from '../src/daemon/read-guard.ts'
 import type { EngineBroker } from '../src/daemon/broker.ts'
 
 // The read-before-write GUARD (the mediator) migrated to au-mcp-core as the loadable
-// `mcp.read-guard` plugin (plan 2608261532, Phase 5.1); its behavior tests live there now
+// `mcp.read-guard` plugin; its behavior tests live there now
 // (au-mcp-core/tests/read-guard.test.ts). What stays here is the kernel-side content-hash
 // helper the daemon still uses for read-view enrichment + served-file registration.
 

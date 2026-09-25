@@ -1,4 +1,4 @@
-// The engine broker — the daemon's one connection to au-engine (P7).
+// The engine broker — the daemon's one connection to au-engine.
 //
 // Backed by @arsumbris/au-engine-sdk's DaemonClient (the canonical engine client),
 // used CONNECT-PER-CALL: each read/mutation opens a short-lived client, runs one
@@ -24,7 +24,7 @@
 import { existsSync } from 'node:fs'
 
 import { DaemonClient, manageConnection, persistentSubscription } from '@arsumbris/au-engine-sdk'
-import type { TypedMutate, Stamp, AttributionEntry, ManagedConnection, ChangesHint } from '@arsumbris/au-engine-sdk'
+import type { TypedMutate, Stamp, AttributionEntry, ManagedConnection, ChangesHint, WorkspaceRole } from '@arsumbris/au-engine-sdk'
 import { WireError } from '@arsumbris/au-engine-sdk/wire'
 import type { ChangeEventFrame } from '@arsumbris/au-engine-sdk/wire'
 import type { Stamp as McpStamp, AttributionEntry as McpAttributionEntry } from '@arsumbris/au-mcp-sdk'
@@ -314,6 +314,38 @@ function runMutation(client: DaemonClient, verb: string, args: Record<string, un
         { content: String(args.content ?? '') },
         expectedHash !== undefined ? { expectedHash } : undefined,
       )
+    // COMPOSITION-sort verbs: author an editable member's `.arsumbris/repo.yaml` (`deps:`)
+    // or `.arsumbris/workspace.yaml` (`edit:` / `discover:`). Each re-resolves the mounted
+    // set + rebuilds (an identity change), same TypedMutate envelope as the file verbs.
+    // `root` names the editable member (absent = the served entry); no stamps / mixins /
+    // attribution ride these. See au-engine message 260914224057 (the originating ask).
+    case 'add_dep':
+      return client.addRepoDependency(String(args.name ?? ''), {
+        ...(typeof args.remote === 'string' ? { remote: args.remote } : {}),
+        ...(typeof args.ref === 'string' ? { ref: args.ref } : {}),
+        ...(typeof args.root === 'string' ? { root: args.root } : {}),
+        ...(expectedHash !== undefined ? { expectedHash } : {}),
+      })
+    case 'remove_dep':
+      return client.removeRepoDependency(String(args.name ?? ''), {
+        ...(typeof args.root === 'string' ? { root: args.root } : {}),
+        ...(expectedHash !== undefined ? { expectedHash } : {}),
+      })
+    case 'add_workspace_member':
+      return client.addWorkspaceMember(String(args.name ?? ''), args.role as WorkspaceRole, {
+        ...(typeof args.root === 'string' ? { root: args.root } : {}),
+        ...(expectedHash !== undefined ? { expectedHash } : {}),
+      })
+    case 'remove_workspace_member':
+      return client.removeWorkspaceMember(String(args.name ?? ''), {
+        ...(typeof args.root === 'string' ? { root: args.root } : {}),
+        ...(expectedHash !== undefined ? { expectedHash } : {}),
+      })
+    case 'set_workspace_member_role':
+      return client.setWorkspaceMemberRole(String(args.name ?? ''), args.role as WorkspaceRole, {
+        ...(typeof args.root === 'string' ? { root: args.root } : {}),
+        ...(expectedHash !== undefined ? { expectedHash } : {}),
+      })
     default:
       return Promise.reject(new Error(`unknown mutation verb '${verb}'`))
   }

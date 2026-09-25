@@ -78,7 +78,7 @@ describe('daemon core', () => {
   })
 
   it('hands a mediator a read-only engine broker in its MediationContext', async () => {
-    // Phase 3.1 (plan 2608012141): a loadable mediator (the provenance guard, the
+    // A loadable mediator (the provenance guard, the
     // workflow type-gate) needs engine reads to inform its decision. It gets a READ-ONLY
     // broker — a mediator decides, never mutates.
     let seen: MediationContext | undefined

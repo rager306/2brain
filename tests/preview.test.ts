@@ -47,6 +47,12 @@ describe('previewOpToWireArgs', () => {
     })
     expect(previewOpToWireArgs({ op: 'write_file', path: '/w/a.md', content: 'x' })).toEqual({ op: 'write_file', path: '/w/a.md', content: 'x' })
   })
+
+  it('maps the path-move and folder ops to their wire args', () => {
+    expect(previewOpToWireArgs({ op: 'rename', path: '/w/a.md', to: '/w/b.md' })).toEqual({ op: 'rename', path: '/w/a.md', to: '/w/b.md' })
+    expect(previewOpToWireArgs({ op: 'move_dir', path: '/w/d', to: '/w/e' })).toEqual({ op: 'move_dir', path: '/w/d', to: '/w/e' })
+    expect(previewOpToWireArgs({ op: 'delete_dir', path: '/w/d' })).toEqual({ op: 'delete_dir', path: '/w/d' })
+  })
 })
 
 describe('toActionPreview', () => {
@@ -59,6 +65,7 @@ describe('toActionPreview', () => {
         diagnostics: [{ code: 'x', severity: 'warning', span: {} as never, message: 'm' }],
       },
       blast_radius: [{ path: '/w/other.md', diagnostics: [{ code: 'y', severity: 'error', span: {} as never, message: 'boom' }] }],
+      untracked_files: [],
     }
     expect(toActionPreview(wire)).toEqual({
       kind: 'product',

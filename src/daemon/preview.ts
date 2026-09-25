@@ -69,6 +69,11 @@ export function previewOpToWireArgs(op: PreviewMutationOp): Record<string, unkno
       return { op: 'edit_file', path: op.path, old_string: op.oldString, new_string: op.newString, replace_all: op.replaceAll ?? false }
     case 'delete_file':
       return { op: 'delete_file', path: op.path }
+    case 'rename':
+    case 'move_dir':
+      return { op: op.op, path: op.path, to: op.to }
+    case 'delete_dir':
+      return { op: 'delete_dir', path: op.path }
   }
 }
 

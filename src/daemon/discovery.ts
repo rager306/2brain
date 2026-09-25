@@ -4,10 +4,11 @@
 // 2608242056), dynamic-import each one's `entry` (resolved through the type OWNER), and build
 // a Plugin. Ports au-host's projections/{discovery,loader}.ts to the daemon.
 //
-// CORE tools are NOT discovered here — they are compiled into the daemon and registered
-// as manifest literals (the bootstrap floor). FLOOR + ENRICHMENT: a discovered tool whose
-// id is already registered (a core tool whose defs are also mounted) is SKIPPED — the
-// in-process code wins. So discovery only ever ADDS loadable tools.
+// The kernel compiles in NO tools (defaultKernelPlugins() is empty by construction, decision
+// 2608261517) — every agent-facing tool AND policy floor ships LOADABLE from au-mcp-core and is
+// discovered here. DEDUP: a discovered tool whose id a caller-supplied literal already
+// registered (a test/embedder plugin) is SKIPPED — the in-process literal wins. So discovery
+// only ever ADDS loadable tools.
 //
 // The manifest is DERIVED from the type-def + its `plugin-runtime-meta` (decision
 // 2606111610); the loaded module supplies ONLY the shape functions (`createPlugin`).

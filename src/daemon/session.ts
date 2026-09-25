@@ -7,7 +7,7 @@
 
 import type { AdapterInfo, SessionEvent } from '@arsumbris/au-mcp-sdk'
 
-/** One open agent session. The daemon owns its live in-memory event log (P5). */
+/** One open agent session. The daemon owns its live in-memory event log. */
 export interface Session {
   /** Opaque per-session id (from AdapterInfo.session). */
   readonly id: string
@@ -16,8 +16,8 @@ export interface Session {
   /** The live in-memory event log. The daemon assigns each event's seq on append. */
   readonly log: SessionEvent[]
   /**
-   * The read-view: `absolute path -> engine content hash` AT READ TIME (P6-O6,
-   * [[decision - 2606222008 ...]]). Populated when the session reads a file through
+   * The read-view: `absolute path -> engine content hash` AT READ TIME
+   * ([[decision - 2606222008 ...]]). Populated when the session reads a file through
    * the gate (the daemon resolves the engine hash on the read's observe); consulted
    * by the read-before-write guard at write-mediate so a write carries the hash the
    * session SAW (the engine CAS then rejects a stale overwrite). Per-session by

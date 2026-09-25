@@ -1,7 +1,7 @@
 // Callable-result helpers.
 //
 // A callable returns the SDK's `CallableResult` ({ content, isError? }). `content`
-// is the text payload; the MCP-server shim (Phase 5) formats it into MCP content.
+// is the text payload; the MCP-server shim formats it into MCP content.
 
 import type { CallableResult } from '@arsumbris/au-mcp-sdk'
 

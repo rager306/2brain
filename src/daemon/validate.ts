@@ -2,7 +2,8 @@
 //
 // Before the daemon ACTS on an `invoke`, it validates the input against the tool's
 // `mcp.tool.<tool>` subtype (fields = call input) via the engine's `validate_value`
-// read (brokered). au-mcp owns those defs, so resolution is repo-scoped to `au-mcp`.
+// read (brokered). Resolution is scoped to the tool's OWNER repo — its manifest
+// `provenance` (au-mcp owns no agent-facing defs; each ships from its owning package).
 // (Retargeted from `toolInput.<tool>` by the decision-2606191044 reshape.) A blocking
 // diagnostic refuses the invoke; the agent gets a typed error instead of a malformed action.
 //
@@ -60,8 +61,8 @@ const NON_BLOCKING = new Set(['unknown-type-claim', 'duplicate-key-in-mapping'])
  * (conforms, or validation could not run).
  *
  * `ownerRepo` is the tool's manifest `provenance` — the repo whose type graph holds its
- * def. A discovered plugin carries its OWNING repo; au-mcp itself owns no agent-facing defs
- * (Phase 6), so `'core'` now attaches only to a caller-supplied literal (a test / embedder
+ * def. A discovered plugin carries its OWNING repo; au-mcp itself owns no agent-facing defs,
+ * so `'core'` now attaches only to a caller-supplied literal (a test / embedder
  * plugin, stamped at registration). Scoping to the WRONG repo makes the def unresolvable,
  * which under fail-closed refuses a perfectly good tool — the bug (todo 2606231443) that
  * best-effort used to hide.

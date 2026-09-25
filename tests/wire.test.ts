@@ -36,7 +36,7 @@ describe('wire server', () => {
     const server = await listen(socketPath(ws), (req) => {
       // Echo the request kind + id back as a capabilities response.
       expect(req.kind).toBe('list-capabilities')
-      return { kind: 'capabilities', id: req.id, callables: [], redirects: [] }
+      return { kind: 'capabilities', id: req.id, callables: [] }
     })
     try {
       const res = await roundTrip(server.socketPath, {
@@ -44,7 +44,7 @@ describe('wire server', () => {
         id: 7,
         session: 's1',
       })
-      expect(res).toEqual({ kind: 'capabilities', id: 7, callables: [], redirects: [] })
+      expect(res).toEqual({ kind: 'capabilities', id: 7, callables: [] })
     } finally {
       await server.close()
     }
@@ -76,7 +76,6 @@ describe('wire server', () => {
       kind: 'capabilities',
       id: req.id,
       callables: [],
-      redirects: [],
     }))
     try {
       const res = await roundTrip(path, { kind: 'list-capabilities', id: 1, session: 's' })
@@ -93,7 +92,6 @@ describe('wire server', () => {
       kind: 'capabilities',
       id: req.id,
       callables: [],
-      redirects: [],
     }))
     try {
       await expect(listen(path, (req) => ({ kind: 'closed', id: req.id }))).rejects.toThrow(

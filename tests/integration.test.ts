@@ -1,4 +1,4 @@
-// Phase 4 integration: an observer + the redirect mediator running inside the daemon's
+// Integration: an observer + the redirect mediator running inside the daemon's
 // orchestration, end to end (events FAN OUT to the installed recorder; a deny is sequenced
 // into the kernel's live log).
 //
@@ -69,7 +69,7 @@ const info = (ws: string): AdapterInfo => ({
  * A synthetic stand-in for the tool-precondition floor (which now lives in au-mcp-core as the
  * loadable mcp.tool-precondition plugin). It gates ONE tool on `ctx.hasRead(path)`, so these
  * integration tests exercise the KERNEL seam the real floor depends on — a serves-contract call
- * populating the served-view, surfaced via the Phase-4 `ctx.hasRead` accessor — without mounting
+ * populating the served-view, surfaced via the `ctx.hasRead` accessor — without mounting
  * au-mcp-core. The floor's own deny/allow + map-derivation logic is unit-tested in au-mcp-core.
  */
 function readGate(tool: string, path: string): Plugin {
@@ -322,7 +322,7 @@ describe('a mediator deny is recorded + fanned (decide -> record, no desync)', (
 
 // The read-precondition SEAM end to end (decision 2607030037): a serves-contract call (au_guide)
 // registers the served file into the session served-view (no engine needed — derived from the
-// observed tool name + input), and that surfaces through the Phase-4 `ctx.hasRead` accessor. That
+// observed tool name + input), and that surfaces through the `ctx.hasRead` accessor. That
 // is exactly what the tool-precondition floor (now an au-mcp-core plugin) reads. A synthetic
 // `readGate` mediator stands in for the real floor, so this exercises the KERNEL half
 // (serves -> served-view -> ctx.hasRead) without mounting au-mcp-core. Serves are set on the

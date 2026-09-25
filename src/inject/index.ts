@@ -1,8 +1,8 @@
 // The inject capability: neutral discovery of `mcp.inject` instances.
 //
 // The always-on delivery class beside the runtime-dynamic tools and launch-static skills.
-// Phase 1 exposes discovery only; the launch-time materialize driver, the role-partitioned
-// default set, packing, and the manifest arrive in later phases.
+// This module is discovery. The launch-time materialize driver, the role-partitioned default set,
+// packing, and the manifest live elsewhere.
 // See [[spec - mcp.inject - typed instances whose bodies land in context at session start,
 // hop-expanded and packed across generated hook slots::au-harness]].
 

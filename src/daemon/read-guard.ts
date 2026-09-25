@@ -1,13 +1,13 @@
 // Read-view content helpers for the daemon's read-before-write bookkeeping.
 //
 // The read-before-write GUARD (the mediator) migrated to au-mcp-core as the loadable
-// `mcp.read-guard` plugin (plan 2608261532, Phase 5.1). What stays here is the kernel-side
+// `mcp.read-guard` plugin. What stays here is the kernel-side
 // machinery the daemon still owns: resolving a path's CURRENT engine content hash, and pulling a
 // file path out of a tool input. These feed the read-view ENRICHMENT (`enrichReadEvent`) and the
 // served-view registration — the freshness bookkeeping the kernel maintains as MECHANISM, so a
 // mediator can read it via `MediationContext.readHash` / `hasRead` without daemon privilege.
 //
-// (The filename is kept to avoid churning the daemon import; Phase 6 kernel-thinning may rename it.)
+// (The filename is kept to avoid churning the daemon import.)
 
 import type { EngineBroker } from './broker.ts'
 

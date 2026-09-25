@@ -48,7 +48,7 @@ describe('parseProfileHookConfig', () => {
     expect(parseProfileHookConfig([{ fields: { name: 'x', hookConfig: [{ foo: 1 }] } }], 'x').size).toBe(0)
   })
 
-  it('skips a REF entry (a wikilink string, no `type`) — the daemon follow-reads those (Phase 6b)', () => {
+  it('skips a REF entry (a wikilink string, no `type`) — the daemon follow-reads those', () => {
     const map = parseProfileHookConfig([{ fields: { name: 'x', hookConfig: ['[[some-instance]]'] } }], 'x')
     expect(map.size).toBe(0)
   })

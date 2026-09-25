@@ -59,7 +59,7 @@ export interface Inject {
    * This is the field that has no `mcp.skill` counterpart: it decides whether the inject
    * is in the always-on DEFAULT SET (`entry` / `edit`) or opt-in (`dep` / `discover`).
    * A consumed member offers an inject; it never imposes one. The partition itself is
-   * phase 2 — discovery only CARRIES the role, it applies no policy.
+   * applied elsewhere: discovery only CARRIES the role, it applies no policy.
    */
   role: WireMemberRoleName
   /** The invocable slug (explicit, not filename-derived). */
@@ -74,13 +74,13 @@ export interface Inject {
   /**
    * Which reference edge kinds a hop walk follows, a closed set over the engine's
    * `references_out` classification. Empty when unset. The type requires it past depth 1;
-   * enforcing that is phase 4, not here.
+   * that is enforced elsewhere, not here.
    */
   edgeKinds: string[]
   /**
    * What to show per node in the injected block. `body` (the default) injects prose only;
    * `body-and-frontmatter` injects the whole file. Discovery only CARRIES this; the render
-   * that consumes it (mapping to the engine's `body` vs `content` read) is phase 4.
+   * that consumes it (mapping to the engine's `body` vs `content` read) lives elsewhere.
    */
   show: 'body' | 'body-and-frontmatter'
   /** The instance's freeform markdown body — the context that gets injected. */

@@ -2,12 +2,12 @@
 //
 // One manifest shape (decision 2606111610): a registered Plugin is its manifest
 // plus the functions for its declared shapes. The registry indexes each plugin
-// by shape and runs the fixed kernel phases (P3): mediate -> act -> observe,
+// by shape and runs the fixed kernel phases: mediate -> act -> observe,
 // plus the session-start phase at session-open.
 // Within a phase, order by TIER (gate -> floor -> policy, earlier first), then by
 // name (decision 2609020302 — named tiers replaced the old raw int priority).
 //
-// First-party plugins (Phase 3.7) register a manifest LITERAL in-process; the
+// First-party plugins register a manifest LITERAL in-process; the
 // knowledge-base typed-instance discovery arm (load `entry`) is the same shape, landing
 // with user-authored plugins.
 
@@ -54,10 +54,10 @@ export interface PluginRegistry {
   setServes(map: Map<string, ServesContract>): void
   /** The discovered serves-contracts (base tool name -> contract). */
   serves(): Map<string, ServesContract>
-  /** The mediate phase: mediators by priority; the first non-allow decision wins. */
+  /** The mediate phase: mediators in tier order (gate -> floor -> policy, then id); the first non-allow decision wins. */
   mediate(action: PendingAction, ctx: MediationContext): Promise<Decision>
   /** The globally-registered mediators (deployment-mandated). The daemon composes these
-   *  with a session's mode-derived mediators (Phase 6.3). */
+   *  with a session's mode-derived mediators. */
   mediators(): Plugin[]
   /** The registered stampers: plugins that augment a governed write with stamps (the stamper shape). */
   stampers(): Plugin[]
@@ -74,7 +74,7 @@ export interface PluginRegistry {
   /** The session-start phase: run every session-start hook in tier order at session-open, collecting
    *  their computed inject blocks. `configs` maps a hook's manifest id to its typed config instances
    *  (from the active profile's `hookConfig`): the hook runs once PER config instance, or once with
-   *  `undefined` if it has none. `whitelist` is the profile's `hooks` off-switch (Phase 6b): when
+   *  `undefined` if it has none. `whitelist` is the profile's `hooks` off-switch: when
    *  present, a NON-critical hook runs only if its id is in the set; a `critical` hook always runs;
    *  `undefined` = no restriction. Best-effort (a throwing hook is isolated + contributes nothing). */
   sessionStart(ctx: SessionStartContext, configs: Map<string, unknown[]>, whitelist?: Set<string>): Promise<string[]>
@@ -90,7 +90,7 @@ const byTier = (a: Plugin, b: Plugin) => rankOf(a) - rankOf(b) || a.manifest.id.
 /**
  * Run a set of mediators in tier order; the first non-allow decision wins
  * (short-circuit). Shared by the global registry phase and the daemon's per-session
- * mode-derived mediators (Phase 6.3). Empty set -> allow. (Merging multiple injects
+ * mode-derived mediators. Empty set -> allow. (Merging multiple injects
  * is deferred until composition conflict semantics are resolved at the wing.)
  */
 export async function runMediators(
@@ -221,7 +221,7 @@ export function createPluginRegistry(): PluginRegistry {
       const blocks: string[] = []
       for (const plugin of sessionStarters) {
         if (!plugin.onSessionStart) continue
-        // The `hooks` whitelist (Phase 6b): when present, a NON-critical hook runs only if listed.
+        // The `hooks` whitelist: when present, a NON-critical hook runs only if listed.
         // A `critical` hook is MANDATORY and always runs — the whitelist cannot exclude it.
         if (whitelist && !plugin.manifest.critical && !whitelist.has(plugin.manifest.id)) continue
         const list = configs.get(plugin.manifest.id)

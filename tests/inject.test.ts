@@ -108,7 +108,7 @@ describe('discoverInjects', () => {
 
   it('carries the owner ROLE joined from the members read', async () => {
     // The field with no mcp.skill counterpart. Discovery only CARRIES it; the default-set
-    // partition (entry/edit in, dep/discover opt-in) is phase 2 and applies no policy here.
+    // partition (entry/edit in, dep/discover opt-in) is applied elsewhere, not here.
     const fixtures = [
       inject({ path: '/ws/a/entry.md', name: 'a', owner: 'au-mcp-workspace' }),
       inject({ path: '/ws/b/dep.md', name: 'b', owner: 'au-mcp-sdk' }),

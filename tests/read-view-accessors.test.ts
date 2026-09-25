@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readViewAccessors, type ReadViewSession } from '../src/daemon/daemon.ts'
 
-// The plugin-facing read-view accessors placed on MediationContext (Phase 4, G1). These lock the
+// The plugin-facing read-view accessors placed on MediationContext. These lock the
 // exact wiring a mediator receives — the two floors' distinct semantics:
 //  - hasRead  = canonicalized union of read-view ∪ served-view  (tool-precondition's input)
 //  - readHash = exact read-view lookup, no realpath, no served-view  (read-guard's staleness input)

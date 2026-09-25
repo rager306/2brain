@@ -137,7 +137,7 @@ export interface Daemon {
   handle(request: ClientRequest, conn: WireConnection): Promise<DaemonResponse>
   /** The workspace this daemon serves. */
   readonly workspace: string
-  /** The engine broker (workspace-shared); engine-read tools read through it (P7). */
+  /** The engine broker (workspace-shared); engine-read tools read through it. */
   readonly broker: EngineBroker
   /** The plugin registry (workspace-shared). */
   readonly registry: PluginRegistry
@@ -270,7 +270,7 @@ export function createDaemon(opts: DaemonOptions): Daemon {
     return `${head}\n${paths.map((p) => `- ${p}`).join('\n')}`
   }
 
-  // LAZY loadable-tool discovery (P7-O4 fix). Discovery needs the engine (the `subtypes`
+  // LAZY loadable-tool discovery. Discovery needs the engine (the `subtypes`
   // read), so a one-time startup pass loses every loadable tool when the daemon starts
   // before the engine socket exists (a startup race). Instead, run it on demand on the
   // first request once the engine is reachable: by the time a client lists capabilities
@@ -278,7 +278,7 @@ export function createDaemon(opts: DaemonOptions): Daemon {
   // when already done or no engine. The startup pass in serve.ts stays as an eager best-effort.
   let loadableDiscovered = false
   // FAIL CLOSED (lazy). Loadable discovery is the COMMON path here: the daemon usually
-  // starts before the engine socket exists (P7-O4 race), so the eager serve.ts pass finds
+  // starts before the engine socket exists (a startup race), so the eager serve.ts pass finds
   // nothing and the real discovery happens on the first request. If a `critical` governance
   // plugin fails to load, we cannot un-listen — so we POISON the daemon: every request is
   // refused (mediate DENIES, so no tool runs), loudly naming the plugin. Set once, sticky.
@@ -431,7 +431,7 @@ export function createDaemon(opts: DaemonOptions): Daemon {
    */
   /**
    * Resolve the session's active agent-profile into its per-hook config map AND its `hooks` whitelist
-   * (Phase 6 + 6b, decision 2609020302), from ONE profile read. The daemon holds the broker at
+   * (decision 2609020302), from ONE profile read. The daemon holds the broker at
    * session-open, so it reads the profile from the graph. Both empty/absent when there is no profile /
    * no engine / no fields (a bare launch runs only the default + always-on hooks, unrestricted).
    * `whitelist` is `undefined` = no restriction; a set (possibly empty) = only critical hooks + those.
@@ -449,7 +449,7 @@ export function createDaemon(opts: DaemonOptions): Daemon {
     }
     if (frame.ready === false || frame.type === 'error') return { configs: new Map(), whitelist: undefined, rows: [] }
     const rows = Array.isArray(frame.result) ? (frame.result as ProfileRow[]) : []
-    // resolveProfileHookConfig follows REF entries over the broker (Phase 6b action 3); a ref read
+    // resolveProfileHookConfig follows REF entries over the broker; a ref read
     // that throws must not wedge session-open, so fall back to the inline-only parse on any error.
     const configs = await resolveProfileHookConfig(rows, profile, (op, args) => broker.read(op, args)).catch(() =>
       parseProfileHookConfig(rows, profile),
@@ -692,7 +692,7 @@ export function createDaemon(opts: DaemonOptions): Daemon {
           // Stash the typed config map for the per-call MEDIATOR path (a mediator reads its single
           // config at decide/review via ctx.hookConfig); the session-start phase consumes it below.
           session.hookConfigs = configs
-          // ADVISORY profile checks (Phase 6b action 2): log cross-field warnings; never refuse.
+          // ADVISORY profile checks: log cross-field warnings; never refuse.
           const criticalHookIds = new Set(
             registry.allManifests().filter((m) => m.kind === 'hook' && m.critical).map((m) => m.id),
           )
@@ -766,10 +766,11 @@ export function createDaemon(opts: DaemonOptions): Daemon {
         if (continuityWriteBlocked(session) && ctx.accessOf(request.action) === 'read-write') {
           return { kind: 'decision', id: request.id, decision: { kind: 'deny', reason: continuityBlockNotice(session) } }
         }
-        // ALL mediators are now DISCOVERED plugins from au-mcp-core (plan 2608261532, Phase 5):
-        // the redirect (mcp.nativeToolRedirect @100), read-before-write (mcp.read-guard @40), and
-        // tool-precondition (mcp.tool-precondition @30). They ride `registry.mediators()`,
-        // priority-sorted in `runMediators`, and read per-session state via `MediationContext`
+        // ALL mediators are now DISCOVERED plugins from au-mcp-core:
+        // the redirect (mcp.nativeToolRedirect), read-before-write (mcp.read-guard), and
+        // tool-precondition (mcp.tool-precondition). They ride `registry.mediators()`,
+        // tier-sorted in `runMediators` (gate -> floor -> policy, then id; decision 2609020302
+        // retired the old raw int priorities), and read per-session state via `MediationContext`
         // (`nativeToolAllowlist`, `readHash`/`hasRead`). The kernel wires no floor literal.
         const decision = await runMediators(registry.mediators(), request.action, ctx)
         return { kind: 'decision', id: request.id, decision }
@@ -795,7 +796,7 @@ export function createDaemon(opts: DaemonOptions): Daemon {
           session.seenKeys.add(dedupeKey)
         }
         // Enrich a gate read BEFORE the append, so the persisted event carries it:
-        // record the read-view hash (read-before-write floor, P6-O6) AND stamp the
+        // record the read-view hash (read-before-write floor) AND stamp the
         // touched-file pin (`target`) from the read's commit. Best-effort; no engine ->
         // no entry -> the guard denies a later overwrite, and `target` stays unset.
         await enrichReadEvent(session, request.event, broker, opts.workspace)
@@ -811,8 +812,8 @@ export function createDaemon(opts: DaemonOptions): Daemon {
         // act -> observe: stamp into the live log (always — floors + mediator consults + the
         // read/served view need it), then fan out to observers. UNCONDITIONAL: capture is always-on
         // substrate (the live log); whether a mounted observer (au-provenance's recorder) PERSISTS is
-        // its own concern, not a kernel env. The former `AU_MCP_TRACE` gate is retired (plan 2608221145
-        // Phase 6 / the launch-surface decision).
+        // its own concern, not a kernel env. The former `AU_MCP_TRACE` gate is retired (the launch-surface
+        // decision).
         const stamped = sessions.append(request.session, request.event)
         if (stamped) registry.observe(stamped, session.hookConfigs)
         // POST-tool review (B2-i): give registered mediators a turn to narrate a consequence of
@@ -968,7 +969,6 @@ export function createDaemon(opts: DaemonOptions): Daemon {
           kind: 'capabilities',
           id: request.id,
           callables,
-          redirects: [],
         }
       }
 
@@ -1120,7 +1120,7 @@ interface ReadEnrichSession {
 }
 
 /**
- * On a read observe, arm the session read-view (P6-O6) so a later overwrite of that path can be
+ * On a read observe, arm the session read-view so a later overwrite of that path can be
  * checked against what the session saw. TWO paths, by how the read arrived:
  *
  *   - PINNED (the gate `read_file_pinned`): route through the engine `content` read, which yields

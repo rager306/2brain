@@ -43,7 +43,7 @@ describe('end-to-end over a real socket', () => {
       expect(invoked.isError).toBeFalsy()
       expect(String(invoked.result)).toContain('echo:hello world')
 
-      // mediate allows by default (no mediator plugins in Phase 3)
+      // mediate allows by default (no mediator plugins installed)
       const decision = await client.mediate('s1', { tool: 'Bash', input: { command: 'ls' } })
       expect(decision.kind).toBe('allow')
 

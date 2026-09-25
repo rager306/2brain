@@ -4,14 +4,14 @@
 // au-engine daemon. Its clients (the CC MCP-server shim, the CC hooks, au-host,
 // other UIs) are thin and speak @arsumbris/au-mcp-sdk over the wire.
 //
-// Built across Phase 3 (see the plan):
-// - wire transport server + framing            (3.2) ✓
-// - lifecycle: start/stop/status + reclaim     (3.3, src/cli.ts) ✓
-// - session registry + state split             (3.4) ✓
-// - engine broker                              (3.5) ✓
-// - plugin registry + orchestration            (3.6) ✓
-// - first-party callable plugins               (3.7) ✓
-// - consult-trace over the live log            (3.8) ✓
+// Components:
+// - wire transport server + framing
+// - lifecycle: start/stop/status + reclaim     (src/cli.ts)
+// - session registry + state split
+// - engine broker
+// - plugin registry + orchestration
+// - first-party callable plugins
+// - consult-trace over the live log
 
 export { MCP_CONTRACT_VERSION } from '@arsumbris/au-mcp-sdk'
 export { createDaemon, type Daemon, type DaemonOptions } from './daemon/daemon.ts'

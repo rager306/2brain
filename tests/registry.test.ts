@@ -126,7 +126,7 @@ describe('plugin registry + orchestration', () => {
     expect(seen.map((e) => [e.kind, e.seq])).toEqual([['tool_start', 1]]) // daemon-stamped seq
   })
 
-  it('fails closed when a plugin dependency is unsatisfied (P4)', () => {
+  it('fails closed when a plugin dependency is unsatisfied', () => {
     const needsTrace: Plugin = {
       manifest: manifest({ id: 'mcp.hardrule', kind: 'hook', shapes: ['mediator'], dependsOn: ['mcp.trace'] }),
       decide: () => ({ kind: 'allow' }),
