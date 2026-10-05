@@ -229,6 +229,16 @@ pub fn start(entry: &Path) -> ExitCode {
     // Operation tracing, off unless `AU_TRACE` is set. The guards flush the trace
     // and drain the log on shutdown, so they are held for the daemon's lifetime.
     let _trace_guards = install_tracing(&entry);
+    // hotpath profiling, opt-in via the `hotpath` cargo feature (`cargo build
+    // --features hotpath`). Without the feature the guard is a noop. The report
+    // prints when the daemon shuts down; `HOTPATH_OUTPUT_FORMAT=json` for JSON.
+    #[cfg(feature = "hotpath")]
+    let _hotpath = {
+        eprintln!("au: hotpath guard building...");
+        let g = hotpath::HotpathGuardBuilder::new("au-daemon").build();
+        eprintln!("au: hotpath guard ACTIVE");
+        g
+    };
     // Preflight: the entry MUST be a folder-repo (a directory carrying a valid,
     // named `.arsumbris/repo.yaml`). Refuse a non-repo entry up front with a
     // distinct exit code, before binding the socket or booting the engine, rather
@@ -367,6 +377,47 @@ pub fn start(entry: &Path) -> ExitCode {
     // Dropping `server` removes the socket; `engine` drops its watcher.
     println!("au: daemon stopped");
     ExitCode::SUCCESS
+}
+
+/// One-shot cold build with a hotpath profile report printed on exit. The
+/// guard lives in this function's frame, so its Drop runs when the build
+/// finishes — the static-report path hotpath recommends for CLI tools.
+#[cfg(feature = "hotpath")]
+pub fn build_profile(entry: &Path) -> ExitCode {
+    let entry = match canonical_entry(entry) {
+        Ok(e) => e,
+        Err(code) => return code,
+    };
+    if let Err(e) = au_engine::device_root() {
+        eprintln!("au: cannot profile {}: {e}", entry.display());
+        return ExitCode::from(ENV_ERROR);
+    }
+    #[cfg(feature = "hotpath")]
+    let _hotpath = {
+        eprintln!("au: hotpath guard building...");
+        let g = hotpath::HotpathGuardBuilder::new("au-build-profile").build();
+        eprintln!("au: hotpath guard ACTIVE (guard drop печатает отчёт)");
+        g
+    };
+    let fs = au_parser::RealFileSystem;
+    let started = std::time::Instant::now();
+    let build_result = au_engine::build(&entry, &fs);
+    eprintln!("au: build finished, dropping hotpath guard...");
+    drop(_hotpath);
+    match build_result {
+        Ok(kb) => {
+            eprintln!(
+                "au: build ok in {:.2}s ({} catalogued files)",
+                started.elapsed().as_secs_f32(),
+                kb.catalog.size()
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("au: build failed: {e}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 /// Ask the daemon serving `entry` to shut down, over the socket. With `force`,

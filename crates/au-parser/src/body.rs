@@ -311,9 +311,7 @@ pub fn scan_wikilink_spans<'a>(
     let mut out = Vec::new();
     let bytes = src.as_bytes();
     // `zi` is the first zone whose end is past the outer cursor. The cursor only
-    // advances, so `zi` only advances. The inner `]]`-search below uses a LOCAL
-    // copy `si` (also forward-only over its own rising `search`), so the two
-    // cursors never share one index.
+    // advances, so `zi` only advances.
     let mut zi = 0usize;
     let mut cursor = 0;
     while cursor + 1 < bytes.len() {
@@ -321,16 +319,31 @@ pub fn scan_wikilink_spans<'a>(
             cursor += 1;
             continue;
         }
-        if bytes[cursor] != b'[' || bytes[cursor + 1] != b'[' {
-            cursor += 1;
+        // memchr jump: the next '[' at or after `cursor`, instead of advancing
+        // one byte per iteration. Candidate validation (the second '[' and the
+        // escape byte) stays byte-exact below, so semantics are unchanged;
+        // only the per-byte candidate scan is replaced. (Profiled 2026-10-05:
+        // the byte-by-byte candidate walk was ~18% of a cold build.)
+        let first = match memchr::memchr(b'[', &bytes[cursor..]) {
+            Some(i) => cursor + i,
+            None => break,
+        };
+        if first + 1 >= bytes.len() {
+            break;
+        }
+        let candidate = if bytes[first + 1] == b'[' {
+            first
+        } else {
+            // A lone '[': the baseline advanced one byte past it.
+            cursor = first + 1;
+            continue;
+        };
+        if candidate > 0 && bytes[candidate - 1] == b'\\' {
+            cursor = candidate + 2;
             continue;
         }
-        if cursor > 0 && bytes[cursor - 1] == b'\\' {
-            cursor += 2;
-            continue;
-        }
-        let start = cursor;
-        let content_start = cursor + 2;
+        let start = candidate;
+        let content_start = start + 2;
         let mut search = content_start;
         let mut content_end: Option<usize> = None;
         // When the inner search enters an exclusion zone (inline-code
@@ -344,16 +357,38 @@ pub fn scan_wikilink_spans<'a>(
         // `search`. The inner search breaks at the first zone, so a non-overlap
         // means one covering zone, whose end is the jump target.
         let mut si = zi;
-        while search + 1 < bytes.len() {
+        'inner: while search + 1 < bytes.len() {
             if let Some(zone_end) = zone_end_at(exclusions, &mut si, search) {
                 straddled_zone_end = Some(zone_end);
                 break;
             }
-            if bytes[search] == b']' && bytes[search + 1] == b']' {
-                content_end = Some(search);
+            // memchr jump: the next ']' at or after `search`, but never past
+            // the next zone's start — a ']]' beyond the zone start belongs to
+            // the straddle case, where the candidate is not a wikilink.
+            let zone_bound = exclusions
+                .get(si)
+                .filter(|z| z.start > search)
+                .map(|z| z.start)
+                .unwrap_or(bytes.len());
+            let scan_end = zone_bound.saturating_sub(1).min(bytes.len());
+            let j = match memchr::memchr(b']', &bytes[search..scan_end]) {
+                Some(i) => search + i,
+                None => {
+                    // No ']' before the zone bound. If a zone follows, the
+                    // candidate straddles it: record its end so the match arm
+                    // jumps the outer cursor past the zone. At EOF the
+                    // (None, None) arm stops the scan.
+                    if let Some(z) = exclusions.get(si).filter(|z| z.start > search) {
+                        straddled_zone_end = Some(z.end);
+                    }
+                    break 'inner;
+                }
+            };
+            if j + 1 < bytes.len() && bytes[j + 1] == b']' {
+                content_end = Some(j);
                 break;
             }
-            search += 1;
+            search = j + 1;
         }
         // Record the inner-scan distance (one accumulate per candidate, off the
         // per-byte path). The scanner is linear when this total stays O(body

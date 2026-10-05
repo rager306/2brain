@@ -43,6 +43,14 @@ enum TopCommand {
         #[arg(long)]
         json: bool,
     },
+    /// One-shot cold build of the entry with a hotpath profile report on exit.
+    /// Requires the `hotpath` cargo feature; without it, a plain build + stats.
+    #[cfg(feature = "hotpath")]
+    BuildProfile {
+        /// The entry: a folder-repo directory. Defaults to the current directory.
+        #[arg(default_value = ".")]
+        entry: PathBuf,
+    },
 }
 
 /// Per-workspace daemon lifecycle. The daemon serves the engine's reads and
@@ -89,6 +97,8 @@ fn main() -> ExitCode {
         },
         TopCommand::Open { name } => au_cli::daemon::open(&name),
         TopCommand::Members { entry, json } => au_cli::members::members(&entry, json),
+        #[cfg(feature = "hotpath")]
+        TopCommand::BuildProfile { entry } => au_cli::daemon::build_profile(&entry),
     }
 }
 

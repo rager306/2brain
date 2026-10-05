@@ -121,6 +121,7 @@ impl From<std::io::Error> for BuildError {
 /// A from-scratch build over an empty registry, no parse reuse; see
 /// [`build_reusing`] to feed a prior parse layer and a registry.
 #[tracing::instrument(skip_all, fields(repo = %repo.display()))]
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub fn build(repo: &std::path::Path, fs: &impl FileSystem) -> Result<KnowledgeBase, BuildError> {
     // No device package cache: this is the deterministic test / fixture entry,
     // dependency mounting is the daemon's path.
@@ -164,6 +165,7 @@ pub fn default_package_cache_root() -> Option<PathBuf> {
 /// whole-knowledge-base over the resulting catalog, parse reuse alone bounds the
 /// per-file parse cost.
 #[tracing::instrument(skip_all, fields(repo = %repo.display()))]
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub fn build_reusing(
     repo: &std::path::Path,
     fs: &impl FileSystem,
@@ -1148,6 +1150,7 @@ pub(crate) struct Composition {
 ///
 /// Reads only: no fetch, no write, the cache is consulted by locked sha. Refuses a
 /// non-repo entry exactly as the build does.
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub(crate) fn compose(
     repo: &std::path::Path,
     fs: &impl FileSystem,
@@ -1419,6 +1422,7 @@ pub(crate) fn compose(
 /// `repo.yaml`, is [`BuildError::EntryNotARepo`]. When the entry also
 /// carries a `.arsumbris/workspace.yaml`, that composition is returned; otherwise
 /// the workspace is the entry repo plus its own `deps` (an entry-only workspace).
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub(crate) fn resolve_entry(
     entry: &std::path::Path,
     fs: &impl FileSystem,
@@ -1601,6 +1605,7 @@ fn auignore_emptied_the_member(root: &Path, fs: &impl FileSystem) -> bool {
 ///
 /// Each member honors its own `.arsumbris/.auignore`; an over-broad scope that
 /// empties a member fires `auignore-empty-scope`.
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 fn walk_member_once(
     root: &Path,
     fs: &impl FileSystem,

@@ -26,6 +26,12 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+hotpath = { version = "0.28", optional = true, features = ["hotpath", "json"] }
+
+[features]
+# Profiling is opt-in; see au-cli. Measure macros are noops without the feature.
+# "json" adds the JSON report format (non-default in hotpath itself).
+hotpath = ["dep:hotpath"]
 
 [dev-dependencies]
 au-testkit = { workspace = true }

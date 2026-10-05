@@ -11,6 +11,7 @@ au-diagnostics = { workspace = true }
 saphyr = { workspace = true }
 saphyr-parser = { workspace = true }
 ignore = { workspace = true }
+memchr = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
