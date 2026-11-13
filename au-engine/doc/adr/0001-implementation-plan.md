@@ -44,9 +44,23 @@ proposed; this document authorizes no live deployment or vault migration.
    and, when a different file is present, re-arms the read-before-write guard
    with the current hash.
 5. **Cutover decision.** Complete the expanded golden and differential contracts,
-   fault tests, client compatibility matrix, and a rollback rehearsal. Quiesce or
-   fence writers during a separately approved maintenance window. No dual writes
-   to production and no daemon restart while live sessions are active.
+   fault tests, client compatibility matrix, and a rollback rehearsal.
+
+   **Implemented so far.** Transport faults are covered at the server boundary:
+   an engine that dies after accepting a mutation yields `outcome_unknown` and
+   the recorded read is dropped, so an immediate replay is refused locally as
+   `policy/prior_read` instead of reaching the engine twice; an engine that dies
+   during a read is a tool error and the next read succeeds; a truncated length
+   header is an error rather than a hang. The client matrix is measured, not
+   inferred: Claude Code 2.1.316 completes a real handshake, Codex 0.164.0
+   accepts and lists the server but offers no non-interactive health check, and
+   the Cursor agent is not exercisable without an API key. Only the
+   `2025-06-18` revision is reached by a real client. Still open: the rollback
+   rehearsal and a production golden re-capture.
+
+   **Not authorised yet.** Quiesce or fence writers during a separately approved
+   maintenance window. No dual writes to production and no daemon restart while
+   live sessions are active.
 
 ## Immediate acceptance checks
 

@@ -1,7 +1,8 @@
 # au-mcp-rs
 
-Experimental, read-only MCP stdio server for an existing arsumbris engine daemon.
-It does not start a daemon or derive a default socket. Supply an explicit Unix
+Experimental MCP stdio server for an existing arsumbris engine daemon. Reads are
+always available; mutations are off unless granted at launch (see below). It
+does not start a daemon or derive a default socket. Supply an explicit Unix
 socket path as the sole command-line argument:
 
 ```sh
@@ -278,3 +279,12 @@ RUSTUP_HOME=/root/.rustup AU_ENGINE_BIN=../au-engine/target/debug/au cargo +1.99
 ```
 
 This test does not establish full MCP conformance or production readiness.
+
+## Client matrix
+
+`scripts/client-matrix.sh` registers the adapter in the MCP clients installed on
+this host and reports what each one actually verified; `docs/client-matrix.md`
+records the measured result and the gaps. It runs in a throwaway `HOME` against a
+disposable repository, so it touches neither user configuration nor the
+production vault.
+
