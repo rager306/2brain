@@ -59,9 +59,12 @@ proposed; this document authorizes no live deployment or vault migration.
    (`au-mcp-rs/scripts/rollback_rehearsal.py`) passed on a disposable repository:
    a granted write is an engine commit, the adapter leaves no files behind, a
    fresh process still reads the write, and reverting to read-only is a launch
-   flag rather than a migration. Still open: a production golden re-capture, and
-   parity with the existing Python bridge, which speaks to the Node daemon
-   rather than the engine socket.
+   flag rather than a migration. Bridge parity is measured, not
+   assumed: the Node daemon projects its own shapes (a diagnostics tool with a
+   summary, paging, and a severity filter), so byte parity is the wrong target.
+   Over the one shared fact the surfaces agree exactly once the daemon is
+   unioned across its severity filter, and the daemon core compiles in no tools
+   without `au-mcp-core` mounted. Still open: a production golden re-capture.
 
    **Not authorised yet.** Quiesce or fence writers during a separately approved
    maintenance window. No dual writes to production and no daemon restart while

@@ -294,3 +294,12 @@ production vault.
 write is an ordinary engine commit, the adapter leaves no files behind, a fresh
 process still reads the write, and starting the same binary without a grant is
 the whole rollback. See `docs/rollback-rehearsal.md`.
+
+## Bridge parity
+
+`scripts/bridge_parity.py` runs the Python bridge, the Node daemon, and this
+adapter against one disposable workspace and compares the facts both surfaces
+state. `docs/bridge-parity.md` records the result and the surface differences a
+cutover must decide on. The daemon core compiles in no tools: its surface comes
+from `mcp.tool` plugins discovered in the served workspace, so the script mounts
+`au-mcp-core` as a dependency.
