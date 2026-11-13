@@ -131,6 +131,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
         [
             "au_content",
             "au_delete_file",
+            "au_describe_tool",
             "au_diagnostics",
             "au_edit_file",
             "au_files",
@@ -141,6 +142,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_overview",
             "au_preview_mutation",
             "au_reconcile",
+            "au_search_tools",
             "au_subtypes",
             "au_top_level_dirs",
             "au_type",

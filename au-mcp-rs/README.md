@@ -16,6 +16,10 @@ to what the engine served.
 
 ### Launch policy
 
+`--tools concise` advertises one line per tool with no parameter descriptions or
+output schemas, and serves full definitions through `au_search_tools` and
+`au_describe_tool`; `--tools full` (the default) advertises everything.
+
 Mutations are **off unless granted at launch**. Without a grant the server is
 read-only: `au_write_file`, `au_edit_file`, and `au_delete_file` are absent from
 `tools/list`, and calling one is refused before any engine connection.
@@ -327,3 +331,11 @@ Every tool declares an `outputSchema`, results carry the same payload as
 `structuredContent` and as text, and `initialize` returns server instructions
 describing the envelope, the suggested flow, and the mutation policy. The
 measured cost and the remaining gaps are in `docs/agent-interface.md`.
+
+## Token economy
+
+`docs/progressive-disclosure.md` collects the current practice for MCP tool
+tokens (deferred loading, ladders of detail, schema minimization, result budgets,
+catalogue freshness) with sources, and measures this server: 20 636 chars of
+tool definitions in the full profile against 8 718 in the concise one, with full
+definitions one `au_describe_tool` call away.

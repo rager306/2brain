@@ -203,6 +203,15 @@ struct ReadResult {
     payload: Value,
 }
 
+/// How much of each tool definition the server advertises up front.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ToolProfile {
+    /// Full descriptions, schemas, and output schemas for every tool.
+    Full,
+    /// One line per tool, no output schema; `au_describe_tool` serves the rest.
+    Concise,
+}
+
 #[derive(Debug, Clone)]
 struct Server {
     socket: PathBuf,
@@ -213,12 +222,18 @@ struct Server {
     read_slots: Arc<Semaphore>,
     mutation_slot: Arc<Semaphore>,
     served: Arc<Mutex<HashMap<(String, String), String>>>,
+    profile: ToolProfile,
     tool_router: ToolRouter<Self>,
 }
 
 #[tool_router]
 impl Server {
-    fn new(socket: PathBuf, policy: policy::Policy, principal: String) -> Self {
+    fn new(
+        socket: PathBuf,
+        policy: policy::Policy,
+        principal: String,
+        profile: ToolProfile,
+    ) -> Self {
         let audit = policy::Audit::new(&policy.audit);
         Self {
             socket,
@@ -229,6 +244,7 @@ impl Server {
             read_slots: Arc::new(Semaphore::new(MAX_IN_FLIGHT_READS)),
             mutation_slot: Arc::new(Semaphore::new(1)),
             served: Arc::new(Mutex::new(HashMap::new())),
+            profile,
             tool_router: Self::tool_router(),
         }
     }
@@ -757,6 +773,68 @@ impl Server {
     }
 
     #[tool(
+        description = "Find tools by words from their name, description, or parameter names. Returns the best matches; detail selects names only, names with a one-line summary (default), or full definitions with schemas. Use it when you know the task but not the tool name.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = envelope_schema("tools"),
+    )]
+    async fn au_search_tools(
+        &self,
+        Parameters(args): Parameters<SearchToolsArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        let query = args.query.trim();
+        if query.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'query' must not be empty")]);
+        }
+        let matches = search_tools(&self.visible_tools(), query, args.limit);
+        let tools: Vec<Value> = matches
+            .into_iter()
+            .map(|tool| match args.detail {
+                SearchDetail::Name => json!({"name": tool.name}),
+                SearchDetail::Summary => {
+                    json!({"name": tool.name, "description": first_sentence(tool.description.as_deref())})
+                }
+                SearchDetail::Schema => serde_json::to_value(&tool).unwrap_or(Value::Null),
+            })
+            .collect();
+        success_json(json!({"tools": tools}))
+    }
+
+    #[tool(
+        description = "Get one tool's full definition: description, input and output schemas, and annotations. Use it after au_search_tools, or when a tool's one-line description is not enough.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = envelope_schema("tool"),
+    )]
+    async fn au_describe_tool(
+        &self,
+        Parameters(args): Parameters<DescribeToolArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.name.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'name' must not be empty")]);
+        }
+        let Some(tool) = self
+            .visible_tools()
+            .into_iter()
+            .find(|tool| tool.name.as_ref() == args.name)
+        else {
+            return CallToolResult::error(vec![ContentBlock::text(format!(
+                "unknown tool '{}'; call au_search_tools or tools/list to see what this launch exposes",
+                args.name
+            ))]);
+        };
+        success_json(serde_json::to_value(&tool).unwrap_or(Value::Null))
+    }
+
+    #[tool(
         description = "List every instance matching a type. A bare name matches each identity of that name; name::repo selects one. Optional origins restrict to file, nested, or meta sites; instance and body splice extra per-match facts. Unpaged, so an oversized frame fails. Paths and workspace content may be exposed; this is not an authorization boundary.",
         annotations(
             read_only_hint = true,
@@ -1087,6 +1165,17 @@ impl Server {
         }
     }
 
+    /// The tools this launch may advertise, before any profile compacting.
+    fn visible_tools(&self) -> Vec<rmcp::model::Tool> {
+        self.tool_router
+            .list_all()
+            .into_iter()
+            .filter(|tool| {
+                self.policy.allow_mutations || !policy::MUTATION_TOOLS.contains(&tool.name.as_ref())
+            })
+            .collect()
+    }
+
     async fn read(
         &self,
         request: Value,
@@ -1187,14 +1276,22 @@ impl ServerHandler for Server {
                 None,
             ));
         }
-        let tools = self
-            .tool_router
-            .list_all()
-            .into_iter()
-            .filter(|tool| {
-                self.policy.allow_mutations || !policy::MUTATION_TOOLS.contains(&tool.name.as_ref())
-            })
-            .collect();
+        let mut tools = self.visible_tools();
+        if self.profile == ToolProfile::Concise {
+            // One line per tool and no output schema: everything deeper comes
+            // back from au_describe_tool, so discovery stays cheap.
+            for tool in &mut tools {
+                tool.description = Some(first_sentence(tool.description.as_deref()).into());
+                tool.output_schema = None;
+                // Parameter descriptions are the largest remaining cost; the
+                // parameter names, types, enums, and required set stay.
+                let mut schema = Value::Object((*tool.input_schema).clone());
+                strip_descriptions(&mut schema);
+                if let Value::Object(schema) = schema {
+                    tool.input_schema = std::sync::Arc::new(schema);
+                }
+            }
+        }
         Ok(ListToolsResult {
             tools,
             ..Default::default()
@@ -1378,6 +1475,103 @@ impl Denial {
 /// What a client should know before choosing a tool.
 const INSTRUCTIONS: &str = "Read-only access to an arsumbris workspace, plus gated mutations. Every result is the engine's own result object under the read's key: au_overview answers {\"overview\": ...}, au_type answers {\"type\": ...}. Start with au_overview, then au_members for member roots, au_types and au_type for vocabulary, and au_files or au_content to locate text. Paged tools take limit and offset; au_type_tree, au_content, au_instances_of, and au_validate_value are unpaged and can return large answers. Mutations are disabled unless the operator granted them at launch; when enabled they need a prior au_content read of the same path and the hash it returned. A lost reply is outcome_unknown and must not be retried blindly; au_reconcile reports whether it landed.";
 
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct SearchToolsArguments {
+    /// Words describing what you want to do.
+    #[schemars(length(min = 1))]
+    query: String,
+    /// How much to return per match; default summary.
+    #[serde(default)]
+    detail: SearchDetail,
+    /// Maximum matches, from 1 to 20 (default 5).
+    #[serde(default = "default_search_limit")]
+    #[schemars(range(min = 1, max = 20))]
+    limit: usize,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+enum SearchDetail {
+    /// Names only.
+    Name,
+    /// Name and a one-line summary.
+    #[default]
+    Summary,
+    /// Full definitions with schemas.
+    Schema,
+}
+
+fn default_search_limit() -> usize {
+    5
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct DescribeToolArguments {
+    /// Tool name, exactly as tools/list reports it.
+    #[schemars(length(min = 1))]
+    name: String,
+}
+
+/// Rank tools for a query: a term in the name weighs most, then a parameter
+/// name, then the description. Deterministic, and cheap enough to run per call.
+fn search_tools(tools: &[rmcp::model::Tool], query: &str, limit: usize) -> Vec<rmcp::model::Tool> {
+    let terms: Vec<String> = tokenize(query);
+    if terms.is_empty() {
+        return Vec::new();
+    }
+    let mut scored: Vec<(u32, &rmcp::model::Tool)> = tools
+        .iter()
+        .filter_map(|tool| {
+            let name = tokenize(tool.name.as_ref());
+            let text = tokenize(tool.description.as_deref().unwrap_or(""));
+            let params: Vec<String> = tool
+                .input_schema
+                .get("properties")
+                .and_then(Value::as_object)
+                .map(|properties| properties.keys().flat_map(|key| tokenize(key)).collect())
+                .unwrap_or_default();
+            let mut score = 0;
+            for term in &terms {
+                if name.contains(term) {
+                    score += 3;
+                }
+                if params.contains(term) {
+                    score += 2;
+                }
+                if text.iter().any(|word| word == term) {
+                    score += 1;
+                }
+                if text.iter().any(|word| word.starts_with(term.as_str())) {
+                    score += 1;
+                }
+            }
+            (score > 0).then_some((score, tool))
+        })
+        .collect();
+    scored.sort_by(|(left_score, left), (right_score, right)| {
+        right_score
+            .cmp(left_score)
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    scored
+        .into_iter()
+        .take(limit)
+        .map(|(_, tool)| tool.clone())
+        .collect()
+}
+
+/// Lowercase word tokens; underscores and dots split so `au_content` matches
+/// "content" and `io.arsumbris` matches "arsumbris".
+fn tokenize(text: &str) -> Vec<String> {
+    text.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
 /// The output schema of a read: the engine's result object with its own key.
 fn envelope_schema(verb: &'static str) -> Arc<serde_json::Map<String, Value>> {
     let mut properties = serde_json::Map::new();
@@ -1500,6 +1694,13 @@ async fn read_mutation_with_timeout(
     }
 }
 
+/// A locally produced answer (discovery results), shaped like a tool payload.
+fn success_json(payload: Value) -> CallToolResult {
+    let mut response = CallToolResult::success(vec![ContentBlock::text(payload.to_string())]);
+    response.structured_content = Some(payload);
+    response
+}
+
 fn success_result(result: ReadResult) -> CallToolResult {
     let mut response =
         CallToolResult::success(vec![ContentBlock::text(result.payload.to_string())]);
@@ -1510,6 +1711,37 @@ fn success_result(result: ReadResult) -> CallToolResult {
         Value::String(result.version.to_string()),
     )])));
     response
+}
+
+/// Drop every `description` from a JSON schema, keeping structure and enums.
+fn strip_descriptions(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            map.remove("description");
+            // Presentation-only keys, repeated in every tool schema.
+            map.remove("$schema");
+            map.remove("title");
+            for item in map.values_mut() {
+                strip_descriptions(item);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                strip_descriptions(item);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The first sentence of a description, so a concise profile costs one line.
+fn first_sentence(description: Option<&str>) -> String {
+    let text = description.unwrap_or("").trim();
+    let end = text.find(". ").filter(|cut| *cut < 140).map_or_else(
+        || text.chars().take(140).collect::<String>(),
+        |cut| text[..=cut].to_owned(),
+    );
+    end.trim().to_owned()
 }
 
 /// Reject a member-relative path that could escape the member root.
@@ -1720,17 +1952,18 @@ async fn mutate_engine(socket: &Path, request: Value) -> Result<ReadResult, Wire
     })
 }
 
-const USAGE: &str = "usage: au-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--principal <name>]";
+const USAGE: &str = "usage: au-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--principal <name>] [--tools full|concise]";
 
 /// Parse the launch arguments. Mutations need an explicit grant: either a
 /// policy file that allows them or `--allow-mutations`.
 fn parse_args(
     arguments: impl Iterator<Item = std::ffi::OsString>,
-) -> Result<(PathBuf, policy::Policy, String), String> {
+) -> Result<(PathBuf, policy::Policy, String, ToolProfile), String> {
     let mut socket: Option<PathBuf> = None;
     let mut policy_path: Option<PathBuf> = None;
     let mut allow_mutations = false;
     let mut principal = "unknown".to_owned();
+    let mut profile = ToolProfile::Full;
     let mut arguments = arguments.peekable();
     while let Some(argument) = arguments.next() {
         let text = argument.to_string_lossy().into_owned();
@@ -1742,6 +1975,14 @@ fn parse_args(
             "--principal" => {
                 let name = arguments.next().ok_or(USAGE)?;
                 principal = name.to_string_lossy().into_owned();
+            }
+            "--tools" => {
+                let value = arguments.next().ok_or(USAGE)?;
+                profile = match value.to_string_lossy().as_ref() {
+                    "full" => ToolProfile::Full,
+                    "concise" => ToolProfile::Concise,
+                    other => return Err(format!("unknown tool profile: {other}. {USAGE}")),
+                };
             }
             "--allow-mutations" => allow_mutations = true,
             other if other.starts_with("--") => {
@@ -1763,13 +2004,13 @@ fn parse_args(
     if allow_mutations {
         policy.allow_mutations = true;
     }
-    Ok((socket, policy, principal))
+    Ok((socket, policy, principal, profile))
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let (socket, policy, principal) = parse_args(env::args_os().skip(1))?;
-    let service = Server::new(socket, policy, principal)
+    let (socket, policy, principal, profile) = parse_args(env::args_os().skip(1))?;
+    let service = Server::new(socket, policy, principal, profile)
         .serve(bounded_stdio::BoundedStdio::new(
             SUPPORTED_PROTOCOL_VERSIONS.to_vec(),
         ))
@@ -1785,7 +2026,12 @@ mod tests {
     use tokio::net::UnixListener;
 
     fn test_server(socket: PathBuf) -> Server {
-        Server::new(socket, policy::Policy::read_only(), "test".to_owned())
+        Server::new(
+            socket,
+            policy::Policy::read_only(),
+            "test".to_owned(),
+            ToolProfile::Full,
+        )
     }
 
     fn request_context() -> RequestContext<RoleServer> {
