@@ -20,9 +20,21 @@ Connecting a client, including the socket probe and per-client commands, is in
 
 ## Build and inspect
 
+Two binaries are built from this package:
+
+| binary | role | size |
+|---|---|---|
+| `arsumbris` | **one binary for both halves**: `daemon`, `open`, `members` (the engine) and `mcp`, `info` (this server) | 21 MB |
+| `au-mcp-rs` | the MCP server alone, for an existing configuration that names it | 5 MB |
+
+`arsumbris` delegates the engine subcommands to `au_cli` and the MCP subcommand
+to this crate, so the two halves cannot drift from their standalone binaries.
+
 ```sh
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
-./target/release/au-mcp-rs --help          # the contract
+./target/release/arsumbris --help
+./target/release/arsumbris mcp ~/.arsumbris/au-engine/run/<hash>.sock
+./target/release/au-mcp-rs --help          # the MCP half alone
 ./target/release/au-mcp-rs --version
 ./target/release/au-mcp-rs --info          # MCP surface, no engine needed
 ./target/release/au-mcp-rs --info ~/.arsumbris/au-engine/run/<hash>.sock   # + probe

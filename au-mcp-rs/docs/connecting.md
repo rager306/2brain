@@ -9,8 +9,12 @@ derives a default socket.
 ```sh
 cd au-mcp-rs
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
-# binary: target/release/au-mcp-rs
+# target/release/arsumbris  — engine daemon + MCP server in one binary
+# target/release/au-mcp-rs  — the MCP server alone
 ```
+
+Use `arsumbris mcp <socket>` everywhere below; `au-mcp-rs <socket>` is the same
+server with the same flags, kept so an existing configuration keeps working.
 
 The result is one self-contained executable (5 MB, dynamically linked only to
 `libc`, `libm`, `libgcc_s`). It has no runtime, interpreter, or package
@@ -48,10 +52,12 @@ PY
 ## 2b. Check what the binary says about itself
 
 ```sh
-au-mcp-rs --help                 # usage, options, protocol families, docs
-au-mcp-rs --version              # one line
-au-mcp-rs --info                 # MCP surface and launch defaults, no engine
-au-mcp-rs --info <engine.sock>   # the same, plus ready/schema/version/workspace
+arsumbris --help                       # both halves and their subcommands
+arsumbris --version                    # one line
+arsumbris info                         # MCP surface and launch defaults, no engine
+arsumbris info <engine.sock>           # the same, plus ready/schema/version/workspace
+arsumbris daemon status <entry>        # engine side, same as `au daemon status`
+au-mcp-rs --help / --version / --info  # the MCP half alone
 ```
 
 `--info` never needs a running daemon; with a socket it adds the probe result and
@@ -66,8 +72,8 @@ still exits 0 when the engine is unreachable, so it is safe in a health script.
 ```json
 "arsumbris-rs": {
   "type": "stdio",
-  "command": "/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs",
-  "args": ["/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"]
+  "command": "/root/arsumbris/au-mcp-rs/target/release/arsumbris",
+  "args": ["mcp", "/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"]
 }
 ```
 
@@ -79,7 +85,7 @@ with `mcp.list_connections()` and `mcp.list_tools("arsumbris-rs")`.
 
 ```sh
 claude mcp add --scope local arsumbris-rs -- \
-  /root/arsumbris/au-mcp-rs/target/release/au-mcp-rs \
+  /root/arsumbris/au-mcp-rs/target/release/arsumbris mcp \
   /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
 claude mcp list          # expect: arsumbris-rs ... ✔ Connected
 ```
@@ -88,7 +94,7 @@ claude mcp list          # expect: arsumbris-rs ... ✔ Connected
 
 ```sh
 codex mcp add arsumbris-rs -- \
-  /root/arsumbris/au-mcp-rs/target/release/au-mcp-rs \
+  /root/arsumbris/au-mcp-rs/target/release/arsumbris mcp \
   /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
 codex mcp list           # expect: arsumbris-rs  ...  enabled
 ```
@@ -102,8 +108,8 @@ shape, not the handshake.
 {
   "mcpServers": {
     "arsumbris-rs": {
-      "command": "/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs",
-      "args": ["/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"]
+      "command": "/root/arsumbris/au-mcp-rs/target/release/arsumbris",
+      "args": ["mcp", "/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"]
     }
   }
 }
@@ -124,7 +130,7 @@ policy file and keep the allowlist narrow:
 ```
 
 ```json
-"args": ["/root/.arsumbris/au-engine/run/adcfe8680a485529.sock",
+"args": ["mcp", "/root/.arsumbris/au-engine/run/adcfe8680a485529.sock",
          "--policy", "/etc/au-mcp-policy.json",
          "--principal", "allspark"]
 ```

@@ -8,6 +8,10 @@ fn binary() -> Command {
     Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
 }
 
+fn unified() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_arsumbris"))
+}
+
 #[test]
 fn help_lists_the_contract_without_a_socket() {
     let output = binary().arg("--help").output().unwrap();
@@ -88,4 +92,56 @@ fn a_missing_socket_argument_exits_two() {
             .unwrap()
             .contains("usage: au-mcp-rs")
     );
+}
+
+#[test]
+fn the_unified_binary_exposes_both_halves() {
+    let output = unified().arg("--help").output().unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let text = String::from_utf8(output.stdout).unwrap();
+    for expected in ["daemon", "open", "members", "mcp", "info"] {
+        assert!(text.contains(expected), "help lacks {expected}: {text}");
+    }
+    let version = unified().arg("--version").output().unwrap();
+    assert_eq!(
+        String::from_utf8(version.stdout).unwrap().trim(),
+        format!("arsumbris {}", env!("CARGO_PKG_VERSION"))
+    );
+}
+
+#[test]
+fn the_unified_binary_names_itself_in_info() {
+    let output = unified().arg("info").output().unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.starts_with("arsumbris "), "{text}");
+    assert!(text.contains("2026-07-28"), "{text}");
+}
+
+#[test]
+fn the_mcp_subcommand_takes_the_same_flags() {
+    let output = unified().arg("mcp").arg("--help").output().unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let text = String::from_utf8(output.stdout).unwrap();
+    for expected in [
+        "--policy",
+        "--allow-mutations",
+        "--principal",
+        "--tools",
+        "--payload",
+        "<SOCKET>",
+    ] {
+        assert!(text.contains(expected), "mcp help lacks {expected}: {text}");
+    }
+}
+
+#[test]
+fn engine_subcommands_are_delegated_not_reimplemented() {
+    // `members` on a directory without `.arsumbris/repo.yaml` fails the same way
+    // the engine's own binary does, which shows the delegation is real.
+    let temp = tempfile::tempdir().unwrap();
+    let output = unified().arg("members").arg(temp.path()).output().unwrap();
+    assert!(!output.status.success());
+    let text = String::from_utf8(output.stderr).unwrap();
+    assert!(text.contains("not a folder-repo"), "{text}");
 }
