@@ -136,6 +136,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_files",
             "au_hubs",
             "au_imports",
+            "au_instances_of",
             "au_members",
             "au_overview",
             "au_preview_mutation",
@@ -145,6 +146,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_type",
             "au_type_tree",
             "au_types",
+            "au_validate_value",
             "au_write_file"
         ]
     );

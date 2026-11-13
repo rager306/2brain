@@ -643,6 +643,65 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
 
     for (id, arguments, request) in [
         (
+            100,
+            json!({"type_name":"note"}),
+            json!({"read":"instances_of","id":1,"type":"note","instance":false,"body":false}),
+        ),
+        (
+            101,
+            json!({"type_name":"note","origins":["file"]}),
+            json!({"read":"instances_of","id":1,"type":"note","instance":false,"body":false,"origins":["file"]}),
+        ),
+    ] {
+        let direct =
+            engine_read_request(&socket, request).expect("read instances_of from private engine");
+        assert_eq!(direct["ready"], true, "{direct}");
+        send(
+            &mut input,
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_instances_of","arguments":arguments}}),
+        );
+        let reply = receive(&rx);
+        assert_ne!(reply["result"]["isError"], true, "{reply}");
+        assert_engine_version(&socket, &reply, &direct);
+        let payload: Value =
+            serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            payload, direct["result"],
+            "MCP instances_of differs from engine"
+        );
+        assert!(
+            payload["instances_of"]
+                .as_array()
+                .is_some_and(|m| !m.is_empty()),
+            "{payload}"
+        );
+    }
+
+    let validate_arguments = json!({"type_name":"note","value":{"link":"[[b]]"}});
+    let validate_request =
+        json!({"read":"validate_value","id":1,"type_name":"note","value":{"link":"[[b]]"}});
+    let direct =
+        engine_read_request(&socket, validate_request).expect("validate value on private engine");
+    assert_eq!(direct["ready"], true, "{direct}");
+    send(
+        &mut input,
+        json!({"jsonrpc":"2.0","id":102,"method":"tools/call","params":{"name":"au_validate_value","arguments":validate_arguments}}),
+    );
+    let reply = receive(&rx);
+    assert_ne!(reply["result"]["isError"], true, "{reply}");
+    assert_engine_version(&socket, &reply, &direct);
+    let payload: Value =
+        serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        payload, direct["result"],
+        "MCP validate_value differs from engine"
+    );
+    let verdict = &payload["validate_value"][0];
+    assert_eq!(verdict["identity"]["name"], "note", "{payload}");
+    assert!(verdict["identity"]["repo"].is_string(), "{payload}");
+
+    for (id, arguments, request) in [
+        (
             80,
             json!({}),
             json!({"read":"files","id":1,"limit":50,"offset":0}),

@@ -790,3 +790,133 @@ fn missing_or_array_type_payload_is_rejected() {
     }
     daemon.join().unwrap();
 }
+
+#[test]
+fn instances_of_rejects_invalid_arguments_before_connecting() {
+    let temp = tempfile::tempdir().unwrap();
+    let socket = temp.path().join("engine.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut client = Client::start(&socket);
+    for (i, args) in [
+        json!({}),
+        json!({"type_name":""}),
+        json!({"type_name":"note","origins":["file","body"]}),
+        json!({"type_name":"note","origins":"file"}),
+        json!({"type_name":"note","instance":"yes"}),
+        json!({"type_name":"note","type":"note"}),
+        json!({"type_name":"note","path":"/tmp/x"}),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_error(&client.call_tool(i as u32 + 2, "au_instances_of", args));
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+    }
+}
+
+#[test]
+fn instances_of_forwards_the_exact_read_and_preserves_the_envelope() {
+    let temp = tempfile::tempdir().unwrap();
+    let socket = temp.path().join("engine.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let cases = [
+        (
+            json!({"type_name":"note"}),
+            json!({"read":"instances_of","id":1,"type":"note","instance":false,"body":false}),
+            json!({"instances_of":[{"path":"/a.md","claim":"note"},{"path":"/b.md","claim":"note"}]}),
+        ),
+        (
+            json!({"type_name":"note::base","origins":["file"],"instance":true,"body":true}),
+            json!({"read":"instances_of","id":1,"type":"note::base","instance":true,"body":true,"origins":["file"]}),
+            json!({"instances_of":[]}),
+        ),
+        (
+            json!({"type_name":"note","origins":["nested","meta"]}),
+            json!({"read":"instances_of","id":1,"type":"note","instance":false,"body":false,"origins":["nested","meta"]}),
+            json!({"instances_of":[{"path":"/c.md","claim":"note"}]}),
+        ),
+    ];
+    let expected = cases.clone();
+    let daemon = thread::spawn(move || {
+        for (_, request, payload) in expected {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            assert_eq!(read_request(&mut stream), request);
+            let body = serde_json::to_vec(&json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":21,"result":payload})).unwrap();
+            stream
+                .write_all(&(body.len() as u32).to_be_bytes())
+                .unwrap();
+            stream.write_all(&body).unwrap();
+        }
+    });
+    let mut client = Client::start(&socket);
+    for (i, (args, _, payload)) in cases.into_iter().enumerate() {
+        let reply = client.call_tool(i as u32 + 2, "au_instances_of", args);
+        assert_eq!(result_payload(&reply), payload);
+        assert_eq!(reply["result"]["_meta"]["io.arsumbris/engineVersion"], "21");
+    }
+    daemon.join().unwrap();
+}
+
+#[test]
+fn validate_value_forwards_the_value_and_reports_a_null_identity() {
+    let temp = tempfile::tempdir().unwrap();
+    let socket = temp.path().join("engine.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let verdicts = json!([{"identity":null,"diagnostics":[{"code":"unknown-type-claim","severity":"error"}],"undeclared_fields":[]}]);
+    let expected = verdicts.clone();
+    let daemon = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        assert_eq!(
+            read_request(&mut stream),
+            json!({"read":"validate_value","id":1,"type_name":"ghost","value":{"title":"x"}})
+        );
+        let body = serde_json::to_vec(&json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":22,"result":{"validate_value": expected}})).unwrap();
+        stream
+            .write_all(&(body.len() as u32).to_be_bytes())
+            .unwrap();
+        stream.write_all(&body).unwrap();
+    });
+    let mut client = Client::start(&socket);
+    let reply = client.call_tool(
+        2,
+        "au_validate_value",
+        json!({"type_name":"ghost","value":{"title":"x"}}),
+    );
+    assert_eq!(result_payload(&reply), json!({"validate_value": verdicts}));
+    daemon.join().unwrap();
+}
+
+#[test]
+fn validate_value_rejects_invalid_arguments_before_connecting() {
+    let temp = tempfile::tempdir().unwrap();
+    let socket = temp.path().join("engine.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut client = Client::start(&socket);
+    for (i, args) in [
+        json!({"type_name":"note"}),
+        json!({"value":{}}),
+        json!({"type_name":"","value":{}}),
+        json!({"type_name":"note","value":{},"repo":""}),
+        json!({"type_name":"note","value":{},"path":"/tmp"}),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_error(&client.call_tool(i as u32 + 2, "au_validate_value", args));
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+    }
+}

@@ -91,8 +91,8 @@ deadline for connect, request, and response; a timeout returns a tool error
 without retrying. It accepts no generic wire requests and exposes only
 `au_overview`, `au_top_level_dirs`, `au_type`, `au_type_tree`, `au_types`,
 `au_hubs`, `au_diagnostics`, `au_subtypes`, `au_members`, `au_imports`,
-`au_files`, `au_content`, `au_preview_mutation`, and `au_reconcile`, all
-annotated read-only. `au_write_file`,
+`au_files`, `au_content`, `au_instances_of`, `au_validate_value`,
+`au_preview_mutation`, and `au_reconcile`, all annotated read-only. `au_write_file`,
 `au_edit_file`, and `au_delete_file` are the mutating tools; they are annotated
 destructive and not read-only. Only these tools and `au_content` send a
 client-supplied path to the engine, and
@@ -174,6 +174,19 @@ workspace content and may be sensitive. A workspace member without a local root
 identities, diagnostics, and blast radius. It writes nothing, so it needs no
 `expected_hash`, but the member must still be editable. Use it before a
 mutation to inspect consequences.
+
+`au_instances_of` lists the instances matching a type. A bare name matches every
+identity of that name across the workspace; `name::repo` selects one. Optional
+`origins` restricts to `file`, `nested`, or `meta` sites; `instance` and `body`
+splice each match's resolved view or markdown body. The read is unpaged, so an
+oversized frame fails rather than being truncated.
+
+`au_validate_value` validates a JSON value against a type without touching
+disk, returning one verdict per identity the name denotes with diagnostics and
+advisory undeclared fields. An unknown type yields a single verdict with a null
+identity carrying `unknown-type-claim`, never an empty array, so a caller folding
+diagnostics cannot mistake an unvalidated value for a valid one. Spans index a
+synthesized document and do not map back to the input.
 
 `au_reconcile` resolves an interrupted mutation. Give the hash the write should
 have produced, or `expect_absent: true` for a delete; it answers `applied` or

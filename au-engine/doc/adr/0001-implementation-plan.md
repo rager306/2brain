@@ -27,7 +27,10 @@ proposed; this document authorizes no live deployment or vault migration.
    before implementing writes. Verify failed or absent critical policy cannot
    silently admit a write. Do not blindly replay a mutation after lost response.
 
-   **Implemented so far.** Mutations are off unless granted at launch
+   **Implemented so far.** The read surface now covers 16 engine reads, including
+   `instances_of` and the disk-free `validate_value`, each wired to the read
+   path with cancellation, deadline, and frame validation. Mutations are off
+   unless granted at launch
    (`--allow-mutations`, or a policy file with `allow_mutations`); the mutating
    tools are then absent from `tools/list` and refused before any engine
    connection. A policy file can restrict mutations to an exact member allowlist

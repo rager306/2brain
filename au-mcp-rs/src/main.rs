@@ -731,6 +731,78 @@ impl Server {
     }
 
     #[tool(
+        description = "List every instance matching a type. A bare name matches each identity of that name; name::repo selects one. Optional origins restrict to file, nested, or meta sites; instance and body splice extra per-match facts. Unpaged, so an oversized frame fails. Paths and workspace content may be exposed; this is not an authorization boundary.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        )
+    )]
+    async fn au_instances_of(
+        &self,
+        Parameters(args): Parameters<InstancesOfArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.type_name.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text(
+                "'type_name' must not be empty",
+            )]);
+        }
+        let mut request = json!({
+            "read": "instances_of",
+            "id": 1,
+            "type": args.type_name,
+            "instance": args.instance,
+            "body": args.body,
+        });
+        if let Some(origins) = args.origins {
+            let origins: Vec<&str> = origins
+                .iter()
+                .map(|origin| match origin {
+                    InstanceOrigin::File => "file",
+                    InstanceOrigin::Nested => "nested",
+                    InstanceOrigin::Meta => "meta",
+                })
+                .collect();
+            request["origins"] = json!(origins);
+        }
+        self.read(request, "instances_of", ctx).await
+    }
+
+    #[tool(
+        description = "Validate a value against a type without touching disk. Returns one verdict per identity the name denotes, each with diagnostics and advisory undeclared fields; an unknown type yields a null identity carrying unknown-type-claim rather than an empty result. Values and diagnostics may reveal workspace vocabulary.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        )
+    )]
+    async fn au_validate_value(
+        &self,
+        Parameters(args): Parameters<ValidateValueArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.type_name.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text(
+                "'type_name' must not be empty",
+            )]);
+        }
+        if args.repo.as_deref() == Some("") {
+            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
+        }
+        let mut request = json!({
+            "read": "validate_value",
+            "id": 1,
+            "type_name": args.type_name,
+            "value": args.value,
+        });
+        if let Some(repo) = args.repo {
+            request["repo"] = json!(repo);
+        }
+        self.read(request, "validate_value", ctx).await
+    }
+
+    #[tool(
         description = "Check what actually happened after an outcome_unknown mutation. Give the hash the interrupted write should have produced, or expect_absent for a delete. Returns outcome applied or not_applied with the file's current hash and commit; a not_applied answer re-arms the read-before-write guard with the current hash, so the caller can decide whether to retry. This is a read: it never writes.",
         annotations(
             read_only_hint = true,
@@ -1215,6 +1287,43 @@ struct ReconcileArguments {
     expect_absent: bool,
 }
 
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct InstancesOfArguments {
+    /// Type name, bare or qualified as name::repo.
+    #[schemars(length(min = 1))]
+    type_name: String,
+    /// Restrict to these site kinds; absent means every kind.
+    origins: Option<Vec<InstanceOrigin>>,
+    /// Splice each match's resolved view onto its record.
+    #[serde(default)]
+    instance: bool,
+    /// Splice each match's markdown body onto its record.
+    #[serde(default)]
+    body: bool,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "lowercase")]
+enum InstanceOrigin {
+    File,
+    Nested,
+    Meta,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ValidateValueArguments {
+    /// Type name, bare or qualified as name::repo.
+    #[schemars(length(min = 1))]
+    type_name: String,
+    /// The instance body to validate; it never touches disk.
+    value: Value,
+    /// Scope to one member's identity; a qualified name wins over this.
+    #[schemars(length(min = 1))]
+    repo: Option<String>,
+}
+
 /// A mutation that passed every gate: it holds the single mutation slot and the
 /// resolved absolute target.
 struct PreparedMutation {
@@ -1488,6 +1597,7 @@ async fn read_engine(socket: &Path, request: Value, verb: &str) -> Result<ReadRe
         }
         "type" => payload.is_object() || payload.is_null(),
         "content" => payload.is_object() || payload.is_null(),
+        "instances_of" | "validate_value" => payload.is_array(),
         "preview_mutation" => payload.is_object(),
         "types" => payload.is_array() || payload.is_null(),
         _ => false,
