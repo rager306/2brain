@@ -641,15 +641,15 @@ fn main() {
 
     let dir = tempfile::tempdir().expect("tempdir");
     println!("generating `{label}` ...");
-    let gen = repogen::generate_profile(dir.path(), profile, 7);
+    let r#gen = repogen::generate_profile(dir.path(), profile, 7);
     println!(
         "  {} instances, {} type-defs, entry {}",
-        gen.instances.len(),
-        gen.type_defs.len(),
-        gen.entry.display()
+        r#gen.instances.len(),
+        r#gen.type_defs.len(),
+        r#gen.entry.display()
     );
 
-    let mut engine = Engine::new(&gen.entry, ConfigSource::Empty);
+    let mut engine = Engine::new(&r#gen.entry, ConfigSource::Empty);
     engine.rebuild();
     engine.watch().expect("watch");
     settle(&engine, &sink);
@@ -659,7 +659,7 @@ fn main() {
     }
     println!("engine up, version {:?}\n", engine.handle().version());
 
-    let targets = opcat::Targets::from_gen(&gen);
+    let targets = opcat::Targets::from_gen(&r#gen);
     let rows: Vec<Row> = opcat::catalog()
         .iter()
         .map(|op| {

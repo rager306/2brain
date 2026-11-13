@@ -175,7 +175,7 @@ fn read_latency_baseline() {
 
     let t0 = Instant::now();
     gen_repo(&root, n);
-    let gen = t0.elapsed();
+    let r#gen = t0.elapsed();
 
     let t1 = Instant::now();
     let mut h = boot(&root);

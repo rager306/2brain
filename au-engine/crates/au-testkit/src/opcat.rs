@@ -44,11 +44,11 @@ pub struct Targets {
 
 impl Targets {
     /// Targets from a generated workspace.
-    pub fn from_gen(gen: &GenOutput) -> Self {
+    pub fn from_gen(r#gen: &GenOutput) -> Self {
         Targets {
-            entry: gen.entry.clone(),
-            instances: gen.instances.clone(),
-            type_defs: gen.type_defs.clone(),
+            entry: r#gen.entry.clone(),
+            instances: r#gen.instances.clone(),
+            type_defs: r#gen.type_defs.clone(),
         }
     }
 

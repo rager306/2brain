@@ -1,6 +1,6 @@
-//! The `subtypes` read over the socket: every type-def across the workspace
-//! whose closure includes a base, deduped to its owner copy (carrying meta),
-//! each with the owner repo. The type-level dual of `instances_of`.
+//! The `subtypes` read over the socket: matching type-defs in each member's
+//! own graph, carrying that member's repo and metadata. The type-level dual of
+//! `instances_of`.
 
 #![cfg(unix)]
 
@@ -314,6 +314,43 @@ fn subtypes_qualified_base_excludes_a_divergent_same_named_owner() {
     let mut names = subtype_names(&bare);
     names.sort();
     assert_eq!(names, vec!["widget.ra_sub", "widget.rb_sub"]);
+}
+
+#[test]
+fn subtypes_identical_local_copies_report_each_holder() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    crate::seed_workspace(&root, &["ra", "rb"]);
+    for repo in ["ra", "rb"] {
+        let dir = root.join(repo);
+        fs::create_dir_all(dir.join("type")).unwrap();
+        fs::create_dir_all(dir.join(".arsumbris")).unwrap();
+        fs::write(dir.join(".arsumbris/repo.yaml"), format!("name: {repo}\n")).unwrap();
+        fs::write(dir.join("type/widget.type.yaml"), "fields:\n  a: String\n").unwrap();
+        fs::write(
+            dir.join("type/widget.child.type.yaml"),
+            "extends: widget\nfields:\n  x: Number\n",
+        )
+        .unwrap();
+    }
+    let mut h = started_from((dir, root));
+    for base in ["widget", "widget::ra"] {
+        let response = h
+            .client
+            .query(&json!({"read":"subtypes","base":base}))
+            .unwrap();
+        let matches = response["result"]["subtypes"].as_array().unwrap();
+        let mut holders: Vec<_> = matches
+            .iter()
+            .filter(|v| v["name"] == "widget.child")
+            .map(|v| (v["repo"].as_str().unwrap(), v["hash"].as_str().unwrap()))
+            .collect();
+        holders.sort();
+        assert_eq!(holders.len(), 2, "{response}");
+        assert_eq!(holders[0].0, "ra");
+        assert_eq!(holders[1].0, "rb");
+        assert_eq!(holders[0].1, holders[1].1, "{response}");
+    }
 }
 
 /// A def carries a bare `parent: ghost` where `ghost` is defined nowhere (a
