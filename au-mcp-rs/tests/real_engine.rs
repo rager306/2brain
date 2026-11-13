@@ -274,7 +274,27 @@ fn normalize(root: &Path, value: &Value) -> Value {
     let text = value
         .to_string()
         .replace(&root.display().to_string(), "$FIXTURE");
-    serde_json::from_str(&text).expect("normalized fixture stays JSON")
+    let value: Value = serde_json::from_str(&text).expect("normalized fixture stays JSON");
+    normalize_commits(&value)
+}
+
+/// A git object name changes with every capture, so it is recorded as `$COMMIT`.
+/// Engine content hashes are 16 characters, so a 40-character lowercase hex
+/// string in these payloads is a commit and nothing else.
+fn normalize_commits(value: &Value) -> Value {
+    const HEX: &[u8] = b"0123456789abcdef";
+    match value {
+        Value::String(text) if text.len() == 40 && text.bytes().all(|byte| HEX.contains(&byte)) => {
+            json!("$COMMIT")
+        }
+        Value::Array(items) => Value::Array(items.iter().map(normalize_commits).collect()),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(key, item)| (key.clone(), normalize_commits(item)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
 }
 
 #[test]
@@ -795,6 +815,91 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     // The write advanced the engine version; let the rebuild settle so later
     // response versions are comparable again.
     wait_stable_version(&socket);
+
+    // Edit and delete complete the mutation surface against a real engine.
+    let payload_of = |reply: &Value| -> Value {
+        serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap()
+    };
+    let read_hash = |input: &mut std::process::ChildStdin, id: u32| -> String {
+        send(
+            input,
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_content","arguments":{"repo":"fixture","path":"notes/a.md"}}}),
+        );
+        let reply = receive(&rx);
+        assert_ne!(reply["result"]["isError"], true, "{reply}");
+        payload_of(&reply)["content"]["hash"]
+            .as_str()
+            .expect("content hash")
+            .to_owned()
+    };
+
+    let after_write = read_hash(&mut input, 97);
+    send(
+        &mut input,
+        json!({"jsonrpc":"2.0","id":98,"method":"tools/call","params":{"name":"au_edit_file","arguments":{"repo":"fixture","path":"notes/a.md","old_string":"rewritten by the MCP test","new_string":"edited by the MCP test","expected_hash":after_write}}}),
+    );
+    let edited = receive(&rx);
+    assert_ne!(edited["result"]["isError"], true, "{edited}");
+    wait_stable_version(&socket);
+    let on_disk = engine_read_request(
+        &socket,
+        json!({"read":"content","id":1,"path": repo.join("notes/a.md").to_str().unwrap()}),
+    )
+    .expect("read edited content");
+    let text = on_disk["result"]["content"]["text"].as_str().unwrap();
+    assert!(text.contains("edited by the MCP test"), "{text}");
+    assert!(!text.contains("rewritten by the MCP test"), "{text}");
+
+    // Reconcile reports an applied write when the current hash is the expected one.
+    let before_delete = read_hash(&mut input, 99);
+    send(
+        &mut input,
+        json!({"jsonrpc":"2.0","id":103,"method":"tools/call","params":{"name":"au_reconcile","arguments":{"repo":"fixture","path":"notes/a.md","expected_hash":before_delete}}}),
+    );
+    let reconciled = receive(&rx);
+    assert_ne!(reconciled["result"]["isError"], true, "{reconciled}");
+    assert_eq!(payload_of(&reconciled)["outcome"], "applied");
+
+    // An applied reconcile means the interrupted write produced the current
+    // state, so the caller's earlier read is stale: the guard is gone and a
+    // mutation needs a fresh read rather than silently reusing a stale hash.
+    send(
+        &mut input,
+        json!({"jsonrpc":"2.0","id":104,"method":"tools/call","params":{"name":"au_delete_file","arguments":{"repo":"fixture","path":"notes/a.md","expected_hash":before_delete}}}),
+    );
+    let stale = receive(&rx);
+    assert_eq!(stale["result"]["isError"], true, "{stale}");
+    assert!(
+        stale["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .starts_with("policy/prior_read:"),
+        "{stale}"
+    );
+
+    let before_delete = read_hash(&mut input, 106);
+    send(
+        &mut input,
+        json!({"jsonrpc":"2.0","id":104,"method":"tools/call","params":{"name":"au_delete_file","arguments":{"repo":"fixture","path":"notes/a.md","expected_hash":before_delete}}}),
+    );
+    let deleted = receive(&rx);
+    assert_ne!(deleted["result"]["isError"], true, "{deleted}");
+    wait_stable_version(&socket);
+    let gone = engine_read_request(
+        &socket,
+        json!({"read":"content","id":1,"path": repo.join("notes/a.md").to_str().unwrap()}),
+    )
+    .expect("read deleted content");
+    assert!(gone["result"]["content"].is_null(), "{gone}");
+
+    // An absent file is what an interrupted delete was meant to produce.
+    send(
+        &mut input,
+        json!({"jsonrpc":"2.0","id":105,"method":"tools/call","params":{"name":"au_reconcile","arguments":{"repo":"fixture","path":"notes/a.md","expect_absent":true}}}),
+    );
+    let absent = receive(&rx);
+    assert_ne!(absent["result"]["isError"], true, "{absent}");
+    assert_eq!(payload_of(&absent)["outcome"], "applied");
 
     for (id, arguments, request) in [
         (

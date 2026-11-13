@@ -3,7 +3,8 @@
 One file per advertised read tool, captured by calling that tool through the MCP
 layer against a real engine on a disposable two-member repository. Each file is
 `{ "tool", "arguments", "payload" }`; paths under the temporary fixture root are
-recorded as `$FIXTURE`, so the corpus carries no machine paths.
+recorded as `$FIXTURE`, and git object names as `$COMMIT`, so the corpus carries
+neither machine paths nor capture-specific commit ids.
 
 Both members are single-commit git work trees, which is what the engine requires
 for mutation and what makes `git.root` deterministic instead of depending on

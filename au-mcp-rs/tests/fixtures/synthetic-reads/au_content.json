@@ -5,7 +5,7 @@
   },
   "payload": {
     "content": {
-      "commit": "4569d3e9688f5ac5f2d817169673df5f36843ccd",
+      "commit": "$COMMIT",
       "hash": "2ebf9d2df213ca8b",
       "text": "---\ntype: note\nlink: \"[[b]]\"\n---\n"
     }

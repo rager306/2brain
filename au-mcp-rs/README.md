@@ -191,7 +191,7 @@ synthesized document and do not map back to the input.
 
 The read corpus in `tests/fixtures/synthetic-reads/` records every advertised
 read's payload from a real engine on a disposable two-member repository, with
-paths normalized to `$FIXTURE`. The ignored real-engine test regenerates or
+paths normalized to `$FIXTURE` and git object names to `$COMMIT`. The ignored real-engine test regenerates or
 verifies it, and `tests/fixture_schema.rs` keeps it honest without an engine.
 
 `au_reconcile` resolves an interrupted mutation. Give the hash the write should

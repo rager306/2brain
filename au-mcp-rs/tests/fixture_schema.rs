@@ -86,6 +86,13 @@ fn every_fixture_parses_and_names_a_read_only_tool() {
             "{} leaks an absolute temporary path",
             path.display()
         );
+        // A commit changes with every capture, so it must be recorded as
+        // `$COMMIT` rather than baked into the corpus.
+        assert!(
+            !contains_git_object_name(&text),
+            "{} bakes in a git object name",
+            path.display()
+        );
     }
     for (tool, _) in PAYLOAD_KEYS {
         assert!(seen.contains(tool), "{tool} has no captured fixture");
@@ -112,4 +119,14 @@ fn every_fixture_payload_key_is_documented() {
             "{tool} captured a null {key}"
         );
     }
+}
+
+/// A 40-character lowercase hex token is a git object name; engine content
+/// hashes in these payloads are 16 characters.
+fn contains_git_object_name(text: &str) -> bool {
+    text.as_bytes().windows(40).any(|window| {
+        window
+            .iter()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+    })
 }
