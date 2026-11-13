@@ -199,6 +199,30 @@ struct FileArguments {
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct PageArguments {
+    /// Return at most this many records.
+    #[schemars(range(min = 1))]
+    limit: Option<usize>,
+    /// Skip this many records before the page.
+    offset: Option<usize>,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct CandidatesArguments {
+    /// Project each file to its candidate type names.
+    #[serde(default)]
+    summary: bool,
+    /// Maximum files, from 1 to 500 (default: engine default).
+    #[schemars(range(min = 1, max = 500))]
+    limit: Option<usize>,
+    /// Files to skip.
+    #[schemars(range(min = 0))]
+    offset: Option<usize>,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct ReferencesArguments {
     /// Workspace member that owns the file.
     #[schemars(length(min = 1))]
@@ -987,6 +1011,98 @@ impl Server {
             (None, None) => result,
             (limit, offset) => page_instances(result, limit, offset.unwrap_or(0), self.payload),
         }
+    }
+
+    #[tool(
+        description = "List every resolved instance in the workspace, with its file, claim, closure, effective shape and values, and addressable inline records. The engine sends the whole set (942 on the live vault), so limit and offset page the answer and add total, offset, and next_offset.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = instances_schema(),
+    )]
+    async fn au_instances(
+        &self,
+        Parameters(args): Parameters<PageArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        let result = self
+            .read(json!({"read": "instances", "id": 1}), "instances", ctx)
+            .await;
+        match (args.limit, args.offset) {
+            (None, None) => result,
+            (limit, offset) => page_array(
+                result,
+                "instances",
+                limit,
+                offset.unwrap_or(0),
+                self.payload,
+            ),
+        }
+    }
+
+    #[tool(
+        description = "List the files that satisfy a type's required fields without claiming it, grouped by file, with the candidate type names and the fields that satisfied them. summary projects each file to its type names; limit and offset page the scanned files.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = candidates_schema(),
+    )]
+    async fn au_candidates(
+        &self,
+        Parameters(args): Parameters<CandidatesArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        let mut request = json!({"read": "candidates", "id": 1});
+        if args.summary {
+            request["summary"] = json!(true);
+        }
+        if let Some(limit) = args.limit {
+            request["limit"] = json!(limit);
+        }
+        if let Some(offset) = args.offset {
+            request["offset"] = json!(offset);
+        }
+        self.read(request, "candidates", ctx).await
+    }
+
+    #[tool(
+        description = "Read one file's semantic token stream: resolved and broken wikilinks, pinned commits, typed field values, type claims with the identity they resolve to, typed blocks, block ids, and headings. Null when the path is not a held file. Spans are byte ranges with line and column.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = envelope_schema("semantic_tokens"),
+    )]
+    async fn au_semantic_tokens(
+        &self,
+        Parameters(args): Parameters<FileArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        self.file_read(args, "semantic_tokens", "semantic_tokens", ctx)
+            .await
+    }
+
+    #[tool(
+        description = "Resolve which declared member owns a member-relative path, with its root, role, and whether it is editable and local. Null when the path lies under no declared member. Use it to route a path to a member without re-deriving roots.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = envelope_schema("resolve_member"),
+    )]
+    async fn au_resolve_member(
+        &self,
+        Parameters(args): Parameters<FileArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        self.file_read(args, "resolve_member", "resolve_member", ctx)
+            .await
     }
 
     #[tool(
@@ -2048,6 +2164,102 @@ fn envelope_schema(verb: &'static str) -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
+/// The output schema of `au_instances`: the engine's envelope plus paging.
+fn instances_schema() -> Arc<serde_json::Map<String, Value>> {
+    let mut properties = serde_json::Map::new();
+    properties.insert(
+        "instances".to_owned(),
+        json!({"type": "array", "description": "resolved instances"}),
+    );
+    properties.insert(
+        "count".to_owned(),
+        json!({"type": "integer", "description": "instances the engine parsed"}),
+    );
+    properties.insert(
+        "aborted_at_load".to_owned(),
+        json!({"type": "boolean", "description": "a broken vocabulary skipped validation"}),
+    );
+    for key in ["total", "offset", "next_offset"] {
+        properties.insert(
+            key.to_owned(),
+            json!({"type": ["integer", "null"], "description": format!("paging metadata added by the adapter ({key})")}),
+        );
+    }
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": properties,
+            "required": ["instances"],
+            "additionalProperties": false,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
+/// The output schema of `au_candidates`: the scan's envelope.
+fn candidates_schema() -> Arc<serde_json::Map<String, Value>> {
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": {
+                "candidates": {"type": "array", "description": "one entry per scanned file"},
+                "aborted_at_load": {"type": "boolean"}
+            },
+            "required": ["candidates"],
+            "additionalProperties": false,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
+/// Page an array that sits under `key`, keeping the rest of the payload.
+fn page_array(
+    result: CallToolResult,
+    key: &str,
+    limit: Option<usize>,
+    offset: usize,
+    mode: PayloadMode,
+) -> CallToolResult {
+    if result.is_error == Some(true) {
+        return result;
+    }
+    let raw = match (&result.structured_content, result.content.first()) {
+        (Some(value), _) => value.to_string(),
+        (None, Some(block)) => block
+            .as_text()
+            .map(|text| text.text.clone())
+            .unwrap_or_default(),
+        _ => return result,
+    };
+    let Ok(mut payload) = serde_json::from_str::<Value>(&raw) else {
+        return result;
+    };
+    let Some(records) = payload.get(key).and_then(Value::as_array).cloned() else {
+        return result;
+    };
+    let total = records.len();
+    let page: Vec<Value> = records
+        .into_iter()
+        .skip(offset)
+        .take(limit.unwrap_or(usize::MAX))
+        .collect();
+    let returned = page.len();
+    payload[key] = Value::Array(page);
+    payload["total"] = json!(total);
+    payload["offset"] = json!(offset);
+    payload["next_offset"] = match offset + returned < total {
+        true => json!(offset + returned),
+        false => Value::Null,
+    };
+    let mut response = success_payload(payload, mode);
+    response.meta = result.meta;
+    response
+}
+
 /// The output schema of `au_references`: either or both directions.
 fn references_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
@@ -2322,44 +2534,7 @@ fn page_instances(
     offset: usize,
     mode: PayloadMode,
 ) -> CallToolResult {
-    if result.is_error == Some(true) {
-        return result;
-    }
-    let raw = match (&result.structured_content, result.content.first()) {
-        (Some(value), _) => value.to_string(),
-        (None, Some(block)) => block
-            .as_text()
-            .map(|text| text.text.clone())
-            .unwrap_or_default(),
-        _ => return result,
-    };
-    let Ok(mut payload) = serde_json::from_str::<Value>(&raw) else {
-        return result;
-    };
-    let Some(records) = payload
-        .get("instances_of")
-        .and_then(Value::as_array)
-        .cloned()
-    else {
-        return result;
-    };
-    let total = records.len();
-    let page: Vec<Value> = records
-        .into_iter()
-        .skip(offset)
-        .take(limit.unwrap_or(usize::MAX))
-        .collect();
-    let returned = page.len();
-    payload["instances_of"] = Value::Array(page);
-    payload["total"] = json!(total);
-    payload["offset"] = json!(offset);
-    payload["next_offset"] = match offset + returned < total {
-        true => json!(offset + returned),
-        false => Value::Null,
-    };
-    let mut response = success_payload(payload, mode);
-    response.meta = result.meta;
-    response
+    page_array(result, "instances_of", limit, offset, mode)
 }
 
 /// Cut a `content` answer to `max` characters, keeping the whole-file hash.
@@ -2599,6 +2774,9 @@ async fn read_engine(socket: &Path, request: Value, verb: &str) -> Result<ReadRe
         "anchors" | "block_ids" => payload.is_array() || payload.is_null(),
         "references_out" | "references_in" => payload.is_array(),
         "neighborhood" => payload.is_object(),
+        "instances" | "candidates" => payload.is_array(),
+        "semantic_tokens" => payload.is_array() || payload.is_null(),
+        "resolve_member" => payload.is_object() || payload.is_null(),
         "preview_mutation" => payload.is_object(),
         "types" => payload.is_array() || payload.is_null(),
         _ => false,

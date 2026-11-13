@@ -41,6 +41,10 @@ a mutation's schema.
 | `au_block_ids` | `repo`, `path` | every addressable id with kind (`record`/`typed_block`/`marker`) and type claim; duplicates included |
 | `au_references` | `repo`, `path`, `direction?` | `out`, `in`, or both (default); answers `references_out` and/or `references_in` |
 | `au_neighborhood` | `repo`, `path`, `direction?`, `depth?`, `kinds?`, `scope?`, `max_nodes?` | bounded N-hop walk returning `{nodes, edges, truncated}`; past depth 1 the engine requires `kinds` |
+| `au_instances` | `limit?`, `offset?` | every resolved instance with its shape and values; the engine sends all (942 live), so paging adds `total`/`offset`/`next_offset` beside its `count` |
+| `au_candidates` | `summary?`, `limit?`, `offset?` | files that satisfy a type without claiming it |
+| `au_semantic_tokens` | `repo`, `path` | the ordered token stream: links, pins, field values, claims, blocks, headings |
+| `au_resolve_member` | `repo`, `path` | which member owns the path, with root, role, editable and local |
 
 ## Content and graph
 

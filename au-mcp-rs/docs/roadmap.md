@@ -1,38 +1,36 @@
 # Roadmap
 
-Status on 2026-11-13, after the unified binary (`97ae821`) and the runtime map
-(`ac48835`). Phases come from [`runtime-map.md`](runtime-map.md).
+Status on 2026-11-13, HEAD `96715e0`. Verified against the code, not the notes:
+30 tools registered (27 advertised read-only, 3 mutations), 25 captured fixtures,
+127 tests green, ten documents.
 
-## Done
+## Done — with evidence
 
-- [x] Engine reads: 16 (`overview`, `top_level_dirs`, `type`, `type_tree`, `types`,
-      `hubs`, `diagnostics`, `subtypes`, `members`, `imports`, `files`, `content`,
-      `instances_of`, `validate_value`, `preview_mutation`, `reconcile`)
-- [x] Mutations behind a policy gate: `write_file`, `edit_file`, `delete_file`
-- [x] Discovery: `search_tools`, `describe_tool`; profiles `--tools`, `--payload`
-- [x] Protocol: four legacy revisions and `2026-07-28`, including the pre-init
-      `ping` rule
-- [x] Faults: lost mutation reply, engine death mid-read, truncated frame
-- [x] Budgets: `au_content {max_chars}`, `au_instances_of {limit, offset}`
-- [x] Contract evidence: synthetic read corpus, production golden replay,
-      client matrix, bridge parity, rollback rehearsal
-- [x] One binary: `arsumbris` (`daemon`, `open`, `members` delegated to `au_cli`;
-      `mcp`, `info` delegated to this crate)
-- [x] Agent skill: `skills/arsumbris`, installed by `scripts/install_skill.sh`
+| item | evidence |
+|---|---|
+| 16 engine reads | `src/lib.rs`: overview, top_level_dirs, type, type_tree, types, hubs, diagnostics, subtypes, members, imports, files, content, instances_of, validate_value, preview_mutation, reconcile |
+| 3 mutations behind a gate | `write_file`, `edit_file`, `delete_file`; `tests/policy.rs`, `tests/write_file*.rs` |
+| 5 addressability/link reads | `frontmatter`, `anchors`, `block_ids`, `references`, `neighborhood`; `tests/links.rs`, fixtures |
+| discovery and profiles | `au_search_tools`, `au_describe_tool`, `--tools full\|concise`, `--payload both\|text\|structured`; `tests/discovery.rs` |
+| protocol | four legacy revisions and `2026-07-28`, pre-init `ping` rule; `tests/stdio.rs`, `tests/modern_stdio.rs` |
+| faults | lost mutation reply, engine death mid-read, truncated frame; `tests/faults.rs` |
+| budgets | `au_content {max_chars}`, `au_instances_of {limit, offset}`; `tests/budgets.rs` |
+| contracts | synthetic corpus (21), production golden replay, client matrix, bridge parity, rollback rehearsal |
+| one binary | `arsumbris` (delegates `daemon`/`open`/`members` to `au_cli`, `mcp`/`info` here); `tests/cli.rs` |
+| agent skill | `skills/arsumbris`, installed by `scripts/install_skill.sh` |
+| trajectory | `docs/roadmap.md`, `docs/runtime-map.md` |
 
 ## Phase A — remaining engine reads
 
-Each is one argument struct, one wire read, one schema, one captured fixture.
-
 - [x] `au_frontmatter` — `frontmatter`
-- [x] `au_anchors` — `anchors`
+- [x] `au_anchors` — `anchors` (local form: empty target + origin)
 - [x] `au_block_ids` — `block_ids`
-- [x] `au_references` — `references_out` and `references_in`
+- [x] `au_references` — `references_out` + `references_in`
 - [x] `au_neighborhood` — `neighborhood`
-- [ ] `au_instances` — `instances` (unpaged upstream; needs a page)
-- [ ] `au_candidates` — `candidates` (+ `candidate_counts`)
-- [ ] `au_semantic_tokens` — `semantic_tokens`
-- [ ] `au_resolve_member` — `resolve_member`
+- [x] `au_instances` — `instances` (payload carries `count`, `aborted_at_load`)
+- [x] `au_candidates` — `candidates` (its own `limit`/`offset`)
+- [x] `au_semantic_tokens` — `semantic_tokens`
+- [x] `au_resolve_member` — `resolve_member`
 - [ ] `au_typed` — `instance`
 - [ ] `au_follow` — `resolve_target`; pin the argument semantics first
 - [ ] `au_children` — `references_out` filtered; pin the rule first
@@ -40,8 +38,6 @@ Each is one argument struct, one wire read, one schema, one captured fixture.
 - [ ] `au_type_system` — `type_batch` / `type_closure`; pin the projection first
 
 ## Phase B — engine mutations
-
-Behind the existing gate, one at a time, each with a blast-radius story:
 
 - [ ] `assign_block_id`, `inline`, `promote`
 - [ ] `rename`, `rename_block_id`, `rename_type`
@@ -54,15 +50,15 @@ Behind the existing gate, one at a time, each with a blast-radius story:
 
 `bash`, `glob`, `grep_files`, `read_file_pinned`, `au_host_*`. Either they stay a
 host capability, or `arsumbris host` gets an explicit root and no shell. Not
-decided.
+decided, and not needed while the bridge stays available.
 
 ## Phase D — retire the Node stack
 
 After A and B prove parity on a real client: `au-mcp`, `au-mcp-sdk`,
-`au-type-codegen`, `au-engine-sdk`, `au-mcp-bridge`, `au-mcp-adapter-cc`,
-`au-mcp-adapter-codex`. The open question is extensions: a workspace can declare
-`mcp.tool` plugins today, and a compiled binary cannot; if that matters, the
-replacement is an explicit process-per-plugin contract.
+`au-type-codegen`, `au-engine-sdk`, `au-mcp-bridge`, both client adapters. The
+open question is extensions: a workspace can declare `mcp.tool` plugins today, and
+a compiled binary cannot. If that matters, the replacement is an explicit
+process-per-plugin contract, not a return to Node.
 
 ## Standing checks
 

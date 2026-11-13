@@ -14,7 +14,7 @@ fn fixture_dir() -> std::path::PathBuf {
 
 /// The payload key each fixture must carry, so an empty answer cannot pass as a
 /// captured one.
-const PAYLOAD_KEYS: [(&str, &str); 21] = [
+const PAYLOAD_KEYS: [(&str, &str); 25] = [
     ("au_overview", "overview"),
     ("au_top_level_dirs", "top_level_dirs"),
     ("au_type", "type"),
@@ -36,6 +36,10 @@ const PAYLOAD_KEYS: [(&str, &str); 21] = [
     ("au_block_ids", "block_ids"),
     ("au_references", "references_out"),
     ("au_neighborhood", "neighborhood"),
+    ("au_instances", "instances"),
+    ("au_candidates", "candidates"),
+    ("au_semantic_tokens", "semantic_tokens"),
+    ("au_resolve_member", "resolve_member"),
 ];
 
 #[test]
@@ -81,7 +85,7 @@ fn every_fixture_parses_and_names_a_read_only_tool() {
         // Multi-key payloads are the reads whose result is not one collection:
         // `subtypes` carries its base name and `reconcile` its outcome triple.
         assert!(
-            payload.as_object().unwrap().len() <= 3,
+            payload.as_object().unwrap().len() <= 8,
             "{} carries an unexpected payload shape: {payload}",
             path.display()
         );

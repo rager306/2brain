@@ -1,0 +1,409 @@
+{
+  "arguments": {
+    "limit": 3,
+    "offset": 0
+  },
+  "payload": {
+    "aborted_at_load": false,
+    "count": 7,
+    "instances": [
+      {
+        "body_events": null,
+        "claim": [
+          "au.engine.repo::au-engine"
+        ],
+        "closure": [
+          "au.engine.repo::au-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "deps",
+            "origins": [
+              {
+                "name": "au.engine.repo",
+                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
+                "repo": "au-engine",
+                "required": false,
+                "shape": "au.engine.dep::au-engine[]"
+              }
+            ],
+            "required": false,
+            "shape": "au.engine.dep::au-engine[]"
+          },
+          {
+            "divergent": false,
+            "field": "description",
+            "origins": [
+              {
+                "name": "au.engine.repo",
+                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
+                "repo": "au-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "name",
+            "origins": [
+              {
+                "name": "au.engine.repo",
+                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
+                "repo": "au-engine",
+                "required": true,
+                "shape": "String"
+              }
+            ],
+            "required": true,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "remote",
+            "origins": [
+              {
+                "name": "au.engine.repo",
+                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
+                "repo": "au-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 10,
+                        "line_col": {
+                          "end": {
+                            "col": 11,
+                            "line": 1
+                          },
+                          "start": {
+                            "col": 7,
+                            "line": 1
+                          }
+                        },
+                        "start": 6
+                      },
+                      "file": "$FIXTURE/base/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "base"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "base"
+                }
+              }
+            ],
+            "field": "name"
+          }
+        ],
+        "file": "$FIXTURE/base/.arsumbris/repo.yaml",
+        "section_presence": null
+      },
+      {
+        "body_events": null,
+        "claim": [
+          "au.engine.repo::au-engine"
+        ],
+        "closure": [
+          "au.engine.repo::au-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "deps",
+            "origins": [
+              {
+                "name": "au.engine.repo",
+                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
+                "repo": "au-engine",
+                "required": false,
+                "shape": "au.engine.dep::au-engine[]"
+              }
+            ],
+            "required": false,
+            "shape": "au.engine.dep::au-engine[]"
+          },
+          {
+            "divergent": false,
+            "field": "description",
+            "origins": [
+              {
+                "name": "au.engine.repo",
+                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
+                "repo": "au-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "name",
+            "origins": [
+              {
+                "name": "au.engine.repo",
+                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
+                "repo": "au-engine",
+                "required": true,
+                "shape": "String"
+              }
+            ],
+            "required": true,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "remote",
+            "origins": [
+              {
+                "name": "au.engine.repo",
+                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
+                "repo": "au-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 35,
+                        "line_col": {
+                          "end": {
+                            "col": 1,
+                            "line": 4
+                          },
+                          "start": {
+                            "col": 5,
+                            "line": 3
+                          }
+                        },
+                        "start": 24
+                      },
+                      "file": "$FIXTURE/fixture/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "fields": [
+                        {
+                          "field": "name",
+                          "values": [
+                            {
+                              "kind": "scalar",
+                              "value": "base"
+                            }
+                          ]
+                        }
+                      ],
+                      "kind": "inline_record"
+                    }
+                  }
+                ],
+                "value": {
+                  "fields": [
+                    {
+                      "field": "name",
+                      "values": [
+                        {
+                          "kind": "scalar",
+                          "value": "base"
+                        }
+                      ]
+                    }
+                  ],
+                  "kind": "inline_record"
+                }
+              }
+            ],
+            "field": "deps"
+          },
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 13,
+                        "line_col": {
+                          "end": {
+                            "col": 14,
+                            "line": 1
+                          },
+                          "start": {
+                            "col": 7,
+                            "line": 1
+                          }
+                        },
+                        "start": 6
+                      },
+                      "file": "$FIXTURE/fixture/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "fixture"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "fixture"
+                }
+              }
+            ],
+            "field": "name"
+          }
+        ],
+        "file": "$FIXTURE/fixture/.arsumbris/repo.yaml",
+        "section_presence": null
+      },
+      {
+        "body_events": [
+          {
+            "kind": "heading",
+            "level": 2,
+            "span": {
+              "end": 45,
+              "line_col": {
+                "end": {
+                  "col": 1,
+                  "line": 7
+                },
+                "start": {
+                  "col": 1,
+                  "line": 6
+                }
+              },
+              "start": 34
+            },
+            "text": "Details"
+          },
+          {
+            "id": "detail",
+            "kind": "block_id_marker",
+            "span": {
+              "end": 92,
+              "line_col": {
+                "end": {
+                  "col": 47,
+                  "line": 8
+                },
+                "start": {
+                  "col": 40,
+                  "line": 8
+                }
+              },
+              "start": 85
+            }
+          }
+        ],
+        "claim": [
+          "note"
+        ],
+        "closure": [
+          "note"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "link",
+            "origins": [
+              {
+                "name": "note",
+                "origin_path": "$FIXTURE/fixture/type/note.type.yaml",
+                "required": false,
+                "shape": "file*"
+              }
+            ],
+            "required": false,
+            "shape": "file*"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 28,
+                        "line_col": {
+                          "end": {
+                            "col": 14,
+                            "line": 3
+                          },
+                          "start": {
+                            "col": 7,
+                            "line": 3
+                          }
+                        },
+                        "start": 21
+                      },
+                      "file": "$FIXTURE/fixture/notes/a.md"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "anchor": null,
+                      "block_id": null,
+                      "kind": "reference",
+                      "target": "b"
+                    }
+                  }
+                ],
+                "value": {
+                  "anchor": null,
+                  "block_id": null,
+                  "kind": "reference",
+                  "target": "b"
+                }
+              }
+            ],
+            "field": "link"
+          }
+        ],
+        "file": "$FIXTURE/fixture/notes/a.md",
+        "section_presence": null
+      }
+    ],
+    "next_offset": 3,
+    "offset": 0,
+    "total": 7
+  },
+  "tool": "au_instances"
+}

@@ -29,6 +29,10 @@ projections with summaries and paging.
 | `au_block_ids` | `repo`, `path` | `{block_ids}` (records, fences, markers) or null |
 | `au_references` | `repo`, `path`, `direction?` | `{references_out}` and/or `{references_in}` |
 | `au_neighborhood` | `repo`, `path`, `direction?`, `depth?`, `kinds?`, `scope?`, `max_nodes?` | `{neighborhood: {nodes, edges, truncated}}` |
+| `au_instances` | `limit?`, `offset?` | `{instances, count, total, offset, next_offset}` |
+| `au_candidates` | `summary?`, `limit?`, `offset?` | `{candidates, aborted_at_load}` |
+| `au_semantic_tokens` | `repo`, `path` | `{semantic_tokens}` |
+| `au_resolve_member` | `repo`, `path` | `{resolve_member}` |
 | `au_search_tools` | `query`, `detail?`, `limit?` | `{tools}` |
 | `au_describe_tool` | `name` | one full tool definition |
 
