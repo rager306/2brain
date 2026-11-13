@@ -311,3 +311,12 @@ state. `docs/bridge-parity.md` records the result and the surface differences a
 cutover must decide on. The daemon core compiles in no tools: its surface comes
 from `mcp.tool` plugins discovered in the served workspace, so the script mounts
 `au-mcp-core` as a dependency.
+
+## Live A/B against the bridge
+
+`docs/live-comparison.md` records a run where both servers were connected to the
+same production workspace: 11 shared reads produced byte-identical payloads once
+the adapter's result-envelope key is unwrapped (95/95 types, 200 files, 100
+hubs, 62 subtypes, 27 imports, 7 member roots), and the remaining differences are
+the daemon's projections (`valid`, `total`, `summary`, severity filtering)
+rather than different facts.
