@@ -188,6 +188,91 @@ struct FilesArguments {
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct FileArguments {
+    /// Workspace member that owns the file.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Path relative to that member's root; absolute paths and `..` are rejected.
+    #[schemars(length(min = 1))]
+    path: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ReferencesArguments {
+    /// Workspace member that owns the file.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Path relative to that member's root; absolute paths and `..` are rejected.
+    #[schemars(length(min = 1))]
+    path: String,
+    /// Which edges to return; default both.
+    #[serde(default)]
+    direction: ReferenceDirection,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema, Default, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+enum ReferenceDirection {
+    /// Edges the file authors.
+    Out,
+    /// Edges pointing at the file.
+    In,
+    /// Both, as two payload keys.
+    #[default]
+    Both,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct NeighborhoodArguments {
+    /// Workspace member that owns the seed file.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Seed path relative to that member's root.
+    #[schemars(length(min = 1))]
+    path: String,
+    /// Walk direction; default out.
+    direction: Option<WalkDirection>,
+    /// Maximum hop count; default 1. Beyond 1 the engine requires `kinds`.
+    #[schemars(range(min = 1, max = 8))]
+    depth: Option<u8>,
+    /// Edge kinds to follow, required past depth 1.
+    kinds: Option<Vec<WalkKind>>,
+    /// Prune at the repo boundary (`own`) or cross it (`all`); default all.
+    scope: Option<WalkScope>,
+    /// Node cap, seed included.
+    #[schemars(range(min = 1))]
+    max_nodes: Option<u32>,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "lowercase")]
+enum WalkDirection {
+    Out,
+    In,
+    Both,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
+enum WalkKind {
+    Navigational,
+    Contributing,
+    #[serde(rename = "field")]
+    FieldReference,
+    CommitReferent,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "lowercase")]
+enum WalkScope {
+    All,
+    Own,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct ContentArguments {
     /// Workspace member that owns the file.
     #[schemars(length(min = 1))]
@@ -905,6 +990,202 @@ impl Server {
     }
 
     #[tool(
+        description = "Read one file's parsed frontmatter as JSON. Null when the file is neither a typed instance nor a note; a typed instance carries its claim under `type`, a note carries no `type` key. Paths are member-relative.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = envelope_schema("frontmatter"),
+    )]
+    async fn au_frontmatter(
+        &self,
+        Parameters(args): Parameters<FileArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        self.file_read(args, "frontmatter", "frontmatter", ctx)
+            .await
+    }
+
+    #[tool(
+        description = "List every heading in one file, in document order, as the anchors a `#fragment` can address: text, level, and span. Null when the target does not resolve; an empty array when the file exists but has no headings.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = envelope_schema("anchors"),
+    )]
+    async fn au_anchors(
+        &self,
+        Parameters(args): Parameters<FileArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        self.target_read(args, "anchors", "anchors", ctx).await
+    }
+
+    #[tool(
+        description = "List every addressable block id in one file, in document order, with kind (record, typed_block, marker), type claim, and span. Every occurrence is listed, duplicates included. Null when the target does not resolve; an empty array when the file has no ids.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = envelope_schema("block_ids"),
+    )]
+    async fn au_block_ids(
+        &self,
+        Parameters(args): Parameters<FileArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        self.target_read(args, "block_ids", "block_ids", ctx).await
+    }
+
+    #[tool(
+        description = "List one file's wikilink edges, classified by kind and surface: outgoing (what it links to) and incoming (what links to it), each with span and resolution. Direction defaults to both.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = references_schema(),
+    )]
+    async fn au_references(
+        &self,
+        Parameters(args): Parameters<ReferencesArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.repo.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
+        }
+        if args.path.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'path' must not be empty")]);
+        }
+        if let Err(error) = relative_path(&args.path) {
+            return CallToolResult::error(vec![ContentBlock::text(error)]);
+        }
+        if ctx.ct.is_cancelled() {
+            return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]);
+        }
+        let Ok(_permit) = self.read_slots.try_acquire() else {
+            return CallToolResult::error(vec![ContentBlock::text(
+                "engine read capacity reached; retry later",
+            )]);
+        };
+        let direction = args.direction;
+        let outcome = async {
+            let path = absolute_member_path(&self.socket, &args.repo, &args.path).await?;
+            let mut payload = serde_json::Map::new();
+            if matches!(
+                direction,
+                ReferenceDirection::Out | ReferenceDirection::Both
+            ) {
+                let out = read_engine(
+                    &self.socket,
+                    json!({"read": "references_out", "id": 1, "path": path}),
+                    "references_out",
+                )
+                .await?;
+                payload.insert(
+                    "references_out".to_owned(),
+                    out.payload["references_out"].clone(),
+                );
+            }
+            if matches!(direction, ReferenceDirection::In | ReferenceDirection::Both) {
+                let inb = read_engine(
+                    &self.socket,
+                    json!({"read": "references_in", "id": 1, "path": path}),
+                    "references_in",
+                )
+                .await?;
+                payload.insert(
+                    "references_in".to_owned(),
+                    inb.payload["references_in"].clone(),
+                );
+            }
+            Ok::<Value, String>(Value::Object(payload))
+        };
+        match tokio::select! {
+            biased;
+            _ = ctx.ct.cancelled() => Err("engine read cancelled".to_owned()),
+            result = outcome => result,
+        } {
+            Ok(payload) => success_payload(payload, self.payload),
+            Err(error) => CallToolResult::error(vec![ContentBlock::text(error)]),
+        }
+    }
+
+    #[tool(
+        description = "Walk the reference graph from one seed file and return the reachable subgraph (nodes plus edges). Direction defaults to out, depth to 1; past depth 1 the engine requires an edge-kind filter, because navigational fan-out explodes. Scope `own` prunes at the repo boundary. `truncated` says a bound was hit.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = envelope_schema("neighborhood"),
+    )]
+    async fn au_neighborhood(
+        &self,
+        Parameters(args): Parameters<NeighborhoodArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.repo.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
+        }
+        if args.path.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'path' must not be empty")]);
+        }
+        if let Err(error) = relative_path(&args.path) {
+            return CallToolResult::error(vec![ContentBlock::text(error)]);
+        }
+        if ctx.ct.is_cancelled() {
+            return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]);
+        }
+        let Ok(_permit) = self.read_slots.try_acquire() else {
+            return CallToolResult::error(vec![ContentBlock::text(
+                "engine read capacity reached; retry later",
+            )]);
+        };
+        let path = match absolute_member_path(&self.socket, &args.repo, &args.path).await {
+            Ok(path) => path,
+            Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
+        };
+        let mut request = json!({"read": "neighborhood", "id": 1, "path": path});
+        if let Some(direction) = args.direction {
+            request["direction"] = json!(match direction {
+                WalkDirection::Out => "out",
+                WalkDirection::In => "in",
+                WalkDirection::Both => "both",
+            });
+        }
+        if let Some(depth) = args.depth {
+            request["depth"] = json!(depth);
+        }
+        if let Some(kinds) = args.kinds {
+            let kinds: Vec<&str> = kinds
+                .iter()
+                .map(|kind| match kind {
+                    WalkKind::Navigational => "navigational",
+                    WalkKind::Contributing => "contributing",
+                    WalkKind::FieldReference => "field",
+                    WalkKind::CommitReferent => "commit-referent",
+                })
+                .collect();
+            request["kinds"] = json!(kinds);
+        }
+        if let Some(scope) = args.scope {
+            request["scope"] = json!(match scope {
+                WalkScope::All => "all",
+                WalkScope::Own => "own",
+            });
+        }
+        if let Some(max_nodes) = args.max_nodes {
+            request["max_nodes"] = json!(max_nodes);
+        }
+        self.read(request, "neighborhood", ctx).await
+    }
+
+    #[tool(
         description = "Validate a value against a type without touching disk. Returns one verdict per identity the name denotes, each with diagnostics and advisory undeclared fields; an unknown type yields a null identity carrying unknown-type-claim rather than an empty result. Values and diagnostics may reveal workspace vocabulary.",
         annotations(
             read_only_hint = true,
@@ -1235,6 +1516,91 @@ impl Server {
             "{text}.{hint} Call au_describe_tool {{\"name\":\"{name}\"}} for the full schema."
         ))];
         CallToolResponse::Complete(result)
+    }
+
+    /// One file-addressed read: validate, resolve the member root, read.
+    async fn file_read(
+        &self,
+        args: FileArguments,
+        verb: &'static str,
+        _key: &'static str,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.repo.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
+        }
+        if args.path.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'path' must not be empty")]);
+        }
+        if let Err(error) = relative_path(&args.path) {
+            return CallToolResult::error(vec![ContentBlock::text(error)]);
+        }
+        if ctx.ct.is_cancelled() {
+            return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]);
+        }
+        let Ok(_permit) = self.read_slots.try_acquire() else {
+            return CallToolResult::error(vec![ContentBlock::text(
+                "engine read capacity reached; retry later",
+            )]);
+        };
+        let request = async {
+            let path = absolute_member_path(&self.socket, &args.repo, &args.path).await?;
+            Ok::<Value, String>(json!({"read": verb, "id": 1, "path": path}))
+        };
+        let request = tokio::select! {
+            biased;
+            _ = ctx.ct.cancelled() => return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]),
+            result = request => match result {
+                Ok(request) => request,
+                Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
+            },
+        };
+        self.read(request, verb, ctx).await
+    }
+
+    /// One target-addressed read: `anchors` and `block_ids` take a resolvable
+    /// target rather than a path, and a member-relative path resolves as one.
+    async fn target_read(
+        &self,
+        args: FileArguments,
+        verb: &'static str,
+        key: &'static str,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.repo.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
+        }
+        if args.path.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'path' must not be empty")]);
+        }
+        if let Err(error) = relative_path(&args.path) {
+            return CallToolResult::error(vec![ContentBlock::text(error)]);
+        }
+        if ctx.ct.is_cancelled() {
+            return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]);
+        }
+        let Ok(_permit) = self.read_slots.try_acquire() else {
+            return CallToolResult::error(vec![ContentBlock::text(
+                "engine read capacity reached; retry later",
+            )]);
+        };
+        let request = async {
+            // `target` carries the wikilink grammar, not a path. The empty
+            // target with an `origin` is the engine's local form: it resolves to
+            // the origin file itself, which is the file the caller named.
+            let origin = absolute_member_path(&self.socket, &args.repo, &args.path).await?;
+            Ok::<Value, String>(json!({"read": verb, "id": 1, "target": "", "origin": origin}))
+        };
+        let request = tokio::select! {
+            biased;
+            _ = ctx.ct.cancelled() => return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]),
+            result = request => match result {
+                Ok(request) => request,
+                Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
+            },
+        };
+        let _ = key;
+        self.read(request, verb, ctx).await
     }
 
     /// The tools this launch may advertise, before any profile compacting.
@@ -1682,6 +2048,23 @@ fn envelope_schema(verb: &'static str) -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
+/// The output schema of `au_references`: either or both directions.
+fn references_schema() -> Arc<serde_json::Map<String, Value>> {
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": {
+                "references_out": {"type": "array", "description": "edges the file authors"},
+                "references_in": {"type": "array", "description": "edges pointing at the file"}
+            },
+            "additionalProperties": false,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
 /// The output schema shared by every mutation: the engine's mutation result.
 fn mutation_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
@@ -1826,8 +2209,13 @@ async fn print_info(arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn st
         "  protocol     legacy 2024-11-05, 2025-03-26, 2025-06-18, 2025-11-25 (initialize first)"
     );
     println!("               modern 2026-07-28 (version in _meta, no initialize)");
-    println!("  tools        21 registered: 16 reads, 2 discovery, 3 mutations");
-    println!("               advertised: 18 without a grant, 21 with one");
+    // Counted from the router, so the numbers cannot drift from the surface.
+    let registered = Server::tool_router().list_all().len();
+    let mutations = policy::MUTATION_TOOLS.len();
+    println!(
+        "  tools        {registered} registered, {mutations} mutating; advertised: {} without a grant, {registered} with one",
+        registered - mutations
+    );
     println!(
         "  result       {{ \"<read>\": ... }} plus structuredContent and _meta engine version"
     );
@@ -2041,9 +2429,10 @@ fn relative_path(path: &str) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Read one member's file text by joining its declared root with a
-/// client-supplied relative path. The path is validated by the caller.
-async fn read_content(socket: &Path, repo: &str, relative: &str) -> Result<ReadResult, String> {
+/// Join a member's declared root with a client-supplied relative path.
+///
+/// The path is validated by the caller; this only resolves the member and joins.
+async fn absolute_member_path(socket: &Path, repo: &str, relative: &str) -> Result<String, String> {
     let members = read_engine(
         socket,
         json!({"read": "members", "id": 1, "repo": repo}),
@@ -2061,11 +2450,17 @@ async fn read_content(socket: &Path, repo: &str, relative: &str) -> Result<ReadR
         .and_then(Value::as_str)
         .filter(|root| !root.is_empty())
         .ok_or_else(|| format!("workspace member {repo} has no local root"))?;
-    let path = Path::new(root).join(relative);
-    let path = path
+    Path::new(root)
+        .join(relative)
         .to_str()
-        .ok_or("resolved path is not valid UTF-8")?
-        .to_owned();
+        .map(str::to_owned)
+        .ok_or_else(|| "resolved path is not valid UTF-8".to_owned())
+}
+
+/// Read one member's file text by joining its declared root with a
+/// client-supplied relative path. The path is validated by the caller.
+async fn read_content(socket: &Path, repo: &str, relative: &str) -> Result<ReadResult, String> {
+    let path = absolute_member_path(socket, repo, relative).await?;
     read_engine(
         socket,
         json!({"read": "content", "id": 1, "path": path}),
@@ -2200,6 +2595,10 @@ async fn read_engine(socket: &Path, request: Value, verb: &str) -> Result<ReadRe
         "type" => payload.is_object() || payload.is_null(),
         "content" => payload.is_object() || payload.is_null(),
         "instances_of" | "validate_value" => payload.is_array(),
+        "frontmatter" => payload.is_object() || payload.is_null(),
+        "anchors" | "block_ids" => payload.is_array() || payload.is_null(),
+        "references_out" | "references_in" => payload.is_array(),
+        "neighborhood" => payload.is_object(),
         "preview_mutation" => payload.is_object(),
         "types" => payload.is_array() || payload.is_null(),
         _ => false,
@@ -2260,9 +2659,9 @@ OPTIONS
     -V, --version            Print the version, then exit
 
 SURFACE
-    21 tools registered: 16 engine reads, 2 discovery helpers (au_search_tools,
-    au_describe_tool), and 3 mutating tools. A launch advertises 18, or 21 when
-    it grants mutations.
+    Engine reads, two discovery helpers (au_search_tools, au_describe_tool), and
+    three mutating tools that exist only with a grant. Run --info for the live
+    counts.
 
 PROTOCOL
     Legacy: 2024-11-05, 2025-03-26, 2025-06-18, 2025-11-25 (initialize first)

@@ -1,0 +1,28 @@
+{
+  "arguments": {
+    "depth": 2,
+    "kinds": [
+      "navigational"
+    ],
+    "path": "notes/a.md",
+    "repo": "fixture"
+  },
+  "payload": {
+    "neighborhood": {
+      "dropped": [],
+      "edges": [],
+      "nodes": [
+        {
+          "body_bytes": 60,
+          "bytes": 93,
+          "depth": 0,
+          "file_kind": "instance",
+          "path": "$FIXTURE/fixture/notes/a.md",
+          "repo": "fixture"
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "tool": "au_neighborhood"
+}

@@ -60,6 +60,13 @@ routing signals, not failures:
 2. `au_content {"repo": "vault", "path": "inbox/note.md"}` — text plus the hash
    a later write must quote.
 
+**Follow a link or inspect one file's surface**
+
+`au_frontmatter` for the parsed claim and fields; `au_anchors` for the headings a
+`#fragment` can address; `au_block_ids` for what `^id` can address; `au_references`
+for the edges in and out; `au_neighborhood` for a bounded walk (`depth` past 1
+needs `kinds`).
+
 **Find everything of a kind**
 
 `au_instances_of {"type_name": "note"}` — one record per instance, with the

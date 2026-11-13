@@ -3,8 +3,8 @@
 An MCP stdio server for the arsumbris engine. It reads a workspace through the
 engine's Unix socket, and can write only when the launch grants it.
 
-- **18 tools**: 16 engine reads, 2 discovery helpers, and 3 mutating tools that
-  appear only with an explicit grant.
+- **21 engine reads**, 2 discovery helpers, and 3 mutating tools that appear only
+  with an explicit grant.
 - **Results are the engine's own object**, under the read's key: `au_overview`
   answers `{"overview": ...}`. Nothing is re-shaped on the way out.
 - **Read-only by default.** Without a grant the mutating tools are absent from
@@ -198,6 +198,7 @@ catalogue at start.
 | [`docs/connecting.md`](docs/connecting.md) | socket discovery, probe, per-client registration, flags, troubleshooting |
 | [`docs/tools.md`](docs/tools.md) | every tool, its arguments, and its failure modes |
 | [`docs/runtime-map.md`](docs/runtime-map.md) | every module in the bundle, what the Rust binary covers, and the phase plan for the rest |
+| [`docs/roadmap.md`](docs/roadmap.md) | the phase checklist with current status |
 | [`docs/agent-interface.md`](docs/agent-interface.md) | measured first-call and per-call cost, best-practice checklist, open gaps |
 | [`docs/progressive-disclosure.md`](docs/progressive-disclosure.md) | sources and technique catalogue for tool token economy |
 | [`docs/live-comparison.md`](docs/live-comparison.md) | A/B against the Python bridge on one workspace |

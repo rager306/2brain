@@ -201,7 +201,7 @@ fn build_fixture(temp: &Path) -> (PathBuf, PathBuf) {
     .unwrap();
     fs::write(
         repo.join("notes/a.md"),
-        "---\ntype: note\nlink: \"[[b]]\"\n---\n",
+        "---\ntype: note\nlink: \"[[b]]\"\n---\n\n## Details\n\nA marker for the addressability reads. ^detail\n",
     )
     .unwrap();
     fs::write(repo.join("notes/b.md"), "---\ntype: note\n---\n").unwrap();
@@ -235,7 +235,7 @@ fn build_fixture(temp: &Path) -> (PathBuf, PathBuf) {
 /// The read fixtures replay every advertised read through the MCP layer against
 /// a real engine on a disposable repository. Paths are recorded relative to the
 /// fixture root as `$FIXTURE`, so the corpus does not carry machine paths.
-fn fixture_cases() -> [(&'static str, Value); 16] {
+fn fixture_cases() -> [(&'static str, Value); 21] {
     [
         ("au_overview", json!({})),
         ("au_top_level_dirs", json!({})),
@@ -261,6 +261,23 @@ fn fixture_cases() -> [(&'static str, Value); 16] {
         (
             "au_reconcile",
             json!({"repo":"fixture","path":"notes/ghost.md","expect_absent":true}),
+        ),
+        (
+            "au_frontmatter",
+            json!({"repo":"fixture","path":"notes/a.md"}),
+        ),
+        ("au_anchors", json!({"repo":"fixture","path":"notes/a.md"})),
+        (
+            "au_block_ids",
+            json!({"repo":"fixture","path":"notes/a.md"}),
+        ),
+        (
+            "au_references",
+            json!({"repo":"fixture","path":"notes/a.md"}),
+        ),
+        (
+            "au_neighborhood",
+            json!({"repo":"fixture","path":"notes/a.md","depth":2,"kinds":["navigational"]}),
         ),
     ]
 }

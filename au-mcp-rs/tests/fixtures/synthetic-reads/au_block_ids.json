@@ -1,0 +1,30 @@
+{
+  "arguments": {
+    "path": "notes/a.md",
+    "repo": "fixture"
+  },
+  "payload": {
+    "block_ids": [
+      {
+        "id": "detail",
+        "kind": "marker",
+        "span": {
+          "end": 92,
+          "line_col": {
+            "end": {
+              "col": 47,
+              "line": 8
+            },
+            "start": {
+              "col": 40,
+              "line": 8
+            }
+          },
+          "start": 85
+        },
+        "type_claim": []
+      }
+    ]
+  },
+  "tool": "au_block_ids"
+}

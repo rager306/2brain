@@ -32,6 +32,16 @@ a mutation's schema.
 | `au_type_tree` | — | full tree with roots and nodes; adjacency matched by name; unpaged |
 | `au_subtypes` | `base`, `scope?` | direct and transitive; unknown base returns `[]`; unpaged |
 
+## Addressability and links
+
+| tool | arguments | notes |
+|---|---|---|
+| `au_frontmatter` | `repo`, `path` | parsed frontmatter as JSON, or null when the file is neither a typed instance nor a note |
+| `au_anchors` | `repo`, `path` | every heading with text, level, and span; null when the target does not resolve, `[]` when it has no headings |
+| `au_block_ids` | `repo`, `path` | every addressable id with kind (`record`/`typed_block`/`marker`) and type claim; duplicates included |
+| `au_references` | `repo`, `path`, `direction?` | `out`, `in`, or both (default); answers `references_out` and/or `references_in` |
+| `au_neighborhood` | `repo`, `path`, `direction?`, `depth?`, `kinds?`, `scope?`, `max_nodes?` | bounded N-hop walk returning `{nodes, edges, truncated}`; past depth 1 the engine requires `kinds` |
+
 ## Content and graph
 
 | tool | arguments | notes |

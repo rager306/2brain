@@ -6,8 +6,8 @@
   "payload": {
     "content": {
       "commit": "$COMMIT",
-      "hash": "2ebf9d2df213ca8b",
-      "text": "---\ntype: note\nlink: \"[[b]]\"\n---\n"
+      "hash": "d5d1ace9c60cafca",
+      "text": "---\ntype: note\nlink: \"[[b]]\"\n---\n\n## Details\n\nA marker for the addressability reads. ^detail\n"
     }
   },
   "tool": "au_content"

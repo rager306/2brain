@@ -14,7 +14,7 @@ fn fixture_dir() -> std::path::PathBuf {
 
 /// The payload key each fixture must carry, so an empty answer cannot pass as a
 /// captured one.
-const PAYLOAD_KEYS: [(&str, &str); 16] = [
+const PAYLOAD_KEYS: [(&str, &str); 21] = [
     ("au_overview", "overview"),
     ("au_top_level_dirs", "top_level_dirs"),
     ("au_type", "type"),
@@ -31,6 +31,11 @@ const PAYLOAD_KEYS: [(&str, &str); 16] = [
     ("au_validate_value", "validate_value"),
     ("au_preview_mutation", "preview_mutation"),
     ("au_reconcile", "outcome"),
+    ("au_frontmatter", "frontmatter"),
+    ("au_anchors", "anchors"),
+    ("au_block_ids", "block_ids"),
+    ("au_references", "references_out"),
+    ("au_neighborhood", "neighborhood"),
 ];
 
 #[test]

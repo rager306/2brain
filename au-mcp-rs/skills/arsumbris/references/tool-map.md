@@ -24,6 +24,11 @@ projections with summaries and paging.
 | `au_validate_value` | `type_name`, `value`, `repo?` | `{validate_value: [verdict]}` |
 | `au_preview_mutation` | `repo`, `path`, `op`, ... | `{preview_mutation}` |
 | `au_reconcile` | `repo`, `path`, `expected_hash?` / `expect_absent?` | `{outcome, current_hash, current_commit}` |
+| `au_frontmatter` | `repo`, `path` | `{frontmatter}` or null |
+| `au_anchors` | `repo`, `path` | `{anchors}` (headings) or null |
+| `au_block_ids` | `repo`, `path` | `{block_ids}` (records, fences, markers) or null |
+| `au_references` | `repo`, `path`, `direction?` | `{references_out}` and/or `{references_in}` |
+| `au_neighborhood` | `repo`, `path`, `direction?`, `depth?`, `kinds?`, `scope?`, `max_nodes?` | `{neighborhood: {nodes, edges, truncated}}` |
 | `au_search_tools` | `query`, `detail?`, `limit?` | `{tools}` |
 | `au_describe_tool` | `name` | one full tool definition |
 

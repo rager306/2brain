@@ -129,19 +129,24 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
     assert_eq!(
         names,
         [
+            "au_anchors",
+            "au_block_ids",
             "au_content",
             "au_delete_file",
             "au_describe_tool",
             "au_diagnostics",
             "au_edit_file",
             "au_files",
+            "au_frontmatter",
             "au_hubs",
             "au_imports",
             "au_instances_of",
             "au_members",
+            "au_neighborhood",
             "au_overview",
             "au_preview_mutation",
             "au_reconcile",
+            "au_references",
             "au_search_tools",
             "au_subtypes",
             "au_top_level_dirs",
@@ -168,13 +173,17 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             .get("outputSchema")
             .unwrap_or_else(|| panic!("{name} declares no outputSchema"));
         assert_eq!(schema["type"], "object", "{name}");
-        let required = schema["required"].as_array().unwrap();
-        assert_eq!(required.len(), 1, "{name}: {schema}");
-        let key = required[0].as_str().unwrap();
-        assert!(
-            schema["properties"].get(key).is_some(),
-            "{name} requires a key it does not declare"
-        );
+        // Most reads require exactly their own envelope key; `au_references`
+        // returns either or both directions, so it declares no required key.
+        if let Some(required) = schema["required"].as_array() {
+            for key in required {
+                let key = key.as_str().unwrap();
+                assert!(
+                    schema["properties"].get(key).is_some(),
+                    "{name} requires a key it does not declare"
+                );
+            }
+        }
     }
 
     let diagnostics = tools

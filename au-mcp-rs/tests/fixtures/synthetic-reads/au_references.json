@@ -1,0 +1,53 @@
+{
+  "arguments": {
+    "path": "notes/a.md",
+    "repo": "fixture"
+  },
+  "payload": {
+    "references_in": [
+      {
+        "block_id": null,
+        "kind": "field",
+        "line_col": {
+          "end": {
+            "col": 13,
+            "line": 3
+          },
+          "start": {
+            "col": 8,
+            "line": 3
+          }
+        },
+        "slot": "link",
+        "source": "$FIXTURE/fixture/notes/d.md",
+        "span_end": 27,
+        "span_start": 22,
+        "surface": "frontmatter"
+      }
+    ],
+    "references_out": [
+      {
+        "field": "link",
+        "kind": "field-reference",
+        "resolved": "$FIXTURE/fixture/notes/b.md",
+        "span": {
+          "end": 27,
+          "line_col": {
+            "end": {
+              "col": 13,
+              "line": 3
+            },
+            "start": {
+              "col": 8,
+              "line": 3
+            }
+          },
+          "start": 22
+        },
+        "surface": "frontmatter",
+        "target": "b"
+      }
+    ]
+  },
+  "tool": "au_references"
+}

@@ -1,0 +1,13 @@
+{
+  "arguments": {
+    "path": "notes/a.md",
+    "repo": "fixture"
+  },
+  "payload": {
+    "frontmatter": {
+      "link": "[[b]]",
+      "type": "note"
+    }
+  },
+  "tool": "au_frontmatter"
+}
