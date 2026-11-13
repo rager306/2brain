@@ -19,7 +19,14 @@ use std::{
 use serde::Deserialize;
 
 /// Tools that change state. Everything else is a read.
-pub const MUTATION_TOOLS: [&str; 3] = ["au_write_file", "au_edit_file", "au_delete_file"];
+pub const MUTATION_TOOLS: [&str; 6] = [
+    "au_write_file",
+    "au_edit_file",
+    "au_delete_file",
+    "au_assign_block_id",
+    "au_rename_block_id",
+    "au_rename",
+];
 
 /// Where mutation decisions are written.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]

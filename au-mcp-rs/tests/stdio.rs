@@ -130,6 +130,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
         names,
         [
             "au_anchors",
+            "au_assign_block_id",
             "au_block_ids",
             "au_candidates",
             "au_children",
@@ -151,6 +152,8 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_preview_mutation",
             "au_reconcile",
             "au_references",
+            "au_rename",
+            "au_rename_block_id",
             "au_resolve_member",
             "au_resolved",
             "au_search_tools",
@@ -259,7 +262,12 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
         let read_only = tool["annotations"]["readOnlyHint"] == true;
         if matches!(
             tool["name"].as_str().unwrap(),
-            "au_write_file" | "au_edit_file" | "au_delete_file"
+            "au_write_file"
+                | "au_edit_file"
+                | "au_delete_file"
+                | "au_assign_block_id"
+                | "au_rename_block_id"
+                | "au_rename"
         ) {
             assert!(!read_only, "the write tool must not claim to be read-only");
             assert_eq!(tool["annotations"]["destructiveHint"], true);

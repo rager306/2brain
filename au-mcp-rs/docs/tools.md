@@ -68,6 +68,15 @@ hash, but the member must be editable.
 an editable member, one mutation at a time. An engine rejection wrote nothing; a
 transport failure is `outcome_unknown` and must not be retried blindly.
 
+Structural mutations ride the same gate (prior read, hash, editable member, one
+at a time) and each is one engine saga:
+
+| tool | arguments | effect |
+|---|---|---|
+| `au_assign_block_id` | `repo`, `path`, `at`, `expected_hash` | mints an id for the entity at a byte offset; returns `id` and its `[[target^id]]` ref; idempotent on an entity that already has one |
+| `au_rename_block_id` | `repo`, `path`, `block_id`, `to_block_id`, `expected_hash` | renames an inline record's id and carries every referrer |
+| `au_rename` | `repo`, `path`, `to`, `expected_hash` | moves a file inside its member and rewrites inbound references; refuses a type-def (use `au_rename_type`) and a cross-member target |
+
 `au_reconcile {repo, path, expected_hash? | expect_absent?}` answers `applied` or
 `not_applied` with the current hash and commit, and re-arms the guard when the
 file differs, so a deliberate retry needs no extra read.

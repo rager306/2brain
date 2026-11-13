@@ -1,8 +1,8 @@
 # Roadmap
 
 Status on 2026-11-13, HEAD `96715e0`. Verified against the code, not the notes:
-34 tools registered (31 advertised read-only, 3 mutations), 26 captured fixtures,
-132 tests green, ten documents.
+37 tools registered (31 advertised read-only, 6 mutations), 26 captured fixtures,
+136 tests green, ten documents.
 
 ## Done — with evidence
 
@@ -42,8 +42,9 @@ Status on 2026-11-13, HEAD `96715e0`. Verified against the code, not the notes:
 
 ## Phase B — engine mutations
 
-- [ ] `assign_block_id`, `inline`, `promote`
-- [ ] `rename`, `rename_block_id`, `rename_type`
+- [x] `assign_block_id`, `rename_block_id`, `rename` — behind the gate, with `tests/structural.rs`
+- [ ] `inline`, `promote` — need a two-path gate (both files must be armed)
+- [ ] `rename_type` — needs a type-hash gate (no file path to arm)
 - [ ] `add_dep`, `remove_dep`
 - [ ] `add_workspace_member`, `remove_workspace_member`, `set_workspace_member_role`
       — these change what the workspace *is*; they need a policy beyond the

@@ -886,6 +886,93 @@ impl Server {
     }
 
     #[tool(
+        description = "Mint a block id for the entity at a byte offset and return the id and its [[target^id]] ref. Inline records gain a ^: key, markdown blocks a trailing ^marker. Assigning to an entity that already has one returns the existing id and writes nothing. Requires a prior au_content read and its hash; one mutation at a time.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true
+        ),
+        output_schema = mutation_schema(),
+    )]
+    async fn au_assign_block_id(
+        &self,
+        Parameters(args): Parameters<AssignBlockIdArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        let at = args.at;
+        self.guarded_mutation(
+            args.repo,
+            args.path,
+            args.expected_hash,
+            move |target| json!({"mutate": "assign_block_id", "id": 1, "path": target, "at": at}),
+        )
+        .await
+    }
+
+    #[tool(
+        description = "Rename an inline record's block id and carry every referrer with it: the ^: declaration and each [[host^id]] / [[^id]] rewrite as one mutation. Only inline records are renamed; a body marker is refused. Requires a prior au_content read of the host and its hash.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false
+        ),
+        output_schema = mutation_schema(),
+    )]
+    async fn au_rename_block_id(
+        &self,
+        Parameters(args): Parameters<RenameBlockIdArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        let block_id = args.block_id;
+        let to_block_id = args.to_block_id;
+        self.guarded_mutation(args.repo, args.path, args.expected_hash, move |target| {
+            json!({
+                "mutate": "rename_block_id",
+                "id": 1,
+                "path": target,
+                "block_id": block_id,
+                "to_block_id": to_block_id,
+            })
+        })
+        .await
+    }
+
+    #[tool(
+        description = "Move a file inside its member and rewrite every inbound reference to the new name, preserving each referrer's spelling, fragments, and ::repo qualifier, all as one mutation. A commit-pinned referrer stays untouched. Refuses a type-def file (use au_rename_type), a name that already exists, and a cross-member target. Requires a prior au_content read and its hash.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false
+        ),
+        output_schema = mutation_schema(),
+    )]
+    async fn au_rename(
+        &self,
+        Parameters(args): Parameters<RenameArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.to.is_empty() {
+            return return_error("'to' must not be empty");
+        }
+        if let Err(error) = relative_path(&args.to) {
+            return return_error(error);
+        }
+        let repo = args.repo;
+        let to = args.to;
+        let to_absolute = match absolute_member_path(&self.socket, &repo, &to).await {
+            Ok(path) => path,
+            Err(error) => return return_error(error),
+        };
+        self.guarded_mutation(
+            repo,
+            args.path,
+            args.expected_hash,
+            move |target| json!({"mutate": "rename", "id": 1, "path": target, "to": to_absolute}),
+        )
+        .await
+    }
+
+    #[tool(
         description = "Preview a write, edit, or delete without changing anything. Returns the engine's would-be target, hash, diagnostics, and blast radius so a caller can inspect consequences before mutating. The member must be editable and the path relative to it. No expected_hash is required because nothing is written. This is a read: it is not an authorization decision.",
         annotations(
             read_only_hint = true,
@@ -2226,6 +2313,59 @@ struct EditArguments {
     #[serde(default)]
     replace_all: bool,
     /// Hash returned by the au_content read that this edit is based on.
+    #[schemars(length(min = 1))]
+    expected_hash: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct AssignBlockIdArguments {
+    /// Workspace member that owns the file.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// File that holds the entity, relative to the member root.
+    #[schemars(length(min = 1))]
+    path: String,
+    /// Byte offset inside the file, from a span the server reported.
+    at: u64,
+    /// Hash returned by the au_content read that this change is based on.
+    #[schemars(length(min = 1))]
+    expected_hash: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct RenameBlockIdArguments {
+    /// Workspace member that owns the host file.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Host file carrying an inline record, relative to the member root.
+    #[schemars(length(min = 1))]
+    path: String,
+    /// The record's current block id.
+    #[schemars(length(min = 1))]
+    block_id: String,
+    /// The new id; must match the block-id grammar and be free in that file.
+    #[schemars(length(min = 1))]
+    to_block_id: String,
+    /// Hash returned by the au_content read that this change is based on.
+    #[schemars(length(min = 1))]
+    expected_hash: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct RenameArguments {
+    /// Workspace member that owns the file.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Current path, relative to the member root.
+    #[schemars(length(min = 1))]
+    path: String,
+    /// New path in the same member; a type-def file must use au_rename_type.
+    #[schemars(length(min = 1))]
+    to: String,
+    /// Hash returned by the au_content read that this change is based on.
     #[schemars(length(min = 1))]
     expected_hash: String,
 }

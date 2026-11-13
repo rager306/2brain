@@ -133,7 +133,14 @@ fn without_a_grant_the_server_is_read_only() {
     listener.set_nonblocking(true).unwrap();
     let mut client = Client::start(&socket, &[]);
     let names = client.tool_names();
-    for tool in ["au_write_file", "au_edit_file", "au_delete_file"] {
+    for tool in [
+        "au_write_file",
+        "au_edit_file",
+        "au_delete_file",
+        "au_assign_block_id",
+        "au_rename_block_id",
+        "au_rename",
+    ] {
         assert!(
             !names.contains(&tool.to_owned()),
             "{tool} must be hidden: {names:?}"
@@ -170,7 +177,14 @@ fn an_explicit_grant_exposes_the_mutating_tools() {
     listener.set_nonblocking(true).unwrap();
     let mut client = Client::start(&socket, &["--allow-mutations"]);
     let names = client.tool_names();
-    for tool in ["au_write_file", "au_edit_file", "au_delete_file"] {
+    for tool in [
+        "au_write_file",
+        "au_edit_file",
+        "au_delete_file",
+        "au_assign_block_id",
+        "au_rename_block_id",
+        "au_rename",
+    ] {
         assert!(
             names.contains(&tool.to_owned()),
             "{tool} missing: {names:?}"
