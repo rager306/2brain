@@ -1,8 +1,8 @@
 # Roadmap
 
 Status on 2026-11-13, HEAD `96715e0`. Verified against the code, not the notes:
-30 tools registered (27 advertised read-only, 3 mutations), 25 captured fixtures,
-127 tests green, ten documents.
+34 tools registered (31 advertised read-only, 3 mutations), 26 captured fixtures,
+132 tests green, ten documents.
 
 ## Done — with evidence
 
@@ -11,6 +11,9 @@ Status on 2026-11-13, HEAD `96715e0`. Verified against the code, not the notes:
 | 16 engine reads | `src/lib.rs`: overview, top_level_dirs, type, type_tree, types, hubs, diagnostics, subtypes, members, imports, files, content, instances_of, validate_value, preview_mutation, reconcile |
 | 3 mutations behind a gate | `write_file`, `edit_file`, `delete_file`; `tests/policy.rs`, `tests/write_file*.rs` |
 | 5 addressability/link reads | `frontmatter`, `anchors`, `block_ids`, `references`, `neighborhood`; `tests/links.rs`, fixtures |
+| 4 scan/resolution reads | `instances`, `candidates`, `semantic_tokens`, `resolve_member`; `tests/scan.rs`, fixtures |
+| 4 classification reads | `typed`, `resolved`, `children`, `follow`; `tests/scan.rs`, `tests/links.rs` |
+| build identity | `--version` carries `+<commit>[.dirty]`; `build.rs`, `tests/cli.rs` |
 | discovery and profiles | `au_search_tools`, `au_describe_tool`, `--tools full\|concise`, `--payload both\|text\|structured`; `tests/discovery.rs` |
 | protocol | four legacy revisions and `2026-07-28`, pre-init `ping` rule; `tests/stdio.rs`, `tests/modern_stdio.rs` |
 | faults | lost mutation reply, engine death mid-read, truncated frame; `tests/faults.rs` |
@@ -32,10 +35,10 @@ Status on 2026-11-13, HEAD `96715e0`. Verified against the code, not the notes:
 - [x] `au_semantic_tokens` — `semantic_tokens`
 - [x] `au_resolve_member` — `resolve_member`
 - [ ] `au_typed` — `instance`
-- [ ] `au_follow` — `resolve_target`; pin the argument semantics first
+- [x] `au_follow` — `resolve_target` / `resolve_block_id` / `resolve_anchor`, plus a line peek
 - [ ] `au_children` — `references_out` filtered; pin the rule first
 - [ ] `au_resolved` — `resolve_target` / `resolve_block_id` / `resolve_anchor`
-- [ ] `au_type_system` — `type_batch` / `type_closure`; pin the projection first
+- [-] `au_type_system` — **out of scope**: it reads typed `doc` atoms from the `au-mcp-type-knowledge` content package, not the engine
 
 ## Phase B — engine mutations
 

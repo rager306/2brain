@@ -139,6 +139,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_diagnostics",
             "au_edit_file",
             "au_files",
+            "au_follow",
             "au_frontmatter",
             "au_hubs",
             "au_imports",

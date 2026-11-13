@@ -1,0 +1,32 @@
+{
+  "arguments": {
+    "origin_path": "notes/a.md",
+    "repo": "fixture",
+    "target": "a#Details"
+  },
+  "payload": {
+    "follow": {
+      "file_path": "$FIXTURE/fixture/notes/a.md",
+      "origin": "$FIXTURE/fixture/notes/a.md",
+      "referent": false,
+      "resolved": true,
+      "snippet": "## Details\\n\\nA marker for the addressability reads. ^detail",
+      "span": {
+        "end": 45,
+        "line_col": {
+          "end": {
+            "col": 1,
+            "line": 7
+          },
+          "start": {
+            "col": 1,
+            "line": 6
+          }
+        },
+        "start": 34
+      },
+      "target": "a#Details"
+    }
+  },
+  "tool": "au_follow"
+}

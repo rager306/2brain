@@ -299,6 +299,104 @@ fn resolved_and_children_read_their_own_verbs() {
     guard(handle, temp);
 }
 
+#[test]
+fn follow_resolves_a_target_and_peeks_the_line() {
+    let (temp, socket, handle) = serve(vec![
+        (
+            Some(json!({"read":"members","id":1,"repo":"fixture"})),
+            json!({"members":[{"repo":"fixture","editable":true,"root":ROOT}]}),
+        ),
+        (
+            Some(
+                json!({"read":"resolve_target","id":1,"target":"notes/b","origin":"/tmp/fixture/notes/a.md"}),
+            ),
+            json!({"resolve_target":{"path":"/tmp/fixture/notes/b.md","kind":"instance","hash":"h","source":null}}),
+        ),
+    ]);
+    let mut client = Client::start(&socket);
+    let result = client.call(
+        2,
+        "au_follow",
+        json!({"repo":"fixture","origin_path":"notes/a.md","target":"notes/b"}),
+    );
+    assert_ne!(result["isError"], true, "{result}");
+    let payload = payload(&result)["follow"].clone();
+    assert_eq!(payload["resolved"], true);
+    assert_eq!(payload["path"], "/tmp/fixture/notes/b.md");
+    guard(handle, temp);
+}
+
+#[test]
+fn follow_asks_the_fragment_verb_for_a_fragment() {
+    for (target, verb, extra, answer) in [
+        (
+            "notes/b^blk",
+            "resolve_block_id",
+            json!({"block_id":"blk"}),
+            json!({"resolve_block_id":{"file_path":"/tmp/fixture/notes/b.md","kind":"marker","span":{"start":0,"end":4,"line_col":{"start":{"line":2,"col":1},"end":{"col":5,"line":2}}},"type_claim":""}}),
+        ),
+        (
+            "notes/b#Head",
+            "resolve_anchor",
+            json!({"anchor":"Head"}),
+            json!({"resolve_anchor":{"file_path":"/tmp/fixture/notes/b.md","span":{"start":0,"end":6,"line_col":{"start":{"line":1,"col":1},"end":{"col":6,"line":1}}}}}),
+        ),
+    ] {
+        let mut expected =
+            json!({"read":verb,"id":1,"target":"notes/b","origin":"/tmp/fixture/notes/a.md"});
+        for (k, v) in extra.as_object().unwrap() {
+            expected[k] = v.clone();
+        }
+        let (temp, socket, handle) = serve(vec![
+            (
+                Some(json!({"read":"members","id":1,"repo":"fixture"})),
+                json!({"members":[{"repo":"fixture","editable":true,"root":ROOT}]}),
+            ),
+            (Some(expected), answer),
+            (
+                Some(json!({"read":"content","id":1,"path":"/tmp/fixture/notes/b.md"})),
+                json!({"content":{"text":"first\nsecond\nthird","hash":"h","commit":null}}),
+            ),
+        ]);
+        let mut client = Client::start(&socket);
+        let result = client.call(
+            2,
+            "au_follow",
+            json!({"repo":"fixture","origin_path":"notes/a.md","target":target}),
+        );
+        assert_ne!(result["isError"], true, "{target}: {result}");
+        let payload = payload(&result)["follow"].clone();
+        assert_eq!(payload["resolved"], true, "{target}: {payload}");
+        assert!(payload["snippet"].is_string(), "{target}: {payload}");
+        guard(handle, temp);
+    }
+}
+
+#[test]
+fn follow_skips_the_peek_when_disabled() {
+    let (temp, socket, handle) = serve(vec![
+        (
+            Some(json!({"read":"members","id":1,"repo":"fixture"})),
+            json!({"members":[{"repo":"fixture","editable":true,"root":ROOT}]}),
+        ),
+        (
+            Some(
+                json!({"read":"resolve_target","id":1,"target":"notes/b","origin":"/tmp/fixture/notes/a.md"}),
+            ),
+            json!({"resolve_target":null}),
+        ),
+    ]);
+    let mut client = Client::start(&socket);
+    let result = client.call(
+        2,
+        "au_follow",
+        json!({"repo":"fixture","origin_path":"notes/a.md","target":"notes/b","peek":false}),
+    );
+    let payload = payload(&result)["follow"].clone();
+    assert_eq!(payload["resolved"], false);
+    guard(handle, temp);
+}
+
 fn guard(handle: thread::JoinHandle<()>, temp: tempfile::TempDir) {
     handle.join().unwrap();
     drop(temp);

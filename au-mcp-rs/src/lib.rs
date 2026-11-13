@@ -249,6 +249,83 @@ enum ReferenceDirection {
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct FollowArguments {
+    /// Workspace member that owns the file the link appears in.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Path of the file the link appears in (or would), relative to the member root.
+    #[schemars(length(min = 1))]
+    origin_path: String,
+    /// The wikilink target to resolve, e.g. `note`, `note::repo`, `note#Heading`, `note^blk`, `note^^blk`.
+    #[schemars(length(min = 1))]
+    target: String,
+    /// Include the addressed line as a snippet; default true.
+    #[serde(default = "default_true")]
+    peek: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// A wikilink split into its targets, without judging the grammar.
+///
+/// The engine owns the grammar and the verdict; this only decides which resolve
+/// verb to ask. `#anchor` precedes `^block` in the canonical order, and `^^id` is
+/// the block-referent form.
+struct FollowParts {
+    base: String,
+    anchor: Option<String>,
+    block: Option<String>,
+    referent: bool,
+}
+
+fn split_follow(target: &str) -> FollowParts {
+    let mut base_end = target.len();
+    let mut anchor = None;
+    let mut block = None;
+    let mut referent = false;
+    // The canonical order is `#anchor` then `^block`; whichever comes first ends
+    // the file part. The engine validates the grammar, this only routes the call.
+    if let Some((start, _)) = target
+        .char_indices()
+        .find(|(_, character)| *character == '#' || *character == '^')
+    {
+        base_end = start;
+        let rest = &target[start..];
+        if let Some(rest) = rest.strip_prefix('#') {
+            let (anchor_text, tail) = match rest.find('^') {
+                Some(cut) => (&rest[..cut], Some(&rest[cut..])),
+                None => (rest, None),
+            };
+            anchor = Some(anchor_text.to_owned());
+            if let Some(tail) = tail {
+                let (id, double) = match tail.strip_prefix("^^") {
+                    Some(id) => (id, true),
+                    None => (tail.trim_start_matches('^'), false),
+                };
+                referent = double;
+                block = Some(id.to_owned());
+            }
+        } else {
+            let (id, double) = match rest.strip_prefix("^^") {
+                Some(id) => (id, true),
+                None => (rest.trim_start_matches('^'), false),
+            };
+            referent = double;
+            block = Some(id.to_owned());
+        }
+    }
+    FollowParts {
+        base: target[..base_end].to_owned(),
+        anchor,
+        block,
+        referent,
+    }
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct NeighborhoodArguments {
     /// Workspace member that owns the seed file.
     #[schemars(length(min = 1))]
@@ -1010,6 +1087,112 @@ impl Server {
         match (args.limit, args.offset) {
             (None, None) => result,
             (limit, offset) => page_instances(result, limit, offset.unwrap_or(0), self.payload),
+        }
+    }
+
+    #[tool(
+        description = "Resolve one wikilink string, including one you are about to write: does this address resolve, and what is there? target carries the link (`note`, `note::repo`, `note#Heading`, `note^blk`, `note^^blk`); origin_path is the file it appears in, which scopes a bare target to its repo. With peek (default true) the addressed line comes back as a snippet.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = follow_schema(),
+    )]
+    async fn au_follow(
+        &self,
+        Parameters(args): Parameters<FollowArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.repo.is_empty() {
+            return return_error("'repo' must not be empty");
+        }
+        if args.origin_path.is_empty() {
+            return return_error("'origin_path' must not be empty");
+        }
+        if args.target.trim().is_empty() {
+            return return_error("'target' must not be empty");
+        }
+        if let Err(error) = relative_path(&args.origin_path) {
+            return return_error(error);
+        }
+        if ctx.ct.is_cancelled() {
+            return return_error("engine read cancelled");
+        }
+        let Ok(_permit) = self.read_slots.try_acquire() else {
+            return return_error("engine read capacity reached; retry later");
+        };
+        let peek = args.peek;
+        let outcome = async {
+            let origin = absolute_member_path(&self.socket, &args.repo, &args.origin_path).await?;
+            let parts = split_follow(args.target.trim());
+            let (verb, key) = match (&parts.block, &parts.anchor) {
+                (Some(_), _) => ("resolve_block_id", "resolve_block_id"),
+                (None, Some(_)) => ("resolve_anchor", "resolve_anchor"),
+                (None, None) => ("resolve_target", "resolve_target"),
+            };
+            let mut request =
+                json!({"read": verb, "id": 1, "target": parts.base, "origin": origin});
+            if let Some(block) = &parts.block {
+                request["block_id"] = json!(block);
+            }
+            if let Some(anchor) = &parts.anchor {
+                request["anchor"] = json!(anchor);
+            }
+            let resolved = read_engine(&self.socket, request, verb).await?;
+            let answer = &resolved.payload[key];
+            let mut out = json!({
+                "target": args.target.trim(),
+                "origin": origin,
+                "resolved": !answer.is_null(),
+                "referent": parts.referent,
+            });
+            if let Some(object) = answer.as_object() {
+                for (field, value) in object {
+                    out[field.clone()] = value.clone();
+                }
+            }
+            // Peek the addressed line, best effort: a snippet is a convenience,
+            // never the verdict.
+            let addressed = answer
+                .get("file_path")
+                .or_else(|| answer.get("path"))
+                .cloned()
+                .unwrap_or(Value::Null);
+            if peek
+                && let Some(line) = answer
+                    .get("span")
+                    .and_then(|span| span.get("line_col"))
+                    .and_then(|line_col| line_col.get("start"))
+                    .and_then(|start| start.get("line"))
+                    .and_then(Value::as_u64)
+                && !addressed.is_null()
+                && let Ok(content) = read_engine(
+                    &self.socket,
+                    json!({"read": "content", "id": 1, "path": addressed}),
+                    "content",
+                )
+                .await
+                && let Some(text) = content.payload["content"]["text"].as_str()
+            {
+                let snippet: Vec<&str> = text
+                    .lines()
+                    .skip(line.saturating_sub(1) as usize)
+                    .take(3)
+                    .collect();
+                if !snippet.is_empty() {
+                    out["snippet"] = json!(snippet.join("\\n"));
+                }
+            }
+            Ok::<Value, String>(json!({"follow": out}))
+        };
+        match tokio::select! {
+            biased;
+            _ = ctx.ct.cancelled() => Err("engine read cancelled".to_owned()),
+            result = outcome => result,
+        } {
+            Ok(payload) => success_payload(payload, self.payload),
+            Err(error) => return_error(error),
         }
     }
 
@@ -2525,6 +2708,37 @@ fn return_error(message: impl Into<String>) -> CallToolResult {
     CallToolResult::error(vec![ContentBlock::text(message.into())])
 }
 
+/// The output schema of `au_follow`.
+fn follow_schema() -> Arc<serde_json::Map<String, Value>> {
+    let mut properties = serde_json::Map::new();
+    properties.insert(
+        "follow".to_owned(),
+        json!({
+            "type": "object",
+            "properties": {
+                "target": {"type": "string"},
+                "origin": {"type": "string"},
+                "resolved": {"type": "boolean"},
+                "referent": {"type": "boolean"},
+                "snippet": {"type": "string"}
+            },
+            "required": ["target", "origin", "resolved"],
+            "additionalProperties": true
+        }),
+    );
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": properties,
+            "required": ["follow"],
+            "additionalProperties": false,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
 /// The output schema of `au_typed`.
 fn typed_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
@@ -2947,9 +3161,8 @@ async fn read_engine(socket: &Path, request: Value, verb: &str) -> Result<ReadRe
         "neighborhood" => payload.is_object(),
         "instances" | "candidates" => payload.is_array(),
         "semantic_tokens" => payload.is_array() || payload.is_null(),
-        "resolve_member" | "instance" | "resolve_target" => {
-            payload.is_object() || payload.is_null()
-        }
+        "resolve_member" | "instance" | "resolve_target" | "resolve_block_id"
+        | "resolve_anchor" => payload.is_object() || payload.is_null(),
         "dir_entries" => payload.is_array(),
         "preview_mutation" => payload.is_object(),
         "types" => payload.is_array() || payload.is_null(),
