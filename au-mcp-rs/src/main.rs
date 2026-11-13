@@ -1,4 +1,5 @@
 mod bounded_stdio;
+mod policy;
 
 use std::{
     borrow::Cow,
@@ -195,6 +196,9 @@ struct ReadResult {
 #[derive(Debug, Clone)]
 struct Server {
     socket: PathBuf,
+    policy: policy::Policy,
+    principal: String,
+    audit: policy::Audit,
     initialize_called: Arc<AtomicBool>,
     read_slots: Arc<Semaphore>,
     mutation_slot: Arc<Semaphore>,
@@ -204,9 +208,13 @@ struct Server {
 
 #[tool_router]
 impl Server {
-    fn new(socket: PathBuf) -> Self {
+    fn new(socket: PathBuf, policy: policy::Policy, principal: String) -> Self {
+        let audit = policy::Audit::new(&policy.audit);
         Self {
             socket,
+            policy,
+            principal,
+            audit,
             initialize_called: Arc::new(AtomicBool::new(false)),
             read_slots: Arc::new(Semaphore::new(MAX_IN_FLIGHT_READS)),
             mutation_slot: Arc::new(Semaphore::new(1)),
@@ -746,6 +754,13 @@ impl Server {
         if let Err(error) = relative_path(&path) {
             return CallToolResult::error(vec![ContentBlock::text(error)]);
         }
+        if !self.policy.permits_member(&repo) {
+            self.audit
+                .record(&self.principal, "mutation", &repo, "denied:member");
+            return CallToolResult::error(vec![ContentBlock::text(format!(
+                "policy: mutations are not allowed in workspace member {repo}"
+            ))]);
+        }
         let key = (repo.clone(), path.clone());
         let served = self
             .served
@@ -777,6 +792,8 @@ impl Server {
         let request = build(&target);
         match read_mutation_with_timeout(&self.socket, request, ENGINE_READ_TIMEOUT).await {
             Ok(result) => {
+                self.audit
+                    .record(&self.principal, "mutation", &repo, "applied");
                 self.served
                     .lock()
                     .expect("served lock poisoned")
@@ -784,9 +801,13 @@ impl Server {
                 success_result(result)
             }
             Err(MutationFailure::Rejected(error)) => {
+                self.audit
+                    .record(&self.principal, "mutation", &repo, "rejected");
                 CallToolResult::error(vec![ContentBlock::text(error)])
             }
             Err(MutationFailure::Unknown(error)) => {
+                self.audit
+                    .record(&self.principal, "mutation", &repo, "outcome_unknown");
                 self.served
                     .lock()
                     .expect("served lock poisoned")
@@ -874,6 +895,14 @@ impl ServerHandler for Server {
                 None,
             ));
         }
+        if !self.policy.allow_mutations && policy::MUTATION_TOOLS.contains(&request.name.as_ref()) {
+            self.audit
+                .record(&self.principal, &request.name, "", "denied");
+            return Err(rmcp::ErrorData::invalid_request(
+                "mutations are disabled by this server's launch policy",
+                None,
+            ));
+        }
         self.tool_router
             .call(ToolCallContext::new(self, request, context))
             .await
@@ -890,8 +919,16 @@ impl ServerHandler for Server {
                 None,
             ));
         }
+        let tools = self
+            .tool_router
+            .list_all()
+            .into_iter()
+            .filter(|tool| {
+                self.policy.allow_mutations || !policy::MUTATION_TOOLS.contains(&tool.name.as_ref())
+            })
+            .collect();
         Ok(ListToolsResult {
-            tools: self.tool_router.list_all(),
+            tools,
             ..Default::default()
         })
     }
@@ -1278,14 +1315,56 @@ async fn mutate_engine(socket: &Path, request: Value) -> Result<ReadResult, Wire
     })
 }
 
+const USAGE: &str = "usage: au-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--principal <name>]";
+
+/// Parse the launch arguments. Mutations need an explicit grant: either a
+/// policy file that allows them or `--allow-mutations`.
+fn parse_args(
+    arguments: impl Iterator<Item = std::ffi::OsString>,
+) -> Result<(PathBuf, policy::Policy, String), String> {
+    let mut socket: Option<PathBuf> = None;
+    let mut policy_path: Option<PathBuf> = None;
+    let mut allow_mutations = false;
+    let mut principal = "unknown".to_owned();
+    let mut arguments = arguments.peekable();
+    while let Some(argument) = arguments.next() {
+        let text = argument.to_string_lossy().into_owned();
+        match text.as_str() {
+            "--policy" => {
+                let path = arguments.next().ok_or(USAGE)?;
+                policy_path = Some(PathBuf::from(path));
+            }
+            "--principal" => {
+                let name = arguments.next().ok_or(USAGE)?;
+                principal = name.to_string_lossy().into_owned();
+            }
+            "--allow-mutations" => allow_mutations = true,
+            other if other.starts_with("--") => {
+                return Err(format!("unknown option: {other}. {USAGE}"));
+            }
+            other => {
+                if socket.is_some() {
+                    return Err(USAGE.into());
+                }
+                socket = Some(PathBuf::from(other));
+            }
+        }
+    }
+    let socket = socket.ok_or(USAGE)?;
+    let mut policy = match policy_path {
+        Some(path) => policy::Policy::load(&path)?,
+        None => policy::Policy::read_only(),
+    };
+    if allow_mutations {
+        policy.allow_mutations = true;
+    }
+    Ok((socket, policy, principal))
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args = env::args_os().skip(1);
-    let socket = args.next().ok_or("usage: au-mcp-rs <engine-unix-socket>")?;
-    if args.next().is_some() {
-        return Err("usage: au-mcp-rs <engine-unix-socket>".into());
-    }
-    let service = Server::new(socket.into())
+    let (socket, policy, principal) = parse_args(env::args_os().skip(1))?;
+    let service = Server::new(socket, policy, principal)
         .serve(bounded_stdio::BoundedStdio::new())
         .await?;
     service.waiting().await?;
@@ -1298,9 +1377,13 @@ mod tests {
     use rmcp::{model::NumberOrString, service::serve_directly};
     use tokio::net::UnixListener;
 
+    fn test_server(socket: PathBuf) -> Server {
+        Server::new(socket, policy::Policy::read_only(), "test".to_owned())
+    }
+
     fn request_context() -> RequestContext<RoleServer> {
         let (transport, _client) = tokio::io::duplex(64);
-        let service = serve_directly(Server::new(PathBuf::new()), transport, None);
+        let service = serve_directly(test_server(PathBuf::new()), transport, None);
         RequestContext::new(NumberOrString::Number(1), service.peer().clone())
     }
 
@@ -1367,7 +1450,7 @@ mod tests {
     async fn type_rejects_empty_name_or_repo_before_connecting() {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("missing.sock");
-        let server = Server::new(path);
+        let server = test_server(path);
         for (name, repo, expected) in [
             ("", None, "'name' is required"),
             ("Type", Some(""), "'repo' must not be empty"),
@@ -1415,7 +1498,7 @@ mod tests {
             });
             let args: TypeArguments =
                 serde_json::from_value(json!({"name":name,"repo":repo})).unwrap();
-            let result = Server::new(path)
+            let result = test_server(path)
                 .au_type(Parameters(args), request_context())
                 .await;
             let result = serde_json::to_value(result).unwrap();
@@ -1579,7 +1662,7 @@ mod tests {
                 socket.write_u32(body.len() as u32).await.unwrap();
                 socket.write_all(&body).await.unwrap();
             });
-            let result = Server::new(path)
+            let result = test_server(path)
                 .au_types(
                     Parameters(TypesArguments {
                         repo: None,
@@ -1613,7 +1696,7 @@ mod tests {
         let listener = UnixListener::bind(&path).unwrap();
         let ctx = request_context();
         ctx.ct.cancel();
-        let result = Server::new(path)
+        let result = test_server(path)
             .au_overview(Parameters(EmptyArguments {}), ctx)
             .await;
         assert_eq!(serde_json::to_value(result).unwrap()["isError"], true);
@@ -1632,7 +1715,7 @@ mod tests {
         let ctx = request_context();
         let cancel = ctx.ct.clone();
         let task = tokio::spawn(async move {
-            Server::new(path)
+            test_server(path)
                 .au_overview(Parameters(EmptyArguments {}), ctx)
                 .await
         });
@@ -1686,7 +1769,7 @@ mod tests {
                     .is_err()
             );
         });
-        let server = Server::new(path);
+        let server = test_server(path);
         let result = server
             .read_with_timeout(
                 json!({"read":"overview","id":1}),

@@ -8,6 +8,45 @@ socket path as the sole command-line argument:
 cargo run -- /path/to/engine.sock
 ```
 
+### Launch policy
+
+Mutations are **off unless granted at launch**. Without a grant the server is
+read-only: `au_write_file`, `au_edit_file`, and `au_delete_file` are absent from
+`tools/list`, and calling one is refused before any engine connection.
+
+```sh
+au-mcp-rs /path/to/engine.sock                                  # read-only
+au-mcp-rs /path/to/engine.sock --allow-mutations                # explicit grant
+au-mcp-rs /path/to/engine.sock --policy /etc/au-policy.json \
+          --principal "hermes"                                  # scoped grant + audit
+```
+
+A policy file is JSON with `deny_unknown_fields`; a malformed or unreadable file
+aborts startup instead of falling back to a permissive default:
+
+```json
+{
+  "allow_mutations": true,
+  "members": ["notes", "journal"],
+  "audit": "stderr"
+}
+```
+
+- `allow_mutations` (default `false`) — whether the mutating tools exist at all.
+- `members` (default: every editable member) — exact allowlist of members a
+  mutation may target. Anything else is refused before the engine is contacted.
+- `audit` — `"stderr"` (default), `{"file": "/var/log/au-mcp.jsonl"}`, or
+  `"disabled"`. `"disabled"` is rejected while mutations are allowed.
+
+Every mutation decision is audited as one JSON line with `principal`, `tool`,
+`member`, `outcome` (`applied`, `rejected`, `outcome_unknown`, `denied`,
+`denied:member`) and a timestamp.
+
+**Identity is not authenticated.** `--principal` and the client's `initialize`
+name only label audit records; a stdio client controls its own process and can
+claim any name. The real boundary remains the OS user that owns the engine
+socket.
+
 The selected daemon and its socket are a trust boundary: the engine wire has no
 authentication. The server has no per-client authorization; the launcher must
 restrict who can use it. A single server process permits at most eight concurrent

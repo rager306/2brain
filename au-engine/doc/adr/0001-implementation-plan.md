@@ -26,6 +26,17 @@ proposed; this document authorizes no live deployment or vault migration.
    fresh state, dirty-path handling, mutation outcome uncertainty and recovery
    before implementing writes. Verify failed or absent critical policy cannot
    silently admit a write. Do not blindly replay a mutation after lost response.
+
+   **Implemented so far.** Mutations are off unless granted at launch
+   (`--allow-mutations`, or a policy file with `allow_mutations`); the mutating
+   tools are then absent from `tools/list` and refused before any engine
+   connection. A policy file can restrict mutations to an exact member allowlist
+   and routes one audit line per decision to stderr or a file; a malformed
+   policy aborts startup. Read-before-write, the `expected_hash` staleness check,
+   the editable-member check, single-mutation serialization, `outcome_unknown`
+   without retry, and a non-mutating `preview_mutation` are in place. Identity is
+   a label only: a stdio client controls its own process, so `--principal` and
+   the client's `initialize` name are not authentication.
 5. **Cutover decision.** Complete the expanded golden and differential contracts,
    fault tests, client compatibility matrix, and a rollback rehearsal. Quiesce or
    fence writers during a separately approved maintenance window. No dual writes

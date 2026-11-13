@@ -223,6 +223,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     let mut mcp = OwnedChild(
         Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
             .arg(&socket)
+            .arg("--allow-mutations")
             .env("HOME", &home)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

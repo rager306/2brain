@@ -29,6 +29,7 @@ impl Client {
     fn start(socket: &Path) -> Self {
         let mut child = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
             .arg(socket)
+            .arg("--allow-mutations")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())

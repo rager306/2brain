@@ -78,6 +78,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
     let mut child = OwnedChild(
         Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
             .arg(socket)
+            .arg("--allow-mutations")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
