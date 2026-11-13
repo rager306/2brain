@@ -30,11 +30,14 @@ local au-engine carries `0.0.5`-era unreleased work on
 
 ## Workspace and Rust environment
 
-- `/root/arsumbris` is a workspace directory, not a Git repository. Most
-  `au-*` directories are independent sibling Git repositories. Run Git commands
-  in the relevant repository, for example `git -C au-engine status`. At the time
-  of writing, `au-mcp-rs/` is a standalone directory, not a Git repository.
-  Inspect each repository's status and preserve existing uncommitted work.
+- This directory is ONE Git repository (`github.com/rager306/arsumbris`,
+  private). Every `au-*` directory inside it is a plain directory whose history
+  was imported with `git subtree`; there are no nested repositories and no
+  submodules. Run `git status` and `git log` once, at the monorepo root, and
+  scope pathspecs when you mean one project (`git log -- au-engine`).
+- The pre-monorepo sibling checkouts under `/root/arsumbris/` are untouched and
+  remain readable references. Do not edit them expecting changes to appear
+  here; treat this repository as the working tree.
 - Use **Rust 1.99.0 and edition 2024** for Rust work. On this host the complete
   toolchain is under `/root/.rustup`; set `RUSTUP_HOME=/root/.rustup` and use
   `cargo +1.99.0`. The default rustup home has an incomplete 1.99.0 installation.
