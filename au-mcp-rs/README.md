@@ -288,3 +288,9 @@ records the measured result and the gaps. It runs in a throwaway `HOME` against 
 disposable repository, so it touches neither user configuration nor the
 production vault.
 
+## Rollback rehearsal
+
+`scripts/rollback_rehearsal.py` proves the fallback path: a granted adapter's
+write is an ordinary engine commit, the adapter leaves no files behind, a fresh
+process still reads the write, and starting the same binary without a grant is
+the whole rollback. See `docs/rollback-rehearsal.md`.

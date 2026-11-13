@@ -55,8 +55,13 @@ proposed; this document authorizes no live deployment or vault migration.
    inferred: Claude Code 2.1.316 completes a real handshake, Codex 0.164.0
    accepts and lists the server but offers no non-interactive health check, and
    the Cursor agent is not exercisable without an API key. Only the
-   `2025-06-18` revision is reached by a real client. Still open: the rollback
-   rehearsal and a production golden re-capture.
+   `2025-06-18` revision is reached by a real client. The rollback rehearsal
+   (`au-mcp-rs/scripts/rollback_rehearsal.py`) passed on a disposable repository:
+   a granted write is an engine commit, the adapter leaves no files behind, a
+   fresh process still reads the write, and reverting to read-only is a launch
+   flag rather than a migration. Still open: a production golden re-capture, and
+   parity with the existing Python bridge, which speaks to the Node daemon
+   rather than the engine socket.
 
    **Not authorised yet.** Quiesce or fence writers during a separately approved
    maintenance window. No dual writes to production and no daemon restart while
