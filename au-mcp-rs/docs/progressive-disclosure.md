@@ -72,6 +72,11 @@ by making that decision possible: stable names, descriptions that discriminate
 
 ### 4. Pagination and budgets (server-side)
 
+Implemented here: `au_instances_of` pages records with `limit`/`offset` and
+reports `total`/`next_offset`; `au_content` windows text with `max_chars` and
+reports `truncated`/`total_chars`/`next_offset`, while its hash keeps covering
+the whole file so a write guard stays valid.
+
 `tools/list` supports a cursor for a reason; a server with hundreds of tools
 should page it rather than emit one 100k-token blob. For results, the rule is the
 same as for errors: **never silently truncate**. A truncated payload carries
@@ -129,7 +134,7 @@ tool" loops.
 | `tools/list` cursor pagination | not used: 18 tools fit one page |
 | `listChanged` | not used: the catalogue is fixed at launch |
 | task-augmented execution | not used: reads finish in milliseconds to seconds |
-| result budgets for unpaged reads | **open**: `au_content`, `au_type_tree`, `au_instances_of` can still be large |
+| result budgets | `au_content` (`max_chars`, explicit truncation fields) and `au_instances_of` (`limit`/`offset`, `total`, `next_offset`) |
 
 ## Measured effect of the concise profile
 

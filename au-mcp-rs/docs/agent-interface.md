@@ -63,14 +63,19 @@ Met:
 - **caching signals**: `_meta` engine version on every result;
 - **deterministic order and no timestamps** in payloads.
 
+One measured lesson: a client validates `structuredContent` against
+`outputSchema`, so a field the adapter adds but does not declare is a protocol
+error at the client. Paging metadata (`total`, `offset`, `next_offset`) is
+declared in every envelope schema for that reason.
+
 Not met, in priority order:
 
-1. **Large unpaged answers.** `au_instances_of`, `au_content`, and
-   `au_type_tree` can return tens of thousands of tokens with no truncation flag
-   and no budget argument. `au_files` is bounded by `limit`, those three are not.
-2. **Argument errors are the SDK's serde text** (`failed to deserialize
-   parameters: missing field \`name\``): it names the missing field but not the
-   tool or the accepted shape. A client must consult `inputSchema`.
+1. **Large unpaged answers.** `au_content` and `au_instances_of` now take
+   explicit budgets, and every windowed answer says what was withheld.
+   `au_type_tree` and `au_validate_value` remain unbounded; a caller can only
+   avoid them or accept the size.
+2. **Argument errors** now name the tool, list its required fields, and point at
+   `au_describe_tool`; the underlying text still comes from the SDK.
 3. **Tool errors carry no machine-readable code.** The text embeds
    `policy/<stage>:` and `outcome_unknown:`, which is parseable but not a field.
 4. **No progress notifications** for reads that approach the 30 s deadline.

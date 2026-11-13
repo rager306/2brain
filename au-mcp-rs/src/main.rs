@@ -195,12 +195,28 @@ struct ContentArguments {
     /// Path relative to that member's root; absolute paths and `..` are rejected.
     #[schemars(length(min = 1))]
     path: String,
+    /// Return at most this many characters, with a continuation offset for the
+    /// rest. The hash still covers the whole file, so a later write is safe.
+    #[schemars(range(min = 1))]
+    max_chars: Option<usize>,
 }
 
 #[derive(Debug, PartialEq)]
 struct ReadResult {
     version: u64,
     payload: Value,
+}
+
+/// Whether a result carries a text block, structured content, or both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PayloadMode {
+    /// Both, which the specification recommends for backward compatibility.
+    Both,
+    /// Only the text block.
+    Text,
+    /// Only structured content, for clients that read it and would otherwise
+    /// pay for the same payload twice.
+    Structured,
 }
 
 /// How much of each tool definition the server advertises up front.
@@ -223,6 +239,7 @@ struct Server {
     mutation_slot: Arc<Semaphore>,
     served: Arc<Mutex<HashMap<(String, String), String>>>,
     profile: ToolProfile,
+    payload: PayloadMode,
     tool_router: ToolRouter<Self>,
 }
 
@@ -233,6 +250,7 @@ impl Server {
         policy: policy::Policy,
         principal: String,
         profile: ToolProfile,
+        payload: PayloadMode,
     ) -> Self {
         let audit = policy::Audit::new(&policy.audit);
         Self {
@@ -245,6 +263,7 @@ impl Server {
             mutation_slot: Arc::new(Semaphore::new(1)),
             served: Arc::new(Mutex::new(HashMap::new())),
             profile,
+            payload,
             tool_router: Self::tool_router(),
         }
     }
@@ -553,7 +572,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Read one member's file text, resolved from the member's declared root, with the content hash that guards a later write and the HEAD commit of the owning repo. The path must be relative to that member and must not contain '..'; absolute paths are rejected. The result is null when the file is unreadable. Text is workspace content and may be sensitive; it is not an authorization boundary.",
+        description = "Read one member's file text, resolved from the member's declared root, with the content hash that guards a later write and the HEAD commit of the owning repo. The path must be relative to that member and must not contain '..'; absolute paths are rejected. max_chars returns a window with truncated, total_chars, and next_offset; the hash still covers the whole file, so a write based on it stays valid. The result is null when the file is unreadable. Text is workspace content and may be sensitive; it is not an authorization boundary.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -584,6 +603,7 @@ impl Server {
             )]);
         };
         let key = (args.repo.clone(), args.path.clone());
+        let max_chars = args.max_chars;
         tokio::select! {
             biased;
             _ = ctx.ct.cancelled() => CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]),
@@ -591,7 +611,10 @@ impl Server {
                 if let Some(hash) = served_hash(&result) {
                     self.served.lock().expect("served lock poisoned").insert(key, hash);
                 }
-                result
+                match max_chars {
+                    Some(max) => window_content(result, max, self.payload),
+                    None => result,
+                }
             }
         }
     }
@@ -801,7 +824,7 @@ impl Server {
                 SearchDetail::Schema => serde_json::to_value(&tool).unwrap_or(Value::Null),
             })
             .collect();
-        success_json(json!({"tools": tools}))
+        success_json(json!({"tools": tools}), self.payload)
     }
 
     #[tool(
@@ -831,11 +854,14 @@ impl Server {
                 args.name
             ))]);
         };
-        success_json(serde_json::to_value(&tool).unwrap_or(Value::Null))
+        success_json(
+            serde_json::to_value(&tool).unwrap_or(Value::Null),
+            self.payload,
+        )
     }
 
     #[tool(
-        description = "List every instance matching a type. A bare name matches each identity of that name; name::repo selects one. Optional origins restrict to file, nested, or meta sites; instance and body splice extra per-match facts. Unpaged, so an oversized frame fails. Paths and workspace content may be exposed; this is not an authorization boundary.",
+        description = "List every instance matching a type. A bare name matches each identity of that name; name::repo selects one. Optional origins restrict to file, nested, or meta sites; instance and body splice extra per-match facts. limit and offset page the records and add total, offset, and next_offset; without them the answer is the engine's. Paths and workspace content may be exposed; this is not an authorization boundary.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -871,7 +897,11 @@ impl Server {
                 .collect();
             request["origins"] = json!(origins);
         }
-        self.read(request, "instances_of", ctx).await
+        let result = self.read(request, "instances_of", ctx).await;
+        match (args.limit, args.offset) {
+            (None, None) => result,
+            (limit, offset) => page_instances(result, limit, offset.unwrap_or(0), self.payload),
+        }
     }
 
     #[tool(
@@ -998,8 +1028,7 @@ impl Server {
             "current_hash": current_hash,
             "current_commit": current_commit,
         });
-        let mut response = CallToolResult::success(vec![ContentBlock::text(payload.to_string())]);
-        response.structured_content = Some(payload.clone());
+        let mut response = success_payload(payload, self.payload);
         response.meta = Some(MetaObject(serde_json::Map::from_iter([(
             "io.arsumbris/engineVersion".to_owned(),
             Value::String(result.version.to_string()),
@@ -1042,7 +1071,7 @@ impl Server {
                     .lock()
                     .expect("served lock poisoned")
                     .remove(&prepared.key);
-                success_result(result)
+                success_result(result, self.payload)
             }
             Err(MutationFailure::Rejected(error)) => {
                 self.audit
@@ -1165,6 +1194,49 @@ impl Server {
         }
     }
 
+    /// A deserialization failure names the missing field but not the tool or the
+    /// accepted shape, so restate both and point at the full definition.
+    fn explain_argument_error(&self, name: &str, response: CallToolResponse) -> CallToolResponse {
+        let CallToolResponse::Complete(mut result) = response else {
+            return response;
+        };
+        if result.is_error != Some(true) {
+            return CallToolResponse::Complete(result);
+        }
+        let Some(text) = result
+            .content
+            .first()
+            .and_then(|block| block.as_text())
+            .map(|block| block.text.clone())
+        else {
+            return CallToolResponse::Complete(result);
+        };
+        if !text.starts_with("failed to deserialize parameters:") {
+            return CallToolResponse::Complete(result);
+        }
+        let required = self
+            .tool_router
+            .get(name)
+            .and_then(|tool| tool.input_schema.get("required"))
+            .and_then(Value::as_array)
+            .map(|fields| {
+                fields
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .unwrap_or_default();
+        let hint = match required.is_empty() {
+            true => format!(" Tool '{name}' takes no required arguments."),
+            false => format!(" Tool '{name}' requires: {required}."),
+        };
+        result.content = vec![ContentBlock::text(format!(
+            "{text}.{hint} Call au_describe_tool {{\"name\":\"{name}\"}} for the full schema."
+        ))];
+        CallToolResponse::Complete(result)
+    }
+
     /// The tools this launch may advertise, before any profile compacting.
     fn visible_tools(&self) -> Vec<rmcp::model::Tool> {
         self.tool_router
@@ -1204,7 +1276,7 @@ impl Server {
         timeout: Duration,
     ) -> CallToolResult {
         match read_engine_with_timeout(&self.socket, request, verb, timeout).await {
-            Ok(result) => success_result(result),
+            Ok(result) => success_result(result, self.payload),
             Err(error) => CallToolResult::error(vec![ContentBlock::text(error)]),
         }
     }
@@ -1220,7 +1292,7 @@ impl Server {
                 "engine read 'content' timed out after {timeout:?}; no retry was attempted"
             ))]),
             Ok(Err(error)) => CallToolResult::error(vec![ContentBlock::text(error)]),
-            Ok(Ok(result)) => success_result(result),
+            Ok(Ok(result)) => success_result(result, self.payload),
         }
     }
 }
@@ -1260,9 +1332,12 @@ impl ServerHandler for Server {
                 None,
             ));
         }
-        self.tool_router
+        let name = request.name.to_string();
+        let response = self
+            .tool_router
             .call(ToolCallContext::new(self, request, context))
-            .await
+            .await?;
+        Ok(self.explain_argument_error(&name, response))
     }
 
     async fn list_tools(
@@ -1426,6 +1501,11 @@ struct InstancesOfArguments {
     /// Splice each match's markdown body onto its record.
     #[serde(default)]
     body: bool,
+    /// Return at most this many records, with a continuation offset.
+    #[schemars(range(min = 1))]
+    limit: Option<usize>,
+    /// Skip this many records before the page.
+    offset: Option<usize>,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -1579,6 +1659,16 @@ fn envelope_schema(verb: &'static str) -> Arc<serde_json::Map<String, Value>> {
         verb.to_owned(),
         json!({"description": format!("the {verb} read's result")}),
     );
+    // Paging metadata the adapter may add to any read's answer. A client
+    // validates `structuredContent` against this schema, so a field the adapter
+    // adds without declaring it here is a protocol error at the client, not a
+    // cosmetic mismatch.
+    for key in ["total", "offset", "next_offset"] {
+        properties.insert(
+            key.to_owned(),
+            json!({"type": "integer", "description": format!("paging metadata added by the adapter ({key})")}),
+        );
+    }
     Arc::new(
         json!({
             "type": "object",
@@ -1695,20 +1785,34 @@ async fn read_mutation_with_timeout(
 }
 
 /// A locally produced answer (discovery results), shaped like a tool payload.
-fn success_json(payload: Value) -> CallToolResult {
-    let mut response = CallToolResult::success(vec![ContentBlock::text(payload.to_string())]);
-    response.structured_content = Some(payload);
+fn success_json(payload: Value, mode: PayloadMode) -> CallToolResult {
+    success_payload(payload, mode)
+}
+
+/// Shape one answer according to `mode`: text, structured content, or both.
+fn success_payload(payload: Value, mode: PayloadMode) -> CallToolResult {
+    let mut response = CallToolResult::default();
+    match mode {
+        PayloadMode::Both => {
+            response.content = vec![ContentBlock::text(payload.to_string())];
+            response.structured_content = Some(payload);
+        }
+        PayloadMode::Text => {
+            response.content = vec![ContentBlock::text(payload.to_string())];
+        }
+        PayloadMode::Structured => {
+            response.structured_content = Some(payload);
+        }
+    }
     response
 }
 
-fn success_result(result: ReadResult) -> CallToolResult {
-    let mut response =
-        CallToolResult::success(vec![ContentBlock::text(result.payload.to_string())]);
-    // The same payload, machine-readable, so a client need not parse text.
-    response.structured_content = Some(result.payload.clone());
+fn success_result(result: ReadResult, mode: PayloadMode) -> CallToolResult {
+    let version = result.version;
+    let mut response = success_payload(result.payload, mode);
     response.meta = Some(MetaObject(serde_json::Map::from_iter([(
         "io.arsumbris/engineVersion".to_owned(),
-        Value::String(result.version.to_string()),
+        Value::String(version.to_string()),
     )])));
     response
 }
@@ -1732,6 +1836,93 @@ fn strip_descriptions(value: &mut Value) {
         }
         _ => {}
     }
+}
+
+/// Page an `instances_of` answer, saying how many records exist in total.
+fn page_instances(
+    result: CallToolResult,
+    limit: Option<usize>,
+    offset: usize,
+    mode: PayloadMode,
+) -> CallToolResult {
+    if result.is_error == Some(true) {
+        return result;
+    }
+    let raw = match (&result.structured_content, result.content.first()) {
+        (Some(value), _) => value.to_string(),
+        (None, Some(block)) => block
+            .as_text()
+            .map(|text| text.text.clone())
+            .unwrap_or_default(),
+        _ => return result,
+    };
+    let Ok(mut payload) = serde_json::from_str::<Value>(&raw) else {
+        return result;
+    };
+    let Some(records) = payload
+        .get("instances_of")
+        .and_then(Value::as_array)
+        .cloned()
+    else {
+        return result;
+    };
+    let total = records.len();
+    let page: Vec<Value> = records
+        .into_iter()
+        .skip(offset)
+        .take(limit.unwrap_or(usize::MAX))
+        .collect();
+    let returned = page.len();
+    payload["instances_of"] = Value::Array(page);
+    payload["total"] = json!(total);
+    payload["offset"] = json!(offset);
+    payload["next_offset"] = match offset + returned < total {
+        true => json!(offset + returned),
+        false => Value::Null,
+    };
+    let mut response = success_payload(payload, mode);
+    response.meta = result.meta;
+    response
+}
+
+/// Cut a `content` answer to `max` characters, keeping the whole-file hash.
+///
+/// Truncation is explicit: the answer says how much was withheld and where to
+/// continue, so a caller never mistakes a window for the whole file.
+fn window_content(result: CallToolResult, max: usize, mode: PayloadMode) -> CallToolResult {
+    if result.is_error == Some(true) {
+        return result;
+    }
+    let raw = match (&result.structured_content, result.content.first()) {
+        (Some(value), _) => value.to_string(),
+        (None, Some(block)) => block
+            .as_text()
+            .map(|text| text.text.clone())
+            .unwrap_or_default(),
+        _ => return result,
+    };
+    let Ok(mut payload) = serde_json::from_str::<Value>(&raw) else {
+        return result;
+    };
+    let Some(text) = payload
+        .get("content")
+        .and_then(|content| content.get("text"))
+        .and_then(Value::as_str)
+    else {
+        return result;
+    };
+    let total = text.chars().count();
+    if total <= max {
+        return result;
+    }
+    let window: String = text.chars().take(max).collect();
+    payload["content"]["text"] = Value::String(window);
+    payload["content"]["truncated"] = Value::Bool(true);
+    payload["content"]["total_chars"] = json!(total);
+    payload["content"]["next_offset"] = json!(max);
+    let mut response = success_payload(payload, mode);
+    response.meta = result.meta;
+    response
 }
 
 /// The first sentence of a description, so a concise profile costs one line.
@@ -1952,18 +2143,19 @@ async fn mutate_engine(socket: &Path, request: Value) -> Result<ReadResult, Wire
     })
 }
 
-const USAGE: &str = "usage: au-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--principal <name>] [--tools full|concise]";
+const USAGE: &str = "usage: au-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--principal <name>] [--tools full|concise] [--payload both|text|structured]";
 
 /// Parse the launch arguments. Mutations need an explicit grant: either a
 /// policy file that allows them or `--allow-mutations`.
 fn parse_args(
     arguments: impl Iterator<Item = std::ffi::OsString>,
-) -> Result<(PathBuf, policy::Policy, String, ToolProfile), String> {
+) -> Result<(PathBuf, policy::Policy, String, ToolProfile, PayloadMode), String> {
     let mut socket: Option<PathBuf> = None;
     let mut policy_path: Option<PathBuf> = None;
     let mut allow_mutations = false;
     let mut principal = "unknown".to_owned();
     let mut profile = ToolProfile::Full;
+    let mut payload = PayloadMode::Both;
     let mut arguments = arguments.peekable();
     while let Some(argument) = arguments.next() {
         let text = argument.to_string_lossy().into_owned();
@@ -1982,6 +2174,15 @@ fn parse_args(
                     "full" => ToolProfile::Full,
                     "concise" => ToolProfile::Concise,
                     other => return Err(format!("unknown tool profile: {other}. {USAGE}")),
+                };
+            }
+            "--payload" => {
+                let value = arguments.next().ok_or(USAGE)?;
+                payload = match value.to_string_lossy().as_ref() {
+                    "both" => PayloadMode::Both,
+                    "text" => PayloadMode::Text,
+                    "structured" => PayloadMode::Structured,
+                    other => return Err(format!("unknown payload mode: {other}. {USAGE}")),
                 };
             }
             "--allow-mutations" => allow_mutations = true,
@@ -2004,13 +2205,13 @@ fn parse_args(
     if allow_mutations {
         policy.allow_mutations = true;
     }
-    Ok((socket, policy, principal, profile))
+    Ok((socket, policy, principal, profile, payload))
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let (socket, policy, principal, profile) = parse_args(env::args_os().skip(1))?;
-    let service = Server::new(socket, policy, principal, profile)
+    let (socket, policy, principal, profile, payload) = parse_args(env::args_os().skip(1))?;
+    let service = Server::new(socket, policy, principal, profile, payload)
         .serve(bounded_stdio::BoundedStdio::new(
             SUPPORTED_PROTOCOL_VERSIONS.to_vec(),
         ))
@@ -2031,6 +2232,7 @@ mod tests {
             policy::Policy::read_only(),
             "test".to_owned(),
             ToolProfile::Full,
+            PayloadMode::Both,
         )
     }
 

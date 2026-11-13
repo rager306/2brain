@@ -1,0 +1,147 @@
+# Connecting an MCP client
+
+The server speaks MCP over stdio and needs two things: its own path, and the
+path of the **engine socket** it reads. It never starts a daemon and never
+derives a default socket.
+
+## 1. Build
+
+```sh
+cd au-mcp-rs
+RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
+# binary: target/release/au-mcp-rs
+```
+
+The result is one self-contained executable (5 MB, dynamically linked only to
+`libc`, `libm`, `libgcc_s`). It has no runtime, interpreter, or package
+dependencies; the engine daemon is a separate process it talks to over a Unix
+socket.
+
+## 2. Find the engine socket
+
+```sh
+ls ~/.arsumbris/au-engine/run/*.sock
+```
+
+There is one socket per served workspace, named by a hash of the workspace path.
+When several exist, the bridge's socket name under `~/.arsumbris/au-mcp/run/`
+matches the engine socket for the same workspace, so comparing names pairs them.
+
+Check it answers before wiring a client:
+
+```sh
+python3 - <<'PY'
+import json, socket, struct
+path = "/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"
+with socket.socket(socket.AF_UNIX) as s:
+    s.connect(path)
+    body = json.dumps({"read": "overview", "id": 1}).encode()
+    s.sendall(struct.pack(">I", len(body)) + body)
+    n = struct.unpack(">I", s.recv(4))[0]
+    reply = json.loads(s.recv(n))
+print(reply["ready"], reply["schema_version"])
+PY
+```
+
+`ready: true` and `schema_version: 29` mean this build can serve it.
+
+## 3. Register the server
+
+### allspark (Prime Agent)
+
+`~/.allspark-home/.prime/agent/settings.json`, under `mcpServers`:
+
+```json
+"arsumbris-rs": {
+  "type": "stdio",
+  "command": "/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs",
+  "args": ["/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"]
+}
+```
+
+The host reads `mcpServers` at session start, so a new entry appears in a new
+session. A running session may pick it up later, but do not rely on it: verify
+with `mcp.list_connections()` and `mcp.list_tools("arsumbris-rs")`.
+
+### Claude Code
+
+```sh
+claude mcp add --scope local arsumbris-rs -- \
+  /root/arsumbris/au-mcp-rs/target/release/au-mcp-rs \
+  /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
+claude mcp list          # expect: arsumbris-rs ... ✔ Connected
+```
+
+### Codex CLI
+
+```sh
+codex mcp add arsumbris-rs -- \
+  /root/arsumbris/au-mcp-rs/target/release/au-mcp-rs \
+  /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
+codex mcp list           # expect: arsumbris-rs  ...  enabled
+```
+
+Codex has no non-interactive health check, so `list` proves the configuration
+shape, not the handshake.
+
+### Any client that takes JSON
+
+```json
+{
+  "mcpServers": {
+    "arsumbris-rs": {
+      "command": "/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs",
+      "args": ["/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"]
+    }
+  }
+}
+```
+
+## 4. Read-only by default
+
+Without `--allow-mutations` the three mutating tools are absent from
+`tools/list` and refused before the engine is contacted. To grant writes, pass a
+policy file and keep the allowlist narrow:
+
+```json
+{
+  "allow_mutations": true,
+  "members": ["vault"],
+  "audit": "stderr"
+}
+```
+
+```json
+"args": ["/root/.arsumbris/au-engine/run/adcfe8680a485529.sock",
+         "--policy", "/etc/au-mcp-policy.json",
+         "--principal", "allspark"]
+```
+
+`--principal` labels audit records; it is not authentication. The real boundary
+is the OS user that owns the engine socket.
+
+## 5. Tuning for agents
+
+| flag | effect |
+|---|---|
+| `--tools concise` | one line per tool, no parameter descriptions or output schemas; full definitions via `au_search_tools` / `au_describe_tool` |
+| `--tools full` (default) | every definition up front |
+| `--payload both` (default) | text block and `structuredContent`, as the specification recommends |
+| `--payload structured` | no text block, for clients that read `structuredContent` and would otherwise pay twice |
+| `--payload text` | no `structuredContent` |
+
+Measured discovery cost on the live workspace: 20 636 chars in `full`, 8 718 in
+`concise` (see `docs/progressive-disclosure.md`).
+
+## 6. Troubleshooting
+
+| symptom | cause and fix |
+|---|---|
+| `-32600 mutations are disabled by this server's launch policy` | the launch has no grant; restart the server with `--allow-mutations` or a policy file |
+| `-32602 tool not found` | the name is misspelled or hidden by policy; call `tools/list` |
+| `policy/prior_read: read this file with au_content before writing it` | mutations need a fresh read of the same path in the same process |
+| `outcome_unknown: ...` | the reply was lost; the write may have landed — call `au_reconcile`, never retry blindly |
+| `initialize required` (JSON-RPC error) | a legacy session must complete `initialize`; a request declaring `2026-07-28` in `_meta` does not |
+| every read fails with `connecting to engine` | wrong socket path, or the daemon is down; check with the probe above |
+| `unsupported or missing engine schema_version (expected 29)` | the engine and this build disagree on the wire; rebuild against the served schema |
+| the server is listed but a client shows no tools | for the Node daemon that means no `mcp.tool` plugin is mounted in the workspace; for this adapter, check `tools/list` directly |

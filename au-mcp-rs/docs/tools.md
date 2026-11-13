@@ -1,0 +1,67 @@
+# Tools
+
+18 tools: 16 engine reads, 2 discovery helpers, and 3 mutating tools that exist
+only when the launch grants them. Every result is the engine's own object under
+the read's key, and carries `_meta["io.arsumbris/engineVersion"]`.
+
+## Discovery
+
+`au_search_tools {query, detail?, limit?}` — rank tools by name, parameter name,
+or description. `detail` is `name`, `summary` (default), or `schema`; `limit` is
+1–20, default 5.
+
+`au_describe_tool {name}` — one full definition with input and output schemas.
+It refuses a name this launch does not expose, so a read-only server cannot leak
+a mutation's schema.
+
+## Workspace shape
+
+| tool | arguments | notes |
+|---|---|---|
+| `au_overview` | — | members, dependency topology, absolute paths, type and diagnostic counts; not own-scoped |
+| `au_members` | `repo?` | exact nonempty repo, else every member; unpaged; unknown repo returns `[]` |
+| `au_top_level_dirs` | — | top-level directories in own scope |
+| `au_imports` | `scope?` | resolved cross-repo type uses; `own` filters importers, not external owners; unpaged |
+
+## Vocabulary
+
+| tool | arguments | notes |
+|---|---|---|
+| `au_types` | `repo?`, `summary`, `limit`, `offset` | `{types: [...] \| null}`; default summary, limit 50, range 1–500 |
+| `au_type` | `name`, `repo?` | `{type}` or null; a nonempty `repo` does not override a qualified name; an empty `repo` is rejected, not widened |
+| `au_type_tree` | — | full tree with roots and nodes; adjacency matched by name; unpaged |
+| `au_subtypes` | `base`, `scope?` | direct and transitive; unknown base returns `[]`; unpaged |
+
+## Content and graph
+
+| tool | arguments | notes |
+|---|---|---|
+| `au_files` | `repo?`, `scope?`, `limit`, `offset` | default scope `all`; ordered by path components; absolute paths possible |
+| `au_hubs` | `repo?`, `scope?`, `limit`, `offset` | default limit 20; counts include edges from outside the scope |
+| `au_diagnostics` | `repo?`, `severity?`, `code?`, `scope?`, `limit`, `offset` | filters AND; every severity unless one is named |
+| `au_content` | `repo`, `path`, `max_chars?` | `{content: {text, hash, commit} \| null}`; with `max_chars` the text is windowed and the answer says `truncated`, `total_chars`, `next_offset`; the hash always covers the whole file |
+| `au_instances_of` | `type_name`, `origins?`, `instance?`, `body?`, `limit?`, `offset?` | bare name matches every identity; with paging the answer adds `total`, `offset`, `next_offset` |
+| `au_validate_value` | `type_name`, `value`, `repo?` | one verdict per identity; unknown type gives `identity: null` with `unknown-type-claim`, never `[]` |
+
+## Mutations
+
+`au_preview_mutation {repo, path, op, content?, old_string?, new_string?, replace_all?}`
+returns the would-be product and blast radius; it writes nothing and needs no
+hash, but the member must be editable.
+
+`au_write_file`, `au_edit_file`, `au_delete_file` share one gate: a prior
+`au_content` of the same path in the same process, a matching `expected_hash`,
+an editable member, one mutation at a time. An engine rejection wrote nothing; a
+transport failure is `outcome_unknown` and must not be retried blindly.
+
+`au_reconcile {repo, path, expected_hash? | expect_absent?}` answers `applied` or
+`not_applied` with the current hash and commit, and re-arms the guard when the
+file differs, so a deliberate retry needs no extra read.
+
+## Pagination and size
+
+Paged reads: `au_types`, `au_hubs`, `au_diagnostics`, `au_files`. Unpaged reads
+can be large: `au_type_tree`, `au_content`, `au_instances_of`, `au_validate_value`,
+`au_members`, `au_imports`, `au_subtypes`, `au_preview_mutation`, `au_reconcile`.
+`au_content` and `au_instances_of` take explicit budgets; the rest are bounded by
+the 16 MiB wire frame, and an oversized frame fails rather than being truncated.
