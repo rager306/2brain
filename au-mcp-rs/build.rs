@@ -5,7 +5,11 @@
 //! report exactly which source it came from. A tarball build without `.git`
 //! degrades to `unknown` instead of failing.
 
-use std::{env, path::Path, process::Command};
+use std::{
+    env,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 fn git(crate_dir: &Path, args: &[&str]) -> Option<String> {
     let output = Command::new("git")
@@ -22,16 +26,20 @@ fn git(crate_dir: &Path, args: &[&str]) -> Option<String> {
 
 fn main() {
     let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    // Rebuild when the commit or the index changes, so a rebuilt binary never
-    // reports a stale hash.
-    // HEAD alone does not change on a commit: the branch ref and the reflog do.
-    for watched in [
-        ".git/HEAD",
-        ".git/index",
-        ".git/logs/HEAD",
-        ".git/packed-refs",
-    ] {
-        println!("cargo:rerun-if-changed={watched}");
+    // Rebuild when the commit moves, so a rebuilt binary never reports a stale
+    // hash. `rerun-if-changed` resolves relative paths against the package root,
+    // and the repository root is one level up, so ask git for the absolute git
+    // directory instead of guessing. HEAD alone does not change on a commit: the
+    // branch ref and the reflog do.
+    let git_dir = git(crate_dir, &["rev-parse", "--absolute-git-dir"])
+        .map(PathBuf::from);
+    if let Some(git_dir) = git_dir {
+        for watched in ["HEAD", "index", "logs/HEAD", "packed-refs"] {
+            println!(
+                "cargo:rerun-if-changed={}",
+                git_dir.join(watched).display()
+            );
+        }
     }
     println!("cargo:rerun-if-env-changed=AU_BUILD_COMMIT");
 
