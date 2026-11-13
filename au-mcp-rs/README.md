@@ -68,8 +68,10 @@ adapter's own identity is separate from the engine's: the engine version rides
 
 The build identity comes from `build.rs` (`git rev-parse --short=12 HEAD`, plus a
 dirty check scoped to this crate). A tarball build without `.git` reports
-`unknown`. Rebuilds are triggered by `.git/HEAD` and `.git/index`, and
-`AU_BUILD_COMMIT` overrides the commit for reproducible packaging.
+`unknown`. Rebuilds are triggered by `.git/HEAD`, the index, the reflog, and
+packed refs — HEAD alone does not change on a commit, and watching only HEAD left
+a rebuilt binary reporting the previous commit. `AU_BUILD_COMMIT` overrides the
+commit for reproducible packaging.
 
 ## Launch policy
 

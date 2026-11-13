@@ -24,7 +24,13 @@ fn main() {
     let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     // Rebuild when the commit or the index changes, so a rebuilt binary never
     // reports a stale hash.
-    for watched in [".git/HEAD", ".git/index"] {
+    // HEAD alone does not change on a commit: the branch ref and the reflog do.
+    for watched in [
+        ".git/HEAD",
+        ".git/index",
+        ".git/logs/HEAD",
+        ".git/packed-refs",
+    ] {
         println!("cargo:rerun-if-changed={watched}");
     }
     println!("cargo:rerun-if-env-changed=AU_BUILD_COMMIT");
