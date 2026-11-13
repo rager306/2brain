@@ -36,7 +36,10 @@ proposed; this document authorizes no live deployment or vault migration.
    the editable-member check, single-mutation serialization, `outcome_unknown`
    without retry, and a non-mutating `preview_mutation` are in place. Identity is
    a label only: a stdio client controls its own process, so `--principal` and
-   the client's `initialize` name are not authentication.
+   the client's `initialize` name are not authentication. Recovery has a first
+   concrete step: `au_reconcile` reports whether an interrupted mutation landed
+   and, when a different file is present, re-arms the read-before-write guard
+   with the current hash.
 5. **Cutover decision.** Complete the expanded golden and differential contracts,
    fault tests, client compatibility matrix, and a rollback rehearsal. Quiesce or
    fence writers during a separately approved maintenance window. No dual writes
@@ -57,6 +60,10 @@ proposed; this document authorizes no live deployment or vault migration.
 - Captured output contains only MCP messages on stdout; diagnostics use stderr.
 - Client compatibility, current engine golden coverage, and toolchain version
   are reported accurately; a passing mock is not a production release gate.
+- The MCP layer replays the captured production payloads in
+  `au-engine/tests-golden` unchanged, so a silent normalisation fails a test.
+  That covers `au_overview`, `au_hubs`, and `au_diagnostics` only; the remaining
+  tools still need captured fixtures.
 - Stdio serving must be tested with a client that stops reading stdout while
   continuing to send requests, and on stdin EOF with stdout blocked. The current
   prototype uses a bounded standard-IO transport: at most four queued responses,

@@ -75,7 +75,8 @@ deadline for connect, request, and response; a timeout returns a tool error
 without retrying. It accepts no generic wire requests and exposes only
 `au_overview`, `au_top_level_dirs`, `au_type`, `au_type_tree`, `au_types`,
 `au_hubs`, `au_diagnostics`, `au_subtypes`, `au_members`, `au_imports`,
-`au_files`, `au_content`, and `au_preview_mutation`, all annotated read-only. `au_write_file`,
+`au_files`, `au_content`, `au_preview_mutation`, and `au_reconcile`, all
+annotated read-only. `au_write_file`,
 `au_edit_file`, and `au_delete_file` are the mutating tools; they are annotated
 destructive and not read-only. Only these tools and `au_content` send a
 client-supplied path to the engine, and
@@ -157,6 +158,12 @@ workspace content and may be sensitive. A workspace member without a local root
 identities, diagnostics, and blast radius. It writes nothing, so it needs no
 `expected_hash`, but the member must still be editable. Use it before a
 mutation to inspect consequences.
+
+`au_reconcile` resolves an interrupted mutation. Give the hash the write should
+have produced, or `expect_absent: true` for a delete; it answers `applied` or
+`not_applied` plus the file's current hash and commit. When the file exists with
+a different hash, the answer re-arms the read-before-write guard with that hash,
+so a deliberate retry needs no extra read. It never writes.
 
 `au_write_file`, `au_edit_file`, and `au_delete_file` share one mutation
 policy. Each requires a successful

@@ -95,15 +95,35 @@ fn receive(output: &mpsc::Receiver<String>) -> Value {
     serde_json::from_str(&line).expect("MCP stdout must contain JSON only")
 }
 
-fn assert_engine_version(reply: &Value, direct: &Value) {
-    let version = direct["version"]
-        .as_u64()
-        .expect("ready engine response must carry a numeric version");
+/// The MCP metadata version must be a version the engine actually served.
+///
+/// The engine's `version` advances asynchronously after a mutation, so the
+/// direct read taken just before the MCP call can legitimately observe an older
+/// one. Accept the pair only when the engine reaches the reported version.
+fn assert_engine_version(socket: &Path, reply: &Value, direct: &Value) {
     let metadata_version = reply["result"]["_meta"]["io.arsumbris/engineVersion"]
         .as_str()
-        .expect("MCP response must carry a string engine version");
-    // The fixture is static, so both reads observe the same engine version.
-    assert_eq!(metadata_version, version.to_string(), "{reply}");
+        .expect("MCP response must carry a string engine version")
+        .to_owned();
+    metadata_version
+        .parse::<u64>()
+        .unwrap_or_else(|_| panic!("engine version must be decimal: {reply}"));
+    if direct["version"].as_u64().map(|v| v.to_string()) == Some(metadata_version.clone()) {
+        return;
+    }
+    let deadline = Instant::now() + RESPONSE_TIMEOUT;
+    loop {
+        let observed = engine_read(socket, "overview")
+            .expect("read overview while waiting for the engine version");
+        if observed["version"].as_u64().map(|v| v.to_string()) == Some(metadata_version.clone()) {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "engine never reached the version the MCP response reported: {metadata_version}, reply {reply}"
+        );
+        thread::sleep(Duration::from_millis(20));
+    }
 }
 
 // Build the engine separately: RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --manifest-path ../au-engine/Cargo.toml -p au-cli --bin au
@@ -261,7 +281,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
-        assert_engine_version(&reply, &direct);
+        assert_engine_version(&socket, &reply, &direct);
         let text = reply["result"]["content"][0]["text"]
             .as_str()
             .expect("MCP text response");
@@ -326,7 +346,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
-        assert_engine_version(&reply, &direct);
+        assert_engine_version(&socket, &reply, &direct);
         let text = reply["result"]["content"][0]["text"]
             .as_str()
             .expect("MCP text response");
@@ -350,7 +370,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
-        assert_engine_version(&reply, &direct);
+        assert_engine_version(&socket, &reply, &direct);
         let text = reply["result"]["content"][0]["text"]
             .as_str()
             .expect("MCP text response");
@@ -428,7 +448,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
-        assert_engine_version(&reply, &direct);
+        assert_engine_version(&socket, &reply, &direct);
         let text = reply["result"]["content"][0]["text"]
             .as_str()
             .expect("MCP text response");
@@ -514,7 +534,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
-        assert_engine_version(&reply, &direct);
+        assert_engine_version(&socket, &reply, &direct);
         let payload: Value =
             serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(payload, direct["result"], "MCP content differs from engine");
@@ -651,7 +671,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
-        assert_engine_version(&reply, &direct);
+        assert_engine_version(&socket, &reply, &direct);
         let payload: Value =
             serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(payload, direct["result"], "MCP files differs from engine");
@@ -707,7 +727,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
-        assert_engine_version(&reply, &direct);
+        assert_engine_version(&socket, &reply, &direct);
         let payload: Value =
             serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(payload, direct["result"], "MCP imports differs from engine");
@@ -741,7 +761,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
-        assert_engine_version(&reply, &direct);
+        assert_engine_version(&socket, &reply, &direct);
         let payload: Value =
             serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(payload, direct["result"], "MCP members differs from engine");
@@ -773,7 +793,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
-        assert_engine_version(&reply, &direct);
+        assert_engine_version(&socket, &reply, &direct);
         let payload: Value =
             serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(
@@ -797,7 +817,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
-        assert_engine_version(&reply, &direct);
+        assert_engine_version(&socket, &reply, &direct);
         let payload: Value =
             serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(

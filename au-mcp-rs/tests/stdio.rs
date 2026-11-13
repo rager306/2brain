@@ -139,6 +139,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_members",
             "au_overview",
             "au_preview_mutation",
+            "au_reconcile",
             "au_subtypes",
             "au_top_level_dirs",
             "au_type",

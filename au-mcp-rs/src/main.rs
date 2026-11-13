@@ -730,6 +730,103 @@ impl Server {
         }
     }
 
+    #[tool(
+        description = "Check what actually happened after an outcome_unknown mutation. Give the hash the interrupted write should have produced, or expect_absent for a delete. Returns outcome applied or not_applied with the file's current hash and commit; a not_applied answer re-arms the read-before-write guard with the current hash, so the caller can decide whether to retry. This is a read: it never writes.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        )
+    )]
+    async fn au_reconcile(
+        &self,
+        Parameters(args): Parameters<ReconcileArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.repo.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
+        }
+        if args.path.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'path' must not be empty")]);
+        }
+        if let Err(error) = relative_path(&args.path) {
+            return CallToolResult::error(vec![ContentBlock::text(error)]);
+        }
+        let expected = match (args.expected_hash.as_deref(), args.expect_absent) {
+            (Some(hash), false) if !hash.is_empty() => Some(hash.to_owned()),
+            (None, true) => None,
+            _ => {
+                return CallToolResult::error(vec![ContentBlock::text(
+                    "give exactly one of a nonempty 'expected_hash' or 'expect_absent': true",
+                )]);
+            }
+        };
+        if ctx.ct.is_cancelled() {
+            return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]);
+        }
+        let Ok(_permit) = self.read_slots.try_acquire() else {
+            return CallToolResult::error(vec![ContentBlock::text(
+                "engine read capacity reached; retry later",
+            )]);
+        };
+        let key = (args.repo.clone(), args.path.clone());
+        let result = tokio::select! {
+            biased;
+            _ = ctx.ct.cancelled() => {
+                return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]);
+            }
+            result = tokio::time::timeout(
+                ENGINE_READ_TIMEOUT,
+                read_content(&self.socket, &args.repo, &args.path),
+            ) => result,
+        };
+        let result = match result {
+            Err(_) => {
+                return CallToolResult::error(vec![ContentBlock::text(format!(
+                    "engine read 'content' timed out after {ENGINE_READ_TIMEOUT:?}; the outcome is still unknown"
+                ))]);
+            }
+            Ok(Err(error)) => return CallToolResult::error(vec![ContentBlock::text(error)]),
+            Ok(Ok(result)) => result,
+        };
+        let current = result
+            .payload
+            .get("content")
+            .cloned()
+            .unwrap_or(Value::Null);
+        let current_hash = current
+            .get("hash")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        let current_commit = current.get("commit").cloned().unwrap_or(Value::Null);
+        let applied = match &expected {
+            None => current.is_null(),
+            Some(expected) => current_hash.as_deref() == Some(expected.as_str()),
+        };
+        let mut served = self.served.lock().expect("served lock poisoned");
+        if applied {
+            served.remove(&key);
+        } else if let Some(hash) = current_hash.clone() {
+            // A differing file is a fresh, coherent read: arm the guard so a
+            // deliberate retry does not need a second call.
+            served.insert(key, hash);
+        } else {
+            served.remove(&key);
+        }
+        drop(served);
+        let payload = json!({
+            "outcome": if applied { "applied" } else { "not_applied" },
+            "current_hash": current_hash,
+            "current_commit": current_commit,
+        });
+        let mut response = CallToolResult::success(vec![ContentBlock::text(payload.to_string())]);
+        response.meta = Some(MetaObject(serde_json::Map::from_iter([(
+            "io.arsumbris/engineVersion".to_owned(),
+            Value::String(result.version.to_string()),
+        )])));
+        response
+    }
+
     /// Shared mutation policy: a recorded read of this exact path must exist,
     /// the hash must match, the member must be editable, one mutation runs at a
     /// time, and a lost answer is `outcome_unknown` rather than a retry.
@@ -1031,6 +1128,22 @@ struct PreviewArguments {
     /// Replace every exact occurrence, used by edit_file.
     #[serde(default)]
     replace_all: bool,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ReconcileArguments {
+    /// Workspace member that owns the file.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Path relative to that member's root; absolute paths and `..` are rejected.
+    #[schemars(length(min = 1))]
+    path: String,
+    /// Hash the interrupted write should have produced.
+    expected_hash: Option<String>,
+    /// Set when the interrupted mutation was a delete.
+    #[serde(default)]
+    expect_absent: bool,
 }
 
 /// The content hash reported by a successful `au_content` result.
