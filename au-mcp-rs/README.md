@@ -9,6 +9,11 @@ socket path as the sole command-line argument:
 cargo run -- /path/to/engine.sock
 ```
 
+Every result is the engine's own `result` object, so it keeps the read's key:
+`au_overview` answers `{"overview": …}`, `au_type` answers `{"type": …}`. A tool
+call therefore states which read produced it, and the payload is byte-identical
+to what the engine served.
+
 ### Launch policy
 
 Mutations are **off unless granted at launch**. Without a grant the server is
