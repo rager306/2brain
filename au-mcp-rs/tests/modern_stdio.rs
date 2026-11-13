@@ -78,7 +78,6 @@ fn request(id: u32, method: &str, params: Value) -> Value {
 }
 
 #[test]
-#[ignore = "modern protocol not enabled yet"]
 fn modern_first_ping_obeys_version_and_removed_method_rules() {
     let temp = tempfile::tempdir().unwrap();
     let mut client = Client::start(&temp.path().join("unused.sock"));
@@ -94,7 +93,6 @@ fn modern_first_ping_obeys_version_and_removed_method_rules() {
 // The production server currently advertises only tested legacy versions.
 // Enable this test when the server enables and validates 2026-07-28.
 #[test]
-#[ignore = "modern protocol not enabled yet"]
 fn modern_discovery_and_direct_requests_without_initialize() {
     let temp = tempfile::tempdir().unwrap();
     let socket = temp.path().join("engine.sock");
@@ -189,4 +187,26 @@ fn modern_discovery_and_direct_requests_without_initialize() {
             .contains(&json!(VERSION))
     );
     daemon.join().unwrap();
+}
+
+/// A ping without a declared version keeps the legacy behaviour: the
+/// specification allows it before initialization, so it must still answer.
+#[test]
+fn legacy_ping_before_initialize_still_answers() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut client = Client::start(&temp.path().join("unused.sock"));
+    // A bare ping: no `_meta`, so no version is declared.
+    let response = client.request(json!({"jsonrpc":"2.0","id":12,"method":"ping","params":{}}));
+    assert_eq!(response["result"], json!({}), "{response}");
+}
+
+/// A supported pre-2026 version keeps the legacy ping as well.
+#[test]
+fn a_legacy_version_ping_before_initialize_still_answers() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut client = Client::start(&temp.path().join("unused.sock"));
+    let mut ping = request(13, "ping", json!({}));
+    ping["params"]["_meta"]["io.modelcontextprotocol/protocolVersion"] = json!("2025-06-18");
+    let response = client.request(ping);
+    assert_eq!(response["result"], json!({}), "{response}");
 }

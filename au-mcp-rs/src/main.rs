@@ -33,6 +33,16 @@ use tokio::{
 };
 
 const SCHEMA_VERSION: u64 = 29;
+
+/// The protocol revisions this server answers. `2026-07-28` is the inline
+/// lifecycle: a request carries its version in `_meta` and needs no handshake.
+const SUPPORTED_PROTOCOL_VERSIONS: &[ProtocolVersion] = &[
+    ProtocolVersion::V_2024_11_05,
+    ProtocolVersion::V_2025_03_26,
+    ProtocolVersion::V_2025_06_18,
+    ProtocolVersion::V_2025_11_25,
+    ProtocolVersion::V_2026_07_28,
+];
 const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 const ENGINE_READ_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_IN_FLIGHT_READS: usize = 8;
@@ -1127,7 +1137,7 @@ impl ServerHandler for Server {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, rmcp::ErrorData> {
-        if context.peer.peer_info().is_none() {
+        if !serves_request(&context) {
             return Err(rmcp::ErrorData::invalid_request(
                 "initialize required",
                 None,
@@ -1151,7 +1161,7 @@ impl ServerHandler for Server {
         _request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, rmcp::ErrorData> {
-        if context.peer.peer_info().is_none() {
+        if !serves_request(&context) {
             return Err(rmcp::ErrorData::invalid_request(
                 "initialize required",
                 None,
@@ -1178,12 +1188,7 @@ impl ServerHandler for Server {
     }
 
     fn supported_protocol_versions(&self) -> Cow<'static, [ProtocolVersion]> {
-        Cow::Borrowed(&[
-            ProtocolVersion::V_2024_11_05,
-            ProtocolVersion::V_2025_03_26,
-            ProtocolVersion::V_2025_06_18,
-            ProtocolVersion::V_2025_11_25,
-        ])
+        Cow::Borrowed(SUPPORTED_PROTOCOL_VERSIONS)
     }
 }
 
@@ -1345,6 +1350,20 @@ impl Denial {
             message: message.into(),
         }
     }
+}
+
+/// Whether this request may use tools.
+///
+/// A legacy session proves itself with `initialize`. A `2026-07-28` (or later)
+/// request carries its version in `_meta` and needs no handshake. A `_meta`
+/// declaring an older version is not an inline lifecycle and is refused, so
+/// metadata cannot smuggle a call past the handshake.
+fn serves_request(context: &RequestContext<RoleServer>) -> bool {
+    context.peer.peer_info().is_some()
+        || context
+            .meta
+            .protocol_version()
+            .is_some_and(|version| version.as_str() >= ProtocolVersion::V_2026_07_28.as_str())
 }
 
 /// The content hash reported by a successful `au_content` result.
@@ -1680,7 +1699,9 @@ fn parse_args(
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (socket, policy, principal) = parse_args(env::args_os().skip(1))?;
     let service = Server::new(socket, policy, principal)
-        .serve(bounded_stdio::BoundedStdio::new())
+        .serve(bounded_stdio::BoundedStdio::new(
+            SUPPORTED_PROTOCOL_VERSIONS.to_vec(),
+        ))
         .await?;
     service.waiting().await?;
     Ok(())

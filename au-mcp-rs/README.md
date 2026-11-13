@@ -262,11 +262,14 @@ and `tools/call`; self-contained request metadata does not replace it. A second
 `initialize` in the same session is rejected and does not replace peer state.
 The SDK still allows calls after the initialize response and before the client's
 `notifications/initialized` notification. This is not an authorization boundary.
-The server does not claim support for the 2026-07-28 protocol revision. In a separate
-experiment with that revision enabled, rmcp 3.9 returned success for a first
-`ping` carrying an unsupported version instead of error `-32022`; modern
-protocol tests remain ignored pending resolution. The server is not a replacement
-for the existing bridge. Rust 1.99 or newer is required.
+The server answers four legacy revisions and `2026-07-28`. A modern request
+carries its version in `_meta` and needs no `initialize`: `server/discover`,
+`tools/list`, and `tools/call` all work as a first message. The SDK answers a
+pre-lifecycle `ping` without inspecting its `_meta`, so the transport refuses
+that case itself: an unsupported version gets `-32022` and a supported
+`2026-07-28` version gets `-32601`, because that revision removed `ping`. A
+`ping` with no declared version keeps the legacy behaviour. The server is not a
+replacement for the existing bridge. Rust 1.99 or newer is required.
 
 An opt-in test runs against a separately built engine and a synthetic temporary
 repository. It starts and tears down only its own daemon, using a temporary HOME:

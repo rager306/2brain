@@ -83,6 +83,11 @@ proposed; this document authorizes no live deployment or vault migration.
 - The server validates engine frame length, JSON response type and declared wire
   version, and returns an actionable error rather than fabricated success.
 - Captured output contains only MCP messages on stdout; diagnostics use stderr.
+- The `2026-07-28` revision is served: a request declaring it needs no
+  `initialize`, `server/discover` reports it among the supported versions, and a
+  pre-lifecycle `ping` is version-checked in the transport, because the SDK
+  answers that one case without inspecting `_meta` (`-32022` for an unsupported
+  version, `-32601` for `2026-07-28`, which removed `ping`).
 - Client compatibility, current engine golden coverage, and toolchain version
   are reported accurately; a passing mock is not a production release gate.
 - The MCP layer replays the captured production payloads in

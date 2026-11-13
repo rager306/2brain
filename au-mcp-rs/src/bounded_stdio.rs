@@ -17,7 +17,7 @@ use std::{future::Future, io, sync::Arc, time::Duration};
 use futures::{SinkExt, StreamExt};
 use rmcp::{
     RoleServer,
-    model::ErrorData,
+    model::{ClientRequest, ErrorData, GetMeta, PingRequestMethod, ProtocolVersion},
     service::{RxJsonRpcMessage, TxJsonRpcMessage},
     transport::{
         Transport,
@@ -50,11 +50,12 @@ pub struct BoundedStdio {
     sender: Option<mpsc::Sender<TxJsonRpcMessage<RoleServer>>>,
     slots: Arc<Semaphore>,
     writer: Option<JoinHandle<()>>,
+    supported: Vec<ProtocolVersion>,
 }
 
 impl BoundedStdio {
     /// Build the transport over this process's standard streams.
-    pub fn new() -> Self {
+    pub fn new(supported: Vec<ProtocolVersion>) -> Self {
         let (input, output): (StdioReader, StdioWriter) = stdio_pipes();
         let reader = FramedRead::new(
             input,
@@ -83,17 +84,12 @@ impl BoundedStdio {
             sender: Some(sender),
             slots,
             writer: Some(writer),
+            supported,
         }
     }
 
     fn closed() -> io::Error {
         io::Error::new(io::ErrorKind::NotConnected, "transport is closed")
-    }
-}
-
-impl Default for BoundedStdio {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -137,7 +133,22 @@ impl Transport<RoleServer> for BoundedStdio {
         }
         loop {
             match self.reader.next().await {
-                Some(Ok(message)) => return Some(message),
+                Some(Ok(message)) => {
+                    // A `ping` before the lifecycle is chosen is answered by the
+                    // SDK without inspecting its `_meta`, but 2026-07-28 requires
+                    // the version to be checked first and removes `ping`
+                    // altogether. Refuse such a request here, where the raw
+                    // message is still visible.
+                    if let Some(rejection) = version_checked_ping(&message, &self.supported) {
+                        if let Some(sender) = self.sender.as_ref()
+                            && sender.send(rejection).await.is_err()
+                        {
+                            return None;
+                        }
+                        continue;
+                    }
+                    return Some(message);
+                }
                 Some(Err(error)) => {
                     eprintln!("au-mcp-rs: rejecting unreadable input frame: {error}");
                     if let Some(sender) = self.sender.as_ref() {
@@ -170,4 +181,37 @@ impl Transport<RoleServer> for BoundedStdio {
         }
         Ok(())
     }
+}
+
+/// Refuse a pre-lifecycle `ping` that declares a protocol version.
+///
+/// An unsupported version is `-32022`; a supported 2026-07-28-or-later version
+/// no longer has a `ping` method and gets `-32601`. A `ping` without a declared
+/// version keeps the legacy behaviour the specification allows before
+/// initialization.
+fn version_checked_ping(
+    message: &RxJsonRpcMessage<RoleServer>,
+    supported: &[ProtocolVersion],
+) -> Option<TxJsonRpcMessage<RoleServer>> {
+    let RxJsonRpcMessage::<RoleServer>::Request(request) = message else {
+        return None;
+    };
+    if !matches!(request.request, ClientRequest::PingRequest(_)) {
+        return None;
+    }
+    let version = request.request.get_meta().protocol_version()?;
+    let id: Option<rmcp::model::RequestId> = Some(request.id.clone());
+    if !supported.contains(&version) {
+        return Some(TxJsonRpcMessage::<RoleServer>::error(
+            ErrorData::unsupported_protocol_version(version, supported),
+            id,
+        ));
+    }
+    if version.as_str() >= ProtocolVersion::V_2026_07_28.as_str() {
+        return Some(TxJsonRpcMessage::<RoleServer>::error(
+            ErrorData::method_not_found::<PingRequestMethod>(),
+            id,
+        ));
+    }
+    None
 }
