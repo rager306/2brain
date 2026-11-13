@@ -65,8 +65,13 @@ proposed; this document authorizes no live deployment or vault migration.
   are reported accurately; a passing mock is not a production release gate.
 - The MCP layer replays the captured production payloads in
   `au-engine/tests-golden` unchanged, so a silent normalisation fails a test.
-  That covers `au_overview`, `au_hubs`, and `au_diagnostics` only; the remaining
-  tools still need captured fixtures.
+  That covers `au_overview`, `au_hubs`, and `au_diagnostics` only. The remaining
+  reads are covered by a second, separately labelled corpus: payloads captured
+  through the MCP layer from a real engine on a disposable repository
+  (`au-mcp-rs/tests/fixtures/synthetic-reads/`), with paths normalized to
+  `$FIXTURE`. That corpus is not a production capture and does not replace one;
+  it is re-verified against the engine by an ignored test, and its shape is
+  checked without an engine by `au-mcp-rs/tests/fixture_schema.rs`.
 - Stdio serving must be tested with a client that stops reading stdout while
   continuing to send requests, and on stdin EOF with stdout blocked. The current
   prototype uses a bounded standard-IO transport: at most four queued responses,

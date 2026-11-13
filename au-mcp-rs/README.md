@@ -188,6 +188,11 @@ identity carrying `unknown-type-claim`, never an empty array, so a caller foldin
 diagnostics cannot mistake an unvalidated value for a valid one. Spans index a
 synthesized document and do not map back to the input.
 
+The read corpus in `tests/fixtures/synthetic-reads/` records every advertised
+read's payload from a real engine on a disposable two-member repository, with
+paths normalized to `$FIXTURE`. The ignored real-engine test regenerates or
+verifies it, and `tests/fixture_schema.rs` keeps it honest without an engine.
+
 `au_reconcile` resolves an interrupted mutation. Give the hash the write should
 have produced, or `expect_absent: true` for a delete; it answers `applied` or
 `not_applied` plus the file's current hash and commit. When the file exists with

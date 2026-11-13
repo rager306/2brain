@@ -1,0 +1,81 @@
+{
+  "arguments": {
+    "name": "note"
+  },
+  "payload": {
+    "type": {
+      "abstract": false,
+      "body": null,
+      "effective_body": null,
+      "effective_fields": [
+        {
+          "divergent": false,
+          "name": "link",
+          "origin": {
+            "hash": "488157cb2f9ed3aa",
+            "name": "note",
+            "repo": "fixture"
+          },
+          "required": false,
+          "shape": "file*",
+          "shape_ast": {
+            "kind": "reference",
+            "name": "file"
+          }
+        }
+      ],
+      "effective_meta": [],
+      "fields": [
+        {
+          "key_span": {
+            "end": 15,
+            "line_col": {
+              "end": {
+                "col": 8,
+                "line": 2
+              },
+              "start": {
+                "col": 3,
+                "line": 2
+              }
+            },
+            "start": 10
+          },
+          "name": "link",
+          "required": false,
+          "shape": "file*",
+          "shape_ast": {
+            "kind": "reference",
+            "name": "file"
+          }
+        }
+      ],
+      "hash": "488157cb2f9ed3aa",
+      "meta_blocks": null,
+      "name": "note",
+      "parents": [],
+      "repo": "fixture",
+      "required_meta": [],
+      "sealed": null,
+      "source": {
+        "file": "$FIXTURE/fixture/type/note.type.yaml",
+        "span": {
+          "end": 23,
+          "line_col": {
+            "end": {
+              "col": 1,
+              "line": 3
+            },
+            "start": {
+              "col": 1,
+              "line": 1
+            }
+          },
+          "start": 0
+        }
+      },
+      "unmet_required_meta": []
+    }
+  },
+  "tool": "au_type"
+}

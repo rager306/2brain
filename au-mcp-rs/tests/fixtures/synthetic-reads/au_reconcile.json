@@ -1,0 +1,13 @@
+{
+  "arguments": {
+    "expect_absent": true,
+    "path": "notes/ghost.md",
+    "repo": "fixture"
+  },
+  "payload": {
+    "current_commit": null,
+    "current_hash": null,
+    "outcome": "applied"
+  },
+  "tool": "au_reconcile"
+}

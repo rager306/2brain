@@ -1,0 +1,123 @@
+{
+  "arguments": {
+    "type_name": "note"
+  },
+  "payload": {
+    "instances_of": [
+      {
+        "claim": [
+          "note"
+        ],
+        "claimed": true,
+        "fields": {
+          "link": "[[b]]"
+        },
+        "hash": "488157cb2f9ed3aa",
+        "inherited": false,
+        "locator": null,
+        "member": "fixture",
+        "name": "note",
+        "origin": "file",
+        "path": "$FIXTURE/fixture/notes/a.md",
+        "span": {
+          "end": 29,
+          "start": 4
+        },
+        "type_owners": [
+          "fixture"
+        ]
+      },
+      {
+        "claim": [
+          "note"
+        ],
+        "claimed": true,
+        "fields": {},
+        "hash": "488157cb2f9ed3aa",
+        "inherited": false,
+        "locator": null,
+        "member": "fixture",
+        "name": "note",
+        "origin": "file",
+        "path": "$FIXTURE/fixture/notes/b.md",
+        "span": {
+          "end": 15,
+          "start": 4
+        },
+        "type_owners": [
+          "fixture"
+        ]
+      },
+      {
+        "claim": [
+          "note"
+        ],
+        "claimed": true,
+        "fields": {
+          "link": "[[b]]"
+        },
+        "hash": "488157cb2f9ed3aa",
+        "inherited": false,
+        "locator": null,
+        "member": "fixture",
+        "name": "note",
+        "origin": "file",
+        "path": "$FIXTURE/fixture/notes/c.md",
+        "span": {
+          "end": 29,
+          "start": 4
+        },
+        "type_owners": [
+          "fixture"
+        ]
+      },
+      {
+        "claim": [
+          "note"
+        ],
+        "claimed": true,
+        "fields": {
+          "link": "[[a]]"
+        },
+        "hash": "488157cb2f9ed3aa",
+        "inherited": false,
+        "locator": null,
+        "member": "fixture",
+        "name": "note",
+        "origin": "file",
+        "path": "$FIXTURE/fixture/notes/d.md",
+        "span": {
+          "end": 29,
+          "start": 4
+        },
+        "type_owners": [
+          "fixture"
+        ]
+      },
+      {
+        "claim": [
+          "note"
+        ],
+        "claimed": true,
+        "fields": {
+          "link": "[[missing-target]]"
+        },
+        "hash": "488157cb2f9ed3aa",
+        "inherited": false,
+        "locator": null,
+        "member": "fixture",
+        "name": "note",
+        "origin": "file",
+        "path": "$FIXTURE/fixture/notes/invalid.md",
+        "span": {
+          "end": 42,
+          "start": 4
+        },
+        "type_owners": [
+          "fixture"
+        ]
+      }
+    ]
+  },
+  "tool": "au_instances_of"
+}

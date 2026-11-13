@@ -126,19 +126,34 @@ fn assert_engine_version(socket: &Path, reply: &Value, direct: &Value) {
     }
 }
 
-// Build the engine separately: RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --manifest-path ../au-engine/Cargo.toml -p au-cli --bin au
-// Then run: RUSTUP_HOME=/root/.rustup AU_ENGINE_BIN=../au-engine/target/debug/au cargo +1.99.0 test --locked --test real_engine -- --ignored
-#[test]
-#[ignore = "requires AU_ENGINE_BIN pointing to a separately built au binary"]
-fn mcp_reads_match_real_engine_on_temporary_repo() {
-    let engine = std::env::var_os("AU_ENGINE_BIN").expect("set AU_ENGINE_BIN to the au binary");
-    let temp = tempfile::Builder::new()
-        .prefix("au-e2e-")
-        .tempdir_in("/tmp")
-        .unwrap();
-    let home = temp.path().join("home");
-    let repo = temp.path().join("fixture");
-    let base = temp.path().join("base");
+/// Build the disposable fixture every real-engine test serves: two members with
+/// a dependency, typed notes, an invalid link, and a clean git work tree.
+/// Make `dir` a clean single-commit git work tree, which mutations require.
+fn commit_work_tree(dir: &Path) {
+    let git = |args: &[&str]| {
+        let status = Command::new("git")
+            .args([
+                "-c",
+                "user.name=au-mcp-rs",
+                "-c",
+                "user.email=test@example.invalid",
+            ])
+            .args(["-c", "commit.gpgsign=false"])
+            .args(args)
+            .current_dir(dir)
+            .status()
+            .expect("run git");
+        assert!(status.success(), "git {args:?} in {}", dir.display());
+    };
+    git(&["init", "-q"]);
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "fixture"]);
+}
+
+fn build_fixture(temp: &Path) -> (PathBuf, PathBuf) {
+    let home = temp.join("home");
+    let repo = temp.join("fixture");
+    let base = temp.join("base");
     fs::create_dir_all(base.join(".arsumbris")).unwrap();
     fs::create_dir_all(base.join("type")).unwrap();
     fs::write(base.join(".arsumbris/repo.yaml"), "name: base\n").unwrap();
@@ -207,26 +222,166 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     )
     .unwrap();
 
-    // The engine commits every mutation, so the fixture must be a clean git
-    // work tree before it is served.
-    let git = |args: &[&str]| {
-        let status = Command::new("git")
-            .args([
-                "-c",
-                "user.name=au-mcp-rs",
-                "-c",
-                "user.email=test@example.invalid",
-            ])
-            .args(["-c", "commit.gpgsign=false"])
-            .args(args)
-            .current_dir(&repo)
-            .status()
-            .expect("run git");
-        assert!(status.success(), "git {args:?} failed");
-    };
-    git(&["init", "-q"]);
-    git(&["add", "-A"]);
-    git(&["commit", "-q", "-m", "fixture"]);
+    // The engine commits every mutation, so each served member must be a clean
+    // git work tree. The dependency gets its own repository so its git root is
+    // its own directory rather than whatever encloses the temporary parent.
+    commit_work_tree(&base);
+    commit_work_tree(&repo);
+    (home, repo)
+}
+
+// Build the engine separately: RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --manifest-path ../au-engine/Cargo.toml -p au-cli --bin au
+// Then run: RUSTUP_HOME=/root/.rustup AU_ENGINE_BIN=../au-engine/target/debug/au cargo +1.99.0 test --locked --test real_engine -- --ignored
+/// The read fixtures replay every advertised read through the MCP layer against
+/// a real engine on a disposable repository. Paths are recorded relative to the
+/// fixture root as `$FIXTURE`, so the corpus does not carry machine paths.
+fn fixture_cases() -> [(&'static str, Value); 16] {
+    [
+        ("au_overview", json!({})),
+        ("au_top_level_dirs", json!({})),
+        ("au_type", json!({"name":"note"})),
+        ("au_type_tree", json!({})),
+        ("au_types", json!({})),
+        ("au_hubs", json!({"limit":20})),
+        ("au_diagnostics", json!({"limit":50})),
+        ("au_subtypes", json!({"base":"alpha"})),
+        ("au_members", json!({})),
+        ("au_imports", json!({"scope":"all"})),
+        ("au_files", json!({"repo":"fixture","limit":50})),
+        ("au_content", json!({"repo":"fixture","path":"notes/a.md"})),
+        ("au_instances_of", json!({"type_name":"note"})),
+        (
+            "au_validate_value",
+            json!({"type_name":"note","value":{"link":"[[b]]"}}),
+        ),
+        (
+            "au_preview_mutation",
+            json!({"repo":"fixture","path":"notes/a.md","op":"write_file","content":"---\ntype: note\n---\n"}),
+        ),
+        (
+            "au_reconcile",
+            json!({"repo":"fixture","path":"notes/ghost.md","expect_absent":true}),
+        ),
+    ]
+}
+
+fn fixture_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/synthetic-reads")
+}
+
+/// Replace the disposable root with `$FIXTURE` so a fixture is machine-neutral.
+fn normalize(root: &Path, value: &Value) -> Value {
+    let text = value
+        .to_string()
+        .replace(&root.display().to_string(), "$FIXTURE");
+    serde_json::from_str(&text).expect("normalized fixture stays JSON")
+}
+
+#[test]
+#[ignore = "requires AU_ENGINE_BIN; captures or verifies the synthetic read fixtures"]
+fn synthetic_read_fixtures_match_the_engine() {
+    let engine = std::env::var_os("AU_ENGINE_BIN").expect("set AU_ENGINE_BIN to the au binary");
+    let capture = std::env::var_os("CAPTURE_FIXTURES").is_some();
+    let temp = tempfile::Builder::new()
+        .prefix("au-fixtures-")
+        .tempdir_in("/tmp")
+        .unwrap();
+    let (home, _repo) = build_fixture(temp.path());
+
+    let mut daemon = OwnedChild(
+        Command::new(engine)
+            .args(["daemon", "start"])
+            .arg(&_repo)
+            .env("HOME", &home)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("start private engine"),
+    );
+    let socket = wait_ready(&home.join(".arsumbris/au-engine/run"), &mut daemon.0);
+    let mut mcp = OwnedChild(
+        Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
+            .arg(&socket)
+            .env("HOME", &home)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("start MCP server"),
+    );
+    let mut input = mcp.0.stdin.take().unwrap();
+    let stdout = mcp.0.stdout.take().unwrap();
+    let (tx, rx) = mpsc::channel();
+    let reader = thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            if tx.send(line.expect("read MCP stdout")).is_err() {
+                break;
+            }
+        }
+    });
+    send(
+        &mut input,
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"fixture-capture","version":"1"}}}),
+    );
+    let init = receive(&rx);
+    assert!(init.get("result").is_some(), "{init}");
+    send(
+        &mut input,
+        json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+    );
+
+    let dir = fixture_dir();
+    std::fs::create_dir_all(&dir).unwrap();
+    for (index, (tool, arguments)) in fixture_cases().into_iter().enumerate() {
+        send(
+            &mut input,
+            json!({"jsonrpc":"2.0","id":100 + index,"method":"tools/call","params":{"name":tool,"arguments":arguments}}),
+        );
+        let reply = receive(&rx);
+        assert_ne!(reply["result"]["isError"], true, "{tool}: {reply}");
+        let payload: Value = serde_json::from_str(
+            reply["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap_or_else(|| panic!("{tool}: no text content in {reply}")),
+        )
+        .unwrap_or_else(|error| panic!("{tool}: content is not JSON: {error}"));
+        let recorded = json!({
+            "tool": tool,
+            "arguments": arguments,
+            "payload": normalize(temp.path(), &payload),
+        });
+        let path = dir.join(format!("{tool}.json"));
+        if capture {
+            let mut text = serde_json::to_string_pretty(&recorded).unwrap();
+            text.push('\n');
+            std::fs::write(&path, text).unwrap();
+        } else {
+            let stored: Value = serde_json::from_str(
+                &std::fs::read_to_string(&path)
+                    .unwrap_or_else(|error| panic!("reading {}: {error}", path.display())),
+            )
+            .unwrap();
+            assert_eq!(
+                recorded, stored,
+                "{tool} no longer matches the recorded fixture; re-capture with CAPTURE_FIXTURES=1 if the change is intentional"
+            );
+        }
+    }
+    drop(mcp);
+    drop(daemon);
+    reader.join().unwrap();
+}
+
+#[test]
+#[ignore = "requires AU_ENGINE_BIN pointing to a separately built au binary"]
+fn mcp_reads_match_real_engine_on_temporary_repo() {
+    let engine = std::env::var_os("AU_ENGINE_BIN").expect("set AU_ENGINE_BIN to the au binary");
+    let temp = tempfile::Builder::new()
+        .prefix("au-e2e-")
+        .tempdir_in("/tmp")
+        .unwrap();
+    let (home, repo) = build_fixture(temp.path());
 
     let mut daemon = OwnedChild(
         Command::new(engine)
