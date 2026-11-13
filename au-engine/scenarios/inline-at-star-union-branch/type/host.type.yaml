@@ -1,0 +1,3 @@
+fields:
+  #: `object*` is reference-only, so only `transform&` admits an inline record here
+  of: <transform& | object*>

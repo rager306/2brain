@@ -1,0 +1,4 @@
+extends: note
+# `meta: []` declares every meta type with no block, so it shadows note's
+# display-meta: suppressed surfaces no display-meta though its parent declares one.
+meta: []

@@ -1,0 +1,6 @@
+title: "A folder-repo `workspace.yaml` that omits its containing repo from `edit:` is not self-complete: workspace-omits-containing-repo, carrying an add_workspace_member applicable fix"
+spec_ref: "[[spec - workspace as a folder-repo - an optional workspace.yaml composes edit and discover members]]"
+command: validate
+expected:
+  codes:
+    - { code: workspace-omits-containing-repo, severity: error }

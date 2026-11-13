@@ -1,0 +1,4 @@
+#: type-level display metadata; a meta type, so it mixes in the engine meta marker.
+extends: au.engine.meta::au-engine
+fields:
+  icon: String

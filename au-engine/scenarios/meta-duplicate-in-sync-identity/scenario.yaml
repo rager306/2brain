@@ -1,0 +1,6 @@
+title: "Two written forms naming one in-sync meta identity on one def fire duplicate-meta-block"
+spec_ref: "[[type-def meta::au-type-system]]"
+command: validate
+expected:
+  codes:
+    - { code: duplicate-meta-block, severity: error }

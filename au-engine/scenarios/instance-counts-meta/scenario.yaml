@@ -1,0 +1,5 @@
+title: "instance_counts counts a meta block under the all-origins default — a type-def's display-meta site rides in the count"
+spec_ref: "[[spec - instances-of read - flat match records tagged by identity and claimed-or-inherited]]"
+command: instance_counts
+expected:
+  clean: true

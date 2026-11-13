@@ -1,0 +1,185 @@
+---
+source: crates/au-cli/tests/it/scenarios.rs
+expression: rendered
+---
+{
+  "diagnostics": [
+    {
+      "code": "meta-inheritance-conflict",
+      "message": "type-def 'card-panel' inherits 2 different 'display-meta' blocks from unrelated parents (card, panel); declare its own 'display-meta' block to choose",
+      "related": [
+        {
+          "file": "<root>/scenarios/meta-inheritance-conflict/type/card.type.yaml",
+          "line_col": {
+            "end": {
+              "col": 1,
+              "line": 5
+            },
+            "start": {
+              "col": 5,
+              "line": 3
+            }
+          },
+          "range": {
+            "end": 59,
+            "start": 21
+          }
+        },
+        {
+          "file": "<root>/scenarios/meta-inheritance-conflict/type/panel.type.yaml",
+          "line_col": {
+            "end": {
+              "col": 1,
+              "line": 5
+            },
+            "start": {
+              "col": 5,
+              "line": 3
+            }
+          },
+          "range": {
+            "end": 60,
+            "start": 21
+          }
+        }
+      ],
+      "severity": "warning",
+      "span": {
+        "file": "<root>/scenarios/meta-inheritance-conflict/type/card-panel.type.yaml",
+        "line_col": {
+          "end": {
+            "col": 1,
+            "line": 6
+          },
+          "start": {
+            "col": 1,
+            "line": 3
+          }
+        },
+        "range": {
+          "end": 177,
+          "start": 149
+        }
+      }
+    }
+  ],
+  "instances": {
+    "aborted_at_load": false,
+    "count": 1,
+    "entries": [
+      {
+        "body_events": null,
+        "claim": [
+          "au.engine.repo::au-engine"
+        ],
+        "closure": [
+          "au.engine.repo::au-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "deps",
+            "origins": [
+              {
+                "name": "au.engine.repo",
+                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
+                "repo": "au-engine",
+                "required": false,
+                "shape": "au.engine.dep::au-engine[]"
+              }
+            ],
+            "required": false,
+            "shape": "au.engine.dep::au-engine[]"
+          },
+          {
+            "divergent": false,
+            "field": "description",
+            "origins": [
+              {
+                "name": "au.engine.repo",
+                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
+                "repo": "au-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "name",
+            "origins": [
+              {
+                "name": "au.engine.repo",
+                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
+                "repo": "au-engine",
+                "required": true,
+                "shape": "String"
+              }
+            ],
+            "required": true,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "remote",
+            "origins": [
+              {
+                "name": "au.engine.repo",
+                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
+                "repo": "au-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 31,
+                        "line_col": {
+                          "end": {
+                            "col": 32,
+                            "line": 1
+                          },
+                          "start": {
+                            "col": 7,
+                            "line": 1
+                          }
+                        },
+                        "start": 6
+                      },
+                      "file": "<root>/scenarios/meta-inheritance-conflict/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "meta-inheritance-conflict"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "meta-inheritance-conflict"
+                }
+              }
+            ],
+            "field": "name"
+          }
+        ],
+        "file": "<root>/scenarios/meta-inheritance-conflict/.arsumbris/repo.yaml",
+        "section_presence": null
+      }
+    ]
+  }
+}

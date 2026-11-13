@@ -1,0 +1,5 @@
+# Neither parent is more specific than the other, so both display-meta blocks
+# survive: a conflict, resolved by card-panel declaring its own block.
+extends:
+  - card
+  - panel

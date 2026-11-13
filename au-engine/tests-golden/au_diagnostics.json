@@ -1,0 +1,12 @@
+{
+ "summary": {
+  "by_code": {},
+  "by_severity": {},
+  "total": 0
+ },
+ "severity": "error",
+ "diagnostics": [],
+ "offset": 0,
+ "limit": 50,
+ "truncated": false
+}
