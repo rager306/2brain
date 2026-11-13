@@ -1807,6 +1807,86 @@ fn success_payload(payload: Value, mode: PayloadMode) -> CallToolResult {
     response
 }
 
+/// `--info`: what this build is, and — when a socket is reachable — what it
+/// would serve. Static parts never need an engine, so the command works before a
+/// daemon exists.
+async fn print_info(arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn std::error::Error>> {
+    println!("{NAME} {VERSION}");
+    println!("  role         MCP stdio server for the arsumbris engine");
+    println!(
+        "  protocol     legacy 2024-11-05, 2025-03-26, 2025-06-18, 2025-11-25 (initialize first)"
+    );
+    println!("               modern 2026-07-28 (version in _meta, no initialize)");
+    println!("  tools        21 registered: 16 reads, 2 discovery, 3 mutations");
+    println!("               advertised: 18 without a grant, 21 with one");
+    println!(
+        "  result       {{ \"<read>\": ... }} plus structuredContent and _meta engine version"
+    );
+    println!("  profiles     --tools full|concise, --payload both|text|structured");
+    println!("  wire         schema 29, 16 MiB frames, 30 s read deadline, 8 in-flight reads");
+
+    let parsed = match parse_args(arguments.into_iter()) {
+        Ok(parsed) => Some(parsed),
+        Err(message) => {
+            println!("  launch       no socket given, so no policy or engine details");
+            println!("               ({message})");
+            None
+        }
+    };
+    let Some((socket, policy, principal, profile, payload)) = parsed else {
+        return Ok(());
+    };
+    println!(
+        "  policy       {}",
+        if policy.allow_mutations {
+            format!(
+                "mutations granted, members {:?}, audit {}",
+                policy.members,
+                policy.audit.describe()
+            )
+        } else {
+            "read-only (no grant)".to_owned()
+        }
+    );
+    println!(
+        "  launch       principal {principal:?}, tools {:?}, payload {:?}",
+        profile, payload
+    );
+    println!("  engine       {}", socket.display());
+
+    match tokio::time::timeout(
+        Duration::from_secs(5),
+        exchange(&socket, &json!({"read": "overview", "id": 1})),
+    )
+    .await
+    {
+        Err(_) => println!("    status     no answer within 5 s"),
+        Ok(Err(WireError::Broken(message))) => println!("    status     unusable: {message}"),
+        Ok(Err(WireError::Rejected(message))) => println!("    status     rejected: {message}"),
+        Ok(Ok(response)) => {
+            let overview = &response["result"]["overview"];
+            println!("    ready      true");
+            println!(
+                "    schema     {} (this build supports {SCHEMA_VERSION})",
+                response["schema_version"]
+            );
+            println!("    version    {}", response["version"]);
+            println!(
+                "    workspace  {} members, {} type entries, {} diagnostics",
+                overview["members"].as_array().map_or(0, Vec::len),
+                overview["type_counts"].as_object().map_or_else(
+                    || overview["type_counts"].as_array().map_or(0, Vec::len),
+                    serde_json::Map::len,
+                ),
+                overview["diagnostic_counts"]["total"]
+                    .as_u64()
+                    .unwrap_or_default()
+            );
+        }
+    }
+    Ok(())
+}
+
 fn success_result(result: ReadResult, mode: PayloadMode) -> CallToolResult {
     let version = result.version;
     let mut response = success_payload(result.payload, mode);
@@ -2143,7 +2223,47 @@ async fn mutate_engine(socket: &Path, request: Value) -> Result<ReadResult, Wire
     })
 }
 
+const NAME: &str = env!("CARGO_PKG_NAME");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 const USAGE: &str = "usage: au-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--principal <name>] [--tools full|concise] [--payload both|text|structured]";
+
+const HELP: &str = "\
+au-mcp-rs — MCP stdio server for the arsumbris engine
+
+USAGE
+    au-mcp-rs <engine-socket> [OPTIONS]
+    au-mcp-rs --help | --version | --info [<engine-socket>]
+
+ARGUMENT
+    <engine-socket>   Unix socket of a running `au` engine daemon,
+                      usually ~/.arsumbris/au-engine/run/<hash>.sock
+
+OPTIONS
+    --policy <file>          JSON policy: allow_mutations, members, audit
+    --allow-mutations        Grant the three mutating tools (off by default)
+    --principal <name>       Label for audit records; not authentication
+    --tools full|concise     Definition detail in tools/list (default full)
+    --payload both|text|structured
+                             Result representation (default both)
+    --info                   Print MCP and launch information, then exit
+    -h, --help               Print this help, then exit
+    -V, --version            Print the version, then exit
+
+SURFACE
+    21 tools registered: 16 engine reads, 2 discovery helpers (au_search_tools,
+    au_describe_tool), and 3 mutating tools. A launch advertises 18, or 21 when
+    it grants mutations.
+
+PROTOCOL
+    Legacy: 2024-11-05, 2025-03-26, 2025-06-18, 2025-11-25 (initialize first)
+    Modern: 2026-07-28 (version in _meta, no initialize)
+
+DOCS
+    docs/connecting.md   client registration and troubleshooting
+    docs/tools.md        every tool and its failure modes
+
+";
 
 /// Parse the launch arguments. Mutations need an explicit grant: either a
 /// policy file that allows them or `--allow-mutations`.
@@ -2210,7 +2330,33 @@ fn parse_args(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let (socket, policy, principal, profile, payload) = parse_args(env::args_os().skip(1))?;
+    let arguments: Vec<std::ffi::OsString> = env::args_os().skip(1).collect();
+    let flags: Vec<&str> = arguments
+        .iter()
+        .filter_map(|argument| argument.to_str())
+        .filter(|argument| matches!(*argument, "--help" | "-h" | "--version" | "-V" | "--info"))
+        .collect();
+    if flags.iter().any(|flag| matches!(*flag, "--help" | "-h")) {
+        print!("{HELP}");
+        return Ok(());
+    }
+    if flags.iter().any(|flag| matches!(*flag, "--version" | "-V")) {
+        println!("{NAME} {VERSION}");
+        return Ok(());
+    }
+    if flags.contains(&"--info") {
+        let rest: Vec<std::ffi::OsString> = arguments
+            .into_iter()
+            .filter(|argument| argument.to_str() != Some("--info"))
+            .collect();
+        return print_info(rest).await;
+    }
+    let (socket, policy, principal, profile, payload) = parse_args(arguments.into_iter())
+        .unwrap_or_else(|message| {
+            eprintln!("au-mcp-rs: {message}");
+            eprintln!("try 'au-mcp-rs --help'");
+            std::process::exit(2);
+        });
     let service = Server::new(socket, policy, principal, profile, payload)
         .serve(bounded_stdio::BoundedStdio::new(
             SUPPORTED_PROTOCOL_VERSIONS.to_vec(),

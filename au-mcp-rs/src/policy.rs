@@ -33,6 +33,17 @@ pub enum AuditTarget {
     Disabled,
 }
 
+impl AuditTarget {
+    /// A one-line description for `--info`.
+    pub fn describe(&self) -> String {
+        match self {
+            Self::Stderr => "stderr".to_owned(),
+            Self::File(path) => format!("file {}", path.display()),
+            Self::Disabled => "disabled".to_owned(),
+        }
+    }
+}
+
 /// The parsed launch policy.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]

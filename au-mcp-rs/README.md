@@ -18,12 +18,22 @@ Connecting a client, including the socket probe and per-client commands, is in
 [`docs/connecting.md`](docs/connecting.md). The tool-by-tool reference is in
 [`docs/tools.md`](docs/tools.md).
 
-## Build
+## Build and inspect
 
 ```sh
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
-./target/release/au-mcp-rs ~/.arsumbris/au-engine/run/<hash>.sock
+./target/release/au-mcp-rs --help          # the contract
+./target/release/au-mcp-rs --version
+./target/release/au-mcp-rs --info          # MCP surface, no engine needed
+./target/release/au-mcp-rs --info ~/.arsumbris/au-engine/run/<hash>.sock   # + probe
+./target/release/au-mcp-rs ~/.arsumbris/au-engine/run/<hash>.sock          # serve
 ```
+
+`--info` is the self-description: server name and version, both protocol
+families, the tool surface (21 registered, 18 advertised without a grant), the
+result shape, the available profiles, the launch policy, and — when a socket is
+reachable — `ready`, the engine's wire schema, its version, and the workspace
+size. A bad option exits with status 2 and points at `--help`.
 
 The release binary is a 5 MB ELF executable, dynamically linked only to `libc`,
 `libm`, and `libgcc_s`. It needs a running engine daemon and that daemon's

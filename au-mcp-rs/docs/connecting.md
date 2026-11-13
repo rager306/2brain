@@ -45,6 +45,18 @@ PY
 
 `ready: true` and `schema_version: 29` mean this build can serve it.
 
+## 2b. Check what the binary says about itself
+
+```sh
+au-mcp-rs --help                 # usage, options, protocol families, docs
+au-mcp-rs --version              # one line
+au-mcp-rs --info                 # MCP surface and launch defaults, no engine
+au-mcp-rs --info <engine.sock>   # the same, plus ready/schema/version/workspace
+```
+
+`--info` never needs a running daemon; with a socket it adds the probe result and
+still exits 0 when the engine is unreachable, so it is safe in a health script.
+
 ## 3. Register the server
 
 ### allspark (Prime Agent)
