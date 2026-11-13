@@ -320,3 +320,10 @@ the adapter's result-envelope key is unwrapped (95/95 types, 200 files, 100
 hubs, 62 subtypes, 27 imports, 7 member roots), and the remaining differences are
 the daemon's projections (`valid`, `total`, `summary`, severity filtering)
 rather than different facts.
+
+## Agent interface
+
+Every tool declares an `outputSchema`, results carry the same payload as
+`structuredContent` and as text, and `initialize` returns server instructions
+describing the envelope, the suggested flow, and the mutation policy. The
+measured cost and the remaining gaps are in `docs/agent-interface.md`.

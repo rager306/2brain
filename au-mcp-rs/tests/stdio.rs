@@ -150,6 +150,31 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_write_file"
         ]
     );
+    // An agent needs to know what the server is for before choosing a tool.
+    let instructions = initialized["result"]["instructions"]
+        .as_str()
+        .expect("initialize must carry server instructions");
+    assert!(
+        instructions.contains("au_overview") && instructions.contains("outcome_unknown"),
+        "{instructions}"
+    );
+    // Every tool states its output shape, so a client can parse the answer
+    // without guessing the envelope key.
+    for tool in tools {
+        let name = tool["name"].as_str().unwrap();
+        let schema = tool
+            .get("outputSchema")
+            .unwrap_or_else(|| panic!("{name} declares no outputSchema"));
+        assert_eq!(schema["type"], "object", "{name}");
+        let required = schema["required"].as_array().unwrap();
+        assert_eq!(required.len(), 1, "{name}: {schema}");
+        let key = required[0].as_str().unwrap();
+        assert!(
+            schema["properties"].get(key).is_some(),
+            "{name} requires a key it does not declare"
+        );
+    }
+
     let diagnostics = tools
         .iter()
         .find(|tool| tool["name"] == "au_diagnostics")

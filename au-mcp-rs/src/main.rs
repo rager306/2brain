@@ -239,7 +239,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("overview"),
     )]
     async fn au_overview(
         &self,
@@ -256,7 +257,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("top_level_dirs"),
     )]
     async fn au_top_level_dirs(
         &self,
@@ -277,7 +279,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("type_tree"),
     )]
     async fn au_type_tree(
         &self,
@@ -294,7 +297,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("type"),
     )]
     async fn au_type(
         &self,
@@ -321,7 +325,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("types"),
     )]
     async fn au_types(
         &self,
@@ -346,7 +351,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("hubs"),
     )]
     async fn au_hubs(
         &self,
@@ -381,7 +387,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("diagnostics"),
     )]
     async fn au_diagnostics(
         &self,
@@ -425,7 +432,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("subtypes"),
     )]
     async fn au_subtypes(
         &self,
@@ -451,7 +459,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("members"),
     )]
     async fn au_members(
         &self,
@@ -474,7 +483,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("imports"),
     )]
     async fn au_imports(
         &self,
@@ -497,7 +507,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("files"),
     )]
     async fn au_files(
         &self,
@@ -531,7 +542,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("content"),
     )]
     async fn au_content(
         &self,
@@ -574,7 +586,8 @@ impl Server {
             read_only_hint = false,
             destructive_hint = true,
             idempotent_hint = false
-        )
+        ),
+        output_schema = mutation_schema(),
     )]
     async fn au_write_file(
         &self,
@@ -600,7 +613,8 @@ impl Server {
             read_only_hint = false,
             destructive_hint = true,
             idempotent_hint = false
-        )
+        ),
+        output_schema = mutation_schema(),
     )]
     async fn au_edit_file(
         &self,
@@ -626,7 +640,8 @@ impl Server {
             read_only_hint = false,
             destructive_hint = true,
             idempotent_hint = false
-        )
+        ),
+        output_schema = mutation_schema(),
     )]
     async fn au_delete_file(
         &self,
@@ -651,7 +666,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("preview_mutation"),
     )]
     async fn au_preview_mutation(
         &self,
@@ -746,7 +762,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("instances_of"),
     )]
     async fn au_instances_of(
         &self,
@@ -785,7 +802,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("validate_value"),
     )]
     async fn au_validate_value(
         &self,
@@ -818,7 +836,8 @@ impl Server {
             read_only_hint = true,
             destructive_hint = false,
             idempotent_hint = true
-        )
+        ),
+        output_schema = envelope_schema("reconcile"),
     )]
     async fn au_reconcile(
         &self,
@@ -902,6 +921,7 @@ impl Server {
             "current_commit": current_commit,
         });
         let mut response = CallToolResult::success(vec![ContentBlock::text(payload.to_string())]);
+        response.structured_content = Some(payload.clone());
         response.meta = Some(MetaObject(serde_json::Map::from_iter([(
             "io.arsumbris/engineVersion".to_owned(),
             Value::String(result.version.to_string()),
@@ -1182,9 +1202,12 @@ impl ServerHandler for Server {
     }
 
     fn get_info(&self) -> ServerConfig {
-        ServerConfig::new(ServerCapabilities::builder().enable_tools().build()).with_server_info(
-            Implementation::new(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")),
-        )
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(Implementation::new(
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_PKG_VERSION"),
+            ))
+            .with_instructions(INSTRUCTIONS)
     }
 
     fn supported_protocol_versions(&self) -> Cow<'static, [ProtocolVersion]> {
@@ -1352,6 +1375,52 @@ impl Denial {
     }
 }
 
+/// What a client should know before choosing a tool.
+const INSTRUCTIONS: &str = "Read-only access to an arsumbris workspace, plus gated mutations. Every result is the engine's own result object under the read's key: au_overview answers {\"overview\": ...}, au_type answers {\"type\": ...}. Start with au_overview, then au_members for member roots, au_types and au_type for vocabulary, and au_files or au_content to locate text. Paged tools take limit and offset; au_type_tree, au_content, au_instances_of, and au_validate_value are unpaged and can return large answers. Mutations are disabled unless the operator granted them at launch; when enabled they need a prior au_content read of the same path and the hash it returned. A lost reply is outcome_unknown and must not be retried blindly; au_reconcile reports whether it landed.";
+
+/// The output schema of a read: the engine's result object with its own key.
+fn envelope_schema(verb: &'static str) -> Arc<serde_json::Map<String, Value>> {
+    let mut properties = serde_json::Map::new();
+    properties.insert(
+        verb.to_owned(),
+        json!({"description": format!("the {verb} read's result")}),
+    );
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": properties,
+            "required": [verb],
+            "additionalProperties": false,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
+/// The output schema shared by every mutation: the engine's mutation result.
+fn mutation_schema() -> Arc<serde_json::Map<String, Value>> {
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "absolute path that was written"},
+                "hash": {"type": "string", "description": "content hash after the mutation"},
+                "reflected": {"type": "boolean"},
+                "commit": {},
+                "commits": {"type": "array"},
+                "diagnostics": {"type": "array"},
+                "untracked_files": {"type": "array"}
+            },
+            "required": ["path"],
+            "additionalProperties": true,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
 /// Whether this request may use tools.
 ///
 /// A legacy session proves itself with `initialize`. A `2026-07-28` (or later)
@@ -1434,6 +1503,8 @@ async fn read_mutation_with_timeout(
 fn success_result(result: ReadResult) -> CallToolResult {
     let mut response =
         CallToolResult::success(vec![ContentBlock::text(result.payload.to_string())]);
+    // The same payload, machine-readable, so a client need not parse text.
+    response.structured_content = Some(result.payload.clone());
     response.meta = Some(MetaObject(serde_json::Map::from_iter([(
         "io.arsumbris/engineVersion".to_owned(),
         Value::String(result.version.to_string()),
@@ -2017,7 +2088,9 @@ mod tests {
                     u64::MAX.to_string()
                 );
                 assert_eq!(result["content"][0]["text"], payload.to_string());
-                assert!(result.get("structuredContent").is_none());
+                // The same answer is offered machine-readably, so a client
+                // need not parse the text block.
+                assert_eq!(result["structuredContent"], payload);
             } else {
                 assert_eq!(result["isError"], true);
                 assert!(result.get("_meta").is_none());
