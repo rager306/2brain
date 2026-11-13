@@ -1,0 +1,15 @@
+# Local agent tooling and downloaded external repositories are not this bundle.
+/.prime/
+
+# Generated build products, dependencies, and local interpreter caches.
+**/target/
+**/node_modules/
+**/__pycache__/
+**/.venv/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/dist/
+**/build/
+**/coverage/
+*.pyc
