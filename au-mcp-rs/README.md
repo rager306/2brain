@@ -339,3 +339,20 @@ tokens (deferred loading, ladders of detail, schema minimization, result budgets
 catalogue freshness) with sources, and measures this server: 20 636 chars of
 tool definitions in the full profile against 8 718 in the concise one, with full
 definitions one `au_describe_tool` call away.
+
+## Skill
+
+`skills/arsumbris/SKILL.md` is an agent skill for working an arsumbris
+workspace: which surface to use, the tool ladder (`au_search_tools` →
+`au_describe_tool` → call), the result envelope, the read-then-write sequence,
+and the recovery path after an unclear mutation. `references/tool-map.md` holds
+the full adapter-to-bridge mapping and loads only when it is needed.
+
+Install it into the agent skills directory (the loader does not follow symlinks):
+
+```sh
+./scripts/install_skill.sh            # AGENT_SKILLS_DIR defaults to ~/.agents/skills
+```
+
+A running host caches its skill catalogue at start, so a new session picks the
+skill up only after the app restarts.
