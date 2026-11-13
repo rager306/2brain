@@ -86,6 +86,54 @@ impl Policy {
     }
 }
 
+/// The ordered gate a mutation passes before the engine is contacted.
+///
+/// The order is the contract: cheap, local refusals come first, and no later
+/// stage runs once an earlier one denies. A denial always names its stage, both
+/// in the tool error and in the audit line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stage {
+    /// The arguments themselves are usable.
+    Arguments,
+    /// The path cannot escape the member root.
+    PathScope,
+    /// The launch policy allows mutations in this member.
+    MemberGrant,
+    /// This exact path was read through `au_content`.
+    PriorRead,
+    /// The recorded hash still matches the caller's expectation.
+    Freshness,
+    /// A mutation slot is free.
+    Capacity,
+    /// The engine will author this member.
+    Editability,
+}
+
+impl Stage {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Arguments => "arguments",
+            Self::PathScope => "path_scope",
+            Self::MemberGrant => "member_grant",
+            Self::PriorRead => "prior_read",
+            Self::Freshness => "freshness",
+            Self::Capacity => "capacity",
+            Self::Editability => "editability",
+        }
+    }
+}
+
+/// The gate order, in the order it runs.
+pub const MUTATION_STAGES: [Stage; 7] = [
+    Stage::Arguments,
+    Stage::PathScope,
+    Stage::MemberGrant,
+    Stage::PriorRead,
+    Stage::Freshness,
+    Stage::Capacity,
+    Stage::Editability,
+];
+
 /// Appends policy decisions. Cloning shares the same sink.
 #[derive(Debug, Clone)]
 pub struct Audit {
@@ -176,6 +224,22 @@ mod tests {
         let error = Policy::load(&path).unwrap_err();
         assert!(error.contains("audit"), "{error}");
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn the_gate_order_is_explicit() {
+        assert_eq!(
+            MUTATION_STAGES.map(Stage::name),
+            [
+                "arguments",
+                "path_scope",
+                "member_grant",
+                "prior_read",
+                "freshness",
+                "capacity",
+                "editability",
+            ]
+        );
     }
 
     #[test]

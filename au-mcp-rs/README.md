@@ -42,6 +42,22 @@ Every mutation decision is audited as one JSON line with `principal`, `tool`,
 `member`, `outcome` (`applied`, `rejected`, `outcome_unknown`, `denied`,
 `denied:member`) and a timestamp.
 
+The mutation gate is an ordered chain; a refusal names its stage both in the
+tool error (`policy/<stage>: ...`) and in the audit (`denied:<stage>`):
+
+| stage | refuses when |
+|---|---|
+| `arguments` | `repo`, `path`, or `expected_hash` is empty |
+| `path_scope` | the path is absolute, contains `..` or NUL |
+| `member_grant` | the member is not in the policy allowlist |
+| `prior_read` | no `au_content` read of this exact path is recorded |
+| `freshness` | the recorded hash differs from `expected_hash` |
+| `capacity` | another mutation holds the single slot |
+| `editability` | the engine reports the member as consumed |
+
+Earlier stages win, so a refusal is deterministic and cheaper: a path escape is
+reported without needing a prior read.
+
 **Identity is not authenticated.** `--principal` and the client's `initialize`
 name only label audit records; a stdio client controls its own process and can
 claim any name. The real boundary remains the OS user that owns the engine

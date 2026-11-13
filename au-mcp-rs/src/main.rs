@@ -837,56 +837,23 @@ impl Server {
         expected_hash: String,
         build: impl FnOnce(&str) -> Value,
     ) -> CallToolResult {
-        if repo.is_empty() {
-            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
-        }
-        if path.is_empty() {
-            return CallToolResult::error(vec![ContentBlock::text("'path' must not be empty")]);
-        }
-        if expected_hash.is_empty() {
-            return CallToolResult::error(vec![ContentBlock::text(
-                "'expected_hash' must not be empty",
-            )]);
-        }
-        if let Err(error) = relative_path(&path) {
-            return CallToolResult::error(vec![ContentBlock::text(error)]);
-        }
-        if !self.policy.permits_member(&repo) {
-            self.audit
-                .record(&self.principal, "mutation", &repo, "denied:member");
-            return CallToolResult::error(vec![ContentBlock::text(format!(
-                "policy: mutations are not allowed in workspace member {repo}"
-            ))]);
-        }
-        let key = (repo.clone(), path.clone());
-        let served = self
-            .served
-            .lock()
-            .expect("served lock poisoned")
-            .get(&key)
-            .cloned();
-        let Some(served) = served else {
-            return CallToolResult::error(vec![ContentBlock::text(
-                "read this file with au_content before writing it",
-            )]);
+        let prepared = match self.prepare_mutation(&repo, &path, &expected_hash).await {
+            Ok(prepared) => prepared,
+            Err(denial) => {
+                self.audit.record(
+                    &self.principal,
+                    "mutation",
+                    &repo,
+                    &format!("denied:{}", denial.stage.name()),
+                );
+                return CallToolResult::error(vec![ContentBlock::text(format!(
+                    "policy/{}: {}",
+                    denial.stage.name(),
+                    denial.message
+                ))]);
+            }
         };
-        if served != expected_hash {
-            return CallToolResult::error(vec![ContentBlock::text(
-                "'expected_hash' does not match the hash returned by the last au_content read",
-            )]);
-        }
-        let Ok(_permit) = self.mutation_slot.try_acquire() else {
-            return CallToolResult::error(vec![ContentBlock::text(
-                "another mutation is in progress; retry later",
-            )]);
-        };
-        // A mutation is not cancelled: an aborted write has an unknown outcome,
-        // so the bounded exchange is allowed to finish instead.
-        let target = match resolve_editable(&self.socket, &repo, &path).await {
-            Ok(target) => target,
-            Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
-        };
-        let request = build(&target);
+        let request = build(&prepared.target);
         match read_mutation_with_timeout(&self.socket, request, ENGINE_READ_TIMEOUT).await {
             Ok(result) => {
                 self.audit
@@ -894,7 +861,7 @@ impl Server {
                 self.served
                     .lock()
                     .expect("served lock poisoned")
-                    .remove(&key);
+                    .remove(&prepared.key);
                 success_result(result)
             }
             Err(MutationFailure::Rejected(error)) => {
@@ -908,11 +875,113 @@ impl Server {
                 self.served
                     .lock()
                     .expect("served lock poisoned")
-                    .remove(&key);
+                    .remove(&prepared.key);
                 CallToolResult::error(vec![ContentBlock::text(format!(
                     "outcome_unknown: {error}. The mutation may have landed; read the file again before retrying."
                 ))])
             }
+        }
+    }
+
+    /// Run the mutation gate in `policy::MUTATION_STAGES` order, stopping at the
+    /// first denial. The returned value holds the slot permit and the resolved
+    /// target, so a caller that gets one may proceed to the engine.
+    async fn prepare_mutation(
+        &self,
+        repo: &str,
+        path: &str,
+        expected_hash: &str,
+    ) -> Result<PreparedMutation, Denial> {
+        use policy::Stage;
+
+        let key = (repo.to_owned(), path.to_owned());
+        let mut served: Option<String> = None;
+        let mut permit: Option<tokio::sync::OwnedSemaphorePermit> = None;
+        let mut target: Option<String> = None;
+
+        // The order comes from `policy::MUTATION_STAGES`, so the documented gate
+        // and the executed gate cannot drift apart.
+        for stage in policy::MUTATION_STAGES {
+            match stage {
+                Stage::Arguments => {
+                    if repo.is_empty() {
+                        return Err(Denial::new(stage, "'repo' must not be empty"));
+                    }
+                    if path.is_empty() {
+                        return Err(Denial::new(stage, "'path' must not be empty"));
+                    }
+                    if expected_hash.is_empty() {
+                        return Err(Denial::new(stage, "'expected_hash' must not be empty"));
+                    }
+                }
+                Stage::PathScope => {
+                    if let Err(error) = relative_path(path) {
+                        return Err(Denial::new(stage, error));
+                    }
+                }
+                Stage::MemberGrant => {
+                    if !self.policy.permits_member(repo) {
+                        return Err(Denial::new(
+                            stage,
+                            format!("mutations are not allowed in workspace member {repo}"),
+                        ));
+                    }
+                }
+                Stage::PriorRead => {
+                    let recorded = self
+                        .served
+                        .lock()
+                        .expect("served lock poisoned")
+                        .get(&key)
+                        .cloned();
+                    let Some(recorded) = recorded else {
+                        return Err(Denial::new(
+                            stage,
+                            "read this file with au_content before writing it",
+                        ));
+                    };
+                    served = Some(recorded);
+                }
+                Stage::Freshness => {
+                    if served.as_deref() != Some(expected_hash) {
+                        return Err(Denial::new(
+                            stage,
+                            "'expected_hash' does not match the hash returned by the last au_content read",
+                        ));
+                    }
+                }
+                Stage::Capacity => {
+                    let Ok(held) = self.mutation_slot.clone().try_acquire_owned() else {
+                        return Err(Denial::new(
+                            stage,
+                            "another mutation is in progress; retry later",
+                        ));
+                    };
+                    permit = Some(held);
+                }
+                Stage::Editability => {
+                    // A mutation is not cancelled: an aborted write has an
+                    // unknown outcome, so the bounded exchange finishes instead.
+                    match resolve_editable(&self.socket, repo, path).await {
+                        Ok(resolved) => target = Some(resolved),
+                        Err(error) => return Err(Denial::new(stage, error)),
+                    }
+                }
+            }
+        }
+
+        match (permit, target) {
+            (Some(permit), Some(target)) => Ok(PreparedMutation {
+                key,
+                target,
+                _permit: permit,
+            }),
+            // Unreachable while MUTATION_STAGES keeps both later stages, but a
+            // total return beats a panic in a server.
+            _ => Err(Denial::new(
+                Stage::Arguments,
+                "internal: the mutation gate did not complete",
+            )),
         }
     }
 
@@ -1144,6 +1213,29 @@ struct ReconcileArguments {
     /// Set when the interrupted mutation was a delete.
     #[serde(default)]
     expect_absent: bool,
+}
+
+/// A mutation that passed every gate: it holds the single mutation slot and the
+/// resolved absolute target.
+struct PreparedMutation {
+    key: (String, String),
+    target: String,
+    _permit: tokio::sync::OwnedSemaphorePermit,
+}
+
+/// The first gate that refused a mutation.
+struct Denial {
+    stage: policy::Stage,
+    message: String,
+}
+
+impl Denial {
+    fn new(stage: policy::Stage, message: impl Into<String>) -> Self {
+        Self {
+            stage,
+            message: message.into(),
+        }
+    }
 }
 
 /// The content hash reported by a successful `au_content` result.

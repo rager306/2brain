@@ -249,3 +249,74 @@ fn unknown_options_are_rejected() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("unknown option"), "{stderr}");
 }
+
+/// The gate order is observable: an earlier refusal wins even when a later one
+/// would also apply.
+#[test]
+fn the_gate_order_is_observable_in_errors_and_audit() {
+    let temp = tempfile::tempdir().unwrap();
+    let socket = temp.path().join("engine.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let policy_path = temp.path().join("policy.json");
+    std::fs::write(
+        &policy_path,
+        r#"{"allow_mutations":true,"members":["allowed"]}"#,
+    )
+    .unwrap();
+    let mut client = Client::start(
+        &socket,
+        &[
+            "--policy",
+            policy_path.to_str().unwrap(),
+            "--principal",
+            "tester",
+        ],
+    );
+
+    // path_scope beats prior_read: the path escapes before any read is required.
+    let escape = client.call(
+        3,
+        "au_write_file",
+        json!({"repo":"allowed","path":"../x.md","content":"x","expected_hash":"h"}),
+    );
+    let text = escape["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.starts_with("policy/path_scope:"), "{text}");
+
+    // member_grant beats prior_read: the member is refused before the read check.
+    let member = client.call(
+        4,
+        "au_write_file",
+        json!({"repo":"other","path":"a.md","content":"x","expected_hash":"h"}),
+    );
+    let text = member["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.starts_with("policy/member_grant:"), "{text}");
+
+    // prior_read is the remaining gate for an allowed member.
+    let unread = client.call(
+        5,
+        "au_write_file",
+        json!({"repo":"allowed","path":"a.md","content":"x","expected_hash":"h"}),
+    );
+    let text = unread["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.starts_with("policy/prior_read:"), "{text}");
+
+    assert_not_connected(&listener);
+    let stages: Vec<String> = client
+        .audit_lines()
+        .iter()
+        .map(|line| line["outcome"].as_str().unwrap().to_owned())
+        .collect();
+    assert!(
+        stages.contains(&"denied:path_scope".to_owned()),
+        "{stages:?}"
+    );
+    assert!(
+        stages.contains(&"denied:member_grant".to_owned()),
+        "{stages:?}"
+    );
+    assert!(
+        stages.contains(&"denied:prior_read".to_owned()),
+        "{stages:?}"
+    );
+}
