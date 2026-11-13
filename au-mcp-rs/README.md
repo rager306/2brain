@@ -197,6 +197,7 @@ catalogue at start.
 |---|---|
 | [`docs/connecting.md`](docs/connecting.md) | socket discovery, probe, per-client registration, flags, troubleshooting |
 | [`docs/tools.md`](docs/tools.md) | every tool, its arguments, and its failure modes |
+| [`docs/runtime-map.md`](docs/runtime-map.md) | every module in the bundle, what the Rust binary covers, and the phase plan for the rest |
 | [`docs/agent-interface.md`](docs/agent-interface.md) | measured first-call and per-call cost, best-practice checklist, open gaps |
 | [`docs/progressive-disclosure.md`](docs/progressive-disclosure.md) | sources and technique catalogue for tool token economy |
 | [`docs/live-comparison.md`](docs/live-comparison.md) | A/B against the Python bridge on one workspace |
