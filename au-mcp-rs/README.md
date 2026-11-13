@@ -51,6 +51,26 @@ The release binary is a 5 MB ELF executable, dynamically linked only to `libc`,
 `libm`, and `libgcc_s`. It needs a running engine daemon and that daemon's
 socket; nothing else.
 
+## Version and build identity
+
+`--version` prints the package version plus the git commit the binary was built
+from, as semver build metadata:
+
+```
+arsumbris 0.1.0+74e88f7e3688
+au-mcp-rs 0.1.0+74e88f7e3688.dirty   # `.dirty` = uncommitted changes in this crate
+```
+
+`--info` adds the target triple and profile, and the same string is reported to
+clients as `serverInfo.version`, so a bug report names an exact source. The
+adapter's own identity is separate from the engine's: the engine version rides
+`_meta["io.arsumbris/engineVersion"]` on every result.
+
+The build identity comes from `build.rs` (`git rev-parse --short=12 HEAD`, plus a
+dirty check scoped to this crate). A tarball build without `.git` reports
+`unknown`. Rebuilds are triggered by `.git/HEAD` and `.git/index`, and
+`AU_BUILD_COMMIT` overrides the commit for reproducible packaging.
+
 ## Launch policy
 
 ```sh

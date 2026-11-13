@@ -207,3 +207,99 @@ fn semantic_tokens_and_resolve_member_resolve_the_member_root() {
         drop(temp);
     }
 }
+
+#[test]
+fn typed_classifies_an_instance_and_falls_back_to_resolve_target() {
+    // An instance: one read, no fallback.
+    let (temp, socket, handle) = serve(vec![
+        (
+            Some(json!({"read":"members","id":1,"repo":"fixture"})),
+            json!({"members":[{"repo":"fixture","editable":true,"root":ROOT}]}),
+        ),
+        (
+            Some(json!({"read":"instance","id":1,"path":"/tmp/fixture/notes/a.md"})),
+            json!({"instance":{"resolved":true,"claim":["note"],"closure":["note"]}}),
+        ),
+    ]);
+    let mut client = Client::start(&socket);
+    let result = client.call(2, "au_typed", json!({"repo":"fixture","path":"notes/a.md"}));
+    assert_ne!(result["isError"], true, "{result}");
+    let classified = payload(&result);
+    assert_eq!(classified["typed"], true);
+    assert_eq!(classified["kind"], "instance");
+    assert_eq!(classified["claim"], json!(["note"]));
+    guard(handle, temp);
+
+    // A plain note: `instance` is null, then the local resolve form names the kind.
+    let (temp, socket, handle) = serve(vec![
+        (
+            Some(json!({"read":"members","id":1,"repo":"fixture"})),
+            json!({"members":[{"repo":"fixture","editable":true,"root":ROOT}]}),
+        ),
+        (
+            Some(json!({"read":"instance","id":1,"path":"/tmp/fixture/notes/plain.md"})),
+            json!({"instance":null}),
+        ),
+        (
+            Some(
+                json!({"read":"resolve_target","id":1,"target":"","origin":"/tmp/fixture/notes/plain.md"}),
+            ),
+            json!({"resolve_target":{"path":"/tmp/fixture/notes/plain.md","kind":"unclassified"}}),
+        ),
+    ]);
+    let mut client = Client::start(&socket);
+    let result = client.call(
+        2,
+        "au_typed",
+        json!({"repo":"fixture","path":"notes/plain.md"}),
+    );
+    assert_ne!(result["isError"], true, "{result}");
+    let classified = payload(&result);
+    assert_eq!(classified["typed"], false);
+    assert_eq!(classified["kind"], "unclassified");
+    guard(handle, temp);
+}
+
+#[test]
+fn resolved_and_children_read_their_own_verbs() {
+    let (temp, socket, handle) = serve(vec![
+        (
+            Some(json!({"read":"members","id":1,"repo":"fixture"})),
+            json!({"members":[{"repo":"fixture","editable":true,"root":ROOT}]}),
+        ),
+        (
+            Some(json!({"read":"instance","id":1,"path":"/tmp/fixture/notes/a.md"})),
+            json!({"instance":{"resolved":true,"claim":["note"]}}),
+        ),
+    ]);
+    let mut client = Client::start(&socket);
+    let result = client.call(
+        2,
+        "au_resolved",
+        json!({"repo":"fixture","path":"notes/a.md"}),
+    );
+    assert_ne!(result["isError"], true, "{result}");
+    assert_eq!(payload(&result)["instance"]["claim"], json!(["note"]));
+    guard(handle, temp);
+
+    let (temp, socket, handle) = serve(vec![
+        (
+            Some(json!({"read":"members","id":1,"repo":"fixture"})),
+            json!({"members":[{"repo":"fixture","editable":true,"root":ROOT}]}),
+        ),
+        (
+            Some(json!({"read":"dir_entries","id":1,"dir":"/tmp/fixture/notes"})),
+            json!({"dir_entries":[{"path":"/tmp/fixture/notes/a.md","name":"a.md","kind":"file"}]}),
+        ),
+    ]);
+    let mut client = Client::start(&socket);
+    let result = client.call(2, "au_children", json!({"repo":"fixture","path":"notes"}));
+    assert_ne!(result["isError"], true, "{result}");
+    assert_eq!(payload(&result)["dir_entries"].as_array().unwrap().len(), 1);
+    guard(handle, temp);
+}
+
+fn guard(handle: thread::JoinHandle<()>, temp: tempfile::TempDir) {
+    handle.join().unwrap();
+    drop(temp);
+}

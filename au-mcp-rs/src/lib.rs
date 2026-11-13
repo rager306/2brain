@@ -1014,6 +1014,147 @@ impl Server {
     }
 
     #[tool(
+        description = "Classify a path: a typed instance (with its claim, whether it resolves, and its closure), a type-def, or a plain note. Use it before au_resolved or au_references, which return null or [] on a non-instance.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = typed_schema(),
+    )]
+    async fn au_typed(
+        &self,
+        Parameters(args): Parameters<FileArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.repo.is_empty() {
+            return return_error("'repo' must not be empty");
+        }
+        if args.path.is_empty() {
+            return return_error("'path' must not be empty");
+        }
+        if let Err(error) = relative_path(&args.path) {
+            return return_error(error);
+        }
+        if ctx.ct.is_cancelled() {
+            return return_error("engine read cancelled");
+        }
+        let Ok(_permit) = self.read_slots.try_acquire() else {
+            return return_error("engine read capacity reached; retry later");
+        };
+        let outcome = async {
+            let absolute = absolute_member_path(&self.socket, &args.repo, &args.path).await?;
+            let instance = read_engine(
+                &self.socket,
+                json!({"read": "instance", "id": 1, "path": absolute}),
+                "instance",
+            )
+            .await?;
+            let view = &instance.payload["instance"];
+            if !view.is_null() {
+                return Ok::<Value, String>(json!({
+                    "typed": true,
+                    "kind": "instance",
+                    "path": absolute,
+                    "claim": view.get("claim").cloned().unwrap_or(Value::Array(Vec::new())),
+                    "resolves": view.get("resolved").cloned().unwrap_or(Value::Bool(false)),
+                    "closure": view.get("closure").cloned().unwrap_or(Value::Array(Vec::new())),
+                }));
+            }
+            // Not an instance: the local resolve form tells a type-def from a plain note.
+            let kind = read_engine(
+                &self.socket,
+                json!({"read": "resolve_target", "id": 1, "target": "", "origin": absolute}),
+                "resolve_target",
+            )
+            .await?;
+            let kind = kind.payload["resolve_target"]
+                .get("kind")
+                .cloned()
+                .unwrap_or(Value::Null);
+            Ok::<Value, String>(json!({
+                "typed": false,
+                "kind": kind,
+                "path": absolute,
+            }))
+        };
+        match tokio::select! {
+            biased;
+            _ = ctx.ct.cancelled() => Err("engine read cancelled".to_owned()),
+            result = outcome => result,
+        } {
+            Ok(payload) => success_payload(payload, self.payload),
+            Err(error) => return_error(error),
+        }
+    }
+
+    #[tool(
+        description = "Resolve one instance: field values with their contribution provenance, the type claim and closure, and the candidates it could have claimed. Null when the path is not a parsed instance.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = envelope_schema("instance"),
+    )]
+    async fn au_resolved(
+        &self,
+        Parameters(args): Parameters<FileArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        self.file_read(args, "instance", "instance", ctx).await
+    }
+
+    #[tool(
+        description = "List a directory's direct entries: files and subdirectories, hidden excluded, catalog-derived so only directories holding a catalogued file appear. The path is member-relative and names the directory.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = envelope_schema("dir_entries"),
+    )]
+    async fn au_children(
+        &self,
+        Parameters(args): Parameters<FileArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.repo.is_empty() {
+            return return_error("'repo' must not be empty");
+        }
+        if args.path.is_empty() {
+            return return_error("'path' must not be empty");
+        }
+        if let Err(error) = relative_path(&args.path) {
+            return return_error(error);
+        }
+        if ctx.ct.is_cancelled() {
+            return return_error("engine read cancelled");
+        }
+        let Ok(_permit) = self.read_slots.try_acquire() else {
+            return return_error("engine read capacity reached; retry later");
+        };
+        let outcome = async {
+            let dir = absolute_member_path(&self.socket, &args.repo, &args.path).await?;
+            read_engine(
+                &self.socket,
+                json!({"read": "dir_entries", "id": 1, "dir": dir}),
+                "dir_entries",
+            )
+            .await
+        };
+        let result = tokio::select! {
+            biased;
+            _ = ctx.ct.cancelled() => return return_error("engine read cancelled"),
+            result = outcome => result,
+        };
+        match result {
+            Ok(result) => success_result(result, self.payload),
+            Err(error) => return_error(error),
+        }
+    }
+
+    #[tool(
         description = "List every resolved instance in the workspace, with its file, claim, closure, effective shape and values, and addressable inline records. The engine sends the whole set (942 on the live vault), so limit and offset page the answer and add total, offset, and next_offset.",
         annotations(
             read_only_hint = true,
@@ -1859,7 +2000,7 @@ impl ServerHandler for Server {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new(
                 env!("CARGO_PKG_NAME"),
-                env!("CARGO_PKG_VERSION"),
+                version_string(),
             ))
             .with_instructions(INSTRUCTIONS)
     }
@@ -2379,6 +2520,33 @@ async fn read_mutation_with_timeout(
     }
 }
 
+/// A tool error from a string, so call sites stay one line.
+fn return_error(message: impl Into<String>) -> CallToolResult {
+    CallToolResult::error(vec![ContentBlock::text(message.into())])
+}
+
+/// The output schema of `au_typed`.
+fn typed_schema() -> Arc<serde_json::Map<String, Value>> {
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": {
+                "typed": {"type": "boolean"},
+                "kind": {"description": "instance, type-def, unclassified, or null"},
+                "path": {"type": "string"},
+                "claim": {"type": "array"},
+                "resolves": {"type": "boolean"},
+                "closure": {"type": "array"}
+            },
+            "required": ["typed", "path"],
+            "additionalProperties": false,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
 /// A locally produced answer (discovery results), shaped like a tool payload.
 fn success_json(payload: Value, mode: PayloadMode) -> CallToolResult {
     success_payload(payload, mode)
@@ -2415,7 +2583,10 @@ async fn print_info(arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn st
                 .map(|stem| stem.to_string_lossy().into_owned())
         })
         .unwrap_or_else(|| NAME.to_owned());
-    println!("{program} {VERSION}");
+    println!("{program} {}", version_string());
+    for line in build_lines() {
+        println!("  {line}");
+    }
     println!("  role         MCP stdio server for the arsumbris engine");
     println!(
         "  protocol     legacy 2024-11-05, 2025-03-26, 2025-06-18, 2025-11-25 (initialize first)"
@@ -2776,7 +2947,10 @@ async fn read_engine(socket: &Path, request: Value, verb: &str) -> Result<ReadRe
         "neighborhood" => payload.is_object(),
         "instances" | "candidates" => payload.is_array(),
         "semantic_tokens" => payload.is_array() || payload.is_null(),
-        "resolve_member" => payload.is_object() || payload.is_null(),
+        "resolve_member" | "instance" | "resolve_target" => {
+            payload.is_object() || payload.is_null()
+        }
+        "dir_entries" => payload.is_array(),
         "preview_mutation" => payload.is_object(),
         "types" => payload.is_array() || payload.is_null(),
         _ => false,
@@ -2811,6 +2985,34 @@ async fn mutate_engine(socket: &Path, request: Value) -> Result<ReadResult, Wire
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// The git commit this binary was built from, or `unknown` outside a checkout.
+const BUILD_COMMIT: &str = env!("AU_BUILD_COMMIT");
+/// Whether this crate's own tree was modified at build time.
+const BUILD_DIRTY: bool = matches!(env!("AU_BUILD_DIRTY").as_bytes(), b"true");
+const BUILD_TARGET: &str = env!("AU_BUILD_TARGET");
+const BUILD_PROFILE: &str = env!("AU_BUILD_PROFILE");
+
+/// `0.1.0+<commit>`, with `.dirty` when the tree was modified.
+///
+/// The commit rides semver build metadata, so a client that parses `version`
+/// still sees a valid version, and a bug report names an exact source.
+pub fn version_string() -> String {
+    match BUILD_DIRTY {
+        true => format!("{VERSION}+{BUILD_COMMIT}.dirty"),
+        false => format!("{VERSION}+{BUILD_COMMIT}"),
+    }
+}
+
+/// The version lines `--info` prints: version plus the build identity.
+pub fn build_lines() -> Vec<String> {
+    vec![
+        format!(
+            "source       {BUILD_COMMIT}{}",
+            if BUILD_DIRTY { " (dirty tree)" } else { "" }
+        ),
+        format!("build        {BUILD_PROFILE} for {BUILD_TARGET}"),
+    ]
+}
 
 const USAGE: &str = "usage: au-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--principal <name>] [--tools full|concise] [--payload both|text|structured]";
 
@@ -2967,7 +3169,7 @@ pub async fn run(arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn std::
         return Ok(());
     }
     if flags.iter().any(|flag| matches!(*flag, "--version" | "-V")) {
-        println!("{NAME} {VERSION}");
+        println!("{NAME} {}", version_string());
         return Ok(());
     }
     if flags.contains(&"--info") {

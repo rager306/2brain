@@ -107,6 +107,15 @@ enum DaemonCommand {
 }
 
 fn main() -> ExitCode {
+    // clap would print the crate version alone; report the build identity too.
+    if std::env::args()
+        .skip(1)
+        .any(|argument| argument == "--version" || argument == "-V")
+    {
+        au_mcp_rs::reset_sigpipe();
+        println!("arsumbris {}", au_mcp_rs::version_string());
+        return ExitCode::SUCCESS;
+    }
     let cli = Cli::parse();
     if !matches!(cli.command, Command::Mcp { .. } | Command::Serve { .. }) {
         au_mcp_rs::reset_sigpipe();

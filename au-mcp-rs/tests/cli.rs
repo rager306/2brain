@@ -38,9 +38,20 @@ fn version_is_one_line() {
     let output = binary().arg("--version").output().unwrap();
     assert!(output.status.success());
     let text = String::from_utf8(output.stdout.clone()).unwrap();
-    assert_eq!(
-        text.trim(),
-        format!("au-mcp-rs {}", env!("CARGO_PKG_VERSION"))
+    // Version plus the build identity: `0.1.0+<commit>` and `.dirty` when the
+    // tree had uncommitted changes.
+    let line = text.trim();
+    let (package, build) = line
+        .split_once('+')
+        .unwrap_or_else(|| panic!("version carries no build metadata: {line}"));
+    assert_eq!(package, format!("au-mcp-rs {}", env!("CARGO_PKG_VERSION")));
+    assert!(
+        build == "unknown"
+            || build
+                .trim_end_matches(".dirty")
+                .chars()
+                .all(|c| c.is_ascii_hexdigit()),
+        "unexpected build id: {build}"
     );
     // The short form is the same.
     let short = binary().arg("-V").output().unwrap();
@@ -103,9 +114,12 @@ fn the_unified_binary_exposes_both_halves() {
         assert!(text.contains(expected), "help lacks {expected}: {text}");
     }
     let version = unified().arg("--version").output().unwrap();
-    assert_eq!(
-        String::from_utf8(version.stdout).unwrap().trim(),
-        format!("arsumbris {}", env!("CARGO_PKG_VERSION"))
+    let version = String::from_utf8(version.stdout).unwrap();
+    assert!(
+        version
+            .trim()
+            .starts_with(&format!("arsumbris {}+", env!("CARGO_PKG_VERSION"))),
+        "{version}"
     );
 }
 

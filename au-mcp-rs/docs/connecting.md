@@ -53,7 +53,7 @@ PY
 
 ```sh
 arsumbris --help                       # both halves and their subcommands
-arsumbris --version                    # one line
+arsumbris --version                    # version + build commit
 arsumbris info                         # MCP surface and launch defaults, no engine
 arsumbris info <engine.sock>           # the same, plus ready/schema/version/workspace
 arsumbris daemon status <entry>        # engine side, same as `au daemon status`
