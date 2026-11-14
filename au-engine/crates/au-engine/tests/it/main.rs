@@ -79,6 +79,7 @@ mod engine_schema;
 mod envelope;
 mod field_key_span;
 mod file_history;
+mod golden_captures;
 mod graph_health_read;
 mod grep_read;
 mod instances_of;
