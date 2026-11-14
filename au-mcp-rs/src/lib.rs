@@ -886,6 +886,47 @@ impl Server {
     }
 
     #[tool(
+        description = "Create a new file in a member. The path must not exist: the server reads it first and refuses with 'already exists' rather than overwriting, so changing an existing file goes through au_write_file. Writes commit like any other mutation; a lost reply is outcome_unknown and must not be retried blindly.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false
+        ),
+        output_schema = mutation_schema(),
+    )]
+    async fn au_create_file(
+        &self,
+        Parameters(args): Parameters<CreateArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        let repo = args.repo;
+        let (prepared, _permit) = match self.prepare_create(&repo, &args.path).await {
+            Ok(prepared) => prepared,
+            Err(denial) => {
+                self.audit.record(
+                    &self.principal,
+                    "au_create_file",
+                    &repo,
+                    &format!("denied:{}", denial.stage.name()),
+                );
+                return return_error(format!(
+                    "policy/{}: {}",
+                    denial.stage.name(),
+                    denial.message
+                ));
+            }
+        };
+        let request = json!({
+            "mutate": "write_file",
+            "id": 1,
+            "path": prepared.target,
+            "content": args.content,
+        });
+        self.finish_mutation("au_create_file", &repo, request, [prepared.key])
+            .await
+    }
+
+    #[tool(
         description = "Declare a member in one workspace's .arsumbris/workspace.yaml, in the edit or discover list. Changing which members a workspace serves needs the workspace-shape grant on top of mutations; a member already declared in either list is refused. Nothing is fetched or mounted by this.",
         annotations(
             read_only_hint = false,
@@ -2359,7 +2400,8 @@ impl Server {
                         Err(error) => return Err(Denial::new(stage, error)),
                     }
                 }
-                Stage::Capacity => {}
+                // Absence belongs to the create gate; a mutation never asks it.
+                Stage::Capacity | Stage::Absence => {}
             }
         }
 
@@ -2410,6 +2452,82 @@ impl Server {
                 ))
             }
         }
+    }
+
+    /// Arm a create: the same gates as a mutation, with absence in place of the
+    /// read-then-hash pair.
+    async fn prepare_create(
+        &self,
+        repo: &str,
+        path: &str,
+    ) -> Result<(ArmedFile, tokio::sync::OwnedSemaphorePermit), Denial> {
+        use policy::Stage;
+
+        let mut target: Option<String> = None;
+        for stage in policy::CREATE_STAGES {
+            match stage {
+                Stage::Arguments => {
+                    if repo.is_empty() {
+                        return Err(Denial::new(stage, "'repo' must not be empty"));
+                    }
+                    if path.is_empty() {
+                        return Err(Denial::new(stage, "'path' must not be empty"));
+                    }
+                }
+                Stage::PathScope => {
+                    if let Err(error) = relative_path(path) {
+                        return Err(Denial::new(stage, error));
+                    }
+                }
+                Stage::MemberGrant => {
+                    if !self.policy.permits_member(repo) {
+                        return Err(Denial::new(
+                            stage,
+                            format!("mutations are not allowed in workspace member {repo}"),
+                        ));
+                    }
+                }
+                Stage::Absence => {
+                    // The engine owns the catalogue, so this is its answer, not
+                    // a filesystem check. The window between this read and the
+                    // write is a few milliseconds and is documented.
+                    match read_content(&self.socket, repo, path).await {
+                        Ok(read) => {
+                            if read.payload.get("content").is_some_and(|c| !c.is_null()) {
+                                return Err(Denial::new(
+                                    stage,
+                                    "file already exists; use au_write_file to change it",
+                                ));
+                            }
+                        }
+                        Err(error) => return Err(Denial::new(stage, error)),
+                    }
+                }
+                Stage::Editability => match resolve_editable(&self.socket, repo, path).await {
+                    Ok(resolved) => target = Some(resolved),
+                    Err(error) => return Err(Denial::new(stage, error)),
+                },
+                Stage::PriorRead | Stage::Freshness | Stage::Capacity => {}
+            }
+        }
+
+        let target = match target {
+            Some(target) => target,
+            None => {
+                return Err(Denial::new(
+                    Stage::Arguments,
+                    "internal: the create gate did not complete",
+                ));
+            }
+        };
+        let permit = self.take_slot()?;
+        Ok((
+            ArmedFile {
+                key: (repo.to_owned(), path.to_owned()),
+                target,
+            },
+            permit,
+        ))
     }
 
     /// Take the single mutation slot.
@@ -2949,6 +3067,19 @@ struct RenameArguments {
     /// Hash returned by the au_content read that this change is based on.
     #[schemars(length(min = 1))]
     expected_hash: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct CreateArguments {
+    /// Member that will own the new file.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// New path, relative to the member root.
+    #[schemars(length(min = 1))]
+    path: String,
+    /// Full file text.
+    content: String,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]

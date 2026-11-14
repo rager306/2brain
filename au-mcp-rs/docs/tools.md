@@ -1,7 +1,7 @@
 # Tools
 
-45 tools: 26 engine reads, 5 derived reads and discovery helpers, and 14
-mutations that exist only when the launch grants them (11 with the mutation
+46 tools: 26 engine reads, 5 derived reads and discovery helpers, and 15
+mutations that exist only when the launch grants them (12 with the mutation
 grant, 2 more with composition, 3 more with workspace shape). Every result is the
 engine's own object under the read's key, and carries
 `_meta["io.arsumbris/engineVersion"]`.
@@ -64,6 +64,14 @@ a mutation's schema.
 `au_preview_mutation {repo, path, op, content?, old_string?, new_string?, replace_all?}`
 returns the would-be product and blast radius; it writes nothing and needs no
 hash, but the member must be editable.
+
+`au_create_file {repo, path, content}` makes a file that does not exist yet. It
+has no text to compare against, so its gate replaces the read-then-hash pair with
+the opposite promise: the server reads the path first and refuses with
+`policy/absence: file already exists; use au_write_file` instead of overwriting,
+then writes without `expected_hash`. The window between that read and the write
+is a few milliseconds; a concurrent creator can still land first, and the git
+history of the member is what makes that recoverable.
 
 `au_write_file`, `au_edit_file`, `au_delete_file` share one gate: a prior
 `au_content` of the same path in the same process, a matching `expected_hash`,

@@ -1,8 +1,8 @@
 # Roadmap
 
 Status on 2026-11-13, HEAD `aba2b4f`. Verified against the code, not the notes:
-45 tools registered (31 advertised read-only, 14 mutations), 26 captured fixtures,
-144 tests green, ten documents.
+46 tools registered (31 advertised read-only, 15 mutations), 26 captured fixtures,
+147 tests green, ten documents.
 
 ## Done — with evidence
 
@@ -46,6 +46,10 @@ Status on 2026-11-13, HEAD `aba2b4f`. Verified against the code, not the notes:
 - [x] `inline`, `promote` — two-file gate: both files armed, one slot for the pair
 - [x] `rename_type` — type-hash gate (the type has no path; its `hash` from au_type is the freshness check)
 - [x] `add_dep`, `remove_dep` — behind a **second grant** (`allow_composition`), because they author `.arsumbris/repo.yaml`
+- [x] `create_file` — the gate's opposite promise: absence instead of
+      read-then-hash, so a create cannot overwrite. Found from the vault backlog
+      note P0-C, which recorded a live session falling back to the daemon because
+      the Rust surface could not create a file
 - [x] `add_workspace_member`, `remove_workspace_member`, `set_workspace_member_role`
       — behind a **third grant** (`allow_workspace_shape`): they change which
       members the workspace serves, so a mistake alters every later read rather

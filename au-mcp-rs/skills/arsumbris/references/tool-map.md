@@ -58,6 +58,10 @@ The bridge declares the workspace-member verbs too, so the adapter now matches i
 there as well — behind a third grant, because reshaping a workspace is a bigger
 trust decision than editing a note.
 
+The adapter also has `au_create_file` (create a file that does not exist, refused
+if it does) — the bridge's `write_file` covers both cases, so a create on the
+bridge side needs no extra verb.
+
 Bridge-only tools are host and workspace operations rather than engine reads:
 `mcp__bash`, `mcp__glob`, `mcp__grep_files`, `mcp__read_file_pinned`,
 `mcp__write_file`, `mcp__edit_file`, `mcp__delete_file`, `mcp__rename`,

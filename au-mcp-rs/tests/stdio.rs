@@ -139,6 +139,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_candidates",
             "au_children",
             "au_content",
+            "au_create_file",
             "au_delete_file",
             "au_describe_tool",
             "au_diagnostics",
@@ -283,12 +284,16 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
                 | "au_remove_dep"
                 | "au_inline"
                 | "au_promote"
+                | "au_create_file"
                 | "au_add_workspace_member"
                 | "au_remove_workspace_member"
                 | "au_set_workspace_member_role"
         ) {
             assert!(!read_only, "the write tool must not claim to be read-only");
-            assert_eq!(tool["annotations"]["destructiveHint"], true);
+            // Creating a file replaces nothing, so its hint must say so; every
+            // other write can destroy what was there.
+            let destructive = tool["name"] != "au_create_file";
+            assert_eq!(tool["annotations"]["destructiveHint"], destructive);
         } else {
             assert!(read_only, "{} must stay read-only", tool["name"]);
         }

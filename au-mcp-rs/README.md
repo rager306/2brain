@@ -3,8 +3,8 @@
 An MCP stdio server for the arsumbris engine. It reads a workspace through the
 engine's Unix socket, and can write only when the launch grants it.
 
-- **21 engine reads**, 2 discovery helpers, and 3 mutating tools that appear only
-  with an explicit grant.
+- **26 engine reads**, 5 derived reads and discovery helpers, and **15 mutating
+  tools** that appear only with an explicit grant (three grants in total).
 - **Results are the engine's own object**, under the read's key: `au_overview`
   answers `{"overview": ...}`. Nothing is re-shaped on the way out.
 - **Read-only by default.** Without a grant the mutating tools are absent from

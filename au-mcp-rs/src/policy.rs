@@ -19,7 +19,7 @@ use std::{
 use serde::Deserialize;
 
 /// Tools that change state. Everything else is a read.
-pub const MUTATION_TOOLS: [&str; 14] = [
+pub const MUTATION_TOOLS: [&str; 15] = [
     "au_write_file",
     "au_edit_file",
     "au_delete_file",
@@ -31,6 +31,7 @@ pub const MUTATION_TOOLS: [&str; 14] = [
     "au_remove_dep",
     "au_inline",
     "au_promote",
+    "au_create_file",
     "au_add_workspace_member",
     "au_remove_workspace_member",
     "au_set_workspace_member_role",
@@ -163,6 +164,8 @@ pub enum Stage {
     PriorRead,
     /// The recorded hash still matches the caller's expectation.
     Freshness,
+    /// The file does not exist yet, which is what makes a create a create.
+    Absence,
     /// A mutation slot is free.
     Capacity,
     /// The engine will author this member.
@@ -177,6 +180,7 @@ impl Stage {
             Self::MemberGrant => "member_grant",
             Self::PriorRead => "prior_read",
             Self::Freshness => "freshness",
+            Self::Absence => "absence",
             Self::Capacity => "capacity",
             Self::Editability => "editability",
         }
@@ -190,6 +194,18 @@ pub const MUTATION_STAGES: [Stage; 7] = [
     Stage::MemberGrant,
     Stage::PriorRead,
     Stage::Freshness,
+    Stage::Editability,
+    Stage::Capacity,
+];
+
+/// The gate order for a create: the same shape as a mutation, with absence in
+/// place of the read-then-hash pair. A create has no prior text to compare
+/// against, so the guarantee is the opposite one: the path must be free.
+pub const CREATE_STAGES: [Stage; 6] = [
+    Stage::Arguments,
+    Stage::PathScope,
+    Stage::MemberGrant,
+    Stage::Absence,
     Stage::Editability,
     Stage::Capacity,
 ];
