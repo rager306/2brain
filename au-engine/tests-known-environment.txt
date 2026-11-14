@@ -13,8 +13,10 @@
 #       clippy::collapsible_match in crates/au-references/src/lib.rs:895:17
 #
 # ALL FOUR TEST FAILURES ARE ONE CAUSE: the suite runs as root, and chmod cannot
-# block uid 0. They will pass under an unprivileged runner. Only a NEW name is a
-# regression; a missing name means the host changed.
+# block uid 0. They pass under an unprivileged runner, which
+# scripts/run-known-root-tests.sh demonstrates by re-running exactly the names
+# below as nobody (exit 0 = environmental only). Only a NEW name is a regression;
+# a missing name means the host changed.
 #
 # Format: suite::test<TAB>reason-class<TAB>first panic line
 lib::engine::tests::an_unreadable_file_rebuilds_once_then_settles	root-user	fixture must actually be unreadable; skipped as root?

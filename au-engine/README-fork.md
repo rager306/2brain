@@ -27,6 +27,16 @@ test -d /tmp/.git && echo "the fixture-poisoning directory is back: rmdir /tmp/.
 
 Only a NEW name is a regression; a missing name means the host changed.
 
+The baseline is also **provable as environmental** without creating a user:
+`scripts/run-known-root-tests.sh` builds the test binaries, copies them somewhere
+`nobody` can execute them, and re-runs exactly the names recorded in the file as
+uid 65534. It passes — which is the statement "the code is fine, the runner is
+privileged", made checkable in one command:
+
+```sh
+cd au-engine && bash scripts/run-known-root-tests.sh   # exit 0 = only root, not code
+```
+
 Compare a fresh run against the recorded baseline, from `au-engine/` (export
 `RUSTUP_HOME=/root/.rustup` first when `cargo +1.99.0` cannot find the toolchain):
 
