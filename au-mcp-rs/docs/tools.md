@@ -1,6 +1,6 @@
 # Tools
 
-48 tools: 27 engine reads, 5 derived reads and discovery helpers, and 16
+49 tools: 28 engine reads, 5 derived reads and discovery helpers, and 16
 mutations that exist only when the launch grants them (13 with the mutation
 grant, 2 more with composition, 3 more with workspace shape). Every result is the
 engine's own object under the read's key, and carries
@@ -53,6 +53,7 @@ a mutation's schema.
 | tool | arguments | notes |
 |---|---|---|
 | `au_files` | `repo?`, `scope?`, `limit`, `offset` | default scope `all`; ordered by path components; absolute paths possible |
+| `au_graph_health` | `repo?`, `scope?`, `limit` | cycles, dead ends, sources, isolated files, broken links, and the most central nodes in one report; counts cover the whole graph, lists are capped (default 20, max 200) |
 | `au_grep` | `query`, `repo?`, `scope?`, `case_sensitive?`, `limit`, `offset` | literal (not regex) search, one match per line with line and character column; case-insensitive unless asked; `total` covers the whole scanned set and `skipped_files` counts what the bounds left out (above 1 MiB, or binary); default limit 20, max 200 |
 | `au_hubs` | `repo?`, `scope?`, `limit`, `offset` | default limit 20; counts include edges from outside the scope |
 | `au_diagnostics` | `repo?`, `severity?`, `code?`, `scope?`, `limit`, `offset` | filters AND; every severity unless one is named |

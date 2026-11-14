@@ -72,6 +72,10 @@ fn default_grep_limit() -> usize {
     20
 }
 
+fn default_graph_health_limit() -> usize {
+    20
+}
+
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct TypesArguments {
@@ -259,6 +263,20 @@ struct BatchArguments {
     /// Operations, applied in order and committed once.
     #[schemars(length(min = 1, max = 50))]
     ops: Vec<BatchOperation>,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct GraphHealthArguments {
+    /// Restrict the node set to one member.
+    #[schemars(length(min = 1))]
+    repo: Option<String>,
+    /// Select own or all members (default all).
+    scope: Option<HubScope>,
+    /// Maximum entries per list, from 1 to 200 (default 20).
+    #[serde(default = "default_graph_health_limit")]
+    #[schemars(range(min = 1, max = 200))]
+    limit: usize,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -853,6 +871,41 @@ impl Server {
             });
         }
         self.read(request, "files", ctx).await
+    }
+
+    #[tool(
+        description = "Report what is wrong with the graph in one answer: directed cycles (strongly connected components, shortest first), dead ends (nothing links onward), sources (nothing points at them), isolated files, broken links (reference diagnostics: target missing, ambiguous, or outside the repo), and the most central nodes by total degree. Counts cover the whole in-scope graph; each list is capped by limit (default 20, max 200). A dangling link is only diagnosed on a file that claims a type, so an untyped note's broken link is not listed.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = graph_health_schema(),
+    )]
+    async fn au_graph_health(
+        &self,
+        Parameters(args): Parameters<GraphHealthArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.repo.as_deref() == Some("") {
+            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
+        }
+        if !(1..=200).contains(&args.limit) {
+            return CallToolResult::error(vec![ContentBlock::text(
+                "'limit' must be between 1 and 200",
+            )]);
+        }
+        let mut request = json!({"read": "graph_health", "id": 1, "limit": args.limit});
+        if let Some(repo) = args.repo {
+            request["repo"] = json!(repo);
+        }
+        if let Some(scope) = args.scope {
+            request["scope"] = json!(match scope {
+                HubScope::Own => "own",
+                HubScope::All => "all",
+            });
+        }
+        self.read(request, "graph_health", ctx).await
     }
 
     #[tool(
@@ -3726,7 +3779,74 @@ fn envelope_schema(verb: &'static str) -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_batch`: the per-op results and the saga's commit.
+/// The output schema of `au_graph_health`: the report and its bounded lists.
+fn graph_health_schema() -> Arc<serde_json::Map<String, Value>> {
+    let node = json!({
+        "type": "object",
+        "properties": {
+            "path": {"type": "string"},
+            "in": {"type": "integer"},
+            "out": {"type": "integer"},
+            "total": {"type": "integer"}
+        },
+        "required": ["path", "in", "out", "total"],
+        "additionalProperties": false
+    });
+    let report = json!({
+        "type": "object",
+        "properties": {
+            "repo": {"type": ["string", "null"]},
+            "scope": {"type": "string"},
+            "counts": {"type": "object"},
+            "cycles": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "length": {"type": "integer"},
+                        "nodes": {"type": "array", "items": {"type": "string"}}
+                    },
+                    "required": ["length", "nodes"],
+                    "additionalProperties": false
+                }
+            },
+            "isolated": {"type": "array", "items": node},
+            "dead_ends": {"type": "array", "items": node},
+            "sources": {"type": "array", "items": node},
+            "broken_links": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "code": {"type": "string"},
+                        "message": {"type": "string"},
+                        "line": {"type": ["integer", "null"]}
+                    },
+                    "required": ["path", "code", "message"],
+                    "additionalProperties": false
+                }
+            },
+            "central": {"type": "array", "items": node},
+            "truncated": {"type": "boolean"}
+        },
+        "required": ["counts", "cycles", "isolated", "dead_ends", "sources", "broken_links", "central", "truncated"],
+        "additionalProperties": false
+    });
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": {"graph_health": report},
+            "required": ["graph_health"],
+            "additionalProperties": false,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
+/// The output schema of `au_batch`: the per-op results and the saga's commit./// The output schema of `au_batch`: the per-op results and the saga's commit.
 fn batch_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
         json!({
@@ -4507,6 +4627,7 @@ async fn read_engine(socket: &Path, request: Value, verb: &str) -> Result<ReadRe
         | "resolve_anchor" => payload.is_object() || payload.is_null(),
         "dir_entries" => payload.is_array(),
         "grep" => payload.is_object(),
+        "graph_health" => payload.is_object(),
         "preview_mutation" => payload.is_object(),
         "types" => payload.is_array() || payload.is_null(),
         _ => false,

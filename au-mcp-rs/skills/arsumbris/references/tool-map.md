@@ -19,6 +19,7 @@ projections with summaries and paging.
 | `au_diagnostics` | `repo?`, `severity?`, `code?`, `limit`, `offset` | `{diagnostics}` |
 | `au_files` | `repo?`, `scope?`, `limit`, `offset` | `{files}` |
 | `au_grep` | `query`, `repo?`, `scope?`, `case_sensitive?`, `limit`, `offset` | `{grep: {matches, total, truncated, skipped_files}}` |
+| `au_graph_health` | `repo?`, `scope?`, `limit` | `{graph_health: {counts, cycles, isolated, dead_ends, sources, broken_links, central, truncated}}` |
 | `au_content` | `repo`, `path` | `{content: {text, hash, commit}}` |
 | `au_imports` | `scope?` | `{imports}` |
 | `au_instances_of` | `type_name`, `origins?`, `instance?`, `body?` | `{instances_of}` |

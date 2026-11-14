@@ -691,6 +691,17 @@ The `shape_ast` value, a tagged union on `kind` mirroring the engine's parsed sl
 - an entry carries no `file_path`, and the null-vs-empty split is `anchors`': an unresolved `target` is null, a resolved file carrying no ids is an empty array.
 - a NEW read, additive, no `schema_version` bump.
 
+**graph_health.**
+- args: optional `repo`, optional `scope` (`all` default / `own`), optional `limit` (per list, default 20, range 1..=200).
+- result: `{ graph_health: { repo, scope, counts, cycles, isolated, dead_ends, sources, broken_links, central, truncated } }`.
+  - `counts`: `nodes`, `edges`, `components` (weak), `isolated` (no inbound and no outbound), `dead_ends` (no outbound, some inbound), `sources` (no inbound, some outbound), `cycles` (components), `nodes_in_cycles`, `broken_links`. Counts cover the WHOLE in-scope graph; the lists are what `limit` caps.
+  - `cycles`: one entry per strongly connected component with two or more nodes, or a single node with a self-loop: `{length, nodes}` with `nodes` SORTED — the component is the fact, its traversal order is incidental. Shortest cycles first, because a two-node loop is the one to break first.
+  - `dead_ends`, `sources`, `isolated`, `central`: `{path, in, out, total}`. `central` is sorted by `total` descending, the navigational crossroads; `dead_ends` and `sources` by `total` ascending, because a low-degree problem is the cheap one to fix.
+  - `broken_links`: the reference diagnostics that mean "this link goes nowhere or everywhere": `reference-target-missing`, `reference-target-ambiguous`, `reference-path-escapes-repo`, `navigational-target-not-found`. Shape `{path, code, message, line}`.
+- composed over the same in-scope node set `graph_shape` counts: joining degrees, SCCs, and reference diagnostics once, in the engine, is the whole point of the read.
+- a dangling link is only DIAGNOSED on a file that claims a type, so `broken_links` inherits that boundary: an untyped note's broken prose link is not reported, and the read does not invent a diagnostic the validator never made.
+- additive: a NEW read verb, no `schema_version` bump.
+
 **files.**
 - args, all optional, an unknown arg is an `error` frame.
   - `repo`: only this member's files. Absent spans every mounted member.

@@ -674,6 +674,13 @@ enum Request {
     /// scalar shape summary and a full node-edge payload folded from the
     /// backlink index]].
     GraphShape(GraphShapeArgs),
+    /// The graph's problems joined in one answer: directed cycles (SCCs with more
+    /// than one node, plus self-loops), dead ends (no outbound edge), sources (no
+    /// inbound edge), broken links (reference diagnostics), and the most central
+    /// nodes by total degree. `repo` / `scope` like `graph_shape`; every list is
+    /// capped by `limit` while `counts` covers the whole in-scope graph.
+    /// Additive, no `schema_version` bump.
+    GraphHealth(GraphHealthArgs),
     /// The full whole-graph node+edge payload a force-directed visualization
     /// lays out: every content file as a node (isolated ones included), every
     /// resolved reference as an edge. `repo` / `scope` like `graph_shape`. The
@@ -1862,6 +1869,28 @@ struct FilesArgs {
     limit: Option<usize>,
     /// Page start: skip this many entries. Absent is 0.
     offset: Option<usize>,
+}
+
+/// Args for the `graph_health` read: the graph's problems in one answer.
+///
+/// `graph_shape` counts and `diagnostics` reports, but an agent asking "what is
+/// wrong with this graph" would have to join them by hand: cycles are in neither,
+/// dead ends are a degree histogram read, and broken links are buried among
+/// unrelated diagnostics. This read composes the three over the same in-scope
+/// node set, so the join happens once, in the engine, where the graph lives.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GraphHealthArgs {
+    #[serde(default)]
+    repo: Option<String>,
+    /// `all` (default) or `own`; a location pin may supply the default, as it
+    /// does for `graph_shape`.
+    #[serde(default)]
+    scope: Option<Scope>,
+    /// Cap per list (cycles, isolated, dead ends, sources, broken links,
+    /// central). Default 20, range 1..=200. `counts` always covers the whole
+    /// in-scope graph.
+    limit: Option<usize>,
 }
 
 /// Args for the `grep` read: a literal text search over the catalogued files.
@@ -11382,6 +11411,18 @@ async fn handle_request(handle: &EngineHandle, req: Request, shutdown_tx: &Shutd
                 handle.read(move |v| graph_shape_view(v, repo.as_deref(), scope, orphan_paths)),
             )
         }
+        Request::GraphHealth(args) => {
+            let repo = args.repo;
+            let scope = wire::TypeScope::new(resolved_scope(args.scope, &repo).own_only());
+            let limit = args
+                .limit
+                .unwrap_or(GRAPH_HEALTH_DEFAULT_LIMIT)
+                .min(GRAPH_HEALTH_MAX_LIMIT);
+            enveloped(
+                "graph_health",
+                handle.read(move |v| graph_health_view(v, repo.as_deref(), scope, limit)),
+            )
+        }
         Request::LinkGraph(args) => {
             let repo = args.repo;
             let scope = wire::TypeScope::new(resolved_scope(args.scope, &repo).own_only());
@@ -13923,6 +13964,293 @@ fn graph_shape_view(
         },
         density,
     }
+}
+
+/// Default cap per `graph_health` list.
+const GRAPH_HEALTH_DEFAULT_LIMIT: usize = 20;
+
+/// The largest per-list cap `graph_health` returns.
+const GRAPH_HEALTH_MAX_LIMIT: usize = 200;
+
+/// The graph's problems, joined in one answer.
+#[derive(Debug, Serialize)]
+struct GraphHealthView {
+    repo: Option<String>,
+    scope: &'static str,
+    counts: GraphHealthCounts,
+    /// Directed cycles: each entry is one strongly connected component with more
+    /// than one node, or a single node with a self-loop. `nodes` is sorted, not
+    /// the traversal order — the component is the fact, the order is incidental.
+    cycles: Vec<CycleView>,
+    /// Nodes nothing links to AND that link nowhere: a singleton island.
+    isolated: Vec<HealthNode>,
+    /// Nodes that link nowhere else (`out == 0`), the writing dead ends.
+    dead_ends: Vec<HealthNode>,
+    /// Nodes nothing points at (`in == 0`) but that do point onward.
+    sources: Vec<HealthNode>,
+    /// Reference diagnostics: a target that does not resolve or is ambiguous.
+    broken_links: Vec<BrokenLink>,
+    /// Highest total degree, the navigational crossroads.
+    central: Vec<HealthNode>,
+    /// Whether any list was cut by `limit`.
+    truncated: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct GraphHealthCounts {
+    nodes: usize,
+    edges: usize,
+    components: usize,
+    isolated: usize,
+    dead_ends: usize,
+    sources: usize,
+    cycles: usize,
+    /// Nodes inside a cycle, which is what a reader weighs, not the components.
+    nodes_in_cycles: usize,
+    broken_links: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct CycleView {
+    length: usize,
+    nodes: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct HealthNode {
+    path: String,
+    r#in: usize,
+    out: usize,
+    total: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct BrokenLink {
+    path: String,
+    code: String,
+    message: String,
+    line: Option<usize>,
+}
+
+/// Compose cycles, dead ends, sources, broken links, and centrality over the same
+/// in-scope node set `graph_shape` counts.
+fn graph_health_view(
+    kb: &KnowledgeBase,
+    repo: Option<&str>,
+    scope: wire::TypeScope,
+    limit: usize,
+) -> GraphHealthView {
+    let nodes: Vec<&Path> = kb
+        .catalog
+        .iter()
+        .filter(|(_, e)| is_graph_node_kind(e.kind))
+        .map(|(p, _)| p.as_path())
+        .filter(|p| node_in_scope(kb, repo, scope, p))
+        .collect();
+    let index: std::collections::HashMap<&Path, usize> =
+        nodes.iter().enumerate().map(|(i, p)| (*p, i)).collect();
+    let n = nodes.len();
+
+    let mut out_adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut in_degree = vec![0usize; n];
+    let mut out_degree = vec![0usize; n];
+    let mut uf = UnionFind::new(n);
+    let mut edges = 0usize;
+    for (target, backlinks) in kb.backlinks.iter() {
+        let Some(&ti) = index.get(target.as_path()) else {
+            continue;
+        };
+        for edge in backlinks {
+            let Some(&si) = index.get(edge.source.as_path()) else {
+                continue;
+            };
+            out_adj[si].push(ti);
+            in_degree[ti] += 1;
+            out_degree[si] += 1;
+            uf.union(si, ti);
+            edges += 1;
+        }
+    }
+
+    let mut comp_size: std::collections::HashMap<usize, usize> = Default::default();
+    for i in 0..n {
+        *comp_size.entry(uf.find(i)).or_default() += 1;
+    }
+
+    let mut isolated = Vec::new();
+    let mut dead_ends = Vec::new();
+    let mut sources = Vec::new();
+    let mut isolated_count = 0usize;
+    let mut dead_end_count = 0usize;
+    let mut source_count = 0usize;
+    let mut central: Vec<HealthNode> = Vec::with_capacity(n);
+    for i in 0..n {
+        let node = HealthNode {
+            path: nodes[i].display().to_string(),
+            r#in: in_degree[i],
+            out: out_degree[i],
+            total: in_degree[i] + out_degree[i],
+        };
+        if in_degree[i] == 0 && out_degree[i] == 0 {
+            isolated_count += 1;
+            isolated.push(node);
+        } else if out_degree[i] == 0 {
+            dead_end_count += 1;
+            dead_ends.push(node);
+        } else if in_degree[i] == 0 {
+            source_count += 1;
+            sources.push(node);
+        }
+        central.push(HealthNode {
+            path: nodes[i].display().to_string(),
+            r#in: in_degree[i],
+            out: out_degree[i],
+            total: in_degree[i] + out_degree[i],
+        });
+    }
+
+    // Directed cycles come from SCCs. Iterative Tarjan: a deep chain of notes
+    // must not be able to overflow the stack of the process that serves reads.
+    let mut cycles: Vec<CycleView> = Vec::new();
+    let mut nodes_in_cycles = 0usize;
+    for component in strongly_connected(&out_adj) {
+        let self_loop = component.len() == 1 && out_adj[component[0]].contains(&component[0]);
+        if component.len() < 2 && !self_loop {
+            continue;
+        }
+        nodes_in_cycles += component.len();
+        let mut paths: Vec<String> = component
+            .iter()
+            .map(|&i| nodes[i].display().to_string())
+            .collect();
+        paths.sort();
+        cycles.push(CycleView {
+            length: paths.len(),
+            nodes: paths,
+        });
+    }
+    // Shortest cycles first: a two-node loop is the one to break first.
+    cycles.sort_by(|a, b| a.length.cmp(&b.length).then_with(|| a.nodes.cmp(&b.nodes)));
+    let cycle_count = cycles.len();
+
+    let mut broken: Vec<BrokenLink> = kb
+        .diagnostics()
+        .filter(|d| is_broken_link_code(d.code.as_str()))
+        .filter(|d| node_in_scope(kb, repo, scope, &d.span.file))
+        .map(|d| BrokenLink {
+            path: d.span.file.display().to_string(),
+            code: d.code.as_str().to_owned(),
+            message: d.message.clone(),
+            line: d.span.line_col.map(|lc| lc.start.line),
+        })
+        .collect();
+    broken.sort_by(|a, b| {
+        a.path
+            .cmp(&b.path)
+            .then_with(|| a.line.unwrap_or(0).cmp(&b.line.unwrap_or(0)))
+    });
+    let broken_count = broken.len();
+
+    isolated.sort_by(|a, b| a.path.cmp(&b.path));
+    dead_ends.sort_by(|a, b| a.total.cmp(&b.total).then_with(|| a.path.cmp(&b.path)));
+    sources.sort_by(|a, b| a.total.cmp(&b.total).then_with(|| a.path.cmp(&b.path)));
+    central.sort_by(|a, b| b.total.cmp(&a.total).then_with(|| a.path.cmp(&b.path)));
+
+    let truncated = isolated.len() > limit
+        || dead_ends.len() > limit
+        || sources.len() > limit
+        || broken.len() > limit
+        || central.len() > limit
+        || cycles.len() > limit;
+
+    GraphHealthView {
+        repo: repo.map(str::to_owned),
+        scope: if scope.own_only() { "own" } else { "all" },
+        counts: GraphHealthCounts {
+            nodes: n,
+            edges,
+            components: comp_size.len(),
+            isolated: isolated_count,
+            dead_ends: dead_end_count,
+            sources: source_count,
+            cycles: cycle_count,
+            nodes_in_cycles,
+            broken_links: broken_count,
+        },
+        cycles: cycles.into_iter().take(limit).collect(),
+        isolated: isolated.into_iter().take(limit).collect(),
+        dead_ends: dead_ends.into_iter().take(limit).collect(),
+        sources: sources.into_iter().take(limit).collect(),
+        broken_links: broken.into_iter().take(limit).collect(),
+        central: central.into_iter().take(limit).collect(),
+        truncated,
+    }
+}
+
+/// The diagnostic codes a reader calls a broken link: a target that does not
+/// resolve, resolves ambiguously, or could never resolve from this repo.
+fn is_broken_link_code(code: &str) -> bool {
+    matches!(
+        code,
+        "reference-target-missing"
+            | "reference-target-ambiguous"
+            | "reference-path-escapes-repo"
+            | "navigational-target-not-found"
+    )
+}
+
+/// Strongly connected components, iterative Tarjan.
+fn strongly_connected(adjacency: &[Vec<usize>]) -> Vec<Vec<usize>> {
+    let n = adjacency.len();
+    let mut index_of = vec![usize::MAX; n];
+    let mut low = vec![0usize; n];
+    let mut on_stack = vec![false; n];
+    let mut stack: Vec<usize> = Vec::new();
+    let mut next_index = 0usize;
+    let mut components: Vec<Vec<usize>> = Vec::new();
+    // (node, next child position) frames.
+    let mut frames: Vec<(usize, usize)> = Vec::new();
+    for start in 0..n {
+        if index_of[start] != usize::MAX {
+            continue;
+        }
+        frames.push((start, 0));
+        while let Some(&(node, child)) = frames.last() {
+            if child == 0 {
+                index_of[node] = next_index;
+                low[node] = next_index;
+                next_index += 1;
+                stack.push(node);
+                on_stack[node] = true;
+            }
+            if child < adjacency[node].len() {
+                frames.last_mut().expect("frame").1 += 1;
+                let next = adjacency[node][child];
+                if index_of[next] == usize::MAX {
+                    frames.push((next, 0));
+                } else if on_stack[next] {
+                    low[node] = low[node].min(index_of[next]);
+                }
+            } else {
+                frames.pop();
+                if let Some(&(parent, _)) = frames.last() {
+                    low[parent] = low[parent].min(low[node]);
+                }
+                if low[node] == index_of[node] {
+                    let mut component = Vec::new();
+                    while let Some(member) = stack.pop() {
+                        on_stack[member] = false;
+                        component.push(member);
+                        if member == node {
+                            break;
+                        }
+                    }
+                    components.push(component);
+                }
+            }
+        }
+    }
+    components
 }
 
 /// The full whole-graph node+edge payload. Nodes are the in-scope content
