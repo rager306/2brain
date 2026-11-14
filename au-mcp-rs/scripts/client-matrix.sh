@@ -20,42 +20,9 @@ if [[ ! -x $ADAPTER ]]; then
   RUSTUP_HOME=${RUSTUP_HOME:-/root/.rustup} cargo +1.99.0 build --offline >/dev/null
 fi
 
-root=$(mktemp -d /tmp/au-client-matrix-XXXXXX)
-export HOME=$root/home
-export XDG_CONFIG_HOME=$root/config
-mkdir -p "$HOME" "$XDG_CONFIG_HOME"
-
-cleanup() {
-  if [[ -n ${daemon_pid:-} ]]; then
-    kill "$daemon_pid" 2>/dev/null || true
-    wait "$daemon_pid" 2>/dev/null || true
-  fi
-  rm -rf "$root"
-}
-trap cleanup EXIT
-
-repo=$root/fixture
-mkdir -p "$repo/.arsumbris" "$repo/type" "$repo/notes"
-printf 'name: fixture\n' >"$repo/.arsumbris/repo.yaml"
-printf 'fields:\n  title: String\n' >"$repo/type/note.type.yaml"
-printf -- '---\ntype: note\ntitle: matrix\n---\n' >"$repo/notes/a.md"
-git -C "$repo" init -q
-git -C "$repo" add -A
-git -C "$repo" -c user.name=matrix -c user.email=matrix@example.invalid \
-  -c commit.gpgsign=false commit -q -m fixture
-
-"$ENGINE" daemon start "$repo" >/dev/null 2>&1 &
-daemon_pid=$!
-socket=
-for _ in $(seq 1 200); do
-  socket=$(ls "$HOME"/.arsumbris/au-engine/run/*.sock 2>/dev/null | head -1 || true)
-  [[ -n $socket ]] && break
-  sleep 0.1
-done
-if [[ -z $socket ]]; then
-  echo "the disposable engine never became ready" >&2
-  exit 1
-fi
+# shellcheck source=scripts/lib/disposable-fixture.sh
+source "$(dirname "$0")/lib/disposable-fixture.sh"
+prepare_fixture
 echo "engine: $socket"
 # Resolve ONCE to an absolute path: the client configs below are written from
 # another directory, and a `$PWD/` prefix on an already-absolute argument

@@ -38,6 +38,7 @@ Commands below run from `/root/arsumbris/au-mcp-rs` with
 | parity with the Python bridge | `scripts/bridge_parity.py`; `docs/bridge-parity.md` | `AU_ENGINE_BIN=../au-engine/target/debug/au python3 scripts/bridge_parity.py` (needs `bun` for the Node daemon) | PASS: 19 bridge tools vs 35 adapter tools in the fixture (a fixture artifact), one comparable pair (`mcp__au_diagnostics`), 3 identical findings | 2026-11-14 |
 | live read A/B against the bridge | `docs/live-comparison.md`; no script | not scripted: call each read through both servers against `/root/vault` and diff after removing the bridge's projection envelope | 11 reads byte-identical across 95 types, 200 files, 100 hubs, 62 subtypes, 27 imports; `au_diagnostics` agreed by being empty on both sides | 2026-11-13 |
 | client compatibility | `scripts/client-matrix.sh`; `docs/client-matrix.md` | `AU_ENGINE_BIN=/root/arsumbris/au-engine/target/release/au AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs bash scripts/client-matrix.sh` (needs `claude`, `codex`, `cursor-agent`) | exit 0: Claude Code 2.1.323 connected (`initialize` + `tools/list`); Codex 0.164.0 registered, handshake not exercised; Cursor configured, not exercised | 2026-11-14 |
+| a model actually chooses a tool | `scripts/model-turn.sh`; `scripts/lib/disposable-fixture.sh`; `docs/client-matrix.md` | `AU_ENGINE_BIN=... AU_MCP_RS_BIN=... AU_TURN_TRANSCRIPT=/tmp/t.jsonl bash scripts/model-turn.sh` (costs one model turn on the operator's credentials) | exit 0: the model called `mcp__arsumbris-rs__au_grep` with `{"query":"unique-marker-7f3a"}`, the engine's payload came back as a tool result (line 6, column 10, `total: 1`), the answer named `notes/a.md`, no permission denial; $0.042, 12 s | 2026-11-14 |
 | rollback rehearsal | `scripts/rollback_rehearsal.py`; `docs/rollback-rehearsal.md` | `AU_ENGINE_BIN=/root/arsumbris/au-engine/target/release/au AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs python3 scripts/rollback_rehearsal.py` | exit 0: a granted write is one engine commit with a clean tree and no stray files, a fresh process reads the written text, and the same binary without `--allow-mutations` refuses the write | 2026-11-14 |
 | live engine swap | `docs/engine-swap-2026-11-14.md`; no script | procedure: build `au-cli` release, freeze a vault copy and capture the baseline back to back, compare twelve reads, install, re-read the live socket, keep the previous binary | four swaps on the day; latest `b7e48c82...` from `015aeda`; twelve reads showed zero differences; `graph_health` gave 1156 nodes, 4565 edges, 211 components, 17 cycles over 664 nodes, 19 dead ends, 178 sources, 202 isolated files, 0 broken links; schema 29 on both sides | 2026-11-14 |
 | engine environment baseline | `au-engine/tests-known-environment.txt` (4 named failures); `au-engine/README-fork.md`; `au-engine/scripts/run-known-root-tests.sh` proves they are root-only | `cd ../au-engine && cargo +1.99.0 test --offline --lib`; `cargo +1.99.0 test --offline --test it`; `bash scripts/run-known-root-tests.sh` | `--lib` 678 passed, 1 failed, 1 ignored; `--test it` 707 passed, 3 failed, 1 ignored; the four recorded names pass 4/4 as uid 65534; `fmt --check` reports 217 diffs in 93 files and `clippy -D warnings` exits 101 with one `collapsible_match` | 2026-11-14 |
@@ -63,10 +64,10 @@ reads, 5 derived reads and discovery helpers, 16 mutating tools" (50) while
   baseline was an artifact of clippy stopping at the first crate that fails. The
   engine's gate is its test suite plus the wire contract. The Rust MCP half is clean
   (`fmt --check` and `clippy -D warnings` both exit 0 at `d09d480`).
-- **No client completes a model turn.** Nothing exercises tool arguments chosen by
-  a model, approval prompts, or client-side timeouts. Codex proves the config
-  shape only, Cursor is not exercised at all, and only Claude Code's health check
-  performs `initialize` and `tools/list`.
+- **Only one client completes a model turn.** Claude Code does, through
+  `scripts/model-turn.sh`; Codex proves the config shape only, Cursor is not
+  exercised at all (no API key here). Client-side approval prompts and timeouts are
+  still untouched, because the script allow-lists the one tool it asks for.
 - **`2026-07-28` is exercised only by our own tests.** The client matrix reaches
   `2025-06-18`, because that is what the installed clients request.
 - **Bridge parity is one comparable read on a synthetic workspace.** The stronger

@@ -221,6 +221,7 @@ This suite does not establish full MCP conformance or production readiness.
 | script | what it measures |
 |---|---|
 | `scripts/client-matrix.sh` | which installed MCP clients accept and connect the server ([result](docs/client-matrix.md)) |
+| `scripts/model-turn.sh` | that a model, given the tool list, chooses a tool and gets the engine's answer back — costs one model turn on your credentials ([result](docs/client-matrix.md#2026-11-14-third-a-real-model-turn-and-it-found-the-marker)) |
 | `scripts/bridge_parity.py` | shared facts between the Python bridge and this adapter ([result](docs/bridge-parity.md)) |
 | `scripts/rollback_rehearsal.py` | that reverting to read-only loses nothing ([result](docs/rollback-rehearsal.md)) |
 

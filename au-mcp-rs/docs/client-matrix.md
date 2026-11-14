@@ -115,3 +115,45 @@ connected server, which means it spawned the adapter and completed `initialize`
 plus `tools/list` against the disposable engine. Codex and Cursor remain what the
 first run recorded — registered/configured, handshake not exercised without an
 interactive session.
+
+## 2026-11-14 (third): a real model turn, and it found the marker
+
+Everything above stops short of the one thing a client is for: a model choosing a
+tool. `scripts/model-turn.sh` closes that with one small turn on the operator's own
+credentials — deliberately a separate script, because `client-matrix.sh` must stay
+free and offline.
+
+The fixture holds `unique-marker-7f3a` in `notes/a.md`, a string no engine knows
+except this one, so a correct answer cannot be a lucky guess:
+
+```text
+engine:  /tmp/au-fixture-DSYaVF/home/.arsumbris/au-engine/run/123e4ed907267994.sock
+adapter: /root/arsumbris/au-mcp-rs/target/release/au-mcp-rs
+prompt:  find unique-marker-7f3a with au_grep
+PASS: the model called mcp__arsumbris-rs__au_grep
+PASS: the marker travelled through the engine (tool result and/or answer)
+PASS: the answer names the file that holds the marker
+PASS: no permission denial (the allow-list covered the call)
+PASS: one model turn completed through the adapter
+```
+
+The transcript is the interesting part. The client loaded the tool lazily, then the
+model sent exactly the arguments the schema asks for, and the engine's payload came
+back as a tool result rather than as prose:
+
+```json
+{"type":"tool_use","name":"mcp__arsumbris-rs__au_grep","input":{"query":"unique-marker-7f3a"}}
+{"type":"tool_result","content":"{\"grep\":{\"matches\":[{\"column\":10,\"line\":6,
+  \"path\":\".../fixture/notes/a.md\",\"repo\":\"fixture\",
+  \"text\":\"find me: unique-marker-7f3a\",\"text_truncated\":false}],
+  \"skipped_files\":0,\"total\":1,\"truncated\":false}}"}
+{"type":"text","text":"`.../fixture/notes/a.md` (line 6): `find me: unique-marker-7f3a`"}
+```
+
+Three facts this settles: the tool description is good enough for a model to pick
+the right tool from 35, the input schema's `query` name is what a model actually
+supplies, and a payload shape with `matches`/`total`/`truncated` survives the MCP
+boundary intact. The turn cost $0.042 and took 12 s.
+
+Both scripts now share the fixture through `scripts/lib/disposable-fixture.sh`, so a
+client check and a model-turn check cannot disagree about what they ran against.
