@@ -19,7 +19,7 @@ use std::{
 use serde::Deserialize;
 
 /// Tools that change state. Everything else is a read.
-pub const MUTATION_TOOLS: [&str; 9] = [
+pub const MUTATION_TOOLS: [&str; 11] = [
     "au_write_file",
     "au_edit_file",
     "au_delete_file",
@@ -29,6 +29,8 @@ pub const MUTATION_TOOLS: [&str; 9] = [
     "au_rename_type",
     "au_add_dep",
     "au_remove_dep",
+    "au_inline",
+    "au_promote",
 ];
 
 /// Tools that change what the workspace contains, not just a file in it.
@@ -125,7 +127,8 @@ impl Policy {
 /// The ordered gate a mutation passes before the engine is contacted.
 ///
 /// The order is the contract: cheap, local refusals come first, and no later
-/// stage runs once an earlier one denies. A denial always names its stage, both
+/// stage runs once an earlier one denies. The mutation slot is taken last, so a
+/// permit is never held while an engine read settles a file's editability. A denial always names its stage, both
 /// in the tool error and in the audit line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
@@ -166,8 +169,8 @@ pub const MUTATION_STAGES: [Stage; 7] = [
     Stage::MemberGrant,
     Stage::PriorRead,
     Stage::Freshness,
-    Stage::Capacity,
     Stage::Editability,
+    Stage::Capacity,
 ];
 
 /// Appends policy decisions. Cloning shares the same sink.
@@ -272,8 +275,8 @@ mod tests {
                 "member_grant",
                 "prior_read",
                 "freshness",
-                "capacity",
                 "editability",
+                "capacity",
             ]
         );
     }

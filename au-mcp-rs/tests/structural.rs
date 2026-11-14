@@ -266,3 +266,80 @@ fn a_read_only_launch_hides_and_refuses_the_structural_mutations() {
         assert!(refused.get("error").is_some(), "{name}: {refused}");
     }
 }
+
+#[test]
+fn inline_arms_both_files_then_sends_one_saga() {
+    let temp = tempfile::tempdir().unwrap();
+    let socket = temp.path().join("engine.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let handle = thread::spawn(move || {
+        // au_content(path), au_content(into), then one editability read per file.
+        for _ in 0..6 {
+            let (mut stream, _) = listener.accept().unwrap();
+            let request = read_request(&mut stream);
+            match request["read"].as_str() {
+                Some("members") => frame(
+                    &mut stream,
+                    json!({"members":[{"repo":"fixture","editable":true,"root":ROOT}]}),
+                ),
+                _ => frame(
+                    &mut stream,
+                    json!({"content":{"text":"x","hash":"hash-one","commit":null}}),
+                ),
+            }
+        }
+        let (mut stream, _) = listener.accept().unwrap();
+        assert_eq!(
+            read_request(&mut stream),
+            json!({"mutate":"inline","id":1,"path":"/tmp/fixture/notes/b.md","into":"/tmp/fixture/notes/a.md"})
+        );
+        frame(
+            &mut stream,
+            json!({"path":"/tmp/fixture/notes/a.md","hash":"hash-two"}),
+        );
+    });
+    let mut client = Client::start(&socket, &["--allow-mutations"]);
+    let _ = client.call(
+        2,
+        "au_content",
+        json!({"repo":"fixture","path":"notes/b.md"}),
+    );
+    let _ = client.call(
+        3,
+        "au_content",
+        json!({"repo":"fixture","path":"notes/a.md"}),
+    );
+    let result = client.call(
+        4,
+        "au_inline",
+        json!({"repo":"fixture","path":"notes/b.md","into":"notes/a.md",
+               "expected_hash":"hash-one","into_expected_hash":"hash-one"}),
+    );
+    assert_ne!(result["isError"], true, "{result}");
+    assert_eq!(payload(&result)["hash"], "hash-two");
+    drop(client);
+    handle.join().unwrap();
+    drop(temp);
+}
+
+#[test]
+fn promote_needs_exactly_one_record_locator() {
+    let temp = tempfile::tempdir().unwrap();
+    let socket = temp.path().join("engine.sock");
+    UnixListener::bind(&socket).unwrap();
+    let mut client = Client::start(&socket, &["--allow-mutations"]);
+    for arguments in [
+        json!({"repo":"fixture","path":"notes/a.md","to":"notes/x.md","expected_hash":"hash-one"}),
+        json!({"repo":"fixture","path":"notes/a.md","to":"notes/x.md","at":10,"block_id":"b","expected_hash":"hash-one"}),
+    ] {
+        let result = client.call(3, "au_promote", arguments.clone());
+        assert_eq!(result["isError"], true, "{arguments}: {result}");
+        assert!(
+            result["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("exactly one"),
+            "{result}"
+        );
+    }
+}

@@ -146,12 +146,14 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_frontmatter",
             "au_hubs",
             "au_imports",
+            "au_inline",
             "au_instances",
             "au_instances_of",
             "au_members",
             "au_neighborhood",
             "au_overview",
             "au_preview_mutation",
+            "au_promote",
             "au_reconcile",
             "au_references",
             "au_remove_dep",
@@ -275,6 +277,8 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
                 | "au_rename_type"
                 | "au_add_dep"
                 | "au_remove_dep"
+                | "au_inline"
+                | "au_promote"
         ) {
             assert!(!read_only, "the write tool must not claim to be read-only");
             assert_eq!(tool["annotations"]["destructiveHint"], true);

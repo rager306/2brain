@@ -140,6 +140,8 @@ fn without_a_grant_the_server_is_read_only() {
         "au_assign_block_id",
         "au_rename_block_id",
         "au_rename",
+        "au_inline",
+        "au_promote",
     ] {
         assert!(
             !names.contains(&tool.to_owned()),
@@ -184,6 +186,8 @@ fn an_explicit_grant_exposes_the_mutating_tools() {
         "au_assign_block_id",
         "au_rename_block_id",
         "au_rename",
+        "au_inline",
+        "au_promote",
     ] {
         assert!(
             names.contains(&tool.to_owned()),

@@ -886,6 +886,145 @@ impl Server {
     }
 
     #[tool(
+        description = "Fold one file into a referrer as an inline record and delete it, as one saga: the chosen [[path]] becomes the record, other whole-file links become local or host refs, and nested ids travel. Needs a prior au_content read of both files and their hashes; a multi-reference host needs `at`.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false
+        ),
+        output_schema = mutation_schema(),
+    )]
+    async fn au_inline(
+        &self,
+        Parameters(args): Parameters<InlineArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.into.is_empty() {
+            return return_error("'into' must not be empty");
+        }
+        for path in [&args.path, &args.into] {
+            if let Err(error) = relative_path(path) {
+                return return_error(error);
+            }
+        }
+        let repo = args.repo;
+        let (prepared_path, prepared_into, _permit) = match self
+            .prepare_pair(
+                (&repo, &args.path, &args.expected_hash),
+                (&repo, &args.into, &args.into_expected_hash),
+            )
+            .await
+        {
+            Ok(armed) => armed,
+            Err(denial) => {
+                self.audit.record(
+                    &self.principal,
+                    "au_inline",
+                    &repo,
+                    &format!("denied:{}", denial.stage.name()),
+                );
+                return return_error(format!(
+                    "policy/{}: {}",
+                    denial.stage.name(),
+                    denial.message
+                ));
+            }
+        };
+        let mut request = json!({
+            "mutate": "inline",
+            "id": 1,
+            "path": prepared_path.target,
+            "into": prepared_into.target,
+        });
+        if let Some(at) = args.at {
+            request["at"] = json!(at);
+        }
+        self.finish_mutation(
+            "au_inline",
+            &repo,
+            request,
+            [prepared_path.key, prepared_into.key],
+        )
+        .await
+    }
+
+    #[tool(
+        description = "Lift an inline record into its own file and leave a reference where it sat, as one saga: every [[host^id]] referrer follows to the new file, nested ids travel, and the format follows the extension (.md fences the YAML, .yaml does not). Locate the record with `at` or `block_id`, not both. Needs a prior au_content read of the host.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false
+        ),
+        output_schema = mutation_schema(),
+    )]
+    async fn au_promote(
+        &self,
+        Parameters(args): Parameters<PromoteArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.to.is_empty() {
+            return return_error("'to' must not be empty");
+        }
+        if let Err(error) = relative_path(&args.to) {
+            return return_error(error);
+        }
+        match (&args.at, &args.block_id) {
+            (Some(_), Some(_)) => {
+                return return_error("give exactly one of 'at' or 'block_id'");
+            }
+            (None, None) => {
+                return return_error("give exactly one of 'at' or 'block_id'");
+            }
+            _ => {}
+        }
+        let repo = args.repo;
+        let to = match absolute_member_path(&self.socket, &repo, &args.to).await {
+            Ok(path) => path,
+            Err(error) => return return_error(error),
+        };
+        let prepared = match self.arm_file(&repo, &args.path, &args.expected_hash).await {
+            Ok(armed) => armed,
+            Err(denial) => {
+                self.audit.record(
+                    &self.principal,
+                    "au_promote",
+                    &repo,
+                    &format!("denied:{}", denial.stage.name()),
+                );
+                return return_error(format!(
+                    "policy/{}: {}",
+                    denial.stage.name(),
+                    denial.message
+                ));
+            }
+        };
+        let _permit = match self.take_slot() {
+            Ok(permit) => permit,
+            Err(denial) => {
+                return return_error(format!(
+                    "policy/{}: {}",
+                    denial.stage.name(),
+                    denial.message
+                ));
+            }
+        };
+        let mut request = json!({
+            "mutate": "promote",
+            "id": 1,
+            "path": prepared.target,
+            "to": to,
+        });
+        if let Some(at) = args.at {
+            request["at"] = json!(at);
+        }
+        if let Some(block_id) = args.block_id {
+            request["block_id"] = json!(block_id);
+        }
+        self.finish_mutation("au_promote", &repo, request, [prepared.key])
+            .await
+    }
+
+    #[tool(
         description = "Rename a type-def and carry every reference with it, as one saga: the def file moves and claims, slot shapes, meta, and wikilinks follow. expected_hash is the type's hash from au_type, so a stale read cannot rename. The owning member must be allowed by policy.",
         annotations(
             read_only_hint = false,
@@ -2061,21 +2200,19 @@ impl Server {
     /// Run the mutation gate in `policy::MUTATION_STAGES` order, stopping at the
     /// first denial. The returned value holds the slot permit and the resolved
     /// target, so a caller that gets one may proceed to the engine.
-    async fn prepare_mutation(
+    /// Armed state for one file: every gate except the mutation slot.
+    async fn arm_file(
         &self,
         repo: &str,
         path: &str,
         expected_hash: &str,
-    ) -> Result<PreparedMutation, Denial> {
+    ) -> Result<ArmedFile, Denial> {
         use policy::Stage;
 
         let key = (repo.to_owned(), path.to_owned());
         let mut served: Option<String> = None;
-        let mut permit: Option<tokio::sync::OwnedSemaphorePermit> = None;
         let mut target: Option<String> = None;
 
-        // The order comes from `policy::MUTATION_STAGES`, so the documented gate
-        // and the executed gate cannot drift apart.
         for stage in policy::MUTATION_STAGES {
             match stage {
                 Stage::Arguments => {
@@ -2125,15 +2262,6 @@ impl Server {
                         ));
                     }
                 }
-                Stage::Capacity => {
-                    let Ok(held) = self.mutation_slot.clone().try_acquire_owned() else {
-                        return Err(Denial::new(
-                            stage,
-                            "another mutation is in progress; retry later",
-                        ));
-                    };
-                    permit = Some(held);
-                }
                 Stage::Editability => {
                     // A mutation is not cancelled: an aborted write has an
                     // unknown outcome, so the bounded exchange finishes instead.
@@ -2142,22 +2270,95 @@ impl Server {
                         Err(error) => return Err(Denial::new(stage, error)),
                     }
                 }
+                Stage::Capacity => {}
             }
         }
 
-        match (permit, target) {
-            (Some(permit), Some(target)) => Ok(PreparedMutation {
-                key,
-                target,
-                _permit: permit,
-            }),
-            // Unreachable while MUTATION_STAGES keeps both later stages, but a
-            // total return beats a panic in a server.
-            _ => Err(Denial::new(
+        match target {
+            Some(target) => Ok(ArmedFile { key, target }),
+            None => Err(Denial::new(
                 Stage::Arguments,
                 "internal: the mutation gate did not complete",
             )),
         }
+    }
+
+    /// Send an armed mutation and settle its outcome, consuming every recorded
+    /// read it invalidates.
+    async fn finish_mutation<const N: usize>(
+        &self,
+        tool: &'static str,
+        repo: &str,
+        request: Value,
+        keys: [(String, String); N],
+    ) -> CallToolResult {
+        match read_mutation_with_timeout(&self.socket, request, ENGINE_READ_TIMEOUT).await {
+            Ok(result) => {
+                self.audit.record(&self.principal, tool, repo, "applied");
+                for key in keys {
+                    self.served
+                        .lock()
+                        .expect("served lock poisoned")
+                        .remove(&key);
+                }
+                success_result(result, self.payload)
+            }
+            Err(MutationFailure::Rejected(error)) => {
+                self.audit.record(&self.principal, tool, repo, "rejected");
+                return_error(error)
+            }
+            Err(MutationFailure::Unknown(error)) => {
+                self.audit
+                    .record(&self.principal, tool, repo, "outcome_unknown");
+                for key in keys {
+                    self.served
+                        .lock()
+                        .expect("served lock poisoned")
+                        .remove(&key);
+                }
+                return_error(format!(
+                    "outcome_unknown: {error}. The mutation may have landed; read the file again before retrying."
+                ))
+            }
+        }
+    }
+
+    /// Take the single mutation slot.
+    fn take_slot(&self) -> Result<tokio::sync::OwnedSemaphorePermit, Denial> {
+        self.mutation_slot.clone().try_acquire_owned().map_err(|_| {
+            Denial::new(
+                policy::Stage::Capacity,
+                "another mutation is in progress; retry later",
+            )
+        })
+    }
+
+    async fn prepare_mutation(
+        &self,
+        repo: &str,
+        path: &str,
+        expected_hash: &str,
+    ) -> Result<PreparedMutation, Denial> {
+        let armed = self.arm_file(repo, path, expected_hash).await?;
+        let permit = self.take_slot()?;
+        Ok(PreparedMutation {
+            key: armed.key,
+            target: armed.target,
+            _permit: permit,
+        })
+    }
+
+    /// Two armed files for one saga (`inline`, `promote`): both need their own
+    /// prior read and hash, and the slot is taken once for the pair.
+    async fn prepare_pair(
+        &self,
+        first: (&str, &str, &str),
+        second: (&str, &str, &str),
+    ) -> Result<(ArmedFile, ArmedFile, tokio::sync::OwnedSemaphorePermit), Denial> {
+        let first = self.arm_file(first.0, first.1, first.2).await?;
+        let second = self.arm_file(second.0, second.1, second.2).await?;
+        let permit = self.take_slot()?;
+        Ok((first, second, permit))
     }
 
     /// A deserialization failure names the missing field but not the tool or the
@@ -2596,6 +2797,51 @@ struct RenameArguments {
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct InlineArguments {
+    /// Member that owns both files.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// The file to fold in and delete, relative to the member root.
+    #[schemars(length(min = 1))]
+    path: String,
+    /// The referrer that will host the record, relative to the member root.
+    #[schemars(length(min = 1))]
+    into: String,
+    /// Byte offset in `into` landing on the chosen [[path]] reference, required
+    /// when `into` references it more than once.
+    at: Option<u64>,
+    /// Hash of `path` from its au_content read.
+    #[schemars(length(min = 1))]
+    expected_hash: String,
+    /// Hash of `into` from its au_content read.
+    #[schemars(length(min = 1))]
+    into_expected_hash: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct PromoteArguments {
+    /// Member that owns the host file.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Host file holding the inline record, relative to the member root.
+    #[schemars(length(min = 1))]
+    path: String,
+    /// New file to create, relative to the member root; extension selects the
+    /// format (`.md`, `.markdown`, `.yaml`, `.yml`).
+    #[schemars(length(min = 1))]
+    to: String,
+    /// Byte offset inside the record; use this or `block_id`, not both.
+    at: Option<u64>,
+    /// The record's block id; use this or `at`, not both.
+    block_id: Option<String>,
+    /// Hash of `path` from its au_content read.
+    #[schemars(length(min = 1))]
+    expected_hash: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct RenameTypeArguments {
     /// The type's current name, bare or `name::repo` when two owners exist.
     #[schemars(length(min = 1))]
@@ -2742,6 +2988,12 @@ struct ValidateValueArguments {
     /// Scope to one member's identity; a qualified name wins over this.
     #[schemars(length(min = 1))]
     repo: Option<String>,
+}
+
+/// One file that passed every gate but the slot.
+struct ArmedFile {
+    key: (String, String),
+    target: String,
 }
 
 /// A mutation that passed every gate: it holds the single mutation slot and the

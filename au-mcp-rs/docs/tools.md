@@ -76,6 +76,10 @@ at a time) and each is one engine saga:
 | `au_assign_block_id` | `repo`, `path`, `at`, `expected_hash` | mints an id for the entity at a byte offset; returns `id` and its `[[target^id]]` ref; idempotent on an entity that already has one |
 | `au_rename_block_id` | `repo`, `path`, `block_id`, `to_block_id`, `expected_hash` | renames an inline record's id and carries every referrer |
 | `au_rename` | `repo`, `path`, `to`, `expected_hash` | moves a file inside its member and rewrites inbound references; refuses a type-def (use `au_rename_type`) and a cross-member target |
+| `au_inline` | `repo`, `path`, `into`, `at?`, `expected_hash`, `into_expected_hash` | folds one file into a referrer as an inline record and deletes it; both files must be armed |
+| `au_promote` | `repo`, `path`, `to`, `at` xor `block_id`, `expected_hash` | lifts an inline record into its own file and leaves a reference |
+| `au_rename_type` | `old_name`, `new_name`, `expected_hash` | renames a type-def and carries every claim, slot, and wikilink; the freshness check is the type's hash |
+| `au_add_dep` / `au_remove_dep` | `repo`, `dep`, `expected_hash?` | author `.arsumbris/repo.yaml`; requires the composition grant |
 
 `au_reconcile {repo, path, expected_hash? | expect_absent?}` answers `applied` or
 `not_applied` with the current hash and commit, and re-arms the guard when the
