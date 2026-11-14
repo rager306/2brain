@@ -145,7 +145,7 @@ Honest ledger, so a reader does not have to infer the gaps from the evidence fil
 
 | gap | why it is open |
 |---|---|
-| recovery through a **model**: lost reply → `au_reconcile`, a compensating `au_batch`, an `au_rollback_preview` plan | `scripts/lost-reply.sh` now proves the lost-reply path against a real engine (one `outcome_unknown`, `applied` with the engine's real `HEAD`, exactly one commit), and `scripts/mutation-turn.sh` proves the granted write and the read-only refusal through a model. Compensation and rollback now hold against a real engine (`scripts/saga-and-rollback.sh`). What remains unexercised is a MODEL choosing reconcile, a batch, or a rollback |
+| a model choosing `au_rollback_preview` | everything around it is now proven: the lost-reply path against a real engine (`scripts/lost-reply.sh`), the engine's compensation and rollback plan (`scripts/saga-and-rollback.sh`), and a model choosing `au_reconcile` (`scripts/recovery-turn.sh`) and `au_batch` (`scripts/batch-turn.sh`) |
 | `2026-07-28` on a third-party client | measured with `scripts/stdio_tee.py`: Codex asks for `2025-06-18` and is answered `2025-06-18`; no installed client requests the newer revision, so only our own tests reach it |
 | a Cursor model turn | Cursor needs an API key this host does not have. Codex is no longer in this row: `codex exec` completes a read turn, recorded in `client-matrix.md` |
 | resource subscriptions | not declared, by decision: `au_watch` gives every client the change signal without a second lifecycle. A client that genuinely needs `notifications/resources/updated` would reopen the question |
