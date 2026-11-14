@@ -18,6 +18,7 @@ projections with summaries and paging.
 | `au_hubs` | `repo?`, `scope?`, `limit`, `offset` | `{hubs}` |
 | `au_diagnostics` | `repo?`, `severity?`, `code?`, `limit`, `offset` | `{diagnostics}` |
 | `au_files` | `repo?`, `scope?`, `limit`, `offset` | `{files}` |
+| `au_grep` | `query`, `repo?`, `scope?`, `case_sensitive?`, `limit`, `offset` | `{grep: {matches, total, truncated, skipped_files}}` |
 | `au_content` | `repo`, `path` | `{content: {text, hash, commit}}` |
 | `au_imports` | `scope?` | `{imports}` |
 | `au_instances_of` | `type_name`, `origins?`, `instance?`, `body?` | `{instances_of}` |
@@ -62,8 +63,12 @@ The adapter also has `au_create_file` (create a file that does not exist, refuse
 if it does) — the bridge's `write_file` covers both cases, so a create on the
 bridge side needs no extra verb.
 
+The adapter now also answers `grep_files`' job with `au_grep` (the engine's own
+`grep` read, literal and catalogue-scoped), so the bridge's `grep_files` — a stub
+there — is the last one standing on that side.
+
 Bridge-only tools are host and workspace operations rather than engine reads:
-`mcp__bash`, `mcp__glob`, `mcp__grep_files`, `mcp__read_file_pinned`,
+`mcp__bash`, `mcp__glob`, `mcp__read_file_pinned`,
 `mcp__write_file`, `mcp__edit_file`, `mcp__delete_file`, `mcp__rename`,
 `mcp__rename_block_id`, `mcp__assign_block_id`, `mcp__inline`, `mcp__promote`,
 `mcp__add_dep`, `mcp__remove_dep`, `mcp__add_workspace_member`,

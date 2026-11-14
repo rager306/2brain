@@ -1,6 +1,6 @@
 # Tools
 
-46 tools: 26 engine reads, 5 derived reads and discovery helpers, and 15
+47 tools: 27 engine reads, 5 derived reads and discovery helpers, and 15
 mutations that exist only when the launch grants them (12 with the mutation
 grant, 2 more with composition, 3 more with workspace shape). Every result is the
 engine's own object under the read's key, and carries
@@ -53,6 +53,7 @@ a mutation's schema.
 | tool | arguments | notes |
 |---|---|---|
 | `au_files` | `repo?`, `scope?`, `limit`, `offset` | default scope `all`; ordered by path components; absolute paths possible |
+| `au_grep` | `query`, `repo?`, `scope?`, `case_sensitive?`, `limit`, `offset` | literal (not regex) search, one match per line with line and character column; case-insensitive unless asked; `total` covers the whole scanned set and `skipped_files` counts what the bounds left out (above 1 MiB, or binary); default limit 20, max 200 |
 | `au_hubs` | `repo?`, `scope?`, `limit`, `offset` | default limit 20; counts include edges from outside the scope |
 | `au_diagnostics` | `repo?`, `severity?`, `code?`, `scope?`, `limit`, `offset` | filters AND; every severity unless one is named |
 | `au_content` | `repo`, `path`, `max_chars?` | `{content: {text, hash, commit} \| null}`; with `max_chars` the text is windowed and the answer says `truncated`, `total_chars`, `next_offset`; the hash always covers the whole file |
@@ -109,8 +110,8 @@ file differs, so a deliberate retry needs no extra read.
 
 ## Pagination and size
 
-Paged reads: `au_types`, `au_hubs`, `au_diagnostics`, `au_files`, `au_instances`,
-`au_instances_of`, `au_candidates`. Unpaged reads can be large: `au_type_tree`,
+Paged reads: `au_types`, `au_hubs`, `au_diagnostics`, `au_files`, `au_grep`,
+`au_instances`, `au_instances_of`, `au_candidates`. Unpaged reads can be large: `au_type_tree`,
 `au_validate_value`, `au_members`, `au_imports`, `au_subtypes`,
 `au_preview_mutation`, `au_reconcile`.
 `au_content` and `au_instances_of` take explicit budgets; the rest are bounded by

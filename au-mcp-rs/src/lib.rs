@@ -68,6 +68,10 @@ fn default_limit() -> usize {
     50
 }
 
+fn default_grep_limit() -> usize {
+    20
+}
+
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct TypesArguments {
@@ -182,6 +186,29 @@ struct FilesArguments {
     #[schemars(range(min = 1, max = 500))]
     limit: usize,
     /// Number of entries to skip (default 0).
+    #[serde(default)]
+    offset: usize,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct GrepArguments {
+    /// Literal text to find; not a regular expression.
+    #[schemars(length(min = 1))]
+    query: String,
+    /// Search only this member's files.
+    #[schemars(length(min = 1))]
+    repo: Option<String>,
+    /// Select own or all members (default all).
+    scope: Option<HubScope>,
+    /// Match case exactly (default false).
+    #[serde(default)]
+    case_sensitive: bool,
+    /// Maximum number of matches, from 1 to 200 (default 20).
+    #[serde(default = "default_grep_limit")]
+    #[schemars(range(min = 1, max = 200))]
+    limit: usize,
+    /// Number of matches to skip (default 0).
     #[serde(default)]
     offset: usize,
 }
@@ -755,6 +782,53 @@ impl Server {
             });
         }
         self.read(request, "files", ctx).await
+    }
+
+    #[tool(
+        description = "Search the catalogued files for literal text, one match per line. Not a regular expression: it answers 'which notes mention this phrase'. Case-insensitive unless case_sensitive is set; repo and scope compose; defaults limit=20, offset=0, limit range 1..=200. The answer carries matches, the total over the whole scanned set, truncated, and skipped_files (files above 1 MiB or binary, counted rather than silently missed). Text is workspace content and may be sensitive; this is not an authorization boundary.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = grep_schema(),
+    )]
+    async fn au_grep(
+        &self,
+        Parameters(args): Parameters<GrepArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.query.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'query' must not be empty")]);
+        }
+        if args.repo.as_deref() == Some("") {
+            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
+        }
+        if !(1..=200).contains(&args.limit) {
+            return CallToolResult::error(vec![ContentBlock::text(
+                "'limit' must be between 1 and 200",
+            )]);
+        }
+        let mut request = json!({
+            "read": "grep",
+            "id": 1,
+            "query": args.query,
+            "limit": args.limit,
+            "offset": args.offset,
+        });
+        if args.case_sensitive {
+            request["case_sensitive"] = json!(true);
+        }
+        if let Some(repo) = args.repo {
+            request["repo"] = json!(repo);
+        }
+        if let Some(scope) = args.scope {
+            request["scope"] = json!(match scope {
+                HubScope::Own => "own",
+                HubScope::All => "all",
+            });
+        }
+        self.read(request, "grep", ctx).await
     }
 
     #[tool(
@@ -3486,6 +3560,47 @@ fn envelope_schema(verb: &'static str) -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
+/// The output schema of `au_grep`: one page of matches plus the totals that make
+/// the page interpretable.
+fn grep_schema() -> Arc<serde_json::Map<String, Value>> {
+    let hit = json!({
+        "type": "object",
+        "properties": {
+            "path": {"type": "string"},
+            "repo": {"type": ["string", "null"]},
+            "line": {"type": "integer", "description": "1-based line number"},
+            "column": {"type": "integer", "description": "1-based character column of the match"},
+            "text": {"type": "string", "description": "the line, cut at 400 characters"},
+            "text_truncated": {"type": "boolean"},
+        },
+        "required": ["path", "line", "column", "text", "text_truncated"],
+        "additionalProperties": false,
+    });
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": {
+                "grep": {
+                    "type": "object",
+                    "properties": {
+                        "matches": {"type": "array", "items": hit},
+                        "total": {"type": "integer"},
+                        "truncated": {"type": "boolean"},
+                        "skipped_files": {"type": "integer"},
+                    },
+                    "required": ["matches", "total", "truncated", "skipped_files"],
+                    "additionalProperties": false,
+                }
+            },
+            "required": ["grep"],
+            "additionalProperties": false,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
 /// The output schema of `au_instances`: the engine's envelope plus paging.
 fn instances_schema() -> Arc<serde_json::Map<String, Value>> {
     let mut properties = serde_json::Map::new();
@@ -4190,6 +4305,7 @@ async fn read_engine(socket: &Path, request: Value, verb: &str) -> Result<ReadRe
         "resolve_member" | "instance" | "resolve_target" | "resolve_block_id"
         | "resolve_anchor" => payload.is_object() || payload.is_null(),
         "dir_entries" => payload.is_array(),
+        "grep" => payload.is_object(),
         "preview_mutation" => payload.is_object(),
         "types" => payload.is_array() || payload.is_null(),
         _ => false,

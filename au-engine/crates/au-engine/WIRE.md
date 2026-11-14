@@ -717,6 +717,18 @@ The `shape_ast` value, a tagged union on `kind` mirroring the engine's parsed sl
 - result: `{ dir_entries: [...] }`, the direct entries of a directory, files and subdirectories, hidden excluded. Catalog-derived, so a directory holding no catalogued file does not appear.
 - each: `path`, `name`, `kind` (`file` or `directory`).
 
+**grep.**
+- args: `query` (required, non-empty), optional `repo`, optional `scope` (`all` default / `own`), optional `case_sensitive` (default false), optional `limit` / `offset`.
+- result: `{ grep: { matches, total, truncated, skipped_files } }`.
+  - `matches`: one entry per matching LINE in catalogue order, then file order: `path`, `repo` (nullable), `line` (1-based), `column` (1-based character column of the match), `text` (the line, trailing `\r` stripped), `text_truncated` (whether `text` was cut at 400 characters).
+  - `total`: matches over the whole scanned set, not just the page. `truncated`: the page ends before the last match. Page size defaults to 20 and is capped at 200 — a search result is a page, not a dump.
+  - `skipped_files`: catalogued files not scanned, by the two bounds below. Counted, never silently matched.
+- LITERAL, not regular: it answers "which notes contain this text", which is the read an agent needs to find the note that mentions a phrase. Ranking is the caller's tool, not the engine's.
+- case-insensitive by default; `case_sensitive` opts into exact case.
+- the scanned set is the CATALOGUE, scoped by `repo` / `scope` the same way `files` is, so what cannot be linked cannot be found either. A file is read from the working tree — the same sanctioned exception `content` takes — so text that has not reached the index is still searchable.
+- two bounds, both counted in `skipped_files`: a file above 1 MiB is not scanned (a note is kilobytes, a megabyte under a text extension is a binary someone committed), and a file holding a NUL byte in its first 8 KiB is treated as binary.
+- additive: a NEW read verb, no `schema_version` bump.
+
 **frontmatter.**
 - args: `path`.
 - result: `{ frontmatter: {...} | null }` — the parsed frontmatter as a JSON map, null when the file is neither a typed instance nor a note.

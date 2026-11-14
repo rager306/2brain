@@ -123,7 +123,7 @@ fn read_surface_kb() -> (tempfile::TempDir, PathBuf) {
 /// with no structural read/mutation split, so there is no single source to
 /// enumerate the read SUBSET from. The pinned count is the pragmatic guard; the
 /// daemon still rejects an unknown verb, so a typo'd row fails on send.
-const READ_VERB_COUNT: usize = 38;
+const READ_VERB_COUNT: usize = 39;
 
 /// Every read verb, with arguments that resolve against the fixture. The list
 /// IS the catalog: a read added without a row here is a read the compliance
@@ -162,6 +162,7 @@ fn every_read() -> Vec<(&'static str, Value)> {
         ("files", json!({})),
         ("dir_entries", json!({ "dir": "content" })),
         ("frontmatter", json!({ "path": hub })),
+        ("grep", json!({ "query": "Rationale" })),
         ("content", json!({ "path": hub })),
         ("semantic_tokens", json!({ "path": hub })),
         // Deliberately INVALID (`note` requires `title`), so the read answers a

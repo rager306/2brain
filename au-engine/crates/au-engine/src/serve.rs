@@ -423,6 +423,11 @@ enum Request {
         #[serde(default)]
         scope: Scope,
     },
+    /// Literal text search over the catalogued files, optionally scoped by repo
+    /// or to the user's own repos. Answers one match per line, with a 1-based
+    /// line and character column, paged by `limit` / `offset`. Additive, no
+    /// `schema_version` bump. See [`GrepArgs`] for the scan bounds.
+    Grep(GrepArgs),
     /// Every type-def across the workspace whose closure includes `base`, each
     /// as its owning repo's def with the owner repo. The type-level
     /// dual of `instances_of`. The base itself is excluded. `scope: own` keeps
@@ -1809,6 +1814,40 @@ struct FilesArgs {
     /// path-sorted set. Absent returns the whole catalogue.
     limit: Option<usize>,
     /// Page start: skip this many entries. Absent is 0.
+    offset: Option<usize>,
+}
+
+/// Args for the `grep` read: a literal text search over the catalogued files.
+///
+/// Not a regex engine and not a semantic search. It answers the one question a
+/// read surface over a knowledge base must answer without the caller walking the
+/// catalogue: "which notes contain this text". The engine holds the catalogue
+/// and the member scopes, so the alternative — N `content` reads guessed by the
+/// caller — is both slower and less correct.
+///
+/// Every file is read from the working tree, which is the materialised ref, the
+/// same sanctioned exception the `content` read takes. Files above
+/// [`GREP_MAX_FILE_BYTES`] and files holding a NUL byte in their first
+/// [`GREP_SNIFF_BYTES`] are skipped and counted, never silently matched.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GrepArgs {
+    /// The literal text to find. Empty is rejected: it would match every line.
+    query: String,
+    /// Absent = every mounted member. Present = only this member's files.
+    #[serde(default)]
+    repo: Option<String>,
+    /// `all` (default) or `own` (only the user's own editable repos).
+    #[serde(default)]
+    scope: Scope,
+    /// Case-sensitive matching. Default false: prose search is case-insensitive
+    /// far more often than not, and the exact-case caller can ask.
+    #[serde(default)]
+    case_sensitive: bool,
+    /// Match page size after `offset`. Default [`GREP_DEFAULT_LIMIT`], capped at
+    /// [`GREP_MAX_LIMIT`].
+    limit: Option<usize>,
+    /// Match page start. Absent is 0.
     offset: Option<usize>,
 }
 
@@ -10942,6 +10981,31 @@ async fn handle_request(handle: &EngineHandle, req: Request, shutdown_tx: &Shutd
                 handle.read(move |v| files_view(v, repo.as_deref(), scope, limit, offset)),
             )
         }
+        Request::Grep(args) => {
+            if args.query.is_empty() {
+                return Response::invalid("`query` must not be empty: it would match every line");
+            }
+            let repo = args.repo.clone();
+            let scope = wire::TypeScope::new(args.scope.own_only());
+            let limit = args.limit.unwrap_or(GREP_DEFAULT_LIMIT).min(GREP_MAX_LIMIT);
+            let offset = args.offset.unwrap_or(0);
+            // The paths come from the held state; the bytes come from disk, the
+            // same split the `content` read uses. Nothing here holds the read
+            // lock while IO runs.
+            let paths = match handle.read(move |v| grep_paths(v, repo.as_deref(), scope)) {
+                Read::NotReady => return Response::not_ready(),
+                Read::Ready { version, value } => (version, value),
+            };
+            let (version, paths) = paths;
+            let query = args.query;
+            let case_sensitive = args.case_sensitive;
+            let scan = tokio::task::spawn_blocking(move || {
+                grep_scan(&paths, &query, case_sensitive, limit, offset)
+            })
+            .await
+            .unwrap_or_else(|_| GrepScan::default());
+            Response::ready(version, serde_json::json!({ "grep": scan }))
+        }
         Request::DirEntries { dir } => {
             let root = handle.root().to_path_buf();
             let abs = abs_arg(&root, &dir);
@@ -12944,6 +13008,164 @@ fn anchors_view(kb: &KnowledgeBase, target: &str, origin: Option<&Path>) -> Opti
 /// `[[` must be able to offer a target the validator accepts.
 ///
 /// A projection of the held catalogue, so no walk and no disk read.
+/// Default match page for `grep`: one page of hits is a search result, not a
+/// dump of the file.
+const GREP_DEFAULT_LIMIT: usize = 20;
+
+/// The largest match page `grep` will return.
+const GREP_MAX_LIMIT: usize = 200;
+
+/// The largest file `grep` reads. A note is kilobytes; a megabyte is a binary
+/// someone committed under a text extension, and scanning it per query is not a
+/// cost a search surface should carry silently.
+const GREP_MAX_FILE_BYTES: u64 = 1024 * 1024;
+
+/// How far into a file `grep` looks for a NUL byte before treating it as binary.
+const GREP_SNIFF_BYTES: usize = 8192;
+
+/// The longest line text `grep` echoes back. A minified line would otherwise
+/// put a megabyte in one match record.
+const GREP_MAX_LINE_CHARS: usize = 400;
+
+/// One literal match on one line.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+struct GrepHit {
+    path: String,
+    repo: Option<String>,
+    /// 1-based line number, matching how an editor and a diagnostic report it.
+    line: usize,
+    /// 1-based character column of the match's first character.
+    column: usize,
+    /// The line, trimmed of its line ending, cut to [`GREP_MAX_LINE_CHARS`].
+    text: String,
+    /// Whether `text` was cut, so a consumer never mistakes a truncation for the
+    /// whole line.
+    text_truncated: bool,
+}
+
+/// The `grep` answer: one page of hits plus the totals that make the page
+/// interpretable.
+#[derive(Debug, Default, Serialize)]
+struct GrepScan {
+    matches: Vec<GrepHit>,
+    /// Matches over the whole scanned set, not just this page.
+    total: usize,
+    /// Whether the page ends before the last match.
+    truncated: bool,
+    /// Files not scanned, by the two bounds: too large, or binary.
+    skipped_files: usize,
+}
+
+/// The catalogued paths a `grep` scans, paired with their owning repo.
+fn grep_paths(
+    kb: &KnowledgeBase,
+    repo: Option<&str>,
+    scope: wire::TypeScope,
+) -> Vec<(std::path::PathBuf, Option<String>)> {
+    kb.catalog
+        .iter()
+        .filter(|(path, _)| {
+            if repo.is_none() && !scope.own_only() {
+                return true;
+            }
+            let Some(owner) = kb.repos.repo_of(path) else {
+                return false;
+            };
+            if let Some(want) = repo {
+                if owner.name.as_str() != want {
+                    return false;
+                }
+            }
+            scope.includes_repo(kb, owner)
+        })
+        .map(|(path, _)| {
+            (
+                path.clone(),
+                kb.repos.repo_of(path).map(|r| r.name.as_str().to_string()),
+            )
+        })
+        .collect()
+}
+
+/// Scan the given files for a literal query.
+///
+/// Line-oriented and literal by design: it is the read an agent uses to find the
+/// note that mentions a phrase, and the caller's own tool decides ranking.
+fn grep_scan(
+    paths: &[(std::path::PathBuf, Option<String>)],
+    query: &str,
+    case_sensitive: bool,
+    limit: usize,
+    offset: usize,
+) -> GrepScan {
+    let needle = if case_sensitive {
+        query.to_owned()
+    } else {
+        query.to_lowercase()
+    };
+    let mut scan = GrepScan::default();
+    for (path, repo) in paths {
+        let Ok(metadata) = std::fs::metadata(path) else {
+            scan.skipped_files += 1;
+            continue;
+        };
+        if !metadata.is_file() || metadata.len() > GREP_MAX_FILE_BYTES {
+            scan.skipped_files += 1;
+            continue;
+        }
+        let Ok(bytes) = std::fs::read(path) else {
+            scan.skipped_files += 1;
+            continue;
+        };
+        let sniff = &bytes[..bytes.len().min(GREP_SNIFF_BYTES)];
+        if sniff.contains(&0) {
+            scan.skipped_files += 1;
+            continue;
+        }
+        let text = String::from_utf8_lossy(&bytes);
+        for (index, line) in text.split('\n').enumerate() {
+            let line = line.strip_suffix('\r').unwrap_or(line);
+            let haystack;
+            let haystack = if case_sensitive {
+                line
+            } else {
+                haystack = line.to_lowercase();
+                haystack.as_str()
+            };
+            let Some(byte_column) = haystack.find(&needle) else {
+                continue;
+            };
+            let column = line[..byte_column].chars().count() + 1;
+            scan.total += 1;
+            if scan.total <= offset {
+                continue;
+            }
+            if scan.matches.len() >= limit {
+                continue;
+            }
+            let (shown, cut) = truncate_chars(line, GREP_MAX_LINE_CHARS);
+            scan.matches.push(GrepHit {
+                path: path.display().to_string(),
+                repo: repo.clone(),
+                line: index + 1,
+                column,
+                text: shown,
+                text_truncated: cut,
+            });
+        }
+    }
+    scan.truncated = scan.total > offset + scan.matches.len();
+    scan
+}
+
+/// Cut a line to `max` characters, reporting whether it was cut.
+fn truncate_chars(line: &str, max: usize) -> (String, bool) {
+    match line.char_indices().nth(max) {
+        Some((index, _)) => (line[..index].to_owned(), true),
+        None => (line.to_owned(), false),
+    }
+}
+
 fn files_view(
     kb: &KnowledgeBase,
     repo: Option<&str>,

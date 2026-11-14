@@ -78,6 +78,7 @@ mod engine_schema;
 mod envelope;
 mod field_key_span;
 mod file_history;
+mod grep_read;
 mod instances_of;
 mod malformed_claim_edges;
 mod member_reads;
