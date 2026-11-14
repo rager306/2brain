@@ -81,8 +81,9 @@ audit found it; the surface itself never changed.
   path and the read-only refusal. It does not reach `outcome_unknown`, a lost reply,
   a compensating batch, or a rollback — those are covered by tests against a fake
   engine, not by a model.
-- **`2026-07-28` is exercised only by our own tests.** The client matrix reaches
-  `2025-06-18`, because that is what the installed clients request.
+- **`2026-07-28` is exercised only by our own tests.** Read off the wire with
+  `scripts/stdio_tee.py`, Codex 0.169.0 asks for `2025-06-18` and the adapter answers
+  `2025-06-18`; no installed client has requested the newer revision.
 - **Bridge parity is one comparable read on a synthetic workspace.** The stronger
   eleven-read A/B was a manual session on 2026-11-13, not a repeatable command.
   Live `au_diagnostics` agreed by being empty on both sides. The live bridge tool

@@ -265,3 +265,29 @@ used to end at "give exactly one of a nonempty 'expected_hash' or 'expect_absent
 which names the rule but not the way out, so it now says the rest: if the digest is
 unknown, read the file and compare the text, because reconcile can only compare
 against an expectation.
+
+### The revision Codex actually negotiates, read off the wire
+
+`scripts/stdio_tee.py` sits between a client and the server and records both
+directions, which is the only way to answer "which MCP revision does this client
+ask for" — neither side prints it. Codex 0.169.0:
+
+```text
+protocol: client asked 2025-06-18, server answered 2025-06-18
+```
+
+```json
+{"dir":"c2s","line":"{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",
+  \"params\":{\"protocolVersion\":\"2025-06-18\",...}}"}
+{"dir":"s2c","line":"{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":{\"protocolVersion\":\"2025-06-18\",...}}"}
+```
+
+So `2026-07-28` remains reached only by our own tests: the installed clients ask for
+`2025-06-18` and the adapter answers the same revision. That is a fact about the
+clients on this host, not about the server's support — and it is now measured rather
+than assumed.
+
+One trap worth recording: the tee must be registered by ABSOLUTE path. A client spawns
+its MCP servers with its own working directory, so a relative `scripts/stdio_tee.py`
+does not resolve, and the failure surfaces as `MCP startup failed ... initialize
+response: connection closed` — which looks like a server bug and is a path bug.

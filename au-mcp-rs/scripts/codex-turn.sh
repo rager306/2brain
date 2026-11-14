@@ -43,7 +43,9 @@ fi
 # client speaks some revision" into a fact read off the wire.
 tee=$root/mcp-wire.jsonl
 if [[ -n ${AU_TEE_TRANSCRIPT:-} ]]; then
-  server_cmd=(python3 "$(dirname "$0")/stdio_tee.py" --record "$tee" -- "$ADAPTER" "$socket")
+  # Absolute, because the client spawns the server with its own working directory.
+  tee_script=$(cd "$(dirname "$0")" && pwd)/stdio_tee.py
+  server_cmd=(python3 "$tee_script" --record "$tee" -- "$ADAPTER" "$socket")
 else
   server_cmd=("$ADAPTER" "$socket")
 fi
