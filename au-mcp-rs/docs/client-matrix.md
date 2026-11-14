@@ -184,3 +184,38 @@ script was wrong — a check that forbids orientation tests the allow-list, not 
 gate. `au_overview` is now in the list, and scenario 2 confirms the opposite
 property: without `--allow-mutations` the write tool is absent from `tools/list`, so
 a model cannot call what the server never advertised.
+
+## 2026-11-14 (fifth): Codex completes a turn too, and reads the skill
+
+One client working proves the server matches that client. Two clients with different
+implementations prove it matches the protocol. `scripts/codex-turn.sh` runs the same
+marker task through `codex exec` (0.169.0) with its own `CODEX_HOME`, so the user's
+`config.toml` is untouched and only `auth.json` is copied in.
+
+```text
+PASS: the model used au_grep
+PASS: the marker travelled through the engine
+PASS: the answer names the file that holds the marker
+PASS: one Codex model turn completed through the adapter
+```
+
+Codex's own event log shows the same shape from the other side — one `mcp_tool_call`
+carrying exactly the arguments the schema asks for, and the engine's payload returned
+as the tool result:
+
+```json
+{"type":"item.completed","item":{"type":"mcp_tool_call","server":"arsumbris-rs",
+ "tool":"au_grep","arguments":{"query":"unique-marker-7f3a"},
+ "result":{"content":[{"type":"text","text":"{\"grep\":{\"matches\":[{...\
+  "\"path\":\".../notes/a.md\",\"text\":\"find me: unique-marker-7f3a\"...}"}]}"}]}}}
+```
+
+Two things this run established that the Claude Code run could not. First, Codex
+reads the installed skill before acting (`cat /root/.agents/skills/arsumbris/SKILL.md`
+is the first command in its transcript), so the skill is live for more than one
+client. Second, the client's own sandbox does not interfere with the adapter: Codex
+spawns it as an MCP server outside the model's sandbox.
+
+What it does not establish: the protocol revision Codex negotiates. Its `--json`
+event stream does not report `protocolVersion`, so that line stays unverified rather
+than guessed.
