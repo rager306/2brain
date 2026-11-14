@@ -96,13 +96,31 @@ RUSTUP_HOME=/root/.rustup cargo +1.99.0 build
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 test -p <crate>  # smallest sufficient scope
 ```
 
-Build layout (2026-11-14): every crate in the monorepo shares ONE target directory,
+Build layout: every crate in the monorepo shares ONE target directory,
 `/root/arsumbris/.cargo-target` (set in `.cargo/config.toml`), with
 `au-engine/target` and `au-mcp-rs/target` as symlinks to it so documented paths keep
 working. Before this, `au-mcp-rs/target` recompiled the whole engine dependency graph:
-10.6 GiB of artifacts for one graph, now about 7 GiB. Dependencies are built without
-incremental state (`[profile.dev.package."*"]` in both manifests) so the compiler cache
-(`kache`, a global `rustc-wrapper` here) can serve them; our own crates keep it.
+10.6 GiB for one graph.
+
+The profile settings are a budget, not a preference, and both manifests must agree —
+they share the target directory, so a mismatch compiles the same crates twice:
+
+| setting | value | why |
+|---|---|---|
+| `debug` (dev and test) | `line-tables-only` | full DWARF was the largest single cost (~2 GiB). Backtraces and panic messages keep file:line; step-through variable inspection does not |
+| `incremental` (dev and test) | `false`, workspace-wide | an incremental unit is never cacheable, so it cannot be served by `kache` (the global `rustc-wrapper` here). Its redirected `incremental.kache-auto` directory had grown to 2.5 GiB on its own |
+| `release` | `opt-level = 3`, `lto = "thin"`, `codegen-units = 1` (engine) | release builds run the verification scripts; they are built rarely and run often |
+
+Measured on 2026-11-15, after `cargo clean` and one rebuild of everything the gates
+need (engine release, adapter release, adapter tests, engine `--lib` and `--test it`):
+the target directory went from 8.8 GiB (debug 8.0 + release 0.8) to **4.0 GiB**
+(debug 3.1 + release 0.9) with `cargo test --offline` still 170 green;
+`docs/build-layout.md` records the breakdown and how to re-measure it.
+
+Reclaiming space, in order of what is safe to lose: `cargo clean` (all artifacts, keeps
+the cache), `kache clean --cache` (the compile cache), and `du -sh .cargo-target/*` to
+see where it went. Do not delete `.cargo-target` itself — `target-dir` is absolute and
+a missing path only costs a rebuild, but the symlinks in both crates would dangle.
 
 Two traps worth knowing: a stale `cargo test` from an earlier session can hold the target
 lock for days and make every build look slow (`pgrep -af "cargo test"`), and an empty

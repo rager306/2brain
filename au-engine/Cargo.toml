@@ -56,13 +56,17 @@ opt-level = 0
 # dominant variable cost on this codebase under memory pressure. Step-through
 # variable inspection is degraded; backtraces and panic messages still work.
 debug = "line-tables-only"
+# No incremental state: it is never cacheable, and kache (the rustc wrapper) only
+# earns its keep on non-incremental units. au-mcp-rs sets the same — both
+# workspaces share one target directory, so a mismatch compiles crates twice.
+incremental = false
 
 [profile.release]
 opt-level = 3
 lto = "thin"
 codegen-units = 1
 
-# See the note in au-mcp-rs/Cargo.toml: dependencies stay out of incremental
-# state so the compiler cache can serve them; workspace crates keep it.
-[profile.dev.package."*"]
+[profile.test]
+debug = "line-tables-only"
 incremental = false
+

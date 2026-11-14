@@ -32,9 +32,29 @@ tokio-util = { version = "0.7", features = ["codec"] }
 [dev-dependencies]
 tempfile = "3"
 
-# Dependencies are built without incremental state so the compiler cache
-# (kache, installed as rustc-wrapper) can serve them: an incremental unit is
-# never cacheable, and a workspace this small gains more from cache hits across
-# crates than from incremental deps. Our own crate keeps incrementality.
-[profile.dev.package."*"]
+# Neither debug info nor incremental state is worth its disk here.
+#
+# Incremental state is never cacheable, and kache (installed as rustc-wrapper)
+# only earns its keep on non-incremental units, so the whole workspace opts out:
+# the redirected `incremental.kache-auto` directory had grown to 2.5 GiB of the
+# 8.8 GiB target on 2026-11-15 for rebuilds that a cache hit serves better.
+#
+# Debug info: file and line only. Full DWARF for the dependency graph was the
+# largest single cost in the shared target directory (~2 GiB of the 8.8 GiB
+# measured on 2026-11-15) and buys nothing this project debugs with: backtraces
+# and panic messages keep their locations, step-through variable inspection does
+# not. `au-engine` sets the same for its workspace; the two share one target
+# directory, so they must agree or the dependency graph is compiled twice.
+[profile.dev]
+debug = "line-tables-only"
 incremental = false
+
+[profile.test]
+debug = "line-tables-only"
+incremental = false
+
+# Release is what the scripts and the client matrix run; keep it optimised and
+# small. The adapter is a thin layer over the engine, so thin LTO is enough.
+[profile.release]
+opt-level = 3
+lto = "thin"
