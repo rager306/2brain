@@ -3,7 +3,7 @@
 An MCP stdio server for the arsumbris engine. It reads a workspace through the
 engine's Unix socket, and can write only when the launch grants it.
 
-- **29 engine reads**, 5 derived reads and discovery helpers, and **16 mutating
+- **29 engine reads**, 6 derived reads and discovery helpers, and **16 mutating
   tools** that appear only with an explicit grant (three grants in total).
 - **Results are the engine's own object**, under the read's key: `au_overview`
   answers `{"overview": ...}`. Nothing is re-shaped on the way out.
@@ -222,6 +222,7 @@ This suite does not establish full MCP conformance or production readiness.
 |---|---|
 | `scripts/client-matrix.sh` | which installed MCP clients accept and connect the server ([result](docs/client-matrix.md)) |
 | `scripts/model-turn.sh` | that a model, given the tool list, chooses a tool and gets the engine's answer back — costs one model turn on your credentials ([result](docs/client-matrix.md#2026-11-14-third-a-real-model-turn-and-it-found-the-marker)) |
+| `scripts/mutation-turn.sh` | that a model edits a file through the gate (read → hash → write → one engine commit) and that a read-only launch cannot write at all — two model turns |
 | `scripts/bridge_parity.py` | shared facts between the Python bridge and this adapter ([result](docs/bridge-parity.md)) |
 | `scripts/rollback_rehearsal.py` | that reverting to read-only loses nothing ([result](docs/rollback-rehearsal.md)) |
 

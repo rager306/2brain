@@ -1,6 +1,7 @@
 # scenarios/
 
-Curated narrative fixtures — each tells one spec story in 1-5 files.
+Curated narrative fixtures — each tells one spec story in 1-5 files (the `corpus-*` scenarios are deliberately
+wider, up to 33, because they are corpora rather than stories).
 
 Most slugs are narrow (one diagnostic code or one feature). A few
 `corpus-*` slugs are intentionally broad — they preserve coverage

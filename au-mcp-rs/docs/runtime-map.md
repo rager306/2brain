@@ -8,7 +8,7 @@ absorb without losing behaviour.
 
 | module | language | size | role | in the served path |
 |---|---|---|---|---|
-| `au-engine` | Rust | 1853 files, 714 MB (with `target/`) | the engine: parser, type graph, diagnostics, daemon, wire | **yes, the authority** |
+| `au-engine` | Rust | 1 866 tracked files, 19 MB of source; 7.4 GB with `target/` | the engine: parser, type graph, diagnostics, daemon, wire | **yes, the authority** |
 | `au-mcp-rs` | Rust | 6 848 LOC `src/` + 8 204 LOC of tests | MCP server over the engine wire; one binary `arsumbris` | yes, as the new front-end |
 | `au-mcp` | TypeScript | 5 586 LOC | Node daemon: sessions, plugin discovery, projection tools | yes, behind the bridge |
 | `au-mcp-core` | TypeScript | 82 `.ts`, 49 tool defs, 6 hooks | the plugin package the daemon discovers | yes |
@@ -19,7 +19,7 @@ absorb without losing behaviour.
 | `au-mcp-adapter-cc` | TypeScript | 1 516 LOC | Claude Code hooks ↔ daemon | client side |
 | `au-mcp-adapter-codex` | TypeScript | 2 033 LOC | Codex hooks ↔ daemon | client side |
 | `au-ingest` | Node scripts | 14 `.mjs` | source → markdown converters | offline toolchain |
-| `au-type-system`, `au-base-types`, `au-rules`, `au-skills`, `au-agent-guides`, `au-writing-style`, `au-competency`, `au-defaults`, `au-govern` | YAML + Markdown | 12–145 files | vocabulary, rules, guides, templates, audits | content, mounted as members |
+| `au-type-system`, `au-base-types`, `au-rules`, `au-skills`, `au-agent-guides`, `au-writing-style`, `au-competency`, `au-defaults`, `au-govern` | YAML + Markdown | 12–68 files | vocabulary, rules, guides, templates, audits | content, mounted as members |
 
 Roughly 26 100 lines of TypeScript (counted over `src/` of the seven packages) and
 293 lines of Python sit in the served path today. The Rust replacement is 6 848

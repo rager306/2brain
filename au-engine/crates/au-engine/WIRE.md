@@ -1494,4 +1494,4 @@ Notes are not validated and have no typed value layer, so `instance` returns nul
   - `readFrontmatter` serves notes and typed instances.
 - **TopLevelGraphsPort** `list` ← `top_level_dirs`.
 
-The standing guard against drift is `tests/port_contracts.rs`, one test per port.
+The standing guard against drift is `tests/it/port_contracts.rs`, one test per port.

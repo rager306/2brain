@@ -61,7 +61,7 @@ type graph, validate every instance, index references, then serve reads.
   parks on `ServeHandle::wait_for_shutdown` until then.
 - `WIRE.md` is the consumer-facing contract: transport, framing, the socket
   convention, the frame envelopes, the read and subscription catalogs, and the
-  consumer port mapping. `tests/port_contracts.rs` and `tests/subscribe.rs` are
+  consumer port mapping. `tests/it/port_contracts.rs` and `tests/it/subscribe.rs` are
   the standing guards against drift; `examples/watch.py` is a reference external
   consumer of the subscription wire.
 

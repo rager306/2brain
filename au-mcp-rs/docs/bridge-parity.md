@@ -75,7 +75,8 @@ cutover evidence by itself:
 
 - **19 vs 35** is a fixture artifact. The disposable workspace mounts only part of
   the plugin package, so the daemon discovers 19 tools there. The live daemon
-  serves 44; the adapter advertises 35 read-side of its 51.
+  serves 49 (measured through the bridge on 2026-11-14, `tools/list`); the adapter
+  advertises 35 read-side of its 51.
 - **One comparable pair** is a design fact, not a coverage failure: the daemon
   exposes exactly one engine READ in this fixture (`au_diagnostics`). Everything
   else the daemon-only list names is a host action or a mutation, and the adapter

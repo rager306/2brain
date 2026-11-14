@@ -145,11 +145,11 @@ Honest ledger, so a reader does not have to infer the gaps from the evidence fil
 
 | gap | why it is open |
 |---|---|
-| a model turn over the **mutation** path | `scripts/model-turn.sh` proves a read round trip. Write → `au_reconcile` → rollback is where the grants, the read-before-write guard, and `outcome_unknown` live, and no client has exercised them |
+| a model turn over **recovery**: lost reply → `au_reconcile`, a compensating `au_batch`, an `au_rollback_preview` plan | `scripts/mutation-turn.sh` now proves the granted write (read → hash → write → engine commit) and the read-only refusal. Recovery is still exercised only by tests against a fake engine |
 | `2026-07-28` on a third-party client | only our own tests reach that revision; the installed clients request `2025-06-18` |
 | Codex and Cursor model turns | Codex has no non-interactive health check; Cursor needs an API key this host does not have |
 | resource subscriptions | not declared, by decision: `au_watch` gives every client the change signal without a second lifecycle. A client that genuinely needs `notifications/resources/updated` would reopen the question |
 | generated schemas | `tests/schema_contract.rs` catches drift against captured payloads, which is the safety half. Generating the schemas needs `WIRE.md` marked up machine-readably; today it is prose |
 | an `au_files` golden capture | the engine golden set covers four reads; the file listing is size-heavy and still uncaptured |
 | a scripted live A/B | the eleven byte-identical reads of 2026-11-13 were a manual session, so they cannot be re-run by the next person |
-| Phase D (retire the Node stack) | blocked on the mutation-path model turn above, and on the `mcp.tool` plugin question: a workspace can declare plugins today and a compiled binary cannot |
+| Phase D (retire the Node stack) | the read and write paths are now proven through a model; what blocks retirement is the `mcp.tool` plugin question (a workspace can declare plugins today, a compiled binary cannot) and a parity sweep over the 8 daemon tools that have no Rust counterpart |

@@ -157,3 +157,30 @@ boundary intact. The turn cost $0.042 and took 12 s.
 
 Both scripts now share the fixture through `scripts/lib/disposable-fixture.sh`, so a
 client check and a model-turn check cannot disagree about what they ran against.
+
+## 2026-11-14 (fourth): the mutation path, through a model
+
+`scripts/mutation-turn.sh` asks for the half that decides whether a note-editing
+grant is safe: the model must read first, carry the hash it read into the write, and
+the write must land as one engine commit.
+
+```text
+=== scenario 1: granted
+PASS: the model read before writing
+PASS: the model called au_write_file
+PASS: the file on disk carries the new line
+PASS: the write is an engine commit (1 new)
+PASS: no permission denial
+
+=== scenario 2: read-only, the same request
+PASS: au_write_file was never callable in a read-only launch
+PASS: notes/b.md is untouched
+```
+
+Two details worth keeping. The first run FAILED on "a permission denial appeared",
+and the denial was `au_overview`: the model oriented itself before editing, and the
+allow-list named only `au_content` and `au_write_file`. The server was right and the
+script was wrong — a check that forbids orientation tests the allow-list, not the
+gate. `au_overview` is now in the list, and scenario 2 confirms the opposite
+property: without `--allow-mutations` the write tool is absent from `tools/list`, so
+a model cannot call what the server never advertised.
