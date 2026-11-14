@@ -226,6 +226,7 @@ This suite does not establish full MCP conformance or production readiness.
 | `scripts/lost-reply.sh` | that a write whose reply was dropped becomes `outcome_unknown`, not a retry, and that `au_reconcile` resolves it against the engine's real history — no model, no fake socket |
 | `scripts/saga-and-rollback.sh` | that a refused `au_batch` leaves no trace, and that `au_rollback_preview` reports a plan without touching the tree |
 | `scripts/codex-turn.sh` | the same read round trip as `model-turn.sh` through a second client implementation, Codex — one model turn |
+| `scripts/batch-turn.sh` | that a model reaches for `au_batch` instead of two single writes when the task spans files — one model turn |
 | `scripts/bridge_parity.py` | shared facts between the Python bridge and this adapter ([result](docs/bridge-parity.md)) |
 | `scripts/rollback_rehearsal.py` | that reverting to read-only loses nothing ([result](docs/rollback-rehearsal.md)) |
 

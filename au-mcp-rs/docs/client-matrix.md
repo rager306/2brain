@@ -291,3 +291,30 @@ One trap worth recording: the tee must be registered by ABSOLUTE path. A client 
 its MCP servers with its own working directory, so a relative `scripts/stdio_tee.py`
 does not resolve, and the failure surfaces as `MCP startup failed ... initialize
 response: connection closed` — which looks like a server bug and is a path bug.
+
+## 2026-11-14 (seventh): a model picks the transactional tool when the task needs one
+
+Two files that must change together, and `batch-turn.sh` asks for exactly that. The
+failure this guards against is not a wrong answer but a *reachable wrong shape*: two
+separate `au_write_file` calls, which leave half a change behind if the second fails.
+
+```text
+tool calls: au_overview au_content au_content au_batch au_content au_content
+PASS: the model used au_batch
+PASS: the model did not fall back to two single writes
+PASS: both files carry the line
+PASS: the batch made exactly one engine commit
+```
+
+It read both files first (two `au_content` calls, one per path — the gate demands it),
+then sent one batch carrying each file's own digest:
+
+```json
+{"name":"mcp__arsumbris-rs__au_batch","input":{"repo":"fixture","ops":[
+  {"op":"write_file","path":"notes/a.md","expected_hash":"587400e00990872a","content":"..."},
+  {"op":"write_file","path":"notes/b.md","expected_hash":"3ba03c987069bc6d","content":"..."}]}}
+```
+
+Then it read both files again — verifying its own work, which the prompt did not ask
+for. One engine commit for the pair, which is what "once per touched member" means
+in practice.
