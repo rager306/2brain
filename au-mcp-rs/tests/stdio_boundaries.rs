@@ -1,14 +1,17 @@
 use std::{
-    io::{BufRead, BufReader, Read, Write},
+    io::{BufRead, BufReader, Write},
     os::unix::net::UnixListener,
-    path::Path,
-    process::{Child, ChildStdin, Command, Stdio},
-    sync::mpsc::{self, Receiver},
+    process::{Child, Command, Stdio},
+    sync::mpsc,
     thread,
     time::{Duration, Instant},
 };
 
 use serde_json::{Value, json};
+
+mod support;
+
+use support::{Client, read_request};
 
 struct OwnedChild(Child);
 
@@ -17,81 +20,6 @@ impl Drop for OwnedChild {
         let _ = self.0.kill();
         let _ = self.0.wait();
     }
-}
-
-struct Client {
-    child: Child,
-    input: ChildStdin,
-    responses: Receiver<Value>,
-}
-
-impl Client {
-    fn start(socket: &Path) -> Self {
-        let mut client = Self::spawn(socket);
-        let response = client.request(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"boundary-test","version":"1"}}}));
-        assert_eq!(response["id"], 1);
-        assert!(response.get("result").is_some(), "{response}");
-        client.send(json!({"jsonrpc":"2.0","method":"notifications/initialized"}));
-        client
-    }
-
-    fn spawn(socket: &Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
-            .arg(socket)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let input = child.stdin.take().unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let (tx, responses) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                let line = line.unwrap();
-                tx.send(serde_json::from_str(&line).expect("stdout must contain JSON"))
-                    .unwrap();
-            }
-        });
-        Self {
-            child,
-            input,
-            responses,
-        }
-    }
-
-    fn send(&mut self, value: Value) {
-        writeln!(self.input, "{value}").unwrap();
-        self.input.flush().unwrap();
-    }
-
-    fn request(&mut self, value: Value) -> Value {
-        self.send(value);
-        self.responses
-            .recv_timeout(Duration::from_secs(5))
-            .expect("MCP response timeout")
-    }
-
-    fn call(&mut self, id: u32, name: &str, arguments: Value) -> Value {
-        let response = self.request(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":arguments}}));
-        assert_eq!(response["id"], id, "{response}");
-        response
-    }
-}
-
-impl Drop for Client {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-fn read_request(stream: &mut impl Read) -> Value {
-    let mut len = [0; 4];
-    stream.read_exact(&mut len).unwrap();
-    let mut body = vec![0; u32::from_be_bytes(len) as usize];
-    stream.read_exact(&mut body).unwrap();
-    serde_json::from_slice(&body).unwrap()
 }
 
 fn assert_tool_error(response: &Value) {

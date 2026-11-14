@@ -1,5 +1,11 @@
 mod bounded_stdio;
 mod policy;
+mod resources;
+mod schemas;
+mod wire;
+
+pub(crate) use resources::*;
+pub(crate) use wire::*;
 
 use std::{
     borrow::Cow,
@@ -28,11 +34,12 @@ use rmcp::{
     tool, tool_handler, tool_router,
 };
 use serde_json::{Value, json};
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::UnixStream,
-    sync::Semaphore,
-};
+use tokio::sync::Semaphore;
+
+// The in-crate tests speak the engine wire directly, so they need the IO traits
+// and the socket type; the server itself goes through `wire`.
+#[cfg(test)]
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 const SCHEMA_VERSION: u64 = 29;
 
@@ -45,7 +52,6 @@ const SUPPORTED_PROTOCOL_VERSIONS: &[ProtocolVersion] = &[
     ProtocolVersion::V_2025_11_25,
     ProtocolVersion::V_2026_07_28,
 ];
-const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 const ENGINE_READ_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_IN_FLIGHT_READS: usize = 8;
 
@@ -530,12 +536,6 @@ struct ContentArguments {
     max_chars: Option<usize>,
 }
 
-#[derive(Debug, PartialEq)]
-struct ReadResult {
-    version: u64,
-    payload: Value,
-}
-
 /// Whether a result carries a text block, structured content, or both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PayloadMode {
@@ -572,93 +572,6 @@ struct Server {
     tool_router: ToolRouter<Self>,
 }
 
-/// Catalogued files per `resources/list` page.
-const RESOURCE_PAGE: usize = 100;
-
-/// Every member's declared root, keyed by member name.
-async fn member_roots(socket: &Path) -> Result<std::collections::BTreeMap<String, String>, String> {
-    let read = read_engine(socket, json!({"read": "members", "id": 1}), "members").await?;
-    let mut roots = std::collections::BTreeMap::new();
-    for member in read
-        .payload
-        .get("members")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-    {
-        if let (Some(repo), Some(root)) = (
-            member.get("repo").and_then(Value::as_str),
-            member.get("root").and_then(Value::as_str),
-        ) {
-            roots.insert(repo.to_owned(), root.to_owned());
-        }
-    }
-    Ok(roots)
-}
-
-/// The member-relative form of a catalogued absolute path, or None when the
-/// member's root is unknown or does not contain it.
-fn member_relative(
-    repo: &str,
-    path: &str,
-    roots: &std::collections::BTreeMap<String, String>,
-) -> Option<String> {
-    let root = roots.get(repo)?;
-    let prefix = format!("{}/", root.trim_end_matches('/'));
-    path.strip_prefix(&prefix).map(str::to_owned)
-}
-
-/// `arsumbris://<repo>/<path>`, with the path percent-encoded so a file name with
-/// a space, a `#`, or a `?` still forms a valid URI.
-fn resource_uri(repo: &str, path: &str) -> String {
-    format!("arsumbris://{repo}/{}", percent_encode(path))
-}
-
-/// Split a resource URI back into its member and its member-relative path.
-fn parse_resource_uri(uri: &str) -> Option<(String, String)> {
-    let rest = uri.strip_prefix("arsumbris://")?;
-    let (repo, path) = rest.split_once('/')?;
-    if repo.is_empty() || path.is_empty() {
-        return None;
-    }
-    Some((repo.to_owned(), percent_decode(path)?))
-}
-
-/// Percent-encode everything outside the RFC 3986 unreserved set plus `/`.
-fn percent_encode(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    for byte in value.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' => {
-                out.push(byte as char);
-            }
-            other => out.push_str(&format!("%{other:02X}")),
-        }
-    }
-    out
-}
-
-/// Decode `%XX` escapes; anything malformed is a bad URI, not a wrong file.
-fn percent_decode(value: &str) -> Option<String> {
-    let bytes = value.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-    while index < bytes.len() {
-        match bytes[index] {
-            b'%' => {
-                let hex = value.get(index + 1..index + 3)?;
-                out.push(u8::from_str_radix(hex, 16).ok()?);
-                index += 3;
-            }
-            other => {
-                out.push(other);
-                index += 1;
-            }
-        }
-    }
-    String::from_utf8(out).ok()
-}
-
 /// A deserialization failure names the missing field but not the tool or the
 #[tool_router]
 impl Server {
@@ -692,7 +605,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("overview"),
+        output_schema = crate::schemas::envelope_schema("overview"),
     )]
     async fn au_overview(
         &self,
@@ -710,7 +623,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("top_level_dirs"),
+        output_schema = crate::schemas::envelope_schema("top_level_dirs"),
     )]
     async fn au_top_level_dirs(
         &self,
@@ -732,7 +645,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("type_tree"),
+        output_schema = crate::schemas::envelope_schema("type_tree"),
     )]
     async fn au_type_tree(
         &self,
@@ -750,7 +663,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("type"),
+        output_schema = crate::schemas::envelope_schema("type"),
     )]
     async fn au_type(
         &self,
@@ -778,7 +691,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("types"),
+        output_schema = crate::schemas::envelope_schema("types"),
     )]
     async fn au_types(
         &self,
@@ -804,7 +717,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("hubs"),
+        output_schema = crate::schemas::envelope_schema("hubs"),
     )]
     async fn au_hubs(
         &self,
@@ -840,7 +753,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("diagnostics"),
+        output_schema = crate::schemas::envelope_schema("diagnostics"),
     )]
     async fn au_diagnostics(
         &self,
@@ -885,7 +798,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("subtypes"),
+        output_schema = crate::schemas::envelope_schema("subtypes"),
     )]
     async fn au_subtypes(
         &self,
@@ -912,7 +825,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("members"),
+        output_schema = crate::schemas::envelope_schema("members"),
     )]
     async fn au_members(
         &self,
@@ -936,7 +849,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("imports"),
+        output_schema = crate::schemas::envelope_schema("imports"),
     )]
     async fn au_imports(
         &self,
@@ -960,7 +873,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("files"),
+        output_schema = crate::schemas::envelope_schema("files"),
     )]
     async fn au_files(
         &self,
@@ -995,7 +908,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = false
         ),
-        output_schema = watch_schema(),
+        output_schema = crate::schemas::watch_schema(),
     )]
     async fn au_watch(
         &self,
@@ -1023,7 +936,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = rollback_preview_schema(),
+        output_schema = crate::schemas::rollback_preview_schema(),
     )]
     async fn au_rollback_preview(
         &self,
@@ -1052,7 +965,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = graph_health_schema(),
+        output_schema = crate::schemas::graph_health_schema(),
     )]
     async fn au_graph_health(
         &self,
@@ -1087,7 +1000,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = grep_schema(),
+        output_schema = crate::schemas::grep_schema(),
     )]
     async fn au_grep(
         &self,
@@ -1134,7 +1047,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("content"),
+        output_schema = crate::schemas::envelope_schema("content"),
     )]
     async fn au_content(
         &self,
@@ -1182,7 +1095,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_write_file(
         &self,
@@ -1209,7 +1122,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_edit_file(
         &self,
@@ -1236,7 +1149,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_delete_file(
         &self,
@@ -1262,7 +1175,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = batch_schema(),
+        output_schema = crate::schemas::batch_schema(),
     )]
     async fn au_batch(
         &self,
@@ -1356,7 +1269,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_create_file(
         &self,
@@ -1397,7 +1310,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_add_workspace_member(
         &self,
@@ -1427,7 +1340,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_remove_workspace_member(
         &self,
@@ -1456,7 +1369,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_set_workspace_member_role(
         &self,
@@ -1486,7 +1399,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_inline(
         &self,
@@ -1549,7 +1462,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_promote(
         &self,
@@ -1625,7 +1538,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_rename_type(
         &self,
@@ -1719,7 +1632,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_add_dep(
         &self,
@@ -1754,7 +1667,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_remove_dep(
         &self,
@@ -1783,7 +1696,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = true
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_assign_block_id(
         &self,
@@ -1807,7 +1720,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_rename_block_id(
         &self,
@@ -1835,7 +1748,7 @@ impl Server {
             destructive_hint = true,
             idempotent_hint = false
         ),
-        output_schema = mutation_schema(),
+        output_schema = crate::schemas::mutation_schema(),
     )]
     async fn au_rename(
         &self,
@@ -1870,7 +1783,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("preview_mutation"),
+        output_schema = crate::schemas::envelope_schema("preview_mutation"),
     )]
     async fn au_preview_mutation(
         &self,
@@ -1966,7 +1879,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("tools"),
+        output_schema = crate::schemas::envelope_schema("tools"),
     )]
     async fn au_search_tools(
         &self,
@@ -1998,7 +1911,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("tool"),
+        output_schema = crate::schemas::envelope_schema("tool"),
     )]
     async fn au_describe_tool(
         &self,
@@ -2031,7 +1944,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("instances_of"),
+        output_schema = crate::schemas::envelope_schema("instances_of"),
     )]
     async fn au_instances_of(
         &self,
@@ -2075,7 +1988,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = follow_schema(),
+        output_schema = crate::schemas::follow_schema(),
     )]
     async fn au_follow(
         &self,
@@ -2181,7 +2094,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = typed_schema(),
+        output_schema = crate::schemas::typed_schema(),
     )]
     async fn au_typed(
         &self,
@@ -2256,7 +2169,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("instance"),
+        output_schema = crate::schemas::envelope_schema("instance"),
     )]
     async fn au_resolved(
         &self,
@@ -2273,7 +2186,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("dir_entries"),
+        output_schema = crate::schemas::envelope_schema("dir_entries"),
     )]
     async fn au_children(
         &self,
@@ -2322,7 +2235,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = instances_schema(),
+        output_schema = crate::schemas::instances_schema(),
     )]
     async fn au_instances(
         &self,
@@ -2351,7 +2264,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = candidates_schema(),
+        output_schema = crate::schemas::candidates_schema(),
     )]
     async fn au_candidates(
         &self,
@@ -2378,7 +2291,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("semantic_tokens"),
+        output_schema = crate::schemas::envelope_schema("semantic_tokens"),
     )]
     async fn au_semantic_tokens(
         &self,
@@ -2396,7 +2309,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("resolve_member"),
+        output_schema = crate::schemas::envelope_schema("resolve_member"),
     )]
     async fn au_resolve_member(
         &self,
@@ -2414,7 +2327,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("frontmatter"),
+        output_schema = crate::schemas::envelope_schema("frontmatter"),
     )]
     async fn au_frontmatter(
         &self,
@@ -2432,7 +2345,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("anchors"),
+        output_schema = crate::schemas::envelope_schema("anchors"),
     )]
     async fn au_anchors(
         &self,
@@ -2449,7 +2362,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("block_ids"),
+        output_schema = crate::schemas::envelope_schema("block_ids"),
     )]
     async fn au_block_ids(
         &self,
@@ -2466,7 +2379,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = references_schema(),
+        output_schema = crate::schemas::references_schema(),
     )]
     async fn au_references(
         &self,
@@ -2540,7 +2453,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("neighborhood"),
+        output_schema = crate::schemas::envelope_schema("neighborhood"),
     )]
     async fn au_neighborhood(
         &self,
@@ -2610,7 +2523,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("validate_value"),
+        output_schema = crate::schemas::envelope_schema("validate_value"),
     )]
     async fn au_validate_value(
         &self,
@@ -2644,7 +2557,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = envelope_schema("reconcile"),
+        output_schema = crate::schemas::envelope_schema("reconcile"),
     )]
     async fn au_reconcile(
         &self,
@@ -4069,300 +3982,6 @@ fn tokenize(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// The output schema of a read: the engine's result object with its own key.
-fn envelope_schema(verb: &'static str) -> Arc<serde_json::Map<String, Value>> {
-    let mut properties = serde_json::Map::new();
-    properties.insert(
-        verb.to_owned(),
-        json!({"description": format!("the {verb} read's result")}),
-    );
-    // Paging metadata the adapter may add to any read's answer. A client
-    // validates `structuredContent` against this schema, so a field the adapter
-    // adds without declaring it here is a protocol error at the client, not a
-    // cosmetic mismatch.
-    for key in ["total", "offset", "next_offset"] {
-        properties.insert(
-            key.to_owned(),
-            json!({"type": "integer", "description": format!("paging metadata added by the adapter ({key})")}),
-        );
-    }
-    Arc::new(
-        json!({
-            "type": "object",
-            "properties": properties,
-            "required": [verb],
-            "additionalProperties": false,
-        })
-        .as_object()
-        .expect("object schema")
-        .clone(),
-    )
-}
-
-/// The output schema of `au_watch`: the delta the engine reported, or a timeout.
-fn watch_schema() -> Arc<serde_json::Map<String, Value>> {
-    Arc::new(
-        json!({
-            "type": "object",
-            "properties": {
-                "watch": {
-                    "type": "object",
-                    "properties": {
-                        "added": {"type": "array", "items": {"type": "string"}},
-                        "removed": {"type": "array", "items": {"type": "string"}},
-                        "modified": {"type": "array", "items": {"type": "string"}},
-                        "version": {"type": ["integer", "null"]},
-                        "timed_out": {"type": "boolean"}
-                    },
-                    "required": ["added", "removed", "modified", "timed_out"],
-                    "additionalProperties": false
-                }
-            },
-            "required": ["watch"],
-            "additionalProperties": false,
-        })
-        .as_object()
-        .expect("object schema")
-        .clone(),
-    )
-}
-
-/// The output schema of `au_rollback_preview`/// The output schema of `au_rollback_preview`: a plan, path by path.
-fn rollback_preview_schema() -> Arc<serde_json::Map<String, Value>> {
-    Arc::new(
-        json!({
-            "type": "object",
-            "properties": {
-                "rollback_preview": {
-                    "type": "object",
-                    "properties": {
-                        "repo": {"type": "string"},
-                        "commit": {"type": "string"},
-                        "subject": {"type": "string"},
-                        "parent": {"type": ["string", "null"]},
-                        "paths": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "path": {"type": "string"},
-                                    "action": {"type": "string", "enum": ["restore", "delete"]},
-                                    "state": {"type": "string", "enum": ["clean", "dirty", "changed_since"]}
-                                },
-                                "required": ["path", "action", "state"],
-                                "additionalProperties": false
-                            }
-                        },
-                        "safe": {"type": "boolean"}
-                    },
-                    "required": ["repo", "commit", "subject", "parent", "paths", "safe"],
-                    "additionalProperties": false
-                }
-            },
-            "required": ["rollback_preview"],
-            "additionalProperties": false,
-        })
-        .as_object()
-        .expect("object schema")
-        .clone(),
-    )
-}
-
-/// The output schema of `au_graph_health`/// The output schema of `au_graph_health`: the report and its bounded lists.
-fn graph_health_schema() -> Arc<serde_json::Map<String, Value>> {
-    let node = json!({
-        "type": "object",
-        "properties": {
-            "path": {"type": "string"},
-            "in": {"type": "integer"},
-            "out": {"type": "integer"},
-            "total": {"type": "integer"}
-        },
-        "required": ["path", "in", "out", "total"],
-        "additionalProperties": false
-    });
-    let report = json!({
-        "type": "object",
-        "properties": {
-            "repo": {"type": ["string", "null"]},
-            "scope": {"type": "string"},
-            "counts": {"type": "object"},
-            "cycles": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "length": {"type": "integer"},
-                        "nodes": {"type": "array", "items": {"type": "string"}}
-                    },
-                    "required": ["length", "nodes"],
-                    "additionalProperties": false
-                }
-            },
-            "isolated": {"type": "array", "items": node},
-            "dead_ends": {"type": "array", "items": node},
-            "sources": {"type": "array", "items": node},
-            "broken_links": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string"},
-                        "code": {"type": "string"},
-                        "message": {"type": "string"},
-                        "line": {"type": ["integer", "null"]}
-                    },
-                    "required": ["path", "code", "message"],
-                    "additionalProperties": false
-                }
-            },
-            "central": {"type": "array", "items": node},
-            "truncated": {"type": "boolean"}
-        },
-        "required": ["counts", "cycles", "isolated", "dead_ends", "sources", "broken_links", "central", "truncated"],
-        "additionalProperties": false
-    });
-    Arc::new(
-        json!({
-            "type": "object",
-            "properties": {"graph_health": report},
-            "required": ["graph_health"],
-            "additionalProperties": false,
-        })
-        .as_object()
-        .expect("object schema")
-        .clone(),
-    )
-}
-
-/// The output schema of `au_batch`: the per-op results and the saga's commit./// The output schema of `au_batch`: the per-op results and the saga's commit.
-fn batch_schema() -> Arc<serde_json::Map<String, Value>> {
-    Arc::new(
-        json!({
-            "type": "object",
-            "properties": {
-                "ops": {
-                    "type": "array",
-                    "description": "one entry per applied operation, in order",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "op": {"type": "string"},
-                            "path": {"type": "string"},
-                            "hash": {"type": ["string", "null"]}
-                        },
-                        "required": ["op", "path"],
-                        "additionalProperties": false
-                    }
-                },
-                "reflected": {"type": "boolean"},
-                "commit": {},
-                "commits": {"type": "array"},
-                "diagnostics": {"type": "array"},
-                "untracked_files": {"type": "array"}
-            },
-            "required": ["ops", "commit", "commits", "diagnostics"],
-            "additionalProperties": false,
-        })
-        .as_object()
-        .expect("object schema")
-        .clone(),
-    )
-}
-
-/// The output schema of `au_grep`: one page of matches plus the totals that make
-/// the page interpretable.
-fn grep_schema() -> Arc<serde_json::Map<String, Value>> {
-    let hit = json!({
-        "type": "object",
-        "properties": {
-            "path": {"type": "string"},
-            "repo": {"type": ["string", "null"]},
-            "line": {"type": "integer", "description": "1-based line number"},
-            "column": {"type": "integer", "description": "1-based character column of the match"},
-            "text": {"type": "string", "description": "the line, cut at 400 characters"},
-            "text_truncated": {"type": "boolean"},
-        },
-        "required": ["path", "line", "column", "text", "text_truncated"],
-        "additionalProperties": false,
-    });
-    Arc::new(
-        json!({
-            "type": "object",
-            "properties": {
-                "grep": {
-                    "type": "object",
-                    "properties": {
-                        "matches": {"type": "array", "items": hit},
-                        "total": {"type": "integer"},
-                        "truncated": {"type": "boolean"},
-                        "skipped_files": {"type": "integer"},
-                    },
-                    "required": ["matches", "total", "truncated", "skipped_files"],
-                    "additionalProperties": false,
-                }
-            },
-            "required": ["grep"],
-            "additionalProperties": false,
-        })
-        .as_object()
-        .expect("object schema")
-        .clone(),
-    )
-}
-
-/// The output schema of `au_instances`: the engine's envelope plus paging.
-fn instances_schema() -> Arc<serde_json::Map<String, Value>> {
-    let mut properties = serde_json::Map::new();
-    properties.insert(
-        "instances".to_owned(),
-        json!({"type": "array", "description": "resolved instances"}),
-    );
-    properties.insert(
-        "count".to_owned(),
-        json!({"type": "integer", "description": "instances the engine parsed"}),
-    );
-    properties.insert(
-        "aborted_at_load".to_owned(),
-        json!({"type": "boolean", "description": "a broken vocabulary skipped validation"}),
-    );
-    for key in ["total", "offset", "next_offset"] {
-        properties.insert(
-            key.to_owned(),
-            json!({"type": ["integer", "null"], "description": format!("paging metadata added by the adapter ({key})")}),
-        );
-    }
-    Arc::new(
-        json!({
-            "type": "object",
-            "properties": properties,
-            "required": ["instances"],
-            "additionalProperties": false,
-        })
-        .as_object()
-        .expect("object schema")
-        .clone(),
-    )
-}
-
-/// The output schema of `au_candidates`: the scan's envelope.
-fn candidates_schema() -> Arc<serde_json::Map<String, Value>> {
-    Arc::new(
-        json!({
-            "type": "object",
-            "properties": {
-                "candidates": {"type": "array", "description": "one entry per scanned file"},
-                "aborted_at_load": {"type": "boolean"}
-            },
-            "required": ["candidates"],
-            "additionalProperties": false,
-        })
-        .as_object()
-        .expect("object schema")
-        .clone(),
-    )
-}
-
 /// Page an array that sits under `key`, keeping the rest of the payload.
 fn page_array(
     result: CallToolResult,
@@ -4405,46 +4024,6 @@ fn page_array(
     let mut response = success_payload(payload, mode);
     response.meta = result.meta;
     response
-}
-
-/// The output schema of `au_references`: either or both directions.
-fn references_schema() -> Arc<serde_json::Map<String, Value>> {
-    Arc::new(
-        json!({
-            "type": "object",
-            "properties": {
-                "references_out": {"type": "array", "description": "edges the file authors"},
-                "references_in": {"type": "array", "description": "edges pointing at the file"}
-            },
-            "additionalProperties": false,
-        })
-        .as_object()
-        .expect("object schema")
-        .clone(),
-    )
-}
-
-/// The output schema shared by every mutation: the engine's mutation result.
-fn mutation_schema() -> Arc<serde_json::Map<String, Value>> {
-    Arc::new(
-        json!({
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "absolute path that was written"},
-                "hash": {"type": "string", "description": "content hash after the mutation"},
-                "reflected": {"type": "boolean"},
-                "commit": {},
-                "commits": {"type": "array"},
-                "diagnostics": {"type": "array"},
-                "untracked_files": {"type": "array"}
-            },
-            "required": ["path"],
-            "additionalProperties": true,
-        })
-        .as_object()
-        .expect("object schema")
-        .clone(),
-    )
 }
 
 /// Whether this request may use tools.
@@ -4504,28 +4083,6 @@ async fn resolve_editable(socket: &Path, repo: &str, relative: &str) -> Result<S
         .ok_or_else(|| "resolved path is not valid UTF-8".to_owned())
 }
 
-enum MutationFailure {
-    /// The engine rejected the mutation: nothing was written.
-    Rejected(String),
-    /// No usable answer: the outcome is unknown and a retry could double-apply.
-    Unknown(String),
-}
-
-async fn read_mutation_with_timeout(
-    socket: &Path,
-    request: Value,
-    timeout: Duration,
-) -> Result<ReadResult, MutationFailure> {
-    match tokio::time::timeout(timeout, mutate_engine(socket, request)).await {
-        Err(_) => Err(MutationFailure::Unknown(format!(
-            "engine mutation timed out after {timeout:?}"
-        ))),
-        Ok(Err(WireError::Rejected(message))) => Err(MutationFailure::Rejected(message)),
-        Ok(Err(WireError::Broken(message))) => Err(MutationFailure::Unknown(message)),
-        Ok(Ok(result)) => Ok(result),
-    }
-}
-
 /// The wire spelling of a workspace role.
 fn workspace_role(role: WorkspaceRole) -> &'static str {
     match role {
@@ -4537,59 +4094,6 @@ fn workspace_role(role: WorkspaceRole) -> &'static str {
 /// A tool error from a string, so call sites stay one line.
 fn return_error(message: impl Into<String>) -> CallToolResult {
     CallToolResult::error(vec![ContentBlock::text(message.into())])
-}
-
-/// The output schema of `au_follow`.
-fn follow_schema() -> Arc<serde_json::Map<String, Value>> {
-    let mut properties = serde_json::Map::new();
-    properties.insert(
-        "follow".to_owned(),
-        json!({
-            "type": "object",
-            "properties": {
-                "target": {"type": "string"},
-                "origin": {"type": "string"},
-                "resolved": {"type": "boolean"},
-                "referent": {"type": "boolean"},
-                "snippet": {"type": "string"}
-            },
-            "required": ["target", "origin", "resolved"],
-            "additionalProperties": true
-        }),
-    );
-    Arc::new(
-        json!({
-            "type": "object",
-            "properties": properties,
-            "required": ["follow"],
-            "additionalProperties": false,
-        })
-        .as_object()
-        .expect("object schema")
-        .clone(),
-    )
-}
-
-/// The output schema of `au_typed`.
-fn typed_schema() -> Arc<serde_json::Map<String, Value>> {
-    Arc::new(
-        json!({
-            "type": "object",
-            "properties": {
-                "typed": {"type": "boolean"},
-                "kind": {"description": "instance, type-def, unclassified, or null"},
-                "path": {"type": "string"},
-                "claim": {"type": "array"},
-                "resolves": {"type": "boolean"},
-                "closure": {"type": "array"}
-            },
-            "required": ["typed", "path"],
-            "additionalProperties": false,
-        })
-        .as_object()
-        .expect("object schema")
-        .clone(),
-    )
 }
 
 /// A locally produced answer (discovery results), shaped like a tool payload.
@@ -4878,256 +4382,6 @@ async fn read_content(socket: &Path, repo: &str, relative: &str) -> Result<ReadR
         "content",
     )
     .await
-}
-
-async fn read_engine_with_timeout(
-    socket: &Path,
-    request: Value,
-    verb: &str,
-    timeout: Duration,
-) -> Result<ReadResult, String> {
-    tokio::time::timeout(timeout, read_engine(socket, request, verb))
-        .await
-        .map_err(|_| format!("engine read '{verb}' timed out after {timeout:?} (connect, write, or response); no retry was attempted"))?
-}
-
-/// A framed engine exchange that failed, split by what it proves about a
-/// mutation: an engine rejection wrote nothing, while a transport failure may
-/// have landed.
-enum WireError {
-    /// The engine answered with a rejection: nothing was written.
-    Rejected(String),
-    /// No usable answer: the operation may or may not have happened.
-    Broken(String),
-}
-
-impl WireError {
-    fn message(self) -> String {
-        match self {
-            Self::Rejected(message) | Self::Broken(message) => message,
-        }
-    }
-}
-
-/// Read one engine frame: a big-endian length, then that many JSON bytes.
-async fn read_frame(stream: &mut UnixStream) -> Result<Value, WireError> {
-    let len = stream
-        .read_u32()
-        .await
-        .map_err(|e| WireError::Broken(format!("reading response length: {e}")))?
-        as usize;
-    if len > MAX_FRAME_BYTES {
-        return Err(WireError::Broken("response frame too large".into()));
-    }
-    let mut data = vec![0; len];
-    stream
-        .read_exact(&mut data)
-        .await
-        .map_err(|e| WireError::Broken(format!("reading response: {e}")))?;
-    serde_json::from_slice(&data)
-        .map_err(|e| WireError::Broken(format!("invalid response JSON: {e}")))
-}
-
-/// Encode one request frame, refusing an oversized one BEFORE any connection is
-/// opened: a request that cannot be sent must not cost the peer a socket.
-fn encode_frame(request: &Value) -> Result<Vec<u8>, WireError> {
-    let data = serde_json::to_vec(request)
-        .map_err(|e| WireError::Broken(format!("encoding request: {e}")))?;
-    if data.len() > MAX_FRAME_BYTES {
-        return Err(WireError::Broken("request frame too large".into()));
-    }
-    Ok(data)
-}
-
-/// Write an encoded frame: a big-endian length, then the JSON bytes.
-async fn write_encoded(stream: &mut UnixStream, data: &[u8]) -> Result<(), WireError> {
-    let frame_len = u32::try_from(data.len())
-        .map_err(|_| WireError::Broken("request frame too large".into()))?;
-    stream
-        .write_u32(frame_len)
-        .await
-        .map_err(|e| WireError::Broken(format!("writing request length: {e}")))?;
-    stream
-        .write_all(data)
-        .await
-        .map_err(|e| WireError::Broken(format!("writing request: {e}")))?;
-    Ok(())
-}
-
-/// Encode and write one request frame.
-async fn write_frame(stream: &mut UnixStream, request: &Value) -> Result<(), WireError> {
-    let data = encode_frame(request)?;
-    write_encoded(stream, &data).await
-}
-
-/// Wait for the next file change the engine reports, or for the deadline.
-///
-/// A watch is a SUBSCRIPTION, not a read: this opens its own connection, skips
-/// the `ack`, and ends at the first `change_event`. The engine's `changes`
-/// channel delivers net file deltas per rebuild, so a caller learns what moved
-/// without polling `au_files` and diffing by hand. Never waits past `timeout`.
-async fn watch_engine(socket: &Path, timeout: Duration) -> Result<Value, String> {
-    let mut stream = UnixStream::connect(socket)
-        .await
-        .map_err(|e| format!("connecting to engine: {e}"))?;
-    write_frame(&mut stream, &json!({"subscribe": "changes", "id": 1}))
-        .await
-        .map_err(|e| e.message())?;
-    let deadline = tokio::time::Instant::now() + timeout;
-    loop {
-        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-        if remaining.is_zero() {
-            return Ok(
-                json!({"added": [], "removed": [], "modified": [], "version": serde_json::Value::Null, "timed_out": true}),
-            );
-        }
-        let frame = match tokio::time::timeout(remaining, read_frame(&mut stream)).await {
-            Err(_) => {
-                return Ok(json!({"added": [], "removed": [], "modified": [],
-                    "version": serde_json::Value::Null, "timed_out": true}));
-            }
-            Ok(Err(error)) => return Err(error.message()),
-            Ok(Ok(frame)) => frame,
-        };
-        match frame.get("type").and_then(Value::as_str) {
-            Some("ack") => continue,
-            Some("change_event") => {
-                let hint = &frame["scope_hint"];
-                return Ok(json!({
-                    "added": hint.get("added").cloned().unwrap_or_else(|| json!([])),
-                    "removed": hint.get("removed").cloned().unwrap_or_else(|| json!([])),
-                    "modified": hint.get("modified").cloned().unwrap_or_else(|| json!([])),
-                    "version": frame.get("at_version").cloned().unwrap_or(Value::Null),
-                    "timed_out": false,
-                }));
-            }
-            Some("error") => {
-                return Err(frame
-                    .get("error")
-                    .and_then(Value::as_str)
-                    .unwrap_or("engine refused the subscription")
-                    .to_owned());
-            }
-            _ => continue,
-        }
-    }
-}
-
-async fn exchange(socket: &Path, request: &Value) -> Result<Value, WireError> {
-    let data = encode_frame(request)?;
-    let mut stream = UnixStream::connect(socket)
-        .await
-        .map_err(|e| WireError::Broken(format!("connecting to engine: {e}")))?;
-    write_encoded(&mut stream, &data).await?;
-    let response = read_frame(&mut stream).await?;
-    if response.get("schema_version").and_then(Value::as_u64) != Some(SCHEMA_VERSION) {
-        return Err(WireError::Broken(
-            "unsupported or missing engine schema_version (expected 29)".into(),
-        ));
-    }
-    if response.get("id") != request.get("id") {
-        return Err(WireError::Broken("response id mismatch".into()));
-    }
-    match response.get("type").and_then(Value::as_str) {
-        Some("error") => {
-            // The engine may omit `for`; the id check above already tied this
-            // frame to our request, so any error frame is a rejection: the
-            // engine refused before writing and nothing landed.
-            let message = response
-                .get("error")
-                .and_then(Value::as_str)
-                .ok_or_else(|| WireError::Broken("invalid engine error frame".into()))?;
-            return Err(WireError::Rejected(format!("engine error: {message}")));
-        }
-        Some("response") => {}
-        _ => return Err(WireError::Broken("unexpected engine frame type".into())),
-    }
-    match response.get("ready").and_then(Value::as_bool) {
-        Some(false) => return Err(WireError::Rejected("engine not ready".into())),
-        Some(true) => {}
-        None => return Err(WireError::Broken("invalid engine readiness".into())),
-    }
-    if response.get("version").and_then(Value::as_u64).is_none() {
-        return Err(WireError::Broken(
-            "missing or invalid engine version".into(),
-        ));
-    }
-    if response.get("result").and_then(Value::as_object).is_none() {
-        return Err(WireError::Broken("invalid result envelope".into()));
-    }
-    Ok(response)
-}
-
-async fn read_engine(socket: &Path, request: Value, verb: &str) -> Result<ReadResult, String> {
-    let response = exchange(socket, &request)
-        .await
-        .map_err(WireError::message)?;
-    let version = response["version"]
-        .as_u64()
-        .ok_or("missing or invalid engine version")?;
-    let result = response["result"]
-        .as_object()
-        .ok_or("invalid result envelope")?;
-    let payload = result.get(verb).ok_or("missing read result payload")?;
-    let valid = match verb {
-        "overview" => payload.is_object(),
-        "top_level_dirs" | "hubs" | "diagnostics" | "members" | "imports" | "files" => {
-            payload.is_array()
-        }
-        "subtypes" => payload.is_array() && result.get("base") == request.get("base"),
-        "type_tree" => {
-            payload.is_object()
-                && payload.get("roots").is_some_and(Value::is_array)
-                && payload.get("nodes").is_some_and(Value::is_array)
-        }
-        "type" => payload.is_object() || payload.is_null(),
-        "content" => payload.is_object() || payload.is_null(),
-        "instances_of" | "validate_value" => payload.is_array(),
-        "frontmatter" => payload.is_object() || payload.is_null(),
-        "anchors" | "block_ids" => payload.is_array() || payload.is_null(),
-        "references_out" | "references_in" => payload.is_array(),
-        "neighborhood" => payload.is_object(),
-        "instances" | "candidates" => payload.is_array(),
-        "semantic_tokens" => payload.is_array() || payload.is_null(),
-        "resolve_member" | "instance" | "resolve_target" | "resolve_block_id"
-        | "resolve_anchor" => payload.is_object() || payload.is_null(),
-        "dir_entries" => payload.is_array(),
-        "grep" => payload.is_object(),
-        "graph_health" => payload.is_object(),
-        "rollback_preview" => payload.is_object(),
-        "preview_mutation" => payload.is_object(),
-        "types" => payload.is_array() || payload.is_null(),
-        _ => false,
-    };
-    if !valid {
-        return Err("invalid read result payload".into());
-    }
-    Ok(ReadResult {
-        version,
-        payload: Value::Object(result.clone()),
-    })
-}
-
-/// Send one mutation. A rejection is definitive; anything else means the
-/// mutation may have landed, so a caller must never retry it blindly.
-async fn mutate_engine(socket: &Path, request: Value) -> Result<ReadResult, WireError> {
-    let response = exchange(socket, &request).await?;
-    let version = response["version"]
-        .as_u64()
-        .ok_or_else(|| WireError::Broken("missing or invalid engine version".into()))?;
-    let result = response["result"]
-        .as_object()
-        .ok_or_else(|| WireError::Broken("invalid result envelope".into()))?;
-    // A single-file mutation names its path; a batch names its ops instead.
-    let named = result.get("path").is_some_and(Value::is_string)
-        || result.get("ops").is_some_and(Value::is_array);
-    if !named {
-        return Err(WireError::Broken("invalid mutation result payload".into()));
-    }
-    Ok(ReadResult {
-        version,
-        payload: Value::Object(result.clone()),
-    })
 }
 
 const NAME: &str = env!("CARGO_PKG_NAME");

@@ -1,107 +1,10 @@
-use std::{
-    io::{BufRead, BufReader, Read, Write},
-    os::unix::net::UnixListener,
-    path::Path,
-    process::{Child, ChildStdin, Command, Stdio},
-    sync::mpsc::{self, Receiver},
-    thread,
-    time::Duration,
-};
+use std::{io::Write, os::unix::net::UnixListener, thread, time::Duration};
 
-use serde_json::{Value, json};
+use serde_json::json;
 
-struct Client {
-    child: Child,
-    input: ChildStdin,
-    responses: Receiver<Value>,
-}
+mod support;
 
-impl Client {
-    fn start(socket: &Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
-            .arg(socket)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let input = child.stdin.take().unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let (tx, responses) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                let line = line.unwrap();
-                if tx
-                    .send(serde_json::from_str(&line).expect("stdout must contain JSON"))
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        });
-        let mut client = Self {
-            child,
-            input,
-            responses,
-        };
-        let response = client.request(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"type-read-test","version":"1"}}}));
-        assert!(response.get("result").is_some(), "{response}");
-        writeln!(
-            client.input,
-            "{}",
-            json!({"jsonrpc":"2.0","method":"notifications/initialized"})
-        )
-        .unwrap();
-        client.input.flush().unwrap();
-        client
-    }
-
-    fn request(&mut self, request: Value) -> Value {
-        writeln!(self.input, "{request}").unwrap();
-        self.input.flush().unwrap();
-        self.responses
-            .recv_timeout(Duration::from_secs(5))
-            .expect("MCP response timeout")
-    }
-
-    fn call(&mut self, id: u32, arguments: Value) -> Value {
-        self.call_tool(id, "au_type", arguments)
-    }
-
-    fn call_tool(&mut self, id: u32, name: &str, arguments: Value) -> Value {
-        let response = self.request(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":arguments}}));
-        assert_eq!(response["id"], id, "{response}");
-        response
-    }
-}
-
-impl Drop for Client {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-fn assert_error(response: &Value) {
-    assert!(
-        response.get("error").is_some() || response["result"]["isError"] == true,
-        "{response}"
-    );
-}
-
-fn result_payload(response: &Value) -> Value {
-    assert!(response.get("error").is_none(), "{response}");
-    assert_ne!(response["result"]["isError"], true, "{response}");
-    serde_json::from_str(response["result"]["content"][0]["text"].as_str().unwrap()).unwrap()
-}
-
-fn read_request(stream: &mut impl Read) -> Value {
-    let mut len = [0; 4];
-    stream.read_exact(&mut len).unwrap();
-    let mut body = vec![0; u32::from_be_bytes(len) as usize];
-    stream.read_exact(&mut body).unwrap();
-    serde_json::from_slice(&body).unwrap()
-}
+use support::{Client, assert_error, read_request, result_payload};
 
 #[test]
 fn invalid_arguments_are_rejected_without_engine_connection() {
@@ -124,7 +27,7 @@ fn invalid_arguments_are_rejected_without_engine_connection() {
         (11, json!({"name":"task","repo":""})),
         (12, json!({"name":"task::other","repo":""})),
     ] {
-        assert_error(&client.call(id, args));
+        assert_error(&client.call(id, "au_type", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -220,7 +123,7 @@ fn type_reads_qualify_names_and_preserve_object_or_null() {
     let mut client = Client::start(&socket);
     for (index, (args, _, payload)) in cases.into_iter().enumerate() {
         assert_eq!(
-            result_payload(&client.call(index as u32 + 2, args)),
+            result_payload(&client.call(index as u32 + 2, "au_type", args)),
             json!({"type":payload})
         );
     }
@@ -246,7 +149,7 @@ fn subtypes_invalid_arguments_never_contact_engine() {
     .into_iter()
     .enumerate()
     {
-        assert_error(&client.call_tool(i as u32 + 2, "au_subtypes", args));
+        assert_error(&client.call(i as u32 + 2, "au_subtypes", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -314,7 +217,7 @@ fn subtypes_preserve_envelope_and_reject_bad_results_before_recovery() {
     });
     let mut client = Client::start(&socket);
     for (i, (args, _, payload, success)) in cases.into_iter().enumerate() {
-        let response = client.call_tool(i as u32 + 2, "au_subtypes", args);
+        let response = client.call(i as u32 + 2, "au_subtypes", args);
         if success {
             assert_eq!(result_payload(&response), payload);
             assert_eq!(
@@ -346,7 +249,7 @@ fn members_reject_invalid_arguments_without_connecting() {
     .into_iter()
     .enumerate()
     {
-        assert_error(&client.call_tool(i as u32 + 2, "au_members", args));
+        assert_error(&client.call(i as u32 + 2, "au_members", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -414,7 +317,7 @@ fn members_preserve_envelope_and_recover_after_invalid_responses() {
     });
     let mut client = Client::start(&socket);
     for (i, (args, _, payload, success)) in cases.into_iter().enumerate() {
-        let response = client.call_tool(i as u32 + 2, "au_members", args);
+        let response = client.call(i as u32 + 2, "au_members", args);
         if success {
             assert_eq!(result_payload(&response), payload);
             assert_eq!(
@@ -447,7 +350,7 @@ fn imports_invalid_arguments_never_contact_engine() {
     .into_iter()
     .enumerate()
     {
-        assert_error(&client.call_tool(i as u32 + 2, "au_imports", args));
+        assert_error(&client.call(i as u32 + 2, "au_imports", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -515,7 +418,7 @@ fn imports_preserve_scope_envelope_and_recover_after_errors() {
     });
     let mut client = Client::start(&socket);
     for (i, (args, _, payload, success)) in cases.into_iter().enumerate() {
-        let response = client.call_tool(i as u32 + 2, "au_imports", args);
+        let response = client.call(i as u32 + 2, "au_imports", args);
         if success {
             assert_eq!(result_payload(&response), payload);
             assert_eq!(
@@ -552,7 +455,7 @@ fn files_invalid_arguments_never_contact_engine() {
     .into_iter()
     .enumerate()
     {
-        assert_error(&client.call_tool(i as u32 + 2, "au_files", args));
+        assert_error(&client.call(i as u32 + 2, "au_files", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -614,7 +517,7 @@ fn files_preserve_paging_scope_order_and_recover_after_bad_envelopes() {
     });
     let mut client = Client::start(&socket);
     for (i, (args, _, payload, success)) in cases.into_iter().enumerate() {
-        let response = client.call_tool(i as u32 + 2, "au_files", args);
+        let response = client.call(i as u32 + 2, "au_files", args);
         if success {
             assert_eq!(result_payload(&response), payload);
             assert_eq!(
@@ -650,7 +553,7 @@ fn content_rejects_invalid_paths_before_connecting() {
     .into_iter()
     .enumerate()
     {
-        assert_error(&client.call_tool(i as u32 + 2, "au_content", args));
+        assert_error(&client.call(i as u32 + 2, "au_content", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -693,7 +596,7 @@ fn content_resolves_the_member_root_and_preserves_envelope() {
         content.write_all(&body).unwrap();
     });
     let mut client = Client::start(&socket);
-    let response = client.call_tool(
+    let response = client.call(
         2,
         "au_content",
         json!({"repo":"fixture","path":"notes/a.md"}),
@@ -745,7 +648,7 @@ fn content_unknown_member_is_a_tool_error_without_a_content_read() {
         count_tx.send(accepted).unwrap();
     });
     let mut client = Client::start(&socket);
-    let response = client.call_tool(
+    let response = client.call(
         2,
         "au_content",
         json!({"repo":"missing","path":"notes/a.md"}),
@@ -786,7 +689,7 @@ fn missing_or_array_type_payload_is_rejected() {
     });
     let mut client = Client::start(&socket);
     for id in 2..4 {
-        assert_error(&client.call(id, json!({"name":"task"})));
+        assert_error(&client.call(id, "au_type", json!({"name":"task"})));
     }
     daemon.join().unwrap();
 }
@@ -810,7 +713,7 @@ fn instances_of_rejects_invalid_arguments_before_connecting() {
     .into_iter()
     .enumerate()
     {
-        assert_error(&client.call_tool(i as u32 + 2, "au_instances_of", args));
+        assert_error(&client.call(i as u32 + 2, "au_instances_of", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -857,7 +760,7 @@ fn instances_of_forwards_the_exact_read_and_preserves_the_envelope() {
     });
     let mut client = Client::start(&socket);
     for (i, (args, _, payload)) in cases.into_iter().enumerate() {
-        let reply = client.call_tool(i as u32 + 2, "au_instances_of", args);
+        let reply = client.call(i as u32 + 2, "au_instances_of", args);
         assert_eq!(result_payload(&reply), payload);
         assert_eq!(reply["result"]["_meta"]["io.arsumbris/engineVersion"], "21");
     }
@@ -887,7 +790,7 @@ fn validate_value_forwards_the_value_and_reports_a_null_identity() {
         stream.write_all(&body).unwrap();
     });
     let mut client = Client::start(&socket);
-    let reply = client.call_tool(
+    let reply = client.call(
         2,
         "au_validate_value",
         json!({"type_name":"ghost","value":{"title":"x"}}),
@@ -913,7 +816,7 @@ fn validate_value_rejects_invalid_arguments_before_connecting() {
     .into_iter()
     .enumerate()
     {
-        assert_error(&client.call_tool(i as u32 + 2, "au_validate_value", args));
+        assert_error(&client.call(i as u32 + 2, "au_validate_value", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock

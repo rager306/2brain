@@ -1,95 +1,12 @@
-use std::{
-    io::{BufRead, BufReader, Read, Write},
-    os::unix::net::UnixListener,
-    path::Path,
-    process::{Child, ChildStdin, Command, Stdio},
-    sync::mpsc::{self, Receiver},
-    thread,
-    time::Duration,
-};
+use std::{io::Write, os::unix::net::UnixListener, thread, time::Duration};
 
 use serde_json::{Value, json};
 
+mod support;
+
+use support::{Client, read_request};
+
 const VERSION_KEY: &str = "io.arsumbris/engineVersion";
-
-struct Client {
-    child: Child,
-    input: ChildStdin,
-    responses: Receiver<Value>,
-}
-
-impl Client {
-    fn start(socket: &Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
-            .arg(socket)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let input = child.stdin.take().unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let (tx, responses) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                if tx
-                    .send(serde_json::from_str(&line.unwrap()).unwrap())
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        });
-        let mut client = Self {
-            child,
-            input,
-            responses,
-        };
-        let response = client.request(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"hubs-test","version":"1"}}}));
-        assert!(response.get("result").is_some(), "{response}");
-        writeln!(
-            client.input,
-            "{}",
-            json!({"jsonrpc":"2.0","method":"notifications/initialized"})
-        )
-        .unwrap();
-        client.input.flush().unwrap();
-        client
-    }
-
-    fn request(&mut self, request: Value) -> Value {
-        writeln!(self.input, "{request}").unwrap();
-        self.input.flush().unwrap();
-        self.responses
-            .recv_timeout(Duration::from_secs(5))
-            .expect("MCP response timeout")
-    }
-
-    fn call(&mut self, id: u32, arguments: Value) -> Value {
-        self.call_tool(id, "au_hubs", arguments)
-    }
-
-    fn call_tool(&mut self, id: u32, name: &str, arguments: Value) -> Value {
-        let response = self.request(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":arguments}}));
-        assert_eq!(response["id"], id, "{response}");
-        response
-    }
-}
-
-impl Drop for Client {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-fn read_request(stream: &mut impl Read) -> Value {
-    let mut len = [0; 4];
-    stream.read_exact(&mut len).unwrap();
-    let mut body = vec![0; u32::from_be_bytes(len) as usize];
-    stream.read_exact(&mut body).unwrap();
-    serde_json::from_slice(&body).unwrap()
-}
 
 fn response(ready: bool, version: u64, result: Value) -> Value {
     json!({"type":"response","schema_version":29,"id":1,"ready":ready,"version":version,"result":result})
@@ -166,7 +83,7 @@ fn invalid_arguments_never_contact_engine() {
     .into_iter()
     .enumerate()
     {
-        assert_error(&client.call(index as u32 + 2, args));
+        assert_error(&client.call(index as u32 + 2, "au_hubs", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -224,7 +141,11 @@ fn default_and_scoped_paged_requests_preserve_payload_and_version() {
     });
     let mut client = Client::start(&socket);
     for (index, (args, _, version, payload)) in cases.into_iter().enumerate() {
-        assert_success(&client.call(index as u32 + 2, args), version, &payload);
+        assert_success(
+            &client.call(index as u32 + 2, "au_hubs", args),
+            version,
+            &payload,
+        );
     }
     daemon.join().unwrap();
 }
@@ -254,7 +175,7 @@ fn diagnostics_reject_invalid_arguments_before_connecting() {
     .into_iter()
     .enumerate()
     {
-        assert_error(&client.call_tool(index as u32 + 2, "au_diagnostics", args));
+        assert_error(&client.call(index as u32 + 2, "au_diagnostics", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -316,7 +237,7 @@ fn diagnostics_requests_preserve_filters_pages_and_failures() {
     });
     let mut client = Client::start(&socket);
     for (index, (args, _, reply, success)) in cases.into_iter().enumerate() {
-        let result = client.call_tool(index as u32 + 2, "au_diagnostics", args);
+        let result = client.call(index as u32 + 2, "au_diagnostics", args);
         if success {
             assert_success(
                 &result,
@@ -372,12 +293,12 @@ fn engine_failures_and_invalid_frames_are_tool_errors_then_recover() {
     });
     let mut client = Client::start(&socket);
     for id in 2..9 {
-        let reply = client.call(id, json!({}));
+        let reply = client.call(id, "au_hubs", json!({}));
         assert_eq!(reply["result"]["isError"], true, "{reply}");
         assert_error(&reply);
     }
     assert_success(
-        &client.call(9, json!({})),
+        &client.call(9, "au_hubs", json!({})),
         13,
         &json!({"hubs":[{"path":"recovered.md"}]}),
     );

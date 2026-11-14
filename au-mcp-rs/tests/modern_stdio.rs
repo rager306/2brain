@@ -1,68 +1,16 @@
 use std::{
-    io::{BufRead, BufReader, Read, Write},
+    io::{Read, Write},
     os::unix::net::UnixListener,
-    process::{Child, ChildStdin, Command, Stdio},
-    sync::mpsc::{self, Receiver},
     thread,
-    time::Duration,
 };
 
 use serde_json::{Value, json};
 
+mod support;
+
+use support::Client;
+
 const VERSION: &str = "2026-07-28";
-
-struct Client {
-    child: Child,
-    input: ChildStdin,
-    responses: Receiver<Value>,
-}
-
-impl Client {
-    fn start(socket: &std::path::Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
-            .arg(socket)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let input = child.stdin.take().unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let (sender, responses) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                let Ok(line) = line else { break };
-                let value = serde_json::from_str(&line).expect("stdout must contain JSON only");
-                if sender.send(value).is_err() {
-                    break;
-                }
-            }
-        });
-        Self {
-            child,
-            input,
-            responses,
-        }
-    }
-
-    fn request(&mut self, request: Value) -> Value {
-        writeln!(self.input, "{request}").unwrap();
-        self.input.flush().unwrap();
-        let response = self
-            .responses
-            .recv_timeout(Duration::from_secs(5))
-            .expect("server did not respond");
-        assert_eq!(response["id"], request["id"]);
-        response
-    }
-}
-
-impl Drop for Client {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
 
 fn request(id: u32, method: &str, params: Value) -> Value {
     let mut params = params.as_object().unwrap().clone();
@@ -77,16 +25,22 @@ fn request(id: u32, method: &str, params: Value) -> Value {
     json!({"jsonrpc":"2.0","id":id,"method":method,"params":params})
 }
 
+fn exchange(client: &mut Client, request: Value) -> Value {
+    let response = client.request(request.clone());
+    assert_eq!(response["id"], request["id"]);
+    response
+}
+
 #[test]
 fn modern_first_ping_obeys_version_and_removed_method_rules() {
     let temp = tempfile::tempdir().unwrap();
-    let mut client = Client::start(&temp.path().join("unused.sock"));
+    let mut client = Client::spawn(&temp.path().join("unused.sock"));
     let mut unknown_ping = request(10, "ping", json!({}));
     unknown_ping["params"]["_meta"]["io.modelcontextprotocol/protocolVersion"] =
         json!("2099-01-01");
-    let response = client.request(unknown_ping);
+    let response = exchange(&mut client, unknown_ping);
     assert_eq!(response["error"]["code"], -32022);
-    let response = client.request(request(11, "ping", json!({})));
+    let response = exchange(&mut client, request(11, "ping", json!({})));
     assert_eq!(response["error"]["code"], -32601);
 }
 
@@ -119,8 +73,11 @@ fn modern_discovery_and_direct_requests_without_initialize() {
         }
     });
 
-    let mut discover_client = Client::start(&socket);
-    let discover = discover_client.request(request(1, "server/discover", json!({})));
+    let mut discover_client = Client::spawn(&socket);
+    let discover = exchange(
+        &mut discover_client,
+        request(1, "server/discover", json!({})),
+    );
     assert_eq!(discover["result"]["resultType"], "complete");
     assert!(
         discover["result"]["supportedVersions"]
@@ -135,8 +92,8 @@ fn modern_discovery_and_direct_requests_without_initialize() {
     );
 
     // A fresh process receives tools/list as its first message, without discovery or initialize.
-    let mut client = Client::start(&socket);
-    let list = client.request(request(2, "tools/list", json!({})));
+    let mut client = Client::spawn(&socket);
+    let list = exchange(&mut client, request(2, "tools/list", json!({})));
     assert_eq!(list["result"]["resultType"], "complete");
     let tools = list["result"]["tools"].as_array().unwrap();
     for name in ["au_overview", "au_top_level_dirs"] {
@@ -148,11 +105,10 @@ fn modern_discovery_and_direct_requests_without_initialize() {
         (3, "au_overview", json!({"overview":{"members":[]}})),
         (4, "au_top_level_dirs", json!({"top_level_dirs":[]})),
     ] {
-        let response = client.request(request(
-            id,
-            "tools/call",
-            json!({"name":name,"arguments":{}}),
-        ));
+        let response = exchange(
+            &mut client,
+            request(id, "tools/call", json!({"name":name,"arguments":{}})),
+        );
         assert_eq!(response["result"]["resultType"], "complete");
         assert_ne!(response["result"]["isError"], true);
         assert_eq!(
@@ -163,21 +119,23 @@ fn modern_discovery_and_direct_requests_without_initialize() {
             payload
         );
     }
-    let denied = client.request(request(
-        5,
-        "tools/call",
-        json!({"name":"shutdown","arguments":{}}),
-    ));
+    let denied = exchange(
+        &mut client,
+        request(5, "tools/call", json!({"name":"shutdown","arguments":{}})),
+    );
     assert!(denied.get("error").is_some() || denied["result"]["isError"] == true);
-    let invalid = client.request(request(
-        6,
-        "tools/call",
-        json!({"name":"au_overview","arguments":{"extra":true}}),
-    ));
+    let invalid = exchange(
+        &mut client,
+        request(
+            6,
+            "tools/call",
+            json!({"name":"au_overview","arguments":{"extra":true}}),
+        ),
+    );
     assert!(invalid.get("error").is_some() || invalid["result"]["isError"] == true);
     let mut unsupported = request(7, "tools/list", json!({}));
     unsupported["params"]["_meta"]["io.modelcontextprotocol/protocolVersion"] = json!("2099-01-01");
-    let response = client.request(unsupported);
+    let response = exchange(&mut client, unsupported);
     assert_eq!(response["error"]["code"], -32022);
     assert_eq!(response["error"]["data"]["requested"], "2099-01-01");
     assert!(
@@ -194,9 +152,12 @@ fn modern_discovery_and_direct_requests_without_initialize() {
 #[test]
 fn legacy_ping_before_initialize_still_answers() {
     let temp = tempfile::tempdir().unwrap();
-    let mut client = Client::start(&temp.path().join("unused.sock"));
+    let mut client = Client::spawn(&temp.path().join("unused.sock"));
     // A bare ping: no `_meta`, so no version is declared.
-    let response = client.request(json!({"jsonrpc":"2.0","id":12,"method":"ping","params":{}}));
+    let response = exchange(
+        &mut client,
+        json!({"jsonrpc":"2.0","id":12,"method":"ping","params":{}}),
+    );
     assert_eq!(response["result"], json!({}), "{response}");
 }
 
@@ -204,9 +165,9 @@ fn legacy_ping_before_initialize_still_answers() {
 #[test]
 fn a_legacy_version_ping_before_initialize_still_answers() {
     let temp = tempfile::tempdir().unwrap();
-    let mut client = Client::start(&temp.path().join("unused.sock"));
+    let mut client = Client::spawn(&temp.path().join("unused.sock"));
     let mut ping = request(13, "ping", json!({}));
     ping["params"]["_meta"]["io.modelcontextprotocol/protocolVersion"] = json!("2025-06-18");
-    let response = client.request(ping);
+    let response = exchange(&mut client, ping);
     assert_eq!(response["result"], json!({}), "{response}");
 }

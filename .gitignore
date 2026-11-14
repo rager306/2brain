@@ -18,3 +18,6 @@ coverage/
 
 # Local agent tooling and harness state.
 /.prime/
+
+# The one shared target directory (see .cargo/config.toml).
+/.cargo-target/

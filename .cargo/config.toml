@@ -1,0 +1,10 @@
+# One target directory for the whole monorepo.
+#
+# Every crate here shares the engine's dependency graph: `au-mcp-rs` depends on
+# `au-cli`, which depends on `au-engine`. With a per-crate `target/`, that graph
+# was compiled twice (3.5 GiB + 7.1 GiB on 2026-11-14), and each crate paid its
+# own full dependency build. The absolute path is deliberate: `target-dir` is
+# resolved against this file, and an absolute path cannot drift when a crate is
+# built from a different working directory.
+[build]
+target-dir = "/root/arsumbris/.cargo-target"

@@ -1,112 +1,12 @@
 #![cfg(unix)]
 
-use std::{
-    io::{BufRead, BufReader, Read, Write},
-    os::unix::net::UnixListener,
-    path::Path,
-    process::{Child, ChildStdin, Command, Stdio},
-    sync::mpsc::{self, Receiver},
-    thread,
-    time::Duration,
-};
+use std::{os::unix::net::UnixListener, thread};
 
 use serde_json::{Value, json};
 
-struct Client {
-    child: Child,
-    input: ChildStdin,
-    responses: Receiver<Value>,
-}
+mod support;
 
-impl Drop for Client {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-impl Client {
-    fn start(socket: &Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
-            .arg(socket)
-            .arg("--allow-mutations")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let input = child.stdin.take().unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let (tx, responses) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                let line = line.unwrap();
-                if tx
-                    .send(serde_json::from_str(&line).expect("stdout must contain JSON"))
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        });
-        let mut client = Self {
-            child,
-            input,
-            responses,
-        };
-        let init = client.request(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"write-test","version":"1"}}}));
-        assert!(init.get("result").is_some(), "{init}");
-        client.send(json!({"jsonrpc":"2.0","method":"notifications/initialized"}));
-        client
-    }
-
-    fn send(&mut self, value: Value) {
-        writeln!(self.input, "{value}").unwrap();
-        self.input.flush().unwrap();
-    }
-
-    fn request(&mut self, value: Value) -> Value {
-        self.send(value);
-        self.responses
-            .recv_timeout(Duration::from_secs(5))
-            .expect("MCP response timeout")
-    }
-
-    fn call(&mut self, id: u32, name: &str, arguments: Value) -> Value {
-        let response = self.request(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":arguments}}));
-        assert_eq!(response["id"], id, "{response}");
-        response
-    }
-}
-
-fn read_request(stream: &mut impl Read) -> Value {
-    let mut len = [0; 4];
-    stream.read_exact(&mut len).unwrap();
-    let mut body = vec![0; u32::from_be_bytes(len) as usize];
-    stream.read_exact(&mut body).unwrap();
-    serde_json::from_slice(&body).unwrap()
-}
-
-fn write_frame(stream: &mut impl Write, payload: Value) {
-    let body = serde_json::to_vec(&payload).unwrap();
-    stream
-        .write_all(&(body.len() as u32).to_be_bytes())
-        .unwrap();
-    stream.write_all(&body).unwrap();
-}
-
-fn members_frame(root: &str, editable: bool) -> Value {
-    json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":5,
-        "result":{"members":[{"repo":"fixture","root":root,"editable":editable,"role":"entry"}]}})
-}
-
-fn error_text(response: &Value) -> String {
-    assert_eq!(response["result"]["isError"], true, "{response}");
-    response["result"]["content"][0]["text"]
-        .as_str()
-        .unwrap()
-        .to_owned()
-}
+use support::{Client, error_text, members_frame, read_request, write_frame};
 
 fn assert_not_connected(listener: &UnixListener) {
     assert_eq!(
@@ -121,7 +21,7 @@ fn write_requires_a_prior_read_of_the_same_path() {
     let socket = temp.path().join("engine.sock");
     let listener = UnixListener::bind(&socket).unwrap();
     listener.set_nonblocking(true).unwrap();
-    let mut client = Client::start(&socket);
+    let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     let text = error_text(&client.call(
         2,
         "au_write_file",
@@ -137,7 +37,7 @@ fn write_rejects_a_stale_or_invalid_request_without_connecting() {
     let socket = temp.path().join("engine.sock");
     let listener = UnixListener::bind(&socket).unwrap();
     listener.set_nonblocking(true).unwrap();
-    let mut client = Client::start(&socket);
+    let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     for (i, args) in [
         json!({"repo":"","path":"a.md","content":"x","expected_hash":"abc"}),
         json!({"repo":"f","path":"","content":"x","expected_hash":"abc"}),
@@ -170,7 +70,7 @@ fn write_sends_the_guarded_mutation_and_invalidates_the_read() {
             read_request(&mut members),
             json!({"read":"members","id":1,"repo":"fixture"})
         );
-        write_frame(&mut members, members_frame(&root_string, true));
+        write_frame(&mut members, members_frame(&root_string, 5, true));
         let (mut content, _) = listener.accept().unwrap();
         assert_eq!(
             read_request(&mut content),
@@ -187,7 +87,7 @@ fn write_sends_the_guarded_mutation_and_invalidates_the_read() {
             read_request(&mut members2),
             json!({"read":"members","id":1,"repo":"fixture"})
         );
-        write_frame(&mut members2, members_frame(&root_string, true));
+        write_frame(&mut members2, members_frame(&root_string, 5, true));
         let (mut mutate, _) = listener.accept().unwrap();
         assert_eq!(
             read_request(&mut mutate),
@@ -201,7 +101,7 @@ fn write_sends_the_guarded_mutation_and_invalidates_the_read() {
                     "diagnostics":[],"reflected":true,"commit":null,"commits":{},"untracked_files":[]}}),
         );
     });
-    let mut client = Client::start(&socket);
+    let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     let read = client.call(
         2,
         "au_content",
@@ -236,7 +136,7 @@ fn edit_requires_a_prior_read_and_sends_the_exact_edit() {
     let listener = UnixListener::bind(&socket).unwrap();
     let root_string = root.to_str().unwrap().to_owned();
 
-    let mut client = Client::start(&socket);
+    let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     // Without a read, the edit is refused before any connection.
     listener.set_nonblocking(true).unwrap();
     let unread = error_text(&client.call(
@@ -254,7 +154,7 @@ fn edit_requires_a_prior_read_and_sends_the_exact_edit() {
             read_request(&mut members),
             json!({"read":"members","id":1,"repo":"fixture"})
         );
-        write_frame(&mut members, members_frame(&root_string, true));
+        write_frame(&mut members, members_frame(&root_string, 5, true));
         let (mut content, _) = listener.accept().unwrap();
         assert_eq!(
             read_request(&mut content),
@@ -270,7 +170,7 @@ fn edit_requires_a_prior_read_and_sends_the_exact_edit() {
             read_request(&mut members2),
             json!({"read":"members","id":1,"repo":"fixture"})
         );
-        write_frame(&mut members2, members_frame(&root_string, true));
+        write_frame(&mut members2, members_frame(&root_string, 5, true));
         let (mut mutate, _) = listener.accept().unwrap();
         // edit_file takes no expected_hash: the exact match is its precondition.
         assert_eq!(
@@ -311,7 +211,7 @@ fn delete_requires_a_prior_read_and_sends_the_guarded_delete() {
     let listener = UnixListener::bind(&socket).unwrap();
     let root_string = root.to_str().unwrap().to_owned();
 
-    let mut client = Client::start(&socket);
+    let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     listener.set_nonblocking(true).unwrap();
     let unread = error_text(&client.call(
         2,
@@ -328,7 +228,7 @@ fn delete_requires_a_prior_read_and_sends_the_guarded_delete() {
             read_request(&mut members),
             json!({"read":"members","id":1,"repo":"fixture"})
         );
-        write_frame(&mut members, members_frame(&root_string, true));
+        write_frame(&mut members, members_frame(&root_string, 5, true));
         let (mut content, _) = listener.accept().unwrap();
         assert_eq!(
             read_request(&mut content),
@@ -344,7 +244,7 @@ fn delete_requires_a_prior_read_and_sends_the_guarded_delete() {
             read_request(&mut members2),
             json!({"read":"members","id":1,"repo":"fixture"})
         );
-        write_frame(&mut members2, members_frame(&root_string, true));
+        write_frame(&mut members2, members_frame(&root_string, 5, true));
         let (mut mutate, _) = listener.accept().unwrap();
         assert_eq!(
             read_request(&mut mutate),
@@ -383,7 +283,7 @@ fn preview_rejects_incomplete_requests_without_connecting() {
     let socket = temp.path().join("engine.sock");
     let listener = UnixListener::bind(&socket).unwrap();
     listener.set_nonblocking(true).unwrap();
-    let mut client = Client::start(&socket);
+    let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     for (i, args) in [
         json!({"repo":"fixture","path":"a.md","op":"write_file"}),
         json!({"repo":"fixture","path":"a.md","op":"edit_file","new_string":"x"}),
@@ -434,7 +334,7 @@ fn preview_sends_the_op_and_returns_the_engine_product() {
                 read_request(&mut members),
                 json!({"read":"members","id":1,"repo":"fixture"})
             );
-            write_frame(&mut members, members_frame(&root_string, true));
+            write_frame(&mut members, members_frame(&root_string, 5, true));
             let (mut preview, _) = listener.accept().unwrap();
             assert_eq!(read_request(&mut preview), request);
             write_frame(
@@ -444,7 +344,7 @@ fn preview_sends_the_op_and_returns_the_engine_product() {
             );
         }
     });
-    let mut client = Client::start(&socket);
+    let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     for (i, (args, _)) in cases.into_iter().enumerate() {
         let response = client.call(i as u32 + 2, "au_preview_mutation", args);
         assert_ne!(response["result"]["isError"], true, "{response}");

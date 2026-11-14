@@ -1,84 +1,21 @@
 #![cfg(unix)]
 
 use std::{
-    io::{BufRead, BufReader, Read, Write},
+    io::{Read, Write},
     os::unix::net::{UnixListener, UnixStream},
     path::Path,
-    process::{Child, ChildStdin, Command, Stdio},
-    sync::mpsc::{self, Receiver, RecvTimeoutError},
     thread,
     time::{Duration, Instant},
 };
 
 use serde_json::{Value, json};
 
+mod support;
+
+use support::Client;
+
 const TIMEOUT: Duration = Duration::from_secs(5);
 const QUIET_PERIOD: Duration = Duration::from_millis(250);
-
-struct Client {
-    child: Child,
-    input: ChildStdin,
-    responses: Receiver<Value>,
-}
-
-impl Client {
-    fn start(socket: &Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
-            .arg(socket)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let input = child.stdin.take().unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let (tx, responses) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                let line = line.expect("read MCP stdout");
-                if tx
-                    .send(serde_json::from_str(&line).expect("MCP JSON"))
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        });
-        let mut client = Self {
-            child,
-            input,
-            responses,
-        };
-        client.send(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"cancellation-test","version":"1"}}}));
-        let init = client.receive();
-        assert_eq!(init["id"], 1, "{init}");
-        assert_eq!(init["result"]["protocolVersion"], "2025-06-18", "{init}");
-        client.send(json!({"jsonrpc":"2.0","method":"notifications/initialized"}));
-        client
-    }
-
-    fn send(&mut self, request: Value) {
-        writeln!(self.input, "{request}").unwrap();
-        self.input.flush().unwrap();
-    }
-
-    fn call(&mut self, id: u32) {
-        self.send(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_overview","arguments":{}}}));
-    }
-
-    fn receive(&self) -> Value {
-        self.responses
-            .recv_timeout(TIMEOUT)
-            .expect("MCP response timeout")
-    }
-}
-
-impl Drop for Client {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
 
 fn accept_request(listener: &UnixListener) -> (UnixStream, Value) {
     let deadline = Instant::now() + TIMEOUT;
@@ -110,15 +47,22 @@ fn accept_read(listener: &UnixListener) -> UnixStream {
     stream
 }
 
+fn connect(socket: &Path) -> Client {
+    let mut client = Client::spawn(socket);
+    let init = client.initialize();
+    assert_eq!(init["result"]["protocolVersion"], "2025-06-18", "{init}");
+    client
+}
+
 #[test]
 fn cancelled_read_closes_engine_socket_without_reply_and_server_recovers() {
     let temp = tempfile::tempdir().unwrap();
     let socket = temp.path().join("engine.sock");
     let listener = UnixListener::bind(&socket).unwrap();
     listener.set_nonblocking(true).unwrap();
-    let mut client = Client::start(&socket);
+    let mut client = connect(&socket);
 
-    client.call(2);
+    client.send_call(2, "au_overview", json!({}));
     let mut cancelled = accept_read(&listener);
     client.send(json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":2,"reason":"client cancelled"}}));
     let mut byte = [0; 1];
@@ -129,7 +73,7 @@ fn cancelled_read_closes_engine_socket_without_reply_and_server_recovers() {
         0
     );
 
-    client.call(3);
+    client.send_call(3, "au_overview", json!({}));
     let mut recovery = accept_read(&listener);
     let body = serde_json::to_vec(&json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":202,"result":{"overview":{"members":[]}}})).unwrap();
     recovery
@@ -147,10 +91,10 @@ fn cancelled_read_closes_engine_socket_without_reply_and_server_recovers() {
         serde_json::from_str::<Value>(text).unwrap(),
         json!({"overview":{"members":[]}})
     );
-    match client.responses.recv_timeout(QUIET_PERIOD) {
-        Err(RecvTimeoutError::Timeout) => {}
-        other => panic!("unexpected response or server exit after recovery: {other:?}"),
-    }
+    assert!(
+        client.quiet_for(QUIET_PERIOD),
+        "unexpected response or server exit after recovery"
+    );
 }
 
 #[test]
@@ -159,15 +103,15 @@ fn read_capacity_fails_fast_and_cancellation_releases_a_slot() {
     let socket = temp.path().join("engine.sock");
     let listener = UnixListener::bind(&socket).unwrap();
     listener.set_nonblocking(true).unwrap();
-    let mut client = Client::start(&socket);
+    let mut client = connect(&socket);
     let mut streams = Vec::new();
     for id in 10..18 {
-        client.call(id);
+        client.send_call(id, "au_overview", json!({}));
         streams.push(accept_read(&listener));
     }
     client.send(json!({"jsonrpc":"2.0","id":30,"method":"ping"}));
     assert_eq!(client.receive()["id"], 30);
-    client.call(18);
+    client.send_call(18, "au_overview", json!({}));
     let busy = client.receive();
     assert_eq!(busy["id"], 18, "{busy}");
     assert_eq!(busy["result"]["isError"], true, "{busy}");
@@ -180,7 +124,7 @@ fn read_capacity_fails_fast_and_cancellation_releases_a_slot() {
     );
     let mut byte = [0];
     assert_eq!(streams[0].read(&mut byte).unwrap(), 0);
-    client.call(19);
+    client.send_call(19, "au_overview", json!({}));
     let mut replacement = accept_read(&listener);
     let body = serde_json::to_vec(&json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":9,"result":{"overview":{"members":[]}}})).unwrap();
     replacement
@@ -199,11 +143,11 @@ fn read_capacity_fails_fast_and_cancellation_releases_a_slot() {
     assert_eq!(reply["id"], 11, "{reply}");
     assert_ne!(reply["result"]["isError"], true, "{reply}");
 
-    client.call(20);
+    client.send_call(20, "au_overview", json!({}));
     let _extra1 = accept_read(&listener);
-    client.call(21);
+    client.send_call(21, "au_overview", json!({}));
     let _extra2 = accept_read(&listener);
-    client.call(22);
+    client.send_call(22, "au_overview", json!({}));
     let busy = client.receive();
     assert_eq!(busy["id"], 22, "{busy}");
     assert_eq!(busy["result"]["isError"], true, "{busy}");
@@ -218,12 +162,9 @@ fn read_capacity_fails_fast_and_cancellation_releases_a_slot() {
     let failed = client.receive();
     assert_eq!(failed["id"], 12, "{failed}");
     assert_eq!(failed["result"]["isError"], true, "{failed}");
-    client.call(23);
+    client.send_call(23, "au_overview", json!({}));
     let _recovered = accept_read(&listener);
-    assert!(matches!(
-        client.responses.recv_timeout(QUIET_PERIOD),
-        Err(RecvTimeoutError::Timeout)
-    ));
+    assert!(client.quiet_for(QUIET_PERIOD));
 }
 
 #[test]
@@ -232,7 +173,7 @@ fn cancellation_is_isolated_from_another_in_flight_read() {
     let socket = temp.path().join("engine.sock");
     let listener = UnixListener::bind(&socket).unwrap();
     listener.set_nonblocking(true).unwrap();
-    let mut client = Client::start(&socket);
+    let mut client = connect(&socket);
 
     let call = |client: &mut Client, id, offset| {
         client.send(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_types","arguments":{"limit":1,"offset":offset}}}));
@@ -293,8 +234,8 @@ fn cancellation_is_isolated_from_another_in_flight_read() {
     let mut recovery = accept_types(30);
     respond(&mut recovery, 303, "recovered");
     assert_response(client.receive(), 33, 303, "recovered");
-    match client.responses.recv_timeout(QUIET_PERIOD) {
-        Err(RecvTimeoutError::Timeout) => {}
-        other => panic!("unexpected response or server exit after recovery: {other:?}"),
-    }
+    assert!(
+        client.quiet_for(QUIET_PERIOD),
+        "unexpected response or server exit after recovery"
+    );
 }

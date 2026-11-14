@@ -61,3 +61,8 @@ debug = "line-tables-only"
 opt-level = 3
 lto = "thin"
 codegen-units = 1
+
+# See the note in au-mcp-rs/Cargo.toml: dependencies stay out of incremental
+# state so the compiler cache can serve them; workspace crates keep it.
+[profile.dev.package."*"]
+incremental = false

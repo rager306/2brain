@@ -1,83 +1,17 @@
 use std::{
-    io::{BufRead, BufReader, Read, Write},
+    io::{Read, Write},
     os::unix::net::UnixListener,
-    path::Path,
-    process::{Child, ChildStdin, Command, Stdio},
-    sync::mpsc::{self, Receiver},
     thread,
     time::Duration,
 };
 
 use serde_json::{Value, json};
 
+mod support;
+
+use support::Client;
+
 const VERSION_KEY: &str = "io.arsumbris/engineVersion";
-
-struct Client {
-    child: Child,
-    input: ChildStdin,
-    responses: Receiver<Value>,
-}
-
-impl Client {
-    fn start(socket: &Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
-            .arg(socket)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let input = child.stdin.take().unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let (tx, responses) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                if tx
-                    .send(serde_json::from_str(&line.unwrap()).unwrap())
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        });
-        let mut client = Self {
-            child,
-            input,
-            responses,
-        };
-        let response = client.request(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"version-metadata-test","version":"1"}}}));
-        assert!(response.get("result").is_some(), "{response}");
-        writeln!(
-            client.input,
-            "{}",
-            json!({"jsonrpc":"2.0","method":"notifications/initialized"})
-        )
-        .unwrap();
-        client.input.flush().unwrap();
-        client
-    }
-
-    fn request(&mut self, request: Value) -> Value {
-        writeln!(self.input, "{request}").unwrap();
-        self.input.flush().unwrap();
-        self.responses
-            .recv_timeout(Duration::from_secs(5))
-            .expect("MCP response timeout")
-    }
-
-    fn call(&mut self, id: u32, offset: u32) -> Value {
-        let response = self.request(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_types","arguments":{"limit":1,"offset":offset}}}));
-        assert_eq!(response["id"], id, "{response}");
-        response
-    }
-}
-
-impl Drop for Client {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
 
 fn fake_daemon(listener: UnixListener, cases: Vec<(u32, Value)>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
@@ -175,7 +109,11 @@ fn successive_pages_expose_each_response_version_without_changing_text() {
     let mut client = Client::start(&socket);
     for (offset, (version, payload)) in pages.iter().enumerate() {
         assert_success(
-            &client.call(offset as u32 + 2, offset as u32),
+            &client.call(
+                offset as u32 + 2,
+                "au_types",
+                json!({"limit":1,"offset":offset}),
+            ),
             *version,
             payload,
         );
@@ -202,10 +140,18 @@ fn failed_responses_do_not_invent_version_metadata_and_success_recovers() {
         replies.into_iter().map(|reply| (0, reply)).collect(),
     );
     let mut client = Client::start(&socket);
-    assert_success(&client.call(2, 0), 123, &json!({"types":[]}));
+    assert_success(
+        &client.call(2, "au_types", json!({"limit":1,"offset":0})),
+        123,
+        &json!({"types":[]}),
+    );
     for id in 3..7 {
-        assert_error_without_version(&client.call(id, 0));
+        assert_error_without_version(&client.call(id, "au_types", json!({"limit":1,"offset":0})));
     }
-    assert_success(&client.call(7, 0), 0, &payload);
+    assert_success(
+        &client.call(7, "au_types", json!({"limit":1,"offset":0})),
+        0,
+        &payload,
+    );
     daemon.join().unwrap();
 }

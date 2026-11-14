@@ -3,99 +3,15 @@
 //! Response budgets: a text window for `au_content`, paging for
 //! `au_instances_of`, the payload modes, and the argument-error hint.
 
-use std::{
-    io::{BufRead, BufReader, Read, Write},
-    os::unix::net::UnixListener,
-    process::{Child, ChildStdin, Command, Stdio},
-    sync::mpsc::{self, Receiver},
-    thread,
-    time::Duration,
-};
+use std::{os::unix::net::UnixListener, thread, time::Duration};
 
 use serde_json::{Value, json};
 
+mod support;
+
+use support::{Client, read_request, write_frame};
+
 const TIMEOUT: Duration = Duration::from_secs(10);
-
-struct Client {
-    child: Child,
-    input: ChildStdin,
-    responses: Receiver<Value>,
-}
-
-impl Drop for Client {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-impl Client {
-    fn start(socket: &std::path::Path, extra: &[&str]) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
-            .arg(socket)
-            .args(extra)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let input = child.stdin.take().unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let (tx, responses) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                let Ok(line) = line else { break };
-                if tx
-                    .send(serde_json::from_str(&line).expect("stdout JSON"))
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        });
-        let mut client = Self {
-            child,
-            input,
-            responses,
-        };
-        let init = client.request(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"budget-test","version":"1"}}}));
-        assert!(init.get("result").is_some(), "{init}");
-        client.send(json!({"jsonrpc":"2.0","method":"notifications/initialized"}));
-        client
-    }
-
-    fn send(&mut self, value: Value) {
-        writeln!(self.input, "{value}").unwrap();
-        self.input.flush().unwrap();
-    }
-
-    fn request(&mut self, value: Value) -> Value {
-        self.send(value);
-        self.responses
-            .recv_timeout(TIMEOUT)
-            .expect("MCP response timeout")
-    }
-
-    fn call(&mut self, id: u32, name: &str, arguments: Value) -> Value {
-        self.request(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":arguments}}))["result"].clone()
-    }
-}
-
-fn frame(stream: &mut impl Write, payload: Value) {
-    let body = serde_json::to_vec(&payload).unwrap();
-    stream
-        .write_all(&(body.len() as u32).to_be_bytes())
-        .unwrap();
-    stream.write_all(&body).unwrap();
-}
-
-fn read_request(stream: &mut impl Read) -> Value {
-    let mut len = [0; 4];
-    stream.read_exact(&mut len).unwrap();
-    let mut body = vec![0; u32::from_be_bytes(len) as usize];
-    stream.read_exact(&mut body).unwrap();
-    serde_json::from_slice(&body).unwrap()
-}
 
 /// Serve engine answers by read verb; `count` includes the startup probe.
 fn daemon(
@@ -114,7 +30,7 @@ fn daemon(
                 .find(|(name, _)| *name == verb)
                 .map(|(_, payload)| payload.clone())
                 .unwrap_or_else(|| panic!("unexpected engine read: {verb}"));
-            frame(
+            write_frame(
                 &mut stream,
                 json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":5,"result":answer}),
             );
@@ -144,8 +60,8 @@ fn content_returns_an_explicit_window_and_keeps_the_hash() {
         ],
         2,
     );
-    let mut client = Client::start(&socket, &[]);
-    let result = client.call(
+    let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
+    let result = client.call_result(
         2,
         "au_content",
         json!({"repo":"fixture","path":"a.md","max_chars":10}),
@@ -180,8 +96,8 @@ fn content_returns_an_explicit_window_and_keeps_the_hash() {
         ],
         2,
     );
-    let mut client = Client::start(&socket, &[]);
-    let result = client.call(2, "au_content", json!({"repo":"fixture","path":"a.md"}));
+    let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
+    let result = client.call_result(2, "au_content", json!({"repo":"fixture","path":"a.md"}));
     let payload: Value =
         serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(payload["content"]["text"], LONG);
@@ -205,8 +121,8 @@ fn instances_of_pages_and_reports_the_total_and_continuation() {
         ],
         1,
     );
-    let mut client = Client::start(&socket, &[]);
-    let result = client.call(
+    let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
+    let result = client.call_result(
         2,
         "au_instances_of",
         json!({"type_name":"note","limit":2,"offset":0}),
@@ -233,8 +149,8 @@ fn instances_of_pages_and_reports_the_total_and_continuation() {
         ],
         1,
     );
-    let mut client = Client::start(&socket, &[]);
-    let result = client.call(
+    let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
+    let result = client.call_result(
         2,
         "au_instances_of",
         json!({"type_name":"note","limit":2,"offset":2}),
@@ -253,8 +169,8 @@ fn payload_modes_select_which_representation_is_returned() {
     let listener = UnixListener::bind(&socket).unwrap();
     let handle = daemon(listener, vec![("overview", json!({"overview":{}}))], 1);
 
-    let mut structured = Client::start(&socket, &["--payload", "structured"]);
-    let result = structured.call(2, "au_overview", json!({}));
+    let mut structured = Client::start_with_timeout(&socket, &["--payload", "structured"], TIMEOUT);
+    let result = structured.call_result(2, "au_overview", json!({}));
     assert!(
         result["content"]
             .as_array()
@@ -268,8 +184,8 @@ fn payload_modes_select_which_representation_is_returned() {
     let socket = temp.path().join("engine.sock");
     let listener = UnixListener::bind(&socket).unwrap();
     let handle = daemon(listener, vec![("overview", json!({"overview":{}}))], 1);
-    let mut text = Client::start(&socket, &["--payload", "text"]);
-    let result = text.call(2, "au_overview", json!({}));
+    let mut text = Client::start_with_timeout(&socket, &["--payload", "text"], TIMEOUT);
+    let result = text.call_result(2, "au_overview", json!({}));
     assert!(result.get("structuredContent").is_none(), "{result}");
     assert_eq!(
         result["content"][0]["text"],
@@ -283,8 +199,8 @@ fn an_argument_error_names_the_tool_and_the_required_fields() {
     let temp = tempfile::tempdir().unwrap();
     let socket = temp.path().join("engine.sock");
     UnixListener::bind(&socket).unwrap();
-    let mut client = Client::start(&socket, &[]);
-    let result = client.call(2, "au_type", json!({}));
+    let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
+    let result = client.call_result(2, "au_type", json!({}));
     assert_eq!(result["isError"], true, "{result}");
     let text = result["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("missing field `name`"), "{text}");

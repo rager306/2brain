@@ -96,6 +96,19 @@ RUSTUP_HOME=/root/.rustup cargo +1.99.0 build
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 test -p <crate>  # smallest sufficient scope
 ```
 
+Build layout (2026-11-14): every crate in the monorepo shares ONE target directory,
+`/root/arsumbris/.cargo-target` (set in `.cargo/config.toml`), with
+`au-engine/target` and `au-mcp-rs/target` as symlinks to it so documented paths keep
+working. Before this, `au-mcp-rs/target` recompiled the whole engine dependency graph:
+10.6 GiB of artifacts for one graph, now about 7 GiB. Dependencies are built without
+incremental state (`[profile.dev.package."*"]` in both manifests) so the compiler cache
+(`kache`, a global `rustc-wrapper` here) can serve them; our own crates keep it.
+
+Two traps worth knowing: a stale `cargo test` from an earlier session can hold the target
+lock for days and make every build look slow (`pgrep -af "cargo test"`), and an empty
+`/tmp/.git` makes every `tempfile()` fixture look like a git tree, which turns ~40 engine
+tests red (see `au-engine/README-fork.md`).
+
 For the standalone MCP prototype, run from `au-mcp-rs/`:
 
 ```sh

@@ -9,16 +9,17 @@
 //! fields, renaming keys) fails here instead of at a client.
 
 use std::{
-    io::{BufRead, BufReader, Read, Write},
     os::unix::net::UnixListener,
     path::{Path, PathBuf},
-    process::{Child, ChildStdin, Command, Stdio},
-    sync::mpsc::{self, Receiver},
     thread,
     time::Duration,
 };
 
 use serde_json::{Value, json};
+
+mod support;
+
+use support::{Client, read_request, write_frame};
 
 const TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -37,88 +38,6 @@ fn golden(name: &str) -> Value {
         .unwrap_or_else(|error| panic!("parsing {}: {error}", path.display()))
 }
 
-struct Client {
-    child: Child,
-    input: ChildStdin,
-    responses: Receiver<Value>,
-}
-
-impl Drop for Client {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-impl Client {
-    fn start(socket: &Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
-            .arg(socket)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let input = child.stdin.take().unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let (tx, responses) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                let line = line.unwrap();
-                if tx
-                    .send(serde_json::from_str(&line).expect("stdout JSON"))
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        });
-        let mut client = Self {
-            child,
-            input,
-            responses,
-        };
-        let init = client.request(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"golden-test","version":"1"}}}));
-        assert!(init.get("result").is_some(), "{init}");
-        client.send(json!({"jsonrpc":"2.0","method":"notifications/initialized"}));
-        client
-    }
-
-    fn send(&mut self, value: Value) {
-        writeln!(self.input, "{value}").unwrap();
-        self.input.flush().unwrap();
-    }
-
-    fn request(&mut self, value: Value) -> Value {
-        self.send(value);
-        self.responses
-            .recv_timeout(TIMEOUT)
-            .expect("MCP response timeout")
-    }
-
-    fn call(&mut self, id: u32, name: &str, arguments: Value) -> Value {
-        let response = self.request(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":arguments}}));
-        assert_eq!(response["id"], id, "{response}");
-        response
-    }
-}
-
-fn read_request(stream: &mut impl Read) -> Value {
-    let mut len = [0; 4];
-    stream.read_exact(&mut len).unwrap();
-    let mut body = vec![0; u32::from_be_bytes(len) as usize];
-    stream.read_exact(&mut body).unwrap();
-    serde_json::from_slice(&body).unwrap()
-}
-
-fn write_frame(stream: &mut impl Write, payload: Value) {
-    let body = serde_json::to_vec(&payload).unwrap();
-    stream
-        .write_all(&(body.len() as u32).to_be_bytes())
-        .unwrap();
-    stream.write_all(&body).unwrap();
-}
-
 fn run_case(tool: &str, request: Value, result_payload: Value, expected: Value) {
     let temp = tempfile::tempdir().unwrap();
     let socket = temp.path().join("engine.sock");
@@ -133,7 +52,7 @@ fn run_case(tool: &str, request: Value, result_payload: Value, expected: Value) 
                 "result": result_payload}),
         );
     });
-    let mut client = Client::start(&socket);
+    let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     let reply = client.call(2, tool, json!({}));
     assert_ne!(reply["result"]["isError"], true, "{reply}");
     let payload: Value =

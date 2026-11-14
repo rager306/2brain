@@ -1,84 +1,21 @@
 #![cfg(unix)]
 
 use std::{
-    io::{BufRead, BufReader, Read, Write},
+    io::{Read, Write},
     os::unix::net::{UnixListener, UnixStream},
-    path::Path,
-    process::{Child, ChildStdin, Command, Stdio},
-    sync::mpsc::{self, Receiver},
+    sync::mpsc,
     thread,
     time::{Duration, Instant},
 };
 
 use serde_json::{Value, json};
 
+mod support;
+
+use support::Client;
+
 const TIMEOUT: Duration = Duration::from_secs(5);
 const VERSION_KEY: &str = "io.arsumbris/engineVersion";
-
-struct Client {
-    child: Child,
-    input: ChildStdin,
-    responses: Receiver<Value>,
-}
-
-impl Client {
-    fn start(socket: &Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
-            .arg(socket)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap();
-        let input = child.stdin.take().unwrap();
-        let stdout = child.stdout.take().unwrap();
-        let (tx, responses) = mpsc::channel();
-        thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                let line = line.expect("read MCP stdout");
-                if tx
-                    .send(serde_json::from_str(&line).expect("MCP JSON"))
-                    .is_err()
-                {
-                    break;
-                }
-            }
-        });
-        let mut client = Self {
-            child,
-            input,
-            responses,
-        };
-        client.send(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"concurrent-test","version":"1"}}}));
-        let init = client.receive();
-        assert_eq!(init["id"], 1, "{init}");
-        assert!(init.get("result").is_some(), "{init}");
-        client.send(json!({"jsonrpc":"2.0","method":"notifications/initialized"}));
-        client
-    }
-
-    fn send(&mut self, request: Value) {
-        writeln!(self.input, "{request}").unwrap();
-        self.input.flush().unwrap();
-    }
-
-    fn call(&mut self, id: u32, offset: u32) {
-        self.send(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_types","arguments":{"limit":1,"offset":offset}}}));
-    }
-
-    fn receive(&self) -> Value {
-        self.responses
-            .recv_timeout(TIMEOUT)
-            .expect("MCP response timeout")
-    }
-}
-
-impl Drop for Client {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
 
 fn accept(listener: &UnixListener, offset: u32) -> UnixStream {
     let deadline = Instant::now() + TIMEOUT;
@@ -167,11 +104,11 @@ fn exercise_concurrent_reads(first_fails: bool) {
         respond(&mut recovery, success(303, "recovered"));
     });
     let mut client = Client::start(&socket);
-    client.call(11, 10);
+    client.send_call(11, "au_types", json!({"limit":1,"offset":10}));
     first_seen_rx
         .recv_timeout(TIMEOUT)
         .expect("first request timeout");
-    client.call(22, 20);
+    client.send_call(22, "au_types", json!({"limit":1,"offset":20}));
     // The first response is withheld until the second MCP response has arrived.
     assert_success(&client.receive(), 22, 202, "second");
     release_tx.send(()).unwrap();
@@ -196,7 +133,7 @@ fn exercise_concurrent_reads(first_fails: bool) {
     } else {
         assert_success(&first, 11, 101, "first");
     }
-    client.call(33, 30);
+    client.send_call(33, "au_types", json!({"limit":1,"offset":30}));
     assert_success(&client.receive(), 33, 303, "recovered");
     daemon.join().unwrap();
 }

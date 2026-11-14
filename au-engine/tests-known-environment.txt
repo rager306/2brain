@@ -1,0 +1,23 @@
+# au-engine — known environment failures on THIS host
+#
+# Measured 2026-11-14 on /root/arsumbris/au-engine with RUSTUP_HOME=/root/.rustup
+# and the pinned toolchain (cargo +1.99.0), after removing an empty /tmp/.git that
+# had been making every tempfile() fixture look like a git working tree (that
+# single directory produced 40 of the 43 failures a run used to show).
+#
+# Commands and their counts on this baseline:
+#   cargo +1.99.0 test -p au-engine --offline --lib   -> 678 passed, 1 failed, 1 ignored
+#   cargo +1.99.0 test -p au-engine --offline --test it -> 707 passed, 3 failed, 1 ignored
+#   cargo +1.99.0 fmt --check -p au-engine             -> exit 1, 217 diffs in 93 files
+#   cargo +1.99.0 clippy -p au-engine -- -D warnings   -> exit 101, 1 error:
+#       clippy::collapsible_match in crates/au-references/src/lib.rs:895:17
+#
+# ALL FOUR TEST FAILURES ARE ONE CAUSE: the suite runs as root, and chmod cannot
+# block uid 0. They will pass under an unprivileged runner. Only a NEW name is a
+# regression; a missing name means the host changed.
+#
+# Format: suite::test<TAB>reason-class<TAB>first panic line
+lib::engine::tests::an_unreadable_file_rebuilds_once_then_settles	root-user	fixture must actually be unreadable; skipped as root?
+it::delete_dir::a_delete_failing_mid_way_leaves_the_folder_and_its_skeleton_untouched	root-user	Os { code: 2, kind: NotFound } — a chmod-removed path still deletes as root, so the injected failure never happens
+it::move_dir::a_move_failing_mid_way_leaves_both_trees_and_the_skeleton_untouched	root-user	Os { code: 2, kind: NotFound } — same: root cannot be blocked by chmod
+it::mutate::cross_repo_rename_failure_compensates_every_repo	root-user	the saga should reject — the injected read-only referrer is writable as root, so no rejection occurs
