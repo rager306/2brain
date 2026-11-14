@@ -1,0 +1,164 @@
+{
+ "hubs": [
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/memory-systems.md",
+   "refs_navigational": 62,
+   "refs_structural": 69,
+   "refs_total": 131,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/zeroclaw-decisions.md",
+   "refs_navigational": 74,
+   "refs_structural": 66,
+   "refs_total": 140,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/agentic-architecture.md",
+   "refs_navigational": 59,
+   "refs_structural": 64,
+   "refs_total": 123,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/index.md",
+   "refs_navigational": 68,
+   "refs_structural": 63,
+   "refs_total": 131,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/jev.md",
+   "refs_navigational": 31,
+   "refs_structural": 60,
+   "refs_total": 91,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/tool-use.md",
+   "refs_navigational": 18,
+   "refs_structural": 38,
+   "refs_total": 56,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/hermes-user-stories.md",
+   "refs_navigational": 2,
+   "refs_structural": 36,
+   "refs_total": 38,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/rust-ai-systems.md",
+   "refs_navigational": 35,
+   "refs_structural": 30,
+   "refs_total": 65,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/ruvector-architecture.md",
+   "refs_navigational": 36,
+   "refs_structural": 27,
+   "refs_total": 63,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/kutha-temporal-graphs.md",
+   "refs_navigational": 12,
+   "refs_structural": 24,
+   "refs_total": 36,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/agentic-flow-architecture.md",
+   "refs_navigational": 22,
+   "refs_structural": 23,
+   "refs_total": 45,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/claude-flow-architecture.md",
+   "refs_navigational": 24,
+   "refs_structural": 22,
+   "refs_total": 46,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/agent-security.md",
+   "refs_navigational": 5,
+   "refs_structural": 21,
+   "refs_total": 26,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/inbox/recursive-self-improvement-survey-nine-design-dimensions-and-the-acceptance-criterion-that-cannot-see-infrastructure.md",
+   "refs_navigational": 18,
+   "refs_structural": 18,
+   "refs_total": 36,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/rust-ecosystem-kb-map.md",
+   "refs_navigational": 10,
+   "refs_structural": 18,
+   "refs_total": 28,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/rust-perf-optimization-canonical.md",
+   "refs_navigational": 25,
+   "refs_structural": 17,
+   "refs_total": 42,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/inbox/pattern-preregistered-quality-gates.md",
+   "refs_navigational": 8,
+   "refs_structural": 17,
+   "refs_total": 25,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/inbox/jevact-ibm-runtime-decision-gate.md",
+   "refs_navigational": 3,
+   "refs_structural": 16,
+   "refs_total": 19,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/inbox/prime-agent-replaces-tool-fragments-with-one-persistent-python-repl-and-a-self-refining-harness.md",
+   "refs_navigational": 3,
+   "refs_structural": 16,
+   "refs_total": 19,
+   "repo": "vault"
+  },
+  {
+   "kind": "instance",
+   "path": "$VAULT/knowledge/self-improvement.md",
+   "refs_navigational": 8,
+   "refs_structural": 15,
+   "refs_total": 23,
+   "repo": "vault"
+  }
+ ]
+}

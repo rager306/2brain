@@ -39,7 +39,7 @@ Commands below run from `/root/arsumbris/au-mcp-rs` with
 | client compatibility | `scripts/client-matrix.sh`; `docs/client-matrix.md` | `AU_ENGINE_BIN=/root/arsumbris/au-engine/target/release/au AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs bash scripts/client-matrix.sh` (needs `claude`, `codex`, `cursor-agent`) | exit 0: Claude Code 2.1.323 connected (`initialize` + `tools/list`); Codex 0.164.0 registered, handshake not exercised; Cursor configured, not exercised | 2026-11-14 |
 | rollback rehearsal | `scripts/rollback_rehearsal.py`; `docs/rollback-rehearsal.md` | `AU_ENGINE_BIN=/root/arsumbris/au-engine/target/release/au AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs python3 scripts/rollback_rehearsal.py` | exit 0: a granted write is one engine commit with a clean tree and no stray files, a fresh process reads the written text, and the same binary without `--allow-mutations` refuses the write | 2026-11-14 |
 | live engine swap | `docs/engine-swap-2026-11-14.md`; no script | procedure: build `au-cli` release, freeze a vault copy and capture the baseline back to back, compare twelve reads, install, re-read the live socket, keep the previous binary | four swaps on the day; latest `b7e48c82...` from `015aeda`; twelve reads showed zero differences; `graph_health` gave 1156 nodes, 4565 edges, 211 components, 17 cycles over 664 nodes, 19 dead ends, 178 sources, 202 isolated files, 0 broken links; schema 29 on both sides | 2026-11-14 |
-| engine environment baseline | `au-engine/tests-known-environment.txt` (4 named failures); `au-engine/README-fork.md`; `au-engine/scripts/run-known-root-tests.sh` proves they are root-only | `cd ../au-engine && cargo +1.99.0 test --offline --lib`; `cargo +1.99.0 test --offline --test it`; the recorded names with `--exact` as an unprivileged user | `--lib` 678 passed, 1 failed, 1 ignored; `--test it` 707 passed, 3 failed, 1 ignored; all 4 failures are the root-user cause; `fmt --check` reports 217 diffs in 93 files and `clippy -D warnings` exits 101 with one `collapsible_match` | 2026-11-14 |
+| engine environment baseline | `au-engine/tests-known-environment.txt` (4 named failures); `au-engine/README-fork.md`; `au-engine/scripts/run-known-root-tests.sh` proves they are root-only | `cd ../au-engine && cargo +1.99.0 test --offline --lib`; `cargo +1.99.0 test --offline --test it`; `bash scripts/run-known-root-tests.sh` | `--lib` 678 passed, 1 failed, 1 ignored; `--test it` 707 passed, 3 failed, 1 ignored; the four recorded names pass 4/4 as uid 65534; `fmt --check` reports 217 diffs in 93 files and `clippy -D warnings` exits 101 with one `collapsible_match` | 2026-11-14 |
 | build identity and the unified binary | `tests/cli.rs` (10), `tests/version_metadata.rs` (2); `build.rs` | `cargo +1.99.0 test --offline --test cli --test version_metadata`; `--version`; `--info` | 12/12 pass; `--version` prints `au-mcp-rs 0.1.0+1bcc08ed8ee9`; `--info` reports 51 registered, 35 advertised, wire schema 29, 16 MiB frames, 30 s read deadline, 8 in-flight reads; `docs/roadmap.md` is **stale** (`e710e17`, 164 tests: `1bcc08e` added the schema test) | 2026-11-14 |
 | MCP resources and change notification | `tests/resources.rs` (4), `tests/watch.rs` (3); `src/resources.rs` | `cargo +1.99.0 test --offline --test resources --test watch` | 7/7 pass; `arsumbris://<repo>/<path>` resolves and a foreign URI is refused before the engine; `au_watch` returns a delta and treats a timeout as an answer; no resource subscriptions are advertised | 2026-11-14 |
 
@@ -134,6 +134,9 @@ AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs \
 cd ../au-engine
 cargo +1.99.0 test --offline --lib
 cargo +1.99.0 test --offline --test it
+
+# 10. Prove the 4 failures are the privileged runner, not the code.
+bash scripts/run-known-root-tests.sh
 ```
 
 What each step needs:
@@ -142,6 +145,7 @@ What each step needs:
 - **`bun` and the Node workspace**: step 6 only.
 - **Installed client CLIs**: step 7 only. The script reports absent clients without
   failing.
+- **`setpriv` and uid 65534**: step 10 only.
 - **`kache` and a warm crate cache**: every cargo step. `--offline` refuses a
   network fetch, so a cold cache fails at step 2 rather than downloading.
 - **The production vault or its socket**: none of the steps. They use temp
