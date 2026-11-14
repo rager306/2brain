@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use au_engine::{serve, Client, ConfigSource, Engine};
+use au_engine::{Client, ConfigSource, Engine, serve};
 use serde_json::json;
 
 fn fixture() -> (tempfile::TempDir, PathBuf) {
@@ -336,10 +336,12 @@ fn diagnostics_channel_delivers_the_file_set_and_fires_when_it_changes() {
     let ev = client.recv().unwrap().unwrap();
     assert_eq!(ev["kind"], "diagnostics-changed");
     assert_eq!(ev["at_version"], 3);
-    assert!(ev["scope_hint"]["files"][0]
-        .as_str()
-        .unwrap()
-        .ends_with("a.md"));
+    assert!(
+        ev["scope_hint"]["files"][0]
+            .as_str()
+            .unwrap()
+            .ends_with("a.md")
+    );
 }
 
 #[test]

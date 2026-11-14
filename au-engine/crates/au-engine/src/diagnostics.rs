@@ -8,9 +8,9 @@ use std::path::Path;
 
 use au_diagnostics::{ByteRange, Diagnostic, Severity, Span};
 use au_parser::{
-    scan_duplicate_keys, span_to_byte_range, DuplicateKey, WalkError, AUIGNORE_EMPTY_SCOPE,
-    AUIGNORE_LOAD_ERROR, DUPLICATE_KEY_IN_MAPPING, FILE_TOO_LARGE, REPO_FILE_NOT_UTF8,
-    REPO_FILE_READ_ERROR, REPO_WALK_ERROR,
+    AUIGNORE_EMPTY_SCOPE, AUIGNORE_LOAD_ERROR, DUPLICATE_KEY_IN_MAPPING, DuplicateKey,
+    FILE_TOO_LARGE, REPO_FILE_NOT_UTF8, REPO_FILE_READ_ERROR, REPO_WALK_ERROR, WalkError,
+    scan_duplicate_keys, span_to_byte_range,
 };
 
 /// Total diagnostic order: by file, then start offset, then code, then a

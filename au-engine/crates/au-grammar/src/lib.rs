@@ -1702,11 +1702,7 @@ fn normalize_number_literal(s: &str) -> Result<String, ShapeParseError> {
     }
     let int_norm = {
         let stripped = int_part.trim_start_matches('0');
-        if stripped.is_empty() {
-            "0"
-        } else {
-            stripped
-        }
+        if stripped.is_empty() { "0" } else { stripped }
     };
     let frac_norm = frac_part
         .map(|f| f.trim_end_matches('0'))
@@ -2130,7 +2126,7 @@ fn has_top_level_op(s: &str, op: char) -> bool {
                 && paren == 0
                 && is_operator_at(s, i, op) =>
             {
-                return true
+                return true;
             }
             _ => {}
         }

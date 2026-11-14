@@ -23,11 +23,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use au_diagnostics::ByteRange;
-use au_parser::{scan_body, BodyEvent};
+use au_parser::{BodyEvent, scan_body};
 
-use crate::backlinks::{coarse_edge_kind, walk_edges, RefSurface};
+use crate::backlinks::{RefSurface, coarse_edge_kind, walk_edges};
 use crate::ir::KnowledgeBase;
-use crate::parse::{served_file_kind, FileParse};
+use crate::parse::{FileParse, served_file_kind};
 use crate::repo::RepoName;
 
 /// Which way the walk follows edges.

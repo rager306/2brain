@@ -55,7 +55,7 @@ use std::time::Duration;
 
 use au_diagnostics::{Diagnostic, Severity};
 use au_grammar::{Shape, ShapeSpanRole};
-use au_parser::{scan_body, BodyEvent};
+use au_parser::{BodyEvent, scan_body};
 use au_references::{extract_field_marker, parse_wikilink, parse_wikilink_inner};
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -67,7 +67,7 @@ use tracing::Instrument;
 use crate::engine::{EngineHandle, Read, RefState};
 use crate::gitwriter::{CommitMessage, CommitSha, GitWriter, MutationId, ShellGit};
 use crate::mutate::MutationReject;
-use crate::parse::{served_file_kind, FileParse, ShapeLeafSpan};
+use crate::parse::{FileParse, ShapeLeafSpan, served_file_kind};
 use crate::wire;
 use crate::{KnowledgeBase, RefSurface};
 
@@ -826,10 +826,10 @@ impl PreviewMutationArgs {
                     path,
                     to,
                     riders: preview_riders(stamps, ensure_mixins, ensure_mixins_strict),
-                }
+                };
             }
             PreviewMutationArgs::MoveDir { path, to } => {
-                return PreviewRequest::MoveDir { path, to }
+                return PreviewRequest::MoveDir { path, to };
             }
             PreviewMutationArgs::DeleteDir { path } => return PreviewRequest::DeleteDir { path },
         };
@@ -4883,7 +4883,7 @@ fn fold_write_mixins(
         _ => {
             return Err(crate::mutate::MutationReject::new(
                 "engine is not ready to resolve an ensure_mixin",
-            ))
+            ));
         }
     };
     if folded == content {
@@ -6675,8 +6675,8 @@ async fn composition_write(
     summary: String,
     expected_hash: Option<String>,
     produce: impl FnOnce(Option<&str>, &Path, &str) -> Result<String, crate::mutate::MutationReject>
-        + Send
-        + 'static,
+    + Send
+    + 'static,
 ) -> serde_json::Value {
     let (member_root, member_name) = match resolve_editable_member_root(handle, root) {
         Ok(r) => r,
@@ -6699,7 +6699,7 @@ async fn composition_write(
                     return Err(crate::mutate::MutationReject::new(format!(
                         "cannot read {}: {e}",
                         write_path.display()
-                    )))
+                    )));
                 }
             };
             let new = produce(current.as_deref(), &write_path, &containing)?;
@@ -7081,12 +7081,12 @@ async fn set_config(handle: &EngineHandle, args: SetConfigArgs) -> serde_json::V
         (Some(_), Some(_)) => {
             return mutation_reject_frame(crate::mutate::MutationReject::new(
                 "set_config takes `content` OR `edit`, not both",
-            ))
+            ));
         }
         (None, None) => {
             return mutation_reject_frame(crate::mutate::MutationReject::new(
                 "set_config needs `content` or `edit`",
-            ))
+            ));
         }
     };
     let ctx = SetConfigCtx {
@@ -7239,7 +7239,7 @@ async fn set_config_repo(handle: &EngineHandle, ctx: SetConfigCtx) -> serde_json
             return mutation_reject_frame(crate::mutate::MutationReject::new(format!(
                 "repo scope needs a declared member root; `{}` names none",
                 ctx.root.as_deref().unwrap_or("<entry>")
-            )))
+            )));
         }
         Some(Ok(Some(root))) => root,
     };
@@ -7470,7 +7470,7 @@ async fn handle_resolve(handle: &EngineHandle) -> serde_json::Value {
                 "no package cache root; the home directory is unknown".to_string(),
                 None,
                 "resolve",
-            )
+            );
         }
     };
     let registry_remote = handle.registry_remote().to_string();
@@ -8135,7 +8135,7 @@ fn guard_unchanged_before_touch_all(
                 return Err(crate::mutate::MutationReject::new(format!(
                     "git precondition failed: {}",
                     e.message
-                )))
+                )));
             }
         }
     }
@@ -8645,7 +8645,9 @@ fn rollback_preview_git(root: &Path, commit: &str) -> Result<RollbackPreviewView
         .commit_summary(root, commit)
         .map_err(|e| format!("could not read commit {commit}: {}", e.message))?
     else {
-        return Err(format!("commit {commit} is not present in this member's history"));
+        return Err(format!(
+            "commit {commit} is not present in this member's history"
+        ));
     };
     let parent = parents.first().cloned();
     let paths = git
@@ -8657,12 +8659,20 @@ fn rollback_preview_git(root: &Path, commit: &str) -> Result<RollbackPreviewView
         // What a revert would do here: put the parent's bytes back, or delete a
         // path this commit introduced.
         let at_parent = match &parent {
-            Some(parent) => git
-                .read_at_commit(root, parent, &path)
-                .map_err(|e| format!("could not read {} at {parent}: {}", path.display(), e.message))?,
+            Some(parent) => git.read_at_commit(root, parent, &path).map_err(|e| {
+                format!(
+                    "could not read {} at {parent}: {}",
+                    path.display(),
+                    e.message
+                )
+            })?,
             None => None,
         };
-        let action = if at_parent.is_some() { "restore" } else { "delete" };
+        let action = if at_parent.is_some() {
+            "restore"
+        } else {
+            "delete"
+        };
         let dirty = !git
             .is_clean(root, std::slice::from_ref(&path))
             .map_err(|e| format!("could not check {}: {}", path.display(), e.message))?;
@@ -9136,7 +9146,7 @@ async fn preview_mutation(handle: &EngineHandle, args: PreviewMutationArgs) -> R
     let (path_arg, op, riders) = match args.into_request() {
         PreviewRequest::File { path, op, riders } => (path, op, riders),
         PreviewRequest::Rename { path, to, riders } => {
-            return preview_rename(handle, path, to, riders).await
+            return preview_rename(handle, path, to, riders).await;
         }
         PreviewRequest::MoveDir { path, to } => return preview_move_dir(handle, path, to).await,
         PreviewRequest::DeleteDir { path } => return preview_delete_dir(handle, path).await,
@@ -9201,12 +9211,13 @@ async fn preview_change_set<P: Send + 'static>(
     handle: &EngineHandle,
     plan: impl FnOnce(&KnowledgeBase) -> Result<P, crate::mutate::MutationReject> + Send + 'static,
     build: impl FnOnce(
-            &EngineHandle,
-            P,
-        )
-            -> Result<(crate::engine::ChangeSet, PreviewExtras), crate::mutate::MutationReject>
-        + Send
-        + 'static,
+        &EngineHandle,
+        P,
+    ) -> Result<
+        (crate::engine::ChangeSet, PreviewExtras),
+        crate::mutate::MutationReject,
+    > + Send
+    + 'static,
 ) -> Response {
     let h = handle.clone();
     let read = tokio::task::spawn_blocking(move || {
@@ -9561,7 +9572,7 @@ fn plan_move_preview(
             _ => {
                 return Err(crate::mutate::MutationReject::new(
                     "engine is not ready to resolve an ensure_mixin",
-                ))
+                ));
             }
         };
         mixins = outcomes;
@@ -10123,10 +10134,9 @@ async fn batch_mutation(handle: &EngineHandle, args: BatchArgs) -> serde_json::V
     let resolved = targets;
     let in_saga = resolved.clone();
     let outcome = tokio::task::spawn_blocking(move || {
-        let (applied, commits) =
-            apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {
-                apply_batch_ops(&ops, &in_saga)
-            })?;
+        let (applied, commits) = apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {
+            apply_batch_ops(&ops, &in_saga)
+        })?;
         blocking_handle.rebuild_paths(saga_dirty_set(&plan));
         Ok::<_, crate::mutate::MutationReject>((applied, commits))
     })
@@ -10165,8 +10175,7 @@ fn apply_batch_ops(
                 replace_all,
                 ..
             } => {
-                let hash =
-                    crate::mutate::edit_file(target, old_string, new_string, *replace_all)?;
+                let hash = crate::mutate::edit_file(target, old_string, new_string, *replace_all)?;
                 serde_json::json!({
                     "op": "edit_file",
                     "path": target.display().to_string(),
@@ -10209,7 +10218,15 @@ fn batch_response(
     let read = handle.read(move |v| {
         let diagnostics: Vec<Diagnostic> = v
             .diagnostics()
-            .filter(|d| paths.iter().any(|p| DiagnosticsScope { path: Some(p.clone()), ..Default::default() }.matches(v, d)))
+            .filter(|d| {
+                paths.iter().any(|p| {
+                    DiagnosticsScope {
+                        path: Some(p.clone()),
+                        ..Default::default()
+                    }
+                    .matches(v, d)
+                })
+            })
             .cloned()
             .collect();
         let reflected = written
@@ -13711,7 +13728,7 @@ fn block_ids_view(
 /// the body has no top-level `type:` key. A bare claim yields one name, a list
 /// claim yields several.
 fn block_type_claim(body: &str) -> Vec<String> {
-    use au_parser::yaml::{parse, Scalar, YamlData};
+    use au_parser::yaml::{Scalar, YamlData, parse};
     let Ok(docs) = parse(body) else {
         return Vec::new();
     };
@@ -14974,14 +14991,16 @@ mod graph_shape_tests {
 
         // Four resolved edges, all body/navigational, both endpoints content.
         assert_eq!(g.edges.len(), 4);
-        assert!(g
-            .edges
-            .iter()
-            .all(|e| e.surface == "body" && e.kind == "navigational"));
-        assert!(g
-            .edges
-            .iter()
-            .any(|e| e.from == "/v/out.md" && e.to == "/v/a.md"));
+        assert!(
+            g.edges
+                .iter()
+                .all(|e| e.surface == "body" && e.kind == "navigational")
+        );
+        assert!(
+            g.edges
+                .iter()
+                .any(|e| e.from == "/v/out.md" && e.to == "/v/a.md")
+        );
         // Deterministic: sorted by (from, to, ...).
         let mut sorted = g.edges.clone();
         sorted.sort_by(|a, b| a.from.cmp(&b.from).then_with(|| a.to.cmp(&b.to)));
@@ -15008,14 +15027,16 @@ mod graph_shape_tests {
         // is `navigational` / `body`. hub carries both.
         let hub = g.nodes.iter().find(|n| n.path == "/v/hub.md").unwrap();
         assert_eq!((hub.refs_structural, hub.refs_total), (1, 2));
-        assert!(g
-            .edges
-            .iter()
-            .any(|e| e.to == "/v/hub.md" && e.kind == "field" && e.surface == "frontmatter"));
-        assert!(g
-            .edges
-            .iter()
-            .any(|e| e.to == "/v/hub.md" && e.kind == "navigational" && e.surface == "body"));
+        assert!(
+            g.edges
+                .iter()
+                .any(|e| e.to == "/v/hub.md" && e.kind == "field" && e.surface == "frontmatter")
+        );
+        assert!(
+            g.edges
+                .iter()
+                .any(|e| e.to == "/v/hub.md" && e.kind == "navigational" && e.surface == "body")
+        );
     }
 
     /// Two catalogs differing by one added prose link `a → b`.

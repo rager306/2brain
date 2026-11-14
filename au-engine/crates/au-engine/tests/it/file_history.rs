@@ -13,9 +13,9 @@
 
 use std::path::{Path, PathBuf};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::wire_fixtures::{harness, Harness};
+use crate::wire_fixtures::{Harness, harness};
 
 fn git(repo: &Path, args: &[&str]) {
     let out = std::process::Command::new("git")

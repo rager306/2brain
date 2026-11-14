@@ -512,7 +512,10 @@ impl KnowledgeBase {
     /// and stops at the first other file, O(log n + k) over the file's k, not a
     /// whole-stream scan. Same order as [`KnowledgeBase::diagnostics`] restricted to the
     /// file.
-    pub fn diagnostics_for_file<'a>(&'a self, file: &Path) -> impl Iterator<Item = &'a Diagnostic> + use<'a> {
+    pub fn diagnostics_for_file<'a>(
+        &'a self,
+        file: &Path,
+    ) -> impl Iterator<Item = &'a Diagnostic> + use<'a> {
         let file = file.to_path_buf();
         let lower = (file.clone(), 0usize, String::new());
         self.served
@@ -527,7 +530,10 @@ impl KnowledgeBase {
     /// seeks to the prefix and stops at the first path outside it, O(log n + k)
     /// over the subtree's k. Same order as [`KnowledgeBase::diagnostics`] restricted to
     /// the prefix.
-    pub fn diagnostics_under<'a>(&'a self, prefix: &Path) -> impl Iterator<Item = &'a Diagnostic> + use<'a> {
+    pub fn diagnostics_under<'a>(
+        &'a self,
+        prefix: &Path,
+    ) -> impl Iterator<Item = &'a Diagnostic> + use<'a> {
         let prefix = prefix.to_path_buf();
         let lower = (prefix.clone(), 0usize, String::new());
         self.served

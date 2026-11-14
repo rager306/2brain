@@ -194,7 +194,7 @@ impl<'g> DefClosure<'g> {
 mod tests {
     use super::*;
     use crate::graph::build_graph;
-    use crate::typedef::{parse_type_def, TypeNameClaim};
+    use crate::typedef::{TypeNameClaim, parse_type_def};
     use au_diagnostics::ByteRange;
     use std::path::Path;
 
@@ -376,9 +376,11 @@ mod tests {
         let r = Map([("r", g)].into());
         let c = DefClosure::of_claim(&r, "r", &claim("leaf", None));
         assert_eq!(keys(&c), vec![key("leaf", "r")]);
-        assert!(DefClosure::of_claim(&r, "r", &claim("ghost", None))
-            .iter()
-            .next()
-            .is_none());
+        assert!(
+            DefClosure::of_claim(&r, "r", &claim("ghost", None))
+                .iter()
+                .next()
+                .is_none()
+        );
     }
 }

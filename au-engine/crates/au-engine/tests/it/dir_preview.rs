@@ -7,9 +7,9 @@
 use std::fs;
 use std::path::Path;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::move_dir::{git_state, note, rel, serve_at, started, wr, Harness};
+use crate::move_dir::{Harness, git_state, note, rel, serve_at, started, wr};
 
 /// The `preview_mutation` payload for a request.
 fn preview(h: &mut Harness, req: Value) -> Value {
@@ -76,12 +76,14 @@ fn a_folder_move_previews_exactly_what_the_move_then_writes() {
     assert_eq!(
         rels(
             &h.root,
-            &json!(p["rewrites"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|r| r["path"].clone())
-                .collect::<Vec<_>>())
+            &json!(
+                p["rewrites"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|r| r["path"].clone())
+                    .collect::<Vec<_>>()
+            )
         ),
         vec!["c.md", "notes/drafts/a.md", "notes/drafts/sub/b.md"],
         "the bare-name referrer d.md is left byte-identical"

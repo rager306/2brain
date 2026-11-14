@@ -15,7 +15,7 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use au_diagnostics::{ByteRange, Diagnostic, Severity, Span};
-use au_parser::yaml::{span_to_byte_range, MarkedYaml, Scalar, YamlData};
+use au_parser::yaml::{MarkedYaml, Scalar, YamlData, span_to_byte_range};
 
 use crate::codes;
 use crate::graph::TypeGraph;

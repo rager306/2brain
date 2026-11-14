@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use crate::ir::OrdMap;
-use crate::refnames::{file_name_keys, NameKey};
+use crate::refnames::{NameKey, file_name_keys};
 use crate::repo::{RepoMap, RepoName};
 
 /// The sources whose edge resolution flips when the given paths appear or

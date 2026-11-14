@@ -7,7 +7,7 @@
 //! [`WalkFilter`] (the default excludes plus any `.arsumbris/.auignore`). See
 //! the `scope` module.
 
-use crate::scope::{WalkFilter, FLOOR_DIR_NAMES};
+use crate::scope::{FLOOR_DIR_NAMES, WalkFilter};
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::path::{Path, PathBuf};

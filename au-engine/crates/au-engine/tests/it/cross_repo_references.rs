@@ -8,7 +8,7 @@
 use std::fs;
 use std::path::Path;
 
-use au_engine::{build, serve, Client, ConfigSource, Engine, ServeHandle};
+use au_engine::{Client, ConfigSource, Engine, ServeHandle, build, serve};
 use au_parser::RealFileSystem;
 use serde_json::json;
 
@@ -361,10 +361,12 @@ fn semantic_tokens_style_a_repo_link_by_cross_repo_resolution() {
         .find(|t| t["kind"] == "wikilink-resolved" && t["repo"] == "base")
         .expect("recovery::base is a resolved cross-repo token");
     assert_eq!(resolved["target"], "recovery");
-    assert!(resolved["resolved"]
-        .as_str()
-        .unwrap()
-        .ends_with("base/recovery.md"));
+    assert!(
+        resolved["resolved"]
+            .as_str()
+            .unwrap()
+            .ends_with("base/recovery.md")
+    );
 
     // The unknown-repo link is broken, carrying its repo.
     assert!(

@@ -30,7 +30,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::canonical::{fnv1a, lp, CanonicalHash};
+use crate::canonical::{CanonicalHash, fnv1a, lp};
 use crate::closure::collect_referenced_type_names;
 use crate::typedef::{TypeDef, TypeName};
 
@@ -264,7 +264,7 @@ fn tarjan_sccs(adj: &BTreeMap<TypeName, Vec<TypeName>>) -> Vec<Vec<TypeName>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::{build_graph, TypeGraph};
+    use crate::graph::{TypeGraph, build_graph};
     use crate::typedef::parse_type_def;
     use std::path::Path;
 

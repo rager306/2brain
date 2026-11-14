@@ -7,7 +7,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use au_engine::{serve, Client, ConfigSource, Engine, ServeHandle};
+use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
 
 /// Two repos. `base` owns `projection`. `app` imports `base` and owns `bento`
@@ -106,10 +106,12 @@ fn subtypes_enumerates_workspace_wide_owners_with_meta() {
     // The full type-def shape rides along: parents and source.
     assert_eq!(bento["parents"], json!(["projection::base"]));
     assert_eq!(grid["parents"], json!(["bento"]));
-    assert!(grid["source"]["file"]
-        .as_str()
-        .unwrap()
-        .ends_with("grid.type.yaml"));
+    assert!(
+        grid["source"]["file"]
+            .as_str()
+            .unwrap()
+            .ends_with("grid.type.yaml")
+    );
 }
 
 #[test]

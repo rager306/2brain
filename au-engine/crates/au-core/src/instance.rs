@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use au_diagnostics::{ByteRange, Diagnostic, Severity, Span};
-use au_parser::yaml::{span_to_byte_range, MarkedYaml, Scalar, YamlData};
+use au_parser::yaml::{MarkedYaml, Scalar, YamlData, span_to_byte_range};
 
 use crate::codes;
 use crate::typedef::TypeNameClaim;
@@ -717,11 +717,7 @@ pub(crate) fn snap_to_next_line(source: &str, offset: usize) -> usize {
     while i < source.len() && bytes[i] != b'\n' {
         i += 1;
     }
-    if i < source.len() {
-        i + 1
-    } else {
-        i
-    }
+    if i < source.len() { i + 1 } else { i }
 }
 
 fn parse_type_claim(
@@ -1480,10 +1476,11 @@ n: null
     fn location_key_on_instance_is_reserved() {
         // `location:` is a type-def-only key, so it is reserved on an instance.
         let res = parse_one("type: foo\nlocation: {name: x}\n", "/v/m.md");
-        assert!(res
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_str() == "reserved-key-on-instance"));
+        assert!(
+            res.diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "reserved-key-on-instance")
+        );
     }
 
     #[test]

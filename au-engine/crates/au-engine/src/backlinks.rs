@@ -14,8 +14,8 @@ use std::path::{Path, PathBuf};
 
 use au_core::{DocOrigin, DocstringLink, InstanceValue, NavLink};
 use au_diagnostics::ByteRange;
-use au_parser::{scan_body, BodyEvent};
-use au_references::{parse_wikilink_inner, RepoIndex};
+use au_parser::{BodyEvent, scan_body};
+use au_references::{RepoIndex, parse_wikilink_inner};
 
 use crate::ir::FileEntry;
 use crate::parse::FileParse;

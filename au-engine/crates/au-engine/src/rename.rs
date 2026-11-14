@@ -22,7 +22,7 @@
 use std::path::Path;
 
 use au_diagnostics::ByteRange;
-use au_references::{parse_wikilink, WikilinkRef};
+use au_references::{WikilinkRef, parse_wikilink};
 
 use crate::mutate::MutationReject;
 

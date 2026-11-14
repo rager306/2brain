@@ -7,7 +7,7 @@
 //!
 //! Plus a deterministic property: scanning twice yields the same events.
 
-use au_parser::{scan_body, BodyEvent};
+use au_parser::{BodyEvent, scan_body};
 use proptest::prelude::*;
 
 fn event_span(e: &BodyEvent<'_>) -> (usize, usize) {

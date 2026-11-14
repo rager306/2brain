@@ -5,7 +5,7 @@
 //! claims with the same semantics; this file covers the file-level path
 //! (au-testkit's `validate_simple` is file-level).
 
-use au_core::{build_graph, TypeDef, TypeName, TypeNameClaim};
+use au_core::{TypeDef, TypeName, TypeNameClaim, build_graph};
 use au_diagnostics::ByteRange;
 use au_testkit::{
     instance_bare, instance_list, type_def_with_fields, type_def_with_parents, validate_simple,

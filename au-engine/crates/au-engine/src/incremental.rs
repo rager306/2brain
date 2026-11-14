@@ -18,23 +18,23 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use au_core::{
-    closure_of, validate, validate_body, validate_docstring_links, Instance, RecordTargets,
-    TypeGraph, TypeName, ValidateContext,
+    Instance, RecordTargets, TypeGraph, TypeName, ValidateContext, closure_of, validate,
+    validate_body, validate_docstring_links,
 };
 use au_diagnostics::{Diagnostic, LineIndex};
-use au_parser::{classify_by_path, FileKind, FileSystem};
+use au_parser::{FileKind, FileSystem, classify_by_path};
 use au_references::RepoIndex;
 
-use crate::backlinks::{sort_backlinks, source_edges, Backlink};
-use crate::crossref::{cross_repo_reference_diagnostics_for, EngineCrossRepoResolver};
+use crate::backlinks::{Backlink, sort_backlinks, source_edges};
+use crate::crossref::{EngineCrossRepoResolver, cross_repo_reference_diagnostics_for};
 use crate::crosstype::cross_repo_type_diagnostics_for;
 use crate::ir::{
     BuildOutcome, ContentHash, DiagSource, DiagStream, FileEntry, KnowledgeBase, OrdMap,
     RepoIndexes, ResolvedInstance,
 };
-use crate::parse::{parse_file, FileParse};
+use crate::parse::{FileParse, parse_file};
 use crate::pathset::edge_flip_sources;
-use crate::refnames::{source_name_keys, source_repo, NameKey};
+use crate::refnames::{NameKey, source_name_keys, source_repo};
 use crate::repo::RepoName;
 
 /// How a dirty set can be rebuilt.
@@ -2922,7 +2922,7 @@ mod rebuild_path {
     use au_testkit::opcat::{self, RebuildPath};
     use au_testkit::repogen::{self, Profile};
 
-    use super::{classify_dirty, recompute_dirty, DirtyClass};
+    use super::{DirtyClass, classify_dirty, recompute_dirty};
 
     /// Run one operation against a fresh workspace and report the path taken.
     fn path_taken(op: &opcat::Operation) -> RebuildPath {

@@ -57,25 +57,25 @@ pub mod wire;
 mod yaml_render;
 
 pub use backlinks::{Backlink, RefSurface};
-pub use build::{build, build_reusing, default_package_cache_root, verify_entry, BuildError};
+pub use build::{BuildError, build, build_reusing, default_package_cache_root, verify_entry};
 pub use engine::{Engine, EngineHandle, EngineState, Read, ReconcilePolicy, RefState};
 pub use ignored_dir::ensure_git_ignored_dir;
 // The incremental fast path, exposed only so `examples/rebuild_bench.rs` can
 // time the live recompute + clone-and-patch apply. Not part of the documented
 // API: consumers drive rebuilds through the engine, never these directly.
 #[doc(hidden)]
-pub use incremental::{apply_recompute, recompute_dirty, InstanceRecompute};
+pub use incremental::{InstanceRecompute, apply_recompute, recompute_dirty};
 pub use ir::{
     BuildOutcome, ContentHash, DiagSource, DiagStream, FileEntry, KnowledgeBase, OrdMap,
     ParseLayer, RepoGraphs, RepoIndexes, ResolutionGraphs, ResolvedInstance,
 };
-pub use parse::{parse_file, FileParse};
+pub use parse::{FileParse, parse_file};
 pub use repo::{
-    device_root, discover_repos, ConfigSource, HomeUnset, RegistryLocation, Repo, RepoEntry,
-    RepoMap, RepoName, UserRegistry, Workspace,
+    ConfigSource, HomeUnset, RegistryLocation, Repo, RepoEntry, RepoMap, RepoName, UserRegistry,
+    Workspace, device_root, discover_repos,
 };
 #[cfg(unix)]
 pub use serve::{
-    recover_crashed_saga, serve, socket_file_name, socket_path, Client, SagaFailure, SagaRecovery,
-    SagaRecoveryReport, ServeHandle, SCHEMA_VERSION,
+    Client, SCHEMA_VERSION, SagaFailure, SagaRecovery, SagaRecoveryReport, ServeHandle,
+    recover_crashed_saga, serve, socket_file_name, socket_path,
 };

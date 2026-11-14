@@ -1998,10 +1998,12 @@ mod tests {
 
         // `mid` resolved; `leaf` was shadowed, never fetched (had it been fetched
         // from `/no/such/remote`, it would appear as a failed resolution).
-        assert!(resolved
-            .resolutions
-            .iter()
-            .any(|r| r.name == RepoName("mid".into())));
+        assert!(
+            resolved
+                .resolutions
+                .iter()
+                .any(|r| r.name == RepoName("mid".into()))
+        );
         assert!(
             !resolved
                 .resolutions
@@ -2292,9 +2294,11 @@ mod tests {
             resolve_and_lock(&mut ws, &cache, DEFAULT_REGISTRY_REMOTE).unwrap();
 
         let lock_path = crate::repo::repo_lock_path(&ws_dir.path().join("proj"));
-        assert!(written
-            .iter()
-            .any(|(n, p)| n.as_str() == "proj" && p == &lock_path));
+        assert!(
+            written
+                .iter()
+                .any(|(n, p)| n.as_str() == "proj" && p == &lock_path)
+        );
         let lock = crate::repo::parse_package_lock(&fs::read(&lock_path).unwrap());
         assert_eq!(
             lock.get(&RepoName("mid".into())).unwrap().sha,
@@ -3134,8 +3138,10 @@ mod tests {
             RepoName("editor".into()),
             locked("apps", "sha2", Some("projections/editor")),
         );
-        assert!(lock_conflicts(&lock, "/wsx/.arsumbris/workspace.yaml")
-            .0
-            .is_empty());
+        assert!(
+            lock_conflicts(&lock, "/wsx/.arsumbris/workspace.yaml")
+                .0
+                .is_empty()
+        );
     }
 }

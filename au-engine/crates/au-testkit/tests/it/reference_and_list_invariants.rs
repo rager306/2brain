@@ -11,7 +11,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use au_core::{build_graph, InstanceValue, TypeName};
+use au_core::{InstanceValue, TypeName, build_graph};
 use au_grammar::{Primitive, Shape};
 use au_references::RepoIndex;
 use au_testkit::{

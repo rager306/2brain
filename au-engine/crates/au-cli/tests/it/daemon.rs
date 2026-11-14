@@ -13,7 +13,7 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
 
-use au_engine::{socket_file_name, Client};
+use au_engine::{Client, socket_file_name};
 use serde_json::json;
 
 /// A minimal repo, plus a fake `$HOME` the daemon derives its hashed socket

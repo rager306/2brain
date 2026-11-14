@@ -8,7 +8,7 @@ use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use au_engine::{serve, Client, ConfigSource, Engine};
+use au_engine::{Client, ConfigSource, Engine, serve};
 use serde_json::json;
 
 fn fixture() -> (tempfile::TempDir, PathBuf) {
@@ -319,10 +319,12 @@ fn diagnostics_read_filters_compose_and_unknown_args_reject() {
         .unwrap();
     let diags = resp["result"]["diagnostics"].as_array().unwrap();
     assert_eq!(diags.len(), 1, "one diagnostic under sub/, got {diags:?}");
-    assert!(diags[0]["span"]["file"]
-        .as_str()
-        .unwrap()
-        .ends_with("sub/c.md"));
+    assert!(
+        diags[0]["span"]["file"]
+            .as_str()
+            .unwrap()
+            .ends_with("sub/c.md")
+    );
 
     // path keeps one exact file.
     let resp = client

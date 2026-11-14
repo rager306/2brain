@@ -11,19 +11,19 @@ use std::path::{Path, PathBuf};
 
 use au_diagnostics::{ByteRange, Diagnostic, Severity, Span, SuggestedFix};
 use au_grammar::Shape;
-use au_parser::{scan_body, BodyEvent};
-use au_references::{resolve_block_id, BlockResolutionError, WikilinkParseError};
+use au_parser::{BodyEvent, scan_body};
+use au_references::{BlockResolutionError, WikilinkParseError, resolve_block_id};
 
-use crate::body::{splice_effective_body, BodyItem, BodyTemplate, FillsContract};
+use crate::body::{BodyItem, BodyTemplate, FillsContract, splice_effective_body};
 use crate::candidates::{
     base_field_name, build_field_shape_map, claim_closure, is_opaque_slot, record_demanded_type,
     sequence_element_shape,
 };
-use crate::closure::{closure_of, EffectiveShape, EffectiveShapeError};
+use crate::closure::{EffectiveShape, EffectiveShapeError, closure_of};
 use crate::codes;
 use crate::graph::TypeGraph;
 use crate::instance::{InlineValue, Instance, InstanceValue, NavLink, TypeClaim};
-use crate::provenance::{effective_values, ContributionValue, Surface, ValueContainer};
+use crate::provenance::{ContributionValue, Surface, ValueContainer, effective_values};
 use crate::typedef::{FieldName, TypeName, TypeNameClaim};
 use crate::validate::ValidateContext;
 
@@ -2407,7 +2407,9 @@ fn diagnose_block_id_resolution(
             push(
                 codes::BLOCK_ID_NOT_FOUND,
                 Severity::Error,
-                format!("wikilink `[[{target}{caret}{block_id}]]` — block-id `{block_id}` not found in {target_label} (no body, no record id)"),
+                format!(
+                    "wikilink `[[{target}{caret}{block_id}]]` — block-id `{block_id}` not found in {target_label} (no body, no record id)"
+                ),
             );
             true
         } else {
@@ -2427,7 +2429,9 @@ fn diagnose_block_id_resolution(
                 push(
                     codes::BLOCK_ID_NOT_TYPED,
                     Severity::Error,
-                    format!("wikilink `[[{target}{caret}{block_id}]]` — block `{block_id}` exists but isn't typed (no `[:field]` fence)"),
+                    format!(
+                        "wikilink `[[{target}{caret}{block_id}]]` — block `{block_id}` exists but isn't typed (no `[:field]` fence)"
+                    ),
                 );
                 true
             } else {
@@ -2445,7 +2449,9 @@ fn diagnose_block_id_resolution(
             push(
                 code,
                 severity,
-                format!("wikilink `[[{target}{caret}{block_id}]]` — block-id `{block_id}` not found in {target_label}"),
+                format!(
+                    "wikilink `[[{target}{caret}{block_id}]]` — block-id `{block_id}` not found in {target_label}"
+                ),
             );
             // A missing anchor is advisory growth, not a file-type assertion, so
             // skip the value check in both modes.
@@ -2864,8 +2870,10 @@ fn fence_read_as_record_hint(
             "marked fence for '{field}' read as the record branch of its union slot, because the content parses as a mapping declaring `type: {claimed_type}`; if it was meant as text, reword it so the content does not parse as a yaml mapping"
         ),
         related: Vec::new(),
-        fix: Some(au_diagnostics::SuggestedFix::advisory("reword the content so it does not parse as a yaml mapping, or correct the record"
-                    .to_string())),
+        fix: Some(au_diagnostics::SuggestedFix::advisory(
+            "reword the content so it does not parse as a yaml mapping, or correct the record"
+                .to_string(),
+        )),
     }
 }
 

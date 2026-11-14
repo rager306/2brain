@@ -56,7 +56,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use au_engine::{
-    apply_recompute, build, build_reusing, recompute_dirty, ContentHash, KnowledgeBase,
+    ContentHash, KnowledgeBase, apply_recompute, build, build_reusing, recompute_dirty,
 };
 use au_parser::RealFileSystem;
 
@@ -183,7 +183,9 @@ fn write_workspace(dir: &Path, repo_count: usize, repo_size: usize, cross: Cross
                     1 => "n1",    // the delete target: vanishes
                     _ => "added", // the add target: appears
                 };
-                format!("---\ntype: note::repo0\ntitle: Ref {i}\nlink: \"[[{target}::repo0]]\"\n---\n# Ref {i}\n")
+                format!(
+                    "---\ntype: note::repo0\ntitle: Ref {i}\nlink: \"[[{target}::repo0]]\"\n---\n# Ref {i}\n"
+                )
             } else if dirty {
                 // A standing diagnostic per instance: the typed `link` slot
                 // holds a reference to a target that does not exist, so each

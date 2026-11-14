@@ -12,8 +12,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use au_engine::{serve, Client, ConfigSource, Engine, ServeHandle};
-use serde_json::{json, Value};
+use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
+use serde_json::{Value, json};
 
 fn git(root: &Path, args: &[&str]) {
     let ok = std::process::Command::new("git")
@@ -552,11 +552,12 @@ fn an_absent_root_repo_config_read_resolves_to_the_served_entry() {
         .unwrap();
     assert_eq!(
         resp["result"]["config"]["path"],
-        json!(h
-            .root
-            .join(".arsumbris/host-app/config/panel.yaml")
-            .display()
-            .to_string()),
+        json!(
+            h.root
+                .join(".arsumbris/host-app/config/panel.yaml")
+                .display()
+                .to_string()
+        ),
         "repo scope with no root resolves under the entry, not a sibling: {resp}"
     );
 }

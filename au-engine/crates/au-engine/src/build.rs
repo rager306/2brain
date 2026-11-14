@@ -20,14 +20,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use au_core::{
-    build_graph, folded_closure_ids, run_body_typing_checks, run_graph_structure_checks,
-    run_inheritance_checks, run_location_checks, validate, validate_body, validate_docstring_links,
-    validate_meta_bodies, CrossRepoResolver, TypeDef, TypeGraph, TypeName, ValidateContext,
+    CrossRepoResolver, TypeDef, TypeGraph, TypeName, ValidateContext, build_graph,
+    folded_closure_ids, run_body_typing_checks, run_graph_structure_checks, run_inheritance_checks,
+    run_location_checks, validate, validate_body, validate_docstring_links, validate_meta_bodies,
 };
 use au_diagnostics::{
     ByteRange, Diagnostic, DiagnosticCode, LineIndex, Severity, Span, SuggestedFix,
 };
-use au_parser::{classify_by_path, is_instance_candidate_path, FileKind, FileSystem};
+use au_parser::{FileKind, FileSystem, classify_by_path, is_instance_candidate_path};
 use au_references::RepoIndex;
 
 use crate::diagnostics::{file_too_large_diag, read_error_diag, sort_diagnostics, walk_error_diag};
@@ -35,7 +35,7 @@ use crate::ir::{
     BuildOutcome, ContentHash, DiagSource, DiagStream, FileEntry, KnowledgeBase, OrdMap,
     ParseLayer, RepoGraphs, RepoIndexes, ResolvedInstance,
 };
-use crate::parse::{parse_file, FileParse};
+use crate::parse::{FileParse, parse_file};
 use crate::repo::{MemberRole, RepoMap, RepoName};
 
 /// Why a build could not open its entry.

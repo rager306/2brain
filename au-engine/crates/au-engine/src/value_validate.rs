@@ -8,7 +8,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use au_core::{parse_instance, validate, Instance, InstanceParseResult};
+use au_core::{Instance, InstanceParseResult, parse_instance, validate};
 use au_diagnostics::{Diagnostic, LineIndex, Span};
 use au_parser::yaml::parse;
 use au_references::RepoIndex;

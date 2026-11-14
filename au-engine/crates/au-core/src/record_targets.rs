@@ -20,10 +20,10 @@ use std::rc::Rc;
 use au_diagnostics::ByteRange;
 use au_grammar::{QualifiedName, RefMode, Shape};
 
-use crate::closure::{effective_shape, effective_shape_resolved, EffectiveShape};
+use crate::closure::{EffectiveShape, effective_shape, effective_shape_resolved};
 use crate::graph::TypeGraph;
 use crate::instance::{InlineValue, Instance, InstanceField, InstanceValue, TypeClaim};
-use crate::resolution::{fold_extending, PeerGraphResolver, ResolutionGraph};
+use crate::resolution::{PeerGraphResolver, ResolutionGraph, fold_extending};
 use crate::typedef::{FieldName, TypeName, TypeNameClaim};
 
 /// The resolution context threaded through one record-targets walk.
@@ -987,8 +987,7 @@ mod tests {
 
     #[test]
     fn locate_finds_a_nested_record_and_its_fields() {
-        let src =
-            "type: plan\nphases:\n  - type: phase\n    actions:\n      - type: action\n        desc: a\n";
+        let src = "type: plan\nphases:\n  - type: phase\n    actions:\n      - type: action\n        desc: a\n";
         let inst = parse_inst(src);
         let rec = as_record(locate_field_path(
             &inst,
@@ -1114,7 +1113,7 @@ mod tests {
         // the SAME cached graph (ptr-equal) and the cache holds one entry; a
         // distinct seed set adds a second. Correctness-invisible (every behaviour
         // test stays byte-identical); this asserts the collapse directly.
-        use crate::resolution::{fold, PeerGraphResolver};
+        use crate::resolution::{PeerGraphResolver, fold};
         use std::collections::BTreeMap;
 
         let weave = graph_for(&[
@@ -1190,7 +1189,7 @@ mod tests {
         // `concept-candidate`, a type OWNED by the peer. A claim-less inline record
         // in that slot must be discovered as `concept-candidate::weave`, resolved
         // owner-relative the way validation resolves it, not dropped.
-        use crate::resolution::{fold, PeerGraphResolver};
+        use crate::resolution::{PeerGraphResolver, fold};
         use std::collections::BTreeMap;
 
         let weave = graph_for(&[

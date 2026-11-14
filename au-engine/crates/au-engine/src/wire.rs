@@ -16,20 +16,20 @@ use serde::{Deserialize, Serialize};
 use au_core::CrossRepoResolver;
 use au_core::TypeId;
 use au_core::{
-    closure_of, enumerate_nested_records, folded_closure_ids, splice_effective_body, BodyItem,
-    BodyTemplate, Contribution, ContributionValue, EffectiveShape, FieldDecl, FieldOrigin,
-    FillsContract, InlineValue, Instance, InstanceField, InstanceValue, MetaBlock, PathSegment,
-    Surface, TypeClaim, TypeDef, TypeGraph, TypeName, TypeNameClaim, ValueContainer,
+    BodyItem, BodyTemplate, Contribution, ContributionValue, EffectiveShape, FieldDecl,
+    FieldOrigin, FillsContract, InlineValue, Instance, InstanceField, InstanceValue, MetaBlock,
+    PathSegment, Surface, TypeClaim, TypeDef, TypeGraph, TypeName, TypeNameClaim, ValueContainer,
+    closure_of, enumerate_nested_records, folded_closure_ids, splice_effective_body,
 };
 use au_diagnostics::{ByteRange, LineColRange, LineIndex};
 use au_grammar::{CompoundRefOp, DefBound, RefMode, Shape};
-use au_parser::{scan_body, BodyEvent};
+use au_parser::{BodyEvent, scan_body};
 
 use std::path::{Path, PathBuf};
 
+use crate::KnowledgeBase;
 use crate::parse::FileParse;
 use crate::repo::{MemberRole, RepoName};
-use crate::KnowledgeBase;
 
 #[derive(Debug, Serialize)]
 pub struct GraphIntrospection {
@@ -3505,7 +3505,7 @@ pub fn introspect_subtypes(kb: &KnowledgeBase, base: &str, scope: TypeScope) -> 
                     return SubtypesView {
                         base: base.to_string(),
                         subtypes: Vec::new(),
-                    }
+                    };
                 }
             }
         }
@@ -4762,7 +4762,7 @@ fn preview_blast_radius(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use au_core::{build_graph, FieldName};
+    use au_core::{FieldName, build_graph};
 
     #[cfg(unix)]
     #[test]

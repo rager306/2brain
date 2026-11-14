@@ -15,8 +15,8 @@ use std::path::PathBuf;
 
 use au_core::def_closure::SingleGraph;
 use au_core::{
-    build_graph, instance::InstanceField, lookup_meta, validate_meta_bodies, InstanceValue,
-    MapRefData, MetaBlock, TypeDef, TypeGraph, TypeName, ValidateContext,
+    InstanceValue, MapRefData, MetaBlock, TypeDef, TypeGraph, TypeName, ValidateContext,
+    build_graph, instance::InstanceField, lookup_meta, validate_meta_bodies,
 };
 use au_diagnostics::{ByteRange, Diagnostic};
 use au_references::RepoIndex;

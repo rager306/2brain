@@ -22,8 +22,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use au_diagnostics::{ByteRange, Diagnostic, DiagnosticCode, Severity, Span, SuggestedFix};
-use au_parser::yaml::{parse, span_to_byte_range, MarkedYaml, Scalar, YamlData};
 use au_parser::FileSystem;
+use au_parser::yaml::{MarkedYaml, Scalar, YamlData, parse, span_to_byte_range};
 
 /// `.arsumbris/repo.yaml` is not valid UTF-8 or YAML. `Error`: the repo produces
 /// no type graph and every `::repo` fold into it is blocked.
@@ -1368,7 +1368,7 @@ pub(crate) fn write_device_config_with(
             None => {
                 return Err(MutationReject::new(
                     "expected_hash given but the file does not exist",
-                ))
+                ));
             }
         }
     }
@@ -2314,8 +2314,8 @@ fn unquoted_colon_hint(text: &str) -> Option<SuggestedFix> {
         if embedded_colon {
             let key = lhs.trim_start().trim_start_matches("- ").trim();
             return Some(SuggestedFix::advisory(format!(
-                    "an unquoted `:` in a value is not valid YAML; quote it, write `{key}: \"{value}\"`"
-                )));
+                "an unquoted `:` in a value is not valid YAML; quote it, write `{key}: \"{value}\"`"
+            )));
         }
     }
     None
@@ -2910,15 +2910,19 @@ mod tests {
             ("/v/base/note.md", "x"),
         ]);
         let (_, diags) = discover(&fs, &files);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "repo-folder-name-mismatch"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "repo-folder-name-mismatch")
+        );
         // an implicit repo (no repo.yaml) is positional-by-folder, no mismatch.
         let (fs2, files2) = repo_with(&[("/v/note.md", "x")]);
         let (_, diags2) = discover(&fs2, &files2);
-        assert!(!diags2
-            .iter()
-            .any(|d| d.code.as_str() == "repo-folder-name-mismatch"));
+        assert!(
+            !diags2
+                .iter()
+                .any(|d| d.code.as_str() == "repo-folder-name-mismatch")
+        );
     }
 
     fn reg_yaml(name: &str) -> Vec<u8> {
@@ -3959,10 +3963,12 @@ mod tests {
                 .unwrap();
         let hex = crate::mutate::hash_hex(hash);
         // A wrong expected_hash rejects, nothing written.
-        assert!(write_device_config_with(&path, Some("deadbeef"), |_| Ok(
-            "type: t\nviewer: b\n".to_string()
-        ))
-        .is_err());
+        assert!(
+            write_device_config_with(&path, Some("deadbeef"), |_| Ok(
+                "type: t\nviewer: b\n".to_string()
+            ))
+            .is_err()
+        );
         assert_eq!(
             std::fs::read_to_string(&path).unwrap(),
             "type: t\nviewer: a\n"

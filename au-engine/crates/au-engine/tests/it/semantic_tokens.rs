@@ -9,8 +9,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use au_engine::{serve, Client, ConfigSource, Engine, ServeHandle};
-use serde_json::{json, Value};
+use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
+use serde_json::{Value, json};
 
 /// A type-def whose every field shape is a QUOTED scalar: a reference, a union,
 /// and an enum. Held as a const so the test can slice each leaf's source range
@@ -155,10 +155,12 @@ fn body_and_value_tokens_for_a_typed_instance() {
     let resolved = of_kind(&toks, "wikilink-resolved");
     assert_eq!(resolved.len(), 1);
     assert_eq!(resolved[0]["target"], "decision");
-    assert!(resolved[0]["resolved"]
-        .as_str()
-        .unwrap()
-        .ends_with("content/decision.md"));
+    assert!(
+        resolved[0]["resolved"]
+            .as_str()
+            .unwrap()
+            .ends_with("content/decision.md")
+    );
 
     let broken = of_kind(&toks, "wikilink-broken");
     assert_eq!(broken.len(), 1);
@@ -469,9 +471,11 @@ fn typed_fence_inner_fields_type_by_the_fence_type() {
     assert_eq!(blocks.len(), 1);
     assert_eq!(blocks[0]["field"], "meta");
 
-    assert!(of_kind(toks, "type-claim")
-        .iter()
-        .any(|t| t["name"] == "detail"));
+    assert!(
+        of_kind(toks, "type-claim")
+            .iter()
+            .any(|t| t["name"] == "detail")
+    );
 
     let type_of = |field: &str| -> Value {
         toks.iter()

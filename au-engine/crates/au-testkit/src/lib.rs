@@ -8,9 +8,9 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use au_core::{
-    validate, FieldDecl, FieldName, Instance, InstanceField, InstanceValue, MapRefData,
-    ParentClaim, ParentClaimForm, SequenceElement, TypeClaim, TypeDef, TypeGraph, TypeName,
-    TypeNameClaim, ValidateContext,
+    FieldDecl, FieldName, Instance, InstanceField, InstanceValue, MapRefData, ParentClaim,
+    ParentClaimForm, SequenceElement, TypeClaim, TypeDef, TypeGraph, TypeName, TypeNameClaim,
+    ValidateContext, validate,
 };
 use au_diagnostics::{ByteRange, Diagnostic};
 use au_grammar::{DefBound, Shape};

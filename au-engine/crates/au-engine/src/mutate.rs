@@ -10,8 +10,8 @@
 use std::path::{Component, Path, PathBuf};
 
 use au_core::{
-    locate_field_path, parse_instance, Instance, InstanceValue, Located, PathSegment, TypeClaim,
-    TypeNameClaim, ValueKind,
+    Instance, InstanceValue, Located, PathSegment, TypeClaim, TypeNameClaim, ValueKind,
+    locate_field_path, parse_instance,
 };
 use au_diagnostics::ByteRange;
 use serde_json::{Map, Value};
@@ -638,7 +638,7 @@ fn parse_instance_for_mutation(path: &Path, content: &str) -> Result<Instance, M
         Err(_) => {
             return Err(MutationReject::new(
                 "frontmatter opens with '---' but never closes",
-            ))
+            ));
         }
     };
     let offset = split.frontmatter_range.start;
@@ -677,7 +677,7 @@ pub(crate) fn splice_edit_record(
         Located::Sequence(_) => {
             return Err(MutationReject::new(
                 "field_path addresses a sequence, not a record — use append_record",
-            ))
+            ));
         }
     };
     if content.as_bytes().get(record.span.start) == Some(&b'{') {
@@ -694,7 +694,7 @@ pub(crate) fn splice_edit_record(
             "^" => {
                 return Err(MutationReject::new(
                     "'^' is a block-id, minted by assign_block_id, not patchable",
-                ))
+                ));
             }
             "type" => {
                 let Some(type_span) = record.type_span else {
@@ -796,7 +796,7 @@ pub(crate) fn splice_append_record(
         Located::Record(_) => {
             return Err(MutationReject::new(
                 "field_path addresses a record, not a sequence — use edit_record",
-            ))
+            ));
         }
     };
 
@@ -916,7 +916,7 @@ pub(crate) fn splice_remove_element(
         Err(_) => {
             return Err(MutationReject::new(
                 "frontmatter opens with '---' but never closes",
-            ))
+            ));
         }
     };
     let instance = parse_frontmatter_stamped(path, content, &split)?;
@@ -1008,7 +1008,7 @@ pub(crate) fn splice_append_element(
         Err(_) => {
             return Err(MutationReject::new(
                 "frontmatter opens with '---' but never closes",
-            ))
+            ));
         }
     };
     let instance = parse_frontmatter_stamped(path, content, &split)?;
@@ -1077,7 +1077,7 @@ pub(crate) fn sequence_has(
         Err(_) => {
             return Err(MutationReject::new(
                 "frontmatter opens with '---' but never closes",
-            ))
+            ));
         }
     };
     let instance = parse_frontmatter_stamped(path, content, &split)?;
@@ -1172,7 +1172,7 @@ pub(crate) fn splice_ensure_stamp(
         Err(_) => {
             return Err(MutationReject::new(
                 "frontmatter opens with '---' but never closes",
-            ))
+            ));
         }
     };
 
@@ -1195,7 +1195,14 @@ pub(crate) fn splice_ensure_stamp(
             } else {
                 format!("\n{block}")
             };
-            let new = apply_edits(content, vec![Edit { start: at, end: at, text }]);
+            let new = apply_edits(
+                content,
+                vec![Edit {
+                    start: at,
+                    end: at,
+                    text,
+                }],
+            );
             stamp_structural_check(path, &new)?;
             Ok(StampOutcome::Applied(new))
         }
@@ -1294,9 +1301,11 @@ fn stamp_structural_check(path: &Path, candidate: &str) -> Result<(), MutationRe
         // spliced into frontmatter (the create-block path always prepends one),
         // so there is nothing to re-validate.
         Ok(None) => return Ok(()),
-        Err(_) => return Err(MutationReject::new(
-            "the stamp produced unterminated frontmatter — internal splice error, nothing written",
-        )),
+        Err(_) => {
+            return Err(MutationReject::new(
+                "the stamp produced unterminated frontmatter — internal splice error, nothing written",
+            ));
+        }
     };
     au_parser::yaml::parse(split.frontmatter).map(|_| ()).map_err(|_| {
         MutationReject::new(
@@ -1436,7 +1445,7 @@ pub(crate) fn splice_ensure_mixin(
         Err(_) => {
             return Err(MutationReject::new(
                 "frontmatter opens with '---' but never closes",
-            ))
+            ));
         }
     };
 
@@ -1780,8 +1789,7 @@ mod tests {
 
     #[test]
     fn edit_record_replaces_a_scalar_field_and_keeps_a_trailing_doc() {
-        let content =
-            "type: plan\nphases:\n  - type: phase\n    actions:\n      - type: action.open\n        description: a  #: what to do\n";
+        let content = "type: plan\nphases:\n  - type: phase\n    actions:\n      - type: action.open\n        description: a  #: what to do\n";
         let fp = [
             seg("phases"),
             PathSegment::Index(0),
@@ -1832,8 +1840,7 @@ mod tests {
 
     #[test]
     fn edit_record_action_done_sets_type_and_inserts_outputs_preserving_comments() {
-        let content =
-            "type: plan\nphases:\n  # the first phase\n  - type: phase\n    actions:\n      - type: action.open\n        description: a  #: what to do\n";
+        let content = "type: plan\nphases:\n  # the first phase\n  - type: phase\n    actions:\n      - type: action.open\n        description: a  #: what to do\n";
         let fp = [
             seg("phases"),
             PathSegment::Index(0),
@@ -1867,8 +1874,7 @@ mod tests {
 
     #[test]
     fn edit_record_rejects_are_loud() {
-        let content =
-            "type: plan\nphases:\n  - type: phase\n    actions:\n      - type: action.open\n        tags:\n          - x\n        description: a\n";
+        let content = "type: plan\nphases:\n  - type: phase\n    actions:\n      - type: action.open\n        tags:\n          - x\n        description: a\n";
         let action = [
             seg("phases"),
             PathSegment::Index(0),
@@ -1885,26 +1891,30 @@ mod tests {
                 .is_err()
         );
         // A scalar field cannot be replaced by a list.
-        assert!(splice_edit_record(
-            content,
-            yaml_path(),
-            &action,
-            &obj(json!({"description": ["x"]}))
-        )
-        .is_err());
+        assert!(
+            splice_edit_record(
+                content,
+                yaml_path(),
+                &action,
+                &obj(json!({"description": ["x"]}))
+            )
+            .is_err()
+        );
         // A stale path resolves to no record.
         assert!(
             splice_edit_record(content, yaml_path(), &[seg("nope")], &obj(json!({"a": 1})))
                 .is_err()
         );
         // A sequence path belongs to append_record.
-        assert!(splice_edit_record(
-            content,
-            yaml_path(),
-            &[seg("phases")],
-            &obj(json!({"a": 1}))
-        )
-        .is_err());
+        assert!(
+            splice_edit_record(
+                content,
+                yaml_path(),
+                &[seg("phases")],
+                &obj(json!({"a": 1}))
+            )
+            .is_err()
+        );
         // An empty patch is a no-op reject.
         assert!(splice_edit_record(content, yaml_path(), &action, &Map::new()).is_err());
     }
@@ -1948,13 +1958,15 @@ mod tests {
         // A populated flow sequence is out of v1.
         assert!(splice_append_record(content, yaml_path(), &[seg("tags")], &json!("c")).is_err());
         // A record path belongs to edit_record.
-        assert!(splice_append_record(
-            content,
-            yaml_path(),
-            &[seg("phases"), PathSegment::Index(0)],
-            &json!("x")
-        )
-        .is_err());
+        assert!(
+            splice_append_record(
+                content,
+                yaml_path(),
+                &[seg("phases"), PathSegment::Index(0)],
+                &json!("x")
+            )
+            .is_err()
+        );
     }
 
     fn applied(outcome: StampOutcome) -> String {
@@ -2125,14 +2137,16 @@ mod tests {
     fn stamp_rejects_a_non_sequence_field() {
         // A scalar `provenance:` is not a list-field the stamp can ensure into.
         let content = "type: note\nprovenance: a-scalar\n";
-        assert!(splice_ensure_stamp(
-            content,
-            yaml_path(),
-            "provenance",
-            &json!({"kind": "edit"}),
-            None,
-        )
-        .is_err());
+        assert!(
+            splice_ensure_stamp(
+                content,
+                yaml_path(),
+                "provenance",
+                &json!({"kind": "edit"}),
+                None,
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -2462,14 +2476,16 @@ mod tests {
     #[test]
     fn append_element_rejects_a_duplicate_scalar() {
         let content = "edit:\n  - alpha\n";
-        assert!(splice_append_element(
-            content,
-            yaml_path(),
-            "edit",
-            &json!("alpha"),
-            &scalar("alpha")
-        )
-        .is_err());
+        assert!(
+            splice_append_element(
+                content,
+                yaml_path(),
+                "edit",
+                &json!("alpha"),
+                &scalar("alpha")
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -2522,15 +2538,17 @@ mod tests {
     #[test]
     fn move_element_rejects_when_absent_from_source() {
         let content = "edit:\n  - a\ndiscover:\n  - c\n";
-        assert!(splice_move_element(
-            content,
-            yaml_path(),
-            "discover",
-            "edit",
-            &json!("z"),
-            &scalar("z")
-        )
-        .is_err());
+        assert!(
+            splice_move_element(
+                content,
+                yaml_path(),
+                "discover",
+                "edit",
+                &json!("z"),
+                &scalar("z")
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -2538,14 +2556,16 @@ mod tests {
         let content = "edit:\n  - a\ndiscover:\n  - a\n";
         // `a` is already in the target `edit`, so the move rejects (a broken
         // double-membership would otherwise result).
-        assert!(splice_move_element(
-            content,
-            yaml_path(),
-            "discover",
-            "edit",
-            &json!("a"),
-            &scalar("a")
-        )
-        .is_err());
+        assert!(
+            splice_move_element(
+                content,
+                yaml_path(),
+                "discover",
+                "edit",
+                &json!("a"),
+                &scalar("a")
+            )
+            .is_err()
+        );
     }
 }

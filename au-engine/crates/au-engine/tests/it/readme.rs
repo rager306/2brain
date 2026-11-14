@@ -20,8 +20,7 @@ fn write(root: &Path, rel: &str, body: &str) {
     fs::write(p, body).unwrap();
 }
 
-const CONFORMANT_README: &str =
-    "---\ntype: au.engine.readme::au-engine\ntldr: t\n---\n\n# Repo Overview\n\n## What this is\n\nt\n\n## How to use this\n\nt\n\n## How to extend this\n\nt\n";
+const CONFORMANT_README: &str = "---\ntype: au.engine.readme::au-engine\ntldr: t\n---\n\n# Repo Overview\n\n## What this is\n\nt\n\n## How to use this\n\nt\n\n## How to extend this\n\nt\n";
 
 #[test]
 fn an_entry_repo_with_no_readme_warns() {

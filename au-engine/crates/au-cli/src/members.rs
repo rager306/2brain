@@ -17,7 +17,7 @@
 use std::path::Path;
 use std::process::ExitCode;
 
-use au_engine::members::{resolve_members, MemberResolution};
+use au_engine::members::{MemberResolution, resolve_members};
 use au_engine::{BuildError, ConfigSource, SCHEMA_VERSION};
 use au_parser::RealFileSystem;
 

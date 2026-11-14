@@ -7,7 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 struct Harness {
     _dir: tempfile::TempDir,
@@ -50,7 +50,11 @@ fn seeded() -> (tempfile::TempDir, PathBuf) {
     // A dangling link is only diagnosed on a file that claims a type: an
     // untyped note is not an instance, so its body is not validated.
     fs::create_dir_all(root.join("type")).unwrap();
-    fs::write(root.join("type/note.type.yaml"), "fields:\n  title: String\n").unwrap();
+    fs::write(
+        root.join("type/note.type.yaml"),
+        "fields:\n  title: String\n",
+    )
+    .unwrap();
     write(
         &root,
         "broken.md",

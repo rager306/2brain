@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 use au_diagnostics::{Diagnostic, Severity, Span};
 
 use crate::canonical::CanonicalHash;
-use crate::closure_id::{compute_closure_ids, ClosureHash};
+use crate::closure_id::{ClosureHash, compute_closure_ids};
 use crate::codes;
 use crate::typedef::{TypeDef, TypeName, TypeNameClaim};
 

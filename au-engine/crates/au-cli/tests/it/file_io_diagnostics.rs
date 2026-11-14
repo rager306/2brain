@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::path::{Path, PathBuf};
 
-use au_engine::{build, KnowledgeBase};
+use au_engine::{KnowledgeBase, build};
 use au_parser::{FileSystem, ScopeBoundaries, WalkError, WalkFilter};
 
 #[derive(Debug, Default)]

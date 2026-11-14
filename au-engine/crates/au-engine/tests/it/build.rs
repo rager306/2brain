@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use au_engine::{build, build_reusing, BuildOutcome, ContentHash, FileParse, UserRegistry};
+use au_engine::{BuildOutcome, ContentHash, FileParse, UserRegistry, build, build_reusing};
 use au_parser::{FileKind, RealFileSystem};
 
 fn workspace_root() -> PathBuf {

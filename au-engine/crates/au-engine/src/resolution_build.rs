@@ -15,7 +15,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use au_core::resolution::{fold, PeerGraphResolver};
+use au_core::resolution::{PeerGraphResolver, fold};
 use au_core::{
     EffectiveShape, InlineValue, Instance, InstanceValue, ResolutionGraph, TypeClaim, TypeGraph,
     TypeId, TypeName, TypeNameClaim,
@@ -1154,9 +1154,10 @@ mod tests {
                 .map(|r| (r.path.clone(), r.claimed, r.inherited))
                 .collect::<Vec<_>>()
         );
-        assert!(recs
-            .iter()
-            .all(|r| r.name == "note" && r.type_owners == vec!["base".to_string()]));
+        assert!(
+            recs.iter()
+                .all(|r| r.name == "note" && r.type_owners == vec!["base".to_string()])
+        );
         assert!(by("bn.md").unwrap().claimed && !by("bn.md").unwrap().inherited);
         assert!(by("n.md").unwrap().claimed && !by("n.md").unwrap().inherited);
         let c = by("c.md").unwrap();
@@ -1213,9 +1214,10 @@ mod tests {
         // The user imports: app → base, all with a resolved identity hash.
         let user: Vec<_> = imports.iter().filter(|i| i.owner == "base").collect();
         assert_eq!(user.len(), 3, "{user:?}");
-        assert!(user
-            .iter()
-            .all(|i| i.importer == "app" && !i.hash.is_empty()));
+        assert!(
+            user.iter()
+                .all(|i| i.importer == "app" && !i.hash.is_empty())
+        );
         let names: Vec<&str> = user.iter().map(|i| i.name.as_str()).collect();
         assert!(names.contains(&"note") && names.contains(&"dm") && names.contains(&"layout"));
         assert!(
@@ -1234,9 +1236,11 @@ mod tests {
             3,
             "the entry `v`, `app`, and `base` each import au.engine.repo"
         );
-        assert!(repo_schema
-            .iter()
-            .all(|i| i.owner == "au-engine" && !i.hash.is_empty()));
+        assert!(
+            repo_schema
+                .iter()
+                .all(|i| i.owner == "au-engine" && !i.hash.is_empty())
+        );
         assert!(
             imports
                 .iter()
@@ -1424,8 +1428,8 @@ mod bodyuse_tests {
 /// vocabulary even when peer types are folded into the resolution graph.
 #[cfg(test)]
 mod candidate_scope_tests {
-    use crate::build::build;
     use crate::RepoName;
+    use crate::build::build;
     use au_parser::MemoryFileSystem;
     use std::path::Path;
 

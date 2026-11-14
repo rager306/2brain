@@ -14,12 +14,12 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use au_engine::wire::{
-    introspect_instances_of, introspect_kb_instances, introspect_type_closure,
-    introspect_type_tree, TypeScope,
+    TypeScope, introspect_instances_of, introspect_kb_instances, introspect_type_closure,
+    introspect_type_tree,
 };
 use au_engine::{apply_recompute, build, recompute_dirty};
 use au_parser::RealFileSystem;
-use au_testkit::repogen::{generate, Knobs, Profile};
+use au_testkit::repogen::{Knobs, Profile, generate};
 
 /// Timed repetitions per measurement (after one warm-up).
 const REPS: usize = 5;

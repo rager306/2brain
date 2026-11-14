@@ -21,8 +21,8 @@ use au_diagnostics::{
 use au_grammar::{CompoundRefOp, Primitive, Shape};
 
 use crate::closure::{
-    closure_of, collect_referenced_type_names, effective_shape, effective_shape_resolved,
-    folded_closure_ids, EffectiveShapeError,
+    EffectiveShapeError, closure_of, collect_referenced_type_names, effective_shape,
+    effective_shape_resolved, folded_closure_ids,
 };
 use crate::codes;
 use crate::graph::TypeGraph;
@@ -260,12 +260,16 @@ fn check_location_name_fields(
         let Some(origin) = shape.get(&fname) else {
             if shape.get_divergent(&fname).is_some() {
                 bad(
-                    format!("`location.name` references divergent field '{f}'; a name template needs one unambiguous shape, qualify or rename it"),
+                    format!(
+                        "`location.name` references divergent field '{f}'; a name template needs one unambiguous shape, qualify or rename it"
+                    ),
                     diags,
                 );
             } else {
                 bad(
-                    format!("`location.name` references field '{f}', which is not in the type's effective shape"),
+                    format!(
+                        "`location.name` references field '{f}', which is not in the type's effective shape"
+                    ),
                     diags,
                 );
             }
@@ -273,7 +277,9 @@ fn check_location_name_fields(
         };
         if !origin.is_required() {
             bad(
-                format!("`location.name` references optional field '{f}'; a name template references required fields only"),
+                format!(
+                    "`location.name` references optional field '{f}'; a name template references required fields only"
+                ),
                 diags,
             );
             continue;
@@ -281,7 +287,9 @@ fn check_location_name_fields(
         match &origin.canonical_decl().parsed_shape {
             Ok(sh) if is_safe_name_shape(sh) => {}
             Ok(_) => bad(
-                format!("`location.name` references field '{f}', whose shape does not render one filesystem-safe component; use a scalar String / Number / Boolean / Date / DateTime / enum field"),
+                format!(
+                    "`location.name` references field '{f}', whose shape does not render one filesystem-safe component; use a scalar String / Number / Boolean / Date / DateTime / enum field"
+                ),
                 diags,
             ),
             // An unparseable shape is `shape-syntax-error`'s; do not double-report.
@@ -2021,9 +2029,11 @@ mod tests {
         let mut td = td_with_fields("bad", &[], &["a"]);
         td.shape = Some(brand(Shape::Enum(vec!["x".into()])));
         let diags = run(vec![td]);
-        assert!(diags
-            .iter()
-            .any(|d| d.code == codes::BRAND_WITH_RECORD_KEYS));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == codes::BRAND_WITH_RECORD_KEYS)
+        );
     }
 
     #[test]
@@ -2031,9 +2041,11 @@ mod tests {
         let mut td = empty_td("meter");
         td.shape = Some(brand(Shape::Primitive(au_grammar::Primitive::Number)));
         let diags = run(vec![td]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code == codes::BRAND_WITH_RECORD_KEYS));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == codes::BRAND_WITH_RECORD_KEYS)
+        );
     }
 
     fn parse_def(path: &str, src: &str) -> TypeDef {
@@ -2048,9 +2060,11 @@ mod tests {
         let ir = parse_def("/v/type/ir.type.yaml", "shape:\n  - a\n  - b\n");
         let host = parse_def("/v/type/host.type.yaml", "fields:\n  f: ir*\n");
         let diags = run(vec![ir, host]);
-        assert!(diags
-            .iter()
-            .any(|d| d.code == codes::BRAND_NOT_REFERENCEABLE));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == codes::BRAND_NOT_REFERENCEABLE)
+        );
     }
 
     #[test]
@@ -2058,9 +2072,11 @@ mod tests {
         let ir = parse_def("/v/type/ir.type.yaml", "shape:\n  - a\n  - b\n");
         let host = parse_def("/v/type/host.type.yaml", "fields:\n  f: ir\n");
         let diags = run(vec![ir, host]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code == codes::BRAND_NOT_REFERENCEABLE));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == codes::BRAND_NOT_REFERENCEABLE)
+        );
     }
 
     fn run_location(defs: Vec<TypeDef>) -> Vec<Diagnostic> {
@@ -2084,9 +2100,11 @@ mod tests {
             "/v/type/x.type.yaml",
             "fields:\n  site: Url\nlocation:\n  name: \"${.site}\"\n",
         );
-        assert!(run_location(vec![td])
-            .iter()
-            .any(|d| d.code == codes::LOCATION_BAD_SHAPE));
+        assert!(
+            run_location(vec![td])
+                .iter()
+                .any(|d| d.code == codes::LOCATION_BAD_SHAPE)
+        );
     }
 
     #[test]
@@ -2095,9 +2113,11 @@ mod tests {
             "/v/type/x.type.yaml",
             "fields:\n  tags: \"String[]\"\nlocation:\n  name: \"${.tags}\"\n",
         );
-        assert!(run_location(vec![td])
-            .iter()
-            .any(|d| d.code == codes::LOCATION_BAD_SHAPE));
+        assert!(
+            run_location(vec![td])
+                .iter()
+                .any(|d| d.code == codes::LOCATION_BAD_SHAPE)
+        );
     }
 
     #[test]
@@ -2106,9 +2126,11 @@ mod tests {
             "/v/type/x.type.yaml",
             "fields:\n  slug?: String\nlocation:\n  name: \"${.slug}\"\n",
         );
-        assert!(run_location(vec![td])
-            .iter()
-            .any(|d| d.code == codes::LOCATION_BAD_SHAPE));
+        assert!(
+            run_location(vec![td])
+                .iter()
+                .any(|d| d.code == codes::LOCATION_BAD_SHAPE)
+        );
     }
 
     #[test]
@@ -2117,9 +2139,11 @@ mod tests {
             "/v/type/x.type.yaml",
             "fields:\n  a: String\nlocation:\n  name: \"${.ghost}\"\n",
         );
-        assert!(run_location(vec![td])
-            .iter()
-            .any(|d| d.code == codes::LOCATION_BAD_SHAPE));
+        assert!(
+            run_location(vec![td])
+                .iter()
+                .any(|d| d.code == codes::LOCATION_BAD_SHAPE)
+        );
     }
 
     #[test]
@@ -2138,9 +2162,11 @@ mod tests {
             "/v/type/x.type.yaml",
             "fields: {}\nbody:\n  - section: S\nlocation:\n  fileType: yaml\n",
         );
-        assert!(run_location(vec![td])
-            .iter()
-            .any(|d| d.code == codes::LOCATION_FILETYPE_BODY_CONFLICT));
+        assert!(
+            run_location(vec![td])
+                .iter()
+                .any(|d| d.code == codes::LOCATION_FILETYPE_BODY_CONFLICT)
+        );
     }
 
     #[test]
@@ -2149,9 +2175,11 @@ mod tests {
             "/v/type/x.type.yaml",
             "fields: {}\nbody:\n  - section: S\nlocation:\n  fileType: md\n",
         );
-        assert!(!run_location(vec![td])
-            .iter()
-            .any(|d| d.code == codes::LOCATION_FILETYPE_BODY_CONFLICT));
+        assert!(
+            !run_location(vec![td])
+                .iter()
+                .any(|d| d.code == codes::LOCATION_FILETYPE_BODY_CONFLICT)
+        );
     }
 
     #[test]
@@ -2233,9 +2261,11 @@ mod tests {
     fn flags_invalid_type_name() {
         let bad = empty_td("note*");
         let diags = run(vec![bad]);
-        assert!(diags
-            .iter()
-            .any(|d| d.code.as_str() == "type-name-violates-regex"));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code.as_str() == "type-name-violates-regex")
+        );
     }
 
     #[test]
@@ -2351,9 +2381,11 @@ mod tests {
             td_parents("decision", &["note"]),
             td_parents("decision.decided", &["decision"]),
         ]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "cycle-in-type-chain"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "cycle-in-type-chain")
+        );
     }
 
     #[test]
@@ -2369,9 +2401,11 @@ mod tests {
         });
         td.parents = vec![TypeNameClaim::parse("note::base", ByteRange::new(0, 0))];
         let diags = run(vec![td]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "cycle-in-type-chain"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "cycle-in-type-chain")
+        );
     }
 
     #[test]
@@ -2398,9 +2432,11 @@ mod tests {
             diags.iter().map(|d| d.code.as_str()).collect::<Vec<_>>()
         );
         // No cycle diag should fire — this is a depth issue, not a cycle.
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "cycle-in-type-chain"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "cycle-in-type-chain")
+        );
     }
 
     #[test]
@@ -2412,9 +2448,11 @@ mod tests {
             td_parents("c", &["a"]),
             td_parents("d", &["b", "c"]),
         ]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "cycle-in-type-chain"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "cycle-in-type-chain")
+        );
     }
 
     #[test]
@@ -2423,9 +2461,11 @@ mod tests {
         let diags = run(vec![td]);
         // The graph also reports the same diag transitively through td's parent
         // claim — at least one regex diagnostic must surface.
-        assert!(diags
-            .iter()
-            .any(|d| d.code.as_str() == "type-name-violates-regex"));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code.as_str() == "type-name-violates-regex")
+        );
     }
 
     #[test]
@@ -2436,9 +2476,11 @@ mod tests {
             ByteRange::new(0, 0),
         )];
         let diags = run(vec![td]);
-        assert!(diags
-            .iter()
-            .any(|d| d.code.as_str() == "type-name-violates-regex"));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code.as_str() == "type-name-violates-regex")
+        );
     }
 
     fn td_with_fields(name: &str, parents: &[&str], field_names: &[&str]) -> TypeDef {
@@ -2583,9 +2625,11 @@ mod tests {
             td_with_fields("b", &["a"], &[]),
             td_with_fields("c", &["b"], &["x"]),
         ]);
-        assert!(diags
-            .iter()
-            .any(|d| d.code.as_str() == "field-redeclaration"));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code.as_str() == "field-redeclaration")
+        );
     }
 
     #[test]
@@ -2623,9 +2667,11 @@ mod tests {
             td_with_fields("note", &[], &["description"]),
             td_with_fields("decision", &["note"], &["status"]),
         ]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "field-redeclaration"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "field-redeclaration")
+        );
     }
 
     #[test]
@@ -2635,9 +2681,11 @@ mod tests {
             td_parents("source.url", &["source"]),
             td_parents("source.path", &["source"]),
         ]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "sealed-no-surprise-children"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "sealed-no-surprise-children")
+        );
     }
 
     #[test]
@@ -2661,9 +2709,11 @@ mod tests {
             td_parents("source.url", &["source"]),
             td_parents("source.url.canonical", &["source.url"]),
         ]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "sealed-no-surprise-children"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "sealed-no-surprise-children")
+        );
     }
 
     // ----- reserved type-def names + slot reference targets -----
@@ -2782,18 +2832,22 @@ mod tests {
             empty_td("mcp.tool"),
             td_with_def_ref_field("mode", "propose_tool", Some("mcp.tool")),
         ]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "slot-references-absent-type"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "slot-references-absent-type")
+        );
     }
 
     #[test]
     fn unconstrained_def_ref_names_no_type() {
         // `type*` has no ceiling, so it never fires slot-references-absent-type.
         let diags = run(vec![td_with_def_ref_field("mode", "any_def", None)]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "slot-references-absent-type"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "slot-references-absent-type")
+        );
     }
 
     #[test]
@@ -2882,9 +2936,11 @@ mod tests {
             empty_td("Urls"),
             empty_td("url"),
         ]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "reserved-type-name"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "reserved-type-name")
+        );
     }
 
     #[test]
@@ -2906,18 +2962,22 @@ mod tests {
             empty_td("note"),
             td_with_reference_field("link-card", "target", "note"),
         ]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "slot-references-absent-type"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "slot-references-absent-type")
+        );
     }
 
     #[test]
     fn slot_references_builtin_file_passes() {
         // `file*` is the engine built-in; no closure check, no absent diagnostic.
         let diags = run(vec![td_with_reference_field("attachment", "blob", "file")]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "slot-references-absent-type"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "slot-references-absent-type")
+        );
     }
 
     #[test]
@@ -2937,9 +2997,11 @@ mod tests {
     #[test]
     fn parent_references_existing_type_passes() {
         let diags = run(vec![empty_td("thing"), td_parents("note", &["thing"])]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "parent-references-absent-type"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "parent-references-absent-type")
+        );
     }
 
     #[test]
@@ -2947,12 +3009,16 @@ mod tests {
         // `foo*bar` is not a valid type name; that is the regex check's report,
         // not a misleading absent-type one.
         let diags = run(vec![td_parents("note", &["foo*bar"])]);
-        assert!(diags
-            .iter()
-            .any(|d| d.code.as_str() == "type-name-violates-regex"));
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "parent-references-absent-type"));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code.as_str() == "type-name-violates-regex")
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "parent-references-absent-type")
+        );
     }
 
     #[test]
@@ -2973,9 +3039,11 @@ mod tests {
     #[test]
     fn list_of_builtin_file_passes() {
         let diags = run(vec![td_with_list_of_reference("gallery", "images", "file")]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "slot-references-absent-type"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "slot-references-absent-type")
+        );
     }
 
     #[test]
@@ -3261,9 +3329,11 @@ mod tests {
                 au_grammar::Shape::Union(vec![ref_("rationale"), ref_("thesis")]),
             ),
         ]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "subsumption-in-slot-union"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "subsumption-in-slot-union")
+        );
     }
 
     #[test]
@@ -3313,9 +3383,11 @@ mod tests {
             ),
         ]);
         // Sanity: the symmetric union code did NOT fire (intersection-only).
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "subsumption-in-slot-union"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "subsumption-in-slot-union")
+        );
         let subs: Vec<_> = diags
             .iter()
             .filter(|d| d.code.as_str() == "subsumption-in-slot-intersection")
@@ -3342,9 +3414,11 @@ mod tests {
                 au_grammar::Shape::Intersection(vec![ref_("decision"), ref_("maturity")]),
             ),
         ]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "subsumption-in-slot-intersection"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "subsumption-in-slot-intersection")
+        );
     }
 
     #[test]
@@ -3461,9 +3535,11 @@ mod tests {
             "tags",
             au_grammar::Shape::Union(vec![str_list, num_list_ne]),
         )]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "subsumption-in-slot-union"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "subsumption-in-slot-union")
+        );
     }
 
     #[test]
@@ -3568,9 +3644,11 @@ mod tests {
                 },
             ),
         ]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "subsumption-in-slot-union"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "subsumption-in-slot-union")
+        );
     }
 
     #[test]
@@ -3589,9 +3667,11 @@ mod tests {
                 ]),
             ),
         ]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "subsumption-in-slot-union"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "subsumption-in-slot-union")
+        );
     }
 
     // ----- type-def parent: redundancy + mixin-collision -----
@@ -3757,9 +3837,11 @@ mod tests {
         let diags = run_inheritance(vec![empty_td("note"), td_parents("c", &["note"])]);
         assert!(!diags.iter().any(|d| d.code.as_str() == "mixin-collision"));
         assert!(!diags.iter().any(|d| d.code.as_str() == "duplicate-claim"));
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "subsumption-in-mixin"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "subsumption-in-mixin")
+        );
     }
 
     // ----- [[type-def field shape::au-type-system]] / [[aspiration - type system ideas]] prose-extractability for `fills:` bindings -----
@@ -4014,9 +4096,11 @@ mod tests {
             &["b"],
             false,
         )]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "fills-contract-conflict-nested-exclusivity"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "fills-contract-conflict-nested-exclusivity")
+        );
     }
 
     // ----- `use:` cycle detection ([[type-def body use::au-type-system]] acyclicity) -----
@@ -4353,9 +4437,11 @@ mod tests {
             false,
             true,
         )]);
-        assert!(!diags
-            .iter()
-            .any(|d| d.code.as_str() == "fills-contract-conflict-nested-exclusivity"));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code.as_str() == "fills-contract-conflict-nested-exclusivity")
+        );
     }
 
     /// Self-cycle (single node uses itself, transitively in-closure).

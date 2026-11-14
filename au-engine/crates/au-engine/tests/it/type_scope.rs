@@ -10,8 +10,8 @@ use std::path::Path;
 
 use au_engine::build;
 use au_engine::wire::{
-    introspect_instance_counts, introspect_instances_of, introspect_list_imports,
-    introspect_type_counts, Origin, TypeScope,
+    Origin, TypeScope, introspect_instance_counts, introspect_instances_of,
+    introspect_list_imports, introspect_type_counts,
 };
 use au_parser::RealFileSystem;
 

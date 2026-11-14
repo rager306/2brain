@@ -16,7 +16,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use au_engine::{serve, Client, ConfigSource, Engine};
+use au_engine::{Client, ConfigSource, Engine, serve};
 use serde_json::json;
 
 fn git(repo: &Path, args: &[&str]) -> String {

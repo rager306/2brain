@@ -1707,7 +1707,7 @@ fn commit_moves_and_members(body: &str) -> (Vec<RepoName>, Vec<MovedRecord>) {
 }
 
 impl GitWriter for ShellGit {
-        #[cfg_attr(feature = "hotpath", hotpath::measure)]
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     fn commit(
         &self,
         repo: &Path,

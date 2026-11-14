@@ -8,7 +8,7 @@
 //! everywhere); diverging-shape invariants use `type_def_with_enum_field`
 //! to vary literals without leaving the existing builder set.
 
-use au_core::{build_graph, FieldDecl, FieldName, InstanceValue, TypeDef};
+use au_core::{FieldDecl, FieldName, InstanceValue, TypeDef, build_graph};
 use au_diagnostics::ByteRange;
 use au_grammar::{Primitive, Shape};
 use au_testkit::{
@@ -304,9 +304,11 @@ fn duplicate_claim_warning_always_fires_and_does_not_block() {
         "expected duplicate-claim to be a warning, not an error"
     );
     // No errors — the warning shouldn't block validation.
-    assert!(diags
-        .iter()
-        .all(|d| d.severity != au_diagnostics::Severity::Error));
+    assert!(
+        diags
+            .iter()
+            .all(|d| d.severity != au_diagnostics::Severity::Error)
+    );
 }
 
 #[test]

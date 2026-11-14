@@ -23,7 +23,7 @@ use std::sync::LazyLock;
 use au_core::TypeDef;
 use au_diagnostics::{ByteRange, Diagnostic, DiagnosticCode, Severity, Span};
 
-use crate::parse::{parse_file, FileParse};
+use crate::parse::{FileParse, parse_file};
 use crate::repo::{Repo, RepoName};
 
 /// The reserved repo identity owning every hardwired engine-schema def.

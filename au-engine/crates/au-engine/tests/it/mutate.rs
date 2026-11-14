@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use au_engine::{serve, Client, ConfigSource, Engine};
+use au_engine::{Client, ConfigSource, Engine, serve};
 use serde_json::json;
 
 fn fixture() -> (tempfile::TempDir, PathBuf) {
@@ -146,10 +146,12 @@ fn write_file_creates_rebuilds_and_answers_with_fresh_state() {
         .client
         .query(&json!({ "read": "content", "path": "b.md" }))
         .unwrap();
-    assert!(resp["result"]["content"]["text"]
-        .as_str()
-        .unwrap()
-        .contains("through the channel"));
+    assert!(
+        resp["result"]["content"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("through the channel")
+    );
 }
 
 #[test]
@@ -201,10 +203,12 @@ fn expected_hash_guards_against_stale_writes() {
         .client
         .query(&json!({ "read": "content", "path": "a.md" }))
         .unwrap();
-    assert!(resp["result"]["content"]["text"]
-        .as_str()
-        .unwrap()
-        .contains("updated"));
+    assert!(
+        resp["result"]["content"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("updated")
+    );
 }
 
 #[test]
@@ -350,10 +354,12 @@ fn edit_file_replaces_exactly_and_guards_uniqueness() {
         .client
         .query(&json!({ "read": "content", "path": "a.md" }))
         .unwrap();
-    assert!(resp["result"]["content"]["text"]
-        .as_str()
-        .unwrap()
-        .contains("description: edited"));
+    assert!(
+        resp["result"]["content"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("description: edited")
+    );
 
     // The stale old_string now misses — its own read-before-write guard.
     let resp = h
@@ -401,10 +407,12 @@ fn edit_file_replaces_exactly_and_guards_uniqueness() {
         .client
         .query(&json!({ "read": "content", "path": "a.md" }))
         .unwrap();
-    assert!(resp["result"]["content"]["text"]
-        .as_str()
-        .unwrap()
-        .contains("one one"));
+    assert!(
+        resp["result"]["content"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("one one")
+    );
 
     // Identical strings and missing files reject.
     let resp = h
@@ -3140,8 +3148,7 @@ fn promote_a_direct_field_value_record_keeps_the_host_parseable_non_last_key() {
     );
     // The record is FOLLOWED by another key (repro B) — rules out "last key" as
     // the cause; a non-last record glues the next key onto the reference.
-    let host =
-        "---\ntype: box\ncontents:\n  ^: r1\n  type: thing\n  label: hello\nnote: tail\n---\nbody\n";
+    let host = "---\ntype: box\ncontents:\n  ^: r1\n  type: thing\n  label: hello\nnote: tail\n---\nbody\n";
     wr(&h.root, "box.md", host);
     git(&h.root, &["add", "."]);
     git(&h.root, &["commit", "-q", "-m", "add box"]);
@@ -5206,7 +5213,10 @@ fn cross_repo_promote_redirects_a_referrer_including_a_nested_block() {
             "canvas.md",
             "---\ntype: canvas\nnodes:\n  - ^: rec\n    type: node\n    content: x\n    related:\n      ^: kid\n      type: node\n      content: y\n---\n",
         )],
-        &[("doc.md", "outer [[canvas::ra^rec]] and nested [[canvas::ra^kid]]\n")],
+        &[(
+            "doc.md",
+            "outer [[canvas::ra^rec]] and nested [[canvas::ra^kid]]\n",
+        )],
     );
     let mut h = start(dir, root);
 
@@ -5259,9 +5269,15 @@ fn cross_repo_inline_repoints_a_referrer_including_a_nested_block() {
                 "child.md",
                 "---\ntype: node\ncontent: x\nrelated:\n  ^: kid\n  type: node\n  content: y\n---\n",
             ),
-            ("a.md", "---\ntype: canvas\nnodes:\n  - \"[[child]]\"\n---\n"),
+            (
+                "a.md",
+                "---\ntype: canvas\nnodes:\n  - \"[[child]]\"\n---\n",
+            ),
         ],
-        &[("doc.md", "whole [[child::ra]] and nested [[child::ra^kid]]\n")],
+        &[(
+            "doc.md",
+            "whole [[child::ra]] and nested [[child::ra^kid]]\n",
+        )],
     );
     let mut h = start(dir, root);
 
@@ -5358,7 +5374,10 @@ fn inline_drops_the_repo_qualifier_when_rebasing_to_a_local_reference() {
                 "child.md",
                 "---\ntype: node\ncontent: \"self [[child::ra^kid]]\"\nrelated:\n  ^: kid\n  type: node\n  content: y\n---\n",
             ),
-            ("a.md", "---\ntype: canvas\nnodes:\n  - \"[[child]]\"\n---\n"),
+            (
+                "a.md",
+                "---\ntype: canvas\nnodes:\n  - \"[[child]]\"\n---\n",
+            ),
         ],
         &[],
     );

@@ -8,7 +8,7 @@ use std::fs;
 use std::path::Path;
 
 use au_engine::build;
-use au_engine::wire::{introspect_instances_of, Locator, Origin, PathSeg};
+use au_engine::wire::{Locator, Origin, PathSeg, introspect_instances_of};
 use au_parser::RealFileSystem;
 
 fn write(root: &Path, rel: &str, content: &str) {
@@ -64,9 +64,10 @@ fn nested_actions_are_enumerated_with_paths_and_block_ids() {
     assert!(recs.iter().all(|r| r.origin == Origin::Nested));
     assert!(recs.iter().all(|r| r.claimed && !r.inherited));
     assert!(recs.iter().all(|r| r.name == "action.open"));
-    assert!(recs
-        .iter()
-        .all(|r| r.path.ends_with("plan1.md") && r.span.end > r.span.start));
+    assert!(
+        recs.iter()
+            .all(|r| r.path.ends_with("plan1.md") && r.span.end > r.span.start)
+    );
 
     // The record's own body rides `fields`.
     assert_eq!(recs[0].fields.get("desc").unwrap(), "a");
@@ -106,9 +107,10 @@ fn a_nested_record_matches_its_parent_as_inherited() {
     // action by inheritance, not claim.
     let recs = introspect_instances_of(&v, "action", None);
     assert_eq!(recs.len(), 2, "got {recs:?}");
-    assert!(recs
-        .iter()
-        .all(|r| r.origin == Origin::Nested && !r.claimed && r.inherited && r.name == "action"));
+    assert!(
+        recs.iter()
+            .all(|r| r.origin == Origin::Nested && !r.claimed && r.inherited && r.name == "action")
+    );
 }
 
 #[test]
@@ -459,9 +461,10 @@ fn sealed_parent_collects_its_leaf_instances_as_inherited() {
     // every match is a leaf instance reached by inheritance.
     let recs = introspect_instances_of(&v, "ruling", Some(&[Origin::File]));
     assert_eq!(recs.len(), 2, "two leaf instances, got {recs:?}");
-    assert!(recs
-        .iter()
-        .all(|r| r.origin == Origin::File && r.name == "ruling" && !r.claimed && r.inherited));
+    assert!(
+        recs.iter()
+            .all(|r| r.origin == Origin::File && r.name == "ruling" && !r.claimed && r.inherited)
+    );
     let mut paths: Vec<&str> = recs.iter().map(|r| r.path.as_str()).collect();
     paths.sort();
     assert!(paths[0].ends_with("ruling1.md") && paths[1].ends_with("ruling2.md"));
@@ -475,9 +478,10 @@ fn abstract_parent_collects_its_subtype_instances_as_inherited() {
     // inheritance, none by direct claim.
     let recs = introspect_instances_of(&v, "figure", Some(&[Origin::File]));
     assert_eq!(recs.len(), 2, "two subtype instances, got {recs:?}");
-    assert!(recs
-        .iter()
-        .all(|r| r.origin == Origin::File && r.name == "figure" && !r.claimed && r.inherited));
+    assert!(
+        recs.iter()
+            .all(|r| r.origin == Origin::File && r.name == "figure" && !r.claimed && r.inherited)
+    );
     let mut paths: Vec<&str> = recs.iter().map(|r| r.path.as_str()).collect();
     paths.sort();
     assert!(paths[0].ends_with("figure1.md") && paths[1].ends_with("figure2.md"));
@@ -495,9 +499,10 @@ fn plain_parent_collects_subtypes_inherited_and_its_own_claim() {
         3,
         "two subtypes plus the direct claim, got {recs:?}"
     );
-    assert!(recs
-        .iter()
-        .all(|r| r.origin == Origin::File && r.name == "memo"));
+    assert!(
+        recs.iter()
+            .all(|r| r.origin == Origin::File && r.name == "memo")
+    );
 
     let claimed: Vec<&str> = recs
         .iter()

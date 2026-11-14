@@ -13,15 +13,15 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use au_diagnostics::ByteRange;
-use au_parser::{derive_section_paths, BodyEvent};
+use au_parser::{BodyEvent, derive_section_paths};
 use au_references::{
-    extract_field_marker, looks_like_wikilink, parse_wikilink, parse_wikilink_inner,
-    WikilinkParseError,
+    WikilinkParseError, extract_field_marker, looks_like_wikilink, parse_wikilink,
+    parse_wikilink_inner,
 };
 
 use crate::instance::{Instance, InstanceField, InstanceValue, SequenceElement};
 use crate::typedef::FieldName;
-use crate::validate::{parse_qualified_key, QualifiedKey};
+use crate::validate::{QualifiedKey, parse_qualified_key};
 
 /// Split a body attribution's raw field text (`field` or `field{type}` /
 /// `field{type::repo}`) into its base [`FieldName`] and optional
@@ -1191,7 +1191,7 @@ fn collapse_to_containers(mut contribs: Vec<(Contribution, bool)>) -> Vec<ValueC
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::instance::{parse_instance, Instance};
+    use crate::instance::{Instance, parse_instance};
     use au_parser::yaml::parse;
     use au_parser::{scan_body, split_frontmatter};
     use std::path::Path;

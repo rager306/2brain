@@ -14,16 +14,16 @@
 use std::path::{Path, PathBuf};
 
 use au_core::{
-    parse_instance, parse_instance_stamped, parse_note, parse_type_def, DocstringLink, Instance,
-    InstanceField, TypeDef, TypeNameClaim,
+    DocstringLink, Instance, InstanceField, TypeDef, TypeNameClaim, parse_instance,
+    parse_instance_stamped, parse_note, parse_type_def,
 };
 use au_diagnostics::{ByteRange, Diagnostic, Severity, Span, SuggestedFix};
-use au_grammar::{parse_shape_spanned, ShapeSpanRole};
+use au_grammar::{ShapeSpanRole, parse_shape_spanned};
 use au_parser::{
+    FRONTMATTER_UNTERMINATED, FileKind, FrontmatterError, MarkedYaml, YAML_PARSE_ERROR,
     classify_by_path, is_instance_candidate_path, is_pure_yaml_instance_path, split_frontmatter,
     whole_as_frontmatter,
-    yaml::{parse, Scalar, YamlData},
-    FileKind, FrontmatterError, MarkedYaml, FRONTMATTER_UNTERMINATED, YAML_PARSE_ERROR,
+    yaml::{Scalar, YamlData, parse},
 };
 
 use crate::diagnostics::{duplicate_key_diags, not_utf8_diag};
@@ -185,8 +185,8 @@ fn suffixed_enum_quote_hint(source: &str) -> Option<SuggestedFix> {
         if value.starts_with('[') && (value.contains("][]") || value.contains("][+]")) {
             let key = lhs.trim_start().trim_start_matches("- ").trim();
             return Some(SuggestedFix::advisory(format!(
-                    "a suffixed inline enum must be quoted, its bare form is not valid YAML; write `{key}: \"{value}\"`"
-                )));
+                "a suffixed inline enum must be quoted, its bare form is not valid YAML; write `{key}: \"{value}\"`"
+            )));
         }
     }
     None

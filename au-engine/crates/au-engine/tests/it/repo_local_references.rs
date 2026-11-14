@@ -149,8 +149,9 @@ fn single_repo_resolution_is_unchanged() {
             .ok(),
         Some(root.join("recovery.md"))
     );
-    assert!(kb
-        .backlinks(&root.join("recovery.md"))
-        .iter()
-        .any(|b| b.source == root.join("intro.md")));
+    assert!(
+        kb.backlinks(&root.join("recovery.md"))
+            .iter()
+            .any(|b| b.source == root.join("intro.md"))
+    );
 }

@@ -23,8 +23,8 @@
 use std::collections::BTreeSet;
 
 use au_core::{
-    build_graph, closure_of, rank, scan, scan_top_level, Candidate, Instance, InstanceValue,
-    TypeClaim, TypeDef, TypeGraph, TypeName, TypeNameClaim,
+    Candidate, Instance, InstanceValue, TypeClaim, TypeDef, TypeGraph, TypeName, TypeNameClaim,
+    build_graph, closure_of, rank, scan, scan_top_level,
 };
 use au_diagnostics::ByteRange;
 use au_testkit::{
@@ -210,9 +210,11 @@ fn supersedes_names_are_actually_claimed() {
     let inst = instance_bare("decision.pending", fields(&["status"]));
     let cands = scan(&g, &inst);
     // Sanity: at least one candidate should surface here (decision.decided).
-    assert!(cands
-        .iter()
-        .any(|c| c.type_name.as_str() == "decision.decided"));
+    assert!(
+        cands
+            .iter()
+            .any(|c| c.type_name.as_str() == "decision.decided")
+    );
     let mut saw_supersedes = false;
     for c in &cands {
         for sup in &c.supersedes {

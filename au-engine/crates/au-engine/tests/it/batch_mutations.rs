@@ -6,7 +6,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 struct Harness {
     _dir: tempfile::TempDir,
@@ -38,7 +38,11 @@ fn seeded() -> (tempfile::TempDir, PathBuf) {
     crate::seed_repo(&root);
     fs::create_dir_all(root.join("notes")).unwrap();
     fs::write(root.join("notes/one.md"), "---\ntitle: one\n---\n\nfirst\n").unwrap();
-    fs::write(root.join("notes/two.md"), "---\ntitle: two\n---\n\nsecond\n").unwrap();
+    fs::write(
+        root.join("notes/two.md"),
+        "---\ntitle: two\n---\n\nsecond\n",
+    )
+    .unwrap();
     let git = |args: &[&str]| {
         let out = std::process::Command::new("git")
             .args(args)
@@ -49,7 +53,15 @@ fn seeded() -> (tempfile::TempDir, PathBuf) {
     };
     git(&["init", "-q"]);
     git(&["add", "-A"]);
-    git(&["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "seed"]);
+    git(&[
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "commit",
+        "-qm",
+        "seed",
+    ]);
     (dir, root)
 }
 
@@ -68,7 +80,11 @@ fn commit_count(root: &std::path::Path) -> usize {
         .current_dir(root)
         .output()
         .unwrap();
-    String::from_utf8(out.stdout).unwrap().trim().parse().unwrap()
+    String::from_utf8(out.stdout)
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap()
 }
 
 fn hash_of(client: &mut Client, path: &str) -> String {
@@ -203,7 +219,10 @@ fn a_delete_inside_a_batch_uses_its_own_hash_guard() {
         }))
         .unwrap();
     assert_eq!(stale["type"], "error", "{stale}");
-    assert!(root.join("notes/two.md").is_file(), "a stale delete writes nothing");
+    assert!(
+        root.join("notes/two.md").is_file(),
+        "a stale delete writes nothing"
+    );
     let ok = h
         .client
         .query(&json!({

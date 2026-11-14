@@ -6,9 +6,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use au_diagnostics::Diagnostic;
-use au_engine::members::{resolve_members, MemberResolution, MemberResolutionEntry};
+use au_engine::members::{MemberResolution, MemberResolutionEntry, resolve_members};
 use au_engine::{
-    build_reusing, BuildError, DiagSource, ParseLayer, RegistryLocation, RepoName, UserRegistry,
+    BuildError, DiagSource, ParseLayer, RegistryLocation, RepoName, UserRegistry, build_reusing,
 };
 use au_parser::RealFileSystem;
 

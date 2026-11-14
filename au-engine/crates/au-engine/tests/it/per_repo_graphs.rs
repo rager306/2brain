@@ -8,7 +8,7 @@
 use std::fs;
 use std::path::Path;
 
-use au_engine::{build, BuildOutcome};
+use au_engine::{BuildOutcome, build};
 use au_parser::RealFileSystem;
 
 /// Write a file, creating parent dirs.

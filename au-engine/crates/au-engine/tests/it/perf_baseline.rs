@@ -18,7 +18,7 @@
 use std::fs;
 use std::time::{Duration, Instant};
 
-use au_engine::{serve, Client, ConfigSource, Engine, ServeHandle};
+use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
 
 struct Harness {
@@ -202,7 +202,9 @@ fn read_latency_baseline() {
         "workload:         {n} files across {} dirs, {diag_total} total diagnostics",
         n.div_ceil(FILES_PER_DIR)
     );
-    println!("target dir holds: {FILES_PER_DIR} entries (children answer), vs {n} catalog keys (current scan)");
+    println!(
+        "target dir holds: {FILES_PER_DIR} entries (children answer), vs {n} catalog keys (current scan)"
+    );
     println!("\nper-read median (sequential, warm):");
 
     let mut batch_once = Duration::ZERO;

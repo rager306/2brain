@@ -263,7 +263,7 @@ mod tests {
     use crate::def_closure::SingleGraph;
     use crate::graph::build_graph;
     use crate::instance::TypeClaim;
-    use crate::typedef::{parse_type_def, TypeDef, TypeNameClaim};
+    use crate::typedef::{TypeDef, TypeNameClaim, parse_type_def};
     use au_diagnostics::ByteRange;
     use std::path::Path;
 

@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use au_engine::{build, Backlink, RefSurface};
+use au_engine::{Backlink, RefSurface, build};
 use au_parser::RealFileSystem;
 
 fn workspace_root() -> PathBuf {

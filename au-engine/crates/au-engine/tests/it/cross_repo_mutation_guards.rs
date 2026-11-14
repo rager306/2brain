@@ -18,7 +18,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use au_engine::{serve, Client, ConfigSource, Engine, ServeHandle};
+use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
 
 struct Harness {

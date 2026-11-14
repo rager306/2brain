@@ -8,9 +8,9 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use au_diagnostics::Severity;
-use au_engine::{apply_recompute, build, recompute_dirty, KnowledgeBase};
+use au_engine::{KnowledgeBase, apply_recompute, build, recompute_dirty};
 use au_parser::RealFileSystem;
-use au_testkit::repogen::{generate, generate_profile, Knobs, Profile};
+use au_testkit::repogen::{Knobs, Profile, generate, generate_profile};
 
 /// The closure ids reachable from each instance's per-repo graph, sorted, the
 /// identity projection the harness exists to confirm is stable. Keyed off the

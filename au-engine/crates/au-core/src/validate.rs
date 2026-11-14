@@ -15,20 +15,20 @@ use std::path::{Path, PathBuf};
 use au_diagnostics::{ByteRange, Diagnostic, Severity, Span, SuggestedFix};
 use au_grammar::{CompoundRefOp, DefBound, Primitive, QualifiedName, RefMode, Shape};
 use au_references::{
-    looks_like_wikilink, RepoIndex, ResolutionError, WikilinkParseError, WikilinkRef,
+    RepoIndex, ResolutionError, WikilinkParseError, WikilinkRef, looks_like_wikilink,
 };
 
 use crate::closure::{
-    closure_of, effective_shape, effective_shape_resolved, folded_closure_ids, EffectiveShape,
-    EffectiveShapeError, FieldOrigin, OriginId,
+    EffectiveShape, EffectiveShapeError, FieldOrigin, OriginId, closure_of, effective_shape,
+    effective_shape_resolved, folded_closure_ids,
 };
 use crate::codes;
 use crate::graph::TypeGraph;
 use crate::instance::{InlineValue, Instance, InstanceField, InstanceValue, TypeClaim};
 use crate::load_checks::{
-    check_redundant_claims, classify_union_member, is_valid_type_name, UnionMemberKind,
+    UnionMemberKind, check_redundant_claims, classify_union_member, is_valid_type_name,
 };
-use crate::provenance::{elaborate_fields, ContributionValue, Surface};
+use crate::provenance::{ContributionValue, Surface, elaborate_fields};
 use crate::resolution::ResolutionGraph;
 use crate::typedef::{FieldName, MetaBlock, TypeDef, TypeName, TypeNameClaim};
 
@@ -1451,10 +1451,7 @@ fn check_value_against_shape_inner(
                     scope,
                     value_span,
                     origin,
-                    format!(
-                        "{} value does not match declared shape {}",
-                        prefix, shape
-                    ),
+                    format!("{} value does not match declared shape {}", prefix, shape),
                 )]
             }
         }
@@ -1559,25 +1556,25 @@ fn check_value_against_shape_inner(
                 // non-wikilink Scalar falls through to the final value-not-pinned;
                 // a malformed wikilink returns its precise parse error inline). It
                 // comes from the model node when present, else a re-parse.
-                let clean_commit: Option<bool> =
-                    match scope.model.and_then(|m| m.node(value_span)) {
-                        Some(ContributionValue::Reference { commit, .. }) => Some(commit.is_some()),
-                        Some(ContributionValue::MalformedReference(err, _)) => match err {
-                            WikilinkParseError::NotAWikilink | WikilinkParseError::EmptyInner => None,
-                            err => {
-                                return vec![wikilink_parse_diag(
-                                    scope, value_span, origin, &prefix, s, err,
-                                )]
-                            }
-                        },
-                        // A non-wikilink Scalar node — falls through below.
-                        Some(_) => None,
-                        // No model node: a String reaching a pinned reference slot
-                        // with no `Reference` node is not a `[[…]]`-shaped value (the
-                        // elaborator classifies every such value into a node), so it
-                        // is not a clean wikilink — fall through to value-not-pinned.
-                        None => None,
-                    };
+                let clean_commit: Option<bool> = match scope.model.and_then(|m| m.node(value_span))
+                {
+                    Some(ContributionValue::Reference { commit, .. }) => Some(commit.is_some()),
+                    Some(ContributionValue::MalformedReference(err, _)) => match err {
+                        WikilinkParseError::NotAWikilink | WikilinkParseError::EmptyInner => None,
+                        err => {
+                            return vec![wikilink_parse_diag(
+                                scope, value_span, origin, &prefix, s, err,
+                            )];
+                        }
+                    },
+                    // A non-wikilink Scalar node — falls through below.
+                    Some(_) => None,
+                    // No model node: a String reaching a pinned reference slot
+                    // with no `Reference` node is not a `[[…]]`-shaped value (the
+                    // elaborator classifies every such value into a node), so it
+                    // is not a clean wikilink — fall through to value-not-pinned.
+                    None => None,
+                };
                 if let Some(has_commit) = clean_commit {
                     if !has_commit {
                         return vec![Diagnostic {
@@ -1603,7 +1600,13 @@ fn check_value_against_shape_inner(
                     // guard must not fire on the inner reference. See
                     // [[spec - pinned references - a recorded resolved edge with an immutable past and an on-demand forward trace]].
                     return check_value_against_shape_inner(
-                        scope, value, value_span, inner, field_key, origin, element_index,
+                        scope,
+                        value,
+                        value_span,
+                        inner,
+                        field_key,
+                        origin,
+                        element_index,
                     )
                     .into_iter()
                     .filter(|d| !is_pinned_live_divergence(d))
@@ -1687,9 +1690,15 @@ fn check_value_against_shape_inner(
                 // walker so no verdict re-parses ([[spec - value model - one typed value produced once in effective_values and consumed by validation and reads]]).
                 // A Mapping (inline record) and an absent node (nested / meta) fall
                 // to the surface-specific arms below.
-                if let Some(diags) =
-                    brand_value_via_model(scope, value, value_span, shape, field_key, origin, element_index)
-                {
+                if let Some(diags) = brand_value_via_model(
+                    scope,
+                    value,
+                    value_span,
+                    shape,
+                    field_key,
+                    origin,
+                    element_index,
+                ) {
                     return diags;
                 }
                 if brand.is_nominal() {
@@ -1942,8 +1951,10 @@ fn check_value_against_shape_inner(
             //   option.
             if let InstanceValue::String(s) = value {
                 if looks_like_wikilink(s) && branches.iter().any(is_wikilink_handling_shape) {
-                    let ref_branches: Vec<&Shape> =
-                        branches.iter().filter(|b| is_wikilink_handling_shape(b)).collect();
+                    let ref_branches: Vec<&Shape> = branches
+                        .iter()
+                        .filter(|b| is_wikilink_handling_shape(b))
+                        .collect();
                     let mut failures: Vec<Vec<Diagnostic>> = Vec::new();
                     for branch in &ref_branches {
                         let diags = check_value_against_shape(
@@ -1966,19 +1977,14 @@ fn check_value_against_shape_inner(
                     }
                     // All failed; check the first failure's code to
                     // decide between "return first" and "aggregate".
-                    let first_code = failures[0]
-                        .first()
-                        .map(|d| d.code.as_str())
-                        .unwrap_or("");
+                    let first_code = failures[0].first().map(|d| d.code.as_str()).unwrap_or("");
                     let target_globally_unresolved = first_code
                         == au_references::codes::REFERENCE_TARGET_MISSING.as_str()
-                        || first_code
-                            == au_references::codes::REFERENCE_TARGET_AMBIGUOUS.as_str();
+                        || first_code == au_references::codes::REFERENCE_TARGET_AMBIGUOUS.as_str();
                     // A pinned value no branch admits: every branch rejected it
                     // with `unexpected-commit-pin`, so the first says it cleanly,
                     // rather than the misleading "satisfies none of the branches".
-                    let pin_admitted_nowhere =
-                        first_code == codes::UNEXPECTED_COMMIT_PIN.as_str();
+                    let pin_admitted_nowhere = first_code == codes::UNEXPECTED_COMMIT_PIN.as_str();
                     if target_globally_unresolved || pin_admitted_nowhere {
                         return failures.into_iter().next().unwrap();
                     }
@@ -3008,12 +3014,20 @@ fn validate_inline_value(
             InlineCompat::Union(branches) => format!(
                 "{}: inline value at union slot '<{}>' must declare `type:` identifying which branch the value satisfies",
                 prefix,
-                branches.iter().map(|b| b.render()).collect::<Vec<_>>().join(" | ")
+                branches
+                    .iter()
+                    .map(|b| b.render())
+                    .collect::<Vec<_>>()
+                    .join(" | ")
             ),
             InlineCompat::Intersection(branches) => format!(
                 "{}: inline value at intersection slot '<{}>' must declare `type:` identifying a type whose closure satisfies all branches",
                 prefix,
-                branches.iter().map(|b| b.render()).collect::<Vec<_>>().join(" & ")
+                branches
+                    .iter()
+                    .map(|b| b.render())
+                    .collect::<Vec<_>>()
+                    .join(" & ")
             ),
             // `Open` sets `type_required` false, so this block is never entered
             // for it.
@@ -4978,11 +4992,7 @@ fn interval_contains_integer(lv: f64, li: bool, hv: f64, hincl: bool) -> bool {
     } else {
         lv.ceil()
     };
-    if hincl {
-        n <= hv
-    } else {
-        n < hv
-    }
+    if hincl { n <= hv } else { n < hv }
 }
 
 fn check_list(
@@ -5185,7 +5195,9 @@ fn resolve_block_target(
             Err(au_references::BlockResolutionError::NotFound) => unresolved(
                 codes::NAVIGATIONAL_BLOCK_ID_NOT_FOUND,
                 Severity::Warning,
-                format!("{prefix} wikilink `{link}` — block-id `{block_id}` not found in {target_label}"),
+                format!(
+                    "{prefix} wikilink `{link}` — block-id `{block_id}` not found in {target_label}"
+                ),
             ),
         };
     }
@@ -5202,7 +5214,9 @@ fn resolve_block_target(
         return unresolved(
             codes::BLOCK_ID_NOT_FOUND,
             Severity::Error,
-            format!("{prefix} wikilink `{link}` — block-id `{block_id}` not found in {target_label} (no body, no record id)"),
+            format!(
+                "{prefix} wikilink `{link}` — block-id `{block_id}` not found in {target_label} (no body, no record id)"
+            ),
         );
     };
     let events = au_parser::scan_body(target_body);
@@ -5215,13 +5229,17 @@ fn resolve_block_target(
         Err(au_references::BlockResolutionError::NotTyped) => unresolved(
             codes::BLOCK_ID_NOT_TYPED,
             Severity::Error,
-            format!("{prefix} wikilink `{link}` — block `{block_id}` exists but isn't typed (no `[:field]` fence)"),
+            format!(
+                "{prefix} wikilink `{link}` — block `{block_id}` exists but isn't typed (no `[:field]` fence)"
+            ),
         ),
         // Absent on both surfaces: `^^` demanded a value from a block that does not exist.
         Err(au_references::BlockResolutionError::NotFound) => unresolved(
             codes::BLOCK_ID_NOT_FOUND,
             Severity::Error,
-            format!("{prefix} wikilink `{link}` — block-id `{block_id}` not found in {target_label}"),
+            format!(
+                "{prefix} wikilink `{link}` — block-id `{block_id}` not found in {target_label}"
+            ),
         ),
     }
 }
@@ -7292,7 +7310,7 @@ mod tests {
             Some(&refn("Number{>=0}"))
         )); // ⊤ ⊄ x
         assert!(refinement_region_subset(p, None, None)); // ⊤ ⊆ ⊤
-                                                          // String pattern equality (conservative).
+        // String pattern equality (conservative).
         let s = Primitive::String;
         assert!(refinement_region_subset(
             s,
@@ -7341,9 +7359,10 @@ mod tests {
         )])
         .graph;
         let load = crate::load_checks::run_graph_structure_checks(&g);
-        assert!(load
-            .iter()
-            .any(|d| d.code == au_grammar::REFINEMENT_BAD_SHAPE));
+        assert!(
+            load.iter()
+                .any(|d| d.code == au_grammar::REFINEMENT_BAD_SHAPE)
+        );
         let per = validate_simple(
             &g,
             &instance(
@@ -7378,15 +7397,18 @@ mod tests {
         // A regex that does not compile.
         let g = build_graph(vec![td("rec", &[], &[("s", false, sh("String{/[/}"))])]).graph;
         let load = crate::load_checks::run_graph_structure_checks(&g);
-        assert!(load
-            .iter()
-            .any(|d| d.code == au_grammar::REFINEMENT_BAD_SHAPE));
+        assert!(
+            load.iter()
+                .any(|d| d.code == au_grammar::REFINEMENT_BAD_SHAPE)
+        );
         // A lookahead is non-regular, so the engine rejects it too.
         let g2 = build_graph(vec![td("rec", &[], &[("s", false, sh("String{/(?=x)/}"))])]).graph;
         let load2 = crate::load_checks::run_graph_structure_checks(&g2);
-        assert!(load2
-            .iter()
-            .any(|d| d.code == au_grammar::REFINEMENT_BAD_SHAPE));
+        assert!(
+            load2
+                .iter()
+                .any(|d| d.code == au_grammar::REFINEMENT_BAD_SHAPE)
+        );
         // A bad Date bound literal.
         let g3 = build_graph(vec![td(
             "rec",
@@ -7395,9 +7417,11 @@ mod tests {
         )])
         .graph;
         let load3 = crate::load_checks::run_graph_structure_checks(&g3);
-        assert!(load3
-            .iter()
-            .any(|d| d.code == au_grammar::REFINEMENT_BAD_SHAPE));
+        assert!(
+            load3
+                .iter()
+                .any(|d| d.code == au_grammar::REFINEMENT_BAD_SHAPE)
+        );
     }
 
     #[test]
@@ -7410,17 +7434,20 @@ mod tests {
         .graph;
         // A load-time warning names the unsatisfiable slot.
         let load = crate::load_checks::run_graph_structure_checks(&g);
-        assert!(load
-            .iter()
-            .any(|d| d.code == codes::REFINEMENT_UNSATISFIABLE));
+        assert!(
+            load.iter()
+                .any(|d| d.code == codes::REFINEMENT_UNSATISFIABLE)
+        );
         // A value against the impossible slot does NOT get per-value spam.
         let per_value = validate_simple(
             &g,
             &instance(bare("rec"), vec![("n", InstanceValue::Integer(3))]),
         );
-        assert!(per_value
-            .iter()
-            .all(|d| d.code != codes::VALUE_OUT_OF_REFINEMENT));
+        assert!(
+            per_value
+                .iter()
+                .all(|d| d.code != codes::VALUE_OUT_OF_REFINEMENT)
+        );
     }
 
     fn enum_shape(literals: &[&str]) -> Result<Shape, &'static str> {
@@ -11283,7 +11310,7 @@ mod tests {
         assert!(!is_iso_date("2026-01-00")); // day 0
         assert!(!is_iso_date("2026-04-31")); // April has 30 days
         assert!(!is_iso_date("2026-02-29")); // 2026 is not a leap year
-                                             // Leap-year boundary honoured both ways.
+        // Leap-year boundary honoured both ways.
         assert!(is_iso_date("2024-02-29")); // 2024 is a leap year
         assert!(!is_iso_date("2100-02-29")); // century non-leap
         assert!(is_iso_date("2000-02-29")); // 400-divisible leap
@@ -14906,9 +14933,11 @@ mod tests {
         ])
         .graph;
         let diags = validate_meta_simple(&g);
-        assert!(diags
-            .iter()
-            .any(|d| d.code.as_str() == "field-shape-mismatch"));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code.as_str() == "field-shape-mismatch")
+        );
     }
 
     #[test]
@@ -14942,9 +14971,11 @@ mod tests {
         ])
         .graph;
         let diags = validate_meta_simple(&g);
-        assert!(diags
-            .iter()
-            .any(|d| d.code.as_str() == "sealed-parent-claimed"));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code.as_str() == "sealed-parent-claimed")
+        );
     }
 
     #[test]
@@ -15229,9 +15260,11 @@ mod tests {
         let g = nested_decision_graph();
         let inst = instance(list(&["decision.pending", "maturity"]), vec![]);
         let diags = validate_simple(&g, &inst);
-        assert!(diags
-            .iter()
-            .all(|d| d.code.as_str() != "multi-leaf-in-sealed-family"));
+        assert!(
+            diags
+                .iter()
+                .all(|d| d.code.as_str() != "multi-leaf-in-sealed-family")
+        );
     }
 
     #[test]
@@ -15239,9 +15272,11 @@ mod tests {
         let g = nested_decision_graph();
         let inst = instance(bare("decision.decided.committed"), vec![]);
         let diags = validate_simple(&g, &inst);
-        assert!(diags
-            .iter()
-            .all(|d| d.code.as_str() != "multi-leaf-in-sealed-family"));
+        assert!(
+            diags
+                .iter()
+                .all(|d| d.code.as_str() != "multi-leaf-in-sealed-family")
+        );
     }
 
     #[test]

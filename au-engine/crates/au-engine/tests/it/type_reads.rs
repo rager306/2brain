@@ -7,8 +7,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use au_engine::{serve, Client, ConfigSource, Engine, ServeHandle};
-use serde_json::{json, Value};
+use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
+use serde_json::{Value, json};
 
 /// A small hierarchy: `task` inherits `thing` and declares a body. Two
 /// instances, one of each type, so closure membership is observable.

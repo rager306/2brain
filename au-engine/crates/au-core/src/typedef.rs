@@ -11,11 +11,11 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use au_diagnostics::{ByteRange, Diagnostic, Severity, Span};
-use au_grammar::{parse_shape, Shape, ShapeParseError};
-use au_parser::yaml::{scan_duplicate_keys, span_to_byte_range, MarkedYaml, Scalar, YamlData};
+use au_grammar::{Shape, ShapeParseError, parse_shape};
+use au_parser::yaml::{MarkedYaml, Scalar, YamlData, scan_duplicate_keys, span_to_byte_range};
 
 use crate::codes;
-use crate::instance::{classify_value, scalar_nav_links, InstanceField};
+use crate::instance::{InstanceField, classify_value, scalar_nav_links};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub struct TypeName(pub String);
@@ -336,7 +336,7 @@ pub fn parse_type_def(
                 type_def: None,
                 diagnostics,
                 doc_links: Vec::new(),
-            }
+            };
         }
     };
 
@@ -1855,19 +1855,21 @@ mod tests {
     #[test]
     fn brand_empty_enum_is_malformed() {
         let r = parse_one("shape: []\n", "/v/bad.type.yaml");
-        assert!(r
-            .diagnostics
-            .iter()
-            .any(|d| d.code == codes::MALFORMED_BRAND_SHAPE));
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == codes::MALFORMED_BRAND_SHAPE)
+        );
     }
 
     #[test]
     fn brand_mapping_value_is_malformed() {
         let r = parse_one("shape:\n  a: 1\n", "/v/bad.type.yaml");
-        assert!(r
-            .diagnostics
-            .iter()
-            .any(|d| d.code == codes::MALFORMED_BRAND_SHAPE));
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == codes::MALFORMED_BRAND_SHAPE)
+        );
     }
 
     #[test]
@@ -1875,19 +1877,21 @@ mod tests {
         // A malformed shape EXPRESSION (string form) surfaces as the grammar's
         // shape-syntax-error, not malformed-brand-shape.
         let r = parse_one("shape: <a |\n", "/v/bad.type.yaml");
-        assert!(r
-            .diagnostics
-            .iter()
-            .any(|d| d.code == au_grammar::SHAPE_SYNTAX_ERROR));
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == au_grammar::SHAPE_SYNTAX_ERROR)
+        );
     }
 
     #[test]
     fn unknown_top_level_key_message_lists_shape() {
         let r = parse_one("mystery: 1\nfields:\n  a: String\n", "/v/x.type.yaml");
-        assert!(r
-            .diagnostics
-            .iter()
-            .any(|d| d.code == codes::UNKNOWN_TOP_LEVEL_KEY && d.message.contains("shape")));
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == codes::UNKNOWN_TOP_LEVEL_KEY && d.message.contains("shape"))
+        );
     }
 
     #[test]
@@ -2148,10 +2152,11 @@ meta:
     #[test]
     fn abstract_is_a_recognized_key_not_unknown() {
         let res = parse_one("abstract: true\nfields: {}\n", "/v/pane.type.yaml");
-        assert!(res
-            .diagnostics
-            .iter()
-            .all(|d| d.code.as_str() != "unknown-top-level-key"));
+        assert!(
+            res.diagnostics
+                .iter()
+                .all(|d| d.code.as_str() != "unknown-top-level-key")
+        );
     }
 
     #[test]
@@ -2171,15 +2176,17 @@ location:
         assert!(loc.path.is_some());
         assert_eq!(loc.file_type, Some(crate::location::FileType::Md));
         assert!(loc.strict);
-        assert!(res
-            .diagnostics
-            .iter()
-            .all(|d| d.code.as_str() != "location-bad-shape"));
+        assert!(
+            res.diagnostics
+                .iter()
+                .all(|d| d.code.as_str() != "location-bad-shape")
+        );
         // recognized key, never dropped as unknown
-        assert!(res
-            .diagnostics
-            .iter()
-            .all(|d| d.code.as_str() != "unknown-top-level-key"));
+        assert!(
+            res.diagnostics
+                .iter()
+                .all(|d| d.code.as_str() != "unknown-top-level-key")
+        );
     }
 
     #[test]
@@ -2204,10 +2211,11 @@ location:
     #[test]
     fn location_not_a_mapping_is_bad_shape() {
         let res = parse_one("fields: {}\nlocation: \"nope\"\n", "/v/x.type.yaml");
-        assert!(res
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_str() == "location-bad-shape"));
+        assert!(
+            res.diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "location-bad-shape")
+        );
         assert!(res.type_def.unwrap().location.is_none());
     }
 
@@ -2276,10 +2284,11 @@ fields: {}
         // Not treated as a parent, and never dropped as unknown-top-level-key.
         let td = res.type_def.unwrap();
         assert!(td.parents.is_empty());
-        assert!(res
-            .diagnostics
-            .iter()
-            .all(|d| d.code.as_str() != "unknown-top-level-key"));
+        assert!(
+            res.diagnostics
+                .iter()
+                .all(|d| d.code.as_str() != "unknown-top-level-key")
+        );
     }
 
     // ----- fields as a map -----
@@ -2373,12 +2382,13 @@ fields: {}
             .collect();
         assert_eq!(d.len(), 1);
         assert!(d[0].message.contains("not a list"));
-        assert!(d[0]
-            .fix
-            .as_ref()
-            .unwrap()
-            .description
-            .contains("name: shape"));
+        assert!(
+            d[0].fix
+                .as_ref()
+                .unwrap()
+                .description
+                .contains("name: shape")
+        );
     }
 
     #[test]
@@ -2398,10 +2408,11 @@ fields: {}
         assert!(d[0].message.contains("'a'"));
         assert!(!d[0].related.is_empty(), "points at the first declaration");
         // The collapse means no spurious mixin-collision from the closure.
-        assert!(!res
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_str() == "mixin-collision"));
+        assert!(
+            !res.diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "mixin-collision")
+        );
     }
 
     #[test]
@@ -2419,10 +2430,11 @@ fields: {}
     #[test]
     fn a_single_field_map_has_no_duplicate_field() {
         let res = parse_one("fields:\n  a: String\n  b: Number\n", "/v/x.type.yaml");
-        assert!(!res
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_str() == "duplicate-field"));
+        assert!(
+            !res.diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "duplicate-field")
+        );
     }
 
     #[test]
@@ -2551,10 +2563,11 @@ fields: {}
     #[test]
     fn meta_block_without_type_emits_diagnostic() {
         let res = parse_one("meta:\n  - icon: x\n", "/v/x.type.yaml");
-        assert!(res
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_str() == "meta-block-bad-shape"));
+        assert!(
+            res.diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "meta-block-bad-shape")
+        );
     }
 
     #[test]
@@ -2719,10 +2732,11 @@ fields: {}
         let res = parse_one("fields:\n  '??': String\n", "/v/x.type.yaml");
         let td = res.type_def.unwrap();
         assert!(td.fields.is_empty());
-        assert!(res
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_str() == "field-decl-bad-shape"));
+        assert!(
+            res.diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "field-decl-bad-shape")
+        );
     }
 
     #[test]
@@ -2732,10 +2746,11 @@ fields: {}
         let res = parse_one("fields:\n  'foo bar': String\n", "/v/x.type.yaml");
         let td = res.type_def.unwrap();
         assert!(td.fields.is_empty());
-        assert!(res
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_str() == "field-decl-bad-shape"));
+        assert!(
+            res.diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "field-decl-bad-shape")
+        );
     }
 
     #[test]
@@ -2752,10 +2767,11 @@ fields: {}
         );
         let td = res.type_def.unwrap();
         assert_eq!(td.meta_blocks, None);
-        assert!(res
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_str() == "meta-mixin-not-supported"));
+        assert!(
+            res.diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "meta-mixin-not-supported")
+        );
     }
 
     #[test]
@@ -2773,10 +2789,11 @@ fields: {}
             .expect("partial parse keeps the good block");
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].type_name.as_str(), "display-meta");
-        assert!(res
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_str() == "meta-mixin-not-supported"));
+        assert!(
+            res.diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "meta-mixin-not-supported")
+        );
     }
 
     #[test]
@@ -2787,10 +2804,11 @@ fields: {}
         // meta body is structurally a sub-instance per [[type-def meta::au-type-system]].
         let src = "meta:\n  - type: display-meta\n    fields:\n      x: String\n";
         let res = parse_one(src, "/v/x.type.yaml");
-        assert!(res
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_str() == "reserved-key-on-instance"));
+        assert!(
+            res.diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "reserved-key-on-instance")
+        );
     }
 
     #[test]

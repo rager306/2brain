@@ -8,7 +8,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use au_engine::{serve, Client, ConfigSource, Engine, ServeHandle};
+use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
 
 /// Two repos in one tree, plus an empty root. `base` owns `note { title }`;

@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 struct Harness {
     _dir: tempfile::TempDir,
@@ -47,7 +47,15 @@ fn commit(root: &std::path::Path, message: &str) -> String {
     git(root, &["add", "-A"]);
     git(
         root,
-        &["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", message],
+        &[
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-qm",
+            message,
+        ],
     );
     git(root, &["rev-parse", "HEAD"])
 }
@@ -61,8 +69,16 @@ fn seeded() -> (tempfile::TempDir, PathBuf, String, String) {
     fs::write(root.join("notes/one.md"), "---\ntitle: one\n---\n\nfirst\n").unwrap();
     git(&root, &["init", "-q"]);
     let first = commit(&root, "add one");
-    fs::write(root.join("notes/one.md"), "---\ntitle: one\n---\n\nfirst, edited\n").unwrap();
-    fs::write(root.join("notes/two.md"), "---\ntitle: two\n---\n\nsecond\n").unwrap();
+    fs::write(
+        root.join("notes/one.md"),
+        "---\ntitle: one\n---\n\nfirst, edited\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("notes/two.md"),
+        "---\ntitle: two\n---\n\nsecond\n",
+    )
+    .unwrap();
     let second = commit(&root, "edit one, add two");
     (dir, root, first, second)
 }
@@ -152,7 +168,12 @@ fn preview_rejects_an_unknown_commit_and_member() {
         .query(&json!({ "read": "rollback_preview", "repo": "nope", "commit": "HEAD" }))
         .unwrap();
     assert_eq!(member["type"], "error", "{member}");
-    assert!(member["error"].as_str().unwrap().contains("unknown workspace member"));
+    assert!(
+        member["error"]
+            .as_str()
+            .unwrap()
+            .contains("unknown workspace member")
+    );
     let empty = h
         .client
         .query(&json!({ "read": "rollback_preview", "repo": "", "commit": "HEAD" }))

@@ -58,7 +58,7 @@ use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
 use au_diagnostics::Diagnostic;
-use au_engine::{serve, socket_path, Client, Engine, SCHEMA_VERSION};
+use au_engine::{Client, Engine, SCHEMA_VERSION, serve, socket_path};
 use serde_json::json;
 
 /// Exit codes for `au daemon`. `0` is success. `2` is a usage or environment
@@ -536,7 +536,9 @@ pub fn status(entry: &Path) -> ExitCode {
             println!(
                 "au: daemon running for {} (engine={engine}, ref={refstate}, ready={ready}, version={})",
                 entry.display(),
-                version.map(|v| v.to_string()).unwrap_or_else(|| "-".to_string()),
+                version
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "-".to_string()),
             );
             warn_on_schema_skew(&resp, &entry);
             // Surface a degraded workspace: a declared member / dependency that

@@ -852,12 +852,14 @@ mod tests {
             &r,
         );
         assert_eq!(rg.len(), 2, "foo::a and foo::b are distinct nodes");
-        assert!(rg
-            .resolve_authored(&TypeName("foo".into()), Some("a"))
-            .is_some());
-        assert!(rg
-            .resolve_authored(&TypeName("foo".into()), Some("b"))
-            .is_some());
+        assert!(
+            rg.resolve_authored(&TypeName("foo".into()), Some("a"))
+                .is_some()
+        );
+        assert!(
+            rg.resolve_authored(&TypeName("foo".into()), Some("b"))
+                .is_some()
+        );
         assert_eq!(
             rg.name_conflicts()
                 .get(&TypeName("foo".into()))

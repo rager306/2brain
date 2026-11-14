@@ -18,7 +18,7 @@ use au_diagnostics::Diagnostic;
 use au_parser::FileSystem;
 use serde::Serialize;
 
-use crate::build::{compose, member_mount, BuildError, Composition, MemberMount};
+use crate::build::{BuildError, Composition, MemberMount, compose, member_mount};
 use crate::repo::{MemberRole, RepoName, ResolveNote, UserRegistry};
 
 /// An entry's member resolution, the result of [`resolve_members`].

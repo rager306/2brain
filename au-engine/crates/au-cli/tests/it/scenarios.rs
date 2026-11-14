@@ -145,11 +145,20 @@ fn render_scenario_engine(scenario_dir: &Path, command: &str, root: &Path) -> St
             let repo = read_optional_field(&scenario_dir.join("scenario.yaml"), "repo");
             let types = match repo {
                 Some(r) => au_engine::wire::introspect_repo_types_paged(
-                    &kb, &r, 0, None, false, au_engine::wire::TypeScope::all(),
+                    &kb,
+                    &r,
+                    0,
+                    None,
+                    false,
+                    au_engine::wire::TypeScope::all(),
                 )
                 .unwrap_or_else(|| panic!("`types` scenario names unknown repo '{r}'")),
                 None => au_engine::wire::introspect_workspace_types_paged(
-                    &kb, 0, None, false, au_engine::wire::TypeScope::all(),
+                    &kb,
+                    0,
+                    None,
+                    false,
+                    au_engine::wire::TypeScope::all(),
                 ),
             };
             serde_json::json!({

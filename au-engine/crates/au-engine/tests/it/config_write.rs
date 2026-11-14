@@ -11,7 +11,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use au_engine::{serve, Client, ConfigSource, Engine, ServeHandle};
+use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
 
 /// One git-backed member (entry name `v`) carrying a consumer type-def

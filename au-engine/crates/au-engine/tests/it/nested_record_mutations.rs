@@ -7,7 +7,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use au_engine::{serve, Client, ConfigSource, Engine};
+use au_engine::{Client, ConfigSource, Engine, serve};
 use serde_json::json;
 
 /// A plan knowledge base: `plan` holds `phases`, a `phase` holds `actions`, and `action`

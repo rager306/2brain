@@ -7,7 +7,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use au_engine::{serve, Client, ConfigSource, Engine, ServeHandle};
+use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
 
 /// A knowledge base of untyped notes, no type vocabulary at all. `index.md` links to
@@ -70,10 +70,12 @@ fn note_outgoing_links_resolve() {
     );
 
     let topic = refs.iter().find(|r| r["target"] == "topic").unwrap();
-    assert!(topic["resolved"]
-        .as_str()
-        .unwrap()
-        .ends_with("content/topic.md"));
+    assert!(
+        topic["resolved"]
+            .as_str()
+            .unwrap()
+            .ends_with("content/topic.md")
+    );
     let missing = refs.iter().find(|r| r["target"] == "missing").unwrap();
     assert!(missing["resolved"].is_null(), "unresolved target is null");
 }
@@ -102,10 +104,12 @@ fn note_typed_block_resolves() {
         }))
         .unwrap();
     let result = &block["result"]["resolve_block_id"];
-    assert!(result["file_path"]
-        .as_str()
-        .unwrap()
-        .ends_with("content/topic.md"));
+    assert!(
+        result["file_path"]
+            .as_str()
+            .unwrap()
+            .ends_with("content/topic.md")
+    );
     assert_eq!(result["type_claim"], json!(["reference"]));
 }
 
@@ -122,10 +126,12 @@ fn a_note_contributes_backlinks_to_its_targets() {
         1,
         "the note's link surfaces as an inbound edge"
     );
-    assert!(edges[0]["source"]
-        .as_str()
-        .unwrap()
-        .ends_with("content/index.md"));
+    assert!(
+        edges[0]["source"]
+            .as_str()
+            .unwrap()
+            .ends_with("content/index.md")
+    );
     assert_eq!(edges[0]["surface"], "body");
 }
 
@@ -136,8 +142,10 @@ fn note_content_reads_the_source() {
         .client
         .query(&json!({ "read": "content", "path": "content/index.md" }))
         .unwrap();
-    assert!(c["result"]["content"]["text"]
-        .as_str()
-        .unwrap()
-        .contains("[[topic]]"));
+    assert!(
+        c["result"]["content"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("[[topic]]")
+    );
 }

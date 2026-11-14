@@ -3,7 +3,7 @@
 //! independently be a non-sealed type-def. A non-sealed sibling does not
 //! excuse a sealed claim.
 
-use au_core::{build_graph, InstanceValue, TypeDef, TypeName, TypeNameClaim};
+use au_core::{InstanceValue, TypeDef, TypeName, TypeNameClaim, build_graph};
 use au_diagnostics::ByteRange;
 use au_testkit::{
     instance_bare, instance_field, instance_list, type_def_with_fields, type_def_with_parents,

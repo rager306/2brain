@@ -10,7 +10,7 @@
 
 #![cfg(unix)]
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::wire_fixtures::{harness, hub_crowding_kb, multi_member_kb};
 

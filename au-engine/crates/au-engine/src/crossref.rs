@@ -14,13 +14,13 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use au_core::{
-    closure_of, effective_shape, effective_shape_resolved, folded_closure_ids, CrossRepoResolver,
-    CrossRepoTarget, EffectiveShape, InstanceValue, NavLink, PeerType, QualifiedDemand, TypeClaim,
-    TypeGraph, TypeId, TypeName, TypeNameClaim,
+    CrossRepoResolver, CrossRepoTarget, EffectiveShape, InstanceValue, NavLink, PeerType,
+    QualifiedDemand, TypeClaim, TypeGraph, TypeId, TypeName, TypeNameClaim, closure_of,
+    effective_shape, effective_shape_resolved, folded_closure_ids,
 };
 use au_diagnostics::{ByteRange, Diagnostic, Severity, Span, SuggestedFix};
-use au_parser::{scan_body, BodyEvent};
-use au_references::{codes, parse_wikilink_inner, ResolutionError};
+use au_parser::{BodyEvent, scan_body};
+use au_references::{ResolutionError, codes, parse_wikilink_inner};
 
 use crate::ir::{BuildOutcome, FileEntry, OrdMap, RepoGraphs, RepoIndexes, ResolutionGraphs};
 use crate::parse::FileParse;
@@ -649,7 +649,7 @@ fn emit(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repo::{discover_repos, RepoEntry};
+    use crate::repo::{RepoEntry, discover_repos};
     use std::collections::BTreeMap;
 
     #[test]

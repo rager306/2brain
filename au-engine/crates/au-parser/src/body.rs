@@ -1032,9 +1032,11 @@ mod tests {
         // `word^id` inside prose has no whitespace before the caret.
         let src = "see foo^bar in prose\n";
         let events = scan_body(src);
-        assert!(!events
-            .iter()
-            .any(|e| matches!(e, BodyEvent::BlockIdMarker { .. })));
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, BodyEvent::BlockIdMarker { .. }))
+        );
     }
 
     #[test]
@@ -1042,9 +1044,11 @@ mod tests {
         // Only the trailing token attaches; a caret token mid-line is prose.
         let src = "a ^id1 then more words\n";
         let events = scan_body(src);
-        assert!(!events
-            .iter()
-            .any(|e| matches!(e, BodyEvent::BlockIdMarker { .. })));
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, BodyEvent::BlockIdMarker { .. }))
+        );
     }
 
     #[test]

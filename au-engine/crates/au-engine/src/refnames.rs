@@ -19,8 +19,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use au_core::{parse_block_record, InstanceValue, NavLink};
-use au_parser::{scan_body, BodyEvent};
+use au_core::{InstanceValue, NavLink, parse_block_record};
+use au_parser::{BodyEvent, scan_body};
 use au_references::{extract_field_marker, parse_wikilink_inner};
 
 use crate::ir::FileEntry;

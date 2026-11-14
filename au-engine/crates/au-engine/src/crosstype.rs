@@ -25,7 +25,7 @@ use au_diagnostics::{
 };
 use au_grammar::{DefBound, QualifiedName, RefMode, Shape};
 
-use crate::crossref::{resolve_repo_scope, RepoScope};
+use crate::crossref::{RepoScope, resolve_repo_scope};
 use crate::ir::{RepoGraphs, ResolutionGraphs};
 use crate::parse::FileParse;
 use crate::repo::{RepoMap, Workspace};
@@ -154,7 +154,9 @@ fn emit(
         TypeRepoRef::Empty => Some((
             TYPE_REPO_EMPTY,
             Severity::Error,
-            format!("type '{base}::' has an empty repo qualifier; bare '{base}' is the own-repo form"),
+            format!(
+                "type '{base}::' has an empty repo qualifier; bare '{base}' is the own-repo form"
+            ),
         )),
         TypeRepoRef::RepoUnknown => Some((
             TYPE_REPO_UNKNOWN,

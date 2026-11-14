@@ -8,8 +8,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use au_engine::{serve, Client, ConfigSource, Engine, ServeHandle};
-use serde_json::{json, Value};
+use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
+use serde_json::{Value, json};
 
 /// A knowledge base with:
 /// - `task`: requires `title: String`, and a `body:` template with a required
@@ -456,10 +456,12 @@ fn a_pure_move_previews_no_rewrite_for_a_bare_name_referrer() {
     // referrer.md spells `[[hub]]`, which a name-keeping move leaves identical.
     assert!(rewrites(&p).is_empty(), "{p:?}");
     // The verdict reads the moved file at its destination.
-    assert!(p["target"]["path"]
-        .as_str()
-        .unwrap()
-        .ends_with("sub/hub.md"));
+    assert!(
+        p["target"]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with("sub/hub.md")
+    );
     assert_eq!(identity_names(&p["target"]), vec!["task".to_string()]);
     // Nothing breaks, and the source is not a blast entry.
     assert!(

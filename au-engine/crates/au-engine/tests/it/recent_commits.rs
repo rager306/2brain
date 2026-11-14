@@ -15,10 +15,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use au_engine::{serve, Client, ConfigSource, Engine};
-use serde_json::{json, Value};
+use au_engine::{Client, ConfigSource, Engine, serve};
+use serde_json::{Value, json};
 
-use crate::wire_fixtures::{harness, Harness};
+use crate::wire_fixtures::{Harness, harness};
 
 fn git(repo: &Path, args: &[&str]) {
     let out = Command::new("git")

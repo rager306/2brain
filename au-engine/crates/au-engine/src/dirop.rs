@@ -14,7 +14,7 @@ use std::path::{Component, Path, PathBuf};
 
 use au_diagnostics::ByteRange;
 
-use au_parser::{RealFileSystem, WalkFilter, FLOOR_DIR_NAMES};
+use au_parser::{FLOOR_DIR_NAMES, RealFileSystem, WalkFilter};
 
 use crate::ir::{ContentHash, KnowledgeBase};
 use crate::mutate::MutationReject;
@@ -239,13 +239,13 @@ pub(crate) fn plan_move_dir(
             return Err(
                 "cross-repo folder move is not supported — path and to must be in the same repo"
                     .to_string(),
-            )
+            );
         }
         None => {
             return Err(format!(
                 "destination escapes the workspace: {}",
                 to.display()
-            ))
+            ));
         }
     }
     if to == subtree.repo_root || under_floor(&subtree.repo_root, to) {
@@ -614,13 +614,13 @@ pub(crate) fn check_destination_ancestors(repo_root: &Path, to: &Path) -> Result
                 return Err(format!(
                     "destination is reached through a symlink, which git can neither stage nor restore beyond: {} (symlink)",
                     rel(repo_root, &at)
-                ))
+                ));
             }
             Ok(m) if m.is_dir() && at.join(".arsumbris/repo.yaml").is_file() => {
                 return Err(format!(
                     "destination is inside a nested repo, whose content the graph does not hold: {} (nested repo)",
                     rel(repo_root, &at)
-                ))
+                ));
             }
             Ok(_) => {}
             // The rest of the path is created by the op, nothing to check.
@@ -799,15 +799,21 @@ mod tests {
         let (_t, root) = repo(&[("drafts/a.md", "# a\n"), ("f.md", "# f\n")]);
         let v = kb(&root);
         assert!(plan_subtree(&v, &root).unwrap_err().contains("repo root"));
-        assert!(plan_subtree(&v, &root.join(".arsumbris"))
-            .unwrap_err()
-            .contains("engine-owned"));
-        assert!(plan_subtree(&v, &root.join("nope"))
-            .unwrap_err()
-            .contains("does not exist"));
-        assert!(plan_subtree(&v, &root.join("f.md"))
-            .unwrap_err()
-            .contains("not a directory"));
+        assert!(
+            plan_subtree(&v, &root.join(".arsumbris"))
+                .unwrap_err()
+                .contains("engine-owned")
+        );
+        assert!(
+            plan_subtree(&v, &root.join("nope"))
+                .unwrap_err()
+                .contains("does not exist")
+        );
+        assert!(
+            plan_subtree(&v, &root.join("f.md"))
+                .unwrap_err()
+                .contains("not a directory")
+        );
     }
 
     #[test]
@@ -815,18 +821,26 @@ mod tests {
         let (_t, root) = repo(&[("drafts/a.md", "# a\n"), ("Notes/n.md", "# n\n")]);
         let v = kb(&root);
         let dir = root.join("drafts");
-        assert!(plan_move_dir(&v, &dir, &root.join("Notes"))
-            .unwrap_err()
-            .contains("already exists"));
-        assert!(plan_move_dir(&v, &dir, &root.join("drafts/deeper"))
-            .unwrap_err()
-            .contains("inside it"));
-        assert!(plan_move_dir(&v, &dir, &dir)
-            .unwrap_err()
-            .contains("itself"));
-        assert!(plan_move_dir(&v, &dir, &root.join(".arsumbris/x"))
-            .unwrap_err()
-            .contains("engine-owned"));
+        assert!(
+            plan_move_dir(&v, &dir, &root.join("Notes"))
+                .unwrap_err()
+                .contains("already exists")
+        );
+        assert!(
+            plan_move_dir(&v, &dir, &root.join("drafts/deeper"))
+                .unwrap_err()
+                .contains("inside it")
+        );
+        assert!(
+            plan_move_dir(&v, &dir, &dir)
+                .unwrap_err()
+                .contains("itself")
+        );
+        assert!(
+            plan_move_dir(&v, &dir, &root.join(".arsumbris/x"))
+                .unwrap_err()
+                .contains("engine-owned")
+        );
     }
 
     #[test]

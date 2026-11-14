@@ -23,7 +23,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{channel, RecvTimeoutError};
+use std::sync::mpsc::{RecvTimeoutError, channel};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -32,15 +32,15 @@ use au_parser::{FileSystem, RealFileSystem};
 use notify::{RecursiveMode, Watcher};
 use tokio::sync::watch;
 
-use crate::build::{build_reusing, fingerprint, Fingerprint};
+use crate::KnowledgeBase;
+use crate::build::{Fingerprint, build_reusing, fingerprint};
 use crate::incremental::{
-    apply_recompute, classify_dirty, expand_removed_directories, is_engine_schema_path,
-    recompute_dirty, DirtyClass,
+    DirtyClass, apply_recompute, classify_dirty, expand_removed_directories, is_engine_schema_path,
+    recompute_dirty,
 };
 use crate::ir::ContentHash;
 use crate::mutate::{MutationReject, PreviewOp, PreviewStamp};
 use crate::overlay::{OverlayFileSystem, Override};
-use crate::KnowledgeBase;
 
 /// The engine-level lifecycle, coarse.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

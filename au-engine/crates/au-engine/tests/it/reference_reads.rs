@@ -8,7 +8,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use au_engine::{serve, Client, ConfigSource, Engine, ServeHandle};
+use au_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
 
 /// A knowledge base with a `type/` vocabulary and a `content/` graph. `research.md`
@@ -107,10 +107,12 @@ fn outgoing_references_resolve_targets_in_source_order() {
     let refs = resp["result"]["references_out"].as_array().unwrap();
     assert_eq!(refs.len(), 1, "one body wikilink, got {refs:?}");
     assert_eq!(refs[0]["target"], "decision");
-    assert!(refs[0]["resolved"]
-        .as_str()
-        .unwrap()
-        .ends_with("content/decision.md"));
+    assert!(
+        refs[0]["resolved"]
+            .as_str()
+            .unwrap()
+            .ends_with("content/decision.md")
+    );
     assert!(refs[0]["span"]["start"].as_u64().unwrap() < refs[0]["span"]["end"].as_u64().unwrap());
 }
 
@@ -168,10 +170,12 @@ fn resolve_target_maps_a_basename_to_a_path_and_kind() {
         .client
         .query(&json!({ "read": "resolve_target", "target": "decision" }))
         .unwrap();
-    assert!(resp["result"]["resolve_target"]["path"]
-        .as_str()
-        .unwrap()
-        .ends_with("content/decision.md"));
+    assert!(
+        resp["result"]["resolve_target"]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with("content/decision.md")
+    );
     assert_eq!(resp["result"]["resolve_target"]["kind"], "instance");
 
     let resp = h
@@ -196,10 +200,12 @@ fn resolve_block_id_returns_the_typed_block_claim_and_span() {
         }))
         .unwrap();
     let block = &resp["result"]["resolve_block_id"];
-    assert!(block["file_path"]
-        .as_str()
-        .unwrap()
-        .ends_with("content/research.md"));
+    assert!(
+        block["file_path"]
+            .as_str()
+            .unwrap()
+            .ends_with("content/research.md")
+    );
     assert_eq!(block["type_claim"], json!(["assumption"]));
     assert_eq!(block["kind"], "typed_block");
     assert!(block["span"]["end"].as_u64().unwrap() > 0);
@@ -230,10 +236,12 @@ fn resolve_block_id_reaches_an_inline_record() {
         }))
         .unwrap();
     let record = &resp["result"]["resolve_block_id"];
-    assert!(record["file_path"]
-        .as_str()
-        .unwrap()
-        .ends_with("content/research.md"));
+    assert!(
+        record["file_path"]
+            .as_str()
+            .unwrap()
+            .ends_with("content/research.md")
+    );
     assert_eq!(record["type_claim"], json!(["assumption"]));
     assert_eq!(record["kind"], "record");
     assert!(record["span"]["end"].as_u64().unwrap() > 0);
@@ -254,10 +262,12 @@ fn resolve_block_id_reaches_a_bare_marker() {
         }))
         .unwrap();
     let marker = &resp["result"]["resolve_block_id"];
-    assert!(marker["file_path"]
-        .as_str()
-        .unwrap()
-        .ends_with("content/research.md"));
+    assert!(
+        marker["file_path"]
+            .as_str()
+            .unwrap()
+            .ends_with("content/research.md")
+    );
     assert_eq!(marker["type_claim"], json!([]));
     assert_eq!(marker["kind"], "marker");
     assert!(marker["span"]["end"].as_u64().unwrap() > 0);
@@ -283,10 +293,12 @@ fn navigation_reads_resolve_the_local_form_against_the_origin() {
         }))
         .unwrap();
     let block = &resp["result"]["resolve_block_id"];
-    assert!(block["file_path"]
-        .as_str()
-        .unwrap()
-        .ends_with("content/research.md"));
+    assert!(
+        block["file_path"]
+            .as_str()
+            .unwrap()
+            .ends_with("content/research.md")
+    );
     assert_eq!(block["type_claim"], json!(["assumption"]));
     assert_eq!(block["kind"], "typed_block");
 
@@ -316,10 +328,12 @@ fn navigation_reads_resolve_the_local_form_against_the_origin() {
             "origin": "content/research.md",
         }))
         .unwrap();
-    assert!(resp["result"]["resolve_anchor"]["file_path"]
-        .as_str()
-        .unwrap()
-        .ends_with("content/research.md"));
+    assert!(
+        resp["result"]["resolve_anchor"]["file_path"]
+            .as_str()
+            .unwrap()
+            .ends_with("content/research.md")
+    );
 
     // Without an `origin` there is no file to be local to, so it resolves nothing.
     let resp = h
@@ -420,10 +434,12 @@ fn resolve_block_id_reaches_a_record_in_a_nested_yaml_instance_by_bare_name() {
         }))
         .unwrap();
     let record = &resp["result"]["resolve_block_id"];
-    assert!(record["file_path"]
-        .as_str()
-        .unwrap()
-        .ends_with("operations/sessions/2026/s-001.yaml"));
+    assert!(
+        record["file_path"]
+            .as_str()
+            .unwrap()
+            .ends_with("operations/sessions/2026/s-001.yaml")
+    );
     assert_eq!(record["type_claim"], json!(["sessionEvent"]));
     assert_eq!(record["kind"], "record");
     assert!(record["span"]["end"].as_u64().unwrap() > 0);
@@ -432,10 +448,12 @@ fn resolve_block_id_reaches_a_record_in_a_nested_yaml_instance_by_bare_name() {
     let resp = client
         .query(&json!({ "read": "resolve_target", "target": "s-001" }))
         .unwrap();
-    assert!(resp["result"]["resolve_target"]["path"]
-        .as_str()
-        .unwrap()
-        .ends_with("s-001.yaml"));
+    assert!(
+        resp["result"]["resolve_target"]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with("s-001.yaml")
+    );
     assert_eq!(resp["result"]["resolve_target"]["kind"], "instance");
 }
 
@@ -453,10 +471,12 @@ fn resolve_anchor_matches_heading_text_case_insensitively() {
         }))
         .unwrap();
     let heading = &resp["result"]["resolve_anchor"];
-    assert!(heading["file_path"]
-        .as_str()
-        .unwrap()
-        .ends_with("content/research.md"));
+    assert!(
+        heading["file_path"]
+            .as_str()
+            .unwrap()
+            .ends_with("content/research.md")
+    );
     assert!(heading["span"]["end"].as_u64().unwrap() > heading["span"]["start"].as_u64().unwrap());
 
     // No matching heading resolves to null.

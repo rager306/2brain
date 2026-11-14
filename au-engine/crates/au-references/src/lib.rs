@@ -548,8 +548,7 @@ pub fn target_escapes_repo(target: &str) -> bool {
 /// every surface. The surfaces word their MESSAGES differently, correctly so — a
 /// typed slot names its field, a prose link quotes its raw text — but the fix is
 /// the same sentence, and kept twice it would drift.
-pub const ESCAPES_REPO_FIX: &str =
-    "name the target in its own repo with the `::repo` qualifier, `[[name::repo]]`, rather than \
+pub const ESCAPES_REPO_FIX: &str = "name the target in its own repo with the `::repo` qualifier, `[[name::repo]]`, rather than \
      reaching across with a relative path";
 
 /// Failure to resolve a wikilink target.
@@ -891,10 +890,8 @@ pub fn resolve_block_id<'a>(
                     };
                 }
             }
-            au_parser::BodyEvent::BlockIdMarker { id: marker_id, .. } => {
-                if *marker_id == id {
-                    saw_marker = true;
-                }
+            au_parser::BodyEvent::BlockIdMarker { id: marker_id, .. } if *marker_id == id => {
+                saw_marker = true;
             }
             _ => {}
         }
@@ -2017,9 +2014,11 @@ mod tests {
         let root = PathBuf::from("/v");
         let files = vec![root.join("a/foo.md"), root.join("b/foo.md")];
         let (_, diags) = RepoIndex::build(root, files);
-        assert!(diags
-            .iter()
-            .all(|d| d.code.as_str() != "case-collision-basename"));
+        assert!(
+            diags
+                .iter()
+                .all(|d| d.code.as_str() != "case-collision-basename")
+        );
     }
 
     #[test]

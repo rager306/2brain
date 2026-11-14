@@ -18,13 +18,13 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use au_core::{
-    folded_closure_ids, parse_instance, validate, Instance, MetaMarker, RefData, TypeName,
-    TypeNameClaim, ValidateContext,
+    Instance, MetaMarker, RefData, TypeName, TypeNameClaim, ValidateContext, folded_closure_ids,
+    parse_instance, validate,
 };
 use au_diagnostics::{ByteRange, Severity};
 
 use crate::ir::KnowledgeBase;
-use crate::mutate::{splice_ensure_mixin, MixinSpliceOutcome};
+use crate::mutate::{MixinSpliceOutcome, splice_ensure_mixin};
 
 /// The decision for one mixin on one write.
 #[derive(Debug)]

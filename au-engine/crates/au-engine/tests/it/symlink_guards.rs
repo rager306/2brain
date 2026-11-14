@@ -11,9 +11,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::move_dir::{git_seed, git_state, note, serve_at, wr, Harness};
+use crate::move_dir::{Harness, git_seed, git_state, note, serve_at, wr};
 
 /// A served git repo with `files` plus a COMMITTED symlink `link` to an outside
 /// directory holding `outside`. The outside root rides along so a test checks

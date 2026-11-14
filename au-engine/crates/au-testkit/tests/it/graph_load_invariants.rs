@@ -1,7 +1,7 @@
 //! Property tests for graph-load invariants: determinism, cycle-detection
 //! termination, sealed reachability, redeclare detection.
 
-use au_core::{build_graph, run_graph_structure_checks, run_inheritance_checks, TypeDef};
+use au_core::{TypeDef, build_graph, run_graph_structure_checks, run_inheritance_checks};
 use au_testkit::{
     cycle_of_size, empty_type_def, self_cycle, type_def_sealed, type_def_with_fields,
     type_def_with_parents,
@@ -44,18 +44,22 @@ proptest! {
 fn cycle_detection_terminates_on_self_loop() {
     let g = build_graph(self_cycle("a")).graph;
     let diags = run_graph_structure_checks(&g);
-    assert!(diags
-        .iter()
-        .any(|d| d.code.as_str() == "cycle-in-type-chain"));
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_str() == "cycle-in-type-chain")
+    );
 }
 
 #[test]
 fn cycle_detection_terminates_on_large_cycle() {
     let g = build_graph(cycle_of_size(200)).graph;
     let diags = run_graph_structure_checks(&g);
-    assert!(diags
-        .iter()
-        .any(|d| d.code.as_str() == "cycle-in-type-chain"));
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_str() == "cycle-in-type-chain")
+    );
 }
 
 proptest! {
@@ -103,9 +107,11 @@ fn sealed_listed_descendant_passes() {
     ];
     let g = build_graph(defs).graph;
     let diags = run_inheritance_checks(&g);
-    assert!(!diags
-        .iter()
-        .any(|d| d.code.as_str() == "sealed-no-surprise-children"));
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_str() == "sealed-no-surprise-children")
+    );
 }
 
 #[test]
@@ -116,9 +122,11 @@ fn sealed_unlisted_descendant_is_flagged() {
     ];
     let g = build_graph(defs).graph;
     let diags = run_inheritance_checks(&g);
-    assert!(diags
-        .iter()
-        .any(|d| d.code.as_str() == "sealed-no-surprise-children"));
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_str() == "sealed-no-surprise-children")
+    );
 }
 
 #[test]
@@ -133,9 +141,11 @@ fn sealed_transitively_listed_descendant_passes() {
     ];
     let g = build_graph(defs).graph;
     let diags = run_inheritance_checks(&g);
-    assert!(!diags
-        .iter()
-        .any(|d| d.code.as_str() == "sealed-no-surprise-children"));
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_str() == "sealed-no-surprise-children")
+    );
 }
 
 // ----- 4. Redeclare detection invariant -----
@@ -151,9 +161,11 @@ fn direct_redeclare_is_flagged() {
     ];
     let g = build_graph(defs).graph;
     let diags = run_inheritance_checks(&g);
-    assert!(diags
-        .iter()
-        .any(|d| d.code.as_str() == "field-redeclaration"));
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code.as_str() == "field-redeclaration")
+    );
 }
 
 #[test]
@@ -164,9 +176,11 @@ fn distinct_fields_pass() {
     ];
     let g = build_graph(defs).graph;
     let diags = run_inheritance_checks(&g);
-    assert!(!diags
-        .iter()
-        .any(|d| d.code.as_str() == "field-redeclaration"));
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code.as_str() == "field-redeclaration")
+    );
 }
 
 proptest! {

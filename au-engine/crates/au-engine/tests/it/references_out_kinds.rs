@@ -15,9 +15,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::wire_fixtures::{harness, Harness};
+use crate::wire_fixtures::{Harness, harness};
 
 fn write(root: &std::path::Path, rel: &str, content: &str) {
     let p = root.join(rel);

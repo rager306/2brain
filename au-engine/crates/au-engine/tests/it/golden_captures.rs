@@ -28,14 +28,13 @@ const CAPTURES: &[(&str, &str, bool)] = &[
 
 fn capture_dir() -> PathBuf {
     // crates/au-engine -> the workspace root that holds tests-golden/.
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests-golden/engine")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests-golden/engine")
 }
 
 fn load(name: &str) -> Value {
     let path = capture_dir().join(name);
-    let text = fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+    let text =
+        fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
     serde_json::from_str(&text).unwrap_or_else(|error| panic!("{}: {error}", path.display()))
 }
 
@@ -78,7 +77,10 @@ fn the_capture_set_is_complete() {
         .filter(|name| name.ends_with(".json"))
         .collect();
     found.sort();
-    let mut expected: Vec<String> = CAPTURES.iter().map(|(file, _, _)| file.to_string()).collect();
+    let mut expected: Vec<String> = CAPTURES
+        .iter()
+        .map(|(file, _, _)| file.to_string())
+        .collect();
     expected.sort();
     assert_eq!(
         found, expected,

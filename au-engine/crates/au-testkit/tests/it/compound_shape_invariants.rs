@@ -3,9 +3,9 @@
 //! branch-order significance, suffix non-commutativity, and subsumption
 //! parity with `subsumption-in-mixin`.
 
-use au_core::{build_graph, run_graph_structure_checks, TypeDef, TypeName, TypeNameClaim};
+use au_core::{TypeDef, TypeName, TypeNameClaim, build_graph, run_graph_structure_checks};
 use au_diagnostics::ByteRange;
-use au_grammar::{parse_shape, CompoundRefOp, Primitive, RefMode, Shape};
+use au_grammar::{CompoundRefOp, Primitive, RefMode, Shape, parse_shape};
 use au_testkit::{empty_type_def, type_def_with_parents};
 use proptest::prelude::*;
 

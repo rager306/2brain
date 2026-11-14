@@ -26,7 +26,7 @@ use au_diagnostics::{ByteRange, Diagnostic, DiagnosticCode, Severity, Span, Sugg
 
 use crate::ir::{FileEntry, OrdMap};
 use crate::parse::FileParse;
-use crate::repo::{RepoMap, RepoName, REGISTRY_REL};
+use crate::repo::{REGISTRY_REL, RepoMap, RepoName};
 
 /// The hardwired type a repo README self-declares.
 pub(crate) const README_TYPE_NAME: &str = "au.engine.readme";

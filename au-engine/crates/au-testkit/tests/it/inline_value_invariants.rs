@@ -4,8 +4,8 @@
 //! unions.
 
 use au_core::{
-    build_graph, FieldDecl, FieldName, InlineValue, InstanceField, InstanceValue, TypeClaim,
-    TypeDef, TypeGraph, TypeName, TypeNameClaim,
+    FieldDecl, FieldName, InlineValue, InstanceField, InstanceValue, TypeClaim, TypeDef, TypeGraph,
+    TypeName, TypeNameClaim, build_graph,
 };
 use au_diagnostics::ByteRange;
 use au_grammar::{Primitive, Shape};
