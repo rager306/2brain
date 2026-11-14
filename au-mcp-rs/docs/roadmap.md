@@ -2,7 +2,7 @@
 
 Status on 2026-11-14, HEAD `e710e17`. Verified against the code, not the notes:
 51 tools registered (35 without a grant, 16 mutating), 29 captured fixtures,
-160 tests, ten documents.
+164 tests, ten documents.
 
 ## Done — with evidence
 
@@ -55,6 +55,9 @@ below).
       read-then-hash, so a create cannot overwrite. Found from the vault backlog
       note P0-C, which recorded a live session falling back to the daemon because
       the Rust surface could not create a file
+- [x] MCP resources (`list`, `read`, `templates`) over the catalogue, with no
+      resource subscription: the engine's own `changes` stream is exposed as
+      `au_watch` instead of a second notification path
 - [x] `add_workspace_member`, `remove_workspace_member`, `set_workspace_member_role`
       — behind a **third grant** (`allow_workspace_shape`, on top of
       `allow_mutations`): they change which

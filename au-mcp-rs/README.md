@@ -7,6 +7,10 @@ engine's Unix socket, and can write only when the launch grants it.
   tools** that appear only with an explicit grant (three grants in total).
 - **Results are the engine's own object**, under the read's key: `au_overview`
   answers `{"overview": ...}`. Nothing is re-shaped on the way out.
+- **Two surfaces**: 51 tools, and MCP **resources** at `arsumbris://<repo>/<path>`
+  for files a client wants to hold and re-read (`resources/list` pages the
+  catalogue, `resources/read` returns the engine's text). No resource
+  subscriptions: `au_watch` carries change notification.
 - **Read-only by default.** Without a grant the mutating tools are absent from
   `tools/list` and refused before the engine is contacted.
 - **Typed answers**: every tool declares an `outputSchema`, every result carries
@@ -187,7 +191,7 @@ substitute for process isolation with untrusted clients.
 ## Tests
 
 ```sh
-RUSTUP_HOME=/root/.rustup cargo +1.99.0 test --offline          # 160 tests
+RUSTUP_HOME=/root/.rustup cargo +1.99.0 test --offline          # 164 tests
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 clippy --offline --locked --all-targets --all-features -- -D warnings
 ```
 

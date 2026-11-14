@@ -32,3 +32,39 @@ AU_ENGINE_BIN=../au-engine/target/debug/au python3 scripts/rollback_rehearsal.py
   `tests/reconcile.rs`.
 - It writes to a disposable repository only. No production socket, daemon, or
   vault is touched, and no maintenance window is implied.
+
+## Re-run 2026-11-14: fork release binaries
+
+Rehearsed again on 2026-11-14 with the fork release binaries, against a new
+disposable repository and a private engine socket under a throwaway `HOME`:
+
+```sh
+cd au-mcp-rs
+AU_ENGINE_BIN=/root/arsumbris/au-engine/target/release/au \
+AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs \
+python3 scripts/rollback_rehearsal.py
+```
+
+The script exited 0. Each of the three properties it exists to check passed.
+The quoted lines are its own:
+
+1. **The adapter keeps no state on disk.** **PASS.**
+   `ok: a granted adapter writes through the engine`, then
+   `ok: the write is an engine commit and the tree is clean` and
+   `ok: the adapter left no files behind`. The fixture gained exactly one
+   commit, `git status --porcelain` was empty, and the file list was unchanged.
+2. **Stopping the adapter loses nothing.** **PASS.**
+   `ok: a fresh process reads the written file`. The writing process was
+   killed, and a new adapter process read back the written text.
+3. **Rolling back to read-only is a launch flag, not a migration.** **PASS.**
+   `ok: rolling back to read-only is a launch flag: the write is refused`. The
+   same binary started without `--allow-mutations` read the file and refused
+   `au_write_file` at the protocol layer.
+
+Its closing line was
+`PASS: rollback to read-only loses nothing and needs no migration`, followed by
+no failure output.
+
+What this run does not add to the section above: it still does not exercise the
+Python bridge or the Node `au-mcp` daemon, does not lose a mutation reply, and
+touches no production socket or vault.

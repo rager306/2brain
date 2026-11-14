@@ -1,5 +1,13 @@
 # Tools
 
+Two surfaces: **tools** (51) for actions and reads, and **resources** for
+addressable files. A resource URI is `arsumbris://<repo>/<path>`, where the path is
+member-relative and percent-encoded; `resources/list` pages the catalogue 100 at a
+time and `resources/read` returns the engine's own text with `text/markdown`.
+`resources/templates/list` publishes the one shape, so a client can construct a URI
+without listing first. Resource subscriptions are not advertised: a client that
+needs change notification calls `au_watch`.
+
 51 tools: 29 engine reads, 6 derived reads and observability helpers, and 16
 mutations that exist only when the launch grants them (11 with the mutation
 grant, 2 more with composition, 3 more with workspace shape). The three grants

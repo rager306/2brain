@@ -57,6 +57,10 @@ if [[ -z $socket ]]; then
   exit 1
 fi
 echo "engine: $socket"
+# Resolve ONCE to an absolute path: the client configs below are written from
+# another directory, and a `$PWD/` prefix on an already-absolute argument
+# produces a doubled path that the client reports as ENOENT.
+ADAPTER=$(cd "$(dirname "$ADAPTER")" && pwd)/$(basename "$ADAPTER")
 echo "adapter: $ADAPTER"
 echo
 
@@ -68,7 +72,7 @@ echo "---------------------------------------------------------------"
 
 if command -v claude >/dev/null; then
   version=$(claude --version 2>/dev/null | head -1 | awk '{print $1}')
-  (cd "$repo" && claude mcp add --scope local arsumbris-rs -- "$OLDPWD/$ADAPTER" "$socket" >/dev/null 2>&1) || true
+  (cd "$repo" && claude mcp add --scope local arsumbris-rs -- "$ADAPTER" "$socket" >/dev/null 2>&1) || true
   listed=$(cd "$repo" && claude mcp list 2>&1 || true)
   if grep -q '✔ Connected' <<<"$listed"; then
     report claude "$version" "connected (initialize + tools/list)"
@@ -82,7 +86,7 @@ fi
 
 if command -v codex >/dev/null; then
   version=$(codex --version 2>/dev/null | head -1 | awk '{print $2}')
-  codex mcp add arsumbris-rs -- "$OLDPWD/$ADAPTER" "$socket" >/dev/null 2>&1 || true
+  codex mcp add arsumbris-rs -- "$ADAPTER" "$socket" >/dev/null 2>&1 || true
   listed=$(codex mcp list 2>/dev/null || true)
   if grep -q '^arsumbris-rs' <<<"$listed"; then
     report codex "$version" "registered; no non-interactive health check"

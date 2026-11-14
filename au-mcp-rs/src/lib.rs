@@ -19,8 +19,10 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, tool::ToolCallContext, wrapper::Parameters},
     model::{
         CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation,
-        InitializeRequestParams, InitializeResult, ListToolsResult, MetaObject,
-        PaginatedRequestParams, ProtocolVersion, ServerCapabilities, ServerConfig,
+        InitializeRequestParams, InitializeResult, ListResourceTemplatesResult,
+        ListResourcesResult, ListToolsResult, MetaObject, PaginatedRequestParams, ProtocolVersion,
+        ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult, Resource,
+        ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig,
     },
     service::RequestContext,
     tool, tool_handler, tool_router,
@@ -570,6 +572,94 @@ struct Server {
     tool_router: ToolRouter<Self>,
 }
 
+/// Catalogued files per `resources/list` page.
+const RESOURCE_PAGE: usize = 100;
+
+/// Every member's declared root, keyed by member name.
+async fn member_roots(socket: &Path) -> Result<std::collections::BTreeMap<String, String>, String> {
+    let read = read_engine(socket, json!({"read": "members", "id": 1}), "members").await?;
+    let mut roots = std::collections::BTreeMap::new();
+    for member in read
+        .payload
+        .get("members")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        if let (Some(repo), Some(root)) = (
+            member.get("repo").and_then(Value::as_str),
+            member.get("root").and_then(Value::as_str),
+        ) {
+            roots.insert(repo.to_owned(), root.to_owned());
+        }
+    }
+    Ok(roots)
+}
+
+/// The member-relative form of a catalogued absolute path, or None when the
+/// member's root is unknown or does not contain it.
+fn member_relative(
+    repo: &str,
+    path: &str,
+    roots: &std::collections::BTreeMap<String, String>,
+) -> Option<String> {
+    let root = roots.get(repo)?;
+    let prefix = format!("{}/", root.trim_end_matches('/'));
+    path.strip_prefix(&prefix).map(str::to_owned)
+}
+
+/// `arsumbris://<repo>/<path>`, with the path percent-encoded so a file name with
+/// a space, a `#`, or a `?` still forms a valid URI.
+fn resource_uri(repo: &str, path: &str) -> String {
+    format!("arsumbris://{repo}/{}", percent_encode(path))
+}
+
+/// Split a resource URI back into its member and its member-relative path.
+fn parse_resource_uri(uri: &str) -> Option<(String, String)> {
+    let rest = uri.strip_prefix("arsumbris://")?;
+    let (repo, path) = rest.split_once('/')?;
+    if repo.is_empty() || path.is_empty() {
+        return None;
+    }
+    Some((repo.to_owned(), percent_decode(path)?))
+}
+
+/// Percent-encode everything outside the RFC 3986 unreserved set plus `/`.
+fn percent_encode(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' => {
+                out.push(byte as char);
+            }
+            other => out.push_str(&format!("%{other:02X}")),
+        }
+    }
+    out
+}
+
+/// Decode `%XX` escapes; anything malformed is a bad URI, not a wrong file.
+fn percent_decode(value: &str) -> Option<String> {
+    let bytes = value.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'%' => {
+                let hex = value.get(index + 1..index + 3)?;
+                out.push(u8::from_str_radix(hex, 16).ok()?);
+                index += 3;
+            }
+            other => {
+                out.push(other);
+                index += 1;
+            }
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+/// A deserialization failure names the missing field but not the tool or the
 #[tool_router]
 impl Server {
     fn new(
@@ -3340,13 +3430,161 @@ impl ServerHandler for Server {
         })
     }
 
+    /// The catalogue as MCP resources, one URI per catalogued file.
+    ///
+    /// A resource is addressable where a tool call is not: a client can hold
+    /// `arsumbris://vault/inbox/note.md`, re-read it, and show it to a human.
+    /// The URI carries the MEMBER and the member-relative path, because absolute
+    /// paths break when a workspace moves and carry no member name.
+    async fn list_resources(
+        &self,
+        request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, rmcp::ErrorData> {
+        if !serves_request(&context) {
+            return Err(rmcp::ErrorData::invalid_request(
+                "initialize required",
+                None,
+            ));
+        }
+        let page: usize = RESOURCE_PAGE;
+        let offset = request
+            .and_then(|params| params.cursor)
+            .and_then(|cursor| cursor.parse::<usize>().ok())
+            .unwrap_or(0);
+        let Ok(_permit) = self.read_slots.try_acquire() else {
+            return Err(rmcp::ErrorData::internal_error(
+                "engine read capacity reached; retry later",
+                None,
+            ));
+        };
+        let read = read_engine_with_timeout(
+            &self.socket,
+            json!({"read": "files", "id": 1, "limit": page, "offset": offset}),
+            "files",
+            ENGINE_READ_TIMEOUT,
+        )
+        .await
+        .map_err(|error| rmcp::ErrorData::internal_error(error, None))?;
+        let members = member_roots(&self.socket).await.map_err(|error| {
+            rmcp::ErrorData::internal_error(format!("reading members: {error}"), None)
+        })?;
+        let entries = read
+            .payload
+            .get("files")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let mut resources = Vec::with_capacity(entries.len());
+        for entry in &entries {
+            let Some(path) = entry.get("path").and_then(Value::as_str) else {
+                continue;
+            };
+            let repo = entry
+                .get("repo")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let relative = member_relative(repo, path, &members);
+            let Some(relative) = relative else {
+                continue;
+            };
+            let name = entry
+                .get("stem")
+                .and_then(Value::as_str)
+                .filter(|stem| !stem.is_empty())
+                .unwrap_or(&relative);
+            resources.push(
+                Resource::new(resource_uri(repo, &relative), name)
+                    .with_mime_type("text/markdown")
+                    .with_description(format!("{repo}/{relative}")),
+            );
+        }
+        let next_cursor = (entries.len() == page).then(|| (offset + page).to_string());
+        Ok(ListResourcesResult {
+            resources,
+            next_cursor,
+            ..Default::default()
+        })
+    }
+
+    /// The URI shape a client can construct without listing first.
+    async fn list_resource_templates(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ListResourceTemplatesResult, rmcp::ErrorData> {
+        if !serves_request(&context) {
+            return Err(rmcp::ErrorData::invalid_request(
+                "initialize required",
+                None,
+            ));
+        }
+        Ok(ListResourceTemplatesResult {
+            resource_templates: vec![
+                ResourceTemplate::new("arsumbris://{repo}/{path}", "workspace file")
+                    .with_mime_type("text/markdown")
+                    .with_description(
+                        "A catalogued file: the member's name, then its path inside that member",
+                    ),
+            ],
+            ..Default::default()
+        })
+    }
+
+    /// Read one resource: the engine's own content read, unchanged.
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResponse, rmcp::ErrorData> {
+        if !serves_request(&context) {
+            return Err(rmcp::ErrorData::invalid_request(
+                "initialize required",
+                None,
+            ));
+        }
+        let (repo, path) = parse_resource_uri(&request.uri).ok_or_else(|| {
+            rmcp::ErrorData::invalid_params(
+                format!("not an arsumbris resource URI: {}", request.uri),
+                None,
+            )
+        })?;
+        let Ok(_permit) = self.read_slots.try_acquire() else {
+            return Err(rmcp::ErrorData::internal_error(
+                "engine read capacity reached; retry later",
+                None,
+            ));
+        };
+        let read = read_content(&self.socket, &repo, &path)
+            .await
+            .map_err(|error| rmcp::ErrorData::internal_error(error, None))?;
+        let content = read.payload.get("content").cloned().unwrap_or(Value::Null);
+        let Some(text) = content.get("text").and_then(Value::as_str) else {
+            return Err(rmcp::ErrorData::resource_not_found(
+                format!("no readable content at {}", request.uri),
+                None,
+            ));
+        };
+        Ok(ReadResourceResponse::Complete(ReadResourceResult::new(
+            vec![
+                ResourceContents::text(text.to_owned(), request.uri)
+                    .with_mime_type("text/markdown"),
+            ],
+        )))
+    }
+
     fn get_info(&self) -> ServerConfig {
-        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new(
-                env!("CARGO_PKG_NAME"),
-                version_string(),
-            ))
-            .with_instructions(INSTRUCTIONS)
+        ServerConfig::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+        )
+        .with_server_info(Implementation::new(
+            env!("CARGO_PKG_NAME"),
+            version_string(),
+        ))
+        .with_instructions(INSTRUCTIONS)
     }
 
     fn supported_protocol_versions(&self) -> Cow<'static, [ProtocolVersion]> {
