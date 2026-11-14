@@ -1,6 +1,6 @@
 # Synthetic read fixtures
 
-One file per engine read tool (29 of the 35 tools a read-only launch advertises;
+One file per engine read tool (32, one per engine read tool among the 35 a read-only launch advertises;
 the rest are derived reads with no wire verb), captured by calling that tool through the MCP
 layer against a real engine on a disposable two-member repository. Each file is
 `{ "tool", "arguments", "payload" }`; paths under the temporary fixture root are

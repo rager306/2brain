@@ -1,7 +1,7 @@
 # Roadmap
 
 Status on 2026-11-14, HEAD `16de348` (rechecked against the code, not these notes:
-51 tools registered — 35 advertised without a grant, 16 mutating; 29 synthetic
+51 tools registered — 35 advertised without a grant, 16 mutating; 32 synthetic
 fixtures plus 3 production and 4 engine golden captures; 165 adapter tests run by
 default and 2 ignored; eleven documents under `docs/`). The evidence for each line
 lives in [`verification.md`](verification.md); the gaps are listed at the end of
@@ -21,7 +21,7 @@ this file.
 | protocol | four legacy revisions and `2026-07-28`, pre-init `ping` rule; `tests/stdio.rs`, `tests/modern_stdio.rs` |
 | faults | lost mutation reply, engine death mid-read, truncated frame; `tests/faults.rs` |
 | budgets | `au_content {max_chars}`, `au_instances_of {limit, offset}`; `tests/budgets.rs` |
-| contracts | synthetic corpus (29), production golden replay, client matrix, bridge parity, rollback rehearsal |
+| contracts | synthetic corpus (32), production golden replay, client matrix, bridge parity, rollback rehearsal |
 | one binary | `arsumbris` (delegates `daemon`/`open`/`members` to `au_cli`, `mcp`/`info` here); `tests/cli.rs` |
 | agent skill | `skills/arsumbris`, installed by `scripts/install_skill.sh` |
 | trajectory | `docs/roadmap.md`, `docs/runtime-map.md` |

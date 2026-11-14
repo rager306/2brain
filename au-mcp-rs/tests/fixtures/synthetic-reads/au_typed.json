@@ -1,0 +1,19 @@
+{
+  "arguments": {
+    "path": "notes/a.md",
+    "repo": "fixture"
+  },
+  "payload": {
+    "claim": [
+      "note"
+    ],
+    "closure": [
+      "note"
+    ],
+    "kind": "instance",
+    "path": "$FIXTURE/fixture/notes/a.md",
+    "resolves": true,
+    "typed": true
+  },
+  "tool": "au_typed"
+}

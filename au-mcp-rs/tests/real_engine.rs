@@ -235,7 +235,7 @@ fn build_fixture(temp: &Path) -> (PathBuf, PathBuf) {
 /// The read fixtures replay every advertised read through the MCP layer against
 /// a real engine on a disposable repository. Paths are recorded relative to the
 /// fixture root as `$FIXTURE`, so the corpus does not carry machine paths.
-fn fixture_cases() -> [(&'static str, Value); 29] {
+fn fixture_cases() -> [(&'static str, Value); 32] {
     [
         ("au_overview", json!({})),
         ("au_top_level_dirs", json!({})),
@@ -302,6 +302,9 @@ fn fixture_cases() -> [(&'static str, Value); 29] {
             "au_follow",
             json!({"repo":"fixture","origin_path":"notes/a.md","target":"a#Details"}),
         ),
+        ("au_children", json!({"repo":"fixture","path":"notes"})),
+        ("au_typed", json!({"repo":"fixture","path":"notes/a.md"})),
+        ("au_resolved", json!({"repo":"fixture","path":"notes/a.md"})),
     ]
 }
 
