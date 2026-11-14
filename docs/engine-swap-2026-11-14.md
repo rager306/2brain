@@ -104,3 +104,22 @@ baseline, `grep` answering, and `{"mutate":"batch","ops":[]}` answering
 engine says `unknown variant`. The bridge path (`mcp__au_overview`) answers with
 `diagnostic_counts.total = 0`, `/root/vault` keeps HEAD `00e0743` and its five
 dirty files, and `au-health.sh` reports `engine=1 mcp=1 action=ok`.
+
+
+## Third swap — the `graph_health` read
+
+| fact | value |
+|---|---|
+before | sha256 `95a55cae…` (the `batch` swap) |
+after | sha256 `98ea88e3d2d3a8943625f3f52ca857582f16dc27da7dfecc3b9df895bca4fb26` |
+built from | monorepo `877168c` |
+rollback artifact | `/root/backups/au-20261114-post-batch` |
+
+Same protocol, and this time the baseline and the copy were taken back to back as
+the second swap taught. Twelve reads: zero differences. `graph_health` on the copy
+and then on the live daemon answers the same counts — 1156 nodes, 4565 edges, 211
+components, 17 cycles over 664 nodes, 19 dead ends, 178 sources, 202 isolated
+files, 0 broken links — and the MCP adapter returns the identical report.
+
+The vault kept HEAD `00e0743` and its five dirty files; `au-health.sh` reports
+`engine=1 mcp=1 action=ok`.
