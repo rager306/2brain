@@ -2586,7 +2586,9 @@ impl Server {
             (None, true) => None,
             _ => {
                 return CallToolResult::error(vec![ContentBlock::text(
-                    "give exactly one of a nonempty 'expected_hash' or 'expect_absent': true",
+                    "give exactly one of a nonempty 'expected_hash' or 'expect_absent': true; \
+                     if you do not know the digest, read the file with au_content and compare \
+                     the text instead, because reconcile can only compare against an expectation",
                 )]);
             }
         };

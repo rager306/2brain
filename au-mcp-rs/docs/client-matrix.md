@@ -257,3 +257,11 @@ returns, and anything else is refused before the engine is contacted, with a mes
 naming the two real options (`expect_absent: true` for a delete, or `au_content` to
 compare the text). `tests/reconcile.rs` pins six malformed values, including the
 literal `"null"`.
+
+A second run, after the fix, took a different wrong turn and got a useful answer for
+it: the model called `au_reconcile` with **no** digest at all, was told that it must
+give one, and then did the right thing — `au_content`, compare the text. That refusal
+used to end at "give exactly one of a nonempty 'expected_hash' or 'expect_absent'",
+which names the rule but not the way out, so it now says the rest: if the digest is
+unknown, read the file and compare the text, because reconcile can only compare
+against an expectation.
