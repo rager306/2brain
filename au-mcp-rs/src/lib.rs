@@ -267,6 +267,17 @@ struct BatchArguments {
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct RollbackPreviewArguments {
+    /// Member whose working tree holds the commit.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Commit to preview reverting.
+    #[schemars(length(min = 1))]
+    commit: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct GraphHealthArguments {
     /// Restrict the node set to one member.
     #[schemars(length(min = 1))]
@@ -871,6 +882,35 @@ impl Server {
             });
         }
         self.read(request, "files", ctx).await
+    }
+
+    #[tool(
+        description = "Preview reverting one commit without touching anything: the paths it changed, whether a revert would restore the parent's bytes or delete the path, and whether each path is still safe (clean, and no later commit rewrote it). `safe` is false when any path is dirty or superseded, because a revert is all-or-nothing. Read-only: it is a plan, not an action.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = rollback_preview_schema(),
+    )]
+    async fn au_rollback_preview(
+        &self,
+        Parameters(args): Parameters<RollbackPreviewArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.repo.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
+        }
+        if args.commit.is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'commit' must not be empty")]);
+        }
+        let request = json!({
+            "read": "rollback_preview",
+            "id": 1,
+            "repo": args.repo,
+            "commit": args.commit,
+        });
+        self.read(request, "rollback_preview", ctx).await
     }
 
     #[tool(
@@ -3779,7 +3819,48 @@ fn envelope_schema(verb: &'static str) -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_graph_health`: the report and its bounded lists.
+/// The output schema of `au_rollback_preview`: a plan, path by path.
+fn rollback_preview_schema() -> Arc<serde_json::Map<String, Value>> {
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": {
+                "rollback_preview": {
+                    "type": "object",
+                    "properties": {
+                        "repo": {"type": "string"},
+                        "commit": {"type": "string"},
+                        "subject": {"type": "string"},
+                        "parent": {"type": ["string", "null"]},
+                        "paths": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "path": {"type": "string"},
+                                    "action": {"type": "string", "enum": ["restore", "delete"]},
+                                    "state": {"type": "string", "enum": ["clean", "dirty", "changed_since"]}
+                                },
+                                "required": ["path", "action", "state"],
+                                "additionalProperties": false
+                            }
+                        },
+                        "safe": {"type": "boolean"}
+                    },
+                    "required": ["repo", "commit", "subject", "parent", "paths", "safe"],
+                    "additionalProperties": false
+                }
+            },
+            "required": ["rollback_preview"],
+            "additionalProperties": false,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
+/// The output schema of `au_graph_health`/// The output schema of `au_graph_health`: the report and its bounded lists.
 fn graph_health_schema() -> Arc<serde_json::Map<String, Value>> {
     let node = json!({
         "type": "object",
@@ -4628,6 +4709,7 @@ async fn read_engine(socket: &Path, request: Value, verb: &str) -> Result<ReadRe
         "dir_entries" => payload.is_array(),
         "grep" => payload.is_object(),
         "graph_health" => payload.is_object(),
+        "rollback_preview" => payload.is_object(),
         "preview_mutation" => payload.is_object(),
         "types" => payload.is_array() || payload.is_null(),
         _ => false,

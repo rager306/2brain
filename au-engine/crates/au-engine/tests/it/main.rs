@@ -107,6 +107,7 @@ mod repo_name_collision;
 mod repo_scoped_reads;
 mod required_subtype_meta;
 mod resolve_e2e;
+mod rollback_preview_read;
 mod resolve_wire;
 mod scale_fuzz;
 mod scope_management;

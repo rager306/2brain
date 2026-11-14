@@ -1,8 +1,8 @@
 # Roadmap
 
 Status on 2026-11-13, HEAD `aba2b4f`. Verified against the code, not the notes:
-49 tools registered (33 advertised read-only, 16 mutations), 28 captured fixtures,
-155 tests green, ten documents.
+50 tools registered (34 advertised read-only, 16 mutations), 29 captured fixtures,
+157 tests green, ten documents.
 
 ## Done — with evidence
 
@@ -86,11 +86,11 @@ tool that composes N engine reads would turn one round trip into hundreds:
 | batch execute (P1-C) | **closed**: the engine's `batch` mutation verb, exposed as `au_batch` | — |
 | graph hygiene report (P1-D) | **closed**: the engine's `graph_health` read, exposed as `au_graph_health` | — |
 
-Closed: `create_file` (backlog P0-C), the audit hash chain (P1-B first half),
+Closed: `create_file` (backlog P0-C), the audit hash chain (P1-B first half) and
+`rollback_preview` (P1-B second half),
 `grep` (P0-A) as a new engine read rather than a host scanner, `batch` (P1-C) as a
 saga over the engine's existing multi-file machinery, and `graph_health` (P1-D) as
-one engine read that joins degrees, SCCs, and reference diagnostics. The second half of P1-B, `rollback_preview`, is engine
-work too: a preview of an undo needs the commit topology, not just the log.
+one engine read that joins degrees, SCCs, and reference diagnostics. 
 
 ## Phase D — retire the Node stack
 

@@ -169,6 +169,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_rename_type",
             "au_resolve_member",
             "au_resolved",
+            "au_rollback_preview",
             "au_search_tools",
             "au_semantic_tokens",
             "au_set_workspace_member_role",

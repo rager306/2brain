@@ -691,6 +691,19 @@ The `shape_ast` value, a tagged union on `kind` mirroring the engine's parsed sl
 - an entry carries no `file_path`, and the null-vs-empty split is `anchors`': an unresolved `target` is null, a resolved file carrying no ids is an empty array.
 - a NEW read, additive, no `schema_version` bump.
 
+**rollback_preview.**
+- args: `repo`, `commit`. Both required: a commit is read from one member's working tree, and a bare sha does not say which.
+- result: `{ rollback_preview: { repo, commit, subject, parent, paths, safe } }`.
+  - `parent`: the commit a revert would diff against (the first parent); null for a root commit.
+  - `paths`: what the revert would touch, `{path, action, state}`.
+    - `action`: `restore` (put the parent's bytes back) or `delete` (the commit introduced the path, so reverting removes it). Decided by whether the path exists at the parent, not guessed from a status letter.
+    - `state`: `clean` (still the commit's own bytes and no later commit touched the path), `dirty` (uncommitted changes on disk), or `changed_since` (a later commit rewrote it).
+  - `safe`: every path is `clean`. One `dirty` or `changed_since` path makes the whole preview unsafe, because a revert is all-or-nothing.
+- READ-ONLY: it is a plan, never an action. Nothing is written, no index is touched, and the working tree is only inspected.
+- a commit not present in the member's store is an `error` frame, never an empty plan: "nothing to revert" and "cannot see the commit" are different answers.
+- root commits report their paths (`diff-tree --root`), so the first commit of a history is previewable like any other.
+- additive: a NEW read verb, no `schema_version` bump.
+
 **graph_health.**
 - args: optional `repo`, optional `scope` (`all` default / `own`), optional `limit` (per list, default 20, range 1..=200).
 - result: `{ graph_health: { repo, scope, counts, cycles, isolated, dead_ends, sources, broken_links, central, truncated } }`.

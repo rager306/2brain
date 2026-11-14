@@ -109,6 +109,29 @@ fn read_surface_kb() -> (tempfile::TempDir, PathBuf) {
         "---\ntitle: could be a note\n---\n",
     );
 
+    // One commit, so the commit-reading verbs (file_history, rollback_preview)
+    // answer against a real history rather than a bare directory.
+    for args in [
+        vec!["init", "-q"],
+        vec!["add", "-A"],
+        vec![
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-qm",
+            "seed",
+        ],
+    ] {
+        let out = std::process::Command::new("git")
+            .args(&args)
+            .current_dir(&root)
+            .output()
+            .expect("git runs");
+        assert!(out.status.success(), "git {args:?}: {out:?}");
+    }
+
     (dir, root)
 }
 
@@ -123,7 +146,7 @@ fn read_surface_kb() -> (tempfile::TempDir, PathBuf) {
 /// with no structural read/mutation split, so there is no single source to
 /// enumerate the read SUBSET from. The pinned count is the pragmatic guard; the
 /// daemon still rejects an unknown verb, so a typo'd row fails on send.
-const READ_VERB_COUNT: usize = 40;
+const READ_VERB_COUNT: usize = 41;
 
 /// Every read verb, with arguments that resolve against the fixture. The list
 /// IS the catalog: a read added without a row here is a read the compliance
@@ -164,6 +187,9 @@ fn every_read() -> Vec<(&'static str, Value)> {
         ("frontmatter", json!({ "path": hub })),
         ("grep", json!({ "query": "Rationale" })),
         ("graph_health", json!({})),
+        // The commit read needs a history; the fixture is a git tree with one
+        // commit, so HEAD names it without a hard-coded oid.
+        ("rollback_preview", json!({ "repo": "v", "commit": "HEAD" })),
         ("content", json!({ "path": hub })),
         ("semantic_tokens", json!({ "path": hub })),
         // Deliberately INVALID (`note` requires `title`), so the read answers a

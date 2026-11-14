@@ -674,6 +674,10 @@ enum Request {
     /// scalar shape summary and a full node-edge payload folded from the
     /// backlink index]].
     GraphShape(GraphShapeArgs),
+    /// What reverting one commit would touch, without touching anything: the
+    /// paths the commit changed, whether each still holds its bytes, and whether
+    /// a later commit rewrote it. Additive, no `schema_version` bump.
+    RollbackPreview(RollbackPreviewArgs),
     /// The graph's problems joined in one answer: directed cycles (SCCs with more
     /// than one node, plus self-loops), dead ends (no outbound edge), sources (no
     /// inbound edge), broken links (reference diagnostics), and the most central
@@ -1869,6 +1873,21 @@ struct FilesArgs {
     limit: Option<usize>,
     /// Page start: skip this many entries. Absent is 0.
     offset: Option<usize>,
+}
+
+/// Args for the `rollback_preview` read: what reverting one commit would touch.
+///
+/// The engine already records what each mutation committed; this read answers the
+/// question a caller asks BEFORE undoing anything: which paths the revert would
+/// write, whether each still holds the commit's own bytes, and whether a later
+/// commit has rewritten it. It never writes.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RollbackPreviewArgs {
+    /// The member whose working tree holds the commit.
+    repo: String,
+    /// The commit to preview reverting.
+    commit: String,
 }
 
 /// Args for the `graph_health` read: the graph's problems in one answer.
@@ -8572,6 +8591,136 @@ fn file_history_git(abs: Option<PathBuf>) -> Vec<FileHistoryDto> {
         .collect()
 }
 
+/// The `rollback_preview` read: what a revert of one commit would touch.
+///
+/// Reads only. The answer is a plan, not an action: it names the paths, what a
+/// revert would do to each (restore the parent's bytes, or delete a path the
+/// commit added), and whether the path is still safe (clean and untouched since).
+/// A caller that wants the revert itself asks the mutation channel, and gets the
+/// same saga guarantees as any other write.
+async fn rollback_preview(handle: &EngineHandle, repo: String, commit: String) -> Response {
+    if repo.is_empty() {
+        return Response::invalid("`repo` must not be empty");
+    }
+    if commit.is_empty() {
+        return Response::invalid("`commit` must not be empty");
+    }
+    let entry_root = handle.root().to_path_buf();
+    let cache_root = handle.package_cache_root().map(Path::to_path_buf);
+    let wanted = repo.clone();
+    let root = handle.read(move |v| {
+        let members = wire::introspect_members(v, &entry_root, cache_root.as_deref());
+        members
+            .members
+            .iter()
+            .find(|m| m.repo == wanted)
+            .map(|m| PathBuf::from(&m.root))
+    });
+    let (version, root) = match root {
+        Read::NotReady => return Response::not_ready(),
+        Read::Ready { version, value } => (version, value),
+    };
+    let Some(root) = root else {
+        return Response::invalid(format!("unknown workspace member: {repo}"));
+    };
+    let report = tokio::task::spawn_blocking(move || rollback_preview_git(&root, &commit))
+        .await
+        .expect("rollback_preview task never panics");
+    match report {
+        Ok(report) => enveloped(
+            "rollback_preview",
+            Read::Ready {
+                version,
+                value: report,
+            },
+        ),
+        Err(error) => Response::invalid(error),
+    }
+}
+
+/// What a revert of `commit` would touch, resolved from git alone.
+fn rollback_preview_git(root: &Path, commit: &str) -> Result<RollbackPreviewView, String> {
+    let git = crate::gitwriter::ShellGit;
+    let Some((subject, parents)) = git
+        .commit_summary(root, commit)
+        .map_err(|e| format!("could not read commit {commit}: {}", e.message))?
+    else {
+        return Err(format!("commit {commit} is not present in this member's history"));
+    };
+    let parent = parents.first().cloned();
+    let paths = git
+        .changed_paths(root, commit)
+        .map_err(|e| format!("could not list the paths of {commit}: {}", e.message))?;
+    let mut entries = Vec::with_capacity(paths.len());
+    let mut safe = true;
+    for path in paths {
+        // What a revert would do here: put the parent's bytes back, or delete a
+        // path this commit introduced.
+        let at_parent = match &parent {
+            Some(parent) => git
+                .read_at_commit(root, parent, &path)
+                .map_err(|e| format!("could not read {} at {parent}: {}", path.display(), e.message))?,
+            None => None,
+        };
+        let action = if at_parent.is_some() { "restore" } else { "delete" };
+        let dirty = !git
+            .is_clean(root, std::slice::from_ref(&path))
+            .map_err(|e| format!("could not check {}: {}", path.display(), e.message))?;
+        let moved_on = git
+            .changed_since(root, commit, &path)
+            .map_err(|e| format!("could not check {} history: {}", path.display(), e.message))?;
+        let state = if dirty {
+            safe = false;
+            "dirty"
+        } else if moved_on {
+            safe = false;
+            "changed_since"
+        } else {
+            "clean"
+        };
+        entries.push(RollbackPathView {
+            path: path.display().to_string(),
+            action,
+            state,
+        });
+    }
+    Ok(RollbackPreviewView {
+        repo: root.to_string_lossy().into_owned(),
+        commit: commit.to_owned(),
+        subject,
+        parent,
+        paths: entries,
+        safe,
+    })
+}
+
+/// One path a revert would touch.
+#[derive(Debug, Serialize)]
+struct RollbackPathView {
+    path: String,
+    /// What the revert would do: `restore` the parent's bytes, or `delete` a path
+    /// the commit introduced.
+    action: &'static str,
+    /// `clean` (still the commit's own bytes, no later commit touched it),
+    /// `dirty` (uncommitted changes on disk), or `changed_since` (a later commit
+    /// rewrote it).
+    state: &'static str,
+}
+
+/// The whole answer: a plan a caller reads before deciding.
+#[derive(Debug, Serialize)]
+struct RollbackPreviewView {
+    repo: String,
+    commit: String,
+    subject: String,
+    /// The parent a revert would diff against; null for a root commit.
+    parent: Option<String>,
+    paths: Vec<RollbackPathView>,
+    /// Whether every path is `clean`, so a revert would apply without a human
+    /// deciding anything.
+    safe: bool,
+}
+
 /// The default `recent_commits` count cap, applied when the request gives
 /// NEITHER `limit` nor `since`, so the read always bounds rather than streaming
 /// an unbounded merged log.
@@ -11143,6 +11292,7 @@ async fn handle_request(handle: &EngineHandle, req: Request, shutdown_tx: &Shutd
         ),
         Request::CommitMeta { commits } => commit_meta(handle, commits).await,
         Request::FileHistory { path, repo } => file_history(handle, path, repo).await,
+        Request::RollbackPreview(args) => rollback_preview(handle, args.repo, args.commit).await,
         Request::RecentCommits {
             members,
             limit,

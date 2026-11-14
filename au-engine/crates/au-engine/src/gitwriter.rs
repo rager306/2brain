@@ -604,6 +604,60 @@ impl ShellGit {
         )
     }
 
+    /// The subject and parent list of one commit, `git show -s`.
+    ///
+    /// `None` when the commit is not in this store, the same "empty stream"
+    /// contract as [`ShellGit::file_history`]. Parents are listed in git's order,
+    /// so `parents[0]` is the first parent a revert would diff against.
+    pub(crate) fn commit_summary(
+        &self,
+        repo: &Path,
+        commit: &str,
+    ) -> Result<Option<(String, Vec<String>)>, GitWriteError> {
+        let out = self.git_bytes(
+            repo,
+            &[os("show"), os("-s"), os("--format=%s%x00%P"), os(commit)],
+        )?;
+        Ok(out.map(|bytes| {
+            let text = String::from_utf8_lossy(&bytes);
+            let mut parts = text.trim_end().split('\0');
+            let subject = parts.next().unwrap_or_default().trim().to_owned();
+            let parents = parts
+                .next()
+                .unwrap_or_default()
+                .split_whitespace()
+                .map(str::to_owned)
+                .collect();
+            (subject, parents)
+        }))
+    }
+
+    /// Whether any commit in `from..HEAD` touched `path`.
+    ///
+    /// The "has this file moved on since" witness a rollback preview needs: a
+    /// commit that is still the tip for its paths can be reverted cleanly, one
+    /// whose paths have been rewritten cannot without a human deciding. Asks git
+    /// for one oid, so an empty answer means untouched rather than unreadable.
+    pub(crate) fn changed_since(
+        &self,
+        repo: &Path,
+        from: &str,
+        path: &Path,
+    ) -> Result<bool, GitWriteError> {
+        let out = self.git_bytes(
+            repo,
+            &[
+                os("log"),
+                os("-1"),
+                os("--format=%H"),
+                os(format!("{from}..HEAD")),
+                os("--"),
+                path.as_os_str().to_owned(),
+            ],
+        )?;
+        Ok(out.is_some_and(|bytes| !bytes.is_empty()))
+    }
+
     /// Undo a revert that could not be completed, touching only what it disturbed.
     ///
     /// **Not `git revert --abort`, and the reason is measured rather than
@@ -643,6 +697,9 @@ impl ShellGit {
             repo,
             &[
                 os("diff-tree"),
+                // `--root` so a ROOT commit reports its paths: without it
+                // diff-tree prints nothing for the first commit of a history.
+                os("--root"),
                 os("--no-commit-id"),
                 os("--name-only"),
                 os("-r"),
