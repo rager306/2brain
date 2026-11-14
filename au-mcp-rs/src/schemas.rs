@@ -210,6 +210,55 @@ pub(crate) fn batch_schema() -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
+/// The output schema of `au_subtypes`: the base it was asked about plus the
+/// resolved list, which the engine returns as two keys rather than one envelope.
+pub(crate) fn subtypes_schema() -> Arc<serde_json::Map<String, Value>> {
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": {
+                "base": {"type": "string", "description": "the base the answer is about"},
+                "subtypes": {"type": "array", "description": "direct and transitive subtypes"}
+            },
+            "required": ["base", "subtypes"],
+            "additionalProperties": false,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
+/// The output schema of `au_reconcile`: a flat verdict, not an envelope. The
+/// engine answers `outcome` with the current hash and commit beside it.
+pub(crate) fn reconcile_schema() -> Arc<serde_json::Map<String, Value>> {
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": {
+                "outcome": {
+                    "type": "string",
+                    "enum": ["applied", "not_applied"],
+                    "description": "whether the interrupted write landed"
+                },
+                "current_hash": {
+                    "type": ["string", "null"],
+                    "description": "the file's hash now; null when it does not exist"
+                },
+                "current_commit": {
+                    "type": ["string", "null"],
+                    "description": "HEAD of the owning repo now; null off-git"
+                }
+            },
+            "required": ["outcome", "current_hash", "current_commit"],
+            "additionalProperties": false,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
 /// The output schema of `au_grep`: one page of matches plus the totals that make
 /// the page interpretable.
 pub(crate) fn grep_schema() -> Arc<serde_json::Map<String, Value>> {

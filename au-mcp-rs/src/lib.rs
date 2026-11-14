@@ -798,7 +798,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = crate::schemas::envelope_schema("subtypes"),
+        output_schema = crate::schemas::subtypes_schema(),
     )]
     async fn au_subtypes(
         &self,
@@ -2557,7 +2557,7 @@ impl Server {
             destructive_hint = false,
             idempotent_hint = true
         ),
-        output_schema = crate::schemas::envelope_schema("reconcile"),
+        output_schema = crate::schemas::reconcile_schema(),
     )]
     async fn au_reconcile(
         &self,
