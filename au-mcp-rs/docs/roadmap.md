@@ -145,7 +145,7 @@ Honest ledger, so a reader does not have to infer the gaps from the evidence fil
 
 | gap | why it is open |
 |---|---|
-| a model turn over **recovery**: lost reply → `au_reconcile`, a compensating `au_batch`, an `au_rollback_preview` plan | `scripts/mutation-turn.sh` now proves the granted write (read → hash → write → engine commit) and the read-only refusal. Recovery is still exercised only by tests against a fake engine |
+| recovery through a **model**: lost reply → `au_reconcile`, a compensating `au_batch`, an `au_rollback_preview` plan | `scripts/lost-reply.sh` now proves the lost-reply path against a real engine (one `outcome_unknown`, `applied` with the engine's real `HEAD`, exactly one commit), and `scripts/mutation-turn.sh` proves the granted write and the read-only refusal through a model. A model choosing reconcile is still unexercised, as are compensating batches and rollback |
 | `2026-07-28` on a third-party client | only our own tests reach that revision; the installed clients request `2025-06-18` |
 | Codex and Cursor model turns | Codex has no non-interactive health check; Cursor needs an API key this host does not have |
 | resource subscriptions | not declared, by decision: `au_watch` gives every client the change signal without a second lifecycle. A client that genuinely needs `notifications/resources/updated` would reopen the question |
