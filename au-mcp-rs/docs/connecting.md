@@ -16,7 +16,7 @@ RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
 Use `arsumbris mcp <socket>` everywhere below; `au-mcp-rs <socket>` is the same
 server with the same flags, kept so an existing configuration keeps working.
 
-The result is one self-contained executable (5 MB, dynamically linked only to
+The result is one self-contained executable (6 MB, dynamically linked only to
 `libc`, `libm`, `libgcc_s`). It has no runtime, interpreter, or package
 dependencies; the engine daemon is a separate process it talks to over a Unix
 socket.
@@ -117,9 +117,11 @@ shape, not the handshake.
 
 ## 4. Read-only by default
 
-Without `--allow-mutations` the three mutating tools are absent from
-`tools/list` and refused before the engine is contacted. To grant writes, pass a
-policy file and keep the allowlist narrow:
+Without `--allow-mutations` the 16 mutating tools are absent from `tools/list`
+and refused before the engine is contacted. `allow_composition` and
+`allow_workspace_shape` are separate grants, each requiring `allow_mutations`
+and independent of the other. To grant writes, pass a policy file and keep the
+allowlist narrow:
 
 ```json
 {
@@ -148,8 +150,10 @@ is the OS user that owns the engine socket.
 | `--payload structured` | no text block, for clients that read `structuredContent` and would otherwise pay twice |
 | `--payload text` | no `structuredContent` |
 
-Measured discovery cost on the live workspace: 20 636 chars in `full`, 8 718 in
-`concise` (see `docs/progressive-disclosure.md`).
+Measured discovery cost on the live workspace: 75 015 chars in `full` and
+26 323 in `concise` for the 51-tool surface with all grants; a read-only launch
+advertises 35 tools at 50 184 and 16 881 chars (see
+`docs/progressive-disclosure.md`).
 
 ## 6. Troubleshooting
 

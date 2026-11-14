@@ -1,10 +1,11 @@
 # Tools
 
-50 tools: 29 engine reads, 5 derived reads and discovery helpers, and 16
-mutations that exist only when the launch grants them (13 with the mutation
-grant, 2 more with composition, 3 more with workspace shape). Every result is the
-engine's own object under the read's key, and carries
-`_meta["io.arsumbris/engineVersion"]`.
+51 tools: 29 engine reads, 6 derived reads and observability helpers, and 16
+mutations that exist only when the launch grants them (11 with the mutation
+grant, 2 more with composition, 3 more with workspace shape). The three grants
+are independent, and composition and workspace shape each require
+`allow_mutations`. Every result is the engine's own object under the read's key,
+and carries `_meta["io.arsumbris/engineVersion"]`.
 
 ## Discovery
 
@@ -42,6 +43,7 @@ a mutation's schema.
 | `au_anchors` | `repo`, `path` | every heading with text, level, and span; null when the target does not resolve, `[]` when it has no headings |
 | `au_block_ids` | `repo`, `path` | every addressable id with kind (`record`/`typed_block`/`marker`) and type claim; duplicates included |
 | `au_references` | `repo`, `path`, `direction?` | `out`, `in`, or both (default); answers `references_out` and/or `references_in` |
+| `au_follow` | `repo`, `origin_path`, `target`, `peek?` | resolves one wikilink string as if it appeared in `origin_path`: `follow.target`, `follow.resolved`, `follow.referent`, the chosen `resolve_*` fields, and with `peek` (default true) the addressed line as `snippet` |
 | `au_neighborhood` | `repo`, `path`, `direction?`, `depth?`, `kinds?`, `scope?`, `max_nodes?` | bounded N-hop walk returning `{nodes, edges, truncated}`; past depth 1 the engine requires `kinds` |
 | `au_instances` | `limit?`, `offset?` | every resolved instance with its shape and values; the engine sends all (942 live), so paging adds `total`/`offset`/`next_offset` beside its `count` |
 | `au_candidates` | `summary?`, `limit?`, `offset?` | files that satisfy a type without claiming it |
@@ -53,20 +55,24 @@ a mutation's schema.
 | tool | arguments | notes |
 |---|---|---|
 | `au_files` | `repo?`, `scope?`, `limit`, `offset` | default scope `all`; ordered by path components; absolute paths possible |
+| `au_children` | `repo`, `path` | a directory's direct files and subdirectories (`dir_entries`), hidden excluded, catalogue-derived; null when the directory does not resolve |
 | `au_rollback_preview` | `repo`, `commit` | what reverting that commit would touch: per path `action` (`restore` or `delete`) and `state` (`clean`, `dirty`, `changed_since`), plus `safe` — false when any path is dirty or superseded. Read-only: a plan, not an action |
 | `au_graph_health` | `repo?`, `scope?`, `limit` | cycles, dead ends, sources, isolated files, broken links, and the most central nodes in one report; counts cover the whole graph, lists are capped (default 20, max 200) |
+| `au_watch` | `timeout_ms` | waits up to `timeout_ms` (default 10000, max 30000) for the next rebuild and returns its net file delta: `added`, `removed`, `modified`, `version`. A timeout is `timed_out: true`, an ordinary answer. It holds the call, so keep the timeout short |
 | `au_grep` | `query`, `repo?`, `scope?`, `case_sensitive?`, `limit`, `offset` | literal (not regex) search, one match per line with line and character column; case-insensitive unless asked; `total` covers the whole scanned set and `skipped_files` counts what the bounds left out (above 1 MiB, or binary); default limit 20, max 200 |
 | `au_hubs` | `repo?`, `scope?`, `limit`, `offset` | default limit 20; counts include edges from outside the scope |
 | `au_diagnostics` | `repo?`, `severity?`, `code?`, `scope?`, `limit`, `offset` | filters AND; every severity unless one is named |
 | `au_content` | `repo`, `path`, `max_chars?` | `{content: {text, hash, commit} \| null}`; with `max_chars` the text is windowed and the answer says `truncated`, `total_chars`, `next_offset`; the hash always covers the whole file |
 | `au_instances_of` | `type_name`, `origins?`, `instance?`, `body?`, `limit?`, `offset?` | bare name matches every identity; with paging the answer adds `total`, `offset`, `next_offset` |
+| `au_typed` | `repo`, `path` | classify a path as a typed instance (claim, resolution, closure), a type-def, or a plain note; answers `typed`, `kind`, and the instance fields when present |
+| `au_resolved` | `repo`, `path` | one instance's field values with provenance, claim, closure, and the candidates it could have claimed (`instance`); null when the path is not a parsed instance |
 | `au_validate_value` | `type_name`, `value`, `repo?` | one verdict per identity; unknown type gives `identity: null` with `unknown-type-claim`, never `[]` |
 
 ## Mutations
 
 `au_preview_mutation {repo, path, op, content?, old_string?, new_string?, replace_all?}`
-returns the would-be product and blast radius; it writes nothing and needs no
-hash, but the member must be editable.
+returns the would-be product and blast radius; it writes nothing, needs no
+grant and no hash, but the member must be editable.
 
 `au_create_file {repo, path, content}` makes a file that does not exist yet. It
 has no text to compare against, so its gate replaces the read-then-hash pair with

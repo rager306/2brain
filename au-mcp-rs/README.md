@@ -24,8 +24,8 @@ Two binaries are built from this package:
 
 | binary | role | size |
 |---|---|---|
-| `arsumbris` | **one binary for both halves**: `daemon`, `open`, `members` (the engine) and `mcp`, `info` (this server) | 21 MB |
-| `au-mcp-rs` | the MCP server alone, for an existing configuration that names it | 5 MB |
+| `arsumbris` | **one binary for both halves**: `daemon`, `open`, `members` (the engine) and `mcp`, `info` (this server) | 23 MB |
+| `au-mcp-rs` | the MCP server alone, for an existing configuration that names it | 6 MB |
 
 `arsumbris` delegates the engine subcommands to `au_cli` and the MCP subcommand
 to this crate, so the two halves cannot drift from their standalone binaries.
@@ -42,12 +42,12 @@ RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
 ```
 
 `--info` is the self-description: server name and version, both protocol
-families, the tool surface (21 registered, 18 advertised without a grant), the
+families, the tool surface (51 registered, 35 advertised without a grant), the
 result shape, the available profiles, the launch policy, and — when a socket is
 reachable — `ready`, the engine's wire schema, its version, and the workspace
 size. A bad option exits with status 2 and points at `--help`.
 
-The release binary is a 5 MB ELF executable, dynamically linked only to `libc`,
+The release binary is a 6 MB ELF executable, dynamically linked only to `libc`,
 `libm`, and `libgcc_s`. It needs a running engine daemon and that daemon's
 socket; nothing else.
 
@@ -150,8 +150,10 @@ Two profiles and three payload modes, measured on the live workspace:
 
 | setting | tools/list | tokens (chars/4) |
 |---|---|---|
-| `--tools full` (default) | 20 636 chars | ≈5 159 |
-| `--tools concise` | 8 718 chars | ≈2 179 |
+| `--tools full` (default), 51 tools with all grants | 75 015 chars | ≈18 754 |
+| `--tools full`, 35 tools in a read-only launch | 50 184 chars | ≈12 546 |
+| `--tools concise`, 51 tools with all grants | 26 323 chars | ≈6 581 |
+| `--tools concise`, 35 tools in a read-only launch | 16 881 chars | ≈4 220 |
 | `--payload structured` | halves the payload a client reads when it uses `structuredContent` | |
 
 `au_search_tools` and `au_describe_tool` serve the detail a concise profile
@@ -176,9 +178,8 @@ declares a version is answered by the transport: `-32022` when unsupported,
   closes a connection that stalls for 5 s; shutdown waits 2 s for queued output.
 - Wire checks: schema version 29, frame size (16 MiB), response type, correlation
   id, readiness, result envelope. Oversized frames fail rather than truncate.
-- Only `au_content`, `au_write_file`, `au_edit_file`, and `au_delete_file` send a
-  client path to the engine, after rejecting absolute paths and `..` and joining
-  it to the member's declared root.
+- Every path-taking tool rejects absolute paths and `..`, and resolves the path
+  against the member's declared root before the engine is contacted.
 
 These bound one adapter process; they are not a request rate limit and not a
 substitute for process isolation with untrusted clients.
@@ -186,7 +187,7 @@ substitute for process isolation with untrusted clients.
 ## Tests
 
 ```sh
-RUSTUP_HOME=/root/.rustup cargo +1.99.0 test --offline          # 108 tests
+RUSTUP_HOME=/root/.rustup cargo +1.99.0 test --offline          # 160 tests
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 clippy --offline --locked --all-targets --all-features -- -D warnings
 ```
 
@@ -202,10 +203,10 @@ RUSTUP_HOME=/root/.rustup AU_ENGINE_BIN=../au-engine/target/debug/au \
 
 Captured contracts:
 
-- `tests/fixtures/synthetic-reads/` — every advertised read, captured from a real
-  engine on a disposable repository, paths as `$FIXTURE`, commit ids as
-  `$COMMIT`; the ignored test re-verifies and `tests/fixture_schema.rs` checks the
-  corpus without an engine.
+- `tests/fixtures/synthetic-reads/` — 29 captured reads, from a real engine on a
+  disposable repository, paths as `$FIXTURE`, commit ids as `$COMMIT`; the ignored
+  test re-verifies and `tests/fixture_schema.rs` checks the corpus without an
+  engine.
 - `tests/golden_replay.rs` — production-captured payloads from
   `au-engine/tests-golden` replayed unchanged.
 

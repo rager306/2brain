@@ -14,7 +14,7 @@ authority; every MCP server in front of it is a reader or a gated writer.
 | surface | shape | use it for |
 |---|---|---|
 | `arsumbris-rs` | tools named `au_*`, results are the engine's own JSON | reads, preview, reconcile, gated writes |
-| `arsumbris` | tools named `mcp__*`, results are daemon projections | only when a tool is missing above (shell, glob, grep, rename, host panes) |
+| `arsumbris` | tools named `mcp__*`, results are daemon projections | only when a tool is missing above (shell, glob, pinned read, host panes, `au_type_system`) |
 
 Do not mix their answers in one comparison: the bridge wraps the same facts in
 summaries and paging. See `references/tool-map.md` for the full mapping.
@@ -57,8 +57,10 @@ routing signals, not failures:
 
 **Locate text**
 
-1. `au_files {"repo": "vault", "limit": 50}` — catalogued paths, paged.
-2. `au_content {"repo": "vault", "path": "inbox/note.md"}` — text plus the hash
+1. `au_grep {"query": "<literal phrase>"}` — one match per line across the
+   catalogue; literal, not regex, and paged.
+2. `au_files {"repo": "vault", "limit": 50}` — catalogued paths, paged.
+3. `au_content {"repo": "vault", "path": "inbox/note.md"}` — text plus the hash
    a later write must quote.
 
 **Follow a link or inspect one file's surface**
@@ -101,8 +103,11 @@ field shows up here; fix it before reporting success.
 - Write into `inbox/`; `knowledge/` is the curated pass.
 - Every `[[wiki-link]]` in body and `topics:` must resolve to an existing file
   name before you save.
-- Some reads are unpaged (`au_content`, `au_type_tree`, `au_instances_of`): pass
-  `limit` on the paged ones and expect large answers on the rest.
+- Some reads are unpaged (`au_type_tree`, `au_subtypes`, `au_members`,
+  `au_imports`, `au_validate_value`): expect large answers there. `au_content`
+  takes `max_chars`; `au_instances_of`, `au_instances`, `au_types`, `au_hubs`,
+  `au_diagnostics`, `au_files`, `au_grep`, and `au_candidates` page with
+  `limit`/`offset`.
 - A mutation consumes the recorded read: a second write needs a fresh
   `au_content`, even with the same hash.
 - `au_diagnostics` on the engine returns every severity; the bridge's tool

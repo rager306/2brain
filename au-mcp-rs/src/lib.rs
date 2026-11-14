@@ -76,6 +76,10 @@ fn default_graph_health_limit() -> usize {
     20
 }
 
+fn default_watch_timeout() -> u64 {
+    10_000
+}
+
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct TypesArguments {
@@ -263,6 +267,16 @@ struct BatchArguments {
     /// Operations, applied in order and committed once.
     #[schemars(length(min = 1, max = 50))]
     ops: Vec<BatchOperation>,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct WatchArguments {
+    /// How long to wait for the next change, in milliseconds (default 10000,
+    /// range 1..=30000).
+    #[serde(default = "default_watch_timeout")]
+    #[schemars(range(min = 1, max = 30000))]
+    timeout_ms: u64,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -882,6 +896,34 @@ impl Server {
             });
         }
         self.read(request, "files", ctx).await
+    }
+
+    #[tool(
+        description = "Wait for the next change to the workspace, up to timeout_ms (default 10000, max 30000). Returns the net file delta the engine reports for the first rebuild after the call: added, removed, and modified paths, plus the version. A timeout is an ordinary answer (timed_out true), not an error — call it again to keep watching. It holds the tool call for that long, so keep the timeout short; a client that cannot wait at all should poll au_files and diff on its side.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false
+        ),
+        output_schema = watch_schema(),
+    )]
+    async fn au_watch(
+        &self,
+        Parameters(args): Parameters<WatchArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if !(1..=30_000).contains(&args.timeout_ms) {
+            return return_error("'timeout_ms' must be between 1 and 30000");
+        }
+        let timeout = std::time::Duration::from_millis(args.timeout_ms);
+        tokio::select! {
+            biased;
+            _ = ctx.ct.cancelled() => return_error("watch cancelled"),
+            outcome = watch_engine(&self.socket, timeout) => match outcome {
+                Ok(watch) => success_payload(json!({ "watch": watch }), self.payload),
+                Err(error) => return_error(error),
+            },
+        }
     }
 
     #[tool(
@@ -3819,7 +3861,35 @@ fn envelope_schema(verb: &'static str) -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_rollback_preview`: a plan, path by path.
+/// The output schema of `au_watch`: the delta the engine reported, or a timeout.
+fn watch_schema() -> Arc<serde_json::Map<String, Value>> {
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": {
+                "watch": {
+                    "type": "object",
+                    "properties": {
+                        "added": {"type": "array", "items": {"type": "string"}},
+                        "removed": {"type": "array", "items": {"type": "string"}},
+                        "modified": {"type": "array", "items": {"type": "string"}},
+                        "version": {"type": ["integer", "null"]},
+                        "timed_out": {"type": "boolean"}
+                    },
+                    "required": ["added", "removed", "modified", "timed_out"],
+                    "additionalProperties": false
+                }
+            },
+            "required": ["watch"],
+            "additionalProperties": false,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
+/// The output schema of `au_rollback_preview`/// The output schema of `au_rollback_preview`: a plan, path by path.
 fn rollback_preview_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
         json!({
@@ -4601,25 +4671,8 @@ impl WireError {
     }
 }
 
-async fn exchange(socket: &Path, request: &Value) -> Result<Value, WireError> {
-    let data = serde_json::to_vec(request)
-        .map_err(|e| WireError::Broken(format!("encoding request: {e}")))?;
-    if data.len() > MAX_FRAME_BYTES {
-        return Err(WireError::Broken("request frame too large".into()));
-    }
-    let frame_len = u32::try_from(data.len())
-        .map_err(|_| WireError::Broken("request frame too large".into()))?;
-    let mut stream = UnixStream::connect(socket)
-        .await
-        .map_err(|e| WireError::Broken(format!("connecting to engine: {e}")))?;
-    stream
-        .write_u32(frame_len)
-        .await
-        .map_err(|e| WireError::Broken(format!("writing request length: {e}")))?;
-    stream
-        .write_all(&data)
-        .await
-        .map_err(|e| WireError::Broken(format!("writing request: {e}")))?;
+/// Read one engine frame: a big-endian length, then that many JSON bytes.
+async fn read_frame(stream: &mut UnixStream) -> Result<Value, WireError> {
     let len = stream
         .read_u32()
         .await
@@ -4633,8 +4686,102 @@ async fn exchange(socket: &Path, request: &Value) -> Result<Value, WireError> {
         .read_exact(&mut data)
         .await
         .map_err(|e| WireError::Broken(format!("reading response: {e}")))?;
-    let response: Value = serde_json::from_slice(&data)
-        .map_err(|e| WireError::Broken(format!("invalid response JSON: {e}")))?;
+    serde_json::from_slice(&data)
+        .map_err(|e| WireError::Broken(format!("invalid response JSON: {e}")))
+}
+
+/// Encode one request frame, refusing an oversized one BEFORE any connection is
+/// opened: a request that cannot be sent must not cost the peer a socket.
+fn encode_frame(request: &Value) -> Result<Vec<u8>, WireError> {
+    let data = serde_json::to_vec(request)
+        .map_err(|e| WireError::Broken(format!("encoding request: {e}")))?;
+    if data.len() > MAX_FRAME_BYTES {
+        return Err(WireError::Broken("request frame too large".into()));
+    }
+    Ok(data)
+}
+
+/// Write an encoded frame: a big-endian length, then the JSON bytes.
+async fn write_encoded(stream: &mut UnixStream, data: &[u8]) -> Result<(), WireError> {
+    let frame_len = u32::try_from(data.len())
+        .map_err(|_| WireError::Broken("request frame too large".into()))?;
+    stream
+        .write_u32(frame_len)
+        .await
+        .map_err(|e| WireError::Broken(format!("writing request length: {e}")))?;
+    stream
+        .write_all(data)
+        .await
+        .map_err(|e| WireError::Broken(format!("writing request: {e}")))?;
+    Ok(())
+}
+
+/// Encode and write one request frame.
+async fn write_frame(stream: &mut UnixStream, request: &Value) -> Result<(), WireError> {
+    let data = encode_frame(request)?;
+    write_encoded(stream, &data).await
+}
+
+/// Wait for the next file change the engine reports, or for the deadline.
+///
+/// A watch is a SUBSCRIPTION, not a read: this opens its own connection, skips
+/// the `ack`, and ends at the first `change_event`. The engine's `changes`
+/// channel delivers net file deltas per rebuild, so a caller learns what moved
+/// without polling `au_files` and diffing by hand. Never waits past `timeout`.
+async fn watch_engine(socket: &Path, timeout: Duration) -> Result<Value, String> {
+    let mut stream = UnixStream::connect(socket)
+        .await
+        .map_err(|e| format!("connecting to engine: {e}"))?;
+    write_frame(&mut stream, &json!({"subscribe": "changes", "id": 1}))
+        .await
+        .map_err(|e| e.message())?;
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            return Ok(
+                json!({"added": [], "removed": [], "modified": [], "version": serde_json::Value::Null, "timed_out": true}),
+            );
+        }
+        let frame = match tokio::time::timeout(remaining, read_frame(&mut stream)).await {
+            Err(_) => {
+                return Ok(json!({"added": [], "removed": [], "modified": [],
+                    "version": serde_json::Value::Null, "timed_out": true}));
+            }
+            Ok(Err(error)) => return Err(error.message()),
+            Ok(Ok(frame)) => frame,
+        };
+        match frame.get("type").and_then(Value::as_str) {
+            Some("ack") => continue,
+            Some("change_event") => {
+                let hint = &frame["scope_hint"];
+                return Ok(json!({
+                    "added": hint.get("added").cloned().unwrap_or_else(|| json!([])),
+                    "removed": hint.get("removed").cloned().unwrap_or_else(|| json!([])),
+                    "modified": hint.get("modified").cloned().unwrap_or_else(|| json!([])),
+                    "version": frame.get("at_version").cloned().unwrap_or(Value::Null),
+                    "timed_out": false,
+                }));
+            }
+            Some("error") => {
+                return Err(frame
+                    .get("error")
+                    .and_then(Value::as_str)
+                    .unwrap_or("engine refused the subscription")
+                    .to_owned());
+            }
+            _ => continue,
+        }
+    }
+}
+
+async fn exchange(socket: &Path, request: &Value) -> Result<Value, WireError> {
+    let data = encode_frame(request)?;
+    let mut stream = UnixStream::connect(socket)
+        .await
+        .map_err(|e| WireError::Broken(format!("connecting to engine: {e}")))?;
+    write_encoded(&mut stream, &data).await?;
+    let response = read_frame(&mut stream).await?;
     if response.get("schema_version").and_then(Value::as_u64) != Some(SCHEMA_VERSION) {
         return Err(WireError::Broken(
             "unsupported or missing engine schema_version (expected 29)".into(),

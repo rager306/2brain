@@ -180,6 +180,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_typed",
             "au_types",
             "au_validate_value",
+            "au_watch",
             "au_write_file"
         ]
     );

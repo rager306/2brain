@@ -1,6 +1,6 @@
 # Agent interface: first call and subsequent calls
 
-Measured 2026-11-13 on the production workspace, raw stdio, release build.
+Measured 2026-11-14 on the production workspace, raw stdio, release build.
 "First call" means what a client sees before it picks a tool; "subsequent calls"
 means what one tool invocation costs and returns.
 
@@ -10,17 +10,18 @@ means what one tool invocation costs and returns.
 |---|---|---|
 | `initialize` latency | 14 ms | 10 ms |
 | `instructions` in the initialize result | absent | present: purpose, envelope contract, suggested flow, unpaged reads, mutation policy and `outcome_unknown` |
-| `tools/list` size | 15 874 chars (~4.0k tokens) | 18 598 chars (~4.6k tokens), the growth being `outputSchema` |
-| tools with `annotations` | 16/16 | 16/16 |
-| tools with `outputSchema` | 0/16 | 16/16 |
+| `tools/list` size | 15 874 chars (~4.0k tokens), 16 tools | `50 184` chars (~12.5k tokens), `35 read-only` tools; the growth is `outputSchema` plus the later reads |
+| tools with `annotations` | 16/16 | 34/34 |
+| tools with `outputSchema` | 0/16 | 34/34 |
 | schema strictness | `additionalProperties: false`, `minLength`, `limit` bounds | unchanged |
 
-Adding `outputSchema` costs ~0.6k tokens once per session and buys a declared
-answer shape for every tool, so a client parses the result instead of guessing.
+`outputSchema` is part of that growth: it is paid once per session and buys a
+declared answer shape for every tool, so a client parses the result instead of
+guessing.
 
 For comparison, the existing bridge advertises 49 tools in 42 625 chars
-(~10.7k tokens) with no annotations and no output schemas, and `initialize` takes
-66 ms.
+(≈10 656 tokens) with no annotations and no output schemas, and `initialize`
+takes 66 ms.
 
 ## Subsequent calls
 
@@ -49,7 +50,7 @@ Errors, by case:
 
 Met:
 
-- **one discovery call, cheap**: 4.6k tokens, 1 ms, 16 tools;
+- **one discovery call, cheap**: 12.5k tokens, 35 read-only tools;
 - **self-description**: an `instructions` block plus per-tool descriptions that
   state defaults, limits, and failure behaviour;
 - **closed schemas**: `additionalProperties: false`, `minLength`, bounded

@@ -1,7 +1,7 @@
 # Progressive disclosure and token economy for MCP tools
 
 What the sources actually say, what a Rust MCP server can do with it, and what
-this server now does. Measured numbers are from this repository, 2026-11-13.
+this server now does. Measured numbers are from this repository, 2026-11-14.
 
 ## Sources
 
@@ -131,7 +131,7 @@ tool" loops.
 | annotations | `readOnlyHint` / `destructiveHint` / `idempotentHint` on every tool |
 | result metadata | `_meta["io.arsumbris/engineVersion"]` |
 | stable names, deterministic order | yes; search sorts by score then name |
-| `tools/list` cursor pagination | not used: 18 tools fit one page |
+| `tools/list` cursor pagination | not used: 51 tools fit one page |
 | `listChanged` | not used: the catalogue is fixed at launch |
 | task-augmented execution | not used: reads finish in milliseconds to seconds |
 | result budgets | `au_content` (`max_chars`, explicit truncation fields) and `au_instances_of` (`limit`/`offset`, `total`, `next_offset`) |
@@ -140,16 +140,17 @@ tool" loops.
 
 Live workspace, release build, raw stdio:
 
-| profile | tools | tools/list | tokens (chars/4) | first `search` | first `describe` |
+| profile | tools | tools/list | tokens (chars/4) | `au_search_tools` (query "write") | `au_describe_tool au_batch` |
 |---|---|---|---|---|---|
-| `full` | 18 | 20 636 chars | ≈5 159 | 876 chars | 2 298 chars |
-| `concise` | 18 | 8 718 chars | ≈2 179 | 876 chars | 2 298 chars |
+| `full` | 50 | 75 015 chars | ≈18 412 | 741 chars | 3 064 chars |
+| `concise` | 50 | 26 323 chars | ≈6 487 | 741 chars | 3 064 chars |
 
-−58% at discovery. The break-even rule: describing one tool costs ≈2 300 chars,
-so the concise profile pays as soon as fewer than ~5 definitions are needed, and
-pays more and more as the catalogue grows. With 18 tools it is a modest win for
-narrow tasks and a loss for a session that needs everything; with 200 tools it is
-the difference between a usable agent and a blown context.
+−65% at discovery. The break-even rule: describing one tool costs between 0.8k
+and 3k chars (the examples above), so the concise profile pays when fewer than
+about 20 full definitions are needed, and pays less as a session describes more
+of the catalogue. With 51 tools it is a clear win for narrow tasks and still a
+loss for a session that describes most of the catalogue; with 200 tools it is the
+difference between a usable agent and a blown context.
 
 For reference, the existing Python bridge advertises 49 tools in 42 625 chars
 (≈10 656 tokens) with no annotations and no output schemas.
