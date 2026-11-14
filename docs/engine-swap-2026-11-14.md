@@ -75,3 +75,32 @@ HOME=/root /root/.arsumbris/bin/au daemon status /root/vault
 The Node layer does not need a restart: it reconnects per request (verified by
 the bridge read above, which ran while the old daemon was already gone). Schema
 version stayed 29 on both sides, so no client had to be reconfigured.
+
+
+## Second swap, same day — the `batch` verb
+
+`grep` was live at 13:07; `batch` (engine verb + `au_batch`) landed at `59e94db`
+afterwards, so the served binary was one feature behind again. Same protocol, with
+one correction learned from the first round.
+
+| fact | value |
+|---|---|
+before | `/root/.arsumbris/bin/au`, sha256 `97826aae…` (the 13:07 swap) |
+after | sha256 `95a55cae9709bde6f45bb6cbdbbc2325e8ce70f08840d630b036ddd9904ee8d5` |
+built from | monorepo `59e94db` |
+rollback artifact | `/root/backups/au-20261114-post-grep` |
+
+**The correction:** the first attempt at this comparison compared a fresh copy
+against a baseline captured twenty minutes earlier, and four graph reads
+(`overview`, `hubs`, `hubs_all`, `graph_shape`) differed. They differed because the
+digest loop had written three notes at 13:24 — the live index was stale against
+the copy, not the build against the build. The vault is a living corpus: capture
+the baseline and make the copy back to back, then compare. Done that way, all
+twelve reads are identical again.
+
+Verified live after the restart: the same twelve reads unchanged from the fresh
+baseline, `grep` answering, and `{"mutate":"batch","ops":[]}` answering
+`` `ops` is empty `` — which proves the daemon serves the verb, where an older
+engine says `unknown variant`. The bridge path (`mcp__au_overview`) answers with
+`diagnostic_counts.total = 0`, `/root/vault` keeps HEAD `00e0743` and its five
+dirty files, and `au-health.sh` reports `engine=1 mcp=1 action=ok`.
