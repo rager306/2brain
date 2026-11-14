@@ -80,6 +80,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             .arg(socket)
             .arg("--allow-mutations")
             .arg("--allow-composition")
+            .arg("--allow-workspace-shape")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -131,6 +132,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
         names,
         [
             "au_add_dep",
+            "au_add_workspace_member",
             "au_anchors",
             "au_assign_block_id",
             "au_block_ids",
@@ -157,6 +159,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_reconcile",
             "au_references",
             "au_remove_dep",
+            "au_remove_workspace_member",
             "au_rename",
             "au_rename_block_id",
             "au_rename_type",
@@ -164,6 +167,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_resolved",
             "au_search_tools",
             "au_semantic_tokens",
+            "au_set_workspace_member_role",
             "au_subtypes",
             "au_top_level_dirs",
             "au_type",
@@ -279,6 +283,9 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
                 | "au_remove_dep"
                 | "au_inline"
                 | "au_promote"
+                | "au_add_workspace_member"
+                | "au_remove_workspace_member"
+                | "au_set_workspace_member_role"
         ) {
             assert!(!read_only, "the write tool must not claim to be read-only");
             assert_eq!(tool["annotations"]["destructiveHint"], true);

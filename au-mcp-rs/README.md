@@ -95,6 +95,12 @@ au-mcp-rs <socket> --policy /etc/au-policy.json \
   verbs (`au_add_dep`, `au_remove_dep`). They author `.arsumbris/repo.yaml`, so a
   launch may trust writes to notes and still refuse to reshape the workspace.
   `--allow-composition` on the command line implies `--allow-mutations`.
+- `allow_workspace_shape` (default `false`) — a third grant for the three
+  member verbs (`au_add_workspace_member`, `au_remove_workspace_member`,
+  `au_set_workspace_member_role`). They change *which* members are served, so a
+  mistake here alters every later read, not one note. `--allow-workspace-shape`
+  implies `--allow-mutations`; the grants are independent of one another, so a
+  launch can reshape members without touching dependencies or vice versa.
 - `members` — exact allowlist of members a mutation may target; anything else is
   refused before the engine is contacted.
 - `audit` — `"stderr"` (default), `{"file": "..."}` or `"disabled"`; `"disabled"`

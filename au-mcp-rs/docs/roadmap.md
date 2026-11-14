@@ -1,8 +1,8 @@
 # Roadmap
 
-Status on 2026-11-13, HEAD `96715e0`. Verified against the code, not the notes:
-42 tools registered (31 advertised read-only, 11 mutations), 26 captured fixtures,
-142 tests green, ten documents.
+Status on 2026-11-13, HEAD `aba2b4f`. Verified against the code, not the notes:
+45 tools registered (31 advertised read-only, 14 mutations), 26 captured fixtures,
+144 tests green, ten documents.
 
 ## Done — with evidence
 
@@ -46,9 +46,12 @@ Status on 2026-11-13, HEAD `96715e0`. Verified against the code, not the notes:
 - [x] `inline`, `promote` — two-file gate: both files armed, one slot for the pair
 - [x] `rename_type` — type-hash gate (the type has no path; its `hash` from au_type is the freshness check)
 - [x] `add_dep`, `remove_dep` — behind a **second grant** (`allow_composition`), because they author `.arsumbris/repo.yaml`
-- [ ] `add_workspace_member`, `remove_workspace_member`, `set_workspace_member_role`
-      — these change what the workspace *is*; they need a policy beyond the
-      member allowlist before they exist at all
+- [x] `add_workspace_member`, `remove_workspace_member`, `set_workspace_member_role`
+      — behind a **third grant** (`allow_workspace_shape`): they change which
+      members the workspace serves, so a mistake alters every later read rather
+      than one note. `tests/composition.rs` pins that the grant is independent of
+      the composition grant and that a launch without it neither advertises nor
+      accepts the three verbs.
 
 ## Phase C — the host decision
 

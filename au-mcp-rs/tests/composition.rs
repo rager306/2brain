@@ -251,3 +251,80 @@ fn composition_needs_its_own_grant() {
             .any(|tool| tool["name"] == "au_write_file")
     );
 }
+
+#[test]
+fn workspace_shape_needs_its_own_grant() {
+    let temp = tempfile::tempdir().unwrap();
+    let socket = temp.path().join("engine.sock");
+    UnixListener::bind(&socket).unwrap();
+    // Mutations plus composition, but no workspace-shape grant.
+    let mut client = Client::start(&socket, &["--allow-mutations", "--allow-composition"]);
+    let tools =
+        client.request(json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}))["result"]
+            ["tools"]
+            .clone();
+    for name in [
+        "au_add_workspace_member",
+        "au_remove_workspace_member",
+        "au_set_workspace_member_role",
+    ] {
+        assert!(
+            !tools
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|tool| tool["name"] == name),
+            "{name} is advertised without the workspace-shape grant"
+        );
+        let refused = client.request(json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":name,"arguments":{"repo":"fixture","name":"x","role":"edit"}}}));
+        assert!(
+            refused["error"]["message"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("workspace"),
+            "{refused}"
+        );
+    }
+    // Composition tools stay available with only that grant.
+    assert!(
+        tools
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool["name"] == "au_add_dep")
+    );
+}
+
+#[test]
+fn add_workspace_member_sends_the_role_and_root() {
+    let temp = tempfile::tempdir().unwrap();
+    let socket = temp.path().join("engine.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let handle = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        assert_eq!(read_request(&mut stream)["read"], "members");
+        frame(
+            &mut stream,
+            json!({"members":[{"repo":"fixture","editable":true,"root":ROOT}]}),
+        );
+        let (mut stream, _) = listener.accept().unwrap();
+        assert_eq!(
+            read_request(&mut stream),
+            json!({"mutate":"add_workspace_member","id":1,"name":"peer","role":"discover","root":ROOT})
+        );
+        frame(
+            &mut stream,
+            json!({"path":"/tmp/fixture/.arsumbris/workspace.yaml","hash":"h2"}),
+        );
+    });
+    let mut client = Client::start(&socket, &["--allow-mutations", "--allow-workspace-shape"]);
+    let result = client.call(
+        2,
+        "au_add_workspace_member",
+        json!({"repo":"fixture","name":"peer","role":"discover"}),
+    );
+    assert_ne!(result["isError"], true, "{result}");
+    drop(client);
+    handle.join().unwrap();
+    drop(temp);
+}

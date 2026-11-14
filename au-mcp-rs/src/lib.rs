@@ -886,6 +886,95 @@ impl Server {
     }
 
     #[tool(
+        description = "Declare a member in one workspace's .arsumbris/workspace.yaml, in the edit or discover list. Changing which members a workspace serves needs the workspace-shape grant on top of mutations; a member already declared in either list is refused. Nothing is fetched or mounted by this.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false
+        ),
+        output_schema = mutation_schema(),
+    )]
+    async fn au_add_workspace_member(
+        &self,
+        Parameters(args): Parameters<AddWorkspaceMemberArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.name.is_empty() {
+            return return_error("'name' must not be empty");
+        }
+        let mut request = json!({
+            "mutate": "add_workspace_member",
+            "id": 1,
+            "name": args.name,
+            "role": workspace_role(args.role),
+        });
+        if let Some(hash) = args.expected_hash {
+            request["expected_hash"] = json!(hash);
+        }
+        self.workspace_mutation("au_add_workspace_member", args.repo, request)
+            .await
+    }
+
+    #[tool(
+        description = "Remove a member from one workspace's edit and discover lists. The containing repo cannot be removed. Needs the workspace-shape grant; changes take effect on the engine's rebuild.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false
+        ),
+        output_schema = mutation_schema(),
+    )]
+    async fn au_remove_workspace_member(
+        &self,
+        Parameters(args): Parameters<RemoveWorkspaceMemberArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.name.is_empty() {
+            return return_error("'name' must not be empty");
+        }
+        let mut request = json!({
+            "mutate": "remove_workspace_member",
+            "id": 1,
+            "name": args.name,
+        });
+        if let Some(hash) = args.expected_hash {
+            request["expected_hash"] = json!(hash);
+        }
+        self.workspace_mutation("au_remove_workspace_member", args.repo, request)
+            .await
+    }
+
+    #[tool(
+        description = "Move a declared member between the edit and discover lists in one commit. Refused when the member is absent, already in that role, or when moving the containing repo into discover. Needs the workspace-shape grant.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false
+        ),
+        output_schema = mutation_schema(),
+    )]
+    async fn au_set_workspace_member_role(
+        &self,
+        Parameters(args): Parameters<SetWorkspaceMemberRoleArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.name.is_empty() {
+            return return_error("'name' must not be empty");
+        }
+        let mut request = json!({
+            "mutate": "set_workspace_member_role",
+            "id": 1,
+            "name": args.name,
+            "role": workspace_role(args.role),
+        });
+        if let Some(hash) = args.expected_hash {
+            request["expected_hash"] = json!(hash);
+        }
+        self.workspace_mutation("au_set_workspace_member_role", args.repo, request)
+            .await
+    }
+
+    #[tool(
         description = "Fold one file into a referrer as an inline record and delete it, as one saga: the chosen [[path]] becomes the record, other whole-file links become local or host refs, and nested ids travel. Needs a prior au_content read of both files and their hashes; a multi-reference host needs `at`.",
         annotations(
             read_only_hint = false,
@@ -2404,6 +2493,58 @@ impl Server {
         CallToolResponse::Complete(result)
     }
 
+    /// A workspace-shape mutation: it authors a workspace's `.arsumbris/
+    /// workspace.yaml`, so it needs the third grant on top of mutations.
+    async fn workspace_mutation(
+        &self,
+        tool: &'static str,
+        repo: String,
+        mut request: Value,
+    ) -> CallToolResult {
+        if repo.is_empty() {
+            return return_error("'repo' must not be empty");
+        }
+        if !self.policy.allow_workspace_shape {
+            self.audit
+                .record(&self.principal, tool, &repo, "denied:workspace_shape");
+            return return_error(
+                "policy/workspace_shape: this launch does not allow changing which members the workspace serves",
+            );
+        }
+        if !self.policy.permits_member(&repo) {
+            self.audit
+                .record(&self.principal, tool, &repo, "denied:member_grant");
+            return return_error(format!(
+                "policy/member_grant: mutations are not allowed in workspace member {repo}"
+            ));
+        }
+        let root = match member_root(&self.socket, &repo).await {
+            Ok(root) => root,
+            Err(error) => return return_error(error),
+        };
+        let Ok(_permit) = self.mutation_slot.clone().try_acquire_owned() else {
+            return return_error("another mutation is in progress; retry later");
+        };
+        request["root"] = json!(root);
+        match read_mutation_with_timeout(&self.socket, request, ENGINE_READ_TIMEOUT).await {
+            Ok(result) => {
+                self.audit.record(&self.principal, tool, &repo, "applied");
+                success_result(result, self.payload)
+            }
+            Err(MutationFailure::Rejected(error)) => {
+                self.audit.record(&self.principal, tool, &repo, "rejected");
+                return_error(error)
+            }
+            Err(MutationFailure::Unknown(error)) => {
+                self.audit
+                    .record(&self.principal, tool, &repo, "outcome_unknown");
+                return_error(format!(
+                    "outcome_unknown: {error}. The workspace change may have landed; read the workspace.yaml again before retrying."
+                ))
+            }
+        }
+    }
+
     /// A composition mutation: it authors a member's `.arsumbris/repo.yaml`, so
     /// it needs the composition grant on top of the mutation grant.
     async fn composition_mutation(
@@ -2546,14 +2687,19 @@ impl Server {
         self.tool_router
             .list_all()
             .into_iter()
-            .filter(|tool| {
-                let name = tool.name.as_ref();
-                if !self.policy.allow_mutations && policy::MUTATION_TOOLS.contains(&name) {
-                    return false;
-                }
-                self.policy.allow_composition || !policy::COMPOSITION_TOOLS.contains(&name)
-            })
+            .filter(|tool| self.may_advertise(tool.name.as_ref()))
             .collect()
+    }
+
+    /// Whether this launch may advertise a tool at all. Each grant is independent:
+    /// mutations, then composition, then workspace shape.
+    fn may_advertise(&self, name: &str) -> bool {
+        let mutation = !policy::MUTATION_TOOLS.contains(&name) || self.policy.allow_mutations;
+        let composition =
+            !policy::COMPOSITION_TOOLS.contains(&name) || self.policy.allow_composition;
+        let workspace =
+            !policy::WORKSPACE_TOOLS.contains(&name) || self.policy.allow_workspace_shape;
+        mutation && composition && workspace
     }
 
     async fn read(
@@ -2647,6 +2793,16 @@ impl ServerHandler for Server {
                 .record(&self.principal, &request.name, "", "denied:composition");
             return Err(rmcp::ErrorData::invalid_request(
                 "changing the workspace composition is disabled by this server's launch policy",
+                None,
+            ));
+        }
+        if !self.policy.allow_workspace_shape
+            && policy::WORKSPACE_TOOLS.contains(&request.name.as_ref())
+        {
+            self.audit
+                .record(&self.principal, &request.name, "", "denied:workspace_shape");
+            return Err(rmcp::ErrorData::invalid_request(
+                "changing which members the workspace serves is disabled by this server's launch policy",
                 None,
             ));
         }
@@ -2793,6 +2949,56 @@ struct RenameArguments {
     /// Hash returned by the au_content read that this change is based on.
     #[schemars(length(min = 1))]
     expected_hash: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct AddWorkspaceMemberArguments {
+    /// Editable member whose `.arsumbris/workspace.yaml` gains the entry.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Name of the member to declare.
+    #[schemars(length(min = 1))]
+    name: String,
+    /// Which list to declare it in.
+    role: WorkspaceRole,
+    /// Compare-and-set hash of the workspace.yaml this change is based on.
+    expected_hash: Option<String>,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct RemoveWorkspaceMemberArguments {
+    /// Editable member whose `.arsumbris/workspace.yaml` loses the entry.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Name of the member to remove.
+    #[schemars(length(min = 1))]
+    name: String,
+    /// Compare-and-set hash of the workspace.yaml this change is based on.
+    expected_hash: Option<String>,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct SetWorkspaceMemberRoleArguments {
+    /// Editable member whose `.arsumbris/workspace.yaml` is authored.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Name of the declared member whose role changes.
+    #[schemars(length(min = 1))]
+    name: String,
+    /// The target list.
+    role: WorkspaceRole,
+    /// Compare-and-set hash of the workspace.yaml this change is based on.
+    expected_hash: Option<String>,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "lowercase")]
+enum WorkspaceRole {
+    Edit,
+    Discover,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -3364,6 +3570,14 @@ async fn read_mutation_with_timeout(
     }
 }
 
+/// The wire spelling of a workspace role.
+fn workspace_role(role: WorkspaceRole) -> &'static str {
+    match role {
+        WorkspaceRole::Edit => "edit",
+        WorkspaceRole::Discover => "discover",
+    }
+}
+
 /// A tool error from a string, so call sites stay one line.
 fn return_error(message: impl Into<String>) -> CallToolResult {
     CallToolResult::error(vec![ContentBlock::text(message.into())])
@@ -3908,7 +4122,7 @@ pub fn build_lines() -> Vec<String> {
     ]
 }
 
-const USAGE: &str = "usage: au-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--allow-composition] [--principal <name>] [--tools full|concise] [--payload both|text|structured]";
+const USAGE: &str = "usage: au-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--allow-composition] [--allow-workspace-shape] [--principal <name>] [--tools full|concise] [--payload both|text|structured]";
 
 const HELP: &str = "\
 au-mcp-rs — MCP stdio server for the arsumbris engine
@@ -3925,6 +4139,7 @@ OPTIONS
     --policy <file>          JSON policy: allow_mutations, members, audit
     --allow-mutations        Grant the mutating tools (off by default)
     --allow-composition      Also grant dependency edits; implies --allow-mutations
+    --allow-workspace-shape  Also grant member add/remove/role; implies --allow-mutations
     --principal <name>       Label for audit records; not authentication
     --tools full|concise     Definition detail in tools/list (default full)
     --payload both|text|structured
@@ -3957,6 +4172,7 @@ fn parse_args(
     let mut policy_path: Option<PathBuf> = None;
     let mut allow_mutations = false;
     let mut allow_composition = false;
+    let mut allow_workspace_shape = false;
     let mut principal = "unknown".to_owned();
     let mut profile = ToolProfile::Full;
     let mut payload = PayloadMode::Both;
@@ -3991,6 +4207,7 @@ fn parse_args(
             }
             "--allow-mutations" => allow_mutations = true,
             "--allow-composition" => allow_composition = true,
+            "--allow-workspace-shape" => allow_workspace_shape = true,
             other if other.starts_with("--") => {
                 return Err(format!("unknown option: {other}. {USAGE}"));
             }
@@ -4013,6 +4230,10 @@ fn parse_args(
     if allow_composition {
         policy.allow_mutations = true;
         policy.allow_composition = true;
+    }
+    if allow_workspace_shape {
+        policy.allow_mutations = true;
+        policy.allow_workspace_shape = true;
     }
     Ok((socket, policy, principal, profile, payload))
 }

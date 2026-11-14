@@ -1,8 +1,10 @@
 # Tools
 
-18 tools: 16 engine reads, 2 discovery helpers, and 3 mutating tools that exist
-only when the launch grants them. Every result is the engine's own object under
-the read's key, and carries `_meta["io.arsumbris/engineVersion"]`.
+45 tools: 26 engine reads, 5 derived reads and discovery helpers, and 14
+mutations that exist only when the launch grants them (11 with the mutation
+grant, 2 more with composition, 3 more with workspace shape). Every result is the
+engine's own object under the read's key, and carries
+`_meta["io.arsumbris/engineVersion"]`.
 
 ## Discovery
 
@@ -81,14 +83,27 @@ at a time) and each is one engine saga:
 | `au_rename_type` | `old_name`, `new_name`, `expected_hash` | renames a type-def and carries every claim, slot, and wikilink; the freshness check is the type's hash |
 | `au_add_dep` / `au_remove_dep` | `repo`, `dep`, `expected_hash?` | author `.arsumbris/repo.yaml`; requires the composition grant |
 
+### Workspace shape
+
+These three change *which* members a workspace serves, so they need
+`allow_workspace_shape` on top of mutations. None of them touches a note, and the
+engine rebuild is what makes the change observable.
+
+| tool | arguments | effect |
+|---|---|---|
+| `au_add_workspace_member` | `repo`, `name`, `role` (`edit` \| `discover`), `expected_hash?` | declares a member in the named list; refuses a name already declared in either list |
+| `au_remove_workspace_member` | `repo`, `name`, `expected_hash?` | drops the name from both lists, and from `disabled:` in the same splice; the containing repo cannot be removed |
+| `au_set_workspace_member_role` | `repo`, `name`, `role`, `expected_hash?` | moves a declared member between the lists in one commit; refuses an absent member, an unchanged role, and moving the host into `discover` |
+
 `au_reconcile {repo, path, expected_hash? | expect_absent?}` answers `applied` or
 `not_applied` with the current hash and commit, and re-arms the guard when the
 file differs, so a deliberate retry needs no extra read.
 
 ## Pagination and size
 
-Paged reads: `au_types`, `au_hubs`, `au_diagnostics`, `au_files`. Unpaged reads
-can be large: `au_type_tree`, `au_content`, `au_instances_of`, `au_validate_value`,
-`au_members`, `au_imports`, `au_subtypes`, `au_preview_mutation`, `au_reconcile`.
+Paged reads: `au_types`, `au_hubs`, `au_diagnostics`, `au_files`, `au_instances`,
+`au_instances_of`, `au_candidates`. Unpaged reads can be large: `au_type_tree`,
+`au_validate_value`, `au_members`, `au_imports`, `au_subtypes`,
+`au_preview_mutation`, `au_reconcile`.
 `au_content` and `au_instances_of` take explicit budgets; the rest are bounded by
 the 16 MiB wire frame, and an oversized frame fails rather than being truncated.

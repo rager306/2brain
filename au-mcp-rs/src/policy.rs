@@ -19,7 +19,7 @@ use std::{
 use serde::Deserialize;
 
 /// Tools that change state. Everything else is a read.
-pub const MUTATION_TOOLS: [&str; 11] = [
+pub const MUTATION_TOOLS: [&str; 14] = [
     "au_write_file",
     "au_edit_file",
     "au_delete_file",
@@ -31,6 +31,9 @@ pub const MUTATION_TOOLS: [&str; 11] = [
     "au_remove_dep",
     "au_inline",
     "au_promote",
+    "au_add_workspace_member",
+    "au_remove_workspace_member",
+    "au_set_workspace_member_role",
 ];
 
 /// Tools that change what the workspace contains, not just a file in it.
@@ -39,6 +42,15 @@ pub const MUTATION_TOOLS: [&str; 11] = [
 /// `allow_mutations`: a launch may trust writes to notes and still refuse to
 /// reshape the workspace's dependency graph.
 pub const COMPOSITION_TOOLS: [&str; 2] = ["au_add_dep", "au_remove_dep"];
+
+/// Tools that change which members the workspace serves. A third grant on top of
+/// mutations: reshaping the workspace is a different trust decision from editing
+/// a note, and a mistake here changes what every later read sees.
+pub const WORKSPACE_TOOLS: [&str; 3] = [
+    "au_add_workspace_member",
+    "au_remove_workspace_member",
+    "au_set_workspace_member_role",
+];
 
 /// Where mutation decisions are written.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -74,6 +86,11 @@ pub struct Policy {
     /// change the workspace's dependency graph, so they are a separate grant.
     #[serde(default)]
     pub allow_composition: bool,
+    /// Whether workspace-shape tools exist (`au_add_workspace_member`,
+    /// `au_remove_workspace_member`, `au_set_workspace_member_role`). They change
+    /// which members are served, so they are a third grant.
+    #[serde(default)]
+    pub allow_workspace_shape: bool,
     /// Members a mutation may target. Absent means every editable member.
     #[serde(default)]
     pub members: Option<Vec<String>>,
@@ -92,6 +109,7 @@ impl Policy {
         Self {
             allow_mutations: false,
             allow_composition: false,
+            allow_workspace_shape: false,
             members: None,
             audit: AuditTarget::Stderr,
         }
@@ -104,6 +122,9 @@ impl Policy {
             .map_err(|error| format!("reading policy {}: {error}", path.display()))?;
         let policy: Self = serde_json::from_str(&text)
             .map_err(|error| format!("parsing policy {}: {error}", path.display()))?;
+        if policy.allow_workspace_shape && !policy.allow_mutations {
+            return Err("policy: 'allow_workspace_shape' requires 'allow_mutations'".into());
+        }
         if policy.allow_composition && !policy.allow_mutations {
             return Err("policy: 'allow_composition' requires 'allow_mutations'".into());
         }

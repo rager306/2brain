@@ -42,7 +42,8 @@ Errors arrive as tool errors with an actionable sentence. Two of them are
 routing signals, not failures:
 
 - `policy/<stage>: ...` — a mutation gate refused. The stage names the fix
-  (`prior_read` = read the file first, `freshness` = re-read for a new hash).
+  (`prior_read` = read the file first, `freshness` = re-read for a new hash,
+  `workspace_shape` = this launch may not change which members are served).
 - JSON-RPC `-32600 mutations are disabled by this server's launch policy` —
   this launch is read-only; do not look for another way to write.
 

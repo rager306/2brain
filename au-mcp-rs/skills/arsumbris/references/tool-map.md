@@ -54,13 +54,17 @@ Mutations (only when the launch grants them): `au_write_file`,
 | `mcp__au_instances` | — | all instances at once; use `au_instances_of` |
 | `mcp__au_list_imports` | `au_imports` | same list |
 
+The bridge declares the workspace-member verbs too, so the adapter now matches it
+there as well — behind a third grant, because reshaping a workspace is a bigger
+trust decision than editing a note.
+
 Bridge-only tools are host and workspace operations rather than engine reads:
 `mcp__bash`, `mcp__glob`, `mcp__grep_files`, `mcp__read_file_pinned`,
 `mcp__write_file`, `mcp__edit_file`, `mcp__delete_file`, `mcp__rename`,
 `mcp__rename_block_id`, `mcp__assign_block_id`, `mcp__inline`, `mcp__promote`,
 `mcp__add_dep`, `mcp__remove_dep`, `mcp__add_workspace_member`,
 `mcp__remove_workspace_member`, `mcp__set_workspace_member_role`,
-`mcp__rename_type`, the `mcp__au_host_*` family, and the graph reads
+`mcp__rename_type` (the adapter has every one of these behind its grants), the `mcp__au_host_*` family, and the graph reads
 (`mcp__au_neighborhood`, `mcp__au_references`, `mcp__au_children`,
 `mcp__au_candidates`, `mcp__au_anchors`, `mcp__au_block_ids`,
 `mcp__au_frontmatter`, `mcp__au_follow`, `mcp__au_resolved`,
