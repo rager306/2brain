@@ -886,6 +886,164 @@ impl Server {
     }
 
     #[tool(
+        description = "Rename a type-def and carry every reference with it, as one saga: the def file moves and claims, slot shapes, meta, and wikilinks follow. expected_hash is the type's hash from au_type, so a stale read cannot rename. The owning member must be allowed by policy.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false
+        ),
+        output_schema = mutation_schema(),
+    )]
+    async fn au_rename_type(
+        &self,
+        Parameters(args): Parameters<RenameTypeArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.old_name.is_empty() {
+            return return_error("'old_name' must not be empty");
+        }
+        if args.new_name.is_empty() {
+            return return_error("'new_name' must not be empty");
+        }
+        if args.expected_hash.is_empty() {
+            return return_error("'expected_hash' must not be empty");
+        }
+        let Ok(_permit) = self.mutation_slot.clone().try_acquire_owned() else {
+            return return_error("another mutation is in progress; retry later");
+        };
+        // The gate: the type still has the hash the caller read, and its owner is
+        // an allowed member. A type has no path, so its hash is the freshness check.
+        let read = read_engine(
+            &self.socket,
+            json!({"read": "type", "id": 1, "name": args.old_name}),
+            "type",
+        )
+        .await;
+        let read = match read {
+            Ok(read) => read,
+            Err(error) => return return_error(error),
+        };
+        let definition = &read.payload["type"];
+        if definition.is_null() {
+            return return_error(format!("unknown type: {}", args.old_name));
+        }
+        let current = definition
+            .get("hash")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if current != args.expected_hash {
+            return return_error(
+                "'expected_hash' does not match the hash returned by the last au_type read",
+            );
+        }
+        let owner = definition
+            .get("repo")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        if !self.policy.permits_member(&owner) {
+            self.audit.record(
+                &self.principal,
+                "au_rename_type",
+                &owner,
+                "denied:member_grant",
+            );
+            return return_error(format!(
+                "policy/member_grant: mutations are not allowed in workspace member {owner}"
+            ));
+        }
+        let request = json!({
+            "mutate": "rename_type",
+            "id": 1,
+            "old_name": args.old_name,
+            "new_name": args.new_name,
+        });
+        match read_mutation_with_timeout(&self.socket, request, ENGINE_READ_TIMEOUT).await {
+            Ok(result) => {
+                self.audit
+                    .record(&self.principal, "au_rename_type", &owner, "applied");
+                success_result(result, self.payload)
+            }
+            Err(MutationFailure::Rejected(error)) => {
+                self.audit
+                    .record(&self.principal, "au_rename_type", &owner, "rejected");
+                return_error(error)
+            }
+            Err(MutationFailure::Unknown(error)) => {
+                self.audit
+                    .record(&self.principal, "au_rename_type", &owner, "outcome_unknown");
+                return_error(format!(
+                    "outcome_unknown: {error}. The rename may have landed; read the type again before retrying."
+                ))
+            }
+        }
+    }
+
+    #[tool(
+        description = "Declare a dependency in one member's .arsumbris/repo.yaml, as a byte splice that keeps comments and order. Nothing is fetched: the peer stays unmounted until a resolve. Requires both the mutation grant and the composition grant; expected_hash is a compare-and-set on that file.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false
+        ),
+        output_schema = mutation_schema(),
+    )]
+    async fn au_add_dep(
+        &self,
+        Parameters(args): Parameters<AddDepArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.dep.is_empty() {
+            return return_error("'dep' must not be empty");
+        }
+        let mut request = json!({
+            "mutate": "add_dep",
+            "id": 1,
+            "name": args.dep,
+        });
+        if let Some(remote) = args.remote {
+            request["remote"] = json!(remote);
+        }
+        if let Some(reference) = args.reference {
+            request["ref"] = json!(reference);
+        }
+        if let Some(hash) = args.expected_hash {
+            request["expected_hash"] = json!(hash);
+        }
+        self.composition_mutation("au_add_dep", args.repo, request)
+            .await
+    }
+
+    #[tool(
+        description = "Remove a dependency from one member's .arsumbris/repo.yaml, as a byte splice that keeps siblings and comments; a sole entry collapses deps to []. Requires both the mutation grant and the composition grant.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false
+        ),
+        output_schema = mutation_schema(),
+    )]
+    async fn au_remove_dep(
+        &self,
+        Parameters(args): Parameters<RemoveDepArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.dep.is_empty() {
+            return return_error("'dep' must not be empty");
+        }
+        let mut request = json!({
+            "mutate": "remove_dep",
+            "id": 1,
+            "name": args.dep,
+        });
+        if let Some(hash) = args.expected_hash {
+            request["expected_hash"] = json!(hash);
+        }
+        self.composition_mutation("au_remove_dep", args.repo, request)
+            .await
+    }
+
+    #[tool(
         description = "Mint a block id for the entity at a byte offset and return the id and its [[target^id]] ref. Inline records gain a ^: key, markdown blocks a trailing ^marker. Assigning to an entity that already has one returns the existing id and writes nothing. Requires a prior au_content read and its hash; one mutation at a time.",
         annotations(
             read_only_hint = false,
@@ -2045,6 +2203,58 @@ impl Server {
         CallToolResponse::Complete(result)
     }
 
+    /// A composition mutation: it authors a member's `.arsumbris/repo.yaml`, so
+    /// it needs the composition grant on top of the mutation grant.
+    async fn composition_mutation(
+        &self,
+        tool: &'static str,
+        repo: String,
+        mut request: Value,
+    ) -> CallToolResult {
+        if repo.is_empty() {
+            return return_error("'repo' must not be empty");
+        }
+        if !self.policy.allow_composition {
+            self.audit
+                .record(&self.principal, tool, &repo, "denied:composition");
+            return return_error(
+                "policy/composition: this launch does not allow changing the workspace composition",
+            );
+        }
+        if !self.policy.permits_member(&repo) {
+            self.audit
+                .record(&self.principal, tool, &repo, "denied:member_grant");
+            return return_error(format!(
+                "policy/member_grant: mutations are not allowed in workspace member {repo}"
+            ));
+        }
+        let root = match member_root(&self.socket, &repo).await {
+            Ok(root) => root,
+            Err(error) => return return_error(error),
+        };
+        let Ok(_permit) = self.mutation_slot.clone().try_acquire_owned() else {
+            return return_error("another mutation is in progress; retry later");
+        };
+        request["root"] = json!(root);
+        match read_mutation_with_timeout(&self.socket, request, ENGINE_READ_TIMEOUT).await {
+            Ok(result) => {
+                self.audit.record(&self.principal, tool, &repo, "applied");
+                success_result(result, self.payload)
+            }
+            Err(MutationFailure::Rejected(error)) => {
+                self.audit.record(&self.principal, tool, &repo, "rejected");
+                return_error(error)
+            }
+            Err(MutationFailure::Unknown(error)) => {
+                self.audit
+                    .record(&self.principal, tool, &repo, "outcome_unknown");
+                return_error(format!(
+                    "outcome_unknown: {error}. The composition change may have landed; read the member's repo.yaml again before retrying."
+                ))
+            }
+        }
+    }
+
     /// One file-addressed read: validate, resolve the member root, read.
     async fn file_read(
         &self,
@@ -2136,7 +2346,11 @@ impl Server {
             .list_all()
             .into_iter()
             .filter(|tool| {
-                self.policy.allow_mutations || !policy::MUTATION_TOOLS.contains(&tool.name.as_ref())
+                let name = tool.name.as_ref();
+                if !self.policy.allow_mutations && policy::MUTATION_TOOLS.contains(&name) {
+                    return false;
+                }
+                self.policy.allow_composition || !policy::COMPOSITION_TOOLS.contains(&name)
             })
             .collect()
     }
@@ -2222,6 +2436,16 @@ impl ServerHandler for Server {
                 .record(&self.principal, &request.name, "", "denied");
             return Err(rmcp::ErrorData::invalid_request(
                 "mutations are disabled by this server's launch policy",
+                None,
+            ));
+        }
+        if !self.policy.allow_composition
+            && policy::COMPOSITION_TOOLS.contains(&request.name.as_ref())
+        {
+            self.audit
+                .record(&self.principal, &request.name, "", "denied:composition");
+            return Err(rmcp::ErrorData::invalid_request(
+                "changing the workspace composition is disabled by this server's launch policy",
                 None,
             ));
         }
@@ -2368,6 +2592,51 @@ struct RenameArguments {
     /// Hash returned by the au_content read that this change is based on.
     #[schemars(length(min = 1))]
     expected_hash: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct RenameTypeArguments {
+    /// The type's current name, bare or `name::repo` when two owners exist.
+    #[schemars(length(min = 1))]
+    old_name: String,
+    /// The owner's new bare name; must not already name a type there.
+    #[schemars(length(min = 1))]
+    new_name: String,
+    /// The type's `hash` from au_type, so a stale read cannot rename.
+    #[schemars(length(min = 1))]
+    expected_hash: String,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct AddDepArguments {
+    /// Editable member whose `.arsumbris/repo.yaml` gains the entry.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Name of the dependency to declare.
+    #[schemars(length(min = 1))]
+    dep: String,
+    /// Where the peer lives, when it is not local.
+    remote: Option<String>,
+    /// Peer revision to track.
+    #[serde(rename = "ref")]
+    reference: Option<String>,
+    /// Compare-and-set hash of the repo.yaml this change is based on.
+    expected_hash: Option<String>,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct RemoveDepArguments {
+    /// Editable member whose `.arsumbris/repo.yaml` loses the entry.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Name of the dependency to remove.
+    #[schemars(length(min = 1))]
+    dep: String,
+    /// Compare-and-set hash of the repo.yaml this change is based on.
+    expected_hash: Option<String>,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -3157,6 +3426,26 @@ async fn absolute_member_path(socket: &Path, repo: &str, relative: &str) -> Resu
         .ok_or_else(|| "resolved path is not valid UTF-8".to_owned())
 }
 
+/// A member's declared root, without joining a relative path.
+async fn member_root(socket: &Path, repo: &str) -> Result<String, String> {
+    let members = read_engine(
+        socket,
+        json!({"read": "members", "id": 1, "repo": repo}),
+        "members",
+    )
+    .await?;
+    members
+        .payload
+        .get("members")
+        .and_then(Value::as_array)
+        .and_then(|members| members.iter().find(|m| m.get("repo") == Some(&json!(repo))))
+        .and_then(|member| member.get("root"))
+        .and_then(Value::as_str)
+        .filter(|root| !root.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| format!("workspace member {repo} has no local root"))
+}
+
 /// Read one member's file text by joining its declared root with a
 /// client-supplied relative path. The path is validated by the caller.
 async fn read_content(socket: &Path, repo: &str, relative: &str) -> Result<ReadResult, String> {
@@ -3367,7 +3656,7 @@ pub fn build_lines() -> Vec<String> {
     ]
 }
 
-const USAGE: &str = "usage: au-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--principal <name>] [--tools full|concise] [--payload both|text|structured]";
+const USAGE: &str = "usage: au-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--allow-composition] [--principal <name>] [--tools full|concise] [--payload both|text|structured]";
 
 const HELP: &str = "\
 au-mcp-rs — MCP stdio server for the arsumbris engine
@@ -3382,7 +3671,8 @@ ARGUMENT
 
 OPTIONS
     --policy <file>          JSON policy: allow_mutations, members, audit
-    --allow-mutations        Grant the three mutating tools (off by default)
+    --allow-mutations        Grant the mutating tools (off by default)
+    --allow-composition      Also grant dependency edits; implies --allow-mutations
     --principal <name>       Label for audit records; not authentication
     --tools full|concise     Definition detail in tools/list (default full)
     --payload both|text|structured
@@ -3414,6 +3704,7 @@ fn parse_args(
     let mut socket: Option<PathBuf> = None;
     let mut policy_path: Option<PathBuf> = None;
     let mut allow_mutations = false;
+    let mut allow_composition = false;
     let mut principal = "unknown".to_owned();
     let mut profile = ToolProfile::Full;
     let mut payload = PayloadMode::Both;
@@ -3447,6 +3738,7 @@ fn parse_args(
                 };
             }
             "--allow-mutations" => allow_mutations = true,
+            "--allow-composition" => allow_composition = true,
             other if other.starts_with("--") => {
                 return Err(format!("unknown option: {other}. {USAGE}"));
             }
@@ -3465,6 +3757,10 @@ fn parse_args(
     };
     if allow_mutations {
         policy.allow_mutations = true;
+    }
+    if allow_composition {
+        policy.allow_mutations = true;
+        policy.allow_composition = true;
     }
     Ok((socket, policy, principal, profile, payload))
 }

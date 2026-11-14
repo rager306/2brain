@@ -1,8 +1,8 @@
 # Roadmap
 
 Status on 2026-11-13, HEAD `96715e0`. Verified against the code, not the notes:
-37 tools registered (31 advertised read-only, 6 mutations), 26 captured fixtures,
-136 tests green, ten documents.
+40 tools registered (31 advertised read-only, 9 mutations), 26 captured fixtures,
+140 tests green, ten documents.
 
 ## Done — with evidence
 
@@ -44,8 +44,8 @@ Status on 2026-11-13, HEAD `96715e0`. Verified against the code, not the notes:
 
 - [x] `assign_block_id`, `rename_block_id`, `rename` — behind the gate, with `tests/structural.rs`
 - [ ] `inline`, `promote` — need a two-path gate (both files must be armed)
-- [ ] `rename_type` — needs a type-hash gate (no file path to arm)
-- [ ] `add_dep`, `remove_dep`
+- [x] `rename_type` — type-hash gate (the type has no path; its `hash` from au_type is the freshness check)
+- [x] `add_dep`, `remove_dep` — behind a **second grant** (`allow_composition`), because they author `.arsumbris/repo.yaml`
 - [ ] `add_workspace_member`, `remove_workspace_member`, `set_workspace_member_role`
       — these change what the workspace *is*; they need a policy beyond the
       member allowlist before they exist at all

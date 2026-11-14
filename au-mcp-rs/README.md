@@ -91,6 +91,10 @@ au-mcp-rs <socket> --policy /etc/au-policy.json \
 ```
 
 - `allow_mutations` (default `false`) — whether the mutating tools exist at all.
+- `allow_composition` (default `false`) — a second grant for the two dependency
+  verbs (`au_add_dep`, `au_remove_dep`). They author `.arsumbris/repo.yaml`, so a
+  launch may trust writes to notes and still refuse to reshape the workspace.
+  `--allow-composition` on the command line implies `--allow-mutations`.
 - `members` — exact allowlist of members a mutation may target; anything else is
   refused before the engine is contacted.
 - `audit` — `"stderr"` (default), `{"file": "..."}` or `"disabled"`; `"disabled"`

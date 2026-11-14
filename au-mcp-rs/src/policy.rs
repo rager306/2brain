@@ -19,14 +19,24 @@ use std::{
 use serde::Deserialize;
 
 /// Tools that change state. Everything else is a read.
-pub const MUTATION_TOOLS: [&str; 6] = [
+pub const MUTATION_TOOLS: [&str; 9] = [
     "au_write_file",
     "au_edit_file",
     "au_delete_file",
     "au_assign_block_id",
     "au_rename_block_id",
     "au_rename",
+    "au_rename_type",
+    "au_add_dep",
+    "au_remove_dep",
 ];
+
+/// Tools that change what the workspace contains, not just a file in it.
+///
+/// They author `.arsumbris/repo.yaml`, so they are a second grant on top of
+/// `allow_mutations`: a launch may trust writes to notes and still refuse to
+/// reshape the workspace's dependency graph.
+pub const COMPOSITION_TOOLS: [&str; 2] = ["au_add_dep", "au_remove_dep"];
 
 /// Where mutation decisions are written.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -58,6 +68,10 @@ pub struct Policy {
     /// Whether the mutating tools exist at all. Absent means denied.
     #[serde(default)]
     pub allow_mutations: bool,
+    /// Whether composition tools (`au_add_dep`, `au_remove_dep`) exist. They
+    /// change the workspace's dependency graph, so they are a separate grant.
+    #[serde(default)]
+    pub allow_composition: bool,
     /// Members a mutation may target. Absent means every editable member.
     #[serde(default)]
     pub members: Option<Vec<String>>,
@@ -75,6 +89,7 @@ impl Policy {
     pub fn read_only() -> Self {
         Self {
             allow_mutations: false,
+            allow_composition: false,
             members: None,
             audit: AuditTarget::Stderr,
         }
@@ -87,6 +102,9 @@ impl Policy {
             .map_err(|error| format!("reading policy {}: {error}", path.display()))?;
         let policy: Self = serde_json::from_str(&text)
             .map_err(|error| format!("parsing policy {}: {error}", path.display()))?;
+        if policy.allow_composition && !policy.allow_mutations {
+            return Err("policy: 'allow_composition' requires 'allow_mutations'".into());
+        }
         if policy.allow_mutations && policy.audit == AuditTarget::Disabled {
             return Err(
                 "policy: 'audit: disabled' is only valid while mutations are denied".into(),

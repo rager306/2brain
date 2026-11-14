@@ -31,14 +31,10 @@ fn main() {
     // and the repository root is one level up, so ask git for the absolute git
     // directory instead of guessing. HEAD alone does not change on a commit: the
     // branch ref and the reflog do.
-    let git_dir = git(crate_dir, &["rev-parse", "--absolute-git-dir"])
-        .map(PathBuf::from);
+    let git_dir = git(crate_dir, &["rev-parse", "--absolute-git-dir"]).map(PathBuf::from);
     if let Some(git_dir) = git_dir {
         for watched in ["HEAD", "index", "logs/HEAD", "packed-refs"] {
-            println!(
-                "cargo:rerun-if-changed={}",
-                git_dir.join(watched).display()
-            );
+            println!("cargo:rerun-if-changed={}", git_dir.join(watched).display());
         }
     }
     println!("cargo:rerun-if-env-changed=AU_BUILD_COMMIT");

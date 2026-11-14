@@ -79,6 +79,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
         Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
             .arg(socket)
             .arg("--allow-mutations")
+            .arg("--allow-composition")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -129,6 +130,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
     assert_eq!(
         names,
         [
+            "au_add_dep",
             "au_anchors",
             "au_assign_block_id",
             "au_block_ids",
@@ -152,8 +154,10 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_preview_mutation",
             "au_reconcile",
             "au_references",
+            "au_remove_dep",
             "au_rename",
             "au_rename_block_id",
+            "au_rename_type",
             "au_resolve_member",
             "au_resolved",
             "au_search_tools",
@@ -268,6 +272,9 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
                 | "au_assign_block_id"
                 | "au_rename_block_id"
                 | "au_rename"
+                | "au_rename_type"
+                | "au_add_dep"
+                | "au_remove_dep"
         ) {
             assert!(!read_only, "the write tool must not claim to be read-only");
             assert_eq!(tool["annotations"]["destructiveHint"], true);
