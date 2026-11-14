@@ -123,3 +123,22 @@ files, 0 broken links — and the MCP adapter returns the identical report.
 
 The vault kept HEAD `00e0743` and its five dirty files; `au-health.sh` reports
 `engine=1 mcp=1 action=ok`.
+
+
+## Fourth swap — the `rollback_preview` read
+
+| fact | value |
+|---|---|
+before | sha256 `98ea88e3…` (the `graph_health` swap) |
+after | sha256 `b7e48c82c7ffe891272a9c32822354e065333ca48e21c0ff5344c94f491d5991` |
+built from | monorepo `015aeda` |
+rollback artifact | `/root/backups/au-20261114-post-health` |
+
+Twelve reads, zero differences; the new verb previewed the copy's HEAD commit as
+one clean path and then the live HEAD the same way. Vault stayed at `00e0743` with
+its five dirty files, `au-health.sh` green.
+
+Engine regression evidence for this one is a set comparison rather than a count:
+the `it` suite fails **39** tests on this host both at the parent commit `332b6d3`
+and after the change, with an identical name set — root user and git discovery in
+temp dirs, not the engine. Passes went 668 → 671 with the three new tests.
