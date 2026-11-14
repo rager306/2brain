@@ -1,0 +1,155 @@
+# Verification index
+
+This file indexes the artifacts in this repository that assert something about
+the server's behaviour. Each row names the property, the files that prove it, the
+command that re-runs or regenerates it, and the last measured result with its
+date.
+
+Counts taken from the code on 2026-11-14, `au-mcp-rs` HEAD `d09d480`. The release
+binary used for the surface measurements was built from `1bcc08e` and reports
+`au-mcp-rs 0.1.0+1bcc08ed8ee9`.
+
+- **51 tools**: 35 advertised without a grant (29 engine reads plus 6 derived
+  reads), 16 mutating behind three independent grants.
+- **167 registered tests**: 165 run by default, 2 `#[ignore]`d because they need
+  a built `au`.
+- **29** synthetic read fixtures, **3** production golden payloads.
+- **4** known engine test failures on this host, all needing a non-root runner.
+
+Commands below run from `/root/arsumbris/au-mcp-rs` with
+`RUSTUP_HOME=/root/.rustup`.
+
+## 1. What is verified, and by what
+
+| property | artifact | how to run it | last measured | date |
+|---|---|---|---|---|
+| mutation gate ordering and refusals | `src/policy.rs` (`Stage`: arguments -> path scope -> member grant -> prior read -> freshness or absence -> capacity -> editability); `tests/policy.rs` (6), `tests/write_file.rs` (7), `tests/create_file.rs` (3), `tests/structural.rs` (6), `tests/composition.rs` (6), `tests/batch.rs` (3) | `cargo +1.99.0 test --offline --test policy --test write_file --test create_file --test structural --test composition --test batch` | 31/31 pass; a launch without grants advertises 35 tools and refuses a mutation before the engine is contacted; a malformed policy stops the process before it serves | 2026-11-14 |
+| `outcome_unknown` is never retried | `tests/faults.rs` (3), `tests/write_file_unknown.rs` (3), `tests/reconcile.rs` (4); the tool descriptions in `src/lib.rs` | `cargo +1.99.0 test --offline --test faults --test write_file_unknown --test reconcile` | 10/10 pass; a lost mutation reply is `outcome_unknown`, an engine rejection is not, and `au_reconcile` re-arms the read-before-write guard | 2026-11-14 |
+| bounded stdio, in-flight cap, cancellation | `src/bounded_stdio.rs` (4 queued responses, 5 s outbound wait, 2 s close wait, 16 MiB inbound line); `MAX_IN_FLIGHT_READS = 8` in `src/lib.rs`; `tests/stdio_boundaries.rs` (8), `tests/cancellation.rs` (3), `tests/concurrent_reads.rs` (2) | `cargo +1.99.0 test --offline --test stdio_boundaries --test cancellation --test concurrent_reads` | 13/13 pass; a client that stops draining stdout is closed instead of buffered, EOF terminates within the bound, a cancelled read frees its slot and does not disturb another read | 2026-11-14 |
+| protocol versions, including `2026-07-28` | `SUPPORTED_PROTOCOL_VERSIONS` in `src/lib.rs` (five revisions); `tests/modern_stdio.rs` (4), `tests/stdio.rs` (2), the lifecycle cases in `tests/stdio_boundaries.rs`; `--info` | `cargo +1.99.0 test --offline --test modern_stdio --test stdio --test stdio_boundaries`; `./target/release/au-mcp-rs --info` | `modern_stdio` 4/4 and `stdio` 2/2 pass; inline `_meta` metadata cannot bypass the legacy handshake; `--info` prints both families; `2026-07-28` is reached by tests only | 2026-11-14 |
+| response budgets and paging | `tests/budgets.rs` (4); `au_content {max_chars}` and `au_instances_of {limit, offset}` in `src/lib.rs`; `docs/progressive-disclosure.md` | `cargo +1.99.0 test --offline --test budgets` | 4/4 pass; `au_content` returns an explicit window plus `truncated`/`total_chars`/`next_offset` and its hash still covers the whole file; `au_instances_of` reports `total` and `next_offset`; payload modes select the representation | 2026-11-14 |
+| discovery cost and the detail ladder | `tests/discovery.rs` (4); `au_search_tools`/`au_describe_tool`; `--tools full` and `--tools concise`; `docs/progressive-disclosure.md` | `cargo +1.99.0 test --offline --test discovery`; measure a `tools/list` reply per profile | 4/4 pass; 51 tools: `tools/list` is **74 850** chars in `full` and **26 323** in `concise` (−65%; chars/4 is about 18 713 and 6 581); a read-only launch advertises 35 tools at 50 019 and 16 881 | 2026-11-14 |
+| wire shapes vs the engine (synthetic fixtures) | `tests/fixtures/synthetic-reads/` (29 JSON, one per advertised read), `tests/fixture_schema.rs` (2), `tests/real_engine.rs::synthetic_read_fixtures_match_the_engine` | verify: `AU_ENGINE_BIN=../au-engine/target/debug/au cargo +1.99.0 test --offline --test real_engine -- --ignored --test-threads=1`; regenerate after an intentional change: the same command with `CAPTURE_FIXTURES=1` | 29 fixtures parse, each names an advertised read and carries its documented payload key; the ignored real-engine run that replays them passes 2/2 in 3.15 s | 2026-11-14 |
+| schema vs captured payloads | `tests/schema_contract.rs` (1); `src/schemas.rs` | `cargo +1.99.0 test --offline --test schema_contract` | 1/1 pass; the first run found two real drifts (`au_subtypes` declared only `subtypes`; `au_reconcile` declared an envelope key the engine never sends), both fixed in `1bcc08e` | 2026-11-14 |
+| production golden replay | `tests/golden_replay.rs` (1); `/root/arsumbris/au-engine/tests-golden/` (3 payloads: `au_overview`, `au_hubs`, `au_diagnostics`); its `README.md` | `cargo +1.99.0 test --offline --test golden_replay` | 1/1 pass; the adapter re-emits the captured payloads unchanged under the read's key; there is no regeneration command in this repository (see section 2) | 2026-11-14 |
+| every read's wire request and payload, pinned without an engine | `tests/type_read.rs` (19), `tests/hubs_read.rs` (5), `tests/links.rs` (6), `tests/scan.rs` (8), `tests/types_read.rs` (3), `tests/type_tree.rs` (4), `tests/graph_health_read.rs` (2), `tests/grep_read.rs` (2), `tests/rollback_preview.rs` (2) | `cargo +1.99.0 test --offline --test type_read --test hubs_read --test links --test scan --test types_read --test type_tree --test graph_health_read --test grep_read --test rollback_preview` | 51/51 pass against a fake engine socket; exact request frames, payload pass-through, and recovery after engine errors and malformed frames | 2026-11-14 |
+| MCP reads against a real engine | `tests/real_engine.rs` (2 `#[ignore]`d tests) | `AU_ENGINE_BIN=../au-engine/target/debug/au cargo +1.99.0 test --offline --test real_engine -- --ignored --test-threads=1` | 2/2 pass in 3.15 s on a disposable two-member repository; every advertised read replays and matches the fixture | 2026-11-14 |
+| parity with the Python bridge | `scripts/bridge_parity.py`; `docs/bridge-parity.md` | `AU_ENGINE_BIN=../au-engine/target/debug/au python3 scripts/bridge_parity.py` (needs `bun` for the Node daemon) | PASS: 19 bridge tools vs 35 adapter tools in the fixture (a fixture artifact), one comparable pair (`mcp__au_diagnostics`), 3 identical findings | 2026-11-14 |
+| live read A/B against the bridge | `docs/live-comparison.md`; no script | not scripted: call each read through both servers against `/root/vault` and diff after removing the bridge's projection envelope | 11 reads byte-identical across 95 types, 200 files, 100 hubs, 62 subtypes, 27 imports; `au_diagnostics` agreed by being empty on both sides | 2026-11-13 |
+| client compatibility | `scripts/client-matrix.sh`; `docs/client-matrix.md` | `AU_ENGINE_BIN=/root/arsumbris/au-engine/target/release/au AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs bash scripts/client-matrix.sh` (needs `claude`, `codex`, `cursor-agent`) | exit 0: Claude Code 2.1.323 connected (`initialize` + `tools/list`); Codex 0.164.0 registered, handshake not exercised; Cursor configured, not exercised | 2026-11-14 |
+| rollback rehearsal | `scripts/rollback_rehearsal.py`; `docs/rollback-rehearsal.md` | `AU_ENGINE_BIN=/root/arsumbris/au-engine/target/release/au AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs python3 scripts/rollback_rehearsal.py` | exit 0: a granted write is one engine commit with a clean tree and no stray files, a fresh process reads the written text, and the same binary without `--allow-mutations` refuses the write | 2026-11-14 |
+| live engine swap | `docs/engine-swap-2026-11-14.md`; no script | procedure: build `au-cli` release, freeze a vault copy and capture the baseline back to back, compare twelve reads, install, re-read the live socket, keep the previous binary | four swaps on the day; latest `b7e48c82...` from `015aeda`; twelve reads showed zero differences; `graph_health` gave 1156 nodes, 4565 edges, 211 components, 17 cycles over 664 nodes, 19 dead ends, 178 sources, 202 isolated files, 0 broken links; schema 29 on both sides | 2026-11-14 |
+| engine environment baseline | `au-engine/tests-known-environment.txt` (4 named failures); `au-engine/README-fork.md`; `au-engine/scripts/run-known-root-tests.sh` proves they are root-only | `cd ../au-engine && cargo +1.99.0 test --offline --lib`; `cargo +1.99.0 test --offline --test it`; the recorded names with `--exact` as an unprivileged user | `--lib` 678 passed, 1 failed, 1 ignored; `--test it` 707 passed, 3 failed, 1 ignored; all 4 failures are the root-user cause; `fmt --check` reports 217 diffs in 93 files and `clippy -D warnings` exits 101 with one `collapsible_match` | 2026-11-14 |
+| build identity and the unified binary | `tests/cli.rs` (10), `tests/version_metadata.rs` (2); `build.rs` | `cargo +1.99.0 test --offline --test cli --test version_metadata`; `--version`; `--info` | 12/12 pass; `--version` prints `au-mcp-rs 0.1.0+1bcc08ed8ee9`; `--info` reports 51 registered, 35 advertised, wire schema 29, 16 MiB frames, 30 s read deadline, 8 in-flight reads; `docs/roadmap.md` is **stale** (`e710e17`, 164 tests: `1bcc08e` added the schema test) | 2026-11-14 |
+| MCP resources and change notification | `tests/resources.rs` (4), `tests/watch.rs` (3); `src/resources.rs` | `cargo +1.99.0 test --offline --test resources --test watch` | 7/7 pass; `arsumbris://<repo>/<path>` resolves and a foreign URI is refused before the engine; `au_watch` returns a delta and treats a timeout as an answer; no resource subscriptions are advertised | 2026-11-14 |
+
+One contradiction inside the documents, not the code: `README.md` says "29 engine
+reads, 5 derived reads and discovery helpers, 16 mutating tools" (50) while
+`docs/tools.md` says 6 derived reads and the code registers 51.
+
+## 2. What is NOT verified here
+
+- **Four engine tests need a non-root runner.** They inject failure through
+  `chmod`, which cannot block uid 0. `au-engine/scripts/run-known-root-tests.sh`
+  re-runs exactly the recorded names as `nobody` and passes, so the failures are
+  environmental — but the default `cargo test` run on this host still reports them,
+  and nothing here makes an unprivileged runner the default.
+- **Engine formatting and lints are red at HEAD.** `cargo fmt --check -p au-engine`
+  reports 217 diffs and `clippy -D warnings` fails. The engine's gate is its test
+  suite plus the wire contract, not style. The Rust MCP half is clean
+  (`fmt --check` and `clippy -D warnings` both exit 0 at `d09d480`).
+- **No client completes a model turn.** Nothing exercises tool arguments chosen by
+  a model, approval prompts, or client-side timeouts. Codex proves the config
+  shape only, Cursor is not exercised at all, and only Claude Code's health check
+  performs `initialize` and `tools/list`.
+- **`2026-07-28` is exercised only by our own tests.** The client matrix reaches
+  `2025-06-18`, because that is what the installed clients request.
+- **Bridge parity is one comparable read on a synthetic workspace.** The stronger
+  eleven-read A/B was a manual session on 2026-11-13, not a repeatable command.
+  Live `au_diagnostics` agreed by being empty on both sides. The live bridge tool
+  count is stated as 49 in `docs/live-comparison.md` and as 44 in
+  `docs/bridge-parity.md`; neither matches the 19 the disposable fixture
+  discovers.
+- **Fixtures are synthetic and the golden set is narrow.** The 29 fixtures come
+  from a disposable two-member repository. `au-engine/tests-golden` holds 3
+  payloads and has no `au_files` capture. Its README names `bridge_probe.py` as
+  the capture client, but that file does not exist in this repository, so the
+  golden payloads cannot be regenerated here.
+- **Mutations are not exercised end to end except in the rehearsal.** Every gate
+  test drives a fake engine socket. Only `scripts/rollback_rehearsal.py` writes
+  through a real engine, and it does not lose a reply (that is `tests/faults.rs`)
+  and touches no production socket.
+- **The live swap has no script.** Its evidence is a hand-written record;
+  reproducing the twelve-read comparison needs a frozen vault copy and a
+  maintenance decision. It is the only artifact that touches `/root/vault` and its
+  socket.
+- **No performance data.** Discovery cost is a static byte count. There is no
+  latency, throughput, or memory measurement, and the 8 in-flight cap is tested
+  against a fake engine only.
+- **No CI.** The repository carries no workflow configuration. Every artifact here
+  is run by hand, so nothing enforces that it ran.
+
+## 3. Regenerating everything
+
+```sh
+cd /root/arsumbris/au-mcp-rs
+export RUSTUP_HOME=/root/.rustup
+
+# 1. Static gates. No engine, no network once the dependency cache is warm.
+cargo +1.99.0 fmt --check
+cargo +1.99.0 clippy --offline --locked --all-targets --all-features -- -D warnings
+
+# 2. The default suite: 165 tests pass, 2 ignored, no engine needed.
+cargo +1.99.0 test --offline
+
+# 3. Build the engine binary the later steps need. Uses kache and the shared
+#    target directory; a cold dependency cache wants the network (drop --offline).
+cargo +1.99.0 build --offline --manifest-path ../au-engine/Cargo.toml -p au-cli --bin au
+
+# 4. Real-engine equivalence and fixture verification, on disposable temp repos.
+AU_ENGINE_BIN=../au-engine/target/debug/au \
+  cargo +1.99.0 test --offline --test real_engine -- --ignored --test-threads=1
+
+# 5. Regenerate the synthetic corpus after an intentional wire change, then
+#    verify it. This is the only step that writes tracked files.
+CAPTURE_FIXTURES=1 AU_ENGINE_BIN=../au-engine/target/debug/au \
+  cargo +1.99.0 test --offline --test real_engine -- --ignored --test-threads=1
+AU_ENGINE_BIN=../au-engine/target/debug/au \
+  cargo +1.99.0 test --offline --test real_engine -- --ignored
+
+# 6. Bridge parity. Needs bun and the Node workspace; throwaway HOME.
+AU_ENGINE_BIN=../au-engine/target/debug/au python3 scripts/bridge_parity.py
+
+# 7. Client matrix. Needs claude, codex, and cursor-agent installed; throwaway HOME.
+AU_ENGINE_BIN=/root/arsumbris/au-engine/target/release/au \
+AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs \
+  bash scripts/client-matrix.sh
+
+# 8. Rollback rehearsal. Disposable repository, private engine socket.
+AU_ENGINE_BIN=/root/arsumbris/au-engine/target/release/au \
+AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs \
+  python3 scripts/rollback_rehearsal.py
+
+# 9. Engine baseline. Slow; expect the 4 recorded failures.
+cd ../au-engine
+cargo +1.99.0 test --offline --lib
+cargo +1.99.0 test --offline --test it
+```
+
+What each step needs:
+
+- **A built `au` engine binary**: steps 4, 5, 6, 7, 8. Step 3 builds it.
+- **`bun` and the Node workspace**: step 6 only.
+- **Installed client CLIs**: step 7 only. The script reports absent clients without
+  failing.
+- **`kache` and a warm crate cache**: every cargo step. `--offline` refuses a
+  network fetch, so a cold cache fails at step 2 rather than downloading.
+- **The production vault or its socket**: none of the steps. They use temp
+  directories, throwaway `HOME` values, and private sockets. The live swap in
+  section 1 is the only procedure that touches production, and it is not part of
+  this block.
+
+The evidence documents (`docs/bridge-parity.md`, `docs/client-matrix.md`,
+`docs/rollback-rehearsal.md`, `docs/live-comparison.md`, and
+`docs/engine-swap-2026-11-14.md`) are written from these outputs by hand. No
+command regenerates them.

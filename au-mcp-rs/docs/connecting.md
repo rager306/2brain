@@ -150,9 +150,9 @@ is the OS user that owns the engine socket.
 | `--payload structured` | no text block, for clients that read `structuredContent` and would otherwise pay twice |
 | `--payload text` | no `structuredContent` |
 
-Measured discovery cost on the live workspace: 75 015 chars in `full` and
+Measured discovery cost on the live workspace: 74 850 chars in `full` and
 26 323 in `concise` for the 51-tool surface with all grants; a read-only launch
-advertises 35 tools at 50 184 and 16 881 chars (see
+advertises 35 tools at 50 019 and 16 881 chars (see
 `docs/progressive-disclosure.md`).
 
 ## 6. Troubleshooting

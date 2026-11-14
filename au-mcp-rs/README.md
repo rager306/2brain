@@ -154,8 +154,8 @@ Two profiles and three payload modes, measured on the live workspace:
 
 | setting | tools/list | tokens (chars/4) |
 |---|---|---|
-| `--tools full` (default), 51 tools with all grants | 75 015 chars | ≈18 754 |
-| `--tools full`, 35 tools in a read-only launch | 50 184 chars | ≈12 546 |
+| `--tools full` (default), 51 tools with all grants | 74 850 chars | ≈18 713 |
+| `--tools full`, 35 tools in a read-only launch | 50 019 chars | ≈12 505 |
 | `--tools concise`, 51 tools with all grants | 26 323 chars | ≈6 581 |
 | `--tools concise`, 35 tools in a read-only launch | 16 881 chars | ≈4 220 |
 | `--payload structured` | halves the payload a client reads when it uses `structuredContent` | |

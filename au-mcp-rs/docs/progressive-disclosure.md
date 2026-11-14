@@ -142,8 +142,8 @@ Live workspace, release build, raw stdio:
 
 | profile | tools | tools/list | tokens (chars/4) | `au_search_tools` (query "write") | `au_describe_tool au_batch` |
 |---|---|---|---|---|---|
-| `full` | 50 | 75 015 chars | ≈18 412 | 741 chars | 3 064 chars |
-| `concise` | 50 | 26 323 chars | ≈6 487 | 741 chars | 3 064 chars |
+| `full` | 51 | 74 850 chars | ≈18 713 | 741 chars | 3 064 chars |
+| `concise` | 51 | 26 323 chars | ≈6 581 | 741 chars | 3 064 chars |
 
 −65% at discovery. The break-even rule: describing one tool costs between 0.8k
 and 3k chars (the examples above), so the concise profile pays when fewer than

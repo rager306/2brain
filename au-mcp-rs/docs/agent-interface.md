@@ -11,7 +11,7 @@ means what one tool invocation costs and returns.
 | `initialize` latency | 14 ms | 10 ms |
 | `instructions` in the initialize result | absent | present: purpose, envelope contract, suggested flow, unpaged reads, mutation policy and `outcome_unknown` |
 | capabilities | tools | tools + resources (list, read, templates; no subscribe) |
-| `tools/list` size | 15 874 chars (~4.0k tokens), 16 tools | `50 184` chars (~12.5k tokens), `35 read-only` tools; the growth is `outputSchema` plus the later reads |
+| `tools/list` size | 15 874 chars (~4.0k tokens), 16 tools | `50 019` chars (~12.5k tokens), `35 read-only` tools; the growth is `outputSchema` plus the later reads |
 | tools with `annotations` | 16/16 | 34/34 |
 | tools with `outputSchema` | 0/16 | 34/34 |
 | schema strictness | `additionalProperties: false`, `minLength`, `limit` bounds | unchanged |
