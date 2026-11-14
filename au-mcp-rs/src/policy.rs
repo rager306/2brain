@@ -210,10 +210,29 @@ pub const CREATE_STAGES: [Stage; 6] = [
     Stage::Capacity,
 ];
 
-/// Appends policy decisions. Cloning shares the same sink.
+/// Appends policy decisions. Cloning shares the same sink and the same chain.
 #[derive(Debug, Clone)]
 pub struct Audit {
     inner: Option<std::sync::Arc<Mutex<AuditSink>>>,
+    chain: std::sync::Arc<Mutex<Chain>>,
+}
+
+/// The tail of the audit hash chain: the last sequence number and hash.
+///
+/// Each record carries both, so a reader can prove that no line was removed or
+/// edited in the middle: editing one line breaks its own hash, and removing one
+/// breaks the `prev` link of the next.
+#[derive(Debug)]
+struct Chain {
+    seq: u64,
+    prev: String,
+}
+
+impl Chain {
+    /// The `prev` of the first record: sixty-four zeros, so no record is
+    /// indistinguishable from a head.
+    const GENESIS: &'static str =
+        "0000000000000000000000000000000000000000000000000000000000000000";
 }
 
 #[derive(Debug)]
@@ -231,7 +250,13 @@ impl Audit {
             )))),
             AuditTarget::Disabled => None,
         };
-        Self { inner }
+        Self {
+            inner,
+            chain: std::sync::Arc::new(Mutex::new(Chain {
+                seq: 0,
+                prev: Chain::GENESIS.to_owned(),
+            })),
+        }
     }
 
     /// Record one decision. Failures are reported on stderr but never abort the
@@ -240,7 +265,11 @@ impl Audit {
         let Some(inner) = self.inner.as_ref() else {
             return;
         };
-        let line = serde_json::json!({
+        let mut sink = inner.lock().expect("audit lock poisoned");
+        let mut chain = self.chain.lock().expect("audit chain lock poisoned");
+        let seq = chain.seq + 1;
+        let prev = chain.prev.clone();
+        let mut record = serde_json::json!({
             "event": "mcp_policy",
             "principal": principal,
             "tool": tool,
@@ -250,9 +279,14 @@ impl Audit {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_millis())
                 .unwrap_or(0),
-        })
-        .to_string();
-        let mut sink = inner.lock().expect("audit lock poisoned");
+            "seq": seq,
+            "prev": prev,
+        });
+        // serde_json orders object keys, so the preimage is the record minus the
+        // hash, serialized again: a reader can recompute it from the line alone.
+        let hash = digest(&record.to_string());
+        record["hash"] = serde_json::Value::String(hash.clone());
+        let line = record.to_string();
         match &mut *sink {
             AuditSink::Stderr => eprintln!("{line}"),
             AuditSink::File(path) => match fs::OpenOptions::new()
@@ -263,12 +297,30 @@ impl Audit {
                 Ok(mut file) => {
                     if writeln!(file, "{line}").is_err() {
                         eprintln!("au-mcp-rs: audit write failed for {}", path.display());
+                        return;
                     }
                 }
-                Err(error) => eprintln!("au-mcp-rs: audit open failed: {error}"),
+                Err(error) => {
+                    eprintln!("au-mcp-rs: audit open failed: {error}");
+                    return;
+                }
             },
         }
+        chain.seq = seq;
+        chain.prev = hash;
     }
+}
+
+/// The SHA-256 of one record, hex-encoded: the chain's link.
+fn digest(preimage: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(preimage.as_bytes());
+    hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 #[cfg(test)]
@@ -337,5 +389,41 @@ mod tests {
         std::fs::write(&path, r#"{"allow_mutations":true,"unknown":1}"#).unwrap();
         assert!(Policy::load(&path).is_err());
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn audit_records_form_a_hash_chain() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("audit.jsonl");
+        let audit = Audit::new(&AuditTarget::File(path.clone()));
+        audit.record("me", "au_write_file", "fixture", "denied:prior_read");
+        audit.record("me", "au_create_file", "fixture", "applied");
+        let text = std::fs::read_to_string(&path).unwrap();
+        let lines: Vec<serde_json::Value> = text
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0]["seq"], 1);
+        assert_eq!(lines[0]["prev"], Chain::GENESIS);
+        assert_eq!(lines[1]["seq"], 2);
+        assert_eq!(lines[1]["prev"], lines[0]["hash"]);
+        for line in &lines {
+            let mut fields = line.as_object().unwrap().clone();
+            let stored = fields.remove("hash").unwrap();
+            let stored = stored.as_str().unwrap();
+            assert_eq!(
+                digest(&serde_json::Value::Object(fields).to_string()),
+                stored
+            );
+        }
+        // Editing a field breaks that record's own hash, which is the point.
+        let mut tampered = lines[1].as_object().unwrap().clone();
+        tampered.insert("outcome".into(), "rejected".into());
+        let stored = tampered.remove("hash").unwrap();
+        assert_ne!(
+            digest(&serde_json::Value::Object(tampered).to_string()),
+            stored.as_str().unwrap()
+        );
     }
 }

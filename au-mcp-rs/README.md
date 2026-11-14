@@ -110,7 +110,12 @@ au-mcp-rs <socket> --policy /etc/au-policy.json \
 
 Every mutation decision is one JSON line with `principal`, `tool`, `member`,
 `outcome` (`applied`, `rejected`, `outcome_unknown`, `denied:<stage>`), and a
-timestamp.
+timestamp — plus `seq`, `prev`, and `hash`. The records form a SHA-256 chain: each
+`hash` covers the record without it, and each `prev` is the previous record's
+hash, so editing a line breaks its own hash and deleting one breaks the next
+line's link. A reader verifies with no server code: parse the line, drop `hash`,
+serialize again, and compare. Appending to a file an earlier process wrote starts
+a new chain at `seq` 1, so pin the file per launch or archive it between runs.
 
 **Identity is not authentication.** `--principal` and the client's `initialize`
 name only label audit records; a stdio client controls its own process. The real
@@ -128,8 +133,13 @@ An ordered chain; a refusal names its stage in the tool error
 | `member_grant` | the member is not in the policy allowlist |
 | `prior_read` | no `au_content` read of this exact path is recorded |
 | `freshness` | the recorded hash differs from `expected_hash` |
-| `capacity` | another mutation holds the single slot |
 | `editability` | the engine reports the member as consumed |
+| `capacity` | another mutation holds the single slot |
+
+The slot is taken last, so a permit is never held while an engine read settles a
+file. `au_create_file` runs the same chain with `absence` in place of
+`prior_read` + `freshness`: a create has no text to compare against, so its
+promise is that the path is free.
 
 A lost reply is `outcome_unknown`, never a retry: `au_reconcile` says whether the
 mutation landed and re-arms the guard. See [`docs/tools.md`](docs/tools.md).
