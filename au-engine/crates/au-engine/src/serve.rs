@@ -885,6 +885,8 @@ enum Mutation {
     EditFile(EditFileArgs),
     /// Remove a file. `expected_hash` is the optional read-before-write guard.
     DeleteFile(DeleteFileArgs),
+    /// Several file-level ops in one commit; see [`BatchArgs`]. Additive.
+    Batch(BatchArgs),
     /// Engine-assigned `^:` id on the addressable entity at a byte offset;
     /// returns the id and the `[[target^id]]` ref.
     AssignBlockId(AssignBlockIdArgs),
@@ -1100,6 +1102,51 @@ struct EditFileArgs {
     #[serde(default)]
     attribution: Vec<TrailerInput>,
 }
+
+/// One operation inside a batch. The tag names the same file-level verbs the
+/// single mutations serve, so a batch is a composition of writes, edits, and
+/// deletes, never a new primitive.
+#[derive(Debug, Deserialize)]
+#[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
+enum BatchOp {
+    WriteFile {
+        path: String,
+        content: String,
+        /// Read-before-write guard, per op.
+        #[serde(default)]
+        expected_hash: Option<String>,
+    },
+    EditFile {
+        path: String,
+        old_string: String,
+        new_string: String,
+        /// The exact-match guard is the file's own: absent hash, as in the
+        /// single `edit_file`.
+        #[serde(default)]
+        replace_all: bool,
+    },
+    DeleteFile {
+        path: String,
+        #[serde(default)]
+        expected_hash: Option<String>,
+    },
+}
+
+/// Args for the `batch` mutation: several file-level ops committed once.
+///
+/// The point is atomicity, not speed: N single mutations are N chances to lose a
+/// reply and land half a change. A batch applies every op or none, commits each
+/// touched member once, and compensates the whole set on any rejection.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BatchArgs {
+    ops: Vec<BatchOp>,
+}
+
+/// The largest batch a caller may send. Beyond this the caller wants a script,
+/// not one atomic commit, and a single huge saga's intent marker stops being a
+/// readable record of one change.
+const MAX_BATCH_OPS: usize = 50;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -5031,6 +5078,7 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 }
             }
         }
+        Mutation::Batch(args) => batch_mutation(handle, args).await,
         Mutation::AssignBlockId(args) => assign_block_id(handle, args).await,
         Mutation::EditRecord(args) => handle_edit_record(handle, args).await,
         Mutation::AppendRecord(args) => handle_append_record(handle, args).await,
@@ -9854,6 +9902,178 @@ fn mutation_response_extra(
         ),
     );
     result.extend(extra);
+    serde_json::to_value(Response::ready(version, serde_json::Value::Object(result)))
+        .expect("response serializes")
+}
+
+/// Run a batch: every file-level op, one saga, one commit per touched member.
+///
+/// All-or-nothing by construction: the ops run inside [`apply_saga`], so a
+/// rejection on any op compensates the whole set and commits nothing. The ops
+/// execute in the caller's order, which is why two ops on one path compose.
+async fn batch_mutation(handle: &EngineHandle, args: BatchArgs) -> serde_json::Value {
+    if args.ops.is_empty() {
+        return mutation_reject_frame(crate::mutate::MutationReject::new(
+            "`ops` is empty: a batch with nothing to do is not a mutation",
+        ));
+    }
+    if args.ops.len() > MAX_BATCH_OPS {
+        return mutation_reject_frame(crate::mutate::MutationReject::new(format!(
+            "batch of {} ops exceeds the {MAX_BATCH_OPS}-op bound; split it into several commits",
+            args.ops.len()
+        )));
+    }
+    // Resolve every target first, so one out-of-scope path rejects the batch
+    // before any write is planned.
+    let mut targets = Vec::with_capacity(args.ops.len());
+    for op in &args.ops {
+        let path = match op {
+            BatchOp::WriteFile { path, .. }
+            | BatchOp::EditFile { path, .. }
+            | BatchOp::DeleteFile { path, .. } => path,
+        };
+        match resolve_mutation_target(handle, path) {
+            Ok(t) => targets.push(t),
+            Err(frame) => return frame,
+        }
+    }
+    let plan = saga_plan_off_thread(handle, targets.clone()).await;
+    let marker_dir = saga_marker_dir(handle.root());
+    let summary = format!("batch {} ops", args.ops.len());
+    let blocking_handle = handle.clone();
+    let ops = args.ops;
+    let resolved = targets;
+    let in_saga = resolved.clone();
+    let outcome = tokio::task::spawn_blocking(move || {
+        let (applied, commits) =
+            apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {
+                apply_batch_ops(&ops, &in_saga)
+            })?;
+        blocking_handle.rebuild_paths(saga_dirty_set(&plan));
+        Ok::<_, crate::mutate::MutationReject>((applied, commits))
+    })
+    .await
+    .expect("batch task never panics");
+    match outcome {
+        Err(reject) => mutation_reject_frame(reject),
+        Ok((applied, commits)) => batch_response(handle, &resolved, &applied, commits),
+    }
+}
+
+/// Apply every op in order, off the runtime thread. A rejection on any op
+/// returns early; the caller's saga then compensates what already landed.
+fn apply_batch_ops(
+    ops: &[BatchOp],
+    resolved: &[PathBuf],
+) -> Result<Vec<serde_json::Value>, crate::mutate::MutationReject> {
+    let mut applied = Vec::with_capacity(ops.len());
+    for (op, target) in ops.iter().zip(resolved) {
+        let entry = match op {
+            BatchOp::WriteFile {
+                content,
+                expected_hash,
+                ..
+            } => {
+                let hash = crate::mutate::write_file(target, content, expected_hash.as_deref())?;
+                serde_json::json!({
+                    "op": "write_file",
+                    "path": target.display().to_string(),
+                    "hash": crate::mutate::hash_hex(hash),
+                })
+            }
+            BatchOp::EditFile {
+                old_string,
+                new_string,
+                replace_all,
+                ..
+            } => {
+                let hash =
+                    crate::mutate::edit_file(target, old_string, new_string, *replace_all)?;
+                serde_json::json!({
+                    "op": "edit_file",
+                    "path": target.display().to_string(),
+                    "hash": crate::mutate::hash_hex(hash),
+                })
+            }
+            BatchOp::DeleteFile { expected_hash, .. } => {
+                crate::mutate::delete_file(target, expected_hash.as_deref())?;
+                serde_json::json!({
+                    "op": "delete_file",
+                    "path": target.display().to_string(),
+                    "hash": serde_json::Value::Null,
+                })
+            }
+        };
+        applied.push(entry);
+    }
+    Ok(applied)
+}
+
+/// The batch answer: one entry per op, the diagnostics of every touched path,
+/// and the commits the saga made. `commit` is null at this level — a batch can
+/// span members, so the provenance is `commits`, keyed by repo.
+fn batch_response(
+    handle: &EngineHandle,
+    targets: &[PathBuf],
+    applied: &[serde_json::Value],
+    commits: SagaCommits,
+) -> serde_json::Value {
+    let paths: Vec<PathBuf> = targets.to_vec();
+    let written: Vec<(PathBuf, crate::ir::ContentHash)> = applied
+        .iter()
+        .filter_map(|entry| {
+            let hash = entry["hash"].as_str()?;
+            let path = PathBuf::from(entry["path"].as_str()?);
+            let value = u64::from_str_radix(hash, 16).ok()?;
+            Some((path, crate::ir::ContentHash(value)))
+        })
+        .collect();
+    let read = handle.read(move |v| {
+        let diagnostics: Vec<Diagnostic> = v
+            .diagnostics()
+            .filter(|d| paths.iter().any(|p| DiagnosticsScope { path: Some(p.clone()), ..Default::default() }.matches(v, d)))
+            .cloned()
+            .collect();
+        let reflected = written
+            .iter()
+            .all(|(path, hash)| v.catalog.get(path).and_then(|e| e.hash) == Some(*hash));
+        (diagnostics, reflected)
+    });
+    let Read::Ready {
+        version,
+        value: (diagnostics, reflected),
+    } = read
+    else {
+        return serde_json::to_value(Response::not_ready()).expect("response serializes");
+    };
+    let commits_obj: serde_json::Map<String, serde_json::Value> = commits
+        .iter()
+        .map(|(repo, sha)| {
+            (
+                repo.as_str().to_string(),
+                serde_json::Value::String(sha.0.clone()),
+            )
+        })
+        .collect();
+    let mut result = serde_json::Map::new();
+    result.insert("ops".into(), serde_json::Value::Array(applied.to_vec()));
+    result.insert(
+        "diagnostics".into(),
+        serde_json::to_value(diagnostics).expect("diagnostics serialize"),
+    );
+    result.insert("reflected".into(), serde_json::Value::Bool(reflected));
+    result.insert("commit".into(), serde_json::Value::Null);
+    result.insert("commits".into(), serde_json::Value::Object(commits_obj));
+    result.insert(
+        "untracked_files".into(),
+        serde_json::Value::Array(
+            commits
+                .untracked_files
+                .iter()
+                .map(|p| serde_json::Value::String(p.display().to_string()))
+                .collect(),
+        ),
+    );
     serde_json::to_value(Response::ready(version, serde_json::Value::Object(result)))
         .expect("response serializes")
 }

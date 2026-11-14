@@ -53,6 +53,7 @@ pub fn seed_workspace(root: &std::path::Path, members: &[&str]) {
 }
 
 mod backlinks;
+mod batch_mutations;
 mod build;
 mod catalog_reads;
 mod commit_meta;

@@ -19,10 +19,11 @@ use std::{
 use serde::Deserialize;
 
 /// Tools that change state. Everything else is a read.
-pub const MUTATION_TOOLS: [&str; 15] = [
+pub const MUTATION_TOOLS: [&str; 16] = [
     "au_write_file",
     "au_edit_file",
     "au_delete_file",
+    "au_batch",
     "au_assign_block_id",
     "au_rename_block_id",
     "au_rename",

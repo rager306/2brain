@@ -1169,6 +1169,20 @@ Attribution rider: `write_file`, `edit_file`, and `delete_file` accept an option
 - a non-unique match rejects naming the count (`detail.occurrences`); a miss rejects — the exact match is its own read-before-write precondition, no hash arg exists.
 - identical `old_string`/`new_string` and unreadable files reject.
 
+**batch.**
+- args: `ops`, a non-empty array of at most 50 operations. Each is internally tagged by `op`:
+  - `{"op": "write_file", "path", "content", "expected_hash"?}`
+  - `{"op": "edit_file", "path", "old_string", "new_string", "replace_all"?}` — the exact-match guard is the file's own; a batch edit takes no hash, exactly like the single verb.
+  - `{"op": "delete_file", "path", "expected_hash"?}`
+- result: `{ ops, diagnostics, reflected, commit, commits, untracked_files }`.
+  - `ops`: one entry per applied operation, in request order: `{op, path, hash}` with `hash` null for a delete.
+  - `commit` is NULL at this level: a batch can span members, so the provenance is `commits`, keyed by repo, one commit per touched and changed member.
+  - `diagnostics`: the union over every touched path after the rebuild. `reflected`: every written hash the held catalog now agrees with.
+- ALL OR NOTHING, one saga: every op is planned first (one out-of-workspace path rejects the batch before anything is written), the ops apply in order on disk, each touched member commits once, and ANY rejection — a stale hash, a missing `old_string`, a commit failure — compensates the whole set and commits nothing. The intent marker and its preimages make the compensation survive a crash, the same machinery the multi-file `inline` / `promote` sagas use.
+- ops apply in ORDER, so two ops on one path compose (write then edit). A no-op write makes no commit, as everywhere.
+- rejects an empty `ops` (a batch with nothing to do is not a mutation) and a list above 50: beyond that the caller wants a script, not one atomic commit.
+- additive: a NEW mutation verb, no `schema_version` bump.
+
 **delete_file.**
 - args: `path`, optional `expected_hash`, optional `attribution` (the Attribution rider above).
 - removes the file; the rebuild drops its node from the graph.

@@ -135,6 +135,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             "au_add_workspace_member",
             "au_anchors",
             "au_assign_block_id",
+            "au_batch",
             "au_block_ids",
             "au_candidates",
             "au_children",
@@ -285,6 +286,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
                 | "au_remove_dep"
                 | "au_inline"
                 | "au_promote"
+                | "au_batch"
                 | "au_create_file"
                 | "au_add_workspace_member"
                 | "au_remove_workspace_member"

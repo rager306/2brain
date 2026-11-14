@@ -60,7 +60,9 @@ there as well — behind a third grant, because reshaping a workspace is a bigge
 trust decision than editing a note.
 
 The adapter also has `au_create_file` (create a file that does not exist, refused
-if it does) — the bridge's `write_file` covers both cases, so a create on the
+if it does) and `au_batch` (1-50 file ops as one all-or-nothing saga: the bridge
+requires a per-op confirm instead, so a batch there is N calls)
+ — the bridge's `write_file` covers both cases, so a create on the
 bridge side needs no extra verb.
 
 The adapter now also answers `grep_files`' job with `au_grep` (the engine's own

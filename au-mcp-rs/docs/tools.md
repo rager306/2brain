@@ -1,7 +1,7 @@
 # Tools
 
-47 tools: 27 engine reads, 5 derived reads and discovery helpers, and 15
-mutations that exist only when the launch grants them (12 with the mutation
+48 tools: 27 engine reads, 5 derived reads and discovery helpers, and 16
+mutations that exist only when the launch grants them (13 with the mutation
 grant, 2 more with composition, 3 more with workspace shape). Every result is the
 engine's own object under the read's key, and carries
 `_meta["io.arsumbris/engineVersion"]`.
@@ -89,6 +89,7 @@ at a time) and each is one engine saga:
 | `au_rename` | `repo`, `path`, `to`, `expected_hash` | moves a file inside its member and rewrites inbound references; refuses a type-def (use `au_rename_type`) and a cross-member target |
 | `au_inline` | `repo`, `path`, `into`, `at?`, `expected_hash`, `into_expected_hash` | folds one file into a referrer as an inline record and deletes it; both files must be armed |
 | `au_promote` | `repo`, `path`, `to`, `at` xor `block_id`, `expected_hash` | lifts an inline record into its own file and leaves a reference |
+| `au_batch` | `repo`, `ops` (1–50 of write_file / edit_file / delete_file, each with its own `expected_hash`) | applies the ops in order as one engine saga: one commit per touched member, and a rejection on any op leaves every file as it was |
 | `au_rename_type` | `old_name`, `new_name`, `expected_hash` | renames a type-def and carries every claim, slot, and wikilink; the freshness check is the type's hash |
 | `au_add_dep` / `au_remove_dep` | `repo`, `dep`, `expected_hash?` | author `.arsumbris/repo.yaml`; requires the composition grant |
 

@@ -190,6 +190,77 @@ struct FilesArguments {
     offset: usize,
 }
 
+/// One operation inside `au_batch`. Each carries its own freshness hash: the
+/// batch is one engine saga, but every file in it still passed the same gate it
+/// would pass alone.
+// The variant names ARE the wire tags (`write_file`, `edit_file`, `delete_file`),
+// so the shared `File` postfix is the protocol, not a naming accident.
+#[allow(clippy::enum_variant_names)]
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
+enum BatchOperation {
+    WriteFile {
+        /// Path relative to the member root.
+        #[schemars(length(min = 1))]
+        path: String,
+        /// Full file text.
+        content: String,
+        /// Hash of `path` from its au_content read.
+        #[schemars(length(min = 1))]
+        expected_hash: String,
+    },
+    EditFile {
+        /// Path relative to the member root.
+        #[schemars(length(min = 1))]
+        path: String,
+        old_string: String,
+        new_string: String,
+        /// Replace every occurrence instead of requiring a unique match.
+        #[serde(default)]
+        replace_all: bool,
+        /// Hash of `path` from its au_content read.
+        #[schemars(length(min = 1))]
+        expected_hash: String,
+    },
+    DeleteFile {
+        /// Path relative to the member root.
+        #[schemars(length(min = 1))]
+        path: String,
+        /// Hash of `path` from its au_content read.
+        #[schemars(length(min = 1))]
+        expected_hash: String,
+    },
+}
+
+impl BatchOperation {
+    fn path(&self) -> &str {
+        match self {
+            Self::WriteFile { path, .. }
+            | Self::EditFile { path, .. }
+            | Self::DeleteFile { path, .. } => path,
+        }
+    }
+
+    fn expected_hash(&self) -> &str {
+        match self {
+            Self::WriteFile { expected_hash, .. }
+            | Self::EditFile { expected_hash, .. }
+            | Self::DeleteFile { expected_hash, .. } => expected_hash,
+        }
+    }
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct BatchArguments {
+    /// Member that owns every path in the batch.
+    #[schemars(length(min = 1))]
+    repo: String,
+    /// Operations, applied in order and committed once.
+    #[schemars(length(min = 1, max = 50))]
+    ops: Vec<BatchOperation>,
+}
+
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct GrepArguments {
@@ -957,6 +1028,100 @@ impl Server {
             })
         })
         .await
+    }
+
+    #[tool(
+        description = "Apply 1 to 50 file operations (write_file, edit_file, delete_file) as one all-or-nothing saga: every op passed the same gate it would pass alone (prior au_content read of that path, matching expected_hash, editable member), the engine commits the whole set once per touched member, and any rejection leaves every file as it was. Use it when a change spans files and half of it landing would be worse than none. A lost reply is outcome_unknown and must not be retried blindly.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false
+        ),
+        output_schema = batch_schema(),
+    )]
+    async fn au_batch(
+        &self,
+        Parameters(args): Parameters<BatchArguments>,
+        _ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.repo.is_empty() {
+            return return_error("'repo' must not be empty");
+        }
+        if args.ops.is_empty() {
+            return return_error("'ops' must not be empty");
+        }
+        if args.ops.len() > 50 {
+            return return_error("'ops' may hold at most 50 operations");
+        }
+        let repo = args.repo;
+        // Arm every file first: any refusal means nothing is written, which is
+        // the same promise the engine makes for the saga.
+        let mut armed = Vec::with_capacity(args.ops.len());
+        for op in &args.ops {
+            match self.arm_file(&repo, op.path(), op.expected_hash()).await {
+                Ok(file) => armed.push(file),
+                Err(denial) => {
+                    self.audit.record(
+                        &self.principal,
+                        "au_batch",
+                        &repo,
+                        &format!("denied:{}", denial.stage.name()),
+                    );
+                    return return_error(format!(
+                        "policy/{}: {}",
+                        denial.stage.name(),
+                        denial.message
+                    ));
+                }
+            }
+        }
+        let _permit = match self.take_slot() {
+            Ok(permit) => permit,
+            Err(denial) => {
+                return return_error(format!(
+                    "policy/{}: {}",
+                    denial.stage.name(),
+                    denial.message
+                ));
+            }
+        };
+        let keys: Vec<(String, String)> = armed.iter().map(|file| file.key.clone()).collect();
+        let ops: Vec<Value> = args
+            .ops
+            .iter()
+            .zip(&armed)
+            .map(|(op, file)| match op {
+                BatchOperation::WriteFile {
+                    content,
+                    expected_hash,
+                    ..
+                } => json!({
+                    "op": "write_file",
+                    "path": file.target,
+                    "content": content,
+                    "expected_hash": expected_hash,
+                }),
+                BatchOperation::EditFile {
+                    old_string,
+                    new_string,
+                    replace_all,
+                    ..
+                } => json!({
+                    "op": "edit_file",
+                    "path": file.target,
+                    "old_string": old_string,
+                    "new_string": new_string,
+                    "replace_all": replace_all,
+                }),
+                BatchOperation::DeleteFile { expected_hash, .. } => json!({
+                    "op": "delete_file",
+                    "path": file.target,
+                    "expected_hash": expected_hash,
+                }),
+            })
+            .collect();
+        let request = json!({"mutate": "batch", "id": 1, "ops": ops});
+        self.finish_mutation("au_batch", &repo, request, keys).await
     }
 
     #[tool(
@@ -2490,13 +2655,14 @@ impl Server {
 
     /// Send an armed mutation and settle its outcome, consuming every recorded
     /// read it invalidates.
-    async fn finish_mutation<const N: usize>(
+    async fn finish_mutation(
         &self,
         tool: &'static str,
         repo: &str,
         request: Value,
-        keys: [(String, String); N],
+        keys: impl IntoIterator<Item = (String, String)>,
     ) -> CallToolResult {
+        let keys: Vec<(String, String)> = keys.into_iter().collect();
         match read_mutation_with_timeout(&self.socket, request, ENGINE_READ_TIMEOUT).await {
             Ok(result) => {
                 self.audit.record(&self.principal, tool, repo, "applied");
@@ -3560,6 +3726,41 @@ fn envelope_schema(verb: &'static str) -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
+/// The output schema of `au_batch`: the per-op results and the saga's commit.
+fn batch_schema() -> Arc<serde_json::Map<String, Value>> {
+    Arc::new(
+        json!({
+            "type": "object",
+            "properties": {
+                "ops": {
+                    "type": "array",
+                    "description": "one entry per applied operation, in order",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "op": {"type": "string"},
+                            "path": {"type": "string"},
+                            "hash": {"type": ["string", "null"]}
+                        },
+                        "required": ["op", "path"],
+                        "additionalProperties": false
+                    }
+                },
+                "reflected": {"type": "boolean"},
+                "commit": {},
+                "commits": {"type": "array"},
+                "diagnostics": {"type": "array"},
+                "untracked_files": {"type": "array"}
+            },
+            "required": ["ops", "commit", "commits", "diagnostics"],
+            "additionalProperties": false,
+        })
+        .as_object()
+        .expect("object schema")
+        .clone(),
+    )
+}
+
 /// The output schema of `au_grep`: one page of matches plus the totals that make
 /// the page interpretable.
 fn grep_schema() -> Arc<serde_json::Map<String, Value>> {
@@ -4329,7 +4530,10 @@ async fn mutate_engine(socket: &Path, request: Value) -> Result<ReadResult, Wire
     let result = response["result"]
         .as_object()
         .ok_or_else(|| WireError::Broken("invalid result envelope".into()))?;
-    if !result.get("path").is_some_and(Value::is_string) {
+    // A single-file mutation names its path; a batch names its ops instead.
+    let named = result.get("path").is_some_and(Value::is_string)
+        || result.get("ops").is_some_and(Value::is_array);
+    if !named {
         return Err(WireError::Broken("invalid mutation result payload".into()));
     }
     Ok(ReadResult {
