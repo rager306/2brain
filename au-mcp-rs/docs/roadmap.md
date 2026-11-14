@@ -72,6 +72,24 @@ If a client with no local filesystem appears, the replacement is an engine
 wire change, recorded here as the first candidate when search is measured as a
 bottleneck.
 
+## Next items from the vault backlog, and where they actually live
+
+The workspace backlog (`/root/vault/inbox/arsumbris-fork-backlog.md`) lists gaps
+measured against turbovault. Three of the remaining four are **engine reads, not
+adapter work** — the adapter can only expose what the wire serves, and adding a
+tool that composes N engine reads would turn one round trip into hundreds:
+
+| backlog item | what it needs | why it cannot be adapter-side |
+|---|---|---|
+| lexical search (P0-A) | a `grep`/`search` wire verb over the catalogue | the adapter would have to read every file it lists to answer one query |
+| resources + subscribe (P1-A) | a `watch`/`subscribe` verb | a subscription is a promise about future changes; only the process that owns the index can keep it |
+| batch execute (P1-C) | a `batch` mutation verb committing once | N single mutations are N honest `outcome_unknown` chances, and the adapter cannot make them atomic |
+| graph hygiene report (P1-D) | a graph report verb (cycles, dead ends, centrality) | requires the whole graph, which the adapter never holds |
+
+Closed adapter-side already: `create_file` (backlog P0-C) and the audit hash
+chain (P1-B first half). The second half of P1-B, `rollback_preview`, is engine
+work too: a preview of an undo needs the commit topology, not just the log.
+
 ## Phase D — retire the Node stack
 
 After A and B prove parity on a real client: `au-mcp`, `au-mcp-sdk`,
