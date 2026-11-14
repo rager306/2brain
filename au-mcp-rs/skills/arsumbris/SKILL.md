@@ -19,6 +19,11 @@ authority; every MCP server in front of it is a reader or a gated writer.
 Do not mix their answers in one comparison: the bridge wraps the same facts in
 summaries and paging. See `references/tool-map.md` for the full mapping.
 
+The adapter also serves **MCP resources**: `arsumbris://<repo>/<path>` is a
+catalogued file a client can hold and re-read without a tool call
+(`resources/list` pages the catalogue, `resources/read` returns the text). There is
+no resource subscription — `au_watch` is the change signal.
+
 ## Find the tool you need
 
 1. `au_search_tools {"query": "<task words>", "detail": "summary"}` — names and
@@ -62,6 +67,36 @@ routing signals, not failures:
 2. `au_files {"repo": "vault", "limit": 50}` — catalogued paths, paged.
 3. `au_content {"repo": "vault", "path": "inbox/note.md"}` — text plus the hash
    a later write must quote.
+
+**Change several files as one unit**
+
+1. `au_content` for each path — the batch needs a hash per op, exactly like a
+   single write.
+2. `au_batch {"repo": ..., "ops": [...]}` — one engine saga, one commit per touched
+   member. Any refusal (a stale hash, a missing `old_string`) leaves EVERY file as
+   it was, so a half-applied change is not a state you have to recover from.
+3. If the reply is lost, `au_reconcile` per path; never re-send the batch blindly.
+
+Use it when half of a change landing would be worse than none. A single file is
+still one `au_write_file`, and `au_create_file` is the one verb that refuses to
+overwrite.
+
+**Wait for someone else to change the workspace**
+
+`au_watch {"timeout_ms": 10000}` subscribes to the engine's change stream and
+returns the net file delta of the next rebuild: `added`, `removed`, `modified`,
+`version`. A timeout is an ordinary answer (`timed_out: true`), so call it again
+to keep waiting. It holds the tool call for that long — keep the timeout short,
+and do not poll `au_files` in a loop instead.
+
+**Audit the graph, not one file**
+
+`au_graph_health {"limit": 20}` answers in one read what would otherwise be three:
+directed cycles (shortest first), dead ends, sources, isolated files, broken links
+by code, and the most central nodes. Counts cover the whole in-scope graph; the
+lists are capped. `au_rollback_preview {"repo": ..., "commit": ...}` then says what
+reverting a commit would touch and whether it is still safe — read-only, a plan and
+not an action.
 
 **Follow a link or inspect one file's surface**
 
