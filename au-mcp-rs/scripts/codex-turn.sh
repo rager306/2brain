@@ -38,7 +38,16 @@ else
   exit 2
 fi
 
-CODEX_HOME=$codex_home codex mcp add arsumbris-rs -- "$ADAPTER" "$socket" >/dev/null 2>&1 || {
+# The client's own log does not report which MCP revision it negotiated, so the server
+# command goes through a tee that records both directions when asked. That turns "the
+# client speaks some revision" into a fact read off the wire.
+tee=$root/mcp-wire.jsonl
+if [[ -n ${AU_TEE_TRANSCRIPT:-} ]]; then
+  server_cmd=(python3 "$(dirname "$0")/stdio_tee.py" --record "$tee" -- "$ADAPTER" "$socket")
+else
+  server_cmd=("$ADAPTER" "$socket")
+fi
+CODEX_HOME=$codex_home codex mcp add arsumbris-rs -- "${server_cmd[@]}" >/dev/null 2>&1 || {
   echo "codex refused the MCP registration" >&2; exit 1; }
 
 echo "engine:  $socket"
@@ -59,11 +68,31 @@ if grep -q 'au_grep' <<<"$transcript"; then pass "the model used au_grep"; else 
 if grep -q 'unique-marker-7f3a' <<<"$transcript"; then pass "the marker travelled through the engine"; else fail "the marker never came back"; fi
 if grep -q 'notes/a.md' <<<"$transcript"; then pass "the answer names the file that holds the marker"; else fail "the answer does not name notes/a.md"; fi
 
-# Which MCP revision this client negotiated: the adapter prints it in initialize only,
-# so read it from the client's own log if it exposes one, and say "unknown" otherwise
-# rather than guessing.
-if grep -qo 'protocolVersion[^,]*' <<<"$transcript"; then
-  echo "negotiated: $(grep -o 'protocolVersion[^,]*' <<<"$transcript" | head -1)"
+# Which MCP revision this client negotiated, read off the wire when the tee is on.
+if [[ -n ${AU_TEE_TRANSCRIPT:-} && -s $tee ]]; then
+  cp "$tee" "$AU_TEE_TRANSCRIPT"
+  requested=$(python3 - "$tee" <<'PY'
+import json, sys
+for line in open(sys.argv[1]):
+    record = json.loads(line)
+    if record["dir"] == "c2s" and '"initialize"' in record["line"]:
+        print(json.loads(record["line"])["params"]["protocolVersion"])
+        break
+PY
+)
+  answered=$(python3 - "$tee" <<'PY'
+import json, sys
+for line in open(sys.argv[1]):
+    record = json.loads(line)
+    if record["dir"] == "s2c" and '"protocolVersion"' in record["line"]:
+        try:
+            print(json.loads(record["line"])["result"]["protocolVersion"])
+        except Exception:
+            print("?")
+        break
+PY
+)
+  echo "protocol: client asked $requested, server answered ${answered:-?}"
 fi
 
 [[ ${AU_TURN_TRANSCRIPT:-} ]] && printf '%s\n' "$transcript" >"$AU_TURN_TRANSCRIPT"

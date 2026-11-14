@@ -79,20 +79,20 @@ fn reconcile_reports_applied_when_the_hash_matches() {
         serve_content(
             &listener,
             &root_string,
-            json!({"text":"new","hash":"h-new","commit":null}),
+            json!({"text":"new","hash":"0123456789abcdef","commit":null}),
         );
     });
     let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     let reply = client.call(
         2,
         "au_reconcile",
-        json!({"repo":"fixture","path":"a.md","expected_hash":"h-new"}),
+        json!({"repo":"fixture","path":"a.md","expected_hash":"0123456789abcdef"}),
     );
     assert_ne!(reply["result"]["isError"], true, "{reply}");
     let payload: Value =
         serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(payload["outcome"], "applied");
-    assert_eq!(payload["current_hash"], "h-new");
+    assert_eq!(payload["current_hash"], "0123456789abcdef");
     daemon.join().unwrap();
 }
 
@@ -107,7 +107,7 @@ fn a_differing_file_reports_not_applied_and_rearms_the_guard() {
         serve_content(
             &listener,
             &root_string,
-            json!({"text":"other","hash":"h-actual","commit":"abc"}),
+            json!({"text":"other","hash":"fedcba9876543210","commit":"abc"}),
         );
         // The reconcile re-armed the guard, so a write matching the current hash
         // proceeds without another read.
@@ -125,12 +125,12 @@ fn a_differing_file_reports_not_applied_and_rearms_the_guard() {
         assert_eq!(
             read_request(&mut mutate),
             json!({"mutate":"write_file","id":1,"path":format!("{root_string}/a.md"),
-                "content":"new","expected_hash":"h-actual"})
+                "content":"new","expected_hash":"fedcba9876543210"})
         );
         write_frame(
             &mut mutate,
             json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":8,
-                "result":{"path":format!("{root_string}/a.md"),"hash":"h-new","diagnostics":[],
+                "result":{"path":format!("{root_string}/a.md"),"hash":"0123456789abcdef","diagnostics":[],
                     "reflected":true,"commit":null,"commits":{},"untracked_files":[]}}),
         );
     });
@@ -138,17 +138,17 @@ fn a_differing_file_reports_not_applied_and_rearms_the_guard() {
     let reply = client.call(
         2,
         "au_reconcile",
-        json!({"repo":"fixture","path":"a.md","expected_hash":"h-intended"}),
+        json!({"repo":"fixture","path":"a.md","expected_hash":"1111111111111111"}),
     );
     assert_ne!(reply["result"]["isError"], true, "{reply}");
     let payload: Value =
         serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(payload["outcome"], "not_applied");
-    assert_eq!(payload["current_hash"], "h-actual");
+    assert_eq!(payload["current_hash"], "fedcba9876543210");
     let write = client.call(
         3,
         "au_write_file",
-        json!({"repo":"fixture","path":"a.md","content":"new","expected_hash":"h-actual"}),
+        json!({"repo":"fixture","path":"a.md","content":"new","expected_hash":"fedcba9876543210"}),
     );
     assert_ne!(write["result"]["isError"], true, "{write}");
     daemon.join().unwrap();
@@ -185,7 +185,7 @@ fn reconcile_handles_a_delete_two_ways() {
         serve_content(
             &listener2,
             &root2_string,
-            json!({"text":"still","hash":"h1"}),
+            json!({"text":"still","hash":"2222222222222222"}),
         );
     });
     let mut client2 = Client::start_with(&socket2, &["--allow-mutations"]);
@@ -197,6 +197,46 @@ fn reconcile_handles_a_delete_two_ways() {
     let payload: Value =
         serde_json::from_str(present["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(payload["outcome"], "not_applied");
-    assert_eq!(payload["current_hash"], "h1");
+    assert_eq!(payload["current_hash"], "2222222222222222");
     daemon2.join().unwrap();
+}
+
+#[test]
+fn reconcile_refuses_a_value_that_is_not_a_digest() {
+    let temp = tempfile::tempdir().unwrap();
+    let socket = temp.path().join("engine.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let mut client = Client::start_with(&socket, &["--allow-mutations"]);
+    for (i, value) in [
+        "null",
+        "h-new",
+        "0123456789abcde",
+        "0123456789abcdeff",
+        "0123456789ABCDEF",
+        " 0123456789abcdef",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let reply = client.call(
+            i as u32 + 2,
+            "au_reconcile",
+            json!({"repo":"fixture","path":"a.md","expected_hash":value}),
+        );
+        let text = error_text(&reply);
+        assert!(
+            text.contains("16-hex-character digest"),
+            "{value:?} was not refused as a digest: {text}"
+        );
+        assert!(
+            text.contains("au_content"),
+            "{value:?}: the refusal should name the alternative: {text}"
+        );
+        // Refused before the engine: nothing to connect to, so nothing was read.
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+    }
 }

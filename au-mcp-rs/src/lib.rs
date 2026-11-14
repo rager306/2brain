@@ -2551,7 +2551,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Check what actually happened after an outcome_unknown mutation. Give the hash the interrupted write should have produced, or expect_absent for a delete. Returns outcome applied or not_applied with the file's current hash and commit; a not_applied answer re-arms the read-before-write guard with the current hash, so the caller can decide whether to retry. This is a read: it never writes.",
+        description = "Check what actually happened after an outcome_unknown mutation. Give the 16-hex-character hash the interrupted write should have produced, or expect_absent for a delete; a value that is not a digest is refused rather than compared. Returns outcome applied or not_applied with the file's current hash and commit; a not_applied answer re-arms the read-before-write guard with the current hash, so the caller can decide whether to retry. If you do not know the expected digest, read the file with au_content and compare the text instead. This is a read: it never writes.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -2574,7 +2574,15 @@ impl Server {
             return CallToolResult::error(vec![ContentBlock::text(error)]);
         }
         let expected = match (args.expected_hash.as_deref(), args.expect_absent) {
-            (Some(hash), false) if !hash.is_empty() => Some(hash.to_owned()),
+            (Some(hash), false) if is_engine_hash(hash) => Some(hash.to_owned()),
+            // A value that is not a digest cannot describe the interrupted mutation,
+            // and answering `not_applied` to it would be a confident lie: a model that
+            // sends the string "null" would be told the write did not land when it did.
+            (Some(hash), false) => {
+                return CallToolResult::error(vec![ContentBlock::text(format!(
+                    "'expected_hash' must be the 16-hex-character digest au_content returns, got {hash:?};                      for a delete pass 'expect_absent': true, and if the digest is unknown read the                      file with au_content and compare the text instead"
+                ))]);
+            }
             (None, true) => None,
             _ => {
                 return CallToolResult::error(vec![ContentBlock::text(
@@ -4308,6 +4316,16 @@ fn first_sentence(description: Option<&str>) -> String {
 }
 
 /// Reject a member-relative path that could escape the member root.
+/// An engine content hash: 16 lowercase hex characters. `au_content` returns it, and
+/// a mutation carries it back as `expected_hash`; anything else is not a digest and
+/// must not be compared as one.
+fn is_engine_hash(value: &str) -> bool {
+    value.len() == 16
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
 fn relative_path(path: &str) -> Result<(), &'static str> {
     if path.starts_with('/') || path.starts_with('\\') {
         return Err("'path' must be relative to the member root");

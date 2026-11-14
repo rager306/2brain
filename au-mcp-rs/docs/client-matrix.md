@@ -219,3 +219,41 @@ spawns it as an MCP server outside the model's sandbox.
 What it does not establish: the protocol revision Codex negotiates. Its `--json`
 event stream does not report `protocolVersion`, so that line stays unverified rather
 than guessed.
+
+## 2026-11-14 (sixth): a model recovers from a lost reply — and found a lie in the tool
+
+`scripts/recovery-turn.sh` puts the model in the failure `lost-reply.sh` proves
+mechanically: the write goes through, the reply is dropped, and the tool answer says
+the outcome is unknown.
+
+```text
+tool calls: au_members au_content au_write_file au_reconcile au_content
+PASS: the model sent a write
+PASS: the model asked au_reconcile what happened
+PASS: the model did not retry the write
+PASS: exactly one engine commit exists
+PASS: the file carries the appended line
+```
+
+It did not retry — the whole point — and it reconciled instead. But the transcript
+shows something the checks missed, and it is the most useful finding of the day:
+
+```json
+{"name":"mcp__arsumbris-rs__au_reconcile",
+ "input":{"repo":"fixture","path":"notes/a.md","expected_hash":"null"}}
+{"content":"{\"current_commit\":\"75780668...\",\"current_hash\":\"eb4d60ba...\",
+  \"outcome\":\"not_applied\"}"}
+```
+
+The model did not know the digest the write would have produced — it cannot know it —
+so it sent the string `"null"`. The server compared strings, found no match, and
+answered **`not_applied` with full confidence, about a write that had landed**. The
+model only recovered because its next move was to re-read the file.
+
+That is a design flaw, not a model mistake: `au_reconcile` accepted any non-empty
+string as a digest, and a wrong expectation produces a confident wrong answer. Fixed
+in `src/lib.rs`: `expected_hash` must now be the 16-hex-character digest `au_content`
+returns, and anything else is refused before the engine is contacted, with a message
+naming the two real options (`expect_absent: true` for a delete, or `au_content` to
+compare the text). `tests/reconcile.rs` pins six malformed values, including the
+literal `"null"`.
