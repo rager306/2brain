@@ -59,9 +59,18 @@ Status on 2026-11-13, HEAD `aba2b4f`. Verified against the code, not the notes:
 
 ## Phase C — the host decision
 
-`bash`, `glob`, `grep_files`, `read_file_pinned`, `au_host_*`. Either they stay a
-host capability, or `arsumbris host` gets an explicit root and no shell. Not
-decided, and not needed while the bridge stays available.
+**Decided: host tools stay a client capability.** The server carries engine reads
+and gated mutations; it does not carry a shell, a file walker, or a content
+scanner. The reasons are in [`runtime-map.md`](runtime-map.md): the live bridge's
+host tools are stubs and its own agent manual routes content search outside MCP,
+every client already has `bash`/`grep` over the same filesystem, and a server that
+serves a vault plus a shell turns a note-editing grant into arbitrary code
+execution as the socket's owner.
+
+If a client with no local filesystem appears, the replacement is an engine
+`grep`/`search` read — the index's semantics, not a host process — and that is a
+wire change, recorded here as the first candidate when search is measured as a
+bottleneck.
 
 ## Phase D — retire the Node stack
 

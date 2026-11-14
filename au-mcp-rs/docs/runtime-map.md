@@ -9,7 +9,7 @@ absorb without losing behaviour.
 | module | language | size | role | in the served path |
 |---|---|---|---|---|
 | `au-engine` | Rust | 1853 files, 714 MB (with `target/`) | the engine: parser, type graph, diagnostics, daemon, wire | **yes, the authority** |
-| `au-mcp-rs` | Rust | 3 645 LOC | MCP server over the engine wire; one binary `arsumbris` | yes, as the new front-end |
+| `au-mcp-rs` | Rust | 5 839 LOC + 8 951 LOC of tests | MCP server over the engine wire; one binary `arsumbris` | yes, as the new front-end |
 | `au-mcp` | TypeScript | 5 586 LOC | Node daemon: sessions, plugin discovery, projection tools | yes, behind the bridge |
 | `au-mcp-core` | TypeScript | 82 `.ts`, 49 tool defs, 6 hooks | the plugin package the daemon discovers | yes |
 | `au-mcp-sdk` | TypeScript | 2 708 LOC | `mcp.*` base types, contracts, session vocabulary | yes |
@@ -22,59 +22,58 @@ absorb without losing behaviour.
 | `au-type-system`, `au-base-types`, `au-rules`, `au-skills`, `au-agent-guides`, `au-writing-style`, `au-competency`, `au-defaults`, `au-govern` | YAML + Markdown | 12–145 files | vocabulary, rules, guides, templates, audits | content, mounted as members |
 
 Roughly 22 000 lines of TypeScript and 293 lines of Python sit in the served path
-today. The Rust replacement is 3 645 lines.
+today. The Rust replacement is 5 839 lines, with 8 951 lines of tests.
 
-## Tool surface: 49 core tools, 21 Rust tools
+## Tool surface: 49 daemon tools, 46 Rust tools
 
 Of the 49 `mcp.tool` definitions in `au-mcp-core`, 16 have a Rust counterpart
 (two under a clearer name: `au_list_imports` → `au_imports`, `au_validate` →
 `au_validate_value`). The remaining 33 split into three groups.
 
-### A. Engine reads with no Rust tool yet — 14
+### A. Engine reads — closed
 
-Each is a wire verb the engine already serves, so the work is an argument struct,
-a read call, a schema, and a fixture.
+All 14 reads are in the Rust surface (`au_frontmatter`, `au_anchors`,
+`au_block_ids`, `au_references`, `au_neighborhood`, `au_instances`,
+`au_candidates`, `au_semantic_tokens`, `au_resolve_member`, `au_typed`,
+`au_resolved`, `au_children`, `au_follow`, `au_addressed`), each with a captured
+fixture in `tests/fixtures/synthetic-reads/` and a test that pins the shape.
 
-| daemon tool | engine read | note |
-|---|---|---|
-| `au_frontmatter` | `frontmatter` | direct |
-| `au_anchors` | `anchors` | direct |
-| `au_block_ids` | `block_ids` | direct |
-| `au_references` | `references_out` + `references_in` | two reads, one answer |
-| `au_neighborhood` | `neighborhood` | direct |
-| `au_instances` | `instances` | direct, large answer |
-| `au_candidates` | `candidates` (+ `candidate_counts`) | direct |
-| `au_semantic_tokens` | `semantic_tokens` | direct |
-| `au_resolve_member` | `resolve_member` | direct |
-| `au_follow` | `resolve_target` | needs its argument semantics pinned |
-| `au_children` | `references_out` filtered | needs the current rule, not a guess |
-| `au_resolved` | `resolve_target` / `resolve_block_id` / `resolve_anchor` | one tool over three verbs |
-| `au_typed` | `instance` | the resolved view of one instance |
-| `au_type_system` | `type_batch` / `type_closure` | needs the daemon's projection rule |
+One daemon tool is deliberately out of scope: `au_type_system` reads `doc` atoms
+from a content package (`au-mcp-type-knowledge`), not the engine, so a server over
+the engine wire has nothing to answer it with.
 
-### B. Engine mutations with no Rust tool yet — 11
+### B. Engine mutations — closed
 
-The engine serves these verbs; each needs its own path scope and blast-radius
-story before it can sit behind the mutation gate:
+All 11 are in the Rust surface behind three grants: mutations (`write_file`,
+`edit_file`, `delete_file`, `assign_block_id`, `rename_block_id`, `rename`,
+`rename_type`, `inline`, `promote`, `create_file`), composition (`add_dep`,
+`remove_dep`), and workspace shape (`add_workspace_member`,
+`remove_workspace_member`, `set_workspace_member_role`).
 
-`assign_block_id`, `inline`, `promote`, `rename`, `rename_block_id`,
-`rename_type`, `add_dep`, `remove_dep`, `add_workspace_member`,
-`remove_workspace_member`, `set_workspace_member_role`.
-
-Three of them are workspace-level (`add/remove member`, `set role`) and change
-what the *served* workspace contains, so they need a policy decision beyond the
-current member allowlist: who may reshape the workspace itself.
-
-### C. Host tools that are not engine reads — 8
+### C. Host tools that are not engine reads — decided
 
 `bash`, `glob`, `grep_files`, `read_file_pinned`, and the four `au_host_*` tools
-(intents, pane operations, snapshot). These need a host process; the engine
-serves none of them. Options, in order of safety:
+(intents, pane operations, snapshot). The engine serves none of them.
 
-1. leave them to the host and keep the Node daemon for that slice;
-2. add an explicit `arsumbris host` subcommand with a configured root and no
-   shell, covering `glob` and `grep_files` only;
-3. never expose `bash` from a server that also serves a vault.
+**Decision: host tools stay a client capability; the server does not carry a
+shell or a scanner.** Evidence, not preference:
+
+- the live bridge declares these tools and they are stubs: the workspace's own
+  agent manual tells agents to search with an ordinary file search outside MCP
+  (`manual/mcp-access.md`, "known traps"), and the four `au_host_*` tools are
+  documented as always failing because the host process was removed;
+- every client that mounts this server already has `bash`, `glob`, and `grep`,
+  over the same filesystem, with the same user's permissions;
+- a server that serves a vault and also exposes a shell turns one grant into
+  arbitrary code execution as the socket's owner, which is exactly the boundary
+  the policy module exists to keep.
+
+The cost is stated: a future client with no local filesystem (a remote or
+sandboxed one) loses content search. If that becomes real, the answer is an
+engine read (`grep`/`search` verb with the index's own ordering) rather than a
+host shell, because only the engine can answer with the workspace's semantics.
+That is a new wire verb, not a policy change, and it is the first candidate when
+searching is measured as a bottleneck.
 
 ## Phases
 
