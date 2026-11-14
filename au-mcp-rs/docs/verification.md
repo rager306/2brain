@@ -55,9 +55,13 @@ reads, 5 derived reads and discovery helpers, 16 mutating tools" (50) while
   re-runs exactly the recorded names as `nobody` and passes, so the failures are
   environmental — but the default `cargo test` run on this host still reports them,
   and nothing here makes an unprivileged runner the default.
-- **Engine formatting and lints are red at HEAD.** `cargo fmt --check -p au-engine`
-  reports 217 diffs and `clippy -D warnings` fails. The engine's gate is its test
-  suite plus the wire contract, not style. The Rust MCP half is clean
+- **Engine lints are red at HEAD; formatting is not.** `cargo fmt --check -p
+  au-engine` exits 0 since 2026-11-14 (`cargo fmt` over 131 files, formatting only;
+  `--lib` 678/1 and `--test it` 710/3 unchanged). `clippy --workspace --all-targets`
+  reports 85 warnings — au-core 43, au-engine 38, au-testkit 4 — so `-D warnings`
+  fails; all of them predate the fork, and the earlier "one clippy error" in the
+  baseline was an artifact of clippy stopping at the first crate that fails. The
+  engine's gate is its test suite plus the wire contract. The Rust MCP half is clean
   (`fmt --check` and `clippy -D warnings` both exit 0 at `d09d480`).
 - **No client completes a model turn.** Nothing exercises tool arguments chosen by
   a model, approval prompts, or client-side timeouts. Codex proves the config

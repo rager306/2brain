@@ -7,10 +7,14 @@
 #
 # Commands and their counts on this baseline:
 #   cargo +1.99.0 test -p au-engine --offline --lib   -> 678 passed, 1 failed, 1 ignored
-#   cargo +1.99.0 test -p au-engine --offline --test it -> 707 passed, 3 failed, 1 ignored
-#   cargo +1.99.0 fmt --check -p au-engine             -> exit 1, 217 diffs in 93 files
-#   cargo +1.99.0 clippy -p au-engine -- -D warnings   -> exit 101, 1 error:
-#       clippy::collapsible_match in crates/au-references/src/lib.rs:895:17
+#   cargo +1.99.0 test -p au-engine --offline --test it -> 710 passed, 3 failed, 1 ignored
+#   cargo +1.99.0 fmt --check -p au-engine             -> exit 0 (clean since 2026-11-14)
+#   cargo +1.99.0 clippy --workspace --all-targets     -> 85 warnings, none from the
+#       fork: au-core 43, au-engine 38, au-testkit 4. `-D warnings` therefore fails.
+#       The earlier "1 error" here was an artifact: clippy stops at the first crate
+#       that fails, so au-core's findings were never reached.
+#
+# The `it` count includes the three golden-capture tests added 2026-11-14.
 #
 # ALL FOUR TEST FAILURES ARE ONE CAUSE: the suite runs as root, and chmod cannot
 # block uid 0. They pass under an unprivileged runner, which

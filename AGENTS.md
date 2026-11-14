@@ -128,6 +128,10 @@ intentional diffs regenerate the fixture in the same commit, with the reason in
 the message. The top-level `tests-golden/*.json` are the 2026-11-12 pre-fork
 captures in the retired daemon's shapes; they are history, not a contract.
 
+Gates: `cargo fmt --check` is clean for both halves and is a real gate; `clippy -D
+warnings` is a gate only for `au-mcp-rs` (the engine workspace carries 85 upstream
+style warnings, see `au-engine/tests-known-environment.txt`).
+
 ## Branch model (au-engine)
 
 - `remotes/origin/main` = upstream `release 0.0.2-alpha` (frozen; stalled upstream)

@@ -51,4 +51,11 @@ diff /tmp/engine-fail-known /tmp/engine-fail-now
 ```
 
 `diff` printing test names means the baseline moved; no output means the known set is
-unchanged. The file's trailing block also records the expected `fmt`/`clippy` failures.
+unchanged. The file's header records the expected `fmt`/`clippy` state.
+
+`cargo fmt --check` is clean as of 2026-11-14 (`cargo fmt` over 131 files, formatting
+only); the engine's test counts did not move. `clippy -D warnings` is NOT a gate for
+the engine: upstream style lints remain in `au-core` and the crates clippy reaches
+after it, so a red clippy says nothing about a fork change. The gate is per crate —
+`cargo clippy -p au-engine -p au-cli --all-targets -- -D warnings` — plus the whole
+`au-mcp-rs` workspace, which is clean.
