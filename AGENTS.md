@@ -121,11 +121,12 @@ The opt-in real-engine test and private fixture setup are documented in its
 README. It requires a separately built `au` binary and must never use the live
 vault or production socket.
 
-Golden wire contract: `au-engine/tests-golden/*.json` hold real `au_*` tool
-responses captured on the production vault before any fork change
-(2026-11-12). After engine changes, responses must be identical unless the
-diff is intentional — intentional diffs regenerate fixtures in the same
-commit, with the reason in the message.
+Golden wire contract: `au-engine/tests-golden/engine/*.json` hold real engine
+reads captured with `au-engine/scripts/engine_probe.py` (read-only). After
+engine changes, responses must be identical unless the diff is intentional —
+intentional diffs regenerate the fixture in the same commit, with the reason in
+the message. The top-level `tests-golden/*.json` are the 2026-11-12 pre-fork
+captures in the retired daemon's shapes; they are history, not a contract.
 
 ## Branch model (au-engine)
 
