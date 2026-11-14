@@ -9,7 +9,7 @@ absorb without losing behaviour.
 | module | language | size | role | in the served path |
 |---|---|---|---|---|
 | `au-engine` | Rust | 1853 files, 714 MB (with `target/`) | the engine: parser, type graph, diagnostics, daemon, wire | **yes, the authority** |
-| `au-mcp-rs` | Rust | ≈6 400 LOC + ≈9 700 LOC of tests | MCP server over the engine wire; one binary `arsumbris` | yes, as the new front-end |
+| `au-mcp-rs` | Rust | 6 848 LOC `src/` + 8 204 LOC of tests | MCP server over the engine wire; one binary `arsumbris` | yes, as the new front-end |
 | `au-mcp` | TypeScript | 5 586 LOC | Node daemon: sessions, plugin discovery, projection tools | yes, behind the bridge |
 | `au-mcp-core` | TypeScript | 82 `.ts`, 49 tool defs, 6 hooks | the plugin package the daemon discovers | yes |
 | `au-mcp-sdk` | TypeScript | 2 708 LOC | `mcp.*` base types, contracts, session vocabulary | yes |
@@ -21,15 +21,24 @@ absorb without losing behaviour.
 | `au-ingest` | Node scripts | 14 `.mjs` | source → markdown converters | offline toolchain |
 | `au-type-system`, `au-base-types`, `au-rules`, `au-skills`, `au-agent-guides`, `au-writing-style`, `au-competency`, `au-defaults`, `au-govern` | YAML + Markdown | 12–145 files | vocabulary, rules, guides, templates, audits | content, mounted as members |
 
-Roughly 22 000 lines of TypeScript and 293 lines of Python sit in the served path
-today. The Rust replacement is ≈6 400 lines, with ≈9 700 lines of tests.
+Roughly 26 100 lines of TypeScript (counted over `src/` of the seven packages) and
+293 lines of Python sit in the served path today. The Rust replacement is 6 848
+lines, with 8 204 lines of tests — measured 2026-11-14 with `find <pkg>/src -name
+'*.ts' | xargs cat | wc -l`, the same shape the table's per-package numbers use.
 
-## Tool surface: 49 daemon tools, 50 Rust tools
+## Tool surface: 49 daemon tools, 51 Rust tools
 
 Of the 49 `mcp.tool` definitions in `au-mcp-core`, 41 have a Rust counterpart
 (three under a clearer name: `au_list_imports` → `au_imports`, `au_validate` →
 `au_validate_value`, `grep_files` → `au_grep`). The 8 that remain are group C;
 groups A and B were closed earlier.
+
+The Rust surface is 51 because ten tools answer questions the daemon never asked:
+`au_batch`, `au_create_file`, `au_grep` (the engine read, not the daemon's host
+`grep_files`), `au_graph_health`, `au_rollback_preview`, `au_watch`, `au_reconcile`,
+`au_preview_mutation`, `au_content`, and the two discovery tools `au_search_tools`
+and `au_describe_tool`. Counted against the code on 2026-11-14, not against these
+notes.
 
 ### A. Engine reads — closed
 

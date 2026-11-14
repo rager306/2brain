@@ -191,7 +191,7 @@ substitute for process isolation with untrusted clients.
 ## Tests
 
 ```sh
-RUSTUP_HOME=/root/.rustup cargo +1.99.0 test --offline          # 164 tests
+RUSTUP_HOME=/root/.rustup cargo +1.99.0 test --offline          # 165 tests, 2 ignored
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 clippy --offline --locked --all-targets --all-features -- -D warnings
 ```
 

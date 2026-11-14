@@ -1,8 +1,11 @@
 # Roadmap
 
-Status on 2026-11-14, HEAD `e710e17`. Verified against the code, not the notes:
-51 tools registered (35 without a grant, 16 mutating), 29 captured fixtures,
-164 tests, ten documents.
+Status on 2026-11-14, HEAD `16de348` (rechecked against the code, not these notes:
+51 tools registered — 35 advertised without a grant, 16 mutating; 29 synthetic
+fixtures plus 3 production and 4 engine golden captures; 165 adapter tests run by
+default and 2 ignored; eleven documents under `docs/`). The evidence for each line
+lives in [`verification.md`](verification.md); the gaps are listed at the end of
+this file.
 
 ## Done — with evidence
 
@@ -92,7 +95,7 @@ trip into hundreds:
 | backlog item | what it needs | why it cannot be adapter-side |
 |---|---|---|
 | lexical search (P0-A) | **closed**: the engine's `grep` read, exposed as `au_grep` | — |
-| resources + subscribe (P1-A) | a `watch`/`subscribe` verb | a subscription is a promise about future changes; only the process that owns the index can keep it |
+| resources + subscribe (P1-A) | **half closed**: MCP resources serve the catalogue; the change signal is `au_watch` over the engine's own `changes` stream, not a resource subscription | a subscription is a promise about future changes; only the process that owns the index can keep it, and `au_watch` keeps the promise without a second notification lifecycle |
 | batch execute (P1-C) | **closed**: the engine's `batch` mutation verb, exposed as `au_batch` | — |
 | graph hygiene report (P1-D) | **closed**: the engine's `graph_health` read, exposed as `au_graph_health` | — |
 
@@ -104,23 +107,49 @@ one engine read that joins degrees, SCCs, and reference diagnostics.
 
 ## Phase D — retire the Node stack
 
-After A and B prove parity on a real client: `au-mcp`, `au-mcp-sdk`,
-`au-type-codegen`, `au-engine-sdk`, `au-mcp-bridge`, both client adapters. The
-open question is extensions: a workspace can declare `mcp.tool` plugins today, and
-a compiled binary cannot. If that matters, the replacement is an explicit
-process-per-plugin contract, not a return to Node.
+Not started. It waits on two things, both named in the ledger below: parity proven
+on the **mutation** path by a model turn (the read path is proven —
+`scripts/model-turn.sh`), and an answer for extensions. A workspace can declare
+`mcp.tool` plugins today and a compiled binary cannot; if that matters, the
+replacement is an explicit process-per-plugin contract, not a return to Node.
+
+What goes: `au-mcp`, `au-mcp-sdk`, `au-type-codegen`, `au-engine-sdk`,
+`au-mcp-bridge`, and both client adapters. What stays: the engine, `au-engine-sdk`'s
+successor role is covered by `WIRE.md` plus the adapter's `src/wire.rs`, and the
+vault's content contract is untouched by any of this.
 
 ## Standing checks
 
-Every slice ends with `cargo fmt --check`, the full `cargo test --offline`,
-`clippy -D warnings`, the ignored real-engine test, and a regenerated fixture
-corpus when a wire answer changed.
+Every slice ends with: `cargo fmt --check` (both halves), the full `cargo test
+--offline` for `au-mcp-rs`, the engine suite with its recorded baseline diffed
+against `au-engine/tests-known-environment.txt`, `clippy --locked --all-targets
+--all-features -- -D warnings` for `au-mcp-rs`, the ignored real-engine test, and a
+regenerated fixture corpus when a wire answer changed.
 
-For `au-engine` the first two of those do not hold at HEAD, and pretending
-otherwise would mean reformatting ~130 upstream files inside a feature commit:
-`cargo fmt --check -p au-engine` reports 202 diffs and `clippy -p au-engine -D
-warnings` fails in `au-references` on a collapsible `if`, both present before this
-fork's first engine change. Engine slices therefore gate on
-`cargo test -p au-engine` (the full suite) plus the wire contract, and any
-formatting of engine code is written to the repository's own style by hand rather
-than by running a formatter over files that were never formatted to it.
+Two of those are phrased narrowly on purpose, and the reasons are recorded rather
+than implied:
+
+- `clippy -D warnings` gates `au-mcp-rs` only. The engine workspace carries 85
+  upstream style warnings (au-core 43, au-engine 38, au-testkit 4), so a red clippy
+  there says nothing about a fork commit. `fmt --check` **is** a gate for both
+  halves: the formatting pass landed on 2026-11-14 (`cargo fmt` over 131 files,
+  formatting only; test counts unchanged), so the engine is clean and stays clean.
+- The engine suite is compared, not required to be green: four tests fail as root
+  because they inject failure through `chmod`. `au-engine/scripts/run-known-root-tests.sh`
+  re-runs exactly the recorded names as `nobody` and passes, which is what makes the
+  baseline a statement about the runner rather than about the code.
+
+## What is not done
+
+Honest ledger, so a reader does not have to infer the gaps from the evidence files:
+
+| gap | why it is open |
+|---|---|
+| a model turn over the **mutation** path | `scripts/model-turn.sh` proves a read round trip. Write → `au_reconcile` → rollback is where the grants, the read-before-write guard, and `outcome_unknown` live, and no client has exercised them |
+| `2026-07-28` on a third-party client | only our own tests reach that revision; the installed clients request `2025-06-18` |
+| Codex and Cursor model turns | Codex has no non-interactive health check; Cursor needs an API key this host does not have |
+| resource subscriptions | not declared, by decision: `au_watch` gives every client the change signal without a second lifecycle. A client that genuinely needs `notifications/resources/updated` would reopen the question |
+| generated schemas | `tests/schema_contract.rs` catches drift against captured payloads, which is the safety half. Generating the schemas needs `WIRE.md` marked up machine-readably; today it is prose |
+| an `au_files` golden capture | the engine golden set covers four reads; the file listing is size-heavy and still uncaptured |
+| a scripted live A/B | the eleven byte-identical reads of 2026-11-13 were a manual session, so they cannot be re-run by the next person |
+| Phase D (retire the Node stack) | blocked on the mutation-path model turn above, and on the `mcp.tool` plugin question: a workspace can declare plugins today and a compiled binary cannot |
