@@ -82,7 +82,11 @@ its current limitations and plan. Do not assume bridge, policy, or client parity
 3. Never kill or restart the engine daemon / bridge processes while Hermes
    sessions are live. Socket: `~/.arsumbris/au-engine/run/*.sock`.
 4. Engine swaps to the live daemon require the golden wire contract to pass
-   (below) — no exceptions.
+   (below) — no exceptions. A swap is a read comparison on a frozen copy of the
+   vault working tree first, then the install, then the same reads against the
+   live socket; `docs/engine-swap-2026-11-14.md` is a worked example, with the
+   rollback artifact named in it. The served engine is now the fork build from
+   `5625aff`, not the October bundle binary.
 
 ## Dev loop
 
