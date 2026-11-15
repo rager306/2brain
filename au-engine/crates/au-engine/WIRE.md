@@ -51,7 +51,7 @@ A file's content hash is FNV-1a 64-bit over its raw bytes, the same algorithm as
 
 - `hash = 0xcbf29ce484222325`; for each byte `b`: `hash = (hash ^ b) * 0x100000001b3` (wrapping u64). Rendered as 16 lowercase hex digits where it crosses the wire (e.g. the `content` read's `hash`).
 - a consumer holding a file's bytes computes the identical hash LOCALLY, with no engine round-trip, to arm read-before-write CAS. The engine's write floor still compares its own authoritative hash at write time, so correctness is unchanged whether the consumer read through the engine or not.
-- the algorithm MAY change (e.g. to a git blob oid once the engine faults blobs by oid), but only as a COORDINATED change: `crates/au-engine/content-hash-vectors.json` and the au-engine-sdk mirror update together, never silently.
+- the algorithm MAY change (e.g. to a git blob oid once the engine faults blobs by oid), but only as a COORDINATED change: `crates/au-engine/content-hash-vectors.json` updates in the same commit, never silently. (The TypeScript mirror that used to pin this cross-language was deleted 2026-11-16 with the rest of the TypeScript layer; the adapter's read-then-write CAS in Rust is the live consumer.)
 - `content-hash-vectors.json` is the published test vector, a set of `input` byte-strings mapped to their expected hash. The engine's `content_hash_vector_tests` pins it, so an uncoordinated algorithm change breaks the engine build rather than drifting a mirror silently. A TS mirror verifies itself against the same file.
 - additive, no `schema_version` bump: blessing an existing algorithm as a contract adds a commitment and a vector, it changes no wire field.
 

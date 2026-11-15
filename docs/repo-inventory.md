@@ -23,9 +23,9 @@ counted). This is the map the consolidation works from: every directory has one 
 | ~~`au-mcp-core`~~ | 0 | — | — | no | **deleted 2026-11-16**: 55 `mcp.tool.*`/`mcp.hook.*` definitions for a tool surface that no longer exists |
 | ~~`au-mcp-adapter-codex`~~ | 0 | — | — | no | **deleted 2026-11-16**: no consumer |
 | ~~`au-mcp-adapter-cc`~~ | 0 | — | — | no | **deleted 2026-11-16**: no consumer |
-| `au-engine-sdk` | 45 | TypeScript (36, 14 k LOC) | client library | no | keep only if an external JS consumer exists; otherwise retire |
+| ~~`au-engine-sdk`~~ | 0 | — | — | no | **deleted 2026-11-16**: no JS consumer; the content-hash vectors it mirrored are the engine's own (`au-engine/crates/au-engine/content-hash-vectors.json`, byte-identical copy verified before deletion) |
 | `au-mcp-sdk` | 20 | 17 yaml type defs + docs | **contract** | no | **kept as vocabulary**; its TypeScript (`src/`, `tests/`, `skills/`, package, lockfile) was deleted 2026-11-16 — `au-weave` declares `type: mcp.skill::au-mcp-sdk` in six files and the vault's `mcp-bundle` resolves through it |
-| `au-type-codegen` | 36 | TypeScript (30, 3.5 k LOC) | tooling | no | keep as tooling; a Rust port is possible but not scheduled |
+| ~~`au-type-codegen`~~ | 0 | — | — | no | **deleted 2026-11-16**: its only runtime consumer was the Node daemon's plugin discovery |
 | ~~`au-mcp-bridge`~~ | 0 | — | — | **no** | **retired 2026-11-16** (Y1): `bridge.py`, its `.bak` and the directory are gone; `~/.arsumbris/au-mcp/` deleted |
 | `au-ingest` | 38 | yaml types + 1 py fixture generator | contract + tooling | no | keep the contract; the generator is tooling |
 | `au-govern` | 19 | yaml types + markdown | contract | no | keep |
@@ -58,5 +58,4 @@ counted). This is the map the consolidation works from: every directory has one 
 
 | item | why | gate |
 |---|---|---|
-| delete `au-engine-sdk` and `au-type-codegen`, or give them a consumer | the last TypeScript in the tree, with no JS consumer left after the MCP deletion | a consumer, or a deletion in one commit |
 | check whether `au-host` exists anywhere | measured: `arsumbris/README.md:51` documents it and the deleted SDK named it, so it is a *referenced* launcher with no implementation here | a `grep` says "referenced, not implemented"; anyone relying on it must be told |

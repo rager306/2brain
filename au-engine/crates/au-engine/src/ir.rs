@@ -54,18 +54,20 @@ pub type DiagStream = OrdMap<(PathBuf, usize, String), Vec<Diagnostic>>;
 /// a consumer holding the bytes can compute the identical hash locally without an
 /// engine round-trip.
 ///
-/// The algorithm is a DECLARED au-engine-sdk contract, not an internal detail. It
-/// may change (e.g. to a git blob oid once the engine faults blobs by oid), but
-/// only as a COORDINATED change: `content-hash-vectors.json` and the SDK mirror
-/// update together, never silently, so a mirror can never drift unnoticed. See
-/// `crates/au-engine/WIRE.md` and the `content_hash_vector_tests` guard.
+/// The algorithm is a DECLARED contract, not an internal detail: a consumer holding
+/// the bytes computes the identical hash locally without an engine round-trip (the
+/// MCP adapter's read-then-write CAS does exactly that). It may change (e.g. to a
+/// git blob oid once the engine faults blobs by oid), but only as a COORDINATED
+/// change: `content-hash-vectors.json` updates in the same commit, never silently,
+/// so a stored hash can never drift unnoticed. See `crates/au-engine/WIRE.md` and
+/// the `content_hash_vector_tests` guard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ContentHash(pub u64);
 
 impl ContentHash {
     /// FNV-1a 64-bit over the bytes. Deterministic, so a clean rebuild over
     /// unchanged content produces the same catalog. The blessed contract
-    /// algorithm, mirrored in au-engine-sdk and pinned by `content-hash-vectors.json`.
+    /// algorithm, pinned by `content-hash-vectors.json`.
     pub fn of(bytes: &[u8]) -> Self {
         let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
         for &b in bytes {
@@ -82,8 +84,8 @@ mod content_hash_vector_tests {
 
     /// `content-hash-vectors.json` is the published lockstep guard for the blessed
     /// FNV-1a-64 content-hash contract: a change to `ContentHash::of` breaks this,
-    /// forcing a coordinated au-engine-sdk mirror + vector update rather than a
-    /// silent CAS drift. See `crates/au-engine/WIRE.md`.
+    /// forcing a coordinated vector update rather than a silent CAS drift. See
+    /// `crates/au-engine/WIRE.md`.
     #[test]
     fn content_hash_matches_the_published_vectors() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/content-hash-vectors.json");
@@ -99,8 +101,7 @@ mod content_hash_vector_tests {
                 ContentHash::of(input.as_bytes()).0,
                 expected,
                 "content hash drifted from the published vector for {input:?}; if the algorithm \
-                 change is intentional, update content-hash-vectors.json AND coordinate the \
-                 au-engine-sdk mirror"
+                 change is intentional, update content-hash-vectors.json"
             );
         }
     }

@@ -14,7 +14,7 @@ absorb without losing behaviour.
 | `au-mcp-core` | TypeScript | 82 `.ts`, 49 tool defs, 6 hooks | the plugin package the daemon discovers | yes |
 | `au-mcp-sdk` | TypeScript | 2 708 LOC | `mcp.*` base types, contracts, session vocabulary | yes |
 | `au-type-codegen` | TypeScript | 1 764 LOC | type-def → JSON Schema / TS codegen | yes, drawn in by SDK and daemon |
-| `au-engine-sdk` | TypeScript | 8 272 LOC | engine client for Node: wire, repo resolution, helpers | yes |
+| ~~`au-engine-sdk`~~ | — | deleted 2026-11-16 | engine client for Node; no Node consumer left | no |
 | `au-mcp-bridge` | Python | 293 LOC | stdio MCP → Node daemon socket | yes, the client's entry |
 | `au-mcp-adapter-cc` | TypeScript | 1 516 LOC | Claude Code hooks ↔ daemon | client side |
 | `au-mcp-adapter-codex` | TypeScript | 2 033 LOC | Codex hooks ↔ daemon | client side |

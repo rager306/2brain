@@ -16,11 +16,9 @@ Upstream: https://github.com/arsumbris (engine last upstream commit 2026-09-25, 
 |---|---|
 | `au-engine/` | Rust engine Cargo workspace — the authoritative writer, serving `/root/vault` through `arsumbris-engine.service` |
 | `au-mcp-rs/` | **The serving path**: the Rust MCP adapter behind `/usr/local/bin/2brain` (52 tools, fail-closed gate, `scripts/install.sh` builds and installs it) |
-| `au-engine-sdk/` | TypeScript client and wire helpers for the Rust engine |
 | ~~`au-mcp-bridge/`~~ | **retired 2026-11-16** — the Python stdio bridge Hermes used to speak; removed with the Node daemon when Hermes moved to `/usr/local/bin/2brain` (`docs/hermes-2brain.md`) |
 | `au-type-system/` | the type-system contract. **Do not break**: vault format compatibility depends on it |
 | `au-mcp-sdk/` | the `mcp.*` vocabulary: 17 type definitions (`mcp.tool`, `mcp.skill`, `mcp.inject`, `agent-profile`) that content notes are written in. Its TypeScript was deleted 2026-11-16 |
-| `au-engine-sdk/`, `au-type-codegen/` | the last TypeScript: an engine client and a generator, both off the serving path — a product decision (`docs/repo-inventory.md`) |
 | `au-ingest/`, `au-govern/` | ingest pipeline, workspace composition (`workspace.yaml` members) |
 | `au-skills/`, `au-agent-guides/`, `au-rules/`, `au-writing-style/`, `au-competency/`, `au-defaults/` | content/knowledge repos |
 

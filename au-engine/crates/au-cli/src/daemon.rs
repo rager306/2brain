@@ -74,8 +74,8 @@ const NOT_RUNNING: u8 = 4;
 const NOT_A_REPO: u8 = 5;
 
 /// The graceful window before `stop --force` escalates SIGTERM, and again before
-/// SIGKILL. Matches au-engine-sdk's `DaemonSupervisor` `DEFAULT_FORCE_AFTER_MS`,
-/// so the CLI and the SDK supervisor agree on how long a stop waits.
+/// SIGKILL. The TypeScript SDK's `DaemonSupervisor` used to match it at
+/// `DEFAULT_FORCE_AFTER_MS`; the SDK is gone (2026-11-16), the window is not.
 const FORCE_STOP_WINDOW: Duration = Duration::from_millis(1500);
 
 /// The pid file for an entry, `<hash>.pid` beside the socket in

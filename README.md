@@ -23,7 +23,6 @@ Origin: `github.com/rager306/arsumbris` (private).
 | `au-type-system/`, `au-base-types/` | the type-system contract |
 | `au-skills/`, `au-agent-guides/`, `au-rules/`, `au-writing-style/`, `au-competency/`, `au-defaults/` | content and knowledge repositories |
 | `au-tree-research/`, `au-weave/` | domain repositories |
-| `au-engine-sdk/`, `au-type-codegen/` | the remaining TypeScript (engine client, generator) — off the serving path, no JS consumer today |
 | `arsumbris/` | upstream bundle documentation (release notes, installation, safety) |
 | `AGENTS.md` | working instructions for coding agents |
 
