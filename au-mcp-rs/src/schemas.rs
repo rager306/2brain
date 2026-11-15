@@ -20,12 +20,19 @@ pub(crate) fn envelope_schema(verb: &'static str) -> Arc<serde_json::Map<String,
     // validates `structuredContent` against this schema, so a field the adapter
     // adds without declaring it here is a protocol error at the client, not a
     // cosmetic mismatch.
-    for key in ["total", "offset", "next_offset"] {
+    for key in ["total", "offset"] {
         properties.insert(
             key.to_owned(),
             json!({"type": "integer", "description": format!("paging metadata added by the adapter ({key})")}),
         );
     }
+    // The page that ends a sequence answers null here. A strict client validates the
+    // answer against this declaration after the read has already succeeded, so a null
+    // under an integer declaration is a protocol error, not a cosmetic mismatch.
+    properties.insert(
+        "next_offset".to_owned(),
+        json!({"type": ["integer", "null"], "description": "paging metadata added by the adapter (next_offset); null on the page that ends the sequence"}),
+    );
     Arc::new(
         json!({
             "type": "object",
