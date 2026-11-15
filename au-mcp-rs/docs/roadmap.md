@@ -107,11 +107,12 @@ one engine read that joins degrees, SCCs, and reference diagnostics.
 
 ## Phase D — retire the Node stack
 
-Not started. It waits on two things, both named in the ledger below: parity proven
-on the **mutation** path by a model turn (the read path is proven —
-`scripts/model-turn.sh`), and an answer for extensions. A workspace can declare
-`mcp.tool` plugins today and a compiled binary cannot; if that matters, the
-replacement is an explicit process-per-plugin contract, not a return to Node.
+Not started. The checklist, the requirements table, the plugin decision and the
+five-step removal order are in [`../../docs/phase-d.md`](../../docs/phase-d.md). Both
+former blockers are answered: the mutation path is proven through a model (write,
+refusal, recovery, batch, revert), and plugins are moot here — this vault declares
+none, so freezing costs nothing and a process-per-plugin contract is the option if
+extensions return later.
 
 What goes: `au-mcp`, `au-mcp-sdk`, `au-type-codegen`, `au-engine-sdk`,
 `au-mcp-bridge`, and both client adapters. What stays: the engine, `au-engine-sdk`'s
@@ -145,11 +146,11 @@ Honest ledger, so a reader does not have to infer the gaps from the evidence fil
 
 | gap | why it is open |
 |---|---|
-| a model choosing `au_rollback_preview` | everything around it is now proven: the lost-reply path against a real engine (`scripts/lost-reply.sh`), the engine's compensation and rollback plan (`scripts/saga-and-rollback.sh`), and a model choosing `au_reconcile` (`scripts/recovery-turn.sh`) and `au_batch` (`scripts/batch-turn.sh`) |
+| nothing model-level remains on the mutation path | the last item — a model planning a revert from the commit `au_content` reports — is `scripts/rollback-turn.sh`, 7/7. Reads, writes, the read-only refusal, lost-reply recovery, the transactional path and the planned revert are all proven through a model |
 | `2026-07-28` on a third-party client | measured with `scripts/stdio_tee.py`: Codex asks for `2025-06-18` and is answered `2025-06-18`; no installed client requests the newer revision, so only our own tests reach it |
 | a Cursor model turn | Cursor needs an API key this host does not have. Codex is no longer in this row: `codex exec` completes a read turn, recorded in `client-matrix.md` |
 | resource subscriptions | not declared, by decision: `au_watch` gives every client the change signal without a second lifecycle. A client that genuinely needs `notifications/resources/updated` would reopen the question |
 | generated schemas | `tests/schema_contract.rs` catches drift against captured payloads, which is the safety half. Generating the schemas needs `WIRE.md` marked up machine-readably; today it is prose |
 | an `au_files` golden capture | the engine golden set covers four reads; the file listing is size-heavy and still uncaptured |
 | a scripted live A/B | the eleven byte-identical reads of 2026-11-13 were a manual session, so they cannot be re-run by the next person |
-| Phase D (retire the Node stack) | the read and write paths are now proven through a model; what blocks retirement is the `mcp.tool` plugin question (a workspace can declare plugins today, a compiled binary cannot) and a parity sweep over the 8 daemon tools that have no Rust counterpart |
+| Phase D (retire the Node stack) | checklist in [`../../docs/phase-d.md`](../../docs/phase-d.md). The plugin question is measured: this vault declares no plugins, so "freeze" costs nothing. What remains is the 8 daemon tools without a counterpart (6 are host tools by decision) and a live parity sweep before anything is deleted |
