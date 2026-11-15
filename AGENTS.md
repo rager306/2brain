@@ -28,6 +28,25 @@ local au-engine carries `0.0.5`-era unreleased work on
 | `au-ingest/`, `au-govern/` | ingest pipeline, workspace composition (`workspace.yaml` members) |
 | `au-skills/`, `au-agent-guides/`, `au-rules/`, `au-writing-style/`, `au-competency/`, `au-defaults/` | content/knowledge repos |
 
+## Branch model
+
+There is **one branch**: `main`, tracking `origin` (`github.com/rager306/arsumbris`). Development
+happens on `main` or on short-lived feature branches that merge back into it.
+
+**Upstream is detached (2026-11-16).** The upstream arsumbris project stalled; its work lives here as
+imported history, not as a branch to merge from. Merges from upstream are not planned. Where a
+document needs to cite upstream state, it cites a hash or an archive tag:
+
+| what upstream was | how it is cited |
+|---|---|
+| engine `0.0.5`-era work, including the hotpath profiling and memchr wikilink scan | commit `44b32f4`, tagged `archive/upstream-0.0.5` |
+| release `0.0.2-alpha` | whichever commit the release pointed at, tagged `archive/upstream-0.0.2-alpha` when identified |
+| the 24 sibling repositories | the `Add '<dir>/' from commit '<sha>'` merge commits in history |
+
+Older revisions of this section named `remotes/origin/main`, `feat/hotpath-profiling-and-memchr-wikilinks`
+and `fork/main`. None of those branches exist; the names are kept here only so an old document that
+mentions them can be read.
+
 ## Code, tooling, and models: three layers, one rule each
 
 Every file here belongs to exactly one of three layers, and the layer decides the language
@@ -185,14 +204,6 @@ captures in the retired daemon's shapes; they are history, not a contract.
 Gates: `cargo fmt --check` is clean for both halves and is a real gate; `clippy -D
 warnings` is a gate only for `au-mcp-rs` (the engine workspace carries 85 upstream
 style warnings, see `au-engine/tests-known-environment.txt`).
-
-## Branch model (au-engine)
-
-- `remotes/origin/main` = upstream `release 0.0.2-alpha` (frozen; stalled upstream)
-- `feat/hotpath-profiling-and-memchr-wikilinks` = pristine local upstream work
-  (`0.0.5`-era, commit `44b32f4`) — never rebase or amend
-- `fork/main` = fork integration branch (created 2026-11-12 from `44b32f4`)
-- Feature branches: `fork/<topic>`, conventional commits, English docs
 
 ## Improvement backlog
 
