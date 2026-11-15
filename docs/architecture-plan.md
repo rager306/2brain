@@ -253,6 +253,41 @@ live daemon waits for F and for a window, and it is a decision, not a step.
 (that is the consumer `Prepared` would need, and it changes a hash-chained log format), and W4.1 phase
 2 (blocked on a judge key; local-first is the default).
 
+## 2f. Closeout (2026-11-16): the planned work is done; what remains are decisions
+
+Every track in this plan is closed. The measured outcome, in one place, because the numbers are the
+deliverable:
+
+| what | before | after |
+|---|---|---|
+| `lib.rs` production lines | 4 636 | **4 524** (ratchet lowered five times, raised once for a feature with the reason recorded) |
+| module dependency edges | one cycle (`wire ↔ lib`) | **no cycle**, 11 declared edges, a test that rejects an undeclared one |
+| tools | 51 | **52** (+`au_search`), capability axis total and disjoint |
+| adapter tests | 173 | **205** registered, 203 running |
+| text search | literal scan, 132.8 ms | `search` 0.16–1.03 ms on a vault copy — **105×–698×**, worst p95 3.47 ms |
+| refusals | a stage name | a stage name *and* one formatter in `policy.rs`, with the two codes kept distinct by test |
+| duplicates judge | unmeasured | precision **1.000**, recall 0.889 |
+| stale-description judge | unmeasured | accuracy 0.884 but recall **0.333** — not a detector yet |
+| production parity | unproven | HEAD vs the served binary byte-identical on 8/8 reads of a frozen copy |
+| fixture orphans | 14 left behind | a reaper proven to kill exactly the orphans |
+
+Four things are **open decisions**, not tasks, and each names its price:
+
+1. **Promote `search` to the live daemon** (fifth swap). Parity is proven and nothing must be
+   regenerated; what is missing is a window, the install step, the live-socket read comparison and the
+   rollback artifact. `docs/engine-swap-2026-11-16.md` rehearses it on a copy.
+2. **A better staleness question.** Yes/no cannot express "the description is vague", which is most of
+   what the hand labels called stale. A `choice` over the description's claims costs ~$0.002 to
+   re-measure on the same 50 notes. Result decides whether backlog P0-3 is solved by a judge or by
+   something else.
+3. **The audit record gaining `repo:path@hash`.** This is the consumer that would justify a
+   `Prepared` value, and it changes a hash-chained log format — its own decision.
+4. **W4.1 in the ingest path.** The duplicates judge is good enough to use; wiring it into
+   `au-ingest` is a feature with a product consumer, and it belongs to that repo's plan.
+
+Everything else on the improvement backlog (FTS5 date filters, ingest validation of broken links) is
+engine or ingest work that this trajectory does not touch.
+
 ## 3. What blocks what
 
 ```
