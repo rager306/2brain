@@ -101,7 +101,7 @@
     created: <ГГГГ-ММ-ДД>
     source_url: "file:///root/hermes-runs/<ГГГГ-ММ-ДД>/"
     topics:
-      - "[[knowledge/tool-use]]"
+      - "[[tool-use]]"
     confidence: medium
     provenance: "Сессия Hermes <дата>; инструменты mcp__arsumbris_rs__*"
     ---
@@ -113,10 +113,12 @@
     ## Что не получилось и почему
     ## Замечания о поверхности инструментов
 
-`topics` — ссылки на заметки, которые **существуют**: проверить это можно
-`au_content` перед записью. Ссылка на несуществующую заметку не ошибка, но даёт
-warning `broken-link` в `au_diagnostics`; в этом волте заведомо есть
-`knowledge/tool-use.md`, `knowledge/index.md`, `knowledge/agentic-architecture.md`.
+`topics` — ссылки на заметки, которые **существуют**; проверить можно `au_content`
+перед записью. Форма ссылки в этом волте — короткий слаг без каталога и расширения:
+`[[tool-use]]` разрешается в `knowledge/tool-use.md`, а `[[knowledge/tool-use]]` —
+уже нет. Ссылка на несуществующую заметку не error, но даёт
+`navigational-target-not-found` в `au_diagnostics`; заведомо существующие цели:
+`[[tool-use]]`, `[[index]]`, `[[agentic-architecture]]`.
 
 Последний раздел — самый ценный: там пишется, какого инструмента не хватило, какой
 ответ был непонятен, где пришлось угадывать.
