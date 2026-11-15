@@ -23,11 +23,11 @@ own file, so one capture cannot change another's answer.
 
 Normalization is the corpus's existing one: the fixture repo root becomes `$FIXTURE`, a
 40-character lowercase commit sha becomes `$COMMIT`, keys are sorted and the file is
-indented by one space. Nothing else is rewritten, so a second run over a fresh tempdir
-writes byte-identical files. `au_assign_block_id` is captured on a block that already
-carries a `^id` — the engine's idempotent success path — because a freshly minted id
-derives from the clock and would make the fixture differ on every run; the answer's shape
-is the same on both paths.
+indented by one space. Two captures also avoid the engine's clock: `au_assign_block_id`
+runs on a block that already carries a `^id` (the idempotent success path, same answer
+shape), and `au_inline`'s host hash — the one answer field a freshly minted `^: b-<millis>`
+id reaches — is frozen to `$HASH`. Everything else survives a re-capture unchanged, so a
+second run over a fresh tempdir writes byte-identical files.
 
 Run from `au-mcp-rs/`:
 
@@ -217,9 +217,15 @@ def capture_rename(rpc: StdioMcp) -> dict:
 def capture_inline(rpc: StdioMcp) -> dict:
     folded = content(rpc, "fold.md")
     host = content(rpc, "into.md")
-    return call(rpc, "au_inline", {
+    payload = call(rpc, "au_inline", {
         "repo": REPO, "path": "fold.md", "into": "into.md",
         "expected_hash": folded["hash"], "into_expected_hash": host["hash"]})
+    # The folded record lands in the host under a clock-minted `^: b-<millis>` id, so the
+    # host's content hash — the only answer field that id reaches — differs per run.
+    # Its TYPE is what the schema test checks, so the value is frozen and a re-capture
+    # stays byte-identical.
+    payload["hash"] = "$HASH"
+    return payload
 
 
 def capture_promote(rpc: StdioMcp) -> dict:

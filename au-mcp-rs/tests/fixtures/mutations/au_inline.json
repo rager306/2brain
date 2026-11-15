@@ -4,7 +4,7 @@
   "fixture": "$COMMIT"
  },
  "diagnostics": [],
- "hash": "4546db335b434824",
+ "hash": "$HASH",
  "path": "$FIXTURE/into.md",
  "reflected": true,
  "untracked_files": []
