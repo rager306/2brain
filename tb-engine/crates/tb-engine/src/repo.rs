@@ -3542,7 +3542,7 @@ mod tests {
         let dir = PathBuf::from("/cfg");
         assert_eq!(
             user_registry_path(&ConfigSource::Dir(dir.clone())),
-            Some(PathBuf::from("/cfg/tb-engine/config/repos.yaml"))
+            Some(PathBuf::from("/cfg/au-engine/config/repos.yaml"))
         );
     }
 
@@ -3629,7 +3629,7 @@ mod tests {
     fn load_user_registry_reads_injected_path_and_degrades_when_absent() {
         let mut fs = MemoryFileSystem::new();
         fs.insert(
-            "/cfg/tb-engine/config/repos.yaml",
+            "/cfg/au-engine/config/repos.yaml",
             b"repos:\n  - name: notes\n    path: /kb/notes\n".to_vec(),
         );
         let cfg = PathBuf::from("/cfg");
@@ -3690,7 +3690,7 @@ mod tests {
         let dir = PathBuf::from("/cfg");
         assert_eq!(
             user_workspaces_path(&ConfigSource::Dir(dir.clone())),
-            Some(PathBuf::from("/cfg/tb-engine/config/workspaces.yaml"))
+            Some(PathBuf::from("/cfg/au-engine/config/workspaces.yaml"))
         );
     }
 
@@ -3698,7 +3698,7 @@ mod tests {
     fn load_user_workspaces_reads_injected_path_and_degrades_when_absent() {
         let mut fs = MemoryFileSystem::new();
         fs.insert(
-            "/cfg/tb-engine/config/workspaces.yaml",
+            "/cfg/au-engine/config/workspaces.yaml",
             b"workspaces:\n  - path: /kb/my-workspace\n".to_vec(),
         );
         let cfg = PathBuf::from("/cfg");

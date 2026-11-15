@@ -61,7 +61,7 @@ RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release -p tb-cli
 |---|---|
 path | `/root/2brain/tb-engine/target/release/au` |
 size | 13 926 360 bytes |
-sha256 | `4601966524667503af41f7dbdb48281fc065638b185950b017c097ad2195654b` |
+sha256 | `761e0eed11d5ff4e2f5496078e071925959325d0e7e8ce2cfc4aba6d57e2ee93` |
 version | `au 0.0.5` |
 built from | engine tree `44c6967`; the repo HEAD was `1046db7` at build time and moved to `e511507` during the rehearsal, with no engine change (`git diff --stat 44c6967..HEAD -- au-engine` empty, `git status --porcelain -- au-engine` empty) |
 toolchain | `cargo 1.99.0 (5f94df478 2026-08-27)`, `rustc 1.99.0 (b940084d7 2026-09-28)` |
@@ -156,7 +156,7 @@ tail -1 /root/.arsumbris/logs/health-checks.log        # engine=1 mcp=1 action=o
 systemctl status arsumbris-engine --no-pager | head -4 # active (running), Main PID
 HOME=/root /root/.arsumbris/bin/au daemon status /root/vault
 sha256sum /root/.arsumbris/bin/au                      # b7e48c82… (rollback source)
-sha256sum /root/2brain/tb-engine/target/release/au  # 46019665… (candidate)
+sha256sum /root/2brain/tb-engine/target/release/au  # 761e0eed… (candidate)
 pgrep -af "cargo test"                                 # must be empty: a stale test holds the target lock
 cd /root/2brain && git diff --stat 44c6967..HEAD -- au-engine   # must be empty, else rebuild
 cd /root/vault && git rev-parse HEAD && git status --porcelain | wc -l   # 4bcc4f2, 5
@@ -167,7 +167,7 @@ cd /root/vault && git rev-parse HEAD && git status --porcelain | wc -l   # 4bcc4
 ```
 /root/backups/au-20261116-pre-search   sha256 b7e48c82c7ffe891272a9c32822354e065333ca48e21c0ff5344c94f491d5991
                                        (= /root/.arsumbris/bin/au, verified identical)
-/root/backups/au-20261116-candidate    sha256 4601966524667503af41f7dbdb48281fc065638b185950b017c097ad2195654b
+/root/backups/au-20261116-candidate    sha256 761e0eed11d5ff4e2f5496078e071925959325d0e7e8ce2cfc4aba6d57e2ee93
 /root/backups/au-20261116-pre-live/    au_overview.json, au_hubs.json, au_diagnostics.json, au_graph_health.json
                                        captured from the LIVE socket through scripts/engine_probe.py
 ```
@@ -187,7 +187,7 @@ install -d /root/backups/au-20261116-pre-live
 install -m 0755 /root/2brain/tb-engine/target/release/au /root/backups/au-20261116-candidate
 install -m 0755 /root/.arsumbris/bin/au /root/backups/au-20261116-pre-search
 sha256sum /root/backups/au-20261116-candidate /root/backups/au-20261116-pre-search
-# 46019665…  candidate      b7e48c82…  pre-search (the rollback binary)
+# 761e0eed…  candidate      b7e48c82…  pre-search (the rollback binary)
 ```
 
 ### 2. Live baseline — IN THE WINDOW
@@ -219,7 +219,7 @@ because the digest loop had written three notes.
 
 ```sh
 install -m 0755 /root/backups/au-20261116-candidate /root/.arsumbris/bin/au
-sha256sum /root/.arsumbris/bin/au          # 46019665… before the restart, not after
+sha256sum /root/.arsumbris/bin/au          # 761e0eed… before the restart, not after
 systemctl restart arsumbris-engine
 ```
 
