@@ -226,6 +226,7 @@ This suite does not establish full MCP conformance or production readiness.
 | `scripts/lost-reply.sh` | that a write whose reply was dropped becomes `outcome_unknown`, not a retry, and that `au_reconcile` resolves it against the engine's real history — no model, no fake socket |
 | `scripts/saga-and-rollback.sh` | that a refused `au_batch` leaves no trace, and that `au_rollback_preview` reports a plan without touching the tree |
 | `scripts/codex-turn.sh` | the same read round trip as `model-turn.sh` through a second client implementation, Codex — one model turn |
+| `scripts/live_parity.py` | that the live bridge and the Rust adapter answer the same facts on the served vault, read-only and re-runnable |
 | `scripts/batch-turn.sh` | that a model reaches for `au_batch` instead of two single writes when the task spans files — one model turn |
 | `scripts/rollback-turn.sh` | that a model plans a revert from the commit `au_content` reports, and reads the plan — one model turn |
 | `scripts/bridge_parity.py` | shared facts between the Python bridge and this adapter ([result](docs/bridge-parity.md)) |
