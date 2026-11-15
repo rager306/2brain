@@ -292,6 +292,12 @@ Four things are **open decisions**, not tasks, and each names its price:
 Everything else on the improvement backlog (FTS5 date filters, ingest validation of broken links) is
 engine or ingest work that this trajectory does not touch.
 
+**The trajectory continues elsewhere.** This plan ends at the architecture; what comes next is the
+detach-and-consolidate plan (`docs/detach-and-consolidate.md`), whose inventory
+(`docs/repo-inventory.md`) assigns every directory a layer and a fate. The two agree on the rule that
+makes both work: a component is judged by whether it is on the serving path, and the serving path is
+Rust.
+
 ## 3. What blocks what
 
 ```

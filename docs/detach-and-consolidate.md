@@ -78,6 +78,24 @@ client library with its own published artifact, not a serving dependency.
 - **Do not rewrite history.** Upstream commits stay as they are; detaching is a policy change, not a
   rebase.
 
+## 4b. Status and the parallel tracks (2026-11-16)
+
+| track | state |
+|---|---|
+| X detach | **done** (`e511507`): one-branch branch model in `AGENTS.md`, `archive/upstream-0.0.5` pushed |
+| inventory | **done** (`docs/repo-inventory.md`): every directory with its layer and fate, measured from `git ls-files` |
+| parity gate for Y2 | **in flight** — what the Node daemon registers, what the Rust adapter lacks, what the bridge adds, and the ordered retirement checklist |
+| fifth engine swap runbook | **in flight** — independent of the retirement, but it is the same "prove it on a copy first" discipline |
+
+Two facts from the inventory change the shape of Y:
+
+1. **`au-mcp-core` and `au-mcp-sdk` are contracts with runtime inside them.** They carry 76 type
+   definitions between them (`mcp.tool`, `mcp.inject`, `agent-profile`, …), which the ontology work
+   cites. The retirement must delete *files*, not directories, and the commit must say which.
+2. **`au-engine-sdk` (14 k LOC) and the two adapters are not on the serving path**, so they are a
+   product decision rather than a retirement step: support a JS client, or let the Rust adapter be the
+   only supported surface.
+
 ## 5. First actions
 
 | action | owner | gate |
