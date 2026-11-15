@@ -19,8 +19,8 @@ Upstream: https://github.com/arsumbris (engine last upstream commit 2026-09-25, 
 | `au-engine-sdk/` | TypeScript client and wire helpers for the Rust engine |
 | ~~`au-mcp-bridge/`~~ | **retired 2026-11-16** — the Python stdio bridge Hermes used to speak; removed with the Node daemon when Hermes moved to `/usr/local/bin/2brain` (`docs/hermes-2brain.md`) |
 | `au-type-system/` | the type-system contract. **Do not break**: vault format compatibility depends on it |
-| `au-mcp/`, `au-mcp-sdk/`, `au-mcp-core/` | the retired TypeScript MCP layer: `au-mcp` is the Node daemon (stopped), `au-mcp-core`/`au-mcp-sdk` keep the type definitions (`mcp.tool`, `mcp.inject`, `agent-profile`) that outlive it |
-| `au-mcp-adapter-cc/`, `au-mcp-adapter-codex/` | client-specific TypeScript adapters, off the serving path — a product decision (`docs/repo-inventory.md`) |
+| `au-mcp-sdk/` | the `mcp.*` vocabulary: 17 type definitions (`mcp.tool`, `mcp.skill`, `mcp.inject`, `agent-profile`) that content notes are written in. Its TypeScript was deleted 2026-11-16 |
+| `au-engine-sdk/`, `au-type-codegen/` | the last TypeScript: an engine client and a generator, both off the serving path — a product decision (`docs/repo-inventory.md`) |
 | `au-ingest/`, `au-govern/` | ingest pipeline, workspace composition (`workspace.yaml` members) |
 | `au-skills/`, `au-agent-guides/`, `au-rules/`, `au-writing-style/`, `au-competency/`, `au-defaults/` | content/knowledge repos |
 
@@ -50,7 +50,7 @@ and the review bar. Name the layer before adding a file.
 
 | layer | where | language | rule |
 |---|---|---|---|
-| **Product code** | `au-engine/`, `au-mcp-rs/`, `au-mcp*/`, `au-ingest/`, `au-govern/` | **Rust only** | it runs in the serving path; nothing here may import, spawn, or require a script, a notebook, or a prototype |
+| **Product code** | `au-engine/`, `au-mcp-rs/`, `au-ingest/`, `au-govern/` | **Rust only** | it runs in the serving path; nothing here may import, spawn, or require a script, a notebook, or a prototype |
 | **Tooling** | `scripts/`, `tools/`, test support | shell, Python, or Rust — whatever fits | it may drive the product, never be driven by it; it exits honestly (non-zero on failure) and prints what it measured; it is never on the request path |
 | **Models** | `tools/*`, spikes, a section of `docs/` | any language | allowed, and often the cheapest way to settle a design question — but it is labelled a model, it is never cited as shipped behaviour, and it names where the real implementation would live |
 

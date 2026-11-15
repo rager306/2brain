@@ -16,13 +16,14 @@ Origin: `github.com/rager306/arsumbris` (private).
 | path | role |
 |---|---|
 | `au-engine/` | Rust core: `au-cli`, `au-engine`, `au-core`, `au-parser`, `au-grammar`, `au-references`, `au-diagnostics`, `au-testkit` |
-| `au-mcp-rs/` | experimental Rust MCP stdio adapter over the engine socket |
-| `au-mcp-bridge/` | Python stdio MCP bridge |
-| `au-mcp/`, `au-mcp-core/`, `au-mcp-sdk/`, `au-mcp-adapter-*` | MCP serving layers, SDK, and client adapters |
+| `au-mcp-rs/` | **the serving path**: the Rust MCP adapter behind `/usr/local/bin/2brain`, built and installed by `scripts/install.sh` |
+| ~~`au-mcp-bridge/`~~ | retired Python bridge, deleted with the Node daemon (2026-11-16) |
+| `au-mcp-sdk/` | the `mcp.*` type vocabulary (contract); the TypeScript MCP layer it belonged to was deleted 2026-11-16 |
 | `au-ingest/`, `au-govern/` | ingest pipeline, workspace composition |
-| `au-type-system/`, `au-type-codegen/`, `au-base-types/` | type-system contract and generated types |
+| `au-type-system/`, `au-base-types/` | the type-system contract |
 | `au-skills/`, `au-agent-guides/`, `au-rules/`, `au-writing-style/`, `au-competency/`, `au-defaults/` | content and knowledge repositories |
 | `au-tree-research/`, `au-weave/` | domain repositories |
+| `au-engine-sdk/`, `au-type-codegen/` | the remaining TypeScript (engine client, generator) — off the serving path, no JS consumer today |
 | `arsumbris/` | upstream bundle documentation (release notes, installation, safety) |
 | `AGENTS.md` | working instructions for coding agents |
 
