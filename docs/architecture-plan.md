@@ -173,6 +173,22 @@ Pass 2 — both rewrite `lib.rs` widely, so they are sequential: **P1.1** (`tran
 Rule for pass 2: whoever is second rebases onto the first and re-runs the golden set before
 merging; the first must not touch schema declarations.
 
+### Wave 1b — retrieval probe (evidence track, no engine change)
+
+**R1. Is a bundled retrieval engine worth it?** `docs/graph-engine-assessment.md` §7 step 5 asks
+for a spike; this is its place in the plan. It ships evidence, not features.
+
+- Corpus: a deterministic export of the live vault (1 036 notes, 5 046 wikilinks), built from
+  files, never written back.
+- Three queries, timed on every engine: hub ranking, 2-hop neighbourhood with a type filter,
+  and "similar notes inside topic Y" (BM25 + vector with a graph prefilter).
+- Engines: HelixDB local server (image, no source build), the current engine (already measured:
+  9.8 / 20.5 / 132.8 ms), and a `tantivy` baseline for the text half.
+- Acceptance: one table in `docs/retrieval-spike.md` with per-engine latency, a capability
+  column for the hybrid query, and a go/no-go written against the rule in §7 step 5.
+- Guardrail: no `au-engine` or `au-mcp-rs` file is touched; the export lives under `/tmp`; the
+  vault is read-only; the engine's own numbers are re-measured in the same session for fairness.
+
 ### Wave 3
 
 **P2** is one track: the gate, its types, the payload field and the tests are one change
@@ -239,3 +255,4 @@ invariant. Any step that cannot state its acceptance in a command is not a step 
 | P2.1–P2.3 gate | not started | — | — |
 | P3.1–P3.2 agent layer | not started | — | — |
 | P4.1 generated manual | not started | — | — |
+| R1 retrieval probe | not started | — | — |
