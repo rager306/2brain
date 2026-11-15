@@ -190,12 +190,6 @@ impl<const N: usize> Bm25Index<N> {
         self.live_docs
     }
 
-    /// Whether the index holds no live document.
-    #[cfg(test)]
-    pub(crate) fn is_empty(&self) -> bool {
-        self.live_docs == 0
-    }
-
     /// Add a document, replacing it if the id is already live.
     ///
     /// Cost is one pass over the document's terms plus one binary-search
