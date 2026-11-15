@@ -114,6 +114,24 @@ grep -q '"name":"mcp__arsumbris-rs__au_write_file"' <<<"$transcript2" &&
   fail "notes/b.md differs from its pre-turn content"
 
 echo "---"
+# Cross-check the same turn against the procedure's state machine. The script's own
+# assertions above are older than the machine; where the two disagree, the machine names
+# the state and this fails, which is how the drift gets found instead of argued about.
+# The duplicate assertions are removed once a live run confirms they agree
+# (docs/architecture-plan.md, track G).
+if [[ $status -eq 0 ]]; then
+  context=$(mktemp /tmp/au-mutation-context-XXXXXX.json)
+  printf '{"repo": "%s", "target_path": "%s", "expected_text": "%s", "commits_before": %s}\n' \
+    "$repo" "$repo/notes/a.md" "unique-marker-7f3a updated" "$before" >"$context"
+  if python3 "$(dirname "$0")/lib/procedure.py" verify mutation_turn --context "$context"; then
+    echo "PASS: the procedure's states agree with the turn"
+  else
+    echo "FAIL: the procedure stopped at a state the turn's own assertions passed" >&2
+    status=1
+  fi
+  rm -f "$context"
+fi
+
 if [[ $status -eq 0 ]]; then
   echo "PASS: the mutation path works through a model, and a read-only launch cannot write"
 else
