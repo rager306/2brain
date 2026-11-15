@@ -3336,7 +3336,7 @@ impl ServerHandler for Server {
     /// The catalogue as MCP resources, one URI per catalogued file.
     ///
     /// A resource is addressable where a tool call is not: a client can hold
-    /// `arsumbris://vault/inbox/note.md`, re-read it, and show it to a human.
+    /// `2brain://vault/inbox/note.md`, re-read it, and show it to a human.
     /// The URI carries the MEMBER and the member-relative path, because absolute
     /// paths break when a workspace moves and carry no member name.
     async fn list_resources(
@@ -3404,7 +3404,7 @@ impl ServerHandler for Server {
         }
         Ok(ListResourceTemplatesResult {
             resource_templates: vec![
-                ResourceTemplate::new("arsumbris://{repo}/{path}", "workspace file")
+                ResourceTemplate::new("2brain://{repo}/{path}", "workspace file")
                     .with_mime_type("text/markdown")
                     .with_description(
                         "A catalogued file: the member's name, then its path inside that member",

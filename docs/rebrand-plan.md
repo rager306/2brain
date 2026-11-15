@@ -53,8 +53,10 @@ doing them as one find-and-replace breaks the live vault.
 
 ### Tier D — wire contract (alias period)
 
-8. **Resource scheme** `arsumbris://<member>/<path>` → `2brain://…`: serve both for one release, publish
-   the deprecation, then drop. Fixtures and the golden captures regenerate in the same commit as the drop.
+8. **Resource scheme** — **done 2026-11-16**: resources are emitted as `2brain://<member>/<path>` and the
+   legacy `arsumbris://` is **accepted** on parse (a cached URI keeps working). Two tests pin it: emission
+   uses the new scheme only, and both schemes parse to the same member/path. The drop is a later versioned
+   change, and the fixture/golden regeneration belongs to it, not to this commit.
 
 ## Order and gates
 

@@ -1,9 +1,11 @@
 //! Resource URIs and the member table behind them.
 //!
-//! A resource is addressed as `arsumbris://<repo>/<member-relative path>`, with
-//! the path percent-encoded so a space, a `#`, or a `?` in a file name still
-//! forms a valid URI. Absolute paths would break when a workspace moves, and
-//! carry no member name.
+//! A resource is addressed as `2brain://<repo>/<member-relative path>`, with the path percent-encoded so a
+//! space, a `#`, or a `?` in a file name still forms a valid URI. Absolute paths would break when a workspace
+//! moves, and carry no member name.
+//!
+//! The legacy scheme `arsumbris://` is still **accepted** on parse for one release: a client that cached a
+//! URI keeps working, and the drop is a separate, versioned change (`docs/rebrand-plan.md`, tier D).
 
 use rmcp::model::Resource;
 use serde_json::Value;
@@ -45,15 +47,23 @@ pub(crate) fn member_relative(
     path.strip_prefix(&prefix).map(str::to_owned)
 }
 
-/// `arsumbris://<repo>/<path>`, with the path percent-encoded so a file name with
-/// a space, a `#`, or a `?` still forms a valid URI.
+/// The scheme resources are emitted with.
+pub(crate) const RESOURCE_SCHEME: &str = "2brain";
+
+/// The scheme this project used before the rebrand. Accepted on parse, never emitted.
+pub(crate) const LEGACY_RESOURCE_SCHEME: &str = "arsumbris";
+
+/// `2brain://<repo>/<path>`, with the path percent-encoded so a file name with a space,
+/// a `#`, or a `?` still forms a valid URI.
 pub(crate) fn resource_uri(repo: &str, path: &str) -> String {
-    format!("arsumbris://{repo}/{}", percent_encode(path))
+    format!("{RESOURCE_SCHEME}://{repo}/{}", percent_encode(path))
 }
 
 /// Split a resource URI back into its member and its member-relative path.
 pub(crate) fn parse_resource_uri(uri: &str) -> Option<(String, String)> {
-    let rest = uri.strip_prefix("arsumbris://")?;
+    let rest = uri
+        .strip_prefix(&format!("{RESOURCE_SCHEME}://"))
+        .or_else(|| uri.strip_prefix(&format!("{LEGACY_RESOURCE_SCHEME}://")))?;
     let (repo, path) = rest.split_once('/')?;
     if repo.is_empty() || path.is_empty() {
         return None;
@@ -149,17 +159,31 @@ mod tests {
             "inbox/a note #1?.md",
             "the encoded form must decode back to the same path: {uri}"
         );
-        assert_eq!(uri, "arsumbris://vault/inbox/a%20note%20%231%3F.md");
+        assert_eq!(uri, "2brain://vault/inbox/a%20note%20%231%3F.md");
+    }
+
+    #[test]
+    fn the_legacy_scheme_still_parses_and_is_never_emitted() {
+        // Tier D of docs/rebrand-plan.md: emit `2brain://`, accept `arsumbris://` for one release.
+        assert_eq!(
+            parse_resource_uri("arsumbris://vault/inbox/a.md"),
+            Some(("vault".to_owned(), "inbox/a.md".to_owned()))
+        );
+        assert_eq!(
+            parse_resource_uri("2brain://vault/inbox/a.md"),
+            Some(("vault".to_owned(), "inbox/a.md".to_owned()))
+        );
+        assert!(resource_uri("vault", "inbox/a.md").starts_with("2brain://"), "emission is the new scheme only");
     }
 
     #[test]
     fn a_foreign_uri_is_not_a_resource() {
         for uri in [
             "file:///etc/passwd",
-            "arsumbris://vault",
-            "arsumbris:///no-member",
-            "arsumbris://vault/",
-            "arsumbris://vault/%zz",
+            "2brain://vault",
+            "2brain:///no-member",
+            "2brain://vault/",
+            "2brain://vault/%zz",
         ] {
             assert!(parse_resource_uri(uri).is_none(), "{uri}");
         }
@@ -202,9 +226,9 @@ mod tests {
         assert_eq!(
             uris,
             vec![
-                "arsumbris://vault/inbox/a.md".to_owned(),
-                "arsumbris://vault/inbox/.hidden.md".to_owned(),
-                "arsumbris://vault/deep/c.md".to_owned(),
+                "2brain://vault/inbox/a.md".to_owned(),
+                "2brain://vault/inbox/.hidden.md".to_owned(),
+                "2brain://vault/deep/c.md".to_owned(),
             ]
         );
         assert_eq!(
