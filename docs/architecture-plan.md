@@ -299,6 +299,16 @@ cannot be tested without a socket.
 so a mutation in flight can be logged, described and resumed as data instead of living in locals.
 `Denial` keeps its stage and gains `next: Vec<Next>`.
 
+**P2.3 a refusal says what unblocks it — measured out, 2026-11-15.** Built as a per-stage
+`remedy()` table appended to the message; `tests/faults.rs` pins the refusal text and caught it, and
+reading that text showed why: the messages **already** name the step that clears them. The table
+duplicated them and was reverted. What is actually missing is a machine-readable field, which means
+structured error content — a separate change with its own client-compatibility question. What did
+land from P2's first slice: `Denial` moved beside `Stage` in `policy.rs`, one `text()` formatter,
+`lib.rs` 4561 → 4521, and a test pinning `policy/<stage>: ` as the code half.
+
+The original wording is kept below for the record.
+
 **P2.3 a refusal says what unblocks it.** `Next { stage: &'static str, tool: Option<&'static str> }`
 — for example `{"stage":"prior_read","tool":"au_content"}` or
 `{"stage":"freshness","tool":"au_content"}`. An agent that was refused at `editability` learns it
