@@ -65,6 +65,15 @@ const K1: f64 = 1.2;
 /// BM25 length-normalisation strength.
 const B: f64 = 0.75;
 
+/// How much a document's term coverage lifts its BM25 sum.
+///
+/// BM25 sums per-term contributions, so a document matching one rare term can outrank one matching all
+/// four query terms. The eval set in `tools/ranking/` measured the cost of that: a phrase occurring in
+/// exactly one note reached rank 1 only 43% of the time. Multiplying by `1 + COVERAGE * matched/total`
+/// rewards the document that actually holds the query, without positions and without a second index.
+/// The value is chosen against that set, not by taste; see `docs/trajectory.md`, track 3.
+const COVERAGE: f64 = 0.6;
+
 /// Default weight of field 0, the note body.
 const BODY_WEIGHT: f64 = 1.0;
 
@@ -330,7 +339,9 @@ impl<const N: usize> Bm25Index<N> {
             .filter(|(_, accumulator)| accumulator.matched >= required)
             .map(|(doc, accumulator)| Hit {
                 doc_id: doc as usize,
-                score: accumulator.score,
+                score: accumulator.score
+                    * (1.0
+                        + COVERAGE * (accumulator.matched as f64) / (distinct_terms.max(1) as f64)),
                 matched_terms: accumulator.matched,
             })
             .collect();

@@ -15,7 +15,7 @@ gate, its cost, and the evidence it would produce.
 | rebrand | tier A + B done; tier C (format) and D (scheme) open with recipes |
 | FSM run log | **done** — `tools/fsm/check_run.py`, seven rules, `--selftest` proves each bites |
 | hygiene pass | **done and applied** — `tools/hygiene/pass.py`, `inbox/hygiene-2026-11-16.md` |
-| ranking eval | **baseline measured** — 60 labelled queries, hit@1 0.43 (literal) / 0.60 (topical) |
+| ranking eval | started — 60 labelled queries; coverage weighting lifted literal hit@1 0.43 → 0.57 |
 
 ## Track 1 — make a run auditable (no model, small)
 
@@ -59,6 +59,19 @@ Baseline on 2026-11-16, before any change:
 Nine queries do not place the expected note in the top ten at all. **The literal class is the finding**:
 a phrase that occurs in exactly one note reaches rank 1 only 43% of the time, because BM25 scores bag of
 terms — no proximity, no phrase credit. So the first change is not freshness; it is ranking what matched.
+
+First change, landed and measured (`COVERAGE = 0.6` in `search.rs`): a document's BM25 sum is multiplied by
+`1 + COVERAGE × matched_terms/total_terms`, so the note holding the whole query outranks one holding a
+single rare word. Results on the same set, live engine:
+
+| class | metric | before | after |
+|---|---|---:|---:|
+| literal | hit@1 / hit@5 / MRR | 0.429 / 0.714 / 0.568 | **0.571 / 0.857 / 0.690** |
+| topical | hit@1 / hit@5 / MRR | 0.604 / 0.811 / 0.697 | **0.642 / 0.811 / 0.717** |
+| — | missing from top-10 | 9 | **8** |
+
+No metric regressed. The constant was chosen against this set and is recorded as such; the next change
+(proximity, then the freshness prior) is scored the same way.
 
 Candidate changes, each scored against this baseline:
 
