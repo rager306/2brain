@@ -28,6 +28,42 @@ local au-engine carries `0.0.5`-era unreleased work on
 | `au-ingest/`, `au-govern/` | ingest pipeline, workspace composition (`workspace.yaml` members) |
 | `au-skills/`, `au-agent-guides/`, `au-rules/`, `au-writing-style/`, `au-competency/`, `au-defaults/` | content/knowledge repos |
 
+## Code, tooling, and models: three layers, one rule each
+
+Every file here belongs to exactly one of three layers, and the layer decides the language
+and the review bar. Name the layer before adding a file.
+
+| layer | where | language | rule |
+|---|---|---|---|
+| **Product code** | `au-engine/`, `au-mcp-rs/`, `au-mcp*/`, `au-ingest/`, `au-govern/` | **Rust only** | it runs in the serving path; nothing here may import, spawn, or require a script, a notebook, or a prototype |
+| **Tooling** | `scripts/`, `tools/`, test support | shell, Python, or Rust — whatever fits | it may drive the product, never be driven by it; it exits honestly (non-zero on failure) and prints what it measured; it is never on the request path |
+| **Models** | `tools/*`, spikes, a section of `docs/` | any language | allowed, and often the cheapest way to settle a design question — but it is labelled a model, it is never cited as shipped behaviour, and it names where the real implementation would live |
+
+Rules that make the split hold:
+
+- **A model that something other than a human reads has graduated.** Either rewrite it in
+the product's language or move it into tooling with tests. Nothing sits in between.
+- **Tooling may be replaced without touching the serving path.** If changing `scripts/`
+forces a change in `au-mcp-rs/`, the boundary was crossed in the wrong direction.
+- **No Rust crate depends on a script or an interpreter.** A `python3` invocation inside
+Rust is a design smell; a `python3` invocation inside a shell script is fine.
+- **The one serving-path exception is `au-mcp-bridge/`** (Python), which Hermes speaks to.
+It is legacy scheduled for retirement by `docs/phase-d.md`, not a precedent to copy.
+- **Every model states its evidence:** what it measured, on what corpus, and what it did not
+measure. `docs/w4.1-judgement-run-2026-11-16.md` is the shape to copy.
+
+Worked examples, so the rule is not abstract:
+
+| what | layer | why there |
+|---|---|---|
+| `au-mcp-rs/src/gate.rs` — the mutation gate's state machine | product | the serving path walks it on every write |
+| `au-mcp-rs/scripts/lib/procedure.py` — two procedures as states, with `--selftest` | tooling | its only consumer is `mutation-turn.sh`, a verification script; no Rust file imports it |
+| the Python BM25 prototype behind `docs/architecture-plan.md` T1 | model | it produced numbers and nothing else; the index that shipped is Rust (`au-engine/crates/au-engine/src/search.rs`) |
+
+If the procedure runtime ever gets a **product** consumer — the server itself running an
+agent procedure — it moves to `au-mcp-rs/src/procedure.rs` and gains a tool; until then its
+home is `scripts/`.
+
 ## Workspace and Rust environment
 
 - This directory is ONE Git repository (`github.com/rager306/arsumbris`,

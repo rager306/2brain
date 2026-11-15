@@ -124,6 +124,13 @@ and that every denial carries a non-empty `allowed_next`; one live client run (H
 
 ### P3 — C2: state machines in the agent layer, only where they are earned
 
+**P3.1 Two procedures, expressed once — layer decided 2026-11-16.** The runtime is
+`scripts/lib/procedure.py`, i.e. **tooling**, not product: its only consumer is `mutation-turn.sh`
+and no Rust file imports it. The split is now written into `AGENTS.md` (product code = Rust only;
+tooling = `scripts/`/`tools/`, any language; models = allowed but labelled and never cited as
+shipped). If a product consumer ever appears — the server running a procedure itself — the runtime
+moves to `au-mcp-rs/src/procedure.rs` and gains a tool.
+
 **P3.1 Two procedures, expressed once.** `mutation-turn.sh` and `recovery-turn.sh` are already
 deterministic state-per-prompt procedures. Write each as a state list with entry/exit checks and
 code transitions (a single `scripts/lib/procedure.py` runner, ≤120 lines), then re-run them.
