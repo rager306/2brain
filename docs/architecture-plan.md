@@ -218,7 +218,7 @@ Three things changed since 2c, and each one changes what to do next.
 
 | track | work | surface | conflicts with |
 |---|---|---|---|
-| **D** T1 acceptance measurement | build a disposable fixture engine from HEAD, run `au_search` and `au_grep` over the eight probe queries, record the table in `docs/verification.md`; the live vault and daemon stay untouched | `/tmp` + `scripts/lib/disposable-fixture.sh` | nothing |
+| ~~**D** T1 acceptance measurement~~ | **done 2026-11-16** — both clauses met with margin; the table is in `docs/verification.md`. The live daemon still runs the previous engine binary, so promoting `search` to production is a separate decision and needs the golden contract, not a measurement | `/tmp` + fixture | — |
 | **A** P2.2 | `Prepared` as a value: the armed mutation carries its stage and the recorded hash, so it can be described, logged and asserted in a test | `au-mcp-rs` (`gate.rs`, `lib.rs`) | nothing |
 | **B** P3 | two procedures (`mutation-turn.sh`, `recovery-turn.sh`) expressed as states with code transitions and negative cases | `scripts/` | nothing |
 
@@ -508,6 +508,7 @@ pairs); W4.2 is documentation and runs in parallel with anything.
 | P1.5 read ledger | **done** (`3e402e8`) | `ledger::ReadLedger` with 3 tests (forget, member in the key, clone shares); `lib.rs` 4631 → 4612 and the ratchet tightened; the two refusal codes unchanged | 2026-11-15 |
 | T1 text index (engine half, phase 2) | **done** (`d888abe`) | index on `KnowledgeBase` with a `search` parity fact; `Request::Search` from held state; 6 integration tests including "a body rewrite changes the ranking on the next read"; golden capture from the fixture | 2026-11-15 |
 | T1 text index (adapter half) | **done** (`c3472e5`) | `au_search` is the 52nd tool; capability 33 read / 16 mutate / 2 discover / 1 watch; counts in architecture, capability, stdio, fixture_schema and wire_catalog all moved together; suite 203 passed | 2026-11-15 |
+| T1 acceptance | **measured 2026-11-16** | release engine from `fec77bd` over a vault copy: `search` 0.16–1.03 ms vs `grep` 101–112 ms (105×–698×), worst p95 3.47 ms, identical top-5 across two daemon starts; `exact` 0.26 ms; `bm25 ranking` answerable only by the ranked verb | 2026-11-16 |
 | T1 text index (engine half) | **phase 1 done** (`3d4bc40`) | `search.rs` 982 lines; 7 tests + ignored measurement; build 1.07 s / 1 000 docs, 4.7 KiB/doc, OR p50 1.65 ms p95 2.45 ms, exact p50 73 µs; engine `--lib` 685 passed / 1 known root-only failure; **no verb yet** | 2026-11-15 |
 
 | P2.1–P2.3 gate | not started | — | — |
