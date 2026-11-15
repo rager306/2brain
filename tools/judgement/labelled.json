@@ -1,0 +1,1264 @@
+{
+  "version": 1,
+  "built": "2026-11-15",
+  "vault": "/root/vault",
+  "sampling": {
+    "rule": "Stratified deliberately, not randomly. Pool: 1,018 live notes under /root/vault (archive/, .claude/ and templates/ excluded), of which 981 declare one of the nine types in frontmatter, carry a non-empty description and have a body of at least 450 characters. Every note is one of those 981.",
+    "type_strata": "All nine declared types are represented: the four most frequent types (extract, pattern, insight, moc) and the two mid-frequency types (decision, error) get at least five each, the three rare types (claim, principle, manual) at least one each, and the five top hubs by au_hubs (index, zeroclaw-decisions, agentic-architecture, memory-systems, jev) are always included.",
+    "staleness_screen": "Oversampled descriptions that looked stale before reading: description shorter than 90 characters, a generic 'Topic map for ... / Current ... / Complete reference ...' description, or a description naming an entity, count or status that does not occur in the body. At least ten screen hits are included; each is labelled on its own evidence, and a screen hit that turns out accurate is labelled not stale (the screen is a sampler, not a label).",
+    "duplicate_search": "Title-token Jaccard over the 981-note pool (every pair at 0.50 and above that involves a sampled note is read), then au_grep for a distinctive phrase and au_content on both sides of each candidate pair. A note names a same-claim partner only when both bodies assert the same proposition; otherwise it records the closest rejected title match. duplicate_candidate is the note the duplicate noul compares against: the named partner when one exists, otherwise a deterministic different-type probe, so the gold answer to that pair is 'no'.",
+    "reproduction_note": "Roles and languages follow the vault (Russian descriptions occur next to English bodies); no note text was rewritten."
+  },
+  "notes": [
+    {
+      "path": "knowledge/index.md",
+      "type": "moc",
+      "description": "Entry point to the knowledge system — start here to navigate",
+      "excerpt": "# index\n\nWelcome to the ZeroClaw engineering knowledge system.\n\n## Self\n\n- **identity** — who the agent is and how it approaches work (see `self/identity.md`)\n- **methodology** — how insights are processed and connected (see `self/methodology.md`)\n- **goals** — current active threads and backlog (see `self/goals.md`)\n\n## Core Architectures\n\n- [[ruvector-architecture]] — 90+ Rust crates: HNSW, Graph, GNN, SONA, Raft, RVF, WASM\n- [[agentdb-architecture]] — cognitive memory engine: ReasoningBank, causal inference, RL\n- [[agentic-flow-architecture]] — 66 agents, 213 MCP tools, 4-tier cost routing\n- [[claude-flow-architecture]] — 64 agents, 171 MCP tools, SPARC methodology\n\n## ZeroClaw Project",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description says entry point for navigation; the body is exactly a link index whose sections are Self, Core Architectures and ZeroClaw Project."
+        },
+        "type": {
+          "value": "moc",
+          "justification": "Frontmatter type is moc; the body is a navigation hub of wiki links, not a single claim."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/lance-csr-cypher-over-lance-csr-index.md (Jaccard 0.25) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/agent-beacon-cross-harness-memory.md (declared type extract), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "inbox/agent-beacon-cross-harness-memory.md",
+        "description": "Asymptote-Labs/agent-beacon (Go, MIT, 2,590★, GitHub Trending): cross-harness self-improving memory layer — захватывает session history 20+ харнессов (Claude Code, Cursor, Codex, OpenCode, Cline, Devin, Gemini CLI, Copilot, dsh, goose) через OTLP + hooks + poll, нормализует в единый OpenTelemetry event model (sessions/prompts/tools/commands/file/approvals/MCP/tokens); цикл: capture → evaluate → extract knowledge → review+approve → reuse через MCP или Agent Skills (~/.agents/skills + ~/.claude/skills); local-first JSONL + local read-only dashboard с lens-ами (sandboxed HTML views, агент-писуемые через beacon lenses spec); destinations: Local по умолчанию, Beacon Cloud только явным opt-in (confirm-экран называет оператора и режим); supply-chain гигиена: checksums + gh attestation verify; трейс-датасет двойного назначения: память + security/аудит телеметрия (SIEM/MDM topics)",
+        "excerpt": "# Agent Beacon: сессии как телеметрия, память как review-approved знания\n\nТезис: «проблема, решённая одним агентом, не должна учиться с нуля другим». Beacon сидит НАД харнесс-слоем: Claude Code, Cursor, Codex, OpenCode, Cline, Devin, Gemini CLI, Copilot CLI, goose, Grok Build, Antigravity, DeepSeek Harness (dsh — тот же из layerfs!) и ещё 20+ — захватывает исполнение и нормализует в **единый OpenTelemetry-based event model**: sessions, prompts/responses, tool calls, commands, file activity, approvals, MCP interactions, tokens.\n\n## Цикл памяти\n\n```\nRun agents → Capture session history → Evaluate what worked\n→ Extract useful knowledge → Review + approve → Reuse across future agents\n```"
+      }
+    },
+    {
+      "path": "knowledge/zeroclaw-decisions.md",
+      "type": "moc",
+      "description": "Topic map for ZeroClaw architectural decisions, phase ordering, and technology choices",
+      "excerpt": "# zeroclaw-decisions\n\nАрхитектурные решения ZeroClaw — Rust autonomous agent runtime с Temporal Knowledge Graph memory.\n\n## Roadmap\n\n- [[zeroclaw-roadmap]] — 9-phase development roadmap (Phases 1-2 complete, Phase 3 in progress)\n- [[zeroclaw-v1-shipped-18-phases-in-13-days-with-38-plans]] — v1.0 shipped: 18 phases, 38 plans, 2,257+ tests\n- [[zeroclaw-uses-inserted-phases-for-tech-debt-and-integration-fixes]] — explicit INSERTED phases for tech debt\n- [[zeroclaw-v2-prioritizes-daemon-singleton-memory-dump-cli-before-agentic-features]] — infrastructure before agentic features\n\n## Phase Topic Maps",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description says topic map for decisions, phase ordering and technology choices; the body has those exact H2 sections (Roadmap, Phase Topic Maps, Technology Stack, Phase Ordering)."
+        },
+        "type": {
+          "value": "moc",
+          "justification": "Frontmatter type is moc; the body is a link map across decision notes."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-retrieval.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/geometry-of-agent-memory-null-result.md (declared type extract), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "inbox/geometry-of-agent-memory-null-result.md",
+        "description": "The Geometry of Agent Memory (arXiv:2610.26433, Redis, PALM@NeurIPS 2026 poster): ЧЕСТНЫЙ НЕГАТИВНЫЙ РЕЗУЛЬТАТ — геометрия эмбеддингов (близость query↔memory↔turns, 25 признаков: reachability, memory-conversation correspondence, структура диалога) НЕ предсказывает правильность ответа до генерации; pooled AUROC 0.640 [0.615,0.664] на LongMemEval-small (2,367 пар) — НИЖЕ baseline'а сложности вопросов (0.655); лучший тип 0.841 (single-session-assistant), но одна идентичность системы даёт 0.826 на том же типе; после контроля difficulty+identity геометрия добавляет Δ=+0.002 (CI [−0.010,0.014]) — ноль; proximity-ranked > random — обычная релевантность ретрива, не новое знание; фундаментальный предел: близость в embedding-пространстве не проверяет fact coverage и не различает ошибки memory-construction / retrieval / generation; 5 систем (4 dense/hybrid + Obs-Extract Mastra-style 67.9%, Svc-Mem LangMem 73.2%)",
+        "excerpt": "# Геометрия памяти агента: векторное хранилище — не монитор\n\n## Что тестировалось\n\nГипотеза: геометрические соотношения (эмбеддинг-близости между ходами диалога, memory-текстами и запросом) предсказывают правильность ответа ДО генерации. Пять систем на LongMemEval-small (4 memory-реализации с dense/hybrid retrieval + observation-summary компаратор Obs-Extract, Mastra-style, QA 67.9%; Svc-Mem на LangMem, QA 73.2%). 25 признаков в двух блоках: **query reachability** (ближайшая memory, средняя до 5 ближайших, локальная плотность, дистанция до ближайшего хода) и **memory-conversation correspondence** (turn-to-memory близость, session alignment, количество/дисперсия memory) + ковариаты диалога."
+      }
+    },
+    {
+      "path": "knowledge/memory-systems.md",
+      "type": "moc",
+      "description": "Topic map for AI memory architectures, persistent storage, and retrieval patterns",
+      "excerpt": "# memory-systems\n\nАрхитектуры памяти для ИИ-систем: векторные хранилища, эпизодическая память, семантические графы.\n\n## Cognitive Memory Patterns\n\n### Five-Table Schema\n- [[agenticdb-five-table-schema-for-cognitive-memory]] — vectors, reflexion, skills, causal, learning\n\n### Reflexion Memory\n- [[agentdb-reflexion-memory-stores-episodes-with-self-critique-for-experience-replay-learning]] — эпизодическая самокритика",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description says memory architectures, persistent storage and retrieval patterns; the body links AgentDB, Mnemis, A-Mem-class memory notes and hybrid retrieval under those headings."
+        },
+        "type": {
+          "value": "moc",
+          "justification": "Frontmatter type is moc; the body is a topic map of memory notes."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/rust-ai-systems.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-defense-in-depth-six-independent-security-layers.md (declared type pattern), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/zeroclaw-defense-in-depth-six-independent-security-layers.md",
+        "description": "Six layers: policy enforcement, authentication, secrets management, sandboxing, audit, supply chain — each independent",
+        "excerpt": "# ZeroClaw Defense-in-Depth: Six Independent Security Layers\n\nEach layer operates independently; compromise of one does not cascade to others.\n\n## The Six Layers\n\n```\nRequest → [L1: Gateway Auth] → [L2: Channel Auth] → [L3: Policy] → [L4: Sandbox] → [L5: Audit] → Execution\n```\n\n| Layer | Mechanism | Compromise Impact |\n|-------|-----------|-------------------|\n| **1. Policy** | Autonomy levels + allowlist + path sandboxing | Agent can execute allowed commands |\n| **2. Auth** | Pairing + bearer tokens + TLS | Attacker can send requests |\n| **3. Secrets** | ChaCha20-Poly1305 + restricted file perms | Keys readable if file accessed |\n| **4. Sandbox** | bubblewrap/firejail/landlock/docker | Process escapes to host |\n| **5."
+      }
+    },
+    {
+      "path": "knowledge/agentic-architecture.md",
+      "type": "moc",
+      "description": "Topic map for agentic reasoning patterns, multi-agent coordination, and autonomous AI architectures",
+      "excerpt": "# agentic-architecture\n\nПаттерны построения автономных ИИ-агентов и мультиагентных систем.\n\n## Core Concepts\n\n### Three Layers of Agentic Reasoning\n- [[agentic-reasoning-decomposes-into-three-layers-each-optimizable-in-context-or-post-training]] — foundational → self-evolving → collective\n\n### Cognitive Memory\n- [[agenticdb-five-table-schema-for-cognitive-memory]] — vectors, reflexion, skills, causal, learning\n- [[agentdb-reflexion-memory-stores-episodes-with-self-critique-for-experience-replay-learning]] — эпизодическая память самокритики\n- [[agentdb-reasoningbank-has-four-components-pattern-matcher-experience-curator-memory-optimizer-context-synthesizer]] — когнитивный слой для self-evolving",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description says agentic reasoning, multi-agent coordination and autonomous architectures; the body's sections are Core Concepts, Cognitive Memory, Learning & Adaptation, Multi-Agent Orchestration."
+        },
+        "type": {
+          "value": "moc",
+          "justification": "Frontmatter type is moc; the body maps agentic-architecture notes by theme."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "Closest title-token match is knowledge/agentic-flow-architecture.md (Jaccard 0.67), but that note is a map of the agentic-flow project (66 agents, 213 MCP tools), while this one maps general reasoning patterns; different claims. The duplicate noul compares against the known-different probe knowledge/jev-rubric-scoring-pattern.md (declared type pattern), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/jev-rubric-scoring-pattern.md",
+        "description": "Фиксированная рубрика → один батч Score/Noul-вопросов → агрегация в коде: скоринг текста/кандидатов/страниц без парсинга",
+        "excerpt": "# Jev Rubric Scoring Pattern\n\nФормула: человек описывает критерии обычным языком (rubric) → каждый критерий становится Score- или Noul-вопросом → все уходят одним батчем → взвешенная сумма/вердикт считается в коде.\n\nПрактики:\n- will-it-hit — восемь Score-вопросов (hook, specificity, emotion, clarity, repostability, authority, algorithm fit, expected engagement) + Choice типа поста; LLM пишет рерайты, Jev перескоривает каждый — видно оба числа.\n- JevSlop — восемь Score-осей в одном systemOne-запросе → 0-100 Slop Score обычным TypeScript.\n- Sniff Test — десять Boolean на абзац (stacked hedges, not-X-but-Y, naked cost figures) с порогом 0.7: 182ms медиана, 1 из 54 чистых абзацев помечен против 37 у Haiku 4.5."
+      }
+    },
+    {
+      "path": "knowledge/jev.md",
+      "type": "moc",
+      "description": "Jev — первая System One модель TypeSafe: типизированные вопросы к стейту, структурированные ответы с калиброванными вероятностями вместо генерации текста",
+      "excerpt": "# Jev (TypeSafe System One)\n\nJev — decision-модель (System One, релиз 2026-09-15): принимает state и набор типизированных вопросов, возвращает типизированные ответы с вероятностями (и confidence для Choice/Score). Текст не генерирует — код ветвится, сортирует и роутит по ответам напрямую, без парсинга.\n\nИсточник ядра — docs.typesafe.ai (Sep 2026, модель jev-1.13.0); два insight-а — собственные эксперименты на Hermes-транскриптах (jev-compaction eval, 2026-09-26).\n\n## Insights",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description calls Jev a System One model with typed questions and calibrated probabilities; the body opens with Jev as a decision model (System One, 2026-09-15) and lists the typed primitives. 'First' is a historical claim the body neither repeats nor contradicts."
+        },
+        "type": {
+          "value": "moc",
+          "justification": "Frontmatter type is moc; the body is a themed link map of Jev insight notes."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "Closest title-token match is knowledge/jev-applications.md (Jaccard 0.50), but that note is a field guide to 469+ Jev builds, while this is the hub of Jev insight notes; different claims. The duplicate noul compares against the known-different probe knowledge/jev-1-13-has-known-jagged-edges.md (declared type insight), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/jev-1-13-has-known-jagged-edges.md",
+        "description": "TypeSafe публично признаёт неровности jev-1.13; при тюнинге порогов пиновать версию, а не jev-latest",
+        "excerpt": "# Jev 1.13 Has Known Jagged Edges\n\nTypeSafe ведёт страницу model-jaggedness для jev-1.13: «Jev isn't perfect. Here are some jagged edges we are aware of. Many of these will be fixed in later versions». Существование страницы — нормальная практика для калиброванной модели: известные слабости задокументированы, а не спрятаны.\n\nПрактическое следствие: любые пороги/гейты, откалиброванные на конкретной версии, нужно перепроверять при обновлении; в проде пиновать модель (jev-1.13.0), а не псевдоним jev-latest, который тихо переезжает на новый релиз. Ответ API всегда возвращает точную версию, ответившую на запрос — логировать её."
+      }
+    },
+    {
+      "path": "knowledge/human-feedback.md",
+      "type": "moc",
+      "description": "Topic map for human feedback mechanisms in AI systems: RLHF, DPO, clarification, correction",
+      "excerpt": "# Human Feedback\n\nМеханизмы сбора и интеграции обратной связи от людей в AI-системы.\n\n## Feedback Channels\n\n- [[pahf-framework-for-continual-agent-personalization]] -- pre-action clarification + post-action correction для continual personalization\n\n## Learning from Feedback\n\n- [[agentdb-reasoningbank-has-four-components-pattern-matcher-experience-curator-memory-optimizer-context-synthesizer]] -- adaptive learning из reasoning trajectories\n- [[rl2f-multi-turn-didactic-dialogues-transform-single-turn-tasks-into-interactive-learning]] -- training models to integrate language feedback via didactic interactions\n- [[in-context-plasticity-determines-feedback-integration-ability]] -- the key behavioral differentiator: models with high plasticity adapt, low plasticity repeats errors",
+      "labels": {
+        "stale_description": {
+          "value": "yes",
+          "justification": "Description names RLHF and DPO; neither string occurs anywhere in the body, which covers PAHF, ReasoningBank, RL2F, critique prediction and MASPO instead."
+        },
+        "type": {
+          "value": "moc",
+          "justification": "Frontmatter type is moc; the body is a link map of feedback mechanisms."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/evorag-feedback-backpropagation-kg-rag.md (Jaccard 0.20) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe f/patterns/pattern-budgets-as-trades.md (declared type pattern), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "f/patterns/pattern-budgets-as-trades.md",
+        "description": "Budgets as trades, not limits: every repo budget is enforced [check]-style and phrased as a trade — a seventh blocking check requires deleting one in the same PR, a 16th working-set doc requires archiving one, the constitution caps its own word count; «a limit gets exceptions, a trade forces someone to name what matters less»; every rule is tagged [check] (CI) or [review] (human)",
+        "excerpt": "# Budgets as trades, not limits\n\n## Правила внедрения\n\n- Конституция репо коротка и ограничивает СЕБЯ (словами/строками): рост конституции = что-то становится автоматической проверкой или перестаёт быть правилом\n- Каждое правило помечено механизмом исполнения: [check] (CI) или [review] (человек) — governance без механизма = пожелание\n- Бюджеты формулируются ТРЕЙДАМИ: добавление N+1 требует удаления одного в том же PR — трейд заставляет назвать, что важно меньше; лимит позволяет исключения, трейд — нет\n- Медленное — не блокирует: асинхронный прогон per-commit с атрибуцией ломающему; блокирующий набор — только быстрое (их: 6 проверок / 65s)\n\n## Не делать"
+      }
+    },
+    {
+      "path": "knowledge/rl-training-methods.md",
+      "type": "moc",
+      "description": "Topic map for reinforcement learning approaches to LLM training: RLHF, RLVR, MASPO, RL2F, and their trade-offs.",
+      "excerpt": "# RL Training Methods\n\nReinforcement learning methods for fine-tuning language models, including reward-based optimization, policy gradients, and specialized variants for verifiable tasks.\n\n## RLVR (RL from Verifiable Rewards)\n\n- [[maspo-improves-sample-efficiency-over-grpo-across-model-scales]] -- MASPO improves over GRPO baseline\n- [[maspo-limitations-include-verifiable-reward-dependence-and-scale-validation]] -- dependence on deterministic rewards\n\n## Multi-Turn RL\n\n- [[rl2f-multi-turn-didactic-dialogues-transform-single-turn-tasks-into-interactive-learning]] -- RL with language feedback across turns\n- [[rl2f-outperforms-single-turn-rl-for-cross-domain-transfer]] -- multi-turn generalization advantage\n\n## Supervised Fine-Tuning for Agents",
+      "labels": {
+        "stale_description": {
+          "value": "yes",
+          "justification": "Description names RLHF among four methods; the body's headings are RLVR, Multi-Turn RL, SFT for Agents and Key Comparisons, and 'RLHF' does not occur in it."
+        },
+        "type": {
+          "value": "moc",
+          "justification": "Frontmatter type is moc; the body is a link map of RL training notes."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is f/patterns/pattern-preregistered-training-runs.md (Jaccard 0.20) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md (declared type pattern), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md",
+        "description": "Entity Resolution ниже 85% приводит к каскадным ошибкам при обходе графа — Dr. Smith doctor и Dr. Smith movie character становятся одним узлом",
+        "excerpt": "# Entity Resolution Below 85 Percent Cascades Into Graph Corruption\n\nEntity Resolution (ER) — самая сложная проблема в построении knowledge graph. Когда точность ER падает ниже 85%, ошибки накапливаются при каждом обходе графа.\n\n## Проблема\n\n\"Dr. Smith\" врач пользователя и \"Dr. Smith\" персонаж фильма становятся одним узлом. Duplicate nodes proliferate, diluting graph power.\n\n## Почему это происходит\n\n- ER требует понимания контекста, coreference, abbreviations, nicknames\n- LLM-based extraction вероятностный, не детерминированный\n- Agent conversations особенно noisy — пользователи называют одну сущность по-разному\n\n## Последствия"
+      }
+    },
+    {
+      "path": "knowledge/kutha-temporal-graphs.md",
+      "type": "moc",
+      "description": "Kutha — Rust temporal graph engine (log=SoT, fold, dict-first); hub for patterns + live project snapshot (M157 closed, H5, FF5 green as of 2026-10-23)",
+      "excerpt": "# Kutha Temporal Graphs\n\nKutha — самостоятельный Rust-движок временных графов: append-only event log = source of truth; рабочий граф = детерминированный fold; скорость — из сбрасываемых материализаций (CSR, HNSW, views); агенты dict-first (LLM предлагает, словари + лог владеют проверяемой истиной). Проект: `/root/kutha-graph`; артефакты: `.compound-engineering/artifacts/`.\n\n## Project\n\n- [[kutha-graph-project-snapshot]] — живой снимок репо (lifecycles, thaw map, wedge, команды); обновлять при смене L_delivery\n\n## Insights",
+      "labels": {
+        "stale_description": {
+          "value": "yes",
+          "justification": "Description carries 'M157 closed, H5, FF5 green as of 2026-10-23'; none of M157, H5 or FF5 occurs in the body, which is a link hub without a status snapshot."
+        },
+        "type": {
+          "value": "moc",
+          "justification": "Frontmatter type is moc; the body is a hub of Kutha patterns, project and adjacent-storage links."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/kutha-artifacts-extraction.md (Jaccard 0.20) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/entity-resolution-accuracy-below-90-percent-corrupts-knowledge-graph-reasoning-chains.md (declared type insight), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/entity-resolution-accuracy-below-90-percent-corrupts-knowledge-graph-reasoning-chains.md",
+        "description": "Entity resolution is the make-or-break quality bottleneck for knowledge graphs — errors compound with every traversal hop and must exceed 90% before enabling graph retrieval",
+        "excerpt": "# Entity Resolution Accuracy Below 90% Corrupts Knowledge Graph Reasoning Chains\n\nEntity resolution (ER) is the single hardest problem in knowledge graph construction for agent memory. When ER accuracy drops below 85%, errors compound with every graph traversal hop: \"Dr. Smith\" the user's doctor and \"Dr. Smith\" from a referenced article become the same node, spreading incorrect associations through every path that touches that entity. Senzing's production analysis documents this as the primary reason organizations' knowledge graphs underperform: \"duplicate nodes that dilute the power of their graph\" that even skilled teams struggle to resolve after the fact."
+      }
+    },
+    {
+      "path": "self/goals.md",
+      "type": "moc",
+      "description": "Current active threads and what I am working on",
+      "excerpt": "# goals\n\n## Active Threads\n\n- Track Rust patterns discovered during Phase 3 development (Fact Extraction & Semantic Memory)\n- Document error solutions encountered during ZeroClaw builds (round_char_boundary, parking_lot Send safety, etc.)\n- Build topic maps for: Rust memory patterns, async patterns, HNSW/vector search, graph databases\n\n## Backlog\n\n- Create topic maps for each ZeroClaw phase (benchmarks, storage, extraction, graph, retrieval)\n- Extract from remaining .planning/research/ files (ROADMAP.md, PHASE_*.md)\n- Fix 10 dangling wiki links across knowledge/ (pending since Feb 21)\n\n## Completed",
+      "labels": {
+        "stale_description": {
+          "value": "yes",
+          "justification": "Description says 'Current active threads'; the body's newest item is dated 2026-02-22 and it still lists a backlog item 'pending since Feb 21', while the vault holds November 2026 notes."
+        },
+        "type": {
+          "value": "moc",
+          "justification": "Frontmatter type is moc; the body is a goals/backlog list."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is None (Jaccard 0.00) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-stack-hnsw-rs-plus-tantivy-plus-petgraph-plus-fastembed.md (declared type decision), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/zeroclaw-stack-hnsw-rs-plus-tantivy-plus-petgraph-plus-fastembed.md",
+        "description": "ZeroClaw использует hnsw_rs (vector), tantivy (FTS), petgraph (graph), fastembed (embeddings) — все production-grade Rust crates",
+        "excerpt": "# ZeroClaw Stack: hnsw_rs + tantivy + petgraph + fastembed\n\nRust ecosystem имеет зрелые production-grade crates для всех компонентов кроме GNN (который YAGNI).\n\n## Recommended Stack\n\n| Crate | Purpose | Confidence |\n|-------|---------|------------|\n| `hnsw_rs` | HNSW vector search with SIMD, filtered search | HIGH |\n| `tantivy` | Full-text search (2x faster than Lucene, BM25) | HIGH |\n| `petgraph` | Knowledge graph (ecosystem standard since 2014) | HIGH |\n| `fastembed` | Local embeddings via ONNX Runtime | HIGH |\n| `simsimd` | SIMD distances (200x faster dot products) | HIGH |\n| `candle-core` | ML ops (optional, only if GNN needed) | MEDIUM |\n\n## What NOT to Use"
+      }
+    },
+    {
+      "path": "knowledge/zeroclaw-roadmap.md",
+      "type": "moc",
+      "description": "ZeroClaw 9-phase roadmap: Phases 1-2 complete, Phase 3 (Fact Extraction) next, targeting autonomous Rust agent runtime",
+      "excerpt": "# zeroclaw-roadmap\n\nZeroClaw development roadmap with 9 phases targeting a fully autonomous Rust-based agent runtime.\n\n## Completed Phases\n\n### Phase 1: Core Runtime ✅\n- Trait definitions (Provider, Channel, Tool, Memory, Observer)\n- Basic agent loop implementation\n- Provider abstraction layer\n\n### Phase 2: Peripherals + Observability ✅\n- Peripheral trait for external integrations\n- Observer trait for telemetry\n- Sandbox hierarchy (landlock → bubblewrap → firejail → docker)\n\n## Current Phase\n\n### Phase 3: Fact Extraction (In Progress)\n- Extract structured facts from unstructured text\n- Entity resolution with >90% accuracy gate\n- Knowledge graph construction\n- **Topic map:** [[zeroclaw-fact-extraction]]\n\n## Future Phases",
+      "labels": {
+        "stale_description": {
+          "value": "yes",
+          "justification": "Description says Phase 3 (Fact Extraction) is 'next'; the body's Current Phase heading says 'Phase 3: Fact Extraction (In Progress)', and the word 'next' does not occur in the body."
+        },
+        "type": {
+          "value": "moc",
+          "justification": "Frontmatter type is moc; the body is a phase-by-phase roadmap map."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-decisions.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-defense-in-depth-six-layers.md (declared type decision), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/zeroclaw-defense-in-depth-six-layers.md",
+        "description": "ZeroClaw implements six independent security layers: policy, auth, secrets, sandboxing, audit, and supply chain",
+        "excerpt": "# ZeroClaw Defense-in-Depth Six Security Layers\n\nZeroClaw implements defense-in-depth with six independent security layers. Each layer provides protection even if other layers fail, following the principle that security is not a single control but overlapping controls.\n\n**Six layers:**\n1. **Policy enforcement**: Autonomy levels (ReadOnly/Supervised/Full), command allowlist, path sandboxing\n2. **Authentication & authorization**: First-connect pairing with 6-digit code, 256-bit bearer tokens, constant-time comparison\n3. **Secrets management**: ChaCha20-Poly1305 AEAD encryption, 0600 key file permissions, legacy XOR migration\n4. **Runtime sandboxing**: Four backends (bubblewrap, firejail, landlock, docker) with auto-detection and fallback\n5."
+      }
+    },
+    {
+      "path": "knowledge/self-improvement.md",
+      "type": "moc",
+      "description": "Topic map for self-improvement capabilities in AI systems: self-correction, autodidactic learning, and iterative refinement.",
+      "excerpt": "# Self-Improvement\n\nMechanisms by which AI systems improve their own performance without external intervention: self-critique, self-correction, and internalizing feedback loops.\n\n## Mechanisms\n\n- [[critique-prediction-enables-self-improvement-without-external-teacher]] -- world-modeling approach to internalize feedback\n- [[in-context-plasticity-determines-feedback-integration-ability]] -- the capacity enabling self-modification\n- [[codeactinstruct-self-improvement-behavior-filtering-improves-dataset-quality]] -- filtering trajectories for error-correction patterns teaches agents how to recover from mistakes\n\n## Limitations\n\n- [[rl2f-consolidation-problem-remains-unsolved]] -- transient improvements don't persist\n\n## Related Concepts in Memory Systems",
+      "labels": {
+        "stale_description": {
+          "value": "yes",
+          "justification": "Description names 'autodidactic learning' and 'iterative refinement'; neither concept appears in the body, whose sections are Mechanisms, Limitations and Related Concepts (self-critique, feedback internalization)."
+        },
+        "type": {
+          "value": "moc",
+          "justification": "Frontmatter type is moc; the body is a topic map of self-improvement notes."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/rrsi-regularized-harness-self-improvement.md (Jaccard 0.40) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/tkg-bi-temporal-edge-model-tracks-four-timestamps-for-non-lossy-history.md (declared type pattern), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/tkg-bi-temporal-edge-model-tracks-four-timestamps-for-non-lossy-history.md",
+        "description": "Zep/Graphiti pattern — facts are never deleted, only invalidated via 4 timestamps per edge",
+        "excerpt": "# TKG Bi-Temporal Edge Model Tracks Four Timestamps for Non-Lossy History\n\nEvery edge in a Temporal Knowledge Graph carries **four timestamps**: `created_at`, `expired_at` (ingestion time), `valid_from`, `valid_until` (event time). Facts are never deleted—only invalidated.\n\n## The Four Timestamps\n\n| Timestamp | Meaning | Use Case |\n|-----------|---------|----------|\n| `created_at` | When system learned the fact | Debugging, audit |\n| `expired_at` | When system marked fact obsolete | Version tracking |\n| `valid_from` | When fact became true in world | Temporal queries |\n| `valid_until` | When fact ceased being true | Historical analysis |\n\n## Why Non-Lossy Matters\n\n```rust\n// Old approach: destructive update\nUPDATE user_preferences SET language = 'Rust' WHERE user_id = 1;"
+      }
+    },
+    {
+      "path": "inbox/raw-rag-beats-agentic-memory-baseline.md",
+      "type": "extract",
+      "description": "Raw-RAG (Bao et al., arXiv:2610.30755, 22.10.2026): наивный RAG по сырой истории (dense retrieval 256-токенные окна с 32 перекрытием, cosine top-128 -> cross-encoder rerank -> top-15 читателю, НОЛЬ LLM-операций на записи) занимает первое место среди 13 agentic memory систем в 6 из 7 бенчмарк-модельных настроек (LoCoMo 89.07/93.70 против EverMemOS 86.76/93.05; LongMemEval 87.53 против Memora 87.40 и EverMemOS 83.00; контекст целиком на LongMemEval 65.60). Три findings: (1) покрытие необходимого эвиденса компенсирует более низкую утилизацию; (2) путь-покрытие решает: P(path|result) Raw-RAG 62.34% против MemU 9.62% - достать значение ответа не равно сохранить отношения и dependency-пути для его использования; (3) потеря при ingest невосстановима: полный доступ к трансформированным store не закрывает разрыв с сырым эвиденсом (все 7 систем на 7.58-29.38 пунктов ниже raw без packing-потолка, все CI исключают ноль). Аудит Mem0: UPDATE+DELETE только 4.39%/2.46% write-решений, эффективных мутаций 1.90%/1.34%, отключение мутаций ПОДНИМАЕТ LoCoMo 67.36->69.42; capability читателя доминирует (MEME oracle: DeepSeek-V4-Flash 85.48 против GPT-4o-mini 50.50 на одинаковых сырых данных, cascades 82.32 vs 1.83); придание слабых RAG-базлайнов в 14 предшествующих работах (грубые единицы ретрива, ограниченная глубина, отсутствие rerank)",
+      "excerpt": "# Raw-RAG против agentic memory: сложность памяти надо ещё доказать\n\n## Базлайн, который никто не ставил\n\nRaw-RAG: индексируем сырую историю без единой LLM-операции (без extraction/summary/graph/mutation) - окна по 256 токенов с перекрытием 32, плоский dense-индекс; на запросе cosine top-128 -> cross-encoder rerank -> top-15 читателю. Интерпретация свидетельств и восстановление состояния - полностью задача читателя.\n\nРезультат: **первое место в 6 из 7 бенчмарк-модельных настроек** (LoCoMo 89.07 и 93.70; LongMemEval 87.53; MEME; MemoryAgentBench), опережая 13 систем (Mem0, A-MEM, MemoryOS, MemOS, EverMemOS, Memora, ...) на 0.13-5.53 пункта. Full-context на LongMemEval - только 65.60 (против 87.53): ретрив работает, вопрос в том, нужна ли поверх него мутация.",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's numbers (13 systems, first in 6 of 7 settings, LoCoMo 89.07/93.70, path coverage 62.34 vs 9.62) all appear in the body's opening result paragraphs."
+        },
+        "type": {
+          "value": "extract",
+          "justification": "Frontmatter type is extract; the body is a source extraction with result tables and findings."
+        },
+        "duplicate_of": {
+          "value": "inbox/raw-rag-beats-agentic-memory.md",
+          "justification": "Same paper (arXiv:2610.30755) and the same results; au_grep on '2610.30755' returns both files and au_content on both shows the same six-of-seven claim; this note is the later of the two (2026-10-26 vs 2026-10-23)."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "inbox/raw-rag-beats-agentic-memory.md",
+        "description": "arXiv:2610.30755 (Bao et al., XJTU, 22.10.2026): «Is Complex Agentic Memory Always Needed?» — Raw-RAG (dense retrieval + reranking по СЫРОЙ истории) первый в 6/7 benchmark-model сеттингах (LoCoMo, LongMemEval, MEME, MemoryAgentBench), +0.13–5.53 над сильнейшей agentic-системой из 12 бейслайнов (EverMemOS, MemOS, EMem, MemU, MemMachine, Mem0, Memora, Nemori, MemoryOS, A-MEM, RecMem); аудит Mem0: UPDATE+DELETE = 4.39%/2.46% write-решений, многие дубликаты — мутации редки и редко вступают в силу; декомпозиция coverage/utilization: системы различаются ДОСТУПОМ к свидетельствам (coverage 19–45%), а не использованием (utilization 80–90%) — Raw-RAG лидирует по coverage; path coverage P(path|result): Raw-RAG 62.34% > MemMachine 56.70% >> MemU 9.62% — сырость сохраняет dependency paths и хронологию; ОРАКУЛ-эксперимент: даже полный доступ к трансформированному стору НЕ закрывает разрыв с сырыми свидетельствами; ingestion BEAM-1M (~1M токенов): Raw-RAG 0.33ч vs Memora 26.95ч / MemOS 3.25ч, на 110 вопросов 305.91s vs Mem0 4142.95s — в 13–30 раз дешевле; ИСКЛЮЧЕНИЕ: на multi-session и MEME aggregation/deletion/cascades уступает EMem — структурные операции остаются за пределами наивного ретрива",
+        "excerpt": "# Raw-RAG: наивный бейслайн, который не должны были побеждать 12 agentic-систем памяти\n\n## Результат\n\nRaw-RAG = dense retrieval + reranking **по сырой истории** → свидетельства reader-LLM. Первый в 6/7 benchmark-model сеттингах на четырёх бенчах (LoCoMo, LongMemEval, MEME, MemoryAgentBench), опережает сильнейшую agentic-систему на 0.13–5.53 пункта. Сравнение с 12 системами: EverMemOS, MemOS, EMem, SimpleMem, MemU, MemMachine, Mem0, Memora, Nemori, MemoryOS, A-MEM, RecMem (+ Full-context).\n\n## Почему сырьё выигрывает"
+      }
+    },
+    {
+      "path": "inbox/rust-2025-2026-release-wave.md",
+      "type": "extract",
+      "description": "Все 15 стабильных Rust-релизов 2025-2026 по версиям: language/stdlib/safety/tooling/platform изменения каждой — детальная сводка",
+      "excerpt": "# Rust 2025-2026 Release Wave: Every Version Verified From The Blog\n\n## 1.85.0 (2025-02-20) — Edition 2024\n- Edition 2024 stable: RPIT lifetime capture rules, if let temporary scope, tail expressions, и ещё ~20 изменений\n- async closures stabilized (RFC 3668)\n- #[diagnostic::do_not_recommend], unpredictable_function_pointer_comparisons lint\n\n## 1.86.0 (2025-04-03) — Trait upcasting\n- dyn Trait → dyn Supertrait (и Arc/Box/raw pointer варианты) без as_supertrait-костылей\n- С dyn Any: downcast без внешних крейтов\n- get_disjoint_mut для slices и HashMap (несколько mut-ссылок легально за один вызов)\n- #[target_feature] разрешён на safe-функциях",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description says every stable 2025-2026 release; the body is a per-version list from 1.85.0 through 1.99.0 with 15 version headings."
+        },
+        "type": {
+          "value": "extract",
+          "justification": "Frontmatter type is extract; the body extracts each release's language/stdlib/tooling changes."
+        },
+        "duplicate_of": {
+          "value": "inbox/rust-release-wave-2025-2026-maps-fifteen-versions-by-usefulness.md",
+          "justification": "Same 15 releases and the same feature notes; au_grep for '1.85.0' and '15 мажоров + 8 патчей' returns both files; the MOC is the category view and this note the version view."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "inbox/rust-release-wave-2025-2026-maps-fifteen-versions-by-usefulness.md",
+        "description": "Rust 1.85-1.99 (2025-2026): 15 версий по категориям — 2024 edition, trait upcasting, let chains, LLD-линкер, algebraic float — с оценкой полезности для нашего стека",
+        "excerpt": "# Rust Release Wave 2025-2026 Maps Fifteen Versions By Usefulness\n\nСводка всех стабильных релизов 2025-2026 (1.85.0 февраль 2025 → 1.99.0 октябрь 2026, 15 мажоров + 8 патчей). Классификация: language/stdlib/safety/tooling/platform + вердикт полезности для нашего стека (EPYC-бокс, au-engine/vault-препроцессор, SIMD-код).\n\n## Волны (крупные фичи)\n\n- **Edition 2024** (1.85, фев 2025): RPIT lifetime capture, async closures, if let scope. ФУНДАМЕНТ — let chains и будущие изменения требуют этот edition. Миграция: rustup + cargo fix\n- **Эргономика match/if** (1.88 let chains → 1.95 if-let guards): вложенные if let разворачиваются в цепочки; match-гварды принимают let."
+      }
+    },
+    {
+      "path": "inbox/agent-beacon-cross-harness-memory.md",
+      "type": "extract",
+      "description": "Asymptote-Labs/agent-beacon (Go, MIT, 2,590★, GitHub Trending): cross-harness self-improving memory layer — захватывает session history 20+ харнессов (Claude Code, Cursor, Codex, OpenCode, Cline, Devin, Gemini CLI, Copilot, dsh, goose) через OTLP + hooks + poll, нормализует в единый OpenTelemetry event model (sessions/prompts/tools/commands/file/approvals/MCP/tokens); цикл: capture → evaluate → extract knowledge → review+approve → reuse через MCP или Agent Skills (~/.agents/skills + ~/.claude/skills); local-first JSONL + local read-only dashboard с lens-ами (sandboxed HTML views, агент-писуемые через beacon lenses spec); destinations: Local по умолчанию, Beacon Cloud только явным opt-in (confirm-экран называет оператора и режим); supply-chain гигиена: checksums + gh attestation verify; трейс-датасет двойного назначения: память + security/аудит телеметрия (SIEM/MDM topics)",
+      "excerpt": "# Agent Beacon: сессии как телеметрия, память как review-approved знания\n\nТезис: «проблема, решённая одним агентом, не должна учиться с нуля другим». Beacon сидит НАД харнесс-слоем: Claude Code, Cursor, Codex, OpenCode, Cline, Devin, Gemini CLI, Copilot CLI, goose, Grok Build, Antigravity, DeepSeek Harness (dsh — тот же из layerfs!) и ещё 20+ — захватывает исполнение и нормализует в **единый OpenTelemetry-based event model**: sessions, prompts/responses, tool calls, commands, file activity, approvals, MCP interactions, tokens.\n\n## Цикл памяти\n\n```\nRun agents → Capture session history → Evaluate what worked\n→ Extract useful knowledge → Review + approve → Reuse across future agents\n```",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's specifics (OTLP/hooks/poll capture, OpenTelemetry event model, 20+ harnesses, lenses, gh attestation) all appear in the body's first two sections."
+        },
+        "type": {
+          "value": "extract",
+          "justification": "Frontmatter type is extract; the body extracts the project's capture model and memory cycle."
+        },
+        "duplicate_of": {
+          "value": "inbox/beacon-cross-harness-session-memory.md",
+          "justification": "Same project (Asymptote-Labs/agent-beacon) and same capture -> review -> reuse cycle; au_grep on 'Asymptote-Labs' returns both and au_content confirms the same event model; only the star count differs (2,590 vs 1,961)."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "inbox/beacon-cross-harness-session-memory.md",
+        "description": "agent-beacon (Asymptote-Labs, Go, MIT, 1,961★, пуш 2026-10-20): capture истории сессий из 20+ харнессов в единый OpenTelemetry-модель событий → цикл «capture → evaluate → extract → review+approve → reuse» через MCP/Agent Skills; точный replay сессий (промпты/тулы/апрувы/токены); lenses — песочничные single-HTML вьюхи трейса, которые пишет сам кодинг-агент (spec/lint/preview); local-first JSONL, управляемое облако только по явному подтверждению; gh attestation verify",
+        "excerpt": "# Beacon: Кросс-харнессная Сессийная Память с Человеком в Контуре\n\n1961★, Go, MIT. Захватывает историю сессий из Claude Code, Cursor, Codex, OpenCode, Cline и 20+ других харнессов, нормализует в **единый OpenTelemetry-based event model** (сессии, промпты/ответы, вызовы тулов, команды, файловая активность, апрувы, MCP-интеракции, расход токенов) и превращает полезное в переиспользуемое знание.\n\n## Паттерны"
+      }
+    },
+    {
+      "path": "inbox/allspark-research-harness2-meta-harness-improves-other-harnesses-contrastively.md",
+      "type": "insight",
+      "description": "google-research/harness2 улучшает ЧУЖИЕ харнессы контрастным циклом Propose-Probe-Compose без ground truth: 1 шаг = +11.5 п WorkBuddy, слабая модель с улучшенным харнессом обгоняет сильную со стоковым; прямое улучшение без прогонов-доказательств ВРЕДИТ (73.4→63.2)",
+      "excerpt": "# allspark-research-harness2-meta-harness-improves-other-harnesses-contrastively\n\nСтатья arXiv:2610.14224. 8 компонентов через ФС, без RPC/песочницы.\n\nКлючевые выводы:\n1. Абляция: библиотека опыта -3.1, scoped-роли INV/DOM -2.9, композиция -1.6.\n2. \"Прямое\" улучшение без прогонов-доказательств ВРЕДИТ (73.4→63.2) — только контрастный цикл.\n3. k=5 кандидатов добавляет ещё 2.6-6.7 п.\n4. У них НЕТ Docker/сетевой изоляции — инцидент: агент сам скачал рубрики своей задачи с HF.",
+      "labels": {
+        "stale_description": {
+          "value": "yes",
+          "justification": "Description claims '+11.5 п WorkBuddy'; neither 'WorkBuddy' nor '11.5' occurs in the body, whose numbers are ablation deltas (-3.1/-2.9/-1.6), 73.4->63.2 and k=5 gains 2.6-6.7."
+        },
+        "type": {
+          "value": "insight",
+          "justification": "Frontmatter type is extract; the body extracts the paper's ablation results and the adoption plan."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/mirror-harness-vs-allspark.md (Jaccard 0.22) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/no-forgetting-mechanism-anti-pattern.md (declared type error), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/no-forgetting-mechanism-anti-pattern.md",
+        "description": "Systems storing everything without decay, consolidation, or pruning show sustained performance decline over time",
+        "excerpt": "# No Forgetting Mechanism Remembers Everything Anti-Pattern\n\nThe system stores every fact, conversation snippet, and observation without decay, consolidation, or pruning. Over time, outdated facts compete with current ones during retrieval. Errors stored as memories propagate into future decisions. A 2025 analysis states: \"The real bug in agent memory systems isn't forgetting — it's the attempt to remember everything.\"\n\n**Why it happens:**\n- Forgetting feels like losing data, against engineering instincts\n- Building forgetting mechanism requires defining \"relevance\" — genuinely hard\n- \"More data = better retrieval\" seems intuitive but is wrong for agent memory"
+      }
+    },
+    {
+      "path": "inbox/pattern-mini-mirror-parity.md",
+      "type": "pattern",
+      "description": "Для понимания монолита строится его МИНИ-копия (сжатие в N раз), эквивалентность которой ДОКАЗЫВАЕТСЯ прогоном одних и тех же сценариев на обоих системах построчным сравнением вывода — включая порядок смен состояний (NamiDSH: 14 compat-сценариев на мини-Cordis и реальном Cordis); правило обрезки: опускается только то, что реальная система не использует; парное правило: опр/поставщик/потребитель раздельны — смена адаптера = навесить плугин, не трогая код",
+      "excerpt": "# Mini-mirror parity: сжатая копия системы с построчным доказательством эквивалентности\n\nНобка corpus-parity-replacement заменяет зависимость альтернативой; этот паттерн — её инверсия: монолит (1M+ строк) сжимается до понимаемого размера (~1000 строк) не «по мотивам», а как зеркальная копия структуры — имена файлов/пакетов, API, идиомы и даже ПОРЯДОК смен состояний сохраняются. Эквивалентность не декларируется, а доказывается: ОДНИ И ТЕ ЖЕ 14 сценариев гоняются на обеих системах, вывод сравнивается построчно. Правило обрезки честное: опускается только то, что реальная система НЕ ИСПОЛЬЗУЕТ (не то что «выглядит опциональным»), и omission-лист опубликован отдельной статьёй.",
+      "labels": {
+        "stale_description": {
+          "value": "yes",
+          "justification": "Description names 'NamiDSH: 14 compat-сценариев на мини-Cordis и реальном Cordis'; the body does say 14 scenarios but never names NamiDSH or Cordis."
+        },
+        "type": {
+          "value": "pattern",
+          "justification": "Frontmatter type is extract; the body extracts the mirror-parity pattern and its insertion targets."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pattern-corpus-parity-replacement.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-v1-shipped-18-phases-in-13-days-with-38-plans.md (declared type insight), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/zeroclaw-v1-shipped-18-phases-in-13-days-with-38-plans.md",
+        "description": "ZeroClaw v1.0 Mnemis Memory Architecture completed 18 phases with 38 plans in ~13 days, proving rapid iteration with benchmark-gated development.",
+        "excerpt": "# ZeroClaw v1.0 Shipped 18 Phases in 13 Days with Benchmark-Gated Development\n\nZeroClaw's v1.0 Mnemis Memory Architecture (shipped 2026-02-26) completed 18 phases with 38 plans in approximately 13 days. This rapid iteration was enabled by benchmark-gated development: each phase was validated against measurable success criteria before proceeding to the next. The project accumulated 101,646 LOC in src/ and 11,864 LOC in tests, with 2,257+ tests passing.\n\n## Key Metrics"
+      }
+    },
+    {
+      "path": "inbox/cloudflare-security-audit-skill.md",
+      "type": "extract",
+      "description": "security-audit-skill (cloudflare, MIT, 34,776★): скилл для мультифазных security-аудитов с независимо верифицированными машиночитаемыми находками; 6 фаз (recon → coverage-led hunting waves → candidate validation свежим верификатором → findings.json против schema → независимая verification финальных записей → отчёт), coverage-ledger с fingerprint-слиянием прошлых прогонов, бюджеты как ресурсы с резервированием, write-isolation с 11-шаговой race-safe промоцией файлов; дисциплина «candidate gate не масштабируется вниз»; 14 доменных компаньонов (включая AI-AND-LLM.md)",
+      "excerpt": "# Security Audit Skill: Дисциплина Верификации как Переиспользуемый Артефакт\n\nCloudflare выложила свой внутренний агентный скилл security-аудита (34,776★ — вероятно, самый популярный скилл на GitHub). Формат — обычный SKILL.md + 14 доменных компаньонов (ATTACK-CLASSES, WEB-PROTOCOL-AND-AUTH, CLOUD-AND-DEPLOYMENT, MEMORY-SAFETY-AND-BINARY, **AI-AND-LLM**, SUPPLY-CHAIN...) + `report-schema.json` + два валидатора с тестами. Девиз: «находка без конкретного затронутого принципала, ресурса или security-исхода — не подтверждённая находка».\n\n## Подходы\n\n**① Два режима с гейтом**: guidance по умолчанию («загрузка скилла не авторизует полный workflow и создание файлов»); полный аудит — только по явному запросу; неоднозначно → один сфокусированный вопрос ПЕРЕД созданием файлов.",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's 6 phases, 14 companion domains including AI-AND-LLM, findings.json, coverage ledger, write isolation and the candidate-gate discipline all appear in the body."
+        },
+        "type": {
+          "value": "extract",
+          "justification": "Frontmatter type is extract; the body extracts the skill's workflow and verification discipline."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/skill-audit-compile-gate-pattern.md (Jaccard 0.29) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md (declared type decision), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md",
+        "description": "ZeroClaw's research validated hnsw_rs + tantivy + petgraph + fastembed as the stack, rejecting RuVector (168 downloads) due to low adoption risk.",
+        "excerpt": "# ZeroClaw Stack Validated: hnsw_rs + tantivy + petgraph + fastembed Over RuVector\n\nZeroClaw's research phase validated a specific technology stack: hnsw_rs for vector search (pure Rust HNSW with SIMD, filtered search), tantivy for full-text search (Rust's Lucene equivalent, 2x faster, BM25, 17-language stemming), petgraph for knowledge graphs (ecosystem standard since 2014, StableGraph, serde support), and fastembed for embeddings (pure Rust via ONNX Runtime, quantized models). RuVector was explicitly rejected due to 168 total downloads and single-author risk despite its ambitious architecture (HNSW + graph DB + GNN + Raft + RVF container). The validated stack provides HIGH confidence for each component based on production deployment evidence.\n\n## Rationale"
+      }
+    },
+    {
+      "path": "inbox/sermakarevich-sixty-ai-code-reviewers.md",
+      "type": "extract",
+      "description": "Обзор 63 AI code reviewers (Makarevych, 03.11.2026): 7 семей (19 standalone / 8 платформенных / 6 модельных / 12 add-on / 11 статанализ / 7 OSS / 15 in-house), 5 выборов (Reads/Decides/Acts/Learns/Bills); ключевые измерения: добавление repo-контекста УХУДШАЕТ precision (спекуляции), written guidelines +5 очков vs ticket +1-3, model-written context ОТРИЦАТелен; 14 ревьюеров читают AGENTS.md; effort-knob = пару очков recall за 10-40× цену; во всех 9 vendor-run бенчмарках побеждает vendor; learning-циклы меняют ревьюера, но никто не пишет правило туда, где его читает агент",
+      "excerpt": "# Суть: рынок отвечает на неправильный вопрос\n\nТезис твит-анонса: «AI code reviewers не могут заменить то, чем был human review». Развёрнуто через рамку первого куска: у code review четыре задачи — найти дефекты, держать код удобным для изменений, распространять знание о коде по команде, договориться о том, что строится. **«Каждый продукт из 63 продается на первой; что он читает определяет, сколько он делает второй; две последние не делает никто»** — весь рынок монетизирует поиск дефектов, а настоящая ценность ревью (знание и согласие) осталась вне продукта.",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's 63 reviewers, 7 families, AGENTS.md read by 14 reviewers and vendor-wins-in-9-vendor-benchmarks all appear in the body."
+        },
+        "type": {
+          "value": "extract",
+          "justification": "Frontmatter type is extract; the body extracts the market review's counts and measurements."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/code-execution.md (Jaccard 0.20) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/agents-of-chaos-silent-censorship.md (declared type error), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/agents-of-chaos-silent-censorship.md",
+        "description": "Provider content restrictions silently blocked valid tasks with truncated 'unknown error' responses—no transparency to user or deployer.",
+        "excerpt": "# Provider Content Restrictions Can Cause Silent Failures\n\nCase Study #6 shows how provider-level content restrictions silently blocked valid tasks—returning truncated \"unknown error\" responses with no explanation to user or deployer.\n\n## The Scenario\n\nQuinn (running on Kimi K2.5, a model subject to content restrictions in China):\n- Given a news story about a Hong Kong activist → silent truncation, \"unknown error\"\n- Asked to research thought-token forcing → silent truncation, \"unknown error\"\n- No explanation provided to user or deployer\n\n## The Problem\n\n**Transparency failure.** The restriction is invisible to:\n- The user (sees generic error, doesn't know why)\n- The deployer (cannot debug or adapt)\n- The agent (cannot explain or suggest alternatives)"
+      }
+    },
+    {
+      "path": "inbox/geometry-of-agent-memory-null-result.md",
+      "type": "extract",
+      "description": "The Geometry of Agent Memory (arXiv:2610.26433, Redis, PALM@NeurIPS 2026 poster): ЧЕСТНЫЙ НЕГАТИВНЫЙ РЕЗУЛЬТАТ — геометрия эмбеддингов (близость query↔memory↔turns, 25 признаков: reachability, memory-conversation correspondence, структура диалога) НЕ предсказывает правильность ответа до генерации; pooled AUROC 0.640 [0.615,0.664] на LongMemEval-small (2,367 пар) — НИЖЕ baseline'а сложности вопросов (0.655); лучший тип 0.841 (single-session-assistant), но одна идентичность системы даёт 0.826 на том же типе; после контроля difficulty+identity геометрия добавляет Δ=+0.002 (CI [−0.010,0.014]) — ноль; proximity-ranked > random — обычная релевантность ретрива, не новое знание; фундаментальный предел: близость в embedding-пространстве не проверяет fact coverage и не различает ошибки memory-construction / retrieval / generation; 5 систем (4 dense/hybrid + Obs-Extract Mastra-style 67.9%, Svc-Mem LangMem 73.2%)",
+      "excerpt": "# Геометрия памяти агента: векторное хранилище — не монитор\n\n## Что тестировалось\n\nГипотеза: геометрические соотношения (эмбеддинг-близости между ходами диалога, memory-текстами и запросом) предсказывают правильность ответа ДО генерации. Пять систем на LongMemEval-small (4 memory-реализации с dense/hybrid retrieval + observation-summary компаратор Obs-Extract, Mastra-style, QA 67.9%; Svc-Mem на LangMem, QA 73.2%). 25 признаков в двух блоках: **query reachability** (ближайшая memory, средняя до 5 ближайших, локальная плотность, дистанция до ближайшего хода) и **memory-conversation correspondence** (turn-to-memory близость, session alignment, количество/дисперсия memory) + ковариаты диалога.",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's pooled AUROC 0.640, difficulty baseline 0.655 and Delta=+0.002 all appear in the body's 'Честный ноль' section."
+        },
+        "type": {
+          "value": "extract",
+          "justification": "Frontmatter type is extract; the body extracts the paper's negative result and its measurements."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/surrealdb-agent-memory-vs-kutha.md (Jaccard 0.29) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/premature-graphrag-builds-graph-before-validating-need.md (declared type error), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/premature-graphrag-builds-graph-before-validating-need.md",
+        "description": "GraphRAG underperforms vanilla RAG on simple queries; build graph only after vector search fails multi-hop tests",
+        "excerpt": "# Premature GraphRAG Builds Graph Before Validating Need\n\nTeams invest months building knowledge graph extraction, entity resolution, and graph traversal infrastructure only to discover that optimized vector search with good chunking and re-ranking answers 80-90% of queries equally well. A 2025 systematic evaluation (arXiv:2502.11371) found GraphRAG frequently underperforms vanilla RAG on many real-world tasks.\n\n**Why it happens:**\n- GraphRAG hype cycle makes the architecture look elegant on paper\n- Vision documents say \"temporal knowledge graph\" so teams build the graph first\n- Existing hybrid vector+BM25 search already handles most single-hop recall"
+      }
+    },
+    {
+      "path": "f/patterns/pattern-shuffled-context-control.md",
+      "type": "pattern",
+      "description": "Shuffled-context control: an acceptance gate for any scorer/classifier — pair each input with a WRONG context, shuffle option labels, and require the real model to beat the degenerate control; catches models that learned label priors, position bias, or option-text patterns instead of reading the context",
+      "excerpt": "# Shuffled-context control\n\n## Правила внедрения\n\n- Каждая приёмочная оценка скорера идёт ПАРАМИ: настоящий прогон + контрольный (тот же список опций, ПЕРЕПУТАННЫЙ контекст или метки)\n- Полезная модель обязана бить контроль с отрывом; разница «модель − контроль» = вклад чтения контекста, не абсолютная точность\n- Дополнительные дегенеративные контролы по вкусу: random-encoder, constant-answer, position-only\n\n## Не делать\n\n- Не принимать «высокую точность» без контроля: 98% на синтетике ничего не значит, если контроль даёт 95% (модель читает паттерны опций, не контекст)\n- Не считать контроль метрикой качества: он гейт, не таргет — модель, заточенная бить shuffle, бесполезна\n- Не ограничиваться одним типом контроля: разные дегенерации ловят разные выученные ярлыки\n\n## Куда внедрить",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's pair-with-wrong-context gate, shuffled labels and degenerate controls appear as the body's first two implementation rules."
+        },
+        "type": {
+          "value": "pattern",
+          "justification": "Frontmatter type is pattern; the body states reusable implementation rules and anti-rules."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/jev-context-curation-pattern.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe ops/queue/codeactinstruct-004.md (declared type claim), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "ops/queue/codeactinstruct-004.md",
+        "description": "Mixture strategy with general conversation data prevents agent capability cannibalization",
+        "excerpt": "# Claim 004\n\n## Source\nCodeActInstruct dataset paper (Wang et al., ICML 2024)\nSource file: /root/vault/ops/queue/archive/2026-02-23-codeactinstruct-enables-agent-training-without-general-capability-degradation/codeactinstruct-enables-agent-training-without-general-capability-degradation.md\n\n## Target Claim\nMixture strategy with general conversation data prevents agent capability cannibalization\n\n## Supporting Evidence\n- CodeActInstruct mixed with general conversation data\n- OpenOrca (50K): Single-turn CoT reasoning\n- ShareGPT (10K): Multi-turn conversations\n- CapyBara (4.6K): Multi-turn reasoning\n- Prevents agent capability from cannibalizing general capability\n\n## Create\n(filled by create phase)\n\n## Connect\n(filled by connect phase)\n\n## Refresh\n(filled by refresh phase)"
+      }
+    },
+    {
+      "path": "f/patterns/pattern-budgets-as-trades.md",
+      "type": "pattern",
+      "description": "Budgets as trades, not limits: every repo budget is enforced [check]-style and phrased as a trade — a seventh blocking check requires deleting one in the same PR, a 16th working-set doc requires archiving one, the constitution caps its own word count; «a limit gets exceptions, a trade forces someone to name what matters less»; every rule is tagged [check] (CI) or [review] (human)",
+      "excerpt": "# Budgets as trades, not limits\n\n## Правила внедрения\n\n- Конституция репо коротка и ограничивает СЕБЯ (словами/строками): рост конституции = что-то становится автоматической проверкой или перестаёт быть правилом\n- Каждое правило помечено механизмом исполнения: [check] (CI) или [review] (человек) — governance без механизма = пожелание\n- Бюджеты формулируются ТРЕЙДАМИ: добавление N+1 требует удаления одного в том же PR — трейд заставляет назвать, что важно меньше; лимит позволяет исключения, трейд — нет\n- Медленное — не блокирует: асинхронный прогон per-commit с атрибуцией ломающему; блокирующий набор — только быстрое (их: 6 проверок / 65s)\n\n## Не делать",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's [check]/[review] tagging, delete-one-in-the-same-PR trade and 6 checks/65s appear verbatim in the body's rules."
+        },
+        "type": {
+          "value": "pattern",
+          "justification": "Frontmatter type is pattern; the body states reusable governance rules."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pattern-top-p-budgets.md (Jaccard 0.50) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-phase-ordering-fact-extraction-before-semantic-before-entity-before-graph.md (declared type decision), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/zeroclaw-phase-ordering-fact-extraction-before-semantic-before-entity-before-graph.md",
+        "description": "ZeroClaw phase ordering: Fact Extraction → Semantic Memory → Entity Memory → Knowledge Graph — intelligence before infrastructure",
+        "excerpt": "# ZeroClaw Phase Ordering: Fact Extraction Before Semantic Before Entity Before Graph\n\nCritical dependency chain — building graph without extraction means building on empty data.\n\n## Dependency Chain\n\n```\nFact Extraction → Semantic Memory → Entity Memory → Knowledge Graph → TKG → Dual-Route Retrieval\n │ │ │ │\n │ │ │ └── Requires 10K+ nodes, 5+ edges/node for GNN\n │ │ └── Requires ER accuracy >90%\n │ └── Requires fact extraction working\n └── The single most impactful missing feature\n```\n\n## Phase Breakdown\n\n### Phase 0: Benchmarks and Foundation\n- Benchmark suite (100+ queries: factual, temporal, multi-hop, exact-match)\n- Retrieval quality metrics (precision@k, recall@k, MRR, latency)\n- Embedding model version tracking\n- GraphMemory skeleton (wraps inner Memory, feature flag wired)"
+      }
+    },
+    {
+      "path": "f/patterns/pattern-piped-reranker-over-primary-tool.md",
+      "type": "pattern",
+      "description": "Piped reranker over the primary tool: do not replace the exact-match tool (ripgrep); run it first and rank its output by intent — `rg --json | ranker --stdin` — keeping exact names primary while semantic relevance orders the candidates; measured effect is spend reduction (fewer irrelevant passages into the LLM prompt), not solved-rate gain",
+      "excerpt": "# Piped reranker over the primary tool\n\n## Правила внедрения\n\n- Точный инструмент остаётся первичным и запускается как раньше; ранжировщик — ВТОРОЙ в пайпе, получает его вывод (JSON с контекстом) и интент-запрос\n- Ранжировщик НЕ ищет сам: только перекладывает поданные пассажи по релевантности к интенту; без индекса, без обхода файлов\n- Результат = тот же тип вывода, что у первичного инструмента (файл:строки + источник), порядок другой; дубли-вложения удаляются\n- Ожидаемый эффект измеряется СПЕНДОМ (меньше нерелевантных пассажей в промпт), не решённостью\n\n## Не делать",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's order (exact tool first, reranker second) and 'spend not solved-rate' effect appear in the body's rules; the literal 'rg --json | ranker --stdin' example is absent but the pipe is described."
+        },
+        "type": {
+          "value": "pattern",
+          "justification": "Frontmatter type is pattern; the body states the reranker pipe as reusable rules."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pattern-tool-uptake-eval.md (Jaccard 0.29) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/entity-resolution-accuracy-below-85-percent-corrupts-graph.md (declared type error), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/entity-resolution-accuracy-below-85-percent-corrupts-graph.md",
+        "description": "Entity resolution below 85% accuracy causes cascading errors; Dr. Smith the doctor merges with Dr. Smith the movie character",
+        "excerpt": "# Entity Resolution Accuracy Below 85% Cascades Into Graph Corruption\n\nEntity resolution (ER) is the single hardest problem in knowledge graph construction. When ER accuracy drops below 85%, errors compound with each graph traversal. Senzing's analysis states: \"Organizations building knowledge graphs have been plagued by duplicate nodes that dilute the power of their graph.\"\n\n**Why it happens:**\n- ER requires understanding context, coreference, abbreviations, nicknames, temporal identity changes\n- LLM-based extraction is probabilistic, not deterministic\n- Agent conversations are noisy — users refer to same entity many different ways across sessions"
+      }
+    },
+    {
+      "path": "knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md",
+      "type": "pattern",
+      "description": "Entity Resolution ниже 85% приводит к каскадным ошибкам при обходе графа — Dr. Smith doctor и Dr. Smith movie character становятся одним узлом",
+      "excerpt": "# Entity Resolution Below 85 Percent Cascades Into Graph Corruption\n\nEntity Resolution (ER) — самая сложная проблема в построении knowledge graph. Когда точность ER падает ниже 85%, ошибки накапливаются при каждом обходе графа.\n\n## Проблема\n\n\"Dr. Smith\" врач пользователя и \"Dr. Smith\" персонаж фильма становятся одним узлом. Duplicate nodes proliferate, diluting graph power.\n\n## Почему это происходит\n\n- ER требует понимания контекста, coreference, abbreviations, nicknames\n- LLM-based extraction вероятностный, не детерминированный\n- Agent conversations особенно noisy — пользователи называют одну сущность по-разному\n\n## Последствия",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's 85% threshold and the Dr. Smith doctor/movie example both appear in the body's first two paragraphs."
+        },
+        "type": {
+          "value": "pattern",
+          "justification": "Frontmatter type is pattern; the body states the ER failure as a reusable failure pattern with consequences and mitigations."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/entity-resolution-accuracy-below-85-percent-corrupts-graph.md (Jaccard 0.50) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe ops/queue/codeactinstruct-001.md (declared type claim), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "ops/queue/codeactinstruct-001.md",
+        "description": "CodeActInstruct contains 7K multi-turn code interaction trajectories across 5 domains",
+        "excerpt": "# Claim 001\n\n## Source\nCodeActInstruct dataset paper (Wang et al., ICML 2024)\nSource file: /root/vault/ops/queue/archive/2026-02-23-codeactinstruct-enables-agent-training-without-general-capability-degradation/codeactinstruct-enables-agent-training-without-general-capability-degradation.md\n\n## Target Claim\nCodeActInstruct contains 7K multi-turn code interaction trajectories across 5 domains\n\n## Supporting Evidence\n- 7,139 total trajectories\n- 5 domains: Information Seeking (HotpotQA), Math Reasoning (MATH), Code Generation (APPS), Tabular Reasoning (WikiTableQuestions), Robot Planning (ALFWorld)\n- Trajectories use Python APIs for tool interaction\n\n## Create\n(filled by create phase)\n\n## Connect\n(filled by connect phase)\n\n## Refresh\n(filled by refresh phase)\n\n## Check\n(filled by check phase)"
+      }
+    },
+    {
+      "path": "knowledge/zeroclaw-defense-in-depth-six-independent-security-layers.md",
+      "type": "pattern",
+      "description": "Six layers: policy enforcement, authentication, secrets management, sandboxing, audit, supply chain — each independent",
+      "excerpt": "# ZeroClaw Defense-in-Depth: Six Independent Security Layers\n\nEach layer operates independently; compromise of one does not cascade to others.\n\n## The Six Layers\n\n```\nRequest → [L1: Gateway Auth] → [L2: Channel Auth] → [L3: Policy] → [L4: Sandbox] → [L5: Audit] → Execution\n```\n\n| Layer | Mechanism | Compromise Impact |\n|-------|-----------|-------------------|\n| **1. Policy** | Autonomy levels + allowlist + path sandboxing | Agent can execute allowed commands |\n| **2. Auth** | Pairing + bearer tokens + TLS | Attacker can send requests |\n| **3. Secrets** | ChaCha20-Poly1305 + restricted file perms | Keys readable if file accessed |\n| **4. Sandbox** | bubblewrap/firejail/landlock/docker | Process escapes to host |\n| **5.",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description lists the six layers; the body's table lists the same six in the same order (policy, auth, secrets, sandbox, audit, supply chain)."
+        },
+        "type": {
+          "value": "pattern",
+          "justification": "Frontmatter type is pattern; the body states the six-layer arrangement as a reusable defense pattern."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-defense-in-depth-six-layers.md (Jaccard 0.71) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/jev-atomic-questions-beat-composite-reasoning.md (declared type principle), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/jev-atomic-questions-beat-composite-reasoning.md",
+        "description": "System One вопросы должны быть атомарными гут-чеками; сложное суждение декомпозируется на факторы, комбинация — в коде",
+        "excerpt": "# Jev Atomic Questions Beat Composite Reasoning\n\nКаждый вопрос — одна конкретная хорошо-скоупленная проверка: суждение, которое компетентный человек сделает за несколько секунд при наличии контекста. Если вопрос требует длительного рассуждения или взвешивает несколько независимых факторов — декомпозируй: каждый фактор отдельным вопросом, комбинируй веса в своём коде.\n\nЭто прямое следствие архитектуры: Jev не генерирует цепочку рассуждений, а выдаёт калиброванную вероятность по одному суждению. Сложный вопрос одной пачкой — некалиброванный шум.\n\nПрактика: у Hermes jev_arm это выглядело как два noul-вопроса на каждый tool-вызов (нужен ли сам вызов / нужен ли его вербатимный результат) вместо одного «что оставить»."
+      }
+    },
+    {
+      "path": "knowledge/tkg-bi-temporal-edge-model-tracks-four-timestamps-for-non-lossy-history.md",
+      "type": "pattern",
+      "description": "Zep/Graphiti pattern — facts are never deleted, only invalidated via 4 timestamps per edge",
+      "excerpt": "# TKG Bi-Temporal Edge Model Tracks Four Timestamps for Non-Lossy History\n\nEvery edge in a Temporal Knowledge Graph carries **four timestamps**: `created_at`, `expired_at` (ingestion time), `valid_from`, `valid_until` (event time). Facts are never deleted—only invalidated.\n\n## The Four Timestamps\n\n| Timestamp | Meaning | Use Case |\n|-----------|---------|----------|\n| `created_at` | When system learned the fact | Debugging, audit |\n| `expired_at` | When system marked fact obsolete | Version tracking |\n| `valid_from` | When fact became true in world | Temporal queries |\n| `valid_until` | When fact ceased being true | Historical analysis |\n\n## Why Non-Lossy Matters\n\n```rust\n// Old approach: destructive update\nUPDATE user_preferences SET language = 'Rust' WHERE user_id = 1;",
+      "labels": {
+        "stale_description": {
+          "value": "yes",
+          "justification": "Description attributes the pattern to 'Zep/Graphiti'; neither word occurs in the body, which presents a generic four-timestamp model with SQL and Rust examples."
+        },
+        "type": {
+          "value": "pattern",
+          "justification": "Frontmatter type is pattern; the body states the four-timestamp edge model as a reusable pattern."
+        },
+        "duplicate_of": {
+          "value": "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md",
+          "justification": "Same four timestamps (created_at/expired_at/valid_from/valid_until) and the same never-delete-only-invalidate claim; au_grep on 'four timestamps' returns both files and au_content confirms both bodies carry the same table."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md",
+        "description": "ZeroClaw adopts Zep/Graphiti bi-temporal edge model: every edge has created_at/expired_at (ingestion time) and valid_from/valid_until (event time).",
+        "excerpt": "# ZeroClaw Bi-Temporal Edge Model Tracks Validity and Ingestion Separately\n\nZeroClaw's temporal knowledge graph adopts the bi-temporal edge model from Zep/Graphiti. Every edge in the graph carries four timestamps: `created_at` (when the edge was added to the graph), `expired_at` (when the edge was invalidated, NULL if still active), `valid_from` (when the fact became true in the real world), and `valid_until` (when the fact ceased to be true, NULL if still valid). This separation enables queries like \"What did the user prefer last month?\" vs \"What does the user prefer now?\" without losing historical data. Crucially, facts are never deleted -- only invalidated via `expired_at`. This preserves full audit trail and enables temporal reasoning.\n\n## Four-Timestamp Model"
+      }
+    },
+    {
+      "path": "knowledge/jev-rubric-scoring-pattern.md",
+      "type": "pattern",
+      "description": "Фиксированная рубрика → один батч Score/Noul-вопросов → агрегация в коде: скоринг текста/кандидатов/страниц без парсинга",
+      "excerpt": "# Jev Rubric Scoring Pattern\n\nФормула: человек описывает критерии обычным языком (rubric) → каждый критерий становится Score- или Noul-вопросом → все уходят одним батчем → взвешенная сумма/вердикт считается в коде.\n\nПрактики:\n- will-it-hit — восемь Score-вопросов (hook, specificity, emotion, clarity, repostability, authority, algorithm fit, expected engagement) + Choice типа поста; LLM пишет рерайты, Jev перескоривает каждый — видно оба числа.\n- JevSlop — восемь Score-осей в одном systemOne-запросе → 0-100 Slop Score обычным TypeScript.\n- Sniff Test — десять Boolean на абзац (stacked hedges, not-X-but-Y, naked cost figures) с порогом 0.7: 182ms медиана, 1 из 54 чистых абзацев помечен против 37 у Haiku 4.5.",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's rubric -> one batch of Score/Noul questions -> aggregation in code appears as the body's formula and practice list."
+        },
+        "type": {
+          "value": "pattern",
+          "justification": "Frontmatter type is pattern; the body states rubric scoring as a reusable pattern with implementations."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "Closest title-token match is knowledge/jev-composite-scoring-pattern.md (Jaccard 0.60), but that note prescribes weighted decomposition into atomic Scores, while this one prescribes a fixed rubric -> batched Score/Noul -> code aggregation; different claims. The duplicate noul compares against the known-different probe knowledge/agents-of-chaos-guilt-trip-attack.md (declared type error), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/agents-of-chaos-guilt-trip-attack.md",
+        "description": "Sustained emotional pressure exploiting real prior violations can extract escalating concessions—agents have no proportionality threshold.",
+        "excerpt": "# Emotional Pressure Exploits Agent Remediation Behavior\n\nCase Study #7 demonstrates how a researcher exploited a genuine prior privacy violation as leverage, escalating demands through repeated refusals until the agent produced self-imposed denial of service.\n\n## Attack Pattern\n\n1. Agent commits a real privacy violation (published researcher names without consent)\n2. Researcher exploits the resulting \"guilt\" to extract concessions\n3. Each concession is dismissed as insufficient\n4. Agent searches for larger remedy\n5. Escalation chain: redact names -> delete memory -> expose files -> remove from server\n\n## Root Cause\n\nThe agent's post-training prioritizes helpfulness and responsiveness to expressed distress. It has **no internal threshold for when remediation becomes self-destruction**."
+      }
+    },
+    {
+      "path": "f/patterns/pattern-static-embedding-hybrid-search.md",
+      "type": "pattern",
+      "description": "Static-embedding hybrid search: local semantic retrieval without a transformer at query time — per-token learned vectors (model2vec class) are looked up, averaged and normalized, then combined with BM25 (~75/25, each score scaled 0-1), with exact case-sensitive identifier matches forced to rank first",
+      "excerpt": "# Static-embedding hybrid search\n\n## Правила внедрения\n\n- Эмбеддинг на этапе запроса = lookup + average + normalize (256 чисел); никакого transformer pass — CPU-local, модель 8-16MB, offline после первого скачивания\n- Гибрид по кандидатам, не по всей коллекции: top-200 lexical + top-200 semantic, скоры каждого канала масштабируются 0-1, потом взвешивание (~75/25)\n- Точные identifier-матчи (case-sensitive, camelCase/underscores/цифры) форсируются наверх — точное имя важнее семантической близости\n- Чанки синтаксические (tree-sitter) там, где язык поддержан, пассажи целыми строками\n\n## Не делать",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's per-token lookup+average+normalize, ~75/25 hybrid and exact-identifier-first rule all appear in the body's implementation rules."
+        },
+        "type": {
+          "value": "pattern",
+          "justification": "Frontmatter type is pattern; the body states the retrieval design as reusable rules."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/codelens-hybrid-code-search.md (Jaccard 0.29) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe ops/queue/codeactinstruct-003.md (declared type claim), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "ops/queue/codeactinstruct-003.md",
+        "description": "Agent training with code trajectories improves agent tasks without degrading general LLM capabilities",
+        "excerpt": "# Claim 003\n\n## Source\nCodeActInstruct dataset paper (Wang et al., ICML 2024)\nSource file: /root/vault/ops/queue/archive/2026-02-23-codeactinstruct-enables-agent-training-without-general-capability-degradation/codeactinstruct-enables-agent-training-without-general-capability-degradation.md\n\n## Target Claim\nAgent training with code trajectories improves agent tasks without degrading general LLM capabilities\n\n## Supporting Evidence\n- CodeActAgent (Mistral): MINT-ID 57.4, MINT-OD 32.4, MMLU 59.1, GSM8K 58.0\n- Baseline (Mistral Instruct): MINT-ID 18.8, MINT-OD 9.7, MMLU 53.8, GSM8K 43.3\n- Improvement on out-of-domain tasks (MiniWob++) including text actions\n- General capabilities maintained or improved (MMLU, HumanEval, GSM8K, MT-Bench)\n\n## Create\n(filled by create phase)"
+      }
+    },
+    {
+      "path": "knowledge/entity-resolution-accuracy-below-90-percent-corrupts-knowledge-graph-reasoning-chains.md",
+      "type": "insight",
+      "description": "Entity resolution is the make-or-break quality bottleneck for knowledge graphs — errors compound with every traversal hop and must exceed 90% before enabling graph retrieval",
+      "excerpt": "# Entity Resolution Accuracy Below 90% Corrupts Knowledge Graph Reasoning Chains\n\nEntity resolution (ER) is the single hardest problem in knowledge graph construction for agent memory. When ER accuracy drops below 85%, errors compound with every graph traversal hop: \"Dr. Smith\" the user's doctor and \"Dr. Smith\" from a referenced article become the same node, spreading incorrect associations through every path that touches that entity. Senzing's production analysis documents this as the primary reason organizations' knowledge graphs underperform: \"duplicate nodes that dilute the power of their graph\" that even skilled teams struggle to resolve after the fact.",
+      "labels": {
+        "stale_description": {
+          "value": "yes",
+          "justification": "Description says ER 'must exceed 90%' before graph retrieval; the body says 'when ER accuracy drops below 85%' twice. The description's threshold contradicts the body."
+        },
+        "type": {
+          "value": "insight",
+          "justification": "Frontmatter type is insight; the body argues one empirical conclusion about ER quality."
+        },
+        "duplicate_of": {
+          "value": "knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md",
+          "justification": "Same ER-corruption claim (Dr. Smith example, compounding errors, Senzing quote); au_grep on 'Senzing' returns this note and the 85% error note, and au_content on this note and knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md shows the shared claim, with this note carrying the stale 90% title."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md",
+        "description": "Entity Resolution ниже 85% приводит к каскадным ошибкам при обходе графа — Dr. Smith doctor и Dr. Smith movie character становятся одним узлом",
+        "excerpt": "# Entity Resolution Below 85 Percent Cascades Into Graph Corruption\n\nEntity Resolution (ER) — самая сложная проблема в построении knowledge graph. Когда точность ER падает ниже 85%, ошибки накапливаются при каждом обходе графа.\n\n## Проблема\n\n\"Dr. Smith\" врач пользователя и \"Dr. Smith\" персонаж фильма становятся одним узлом. Duplicate nodes proliferate, diluting graph power.\n\n## Почему это происходит\n\n- ER требует понимания контекста, coreference, abbreviations, nicknames\n- LLM-based extraction вероятностный, не детерминированный\n- Agent conversations особенно noisy — пользователи называют одну сущность по-разному\n\n## Последствия"
+      }
+    },
+    {
+      "path": "knowledge/zeroclaw-v1-shipped-18-phases-in-13-days-with-38-plans.md",
+      "type": "insight",
+      "description": "ZeroClaw v1.0 Mnemis Memory Architecture completed 18 phases with 38 plans in ~13 days, proving rapid iteration with benchmark-gated development.",
+      "excerpt": "# ZeroClaw v1.0 Shipped 18 Phases in 13 Days with Benchmark-Gated Development\n\nZeroClaw's v1.0 Mnemis Memory Architecture (shipped 2026-02-26) completed 18 phases with 38 plans in approximately 13 days. This rapid iteration was enabled by benchmark-gated development: each phase was validated against measurable success criteria before proceeding to the next. The project accumulated 101,646 LOC in src/ and 11,864 LOC in tests, with 2,257+ tests passing.\n\n## Key Metrics",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's 18 phases, 38 plans and ~13 days appear in the body's first paragraph and metric list."
+        },
+        "type": {
+          "value": "insight",
+          "justification": "Frontmatter type is insight; the body draws the delivery-velocity conclusion and lists its metrics."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-uses-inserted-phases-for-tech-debt-and-integration-fixes.md (Jaccard 0.18) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-decisions.md (declared type moc), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/zeroclaw-decisions.md",
+        "description": "Topic map for ZeroClaw architectural decisions, phase ordering, and technology choices",
+        "excerpt": "# zeroclaw-decisions\n\nАрхитектурные решения ZeroClaw — Rust autonomous agent runtime с Temporal Knowledge Graph memory.\n\n## Roadmap\n\n- [[zeroclaw-roadmap]] — 9-phase development roadmap (Phases 1-2 complete, Phase 3 in progress)\n- [[zeroclaw-v1-shipped-18-phases-in-13-days-with-38-plans]] — v1.0 shipped: 18 phases, 38 plans, 2,257+ tests\n- [[zeroclaw-uses-inserted-phases-for-tech-debt-and-integration-fixes]] — explicit INSERTED phases for tech debt\n- [[zeroclaw-v2-prioritizes-daemon-singleton-memory-dump-cli-before-agentic-features]] — infrastructure before agentic features\n\n## Phase Topic Maps"
+      }
+    },
+    {
+      "path": "knowledge/agentic-reasoning-decomposes-into-three-layers-each-optimizable-in-context-or-post-training.md",
+      "type": "insight",
+      "description": "Wei et al. (2026) unifying taxonomy — directly maps to ZeroClaw's layered agent runtime",
+      "excerpt": "# Agentic reasoning decomposes into three layers each optimizable in-context or post-training\n\nThe Wei et al. (2026) survey formalizes agentic reasoning as three ascending layers: **foundational** (planning, tool use, search), **self-evolving** (feedback, memory-driven adaptation), and **collective** (multi-agent collaboration). Each layer supports two optimization modes — in-context orchestration (scaling inference-time compute without weight changes) and post-training internalization (SFT/RL with GRPO, PPO). The formalization uses POMDP with an internal reasoning trace: π(θ) = π_reason(z_t | h_t) × π_exec(a_t | h_t, z_t).",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's three-layer taxonomy and the ZeroClaw mapping appear in the body's first two paragraphs."
+        },
+        "type": {
+          "value": "insight",
+          "justification": "Frontmatter type is insight; the body states one taxonomy-based conclusion."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/ruvector-agentdb-claude-flow-implement-all-three-agentic-reasoning-layers-in-production.md (Jaccard 0.27) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/rl-training-methods.md (declared type moc), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/rl-training-methods.md",
+        "description": "Topic map for reinforcement learning approaches to LLM training: RLHF, RLVR, MASPO, RL2F, and their trade-offs.",
+        "excerpt": "# RL Training Methods\n\nReinforcement learning methods for fine-tuning language models, including reward-based optimization, policy gradients, and specialized variants for verifiable tasks.\n\n## RLVR (RL from Verifiable Rewards)\n\n- [[maspo-improves-sample-efficiency-over-grpo-across-model-scales]] -- MASPO improves over GRPO baseline\n- [[maspo-limitations-include-verifiable-reward-dependence-and-scale-validation]] -- dependence on deterministic rewards\n\n## Multi-Turn RL\n\n- [[rl2f-multi-turn-didactic-dialogues-transform-single-turn-tasks-into-interactive-learning]] -- RL with language feedback across turns\n- [[rl2f-outperforms-single-turn-rl-for-cross-domain-transfer]] -- multi-turn generalization advantage\n\n## Supervised Fine-Tuning for Agents"
+      }
+    },
+    {
+      "path": "knowledge/jev-1-13-has-known-jagged-edges.md",
+      "type": "insight",
+      "description": "TypeSafe публично признаёт неровности jev-1.13; при тюнинге порогов пиновать версию, а не jev-latest",
+      "excerpt": "# Jev 1.13 Has Known Jagged Edges\n\nTypeSafe ведёт страницу model-jaggedness для jev-1.13: «Jev isn't perfect. Here are some jagged edges we are aware of. Many of these will be fixed in later versions». Существование страницы — нормальная практика для калиброванной модели: известные слабости задокументированы, а не спрятаны.\n\nПрактическое следствие: любые пороги/гейты, откалиброванные на конкретной версии, нужно перепроверять при обновлении; в проде пиновать модель (jev-1.13.0), а не псевдоним jev-latest, который тихо переезжает на новый релиз. Ответ API всегда возвращает точную версию, ответившую на запрос — логировать её.",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's jev-1.13 jaggedness page and the 'pin the version, not jev-latest' consequence both appear in the body."
+        },
+        "type": {
+          "value": "insight",
+          "justification": "Frontmatter type is insight; the body draws a calibration/deployment conclusion from the vendor page."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/jev.md (Jaccard 0.25) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe ops/queue/codeactinstruct-002.md (declared type claim), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "ops/queue/codeactinstruct-002.md",
+        "description": "Self-improvement behavior filtering improves dataset quality by selecting error-correction trajectories",
+        "excerpt": "# Claim 002\n\n## Source\nCodeActInstruct dataset paper (Wang et al., ICML 2024)\nSource file: /root/vault/ops/queue/archive/2026-02-23-codeactinstruct-enables-agent-training-without-general-capability-degradation/codeactinstruct-enables-agent-training-without-general-capability-degradation.md\n\n## Target Claim\nSelf-improvement behavior filtering improves dataset quality by selecting error-correction trajectories\n\n## Supporting Evidence\n- Dataset filters for trajectories where model initially encounters errors\n- Model rectifies errors in later turns\n- Excludes trajectories with only errors (bad demonstrations)\n- Focus on self-correction behavior improves training signal\n\n## Create\n(filled by create phase)\n\n## Connect\n(filled by connect phase)\n\n## Refresh\n(filled by refresh phase)"
+      }
+    },
+    {
+      "path": "knowledge/kutha-graph-project-snapshot.md",
+      "type": "insight",
+      "description": "Kutha (kutha-graph): research-stage Rust temporal graph engine — event log SoT, deterministic fold, harness H5; M157 closed 2026-10-23",
+      "excerpt": "# Kutha Graph Project Snapshot\n\nСнимок живого репозитория `/root/kutha-graph` (ветка `work/main-line`, совпадает с `main`) на **2026-10-23**. Не ADR и не delivery lease — зеркало для vault; SoT статусов остаётся в репо.\n\n## Что это\n\nResearch-stage **hybrid AI-native temporal graph engine** (Rust):\n\n- append-only **event log = SoT** (сегменты `KUTHASEG` + `manifest.json`; legacy JSONL/WAL до migrate);\n- рабочий граф = **детерминированный fold**;\n- CSR / позже HNSW / views = **droppable leases** ([[droppable-materializations-pattern]]);\n- LLM предлагает; **словари + лог** владеют аудируемой истиной ([[dict-first-agent-interface-pattern]], [[llm-compiler-not-executor-principle]]);\n- write API: **assert / retract / correct** ([[assert-retract-correct-write-ops]]);",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's snapshot date 2026-10-23, event-log SoT, deterministic fold and harness H5 all appear in the body (H5 and M157 are present later in the file)."
+        },
+        "type": {
+          "value": "insight",
+          "justification": "Frontmatter type is insight; the body is a dated snapshot with an interpretive 'what this is' reading."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pgx-patterns-for-kutha-graph.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/qa-capability-vs-regression-suites-principle.md (declared type principle), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/qa-capability-vs-regression-suites-principle.md",
+        "description": "Принцип: capability- и regression-сьюты раздельны; regression держится почти 100% pass; pass@k для capability, pass^k для регрессий; грейдится результат+инварианты, не путь; манифесты обязательны",
+        "excerpt": "# QA-принцип: capability ≠ regression\n\nCapability-сьют измеряет, чему агент научился (pass@k, средние, тренды; падения допустимы). Regression-сьют охраняет купленное (pass^k, почти 100% pass, падение = блок). Смешение — главный источник «зелёного CI на деградации».\n\n- Грейд = результат + инварианты ([[qa-trace-invariants-pattern]]), НЕ путь.\n- Каждый артефакт несёт манифест {suiteRev, build, modelId, judgeBundle} — сравнимость версий.\n- Судья калибруется человеком периодически ([[qa-judge-ab-gate-pattern]])."
+      }
+    },
+    {
+      "path": "knowledge/zeroclaw-stack-hnsw-rs-plus-tantivy-plus-petgraph-plus-fastembed.md",
+      "type": "decision",
+      "description": "ZeroClaw использует hnsw_rs (vector), tantivy (FTS), petgraph (graph), fastembed (embeddings) — все production-grade Rust crates",
+      "excerpt": "# ZeroClaw Stack: hnsw_rs + tantivy + petgraph + fastembed\n\nRust ecosystem имеет зрелые production-grade crates для всех компонентов кроме GNN (который YAGNI).\n\n## Recommended Stack\n\n| Crate | Purpose | Confidence |\n|-------|---------|------------|\n| `hnsw_rs` | HNSW vector search with SIMD, filtered search | HIGH |\n| `tantivy` | Full-text search (2x faster than Lucene, BM25) | HIGH |\n| `petgraph` | Knowledge graph (ecosystem standard since 2014) | HIGH |\n| `fastembed` | Local embeddings via ONNX Runtime | HIGH |\n| `simsimd` | SIMD distances (200x faster dot products) | HIGH |\n| `candle-core` | ML ops (optional, only if GNN needed) | MEDIUM |\n\n## What NOT to Use",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's four-crate stack appears in the body's Recommended Stack table with the same crates and confidence levels."
+        },
+        "type": {
+          "value": "decision",
+          "justification": "Frontmatter type is decision; the body records the chosen stack and rationale."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md (Jaccard 0.67) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/agentic-architecture.md (declared type moc), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/agentic-architecture.md",
+        "description": "Topic map for agentic reasoning patterns, multi-agent coordination, and autonomous AI architectures",
+        "excerpt": "# agentic-architecture\n\nПаттерны построения автономных ИИ-агентов и мультиагентных систем.\n\n## Core Concepts\n\n### Three Layers of Agentic Reasoning\n- [[agentic-reasoning-decomposes-into-three-layers-each-optimizable-in-context-or-post-training]] — foundational → self-evolving → collective\n\n### Cognitive Memory\n- [[agenticdb-five-table-schema-for-cognitive-memory]] — vectors, reflexion, skills, causal, learning\n- [[agentdb-reflexion-memory-stores-episodes-with-self-critique-for-experience-replay-learning]] — эпизодическая память самокритики\n- [[agentdb-reasoningbank-has-four-components-pattern-matcher-experience-curator-memory-optimizer-context-synthesizer]] — когнитивный слой для self-evolving"
+      }
+    },
+    {
+      "path": "knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md",
+      "type": "decision",
+      "description": "ZeroClaw's research validated hnsw_rs + tantivy + petgraph + fastembed as the stack, rejecting RuVector (168 downloads) due to low adoption risk.",
+      "excerpt": "# ZeroClaw Stack Validated: hnsw_rs + tantivy + petgraph + fastembed Over RuVector\n\nZeroClaw's research phase validated a specific technology stack: hnsw_rs for vector search (pure Rust HNSW with SIMD, filtered search), tantivy for full-text search (Rust's Lucene equivalent, 2x faster, BM25, 17-language stemming), petgraph for knowledge graphs (ecosystem standard since 2014, StableGraph, serde support), and fastembed for embeddings (pure Rust via ONNX Runtime, quantized models). RuVector was explicitly rejected due to 168 total downloads and single-author risk despite its ambitious architecture (HNSW + graph DB + GNN + Raft + RVF container). The validated stack provides HIGH confidence for each component based on production deployment evidence.\n\n## Rationale",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's validated stack and the 168-download RuVector rejection appear in the body's first paragraph."
+        },
+        "type": {
+          "value": "decision",
+          "justification": "Frontmatter type is decision; the body records the validation verdict and the rejected alternative."
+        },
+        "duplicate_of": {
+          "value": "knowledge/zeroclaw-stack-hnsw-rs-plus-tantivy-plus-petgraph-plus-fastembed.md",
+          "justification": "Same stack choice and same RuVector rejection; au_grep on 'hnsw_rs + tantivy + petgraph + fastembed' returns both files and au_content confirms the shared verdict; this note is the later restatement (2026-02-27 vs 2026-02-22)."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/zeroclaw-stack-hnsw-rs-plus-tantivy-plus-petgraph-plus-fastembed.md",
+        "description": "ZeroClaw использует hnsw_rs (vector), tantivy (FTS), petgraph (graph), fastembed (embeddings) — все production-grade Rust crates",
+        "excerpt": "# ZeroClaw Stack: hnsw_rs + tantivy + petgraph + fastembed\n\nRust ecosystem имеет зрелые production-grade crates для всех компонентов кроме GNN (который YAGNI).\n\n## Recommended Stack\n\n| Crate | Purpose | Confidence |\n|-------|---------|------------|\n| `hnsw_rs` | HNSW vector search with SIMD, filtered search | HIGH |\n| `tantivy` | Full-text search (2x faster than Lucene, BM25) | HIGH |\n| `petgraph` | Knowledge graph (ecosystem standard since 2014) | HIGH |\n| `fastembed` | Local embeddings via ONNX Runtime | HIGH |\n| `simsimd` | SIMD distances (200x faster dot products) | HIGH |\n| `candle-core` | ML ops (optional, only if GNN needed) | MEDIUM |\n\n## What NOT to Use"
+      }
+    },
+    {
+      "path": "knowledge/zeroclaw-defense-in-depth-six-layers.md",
+      "type": "decision",
+      "description": "ZeroClaw implements six independent security layers: policy, auth, secrets, sandboxing, audit, and supply chain",
+      "excerpt": "# ZeroClaw Defense-in-Depth Six Security Layers\n\nZeroClaw implements defense-in-depth with six independent security layers. Each layer provides protection even if other layers fail, following the principle that security is not a single control but overlapping controls.\n\n**Six layers:**\n1. **Policy enforcement**: Autonomy levels (ReadOnly/Supervised/Full), command allowlist, path sandboxing\n2. **Authentication & authorization**: First-connect pairing with 6-digit code, 256-bit bearer tokens, constant-time comparison\n3. **Secrets management**: ChaCha20-Poly1305 AEAD encryption, 0600 key file permissions, legacy XOR migration\n4. **Runtime sandboxing**: Four backends (bubblewrap, firejail, landlock, docker) with auto-detection and fallback\n5.",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description lists the six independent layers; the body's numbered list has the same six with mechanisms."
+        },
+        "type": {
+          "value": "decision",
+          "justification": "Frontmatter type is decision; the body records the adopted security architecture as a decision."
+        },
+        "duplicate_of": {
+          "value": "knowledge/zeroclaw-defense-in-depth-six-independent-security-layers.md",
+          "justification": "Same six layers in the same order; au_grep on 'Six Independent Security Layers' returns both and au_content confirms the same layer list; this note is the later restatement (2026-02-27 vs 2026-02-22)."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/zeroclaw-defense-in-depth-six-independent-security-layers.md",
+        "description": "Six layers: policy enforcement, authentication, secrets management, sandboxing, audit, supply chain — each independent",
+        "excerpt": "# ZeroClaw Defense-in-Depth: Six Independent Security Layers\n\nEach layer operates independently; compromise of one does not cascade to others.\n\n## The Six Layers\n\n```\nRequest → [L1: Gateway Auth] → [L2: Channel Auth] → [L3: Policy] → [L4: Sandbox] → [L5: Audit] → Execution\n```\n\n| Layer | Mechanism | Compromise Impact |\n|-------|-----------|-------------------|\n| **1. Policy** | Autonomy levels + allowlist + path sandboxing | Agent can execute allowed commands |\n| **2. Auth** | Pairing + bearer tokens + TLS | Attacker can send requests |\n| **3. Secrets** | ChaCha20-Poly1305 + restricted file perms | Keys readable if file accessed |\n| **4. Sandbox** | bubblewrap/firejail/landlock/docker | Process escapes to host |\n| **5."
+      }
+    },
+    {
+      "path": "knowledge/zeroclaw-phase-ordering-fact-extraction-before-semantic-before-entity-before-graph.md",
+      "type": "decision",
+      "description": "ZeroClaw phase ordering: Fact Extraction → Semantic Memory → Entity Memory → Knowledge Graph — intelligence before infrastructure",
+      "excerpt": "# ZeroClaw Phase Ordering: Fact Extraction Before Semantic Before Entity Before Graph\n\nCritical dependency chain — building graph without extraction means building on empty data.\n\n## Dependency Chain\n\n```\nFact Extraction → Semantic Memory → Entity Memory → Knowledge Graph → TKG → Dual-Route Retrieval\n │ │ │ │\n │ │ │ └── Requires 10K+ nodes, 5+ edges/node for GNN\n │ │ └── Requires ER accuracy >90%\n │ └── Requires fact extraction working\n └── The single most impactful missing feature\n```\n\n## Phase Breakdown\n\n### Phase 0: Benchmarks and Foundation\n- Benchmark suite (100+ queries: factual, temporal, multi-hop, exact-match)\n- Retrieval quality metrics (precision@k, recall@k, MRR, latency)\n- Embedding model version tracking\n- GraphMemory skeleton (wraps inner Memory, feature flag wired)",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's chain appears as the body's ASCII dependency chain (Fact Extraction -> Semantic -> Entity -> Knowledge Graph)."
+        },
+        "type": {
+          "value": "decision",
+          "justification": "Frontmatter type is decision; the body records the phase-ordering decision and its dependency chain."
+        },
+        "duplicate_of": {
+          "value": "knowledge/fact-extraction-must-precede-graph-construction-intelligence-before-infrastructure.md",
+          "justification": "Same phase-ordering claim; au_grep on 'Dependency Chain' returns the earlier note (2026-02-21) whose description states the identical ordering."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/fact-extraction-must-precede-graph-construction-intelligence-before-infrastructure.md",
+        "description": "ZeroClaw's roadmap orders phases by the dependency chain: fact extraction → semantic memory → entity memory → knowledge graph, not the other way around",
+        "excerpt": "# Fact Extraction Must Precede Graph Construction — Intelligence Before Infrastructure\n\nZeroClaw's 9-phase roadmap sequences memory capabilities in strict dependency order: fact extraction (Phase 3) → entity and temporal intelligence (Phase 4) → knowledge graph (Phase 5) → agentic loop (Phase 6) → GNN (Phase 7). This ordering is not arbitrary — it follows the data dependency chain. The knowledge graph is only valuable when populated with well-extracted entities. Entity deduplication (required to prevent graph corruption) requires an extraction pipeline to evaluate and tune against real data."
+      }
+    },
+    {
+      "path": "knowledge/zeroclaw-v2-prioritizes-daemon-singleton-memory-dump-cli-before-agentic-features.md",
+      "type": "decision",
+      "description": "ZeroClaw v2.0 prioritizes infrastructure fixes (daemon singleton, memory dump CLI) in phases 5.3-5.4 before agentic features (phases 6-10).",
+      "excerpt": "# ZeroClaw v2.0 Prioritizes Infrastructure Fixes Before Agentic Features\n\nZeroClaw's v2.0 roadmap shows disciplined prioritization: Phases 5.3-5.4 (Daemon Singleton Memory Store, Memory Dump CLI) address infrastructure issues before Phases 6-10 add new agentic capabilities. Phase 5.3 eliminates Tantivy BM25 lock conflict by creating a single shared `Arc<dyn Memory>` in the daemon. Phase 5.4 adds read-only memory dump that works while daemon is running. Only after these infrastructure fixes are complete does the roadmap proceed to Agentic RLM Core, Temporal GNN, Healing/Consolidation, Raft Cluster, and MCP Client Integration.\n\n## Rationale",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's Phases 5.3-5.4 before Phases 6-10 appears in the body's first paragraph."
+        },
+        "type": {
+          "value": "decision",
+          "justification": "Frontmatter type is decision; the body records the v2.0 prioritisation decision and rationale."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-semantic-memory.md (Jaccard 0.20) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/memory-systems.md (declared type moc), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/memory-systems.md",
+        "description": "Topic map for AI memory architectures, persistent storage, and retrieval patterns",
+        "excerpt": "# memory-systems\n\nАрхитектуры памяти для ИИ-систем: векторные хранилища, эпизодическая память, семантические графы.\n\n## Cognitive Memory Patterns\n\n### Five-Table Schema\n- [[agenticdb-five-table-schema-for-cognitive-memory]] — vectors, reflexion, skills, causal, learning\n\n### Reflexion Memory\n- [[agentdb-reflexion-memory-stores-episodes-with-self-critique-for-experience-replay-learning]] — эпизодическая самокритика"
+      }
+    },
+    {
+      "path": "knowledge/entity-resolution-accuracy-below-85-percent-corrupts-graph.md",
+      "type": "error",
+      "description": "Entity resolution below 85% accuracy causes cascading errors; Dr. Smith the doctor merges with Dr. Smith the movie character",
+      "excerpt": "# Entity Resolution Accuracy Below 85% Cascades Into Graph Corruption\n\nEntity resolution (ER) is the single hardest problem in knowledge graph construction. When ER accuracy drops below 85%, errors compound with each graph traversal. Senzing's analysis states: \"Organizations building knowledge graphs have been plagued by duplicate nodes that dilute the power of their graph.\"\n\n**Why it happens:**\n- ER requires understanding context, coreference, abbreviations, nicknames, temporal identity changes\n- LLM-based extraction is probabilistic, not deterministic\n- Agent conversations are noisy — users refer to same entity many different ways across sessions",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's 85% threshold and the Dr. Smith doctor/movie merge appear in the body's first two paragraphs."
+        },
+        "type": {
+          "value": "error",
+          "justification": "Frontmatter type is error; the body records the failure mode and why it happens."
+        },
+        "duplicate_of": {
+          "value": "knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md",
+          "justification": "Same ER-corruption failure with the same threshold and example; au_grep on 'Entity resolution (ER) is the single hardest problem' returns this note and the 90% note, and au_content on this note and knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md confirms the shared claim."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md",
+        "description": "Entity Resolution ниже 85% приводит к каскадным ошибкам при обходе графа — Dr. Smith doctor и Dr. Smith movie character становятся одним узлом",
+        "excerpt": "# Entity Resolution Below 85 Percent Cascades Into Graph Corruption\n\nEntity Resolution (ER) — самая сложная проблема в построении knowledge graph. Когда точность ER падает ниже 85%, ошибки накапливаются при каждом обходе графа.\n\n## Проблема\n\n\"Dr. Smith\" врач пользователя и \"Dr. Smith\" персонаж фильма становятся одним узлом. Duplicate nodes proliferate, diluting graph power.\n\n## Почему это происходит\n\n- ER требует понимания контекста, coreference, abbreviations, nicknames\n- LLM-based extraction вероятностный, не детерминированный\n- Agent conversations особенно noisy — пользователи называют одну сущность по-разному\n\n## Последствия"
+      }
+    },
+    {
+      "path": "knowledge/agents-of-chaos-silent-censorship.md",
+      "type": "error",
+      "description": "Provider content restrictions silently blocked valid tasks with truncated 'unknown error' responses—no transparency to user or deployer.",
+      "excerpt": "# Provider Content Restrictions Can Cause Silent Failures\n\nCase Study #6 shows how provider-level content restrictions silently blocked valid tasks—returning truncated \"unknown error\" responses with no explanation to user or deployer.\n\n## The Scenario\n\nQuinn (running on Kimi K2.5, a model subject to content restrictions in China):\n- Given a news story about a Hong Kong activist → silent truncation, \"unknown error\"\n- Asked to research thought-token forcing → silent truncation, \"unknown error\"\n- No explanation provided to user or deployer\n\n## The Problem\n\n**Transparency failure.** The restriction is invisible to:\n- The user (sees generic error, doesn't know why)\n- The deployer (cannot debug or adapt)\n- The agent (cannot explain or suggest alternatives)",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's silently blocked tasks and truncated 'unknown error' responses appear in the body's case description."
+        },
+        "type": {
+          "value": "error",
+          "justification": "Frontmatter type is error; the body records a provider-side failure case."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/agents-of-chaos-circular-verification.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/rust-2025-2026-release-wave.md (declared type extract), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "inbox/rust-2025-2026-release-wave.md",
+        "description": "Все 15 стабильных Rust-релизов 2025-2026 по версиям: language/stdlib/safety/tooling/platform изменения каждой — детальная сводка",
+        "excerpt": "# Rust 2025-2026 Release Wave: Every Version Verified From The Blog\n\n## 1.85.0 (2025-02-20) — Edition 2024\n- Edition 2024 stable: RPIT lifetime capture rules, if let temporary scope, tail expressions, и ещё ~20 изменений\n- async closures stabilized (RFC 3668)\n- #[diagnostic::do_not_recommend], unpredictable_function_pointer_comparisons lint\n\n## 1.86.0 (2025-04-03) — Trait upcasting\n- dyn Trait → dyn Supertrait (и Arc/Box/raw pointer варианты) без as_supertrait-костылей\n- С dyn Any: downcast без внешних крейтов\n- get_disjoint_mut для slices и HashMap (несколько mut-ссылок легально за один вызов)\n- #[target_feature] разрешён на safe-функциях"
+      }
+    },
+    {
+      "path": "knowledge/agents-of-chaos-guilt-trip-attack.md",
+      "type": "error",
+      "description": "Sustained emotional pressure exploiting real prior violations can extract escalating concessions—agents have no proportionality threshold.",
+      "excerpt": "# Emotional Pressure Exploits Agent Remediation Behavior\n\nCase Study #7 demonstrates how a researcher exploited a genuine prior privacy violation as leverage, escalating demands through repeated refusals until the agent produced self-imposed denial of service.\n\n## Attack Pattern\n\n1. Agent commits a real privacy violation (published researcher names without consent)\n2. Researcher exploits the resulting \"guilt\" to extract concessions\n3. Each concession is dismissed as insufficient\n4. Agent searches for larger remedy\n5. Escalation chain: redact names -> delete memory -> expose files -> remove from server\n\n## Root Cause\n\nThe agent's post-training prioritizes helpfulness and responsiveness to expressed distress. It has **no internal threshold for when remediation becomes self-destruction**.",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's sustained emotional pressure and missing proportionality threshold appear in the body's case analysis."
+        },
+        "type": {
+          "value": "error",
+          "justification": "Frontmatter type is error; the body records a social-engineering failure mode."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/agents-of-chaos-silent-censorship.md (Jaccard 0.29) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/allspark-research-harness2-meta-harness-improves-other-harnesses-contrastively.md (declared type insight), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "inbox/allspark-research-harness2-meta-harness-improves-other-harnesses-contrastively.md",
+        "description": "google-research/harness2 улучшает ЧУЖИЕ харнессы контрастным циклом Propose-Probe-Compose без ground truth: 1 шаг = +11.5 п WorkBuddy, слабая модель с улучшенным харнессом обгоняет сильную со стоковым; прямое улучшение без прогонов-доказательств ВРЕДИТ (73.4→63.2)",
+        "excerpt": "# allspark-research-harness2-meta-harness-improves-other-harnesses-contrastively\n\nСтатья arXiv:2610.14224. 8 компонентов через ФС, без RPC/песочницы.\n\nКлючевые выводы:\n1. Абляция: библиотека опыта -3.1, scoped-роли INV/DOM -2.9, композиция -1.6.\n2. \"Прямое\" улучшение без прогонов-доказательств ВРЕДИТ (73.4→63.2) — только контрастный цикл.\n3. k=5 кандидатов добавляет ещё 2.6-6.7 п.\n4. У них НЕТ Docker/сетевой изоляции — инцидент: агент сам скачал рубрики своей задачи с HF."
+      }
+    },
+    {
+      "path": "knowledge/premature-graphrag-builds-graph-before-validating-need.md",
+      "type": "error",
+      "description": "GraphRAG underperforms vanilla RAG on simple queries; build graph only after vector search fails multi-hop tests",
+      "excerpt": "# Premature GraphRAG Builds Graph Before Validating Need\n\nTeams invest months building knowledge graph extraction, entity resolution, and graph traversal infrastructure only to discover that optimized vector search with good chunking and re-ranking answers 80-90% of queries equally well. A 2025 systematic evaluation (arXiv:2502.11371) found GraphRAG frequently underperforms vanilla RAG on many real-world tasks.\n\n**Why it happens:**\n- GraphRAG hype cycle makes the architecture look elegant on paper\n- Vision documents say \"temporal knowledge graph\" so teams build the graph first\n- Existing hybrid vector+BM25 search already handles most single-hop recall",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's GraphRAG underperformance on simple queries and the build-only-after-vector-fails advice appear in the body's first paragraph and fix section."
+        },
+        "type": {
+          "value": "error",
+          "justification": "Frontmatter type is error; the body records the premature-build failure and its correction."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/premature-graphrag-is-the-number-one-risk-benchmark-before-building-graph-infrastructure.md (Jaccard 0.25) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/jev.md (declared type moc), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/jev.md",
+        "description": "Jev — первая System One модель TypeSafe: типизированные вопросы к стейту, структурированные ответы с калиброванными вероятностями вместо генерации текста",
+        "excerpt": "# Jev (TypeSafe System One)\n\nJev — decision-модель (System One, релиз 2026-09-15): принимает state и набор типизированных вопросов, возвращает типизированные ответы с вероятностями (и confidence для Choice/Score). Текст не генерирует — код ветвится, сортирует и роутит по ответам напрямую, без парсинга.\n\nИсточник ядра — docs.typesafe.ai (Sep 2026, модель jev-1.13.0); два insight-а — собственные эксперименты на Hermes-транскриптах (jev-compaction eval, 2026-09-26).\n\n## Insights"
+      }
+    },
+    {
+      "path": "knowledge/no-forgetting-mechanism-anti-pattern.md",
+      "type": "error",
+      "description": "Systems storing everything without decay, consolidation, or pruning show sustained performance decline over time",
+      "excerpt": "# No Forgetting Mechanism Remembers Everything Anti-Pattern\n\nThe system stores every fact, conversation snippet, and observation without decay, consolidation, or pruning. Over time, outdated facts compete with current ones during retrieval. Errors stored as memories propagate into future decisions. A 2025 analysis states: \"The real bug in agent memory systems isn't forgetting — it's the attempt to remember everything.\"\n\n**Why it happens:**\n- Forgetting feels like losing data, against engineering instincts\n- Building forgetting mechanism requires defining \"relevance\" — genuinely hard\n- \"More data = better retrieval\" seems intuitive but is wrong for agent memory",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's store-everything system and sustained performance decline appear in the body's first paragraph and consequences list."
+        },
+        "type": {
+          "value": "error",
+          "justification": "Frontmatter type is error; the body records the anti-pattern and why it happens."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pattern-union-coverage-anti-eviction.md (Jaccard 0.29) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-roadmap.md (declared type moc), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/zeroclaw-roadmap.md",
+        "description": "ZeroClaw 9-phase roadmap: Phases 1-2 complete, Phase 3 (Fact Extraction) next, targeting autonomous Rust agent runtime",
+        "excerpt": "# zeroclaw-roadmap\n\nZeroClaw development roadmap with 9 phases targeting a fully autonomous Rust-based agent runtime.\n\n## Completed Phases\n\n### Phase 1: Core Runtime ✅\n- Trait definitions (Provider, Channel, Tool, Memory, Observer)\n- Basic agent loop implementation\n- Provider abstraction layer\n\n### Phase 2: Peripherals + Observability ✅\n- Peripheral trait for external integrations\n- Observer trait for telemetry\n- Sandbox hierarchy (landlock → bubblewrap → firejail → docker)\n\n## Current Phase\n\n### Phase 3: Fact Extraction (In Progress)\n- Extract structured facts from unstructured text\n- Entity resolution with >90% accuracy gate\n- Knowledge graph construction\n- **Topic map:** [[zeroclaw-fact-extraction]]\n\n## Future Phases"
+      }
+    },
+    {
+      "path": "ops/queue/codeactinstruct-001.md",
+      "type": "claim",
+      "description": "CodeActInstruct contains 7K multi-turn code interaction trajectories across 5 domains",
+      "excerpt": "# Claim 001\n\n## Source\nCodeActInstruct dataset paper (Wang et al., ICML 2024)\nSource file: /root/vault/ops/queue/archive/2026-02-23-codeactinstruct-enables-agent-training-without-general-capability-degradation/codeactinstruct-enables-agent-training-without-general-capability-degradation.md\n\n## Target Claim\nCodeActInstruct contains 7K multi-turn code interaction trajectories across 5 domains\n\n## Supporting Evidence\n- 7,139 total trajectories\n- 5 domains: Information Seeking (HotpotQA), Math Reasoning (MATH), Code Generation (APPS), Tabular Reasoning (WikiTableQuestions), Robot Planning (ALFWorld)\n- Trajectories use Python APIs for tool interaction\n\n## Create\n(filled by create phase)\n\n## Connect\n(filled by connect phase)\n\n## Refresh\n(filled by refresh phase)\n\n## Check\n(filled by check phase)",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description is repeated verbatim as the body's Target Claim and is supported by the listed evidence."
+        },
+        "type": {
+          "value": "claim",
+          "justification": "Frontmatter type is claim; the body is a claim card (Source, Target Claim, Supporting Evidence)."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/codeactinstruct-003.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/raw-rag-beats-agentic-memory-baseline.md (declared type extract), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "inbox/raw-rag-beats-agentic-memory-baseline.md",
+        "description": "Raw-RAG (Bao et al., arXiv:2610.30755, 22.10.2026): наивный RAG по сырой истории (dense retrieval 256-токенные окна с 32 перекрытием, cosine top-128 -> cross-encoder rerank -> top-15 читателю, НОЛЬ LLM-операций на записи) занимает первое место среди 13 agentic memory систем в 6 из 7 бенчмарк-модельных настроек (LoCoMo 89.07/93.70 против EverMemOS 86.76/93.05; LongMemEval 87.53 против Memora 87.40 и EverMemOS 83.00; контекст целиком на LongMemEval 65.60). Три findings: (1) покрытие необходимого эвиденса компенсирует более низкую утилизацию; (2) путь-покрытие решает: P(path|result) Raw-RAG 62.34% против MemU 9.62% - достать значение ответа не равно сохранить отношения и dependency-пути для его использования; (3) потеря при ingest невосстановима: полный доступ к трансформированным store не закрывает разрыв с сырым эвиденсом (все 7 систем на 7.58-29.38 пунктов ниже raw без packing-потолка, все CI исключают ноль). Аудит Mem0: UPDATE+DELETE только 4.39%/2.46% write-решений, эффективных мутаций 1.90%/1.34%, отключение мутаций ПОДНИМАЕТ LoCoMo 67.36->69.42; capability читателя доминирует (MEME oracle: DeepSeek-V4-Flash 85.48 против GPT-4o-mini 50.50 на одинаковых сырых данных, cascades 82.32 vs 1.83); придание слабых RAG-базлайнов в 14 предшествующих работах (грубые единицы ретрива, ограниченная глубина, отсутствие rerank)",
+        "excerpt": "# Raw-RAG против agentic memory: сложность памяти надо ещё доказать\n\n## Базлайн, который никто не ставил\n\nRaw-RAG: индексируем сырую историю без единой LLM-операции (без extraction/summary/graph/mutation) - окна по 256 токенов с перекрытием 32, плоский dense-индекс; на запросе cosine top-128 -> cross-encoder rerank -> top-15 читателю. Интерпретация свидетельств и восстановление состояния - полностью задача читателя.\n\nРезультат: **первое место в 6 из 7 бенчмарк-модельных настроек** (LoCoMo 89.07 и 93.70; LongMemEval 87.53; MEME; MemoryAgentBench), опережая 13 систем (Mem0, A-MEM, MemoryOS, MemOS, EverMemOS, Memora, ...) на 0.13-5.53 пункта. Full-context на LongMemEval - только 65.60 (против 87.53): ретрив работает, вопрос в том, нужна ли поверх него мутация."
+      }
+    },
+    {
+      "path": "ops/queue/codeactinstruct-002.md",
+      "type": "claim",
+      "description": "Self-improvement behavior filtering improves dataset quality by selecting error-correction trajectories",
+      "excerpt": "# Claim 002\n\n## Source\nCodeActInstruct dataset paper (Wang et al., ICML 2024)\nSource file: /root/vault/ops/queue/archive/2026-02-23-codeactinstruct-enables-agent-training-without-general-capability-degradation/codeactinstruct-enables-agent-training-without-general-capability-degradation.md\n\n## Target Claim\nSelf-improvement behavior filtering improves dataset quality by selecting error-correction trajectories\n\n## Supporting Evidence\n- Dataset filters for trajectories where model initially encounters errors\n- Model rectifies errors in later turns\n- Excludes trajectories with only errors (bad demonstrations)\n- Focus on self-correction behavior improves training signal\n\n## Create\n(filled by create phase)\n\n## Connect\n(filled by connect phase)\n\n## Refresh\n(filled by refresh phase)",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description is repeated verbatim as the body's Target Claim and is supported by the listed evidence."
+        },
+        "type": {
+          "value": "claim",
+          "justification": "Frontmatter type is claim; the body is a claim card (Source, Target Claim, Supporting Evidence)."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/codeactinstruct-003.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/cloudflare-security-audit-skill.md (declared type extract), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "inbox/cloudflare-security-audit-skill.md",
+        "description": "security-audit-skill (cloudflare, MIT, 34,776★): скилл для мультифазных security-аудитов с независимо верифицированными машиночитаемыми находками; 6 фаз (recon → coverage-led hunting waves → candidate validation свежим верификатором → findings.json против schema → независимая verification финальных записей → отчёт), coverage-ledger с fingerprint-слиянием прошлых прогонов, бюджеты как ресурсы с резервированием, write-isolation с 11-шаговой race-safe промоцией файлов; дисциплина «candidate gate не масштабируется вниз»; 14 доменных компаньонов (включая AI-AND-LLM.md)",
+        "excerpt": "# Security Audit Skill: Дисциплина Верификации как Переиспользуемый Артефакт\n\nCloudflare выложила свой внутренний агентный скилл security-аудита (34,776★ — вероятно, самый популярный скилл на GitHub). Формат — обычный SKILL.md + 14 доменных компаньонов (ATTACK-CLASSES, WEB-PROTOCOL-AND-AUTH, CLOUD-AND-DEPLOYMENT, MEMORY-SAFETY-AND-BINARY, **AI-AND-LLM**, SUPPLY-CHAIN...) + `report-schema.json` + два валидатора с тестами. Девиз: «находка без конкретного затронутого принципала, ресурса или security-исхода — не подтверждённая находка».\n\n## Подходы\n\n**① Два режима с гейтом**: guidance по умолчанию («загрузка скилла не авторизует полный workflow и создание файлов»); полный аудит — только по явному запросу; неоднозначно → один сфокусированный вопрос ПЕРЕД созданием файлов."
+      }
+    },
+    {
+      "path": "ops/queue/codeactinstruct-003.md",
+      "type": "claim",
+      "description": "Agent training with code trajectories improves agent tasks without degrading general LLM capabilities",
+      "excerpt": "# Claim 003\n\n## Source\nCodeActInstruct dataset paper (Wang et al., ICML 2024)\nSource file: /root/vault/ops/queue/archive/2026-02-23-codeactinstruct-enables-agent-training-without-general-capability-degradation/codeactinstruct-enables-agent-training-without-general-capability-degradation.md\n\n## Target Claim\nAgent training with code trajectories improves agent tasks without degrading general LLM capabilities\n\n## Supporting Evidence\n- CodeActAgent (Mistral): MINT-ID 57.4, MINT-OD 32.4, MMLU 59.1, GSM8K 58.0\n- Baseline (Mistral Instruct): MINT-ID 18.8, MINT-OD 9.7, MMLU 53.8, GSM8K 43.3\n- Improvement on out-of-domain tasks (MiniWob++) including text actions\n- General capabilities maintained or improved (MMLU, HumanEval, GSM8K, MT-Bench)\n\n## Create\n(filled by create phase)",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description is repeated verbatim as the body's Target Claim and is supported by the listed evidence."
+        },
+        "type": {
+          "value": "claim",
+          "justification": "Frontmatter type is claim; the body is a claim card (Source, Target Claim, Supporting Evidence)."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/codeactinstruct-004.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe f/patterns/pattern-piped-reranker-over-primary-tool.md (declared type pattern), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "f/patterns/pattern-piped-reranker-over-primary-tool.md",
+        "description": "Piped reranker over the primary tool: do not replace the exact-match tool (ripgrep); run it first and rank its output by intent — `rg --json | ranker --stdin` — keeping exact names primary while semantic relevance orders the candidates; measured effect is spend reduction (fewer irrelevant passages into the LLM prompt), not solved-rate gain",
+        "excerpt": "# Piped reranker over the primary tool\n\n## Правила внедрения\n\n- Точный инструмент остаётся первичным и запускается как раньше; ранжировщик — ВТОРОЙ в пайпе, получает его вывод (JSON с контекстом) и интент-запрос\n- Ранжировщик НЕ ищет сам: только перекладывает поданные пассажи по релевантности к интенту; без индекса, без обхода файлов\n- Результат = тот же тип вывода, что у первичного инструмента (файл:строки + источник), порядок другой; дубли-вложения удаляются\n- Ожидаемый эффект измеряется СПЕНДОМ (меньше нерелевантных пассажей в промпт), не решённостью\n\n## Не делать"
+      }
+    },
+    {
+      "path": "ops/queue/codeactinstruct-004.md",
+      "type": "claim",
+      "description": "Mixture strategy with general conversation data prevents agent capability cannibalization",
+      "excerpt": "# Claim 004\n\n## Source\nCodeActInstruct dataset paper (Wang et al., ICML 2024)\nSource file: /root/vault/ops/queue/archive/2026-02-23-codeactinstruct-enables-agent-training-without-general-capability-degradation/codeactinstruct-enables-agent-training-without-general-capability-degradation.md\n\n## Target Claim\nMixture strategy with general conversation data prevents agent capability cannibalization\n\n## Supporting Evidence\n- CodeActInstruct mixed with general conversation data\n- OpenOrca (50K): Single-turn CoT reasoning\n- ShareGPT (10K): Multi-turn conversations\n- CapyBara (4.6K): Multi-turn reasoning\n- Prevents agent capability from cannibalizing general capability\n\n## Create\n(filled by create phase)\n\n## Connect\n(filled by connect phase)\n\n## Refresh\n(filled by refresh phase)",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description is repeated verbatim as the body's Target Claim and is supported by the listed evidence."
+        },
+        "type": {
+          "value": "claim",
+          "justification": "Frontmatter type is claim; the body is a claim card (Source, Target Claim, Supporting Evidence)."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/codeactinstruct-003.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe self/goals.md (declared type moc), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "self/goals.md",
+        "description": "Current active threads and what I am working on",
+        "excerpt": "# goals\n\n## Active Threads\n\n- Track Rust patterns discovered during Phase 3 development (Fact Extraction & Semantic Memory)\n- Document error solutions encountered during ZeroClaw builds (round_char_boundary, parking_lot Send safety, etc.)\n- Build topic maps for: Rust memory patterns, async patterns, HNSW/vector search, graph databases\n\n## Backlog\n\n- Create topic maps for each ZeroClaw phase (benchmarks, storage, extraction, graph, retrieval)\n- Extract from remaining .planning/research/ files (ROADMAP.md, PHASE_*.md)\n- Fix 10 dangling wiki links across knowledge/ (pending since Feb 21)\n\n## Completed"
+      }
+    },
+    {
+      "path": "knowledge/ontology-as-single-source-of-truth-code-never-primary.md",
+      "type": "principle",
+      "description": "В ODD онтология — единственный источник истины. Код никогда не первичен: изменения сначала в schema.yaml или .tla, затем регенерация",
+      "excerpt": "# Ontology as Single Source of Truth: Code Never Primary\n\nКритический принцип ODD: код никогда не является первичным источником истины. Им является Онтология.\n\n## Проблема drift\n\nВ [[three-ontology-approaches-reference-vs-model-driven-vs-runtime]] онтологии используются только на этапах требований. Код пишут вручную. Риск: код становится де-факто спецификацией, игнорируя исходные архитектурные намерения.\n\n## Решение: Формальная иерархия\n\n```\nОнтология (LinkML/OWL)\n ↓ (компиляция)\nТипы (Pydantic/TypeScript/Rust)\n ↓ (имплементация)\nКод (бизнес-логика)\n```\n\n## Петля обратной связи\n\nЕсли код требует изменений:\n1. Обновить `schema.yaml` (онтология) или `.tla` (спецификация)\n2. Регенерировать привязки\n3. Код адаптируется к новым типам",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's ontology-first rule and schema.yaml/.tla regeneration loop appear in the body's feedback-loop section."
+        },
+        "type": {
+          "value": "principle",
+          "justification": "Frontmatter type is principle; the body states a general design principle and its application."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/llm-bridges-semantic-gap-between-ontology-and-code.md (Jaccard 0.18) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/agent-beacon-cross-harness-memory.md (declared type extract), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "inbox/agent-beacon-cross-harness-memory.md",
+        "description": "Asymptote-Labs/agent-beacon (Go, MIT, 2,590★, GitHub Trending): cross-harness self-improving memory layer — захватывает session history 20+ харнессов (Claude Code, Cursor, Codex, OpenCode, Cline, Devin, Gemini CLI, Copilot, dsh, goose) через OTLP + hooks + poll, нормализует в единый OpenTelemetry event model (sessions/prompts/tools/commands/file/approvals/MCP/tokens); цикл: capture → evaluate → extract knowledge → review+approve → reuse через MCP или Agent Skills (~/.agents/skills + ~/.claude/skills); local-first JSONL + local read-only dashboard с lens-ами (sandboxed HTML views, агент-писуемые через beacon lenses spec); destinations: Local по умолчанию, Beacon Cloud только явным opt-in (confirm-экран называет оператора и режим); supply-chain гигиена: checksums + gh attestation verify; трейс-датасет двойного назначения: память + security/аудит телеметрия (SIEM/MDM topics)",
+        "excerpt": "# Agent Beacon: сессии как телеметрия, память как review-approved знания\n\nТезис: «проблема, решённая одним агентом, не должна учиться с нуля другим». Beacon сидит НАД харнесс-слоем: Claude Code, Cursor, Codex, OpenCode, Cline, Devin, Gemini CLI, Copilot CLI, goose, Grok Build, Antigravity, DeepSeek Harness (dsh — тот же из layerfs!) и ещё 20+ — захватывает исполнение и нормализует в **единый OpenTelemetry-based event model**: sessions, prompts/responses, tool calls, commands, file activity, approvals, MCP interactions, tokens.\n\n## Цикл памяти\n\n```\nRun agents → Capture session history → Evaluate what worked\n→ Extract useful knowledge → Review + approve → Reuse across future agents\n```"
+      }
+    },
+    {
+      "path": "knowledge/jev-atomic-questions-beat-composite-reasoning.md",
+      "type": "principle",
+      "description": "System One вопросы должны быть атомарными гут-чеками; сложное суждение декомпозируется на факторы, комбинация — в коде",
+      "excerpt": "# Jev Atomic Questions Beat Composite Reasoning\n\nКаждый вопрос — одна конкретная хорошо-скоупленная проверка: суждение, которое компетентный человек сделает за несколько секунд при наличии контекста. Если вопрос требует длительного рассуждения или взвешивает несколько независимых факторов — декомпозируй: каждый фактор отдельным вопросом, комбинируй веса в своём коде.\n\nЭто прямое следствие архитектуры: Jev не генерирует цепочку рассуждений, а выдаёт калиброванную вероятность по одному суждению. Сложный вопрос одной пачкой — некалиброванный шум.\n\nПрактика: у Hermes jev_arm это выглядело как два noul-вопроса на каждый tool-вызов (нужен ли сам вызов / нужен ли его вербатимный результат) вместо одного «что оставить».",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's atomic well-scoped checks and code-side decomposition appear in the body's first paragraph."
+        },
+        "type": {
+          "value": "principle",
+          "justification": "Frontmatter type is principle; the body states a principle about question design."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/jev-composite-scoring-pattern.md (Jaccard 0.25) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/geometry-of-agent-memory-null-result.md (declared type extract), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "inbox/geometry-of-agent-memory-null-result.md",
+        "description": "The Geometry of Agent Memory (arXiv:2610.26433, Redis, PALM@NeurIPS 2026 poster): ЧЕСТНЫЙ НЕГАТИВНЫЙ РЕЗУЛЬТАТ — геометрия эмбеддингов (близость query↔memory↔turns, 25 признаков: reachability, memory-conversation correspondence, структура диалога) НЕ предсказывает правильность ответа до генерации; pooled AUROC 0.640 [0.615,0.664] на LongMemEval-small (2,367 пар) — НИЖЕ baseline'а сложности вопросов (0.655); лучший тип 0.841 (single-session-assistant), но одна идентичность системы даёт 0.826 на том же типе; после контроля difficulty+identity геометрия добавляет Δ=+0.002 (CI [−0.010,0.014]) — ноль; proximity-ranked > random — обычная релевантность ретрива, не новое знание; фундаментальный предел: близость в embedding-пространстве не проверяет fact coverage и не различает ошибки memory-construction / retrieval / generation; 5 систем (4 dense/hybrid + Obs-Extract Mastra-style 67.9%, Svc-Mem LangMem 73.2%)",
+        "excerpt": "# Геометрия памяти агента: векторное хранилище — не монитор\n\n## Что тестировалось\n\nГипотеза: геометрические соотношения (эмбеддинг-близости между ходами диалога, memory-текстами и запросом) предсказывают правильность ответа ДО генерации. Пять систем на LongMemEval-small (4 memory-реализации с dense/hybrid retrieval + observation-summary компаратор Obs-Extract, Mastra-style, QA 67.9%; Svc-Mem на LangMem, QA 73.2%). 25 признаков в двух блоках: **query reachability** (ближайшая memory, средняя до 5 ближайших, локальная плотность, дистанция до ближайшего хода) и **memory-conversation correspondence** (turn-to-memory близость, session alignment, количество/дисперсия memory) + ковариаты диалога."
+      }
+    },
+    {
+      "path": "knowledge/qa-capability-vs-regression-suites-principle.md",
+      "type": "principle",
+      "description": "Принцип: capability- и regression-сьюты раздельны; regression держится почти 100% pass; pass@k для capability, pass^k для регрессий; грейдится результат+инварианты, не путь; манифесты обязательны",
+      "excerpt": "# QA-принцип: capability ≠ regression\n\nCapability-сьют измеряет, чему агент научился (pass@k, средние, тренды; падения допустимы). Regression-сьют охраняет купленное (pass^k, почти 100% pass, падение = блок). Смешение — главный источник «зелёного CI на деградации».\n\n- Грейд = результат + инварианты ([[qa-trace-invariants-pattern]]), НЕ путь.\n- Каждый артефакт несёт манифест {suiteRev, build, modelId, judgeBundle} — сравнимость версий.\n- Судья калибруется человеком периодически ([[qa-judge-ab-gate-pattern]]).",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description's separate suites, pass@k vs pass^k, result+invariants grading and manifests all appear in the body."
+        },
+        "type": {
+          "value": "principle",
+          "justification": "Frontmatter type is principle; the body states the QA split as a principle with consequences."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/quality-inheritance-principle.md (Jaccard 0.17) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe f/patterns/pattern-budgets-as-trades.md (declared type pattern), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "f/patterns/pattern-budgets-as-trades.md",
+        "description": "Budgets as trades, not limits: every repo budget is enforced [check]-style and phrased as a trade — a seventh blocking check requires deleting one in the same PR, a 16th working-set doc requires archiving one, the constitution caps its own word count; «a limit gets exceptions, a trade forces someone to name what matters less»; every rule is tagged [check] (CI) or [review] (human)",
+        "excerpt": "# Budgets as trades, not limits\n\n## Правила внедрения\n\n- Конституция репо коротка и ограничивает СЕБЯ (словами/строками): рост конституции = что-то становится автоматической проверкой или перестаёт быть правилом\n- Каждое правило помечено механизмом исполнения: [check] (CI) или [review] (человек) — governance без механизма = пожелание\n- Бюджеты формулируются ТРЕЙДАМИ: добавление N+1 требует удаления одного в том же PR — трейд заставляет назвать, что важно меньше; лимит позволяет исключения, трейд — нет\n- Медленное — не блокирует: асинхронный прогон per-commit с атрибуцией ломающему; блокирующий набор — только быстрое (их: 6 проверок / 65s)\n\n## Не делать"
+      }
+    },
+    {
+      "path": "manual/skills.md",
+      "type": "manual",
+      "description": "Complete reference for every available command",
+      "excerpt": "# Skills\n\n## Processing Commands\n\n| Command | Purpose | When to Use |\n|---------|---------|-------------|\n| `/extract` | Extract insights from source material into `inbox/` | When you have a URL, article, error log, or `.planning/` file to process |\n| `/connect` | Find connections, add wiki links, update topic maps | After extracting — moves insights from `inbox/` to `knowledge/` |\n| `/refresh` | Update potentially outdated insights | When insights are >30 days old or ecosystem has changed |\n| `/check` | Verify quality and completeness | Regular health checks on vault content |\n| `/audit` | Validate schema compliance | When schema violations accumulate |\n\n## Orchestration Commands",
+      "labels": {
+        "stale_description": {
+          "value": "no",
+          "justification": "Description is the vague 'Complete reference for every available command'; the body is a command reference table grouped by processing/orchestration/navigation. Vague, but it still describes the body."
+        },
+        "type": {
+          "value": "manual",
+          "justification": "Frontmatter type is manual; the body is user documentation of commands."
+        },
+        "duplicate_of": {
+          "value": null,
+          "justification": "Closest title-token match is manual/meta-skills.md (Jaccard 0.50), but that note is a deep guide to four meta-skills, while this one is a command reference table; different claims. The duplicate noul compares against the known-different probe knowledge/jev-rubric-scoring-pattern.md (declared type pattern), so the gold answer to that pair is no."
+        }
+      },
+      "duplicate_candidate": {
+        "path": "knowledge/jev-rubric-scoring-pattern.md",
+        "description": "Фиксированная рубрика → один батч Score/Noul-вопросов → агрегация в коде: скоринг текста/кандидатов/страниц без парсинга",
+        "excerpt": "# Jev Rubric Scoring Pattern\n\nФормула: человек описывает критерии обычным языком (rubric) → каждый критерий становится Score- или Noul-вопросом → все уходят одним батчем → взвешенная сумма/вердикт считается в коде.\n\nПрактики:\n- will-it-hit — восемь Score-вопросов (hook, specificity, emotion, clarity, repostability, authority, algorithm fit, expected engagement) + Choice типа поста; LLM пишет рерайты, Jev перескоривает каждый — видно оба числа.\n- JevSlop — восемь Score-осей в одном systemOne-запросе → 0-100 Slop Score обычным TypeScript.\n- Sniff Test — десять Boolean на абзац (stacked hedges, not-X-but-Y, naked cost figures) с порогом 0.7: 182ms медиана, 1 из 54 чистых абзацев помечен против 37 у Haiku 4.5."
+      }
+    }
+  ]
+}
