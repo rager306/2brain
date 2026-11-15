@@ -276,10 +276,14 @@ Four things are **open decisions**, not tasks, and each names its price:
 1. **Promote `search` to the live daemon** (fifth swap). Parity is proven and nothing must be
    regenerated; what is missing is a window, the install step, the live-socket read comparison and the
    rollback artifact. `docs/engine-swap-2026-11-16.md` rehearses it on a copy.
-2. **A better staleness question.** Yes/no cannot express "the description is vague", which is most of
-   what the hand labels called stale. A `choice` over the description's claims costs ~$0.002 to
-   re-measure on the same 50 notes. Result decides whether backlog P0-3 is solved by a judge or by
-   something else.
+2. ~~**A better staleness question**~~ — **measured 2026-11-16, and the answer is no**
+   (`docs/w4.1-judgement-run-2026-11-16.md`, second experiment). A five-way `choice` moved the
+   trade-off without moving the frontier: yes/no is 0.67/0.33 precise/recall, the choice is
+   0.36/0.50, and the union adds false positives while the intersection collapses to yes/no. Four of
+   its five options went unused — every failure came back as `missing`, which is also what a false
+   positive says. So P0-3 is not solved by the judgement layer as it stands; the product answer is a
+   triage pass (flags 18 of 50, catches half the stale ones) and the next design is **per-claim**
+   scoring, which needs a claim extractor — a generative model, not a judge.
 3. **The audit record gaining `repo:path@hash`.** This is the consumer that would justify a
    `Prepared` value, and it changes a hash-chained log format — its own decision.
 4. **W4.1 in the ingest path.** The duplicates judge is good enough to use; wiring it into
