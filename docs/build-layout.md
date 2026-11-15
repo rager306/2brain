@@ -45,7 +45,7 @@ release, adapter tests, engine `--lib` and `--test it`.
 The release directory grew by 116 MiB because the adapter's release binary is now
 built in the same directory as the engine's; the debug half paid for it several times
 over. Nothing the gates need was dropped: after the rebuild, `cargo test --offline`
-runs 171 tests green, and both release binaries print their `+<commit>` build id.
+runs 172 tests green, and both release binaries print their `+<commit>` build id.
 
 `AGENTS.md` carries the short version of this, because that is the file a session
 reads first.
