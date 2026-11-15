@@ -111,12 +111,20 @@ fn describe_returns_the_full_definition_and_refuses_what_is_not_visible() {
     let mut client = connect(&[]);
     let described =
         payload(&client.call_result(3, "au_describe_tool", json!({"name":"au_content"})));
-    assert_eq!(described["name"], "au_content");
+    // The definition sits under `tool`, the one key the declared `outputSchema`
+    // allows. A bare definition is rejected by any client that validates
+    // `structuredContent`, which is how this shape was found.
     assert_eq!(
-        described["inputSchema"]["required"],
+        described.as_object().unwrap().keys().collect::<Vec<_>>(),
+        vec!["tool"]
+    );
+    let definition = &described["tool"];
+    assert_eq!(definition["name"], "au_content");
+    assert_eq!(
+        definition["inputSchema"]["required"],
         json!(["repo", "path"])
     );
-    assert!(described.get("outputSchema").is_some());
+    assert!(definition.get("outputSchema").is_some());
 
     let unknown = client.call_result(4, "au_describe_tool", json!({"name":"au_nope"}));
     assert_eq!(unknown["isError"], true, "{unknown}");

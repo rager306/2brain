@@ -55,6 +55,8 @@ and the text of that line.' \
   --mcp-config "$config" \
   --allowedTools 'mcp__arsumbris-rs__au_grep' \
   --output-format stream-json --verbose 2>&1 || true)
+AU_ANSWER_SOURCE=$root/transcript.jsonl
+printf '%s\n' "$transcript" >"$AU_ANSWER_SOURCE"
 
 status=0
 fail() { printf 'FAIL: %s\n' "$1" >&2; status=1; }
@@ -65,18 +67,24 @@ else
   fail "no au_grep tool call in the transcript"
 fi
 
-# The engine's own answer must come back in the tool result, not only in the final
-# prose: this is what separates a real round trip from a model reciting the prompt.
-if grep -q 'unique-marker-7f3a' <<<"$transcript"; then
-  echo "PASS: the marker travelled through the engine (tool result and/or answer)"
+# The engine's own answer must come back in a TOOL RESULT. Grepping the whole
+# transcript for the marker would pass on the model's own `au_grep` arguments, before
+# any result exists: the first occurrence in a real transcript is
+# `"input":{"query":"unique-marker-7f3a"}`. Only the tool_result lines count.
+if grep -E '"type":"tool_result"' <<<"$transcript" | grep -q 'unique-marker-7f3a'; then
+  echo "PASS: the engine returned the marker inside a tool result"
 else
-  fail "the marker never came back"
+  fail "no tool result carried the marker"
 fi
 
-if grep -q 'notes/a.md' <<<"$transcript"; then
-  echo "PASS: the answer names the file that holds the marker"
+# Same reasoning as the marker: the path appears in the model's own arguments and in
+# the tool result. The claim under test is that the ANSWER names the file, so the
+# final assistant text is the only place to look.
+final=$(python3 "$(dirname "$0")/lib/last_answer.py" --client claude "$AU_ANSWER_SOURCE" 2>/dev/null || true)
+if grep -q 'notes/a.md' <<<"$final"; then
+  echo "PASS: the final answer names the file that holds the marker"
 else
-  fail "the answer does not name notes/a.md"
+  fail "the final answer does not name notes/a.md (got: ${final:0:200})"
 fi
 
 if grep -q '"permission_denials":\[[^]]' <<<"$transcript"; then

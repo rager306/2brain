@@ -32,6 +32,7 @@ echo "adapter: $ADAPTER"
 echo
 
 status=0
+verified=0
 report() { printf '%-14s %-10s %s\n' "$1" "$2" "$3"; }
 
 echo "client         version    result"
@@ -40,15 +41,20 @@ echo "---------------------------------------------------------------"
 if command -v claude >/dev/null; then
   version=$(claude --version 2>/dev/null | head -1 | awk '{print $1}')
   (cd "$repo" && claude mcp add --scope local arsumbris-rs -- "$ADAPTER" "$socket" >/dev/null 2>&1) || true
-  listed=$(cd "$repo" && claude mcp list 2>&1 || true)
-  if grep -q '✔ Connected' <<<"$listed"; then
+  # The row, not the whole table: another connected server must not make this one
+  # look healthy. `mcp list` prints one line per server, naming it.
+  listed=$(cd "$repo" && timeout 60 claude mcp list 2>&1 || true)
+  row=$(grep -m1 'arsumbris-rs' <<<"$listed" || true)
+  if grep -q '✔ Connected' <<<"$row"; then
     report claude "$version" "connected (initialize + tools/list)"
+    verified=1
   else
-    report claude "$version" "FAILED: $(grep -m1 arsumbris-rs <<<"$listed" || echo 'not listed')"
+    report claude "$version" "FAILED: ${row:-not listed}"
     status=1
   fi
 else
   report claude - "not installed"
+  verified=0
 fi
 
 if command -v codex >/dev/null; then
@@ -66,9 +72,15 @@ else
 fi
 
 if command -v cursor-agent >/dev/null; then
-  report cursor-agent "$(cursor-agent --version 2>/dev/null | head -1)" "configured via .cursor/mcp.json; needs an API key, not exercised"
+  # Nothing is written and nothing is verified here: the config shape is known, the
+  # client is not exercised, and saying "configured" would claim otherwise.
+  report cursor-agent "$(timeout 20 cursor-agent --version 2>/dev/null | head -1)" "NOT exercised: no API key on this host"
 else
   report cursor-agent - "not installed"
 fi
 
+if [[ $verified -eq 0 ]]; then
+  echo "no client completed a health check: this run verified nothing" >&2
+  status=1
+fi
 exit $status

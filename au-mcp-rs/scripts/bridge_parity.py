@@ -175,7 +175,8 @@ def main() -> int:
     home.mkdir()
     repo = build_workspace(root)
     env = dict(os.environ, HOME=str(home))
-    processes = []
+    processes: list[subprocess.Popen] = []
+    clients: list[Stdio] = []
     try:
         engine = subprocess.Popen(
             [ENGINE, "daemon", "start", str(repo)],
@@ -200,11 +201,9 @@ def main() -> int:
 
         bridge = Stdio([sys.executable, BRIDGE], env=dict(env, AU_MCP_SOCKET=str(daemon_socket)))
         rust = Stdio([ADAPTER, str(engine_socket)])
-        try:
-            bridge_tools = set(bridge.tools())
-            rust_tools = set(rust.tools())
-        finally:
-            pass
+        clients.extend((bridge, rust))
+        bridge_tools = set(bridge.tools())
+        rust_tools = set(rust.tools())
 
         print(f"bridge tools: {len(bridge_tools)}")
         print(f"rust tools:   {len(rust_tools)}")
@@ -212,6 +211,13 @@ def main() -> int:
         rust_only = sorted(rust_tools - {rust_name for _, (rust_name, _) in SHARED.items()})
         daemon_only = sorted(bridge_tools - set(SHARED))
         print(f"\ncomparable pairs: {shared or 'none'}")
+        # A run that compares nothing proves nothing, and used to print PASS: the
+        # compared pair is the only fact this script establishes.
+        if not shared:
+            raise SystemExit(
+                "no comparable pair: the daemon no longer exposes any tool in SHARED, "
+                "so this run would prove nothing"
+            )
         if daemon_only:
             print(f"daemon-only: {', '.join(daemon_only)}")
         if rust_only:
@@ -250,6 +256,13 @@ def main() -> int:
             print("\nPASS: the compared facts agree across the bridge, the adapter, and the engine")
         return status
     finally:
+        # A stdio client owns a child process; an exception between the two closes
+        # used to leave the adapter and the bridge running.
+        for client in clients:
+            try:
+                client.close()
+            except Exception:
+                pass
         for process in processes:
             process.terminate()
             try:

@@ -21,6 +21,8 @@ prepare_fixture() {
   export XDG_CONFIG_HOME=$root/config
   mkdir -p "$HOME" "$XDG_CONFIG_HOME"
 
+  # Callers may add their own cleanup: they must extend this trap rather than set a
+  # second EXIT trap, because bash runs only the last one and the first would be lost.
   trap cleanup_fixture EXIT
 
   repo=$root/fixture
@@ -43,7 +45,17 @@ prepare_fixture() {
   socket=
   for _ in $(seq 1 200); do
     socket=$(ls "$HOME"/.arsumbris/au-engine/run/*.sock 2>/dev/null | head -1 || true)
-    [[ -n $socket ]] && break
+    # A socket file can exist before the daemon listens on it, so connect once:
+    # `test -S` alone has produced "connection refused" races in these scripts.
+    [[ -n $socket ]] && python3 -c '
+import socket, sys
+try:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+        probe.settimeout(1)
+        probe.connect(sys.argv[1])
+except OSError:
+    sys.exit(1)
+' "$socket" 2>/dev/null && break
     sleep 0.1
   done
   if [[ -z $socket ]]; then
@@ -55,6 +67,13 @@ prepare_fixture() {
 cleanup_fixture() {
   if [[ -n ${daemon_pid:-} ]]; then
     kill "$daemon_pid" 2>/dev/null || true
+    # Bounded: a daemon that ignores SIGTERM must not hang the script's exit.
+    local waited=0
+    while kill -0 "$daemon_pid" 2>/dev/null && (( waited < 50 )); do
+      sleep 0.1
+      waited=$((waited + 1))
+    done
+    kill -9 "$daemon_pid" 2>/dev/null || true
     wait "$daemon_pid" 2>/dev/null || true
   fi
   rm -rf "$root"

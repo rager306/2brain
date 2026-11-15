@@ -33,7 +33,9 @@ proxy_sock=$root/proxy.sock
 python3 "$(dirname "$0")/lost_reply_proxy.py" --engine "$socket" --listen "$proxy_sock" \
   --drop mutate:write_file --drop-replies 1 >"$root/proxy.log" 2>&1 &
 proxy_pid=$!
-trap 'kill "$proxy_pid" 2>/dev/null || true' EXIT
+# Extend the fixture's trap rather than replacing it: bash keeps only the last EXIT
+# trap, and the first one is what kills the daemon and removes the temp root.
+trap 'kill "$proxy_pid" 2>/dev/null || true; cleanup_fixture' EXIT
 for _ in $(seq 1 100); do [[ -S $proxy_sock ]] && break; sleep 0.05; done
 [[ -S $proxy_sock ]] || { echo "the proxy never listened" >&2; exit 1; }
 
@@ -48,9 +50,11 @@ target = f"{repo}/notes/a.md"
 before = subprocess.run(["git", "-C", repo, "rev-list", "--count", "HEAD"],
                         capture_output=True, text=True).stdout.strip()
 
+# stderr is not read by any check, and an undrained pipe can fill and deadlock the
+# run with no PASS or FAIL: send it nowhere rather than buffer it.
 proc = subprocess.Popen([adapter, proxy, "--allow-mutations"],
                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE, text=True)
+                        stderr=subprocess.DEVNULL, text=True)
 
 def rpc(id_, method, params):
     proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": id_, "method": method,
@@ -111,6 +115,12 @@ for label, ok in checks:
 print("commits added:", commits)
 sys.exit(1 if failed else 0)
 PY
+# If the proxy never matched the mutation, the scenario silently stops being the lost
+# reply and every later check would describe the wrong situation.
+if ! grep -q 'dropped the reply to mutate:write_file' "$root/proxy.log"; then
+  echo "FAIL: the proxy never dropped a write reply; see $root/proxy.log" >&2
+  exit 1
+fi
 if [[ -n ${AU_PROXY_DEBUG:-} ]]; then
   echo "--- proxy log:"
   cat "$root/proxy.log"

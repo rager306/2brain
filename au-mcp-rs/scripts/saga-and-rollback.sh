@@ -30,9 +30,11 @@ python3 - "$ADAPTER" "$socket" "$repo" <<'PY'
 import json, subprocess, sys
 
 adapter, socket_path, repo = sys.argv[1:4]
+# stderr is not read by any check, and an undrained pipe can fill and deadlock the
+# run with no PASS or FAIL.
 proc = subprocess.Popen([adapter, socket_path, "--allow-mutations", "--allow-composition"],
                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE, text=True)
+                        stderr=subprocess.DEVNULL, text=True)
 
 def rpc(id_, method, params):
     proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": id_, "method": method,
@@ -80,7 +82,10 @@ after_tree = git("status", "--porcelain")
 a_text = open(f"{repo}/notes/a.md").read()
 
 checks = [
-    ("the batch was refused", is_error or "error" in payload.lower() or "reject" in payload.lower()),
+    # Any error would satisfy "refused"; the property under test is that the ENGINE
+    # rejected a mid-saga operation with every gate satisfied, so the message must be
+    # the engine's own miss and not a client-side refusal.
+    ("the engine refused the batch on the third op", "old_string not found" in payload),
     ("no commit was made", after_commit == before_commit),
     ("the first operation did not land", "first" not in a_text),
     ("the working tree is unchanged", after_tree == before_tree),

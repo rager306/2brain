@@ -50,8 +50,8 @@ pass() { printf 'PASS: %s\n' "$1"; }
 calls=$(grep -o '"name":"mcp__arsumbris-rs__[a-z_]*"' <<<"$transcript" | sed 's/.*__//;s/"//' | tr '\n' ' ')
 echo "tool calls: ${calls:-none}"
 
-batches=$(grep -c '"name":"mcp__arsumbris-rs__au_batch"' <<<"$transcript" || true)
-writes=$(grep -c '"name":"mcp__arsumbris-rs__au_write_file"' <<<"$transcript" || true)
+batches=$(grep -o '"name":"mcp__arsumbris-rs__au_batch"' <<<"$transcript" | wc -l)
+writes=$(grep -o '"name":"mcp__arsumbris-rs__au_write_file"' <<<"$transcript" | wc -l)
 [[ $batches -ge 1 ]] && pass "the model used au_batch" || fail "no au_batch call"
 [[ $writes -eq 0 ]] && pass "the model did not fall back to two single writes" \
   || fail "the model issued $writes single writes instead of one batch"

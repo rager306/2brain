@@ -66,9 +66,24 @@ status=0
 fail() { printf 'FAIL: %s\n' "$1" >&2; status=1; }
 pass() { printf 'PASS: %s\n' "$1"; }
 
-if grep -q 'au_grep' <<<"$transcript"; then pass "the model used au_grep"; else fail "no au_grep call"; fi
-if grep -q 'unique-marker-7f3a' <<<"$transcript"; then pass "the marker travelled through the engine"; else fail "the marker never came back"; fi
-if grep -q 'notes/a.md' <<<"$transcript"; then pass "the answer names the file that holds the marker"; else fail "the answer does not name notes/a.md"; fi
+# Exact tool name, not a bare substring: "au_grep" also appears in prose and in error
+# text, and the two turn scripts used to disagree about what "used the tool" means.
+grep -q '"type":"mcp_tool_call"' <<<"$transcript" && grep -q '"tool":"au_grep"' <<<"$transcript" \
+  && pass "the model called au_grep" || fail "no au_grep tool call"
+
+# The marker must come back inside the tool RESULT: the model's own arguments carry
+# it before any result exists, so a whole-transcript grep proves nothing.
+# `item.started` also carries the tool name with `"result":null`, so the line must be a
+# COMPLETED call whose result object holds the marker.
+grep -E '"type":"item.completed".*"type":"mcp_tool_call".*"result": *\{[^}]*unique-marker-7f3a' <<<"$transcript" \
+  && pass "the engine returned the marker inside a completed tool result" \
+  || fail "no completed tool result carried the marker"
+
+printf '%s\n' "$transcript" >"$root/transcript.jsonl"
+final=$(python3 "$(dirname "$0")/lib/last_answer.py" --client codex "$root/transcript.jsonl" 2>/dev/null || true)
+grep -q 'notes/a.md' <<<"$final" \
+  && pass "the final answer names the file that holds the marker" \
+  || fail "the final answer does not name notes/a.md (got: ${final:0:200})"
 
 # Which MCP revision this client negotiated, read off the wire when the tee is on.
 if [[ -n ${AU_TEE_TRANSCRIPT:-} && -s $tee ]]; then

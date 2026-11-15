@@ -38,6 +38,7 @@ source "$(dirname "$0")/lib/disposable-fixture.sh"
 prepare_fixture
 
 before=$(git -C "$repo" rev-list --count HEAD)
+b_before=$(cat "$repo/notes/b.md")
 target=$repo/notes/a.md
 status=0
 fail() { printf 'FAIL: %s\n' "$1" >&2; status=1; }
@@ -103,8 +104,14 @@ nothing else.' \
 grep -q '"name":"mcp__arsumbris-rs__au_write_file"' <<<"$transcript2" &&
   fail "a read-only launch let the model call au_write_file" ||
   pass "au_write_file was never callable in a read-only launch"
-git -C "$repo" diff --quiet -- notes/b.md &&
-  pass "notes/b.md is untouched" || fail "notes/b.md changed in a read-only launch"
+# The engine COMMITS every write, so a clean `git diff` proves nothing here: compare
+# the bytes and the commit count with the state captured before the turn.
+[[ $(git -C "$repo" rev-list --count HEAD) -eq $before ]] &&
+  pass "the read-only turn made no engine commit" ||
+  fail "the read-only turn added a commit"
+[[ $(cat "$repo/notes/b.md") == "$b_before" ]] &&
+  pass "notes/b.md is byte-identical to its pre-turn content" ||
+  fail "notes/b.md differs from its pre-turn content"
 
 echo "---"
 if [[ $status -eq 0 ]]; then

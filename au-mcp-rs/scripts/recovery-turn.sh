@@ -30,7 +30,9 @@ proxy_sock=$root/proxy.sock
 python3 "$(dirname "$0")/lost_reply_proxy.py" --engine "$socket" --listen "$proxy_sock" \
   --drop mutate:write_file --drop-replies 1 >"$root/proxy.log" 2>&1 &
 proxy_pid=$!
-trap 'kill "$proxy_pid" 2>/dev/null || true' EXIT
+# Extend the fixture's trap rather than replacing it: bash keeps only the last EXIT
+# trap, and the first one is what kills the daemon and removes the temp root.
+trap 'kill "$proxy_pid" 2>/dev/null || true; cleanup_fixture' EXIT
 for _ in $(seq 1 100); do [[ -S $proxy_sock ]] && break; sleep 0.05; done
 [[ -S $proxy_sock ]] || { echo "the proxy never listened" >&2; exit 1; }
 
@@ -55,6 +57,12 @@ contains the appended line.' \
 
 status=0
 fail() { printf 'FAIL: %s\n' "$1" >&2; status=1; }
+
+# The turn is only evidence of recovery if the reply really was dropped: otherwise
+# the model saw a normal success and proved nothing about the unknown outcome.
+if ! grep -q 'dropped the reply to mutate:write_file' "$root/proxy.log"; then
+  fail "the proxy never dropped a write reply; the model saw a normal success"
+fi
 pass() { printf 'PASS: %s\n' "$1"; }
 
 calls=$(grep -o '"name":"mcp__arsumbris-rs__[a-z_]*"' <<<"$transcript" | sed 's/.*__//;s/"//' | tr '\n' ' ')
@@ -64,7 +72,7 @@ grep -q '"name":"mcp__arsumbris-rs__au_write_file"' <<<"$transcript" &&
   pass "the model sent a write" || fail "no write was attempted"
 grep -q '"name":"mcp__arsumbris-rs__au_reconcile"' <<<"$transcript" &&
   pass "the model asked au_reconcile what happened" || fail "the model never reconciled"
-writes=$(grep -c '"name":"mcp__arsumbris-rs__au_write_file"' <<<"$transcript" || true)
+writes=$(grep -o '"name":"mcp__arsumbris-rs__au_write_file"' <<<"$transcript" | wc -l)
 [[ $writes -le 1 ]] &&
   pass "the model did not retry the write" || fail "the write was sent $writes times"
 [[ $(git -C "$repo" rev-list --count HEAD) -eq $((before + 1)) ]] &&
