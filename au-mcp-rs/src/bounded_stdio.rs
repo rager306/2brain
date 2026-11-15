@@ -26,45 +26,83 @@ use rmcp::{
     },
 };
 use tokio::{
+    io::{AsyncRead, AsyncWrite},
     sync::{Semaphore, mpsc},
     task::JoinHandle,
     time::timeout,
 };
 use tokio_util::codec::{FramedRead, FramedWrite};
 
-/// Responses that may be queued before the reader stops taking requests.
-const OUTBOUND_MESSAGES: usize = 4;
+/// The transport's limits. A parameter rather than four constants so a test can drive
+/// the backpressure with a small queue instead of waiting out the production timeouts.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Bounds {
+    /// Responses that may be queued before the reader stops taking requests.
+    pub outbound_messages: usize,
+    /// How long the reader waits for outbound space before closing the connection.
+    pub outbound_wait: Duration,
+    /// How long shutdown waits for queued output to flush.
+    pub close_wait: Duration,
+    /// The largest single inbound line, matching the engine frame limit.
+    pub max_line_bytes: usize,
+}
 
-/// How long the reader waits for outbound space before closing the connection.
-const OUTBOUND_WAIT: Duration = Duration::from_secs(5);
-
-/// How long shutdown waits for queued output to flush.
-const CLOSE_WAIT: Duration = Duration::from_secs(2);
-
-/// The largest single inbound line, matching the engine frame limit.
-const MAX_LINE_BYTES: usize = 16 * 1024 * 1024;
+impl Default for Bounds {
+    fn default() -> Self {
+        Self {
+            outbound_messages: 4,
+            outbound_wait: Duration::from_secs(5),
+            close_wait: Duration::from_secs(2),
+            max_line_bytes: 16 * 1024 * 1024,
+        }
+    }
+}
 
 /// Standard-IO transport with a bounded outbound queue.
+/// A stream pair is chosen at construction (`stdio_pipes()` in production, a duplex pair
+/// in tests), so the transport holds it behind one box rather than a type parameter.
+type BoxedReader = Box<dyn AsyncRead + Send + Unpin>;
+type BoxedWriter = Box<dyn AsyncWrite + Send + Unpin>;
+
 pub struct BoundedStdio {
-    reader: FramedRead<StdioReader, JsonRpcMessageCodec<RxJsonRpcMessage<RoleServer>>>,
+    reader: FramedRead<BoxedReader, JsonRpcMessageCodec<RxJsonRpcMessage<RoleServer>>>,
     sender: Option<mpsc::Sender<TxJsonRpcMessage<RoleServer>>>,
     slots: Arc<Semaphore>,
     writer: Option<JoinHandle<()>>,
     supported: Vec<ProtocolVersion>,
+    bounds: Bounds,
 }
 
 impl BoundedStdio {
-    /// Build the transport over this process's standard streams.
+    /// Build the transport over this process's standard streams with the default limits.
     pub fn new(supported: Vec<ProtocolVersion>) -> Self {
         let (input, output): (StdioReader, StdioWriter) = stdio_pipes();
+        Self::over(input, output, supported, Bounds::default())
+    }
+
+    /// Build the transport over any stream pair, so the bounds are testable without a
+    /// process's standard streams.
+    pub(crate) fn over<R, W>(
+        input: R,
+        output: W,
+        supported: Vec<ProtocolVersion>,
+        bounds: Bounds,
+    ) -> Self
+    where
+        R: AsyncRead + Send + Unpin + 'static,
+        W: AsyncWrite + Send + Unpin + 'static,
+    {
+        let input: BoxedReader = Box::new(input);
+        let output: BoxedWriter = Box::new(output);
         let reader = FramedRead::new(
             input,
             JsonRpcMessageCodec::<RxJsonRpcMessage<RoleServer>>::new_with_max_length(
-                MAX_LINE_BYTES,
+                bounds.max_line_bytes,
             ),
         );
-        let (sender, mut queued) = mpsc::channel::<TxJsonRpcMessage<RoleServer>>(OUTBOUND_MESSAGES);
-        let slots = Arc::new(Semaphore::new(OUTBOUND_MESSAGES));
+        let (sender, mut queued) =
+            mpsc::channel::<TxJsonRpcMessage<RoleServer>>(bounds.outbound_messages);
+        let slots = Arc::new(Semaphore::new(bounds.outbound_messages));
         let writer_slots = Arc::clone(&slots);
         let writer = tokio::spawn(async move {
             let mut sink = FramedWrite::new(
@@ -85,6 +123,7 @@ impl BoundedStdio {
             slots,
             writer: Some(writer),
             supported,
+            bounds,
         }
     }
 
@@ -117,13 +156,13 @@ impl Transport<RoleServer> for BoundedStdio {
     }
 
     async fn receive(&mut self) -> Option<RxJsonRpcMessage<RoleServer>> {
-        match timeout(OUTBOUND_WAIT, Arc::clone(&self.slots).acquire()).await {
+        match timeout(self.bounds.outbound_wait, Arc::clone(&self.slots).acquire()).await {
             Ok(Ok(permit)) => drop(permit),
             Ok(Err(_)) => return None,
             Err(_) => {
                 eprintln!(
                     "au-mcp-rs: client stopped reading stdout for {}s; closing the connection",
-                    OUTBOUND_WAIT.as_secs()
+                    self.bounds.outbound_wait.as_secs()
                 );
                 // Drop queued output instead of waiting for a client that is not
                 // reading, so shutdown does not stall on it.
@@ -172,11 +211,11 @@ impl Transport<RoleServer> for BoundedStdio {
         self.slots.close();
         self.sender = None;
         if let Some(writer) = self.writer.take()
-            && timeout(CLOSE_WAIT, writer).await.is_err()
+            && timeout(self.bounds.close_wait, writer).await.is_err()
         {
             eprintln!(
                 "au-mcp-rs: queued output did not flush within {}s; abandoning it",
-                CLOSE_WAIT.as_secs()
+                self.bounds.close_wait.as_secs()
             );
         }
         Ok(())
@@ -214,4 +253,74 @@ fn version_checked_ping(
         ));
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, duplex};
+
+    /// A response small enough to fit the codec but large enough that a 16-byte socket
+    /// buffer cannot absorb it, so the writer really blocks.
+    fn a_response() -> TxJsonRpcMessage<RoleServer> {
+        TxJsonRpcMessage::<RoleServer>::error(
+            ErrorData::invalid_request("a message long enough to fill the pipe", None),
+            None,
+        )
+    }
+
+    #[tokio::test]
+    async fn the_queue_blocks_a_send_until_the_client_reads() {
+        let (mut client, server) = duplex(16);
+        let (input, output) = tokio::io::split(server);
+        let bounds = Bounds {
+            outbound_messages: 2,
+            ..Bounds::default()
+        };
+        let mut transport = BoundedStdio::over(input, output, Vec::new(), bounds);
+
+        // Two sends fill every permit. The writer cannot flush into a 16-byte pipe
+        // nobody is reading, so no permit comes back.
+        for _ in 0..2 {
+            tokio::time::timeout(Duration::from_secs(1), transport.send(a_response()))
+                .await
+                .expect("the first sends fit the queue")
+                .expect("send");
+        }
+        let blocked =
+            tokio::time::timeout(Duration::from_millis(50), transport.send(a_response())).await;
+        assert!(
+            blocked.is_err(),
+            "a third send must wait: the queue is full and no permit was returned"
+        );
+
+        // Draining the client lets the writer finish, and the waiting send proceeds.
+        let drain = tokio::spawn(async move {
+            let mut sink = Vec::new();
+            let _ =
+                tokio::time::timeout(Duration::from_secs(2), client.read_to_end(&mut sink)).await;
+        });
+        let sent = tokio::time::timeout(Duration::from_secs(2), transport.send(a_response())).await;
+        assert!(
+            sent.is_ok(),
+            "draining the pipe must release the waiting send"
+        );
+        assert!(sent.unwrap().is_ok());
+        transport.close().await.expect("close");
+        drain.abort();
+    }
+
+    #[tokio::test]
+    async fn a_closed_transport_refuses_a_send() {
+        let (client, server) = duplex(64);
+        let (input, output) = tokio::io::split(server);
+        let mut transport = BoundedStdio::over(input, output, Vec::new(), Bounds::default());
+        transport.close().await.expect("close");
+        let error = transport.send(a_response()).await;
+        assert!(
+            error.is_err(),
+            "a closed transport must not accept a response"
+        );
+        drop(client);
+    }
 }
