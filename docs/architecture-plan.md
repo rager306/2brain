@@ -317,6 +317,27 @@ dogfood defects fixed on day 1.
 Stop rules: any invariant in §1 broken twice in one step means the step is wrong, not the
 invariant. Any step that cannot state its acceptance in a command is not a step — it is a hope.
 
+## 5b. Wave 4 — the judgement layer and the agent roles
+
+`docs/agents-and-decisions-assessment.md` is the assessment; this is its place in the plan.
+
+| track | deliverable | why here |
+|---|---|---|
+| **W4.1 ingest auditor** | a `systemone`-shaped client (local `jev` first, vendor only as an opt-in comparison) running three questions over the vault: stale description (`noul`), type (`choice`), duplicate (`noul` over candidate pairs from the T1 ranker) | offline, batch, bounded; closes backlog P0-3 and feeds P1's enrichment without touching the serving path |
+| **W4.2 role definitions** | the four roles (librarian, editor, auditor, scout) written as `agent-profile` instances with tool whitelists and code-checkable exits | P3's procedures name a role instead of a prompt |
+
+**Acceptance for W4.1:** precision ≥ 0.9 on a hand-labelled 50-note sample at the chosen
+threshold; a full pass over the live vault leaves every file unmodified; ≤ $0.10 per pass if the
+vendor is used; the report names the notes, the question, the probability and the threshold.
+
+**Hard boundary:** no judge call in the read path (it cannot meet T1's ≤ 15 ms), no model in the
+mutation gate (a refusal must be reproducible), and no new dependency for vector search until T1
+has landed and hybrid retrieval is shown to be wanted. The egress decision (A/B/C in the
+assessment's §4) is the user's, and the default is local-first.
+
+**Order:** W4.1 starts when T1's engine module lands (it needs the same tokenisation for candidate
+pairs); W4.2 is documentation and runs in parallel with anything.
+
 ## 6. Deferred (explicitly not scheduled)
 
 - **Full onion** (`domain` + `ports` + adapter crates): revisit only when a second adapter or a
@@ -349,6 +370,8 @@ invariant. Any step that cannot state its acceptance in a command is not a step 
 | T1 text index (engine half) | not started | design in Wave 2b; prototype numbers in progress | — |
 | T1 text index (adapter half) | blocked on P1.4 | — | — |
 | P2.1–P2.3 gate | not started | — | — |
+| W4.1 ingest auditor | not started | assessment §3–§6; needs T1's tokenisation | — |
+| W4.2 role definitions | not started | assessment §1.1 | — |
 | P3.1–P3.2 agent layer | not started | — | — |
 | P4.1 generated manual | not started | — | — |
 | R1 retrieval probe | **measured 2026-11-15** — not adopted | `docs/retrieval-spike.md`: HelixDB 0.0.16 on 1 036 nodes / 2 730 edges — hubs 103.5 ms vs 9.8 ms, 2-hop count 54.7 ms vs `au_neighborhood` 102.2 ms for 253 materialised nodes, BM25 24.2 ms vs `au_grep` 132.8 ms, variable-length patterns unsupported; decision: tantivy plus our own traversal | 2026-11-15 |
