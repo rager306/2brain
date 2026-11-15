@@ -246,7 +246,7 @@ invariant. Any step that cannot state its acceptance in a command is not a step 
 | step | state | evidence | date |
 |---|---|---|---|
 | P0.1 capability axis | **done** (`298960c`) | 51 rows: 32 read / 16 mutate / 2 discover / 1 watch; inline test equals the router set and agrees with `policy::MUTATION_TOOLS`; `tests/capability.rs` 4/4; suite 40 suites, 180 passed | 2026-11-15 |
-| P0.2 architecture tests | not started | — | — |
+| P0.2 architecture tests | **done** (`e74dde7`) | `tests/architecture.rs` 4/4; each rule proved to bite (leaf reference, undeclared edge, one line over the ratchet, a removed `output_schema`), files restored by sha256; no cycle beyond the 7 declared edges | 2026-11-15 |
 | P0.3 last-page defect | **done** (`c34879c`) | `next_offset` declared `["integer","null"]`; both new tests failed before the fix with `declared [integer] but holds null`, and the revert-proof was re-run on the final tree | 2026-11-15 |
 | P0.4 vault capture | not started | — | — |
 | P1.1 transport port | not started | — | — |

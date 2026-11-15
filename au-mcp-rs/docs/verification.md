@@ -11,9 +11,9 @@ binary used for the surface measurements was built from `1bcc08e` and reports
 
 - **51 tools**: 35 advertised without a grant (29 engine reads plus 6 derived
   reads), 16 mutating behind three independent grants.
-- **182 registered tests**: 180 run by default, 2 `#[ignore]`d because they need
-  a built `au` (measured 2026-11-15 after the capability axis and the paging fix: 40
-  suites, 180 passed, 0 failed, `rc=0`).
+- **186 registered tests**: 184 run by default, 2 `#[ignore]`d because they need
+  a built `au` (measured 2026-11-15 after the capability axis, the paging fix and the
+  architecture tests: 41 suites, 184 passed, 0 failed, `rc=0`).
 - **32** synthetic read fixtures, **3** production golden payloads.
 - **4** known engine test failures on this host, all needing a non-root runner.
 
@@ -60,6 +60,7 @@ Commands below run from `/root/arsumbris/au-mcp-rs` with
 | the adapter's own shape is measured, not asserted | `docs/architecture-assessment.md` (measurement method in §2 and §8) | `python3 - <<'PY'` line counting per file; `grep -c '#\[tool(' src/lib.rs`; `find tests -name '*.rs'` | 6 917 src lines, 8 878 test lines in 36 files, 51 `#[tool(` handlers in `lib.rs` (2 064 lines), 8 responsibilities, one `wire <-> lib` cycle, 13 ranked seams; engine `au-engine` 61 613 src lines with 8 files over 3 000 | 2026-11-15 |
 | a page that ends a sequence declares its null offset | `src/schemas.rs` (`envelope_schema`), `tests/schema_types.rs` (`a_page_that_ends_the_sequence_declares_its_null_offset`, `every_adapter_paged_read_validates_on_its_last_page`) | `cargo +1.99.0 test --offline --test schema_types` | 3/3 pass; both new tests fail with "au_instances_of.next_offset: declared [integer] but holds null" when the union is reverted to `integer`, proven on the final tree | 2026-11-15 |
 | every advertised tool has one capability class | `src/capability.rs` (51 rows: 32 read, 16 mutate, 2 discover, 1 watch), inline `every_tool_has_exactly_one_capability`, `tests/capability.rs` (4) | `cargo +1.99.0 test --offline --lib`; `--test capability` | 51 = 19 + 32 partition; a read-only launch returns nothing for `capability=mutate`; the table equals the router's tool set and agrees with `policy::MUTATION_TOOLS` | 2026-11-15 |
+| the adapter's structure does not decay | `tests/architecture.rs` (4): leaf modules, the declared 7-edge module set, a `lib.rs` ratchet at 4651 production lines, an `output_schema` on all 51 tools | `cargo +1.99.0 test --offline --test architecture` | 4/4 pass; each rule was proved to bite on the final tree (a leaf reference, an undeclared `wire -> bounded_stdio` edge, one added line in `lib.rs`, one removed `output_schema`), every file restored by sha256 | 2026-11-15 |
 
 The documents agree with the code on 51 tools since 2026-11-14: `README.md` said
 "5 derived reads" (which summed to 50 against its own 29 + 16), and a documentation
