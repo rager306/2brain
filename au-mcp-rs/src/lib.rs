@@ -1,4 +1,5 @@
 mod bounded_stdio;
+mod capability;
 mod policy;
 mod resources;
 mod schemas;
@@ -1890,7 +1891,7 @@ impl Server {
         if query.is_empty() {
             return CallToolResult::error(vec![ContentBlock::text("'query' must not be empty")]);
         }
-        let matches = search_tools(&self.visible_tools(), query, args.limit);
+        let matches = search_tools(&self.visible_tools(), query, args.limit, args.capability);
         let tools: Vec<Value> = matches
             .into_iter()
             .map(|tool| match args.detail {
@@ -3909,6 +3910,10 @@ struct SearchToolsArguments {
     /// How much to return per match; default summary.
     #[serde(default)]
     detail: SearchDetail,
+    /// Keep only tools of this capability: read, mutate, discover, or watch. A
+    /// mutating tool never appears here without the grant that advertises it.
+    #[serde(default)]
+    capability: Option<crate::capability::Capability>,
     /// Maximum matches, from 1 to 20 (default 5).
     #[serde(default = "default_search_limit")]
     #[schemars(range(min = 1, max = 20))]
@@ -3941,13 +3946,22 @@ struct DescribeToolArguments {
 
 /// Rank tools for a query: a term in the name weighs most, then a parameter
 /// name, then the description. Deterministic, and cheap enough to run per call.
-fn search_tools(tools: &[rmcp::model::Tool], query: &str, limit: usize) -> Vec<rmcp::model::Tool> {
+fn search_tools(
+    tools: &[rmcp::model::Tool],
+    query: &str,
+    limit: usize,
+    capability: Option<capability::Capability>,
+) -> Vec<rmcp::model::Tool> {
     let terms: Vec<String> = tokenize(query);
     if terms.is_empty() {
         return Vec::new();
     }
     let mut scored: Vec<(u32, &rmcp::model::Tool)> = tools
         .iter()
+        .filter(|tool| match capability {
+            Some(wanted) => capability::of(tool.name.as_ref()) == Some(wanted),
+            None => true,
+        })
         .filter_map(|tool| {
             let name = tokenize(tool.name.as_ref());
             let text = tokenize(tool.description.as_deref().unwrap_or(""));
@@ -4648,6 +4662,56 @@ mod tests {
             ToolProfile::Full,
             PayloadMode::Both,
         )
+    }
+
+    /// The capability table is the single place a tool is classified. It must cover the
+    /// router exactly — one row per advertised tool, no row for a tool that does not
+    /// exist — and it must agree with the grant lists that decide advertising.
+    #[test]
+    fn every_tool_has_exactly_one_capability() {
+        let server = test_server(PathBuf::from("/tmp/capability.sock"));
+        let mut routed: Vec<String> = server
+            .tool_router
+            .list_all()
+            .iter()
+            .map(|tool| tool.name.to_string())
+            .collect();
+        routed.sort();
+        let mut tabulated: Vec<String> = capability::CAPABILITIES
+            .iter()
+            .map(|(name, _)| (*name).to_owned())
+            .collect();
+        tabulated.sort();
+        assert_eq!(routed, tabulated, "the capability table is not the router");
+
+        for (name, capability) in capability::CAPABILITIES {
+            let mutating = policy::MUTATION_TOOLS.contains(&name);
+            assert_eq!(
+                mutating,
+                capability == capability::Capability::Mutate,
+                "{name}: mutations grant and capability disagree"
+            );
+        }
+        for name in policy::MUTATION_TOOLS {
+            assert_eq!(
+                capability::of(name),
+                Some(capability::Capability::Mutate),
+                "{name}"
+            );
+        }
+        assert_eq!(
+            capability::of("au_search_tools"),
+            Some(capability::Capability::Discover)
+        );
+        assert_eq!(
+            capability::of("au_describe_tool"),
+            Some(capability::Capability::Discover)
+        );
+        assert_eq!(
+            capability::of("au_watch"),
+            Some(capability::Capability::Watch)
+        );
+        assert_eq!(capability::of("no_such_tool"), None);
     }
 
     fn request_context() -> RequestContext<RoleServer> {

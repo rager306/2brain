@@ -42,9 +42,11 @@ without a row fails the test.
 **P0.2 Architecture tests (executable guardrails).**
 `tests/architecture.rs`: (a) no module cycle outside one declared exception pair
 (`wire ↔ lib`, scheduled for P1.1); (b) `lib.rs` production-line ratchet, a constant that may
-only decrease; (c) `MUTATION_TOOLS` / `COMPOSITION_TOOLS` / `WORKSPACE_TOOLS` are total and
-disjoint against the catalogue; (d) every catalogue entry has an `output_schema`; (e) every
-catalogue entry has exactly one capability row (P0.1).
+only decrease; (c) `MUTATION_TOOLS` / `COMPOSITION_TOOLS` / `WORKSPACE_TOOLS` are total over the
+catalogue and **nested by design** — measured 2026-11-15: 16 / 2 / 3, and both smaller sets are
+subsets of `MUTATION_TOOLS`, so a "disjoint" assertion would be wrong; (d) every catalogue entry
+has an `output_schema`; (e) every catalogue entry has exactly one capability row (P0.1: 32 read,
+16 mutate, 2 discover, 1 watch = 51).
 Acceptance: green, and each of (a)–(e) fails when deliberately violated (5/5 checked by hand).
 Merge after P0.1 so the ratchet starts from the post-P0.1 number.
 
