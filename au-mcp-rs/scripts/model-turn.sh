@@ -38,7 +38,7 @@ source "$(dirname "$0")/lib/disposable-fixture.sh"
 prepare_fixture
 
 config=$root/turn-mcp.json
-printf '{"mcpServers":{"arsumbris-rs":{"command":"%s","args":["%s"]}}}\n' \
+printf '{"mcpServers":{"2brain":{"command":"%s","args":["%s"]}}}\n' \
   "$ADAPTER" "$socket" >"$config"
 
 echo "engine:  $socket"
@@ -49,11 +49,11 @@ echo "prompt:  find unique-marker-7f3a with au_grep"
 # its credentials. `--mcp-config` keeps the registration out of any config file the
 # user owns.
 transcript=$(cd "$repo" && HOME="$TURN_HOME" claude -p \
-  'Use the arsumbris-rs MCP server: call au_grep to search the workspace for
+  'Use the 2brain MCP server: call au_grep to search the workspace for
 unique-marker-7f3a. Then answer with one line: the path of the file that contains it
 and the text of that line.' \
   --mcp-config "$config" \
-  --allowedTools 'mcp__arsumbris-rs__au_grep' \
+  --allowedTools 'mcp__2brain__au_grep' \
   --output-format stream-json --verbose 2>&1 || true)
 AU_ANSWER_SOURCE=$root/transcript.jsonl
 printf '%s\n' "$transcript" >"$AU_ANSWER_SOURCE"
@@ -61,8 +61,8 @@ printf '%s\n' "$transcript" >"$AU_ANSWER_SOURCE"
 status=0
 fail() { printf 'FAIL: %s\n' "$1" >&2; status=1; }
 
-if grep -q '"name":"mcp__arsumbris-rs__au_grep"' <<<"$transcript"; then
-  echo "PASS: the model called mcp__arsumbris-rs__au_grep"
+if grep -q '"name":"mcp__2brain__au_grep"' <<<"$transcript"; then
+  echo "PASS: the model called mcp__2brain__au_grep"
 else
   fail "no au_grep tool call in the transcript"
 fi

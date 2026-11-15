@@ -1,5 +1,9 @@
 # ADR 0001: Source inventory of MCP tools and hooks
 
+> **Note 2026-11-16.** The inventory below predates the removal of the TypeScript MCP layer; the tools
+> it lists as daemon-side no longer exist. The Rust surface is the one in
+> `au-mcp-rs/skills/arsumbris/references/tool-map.md`.
+
 Status: proposed. This is a source-only inventory and a proposal for a future
 port, not an assertion that any item is mounted, enabled, called, or used at
 runtime. No compatibility or migration decision is implied by a `port` label.

@@ -1,13 +1,15 @@
 # au-mcp-rs
 
-An MCP stdio server for the arsumbris engine. It reads a workspace through the
-engine's Unix socket, and can write only when the launch grants it.
+The MCP stdio server for the 2brain engine, and **the only serving path**: installed as
+`/usr/local/bin/2brain` by `scripts/install.sh`. It reads a workspace through the engine's Unix socket,
+and can write only when the launch grants it.
 
-- **29 engine reads**, 6 derived reads and discovery helpers, and **16 mutating
-  tools** that appear only with an explicit grant (three grants in total).
+- **33 reads** (29 engine, 4 derived and observability), **2 discovery** tools, **1 watch**, and **16
+  mutating** tools that appear only with an explicit grant (three grants in total). 52 with every
+  grant, 36 with none.
 - **Results are the engine's own object**, under the read's key: `au_overview`
   answers `{"overview": ...}`. Nothing is re-shaped on the way out.
-- **Two surfaces**: 51 tools, and MCP **resources** at `arsumbris://<repo>/<path>`
+- **Two surfaces**: the tools above, and MCP **resources** at `arsumbris://<repo>/<path>`
   for files a client wants to hold and re-read (`resources/list` pages the
   catalogue, `resources/read` returns the engine's text). No resource
   subscriptions: `au_watch` carries change notification.
@@ -46,7 +48,7 @@ RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
 ```
 
 `--info` is the self-description: server name and version, both protocol
-families, the tool surface (51 registered, 35 advertised without a grant), the
+families, the tool surface (52 registered, 36 advertised without a grant), the
 result shape, the available profiles, the launch policy, and — when a socket is
 reachable — `ready`, the engine's wire schema, its version, and the workspace
 size. A bad option exits with status 2 and points at `--help`.
@@ -154,10 +156,10 @@ Two profiles and three payload modes, measured on the live workspace:
 
 | setting | tools/list | tokens (chars/4) |
 |---|---|---|
-| `--tools full` (default), 51 tools with all grants | 74 850 chars | ≈18 713 |
-| `--tools full`, 35 tools in a read-only launch | 50 019 chars | ≈12 505 |
-| `--tools concise`, 51 tools with all grants | 26 323 chars | ≈6 581 |
-| `--tools concise`, 35 tools in a read-only launch | 16 881 chars | ≈4 220 |
+| `--tools full` (default), 52 tools with all grants | 91 189 chars | ≈22 797 |
+| `--tools full`, 36 tools in a read-only launch | 57 620 chars | ≈14 405 |
+| `--tools concise`, 52 tools with all grants | 29 564 chars | ≈7 391 |
+| `--tools concise`, 36 tools in a read-only launch | 19 356 chars | ≈4 839 |
 | `--payload structured` | halves the payload a client reads when it uses `structuredContent` | |
 
 `au_search_tools` and `au_describe_tool` serve the detail a concise profile
@@ -191,7 +193,7 @@ substitute for process isolation with untrusted clients.
 ## Tests
 
 ```sh
-RUSTUP_HOME=/root/.rustup cargo +1.99.0 test --offline          # 173 tests, 2 ignored
+RUSTUP_HOME=/root/.rustup cargo +1.99.0 test --offline          # 203 tests, 2 ignored
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 clippy --offline --locked --all-targets --all-features -- -D warnings
 ```
 
@@ -229,18 +231,18 @@ This suite does not establish full MCP conformance or production readiness.
 | `scripts/lost-reply.sh` | that a write whose reply was dropped becomes `outcome_unknown`, not a retry, and that `au_reconcile` resolves it against the engine's real history — no model, no fake socket |
 | `scripts/saga-and-rollback.sh` | that a refused `au_batch` leaves no trace, and that `au_rollback_preview` reports a plan without touching the tree |
 | `scripts/codex-turn.sh` | the same read round trip as `model-turn.sh` through a second client implementation, Codex — one model turn |
-| `scripts/live_parity.py` | that the live bridge and the Rust adapter answer the same facts on the served vault, read-only and re-runnable |
+| `scripts/live_parity.py` | that a live front end and this adapter answer the same facts on the served vault, read-only and re-runnable (its original bridge half is gone; it now compares two adapters) |
 | `scripts/strict-client.py` | that a client which validates `structuredContent` against `outputSchema` accepts a mutation answer — the check a live session failed on 2026-11-15 |
 | `scripts/batch-turn.sh` | that a model reaches for `au_batch` instead of two single writes when the task spans files — one model turn |
 | `scripts/rollback-turn.sh` | that a model plans a revert from the commit `au_content` reports, and reads the plan — one model turn |
-| `scripts/bridge_parity.py` | shared facts between the Python bridge and this adapter ([result](docs/bridge-parity.md)) |
+| `scripts/bridge_parity.py` | shared facts between the retired Python bridge and this adapter — historical, kept as the record behind [docs/bridge-parity.md](docs/bridge-parity.md) |
 | `scripts/rollback_rehearsal.py` | that reverting to read-only loses nothing ([result](docs/rollback-rehearsal.md)) |
 
 ## Skill
 
 `skills/arsumbris/SKILL.md` is an agent skill for working a workspace: surface
 choice, tool ladder, envelope, read-then-write loop, and mutation recovery.
-`references/tool-map.md` holds the adapter-to-bridge mapping and loads only when
+`references/tool-map.md` is generated from the running binary and loads only when
 needed.
 
 ```sh
@@ -260,9 +262,9 @@ catalogue at start.
 | [`docs/roadmap.md`](docs/roadmap.md) | the phase checklist with current status |
 | [`docs/agent-interface.md`](docs/agent-interface.md) | measured first-call and per-call cost, best-practice checklist, open gaps |
 | [`docs/progressive-disclosure.md`](docs/progressive-disclosure.md) | sources and technique catalogue for tool token economy |
-| [`docs/live-comparison.md`](docs/live-comparison.md) | A/B against the Python bridge on one workspace |
+| [`docs/live-comparison.md`](docs/live-comparison.md) | A/B against the Python bridge on one workspace (historical: the bridge is deleted) |
 | [`docs/client-matrix.md`](docs/client-matrix.md) | measured client compatibility |
-| [`docs/bridge-parity.md`](docs/bridge-parity.md) | parity scope and the surface split |
+| [`docs/bridge-parity.md`](docs/bridge-parity.md) | parity scope and the surface split (historical) |
 | [`docs/rollback-rehearsal.md`](docs/rollback-rehearsal.md) | fallback-path rehearsal |
 
 Rust 1.99 or newer is required.

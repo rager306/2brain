@@ -40,11 +40,11 @@ echo "---------------------------------------------------------------"
 
 if command -v claude >/dev/null; then
   version=$(claude --version 2>/dev/null | head -1 | awk '{print $1}')
-  (cd "$repo" && claude mcp add --scope local arsumbris-rs -- "$ADAPTER" "$socket" >/dev/null 2>&1) || true
+  (cd "$repo" && claude mcp add --scope local 2brain -- "$ADAPTER" "$socket" >/dev/null 2>&1) || true
   # The row, not the whole table: another connected server must not make this one
   # look healthy. `mcp list` prints one line per server, naming it.
   listed=$(cd "$repo" && timeout 60 claude mcp list 2>&1 || true)
-  row=$(grep -m1 'arsumbris-rs' <<<"$listed" || true)
+  row=$(grep -m1 '2brain' <<<"$listed" || true)
   if grep -q '✔ Connected' <<<"$row"; then
     report claude "$version" "connected (initialize + tools/list)"
     verified=1
@@ -59,9 +59,9 @@ fi
 
 if command -v codex >/dev/null; then
   version=$(codex --version 2>/dev/null | head -1 | awk '{print $2}')
-  codex mcp add arsumbris-rs -- "$ADAPTER" "$socket" >/dev/null 2>&1 || true
+  codex mcp add 2brain -- "$ADAPTER" "$socket" >/dev/null 2>&1 || true
   listed=$(codex mcp list 2>/dev/null || true)
-  if grep -q '^arsumbris-rs' <<<"$listed"; then
+  if grep -q '^2brain' <<<"$listed"; then
     report codex "$version" "registered; no non-interactive health check"
   else
     report codex "$version" "FAILED: not listed"

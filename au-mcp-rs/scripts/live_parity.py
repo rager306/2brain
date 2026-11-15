@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""Compare the two live stacks on the production vault, read-only.
+"""Compare the installed 2brain binary with the one this tree builds, on the served vault.
 
-`bridge_parity.py` proves the bridge and the adapter agree on a disposable fixture.
-This runs the same comparison against the vault that is actually served, which is the
-only evidence that matters before a client is switched.
+What this proves now: the binary a client launches is the binary the tree builds. Before the
+TypeScript layer was deleted (2026-11-16) this script compared the Python bridge with the adapter;
+both bridge and daemon are gone, so the second process is the freshly built `au-mcp-rs` binary and
+the comparison answers a different question — "is what is installed still what the source says".
 
-Read-only by construction: both clients are started WITHOUT `--allow-mutations`, so
-the adapter cannot advertise a mutation tool and the engine never receives a `mutate`
-frame; no signal is sent to any daemon, and nothing in the vault is written.
+Read-only by construction: both servers are started WITHOUT `--allow-mutations`, so neither can
+advertise a mutation tool and the engine never receives a `mutate` frame; no signal is sent to any
+daemon, and nothing in the vault is written.
 
-    python3 scripts/live_parity.py                      # auto-detect both sockets
-    python3 scripts/live_parity.py --socket /path.sock --daemon-socket /path.sock
-    python3 scripts/live_parity.py --json               # machine-readable
+    python3 scripts/live_parity.py                       # auto-detect the engine socket
+    python3 scripts/live_parity.py --socket /path.sock
+    python3 scripts/live_parity.py --json                # machine-readable
 
-Exit 0 when every compared read agrees, 1 when one differs, 2 when the comparison
-could not be made (a socket missing, a client refusing the handshake) — a comparison
-that did not happen is not a pass.
+Exit 0 when every compared read agrees, 1 when one differs, 2 when the comparison could not be made
+(a socket or binary missing, a server refusing the handshake) — a comparison that did not happen is
+not a pass.
 """
 
 from __future__ import annotations
@@ -29,47 +30,30 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from mcp_stdio import StdioMcp, StdioMcpError, tool_payload  # noqa: E402
 
-BUNDLE = Path(__file__).resolve().parent.parent.parent
-ADAPTER = os.environ.get(
-    "AU_MCP_RS_BIN", str(Path(__file__).resolve().parent.parent / "target/release/au-mcp-rs"))
-BRIDGE = BUNDLE / "au-mcp-bridge" / "bridge.py"
+CRATE = Path(__file__).resolve().parent.parent
+# Both are the unified binary (`2brain mcp <target>`), so the argv is identical and the only difference
+# between the two processes is which build of the same code runs.
+BUILT = os.environ.get("AU_2BRAIN_BUILT", str(CRATE / "target/release/2brain"))
+INSTALLED = os.environ.get("AU_2BRAIN_BIN", "/usr/local/bin/2brain")
 
-# Each row: a name, the adapter tool and arguments, the bridge tool and arguments, and
-# how to reduce both answers to the fact that must match. The bridge answers the bare
-# list or object; the adapter wraps it under the read's key, which is the only
-# difference these reducers have to absorb.
+# Each row: a name, the tool, its arguments, and how to reduce the answer to the facts that must
+# match. The two processes run the same code, so a difference here means the installed binary is
+# older (or newer) than the tree — which is exactly the failure this script caught in practice.
 FACTS = [
-    ("members", "au_members", {}, "mcp__au_members", {}, "repo"),
-    ("top_level_dirs", "au_top_level_dirs", {}, "mcp__au_top_level_dirs", {}, "repo:name"),
-    ("types", "au_types", {"limit": 500}, "mcp__au_types", {"limit": 500}, "name:repo:hash"),
-    ("hubs", "au_hubs", {"limit": 20}, "mcp__au_hubs", {"limit": 20}, "path:refs_total"),
-    ("diagnostics", "au_diagnostics", {"limit": 200}, "mcp__au_diagnostics",
-     {"limit": 200}, "path:code:severity"),
+    ("members", "au_members", {}, "repo"),
+    ("top_level_dirs", "au_top_level_dirs", {}, "repo:name"),
+    ("types", "au_types", {"limit": 500}, "name:repo:hash"),
+    ("hubs", "au_hubs", {"limit": 20}, "path:refs_total"),
+    ("diagnostics", "au_diagnostics", {"limit": 200}, "path:code:severity"),
+    ("search", "au_search", {"query": "wikilink", "limit": 10}, "path"),
 ]
 
 
-def newest(directory: Path) -> Path | None:
+def newest_socket(directory: Path) -> Path | None:
     if not directory.is_dir():
         return None
     sockets = sorted(directory.glob("*.sock"), key=lambda p: p.stat().st_mtime, reverse=True)
     return sockets[0] if sockets else None
-
-
-def find(kind: str, override: str | None) -> Path | None:
-    """The newest socket of `kind`, whichever home the caller runs under.
-
-    The daemons are started with HOME=/root by their units, while an agent shell may
-    have a different HOME; searching a couple of roots is cheaper than making the
-    operator pass four paths, and `--socket`/`--daemon-socket` still win.
-    """
-    if override:
-        return Path(override)
-    sub = {"engine": ".arsumbris/au-engine/run", "daemon": ".arsumbris/au-mcp/run"}[kind]
-    for home in (Path.home(), Path("/root")):
-        found = newest(home / sub)
-        if found is not None:
-            return found
-    return None
 
 
 def rows(payload) -> list[dict]:
@@ -77,9 +61,12 @@ def rows(payload) -> list[dict]:
     if isinstance(payload, list):
         return payload
     if isinstance(payload, dict):
-        for key in ("members", "top_level_dirs", "types", "hubs", "diagnostics"):
-            if isinstance(payload.get(key), list):
-                return payload[key]
+        for key in ("members", "top_level_dirs", "types", "hubs", "diagnostics", "matches", "search"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return value
+            if isinstance(value, dict) and isinstance(value.get("matches"), list):
+                return value["matches"]
     raise ValueError(f"no list in the answer: {json.dumps(payload)[:200]}")
 
 
@@ -89,7 +76,7 @@ def reduce_rows(payload, shape: str) -> list[str]:
     for row in rows(payload):
         parts = []
         for key in keys:
-            if key == "repo:name":       # name and repo are separate keys here
+            if key == "repo:name":
                 parts.append(str(row.get("repo")))
                 parts.append(str(row.get("name")))
             else:
@@ -102,9 +89,9 @@ def first_difference(left: list[str], right: list[str]) -> str:
     only_left = sorted(set(left) - set(right))
     only_right = sorted(set(right) - set(left))
     if only_left:
-        return f"only in the adapter: {only_left[:3]}"
+        return f"only in the installed binary: {only_left[:3]}"
     if only_right:
-        return f"only in the bridge: {only_right[:3]}"
+        return f"only in the built binary: {only_right[:3]}"
     if left != right:
         return "same rows, different order"
     return ""
@@ -113,90 +100,85 @@ def first_difference(left: list[str], right: list[str]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--socket", help="engine socket (default: newest under ~/.arsumbris/au-engine/run)")
-    parser.add_argument("--daemon-socket", help="Node daemon socket for the bridge (default: newest under ~/.arsumbris/au-mcp/run)")
     parser.add_argument("--json", action="store_true", help="machine-readable result")
     args = parser.parse_args()
 
-    engine_socket = find("engine", args.socket)
-    daemon_socket = find("daemon", args.daemon_socket)
-    if engine_socket is None or not Path(engine_socket).exists():
-        print("no engine socket: the adapter has nothing to read", file=sys.stderr)
+    socket = Path(args.socket) if args.socket else newest_socket(
+        Path.home() / ".arsumbris" / "au-engine" / "run")
+    if socket is None or not socket.exists():
+        print("no engine socket: nothing to read", file=sys.stderr)
         return 2
-    if daemon_socket is None or not Path(daemon_socket).exists():
-        print("no daemon socket: the bridge has nothing to read", file=sys.stderr)
-        return 2
-    if not Path(ADAPTER).exists():
-        print(f"missing adapter at {ADAPTER}", file=sys.stderr)
-        return 2
-    if not BRIDGE.exists():
-        print(f"missing bridge at {BRIDGE}", file=sys.stderr)
-        return 2
+    for label, binary in (("installed", INSTALLED), ("built", BUILT)):
+        if not Path(binary).exists():
+            print(f"missing {label} binary at {binary}", file=sys.stderr)
+            return 2
 
-    bridge_env = dict(os.environ, AU_MCP_SOCKET=str(daemon_socket), AU_MCP_NAME="arsumbris")
     results = []
     status = 0
+    mutations = {"au_write_file", "au_edit_file", "au_delete_file", "au_batch",
+                 "au_create_file", "au_rename", "au_rename_type"}
     try:
-        with StdioMcp([str(ADAPTER), str(engine_socket)], name="adapter") as adapter, \
-             StdioMcp(["python3", str(BRIDGE)], name="bridge", env=bridge_env) as bridge:
-            adapter_tools = {t["name"] for t in adapter.request("tools/list", {})["result"]["tools"]}
-            mutations = {"au_write_file", "au_edit_file", "au_delete_file", "au_batch",
-                         "au_create_file", "au_rename", "au_rename_type"}
-            if adapter_tools & mutations:
-                results.append({"fact": "read-only launch", "agree": False,
-                                "detail": f"a mutation tool is advertised: {sorted(adapter_tools & mutations)}"})
-                status = 1
+        with StdioMcp([INSTALLED, "mcp", str(socket)], name="installed") as left, \
+             StdioMcp([BUILT, "mcp", str(socket)], name="built") as right:
+            for server, label in ((left, "installed"), (right, "built")):
+                tools = {t["name"] for t in server.request("tools/list", {})["result"]["tools"]}
+                if tools & mutations:
+                    results.append({"fact": "read-only launch", "agree": False,
+                                    "detail": f"{label}: a mutation tool is advertised: "
+                                              f"{sorted(tools & mutations)}"})
+                    status = 1
+            for name, tool, call_args, shape in FACTS:
+                def ask(server):
+                    """Rows on success, or the error text — an identical refusal is agreement.
 
-            for name, a_tool, a_args, b_tool, b_args, shape in FACTS:
-                reducer = (lambda payload, s=shape: reduce_rows(payload, s))
-                try:
-                    a_payload = tool_payload(adapter.call(a_tool, a_args))
-                    b_payload = tool_payload(bridge.call(b_tool, b_args))
-                except (StdioMcpError, ValueError) as error:
-                    results.append({"fact": name, "agree": None, "detail": f"could not compare: {error}"})
-                    status = max(status, 2)
-                    continue
-                a_rows, b_rows = reducer(a_payload), reducer(b_payload)
-                agree = a_rows == b_rows
-                results.append({
-                    "fact": name,
-                    "agree": agree,
-                    "adapter": len(a_rows),
-                    "bridge": len(b_rows),
-                    "detail": "" if agree else first_difference(a_rows, b_rows),
-                })
-                if not agree:
+                    This matters for a verb the engine does not know yet: a daemon that predates a
+                    read refuses it for both processes, and the honest answer is "both refused the
+                    same way", not "the comparison failed".
+                    """
+                    try:
+                        reply = server.call(tool, call_args)
+                    except StdioMcpError as error:
+                        return ("failed", str(error))
+                    try:
+                        return ("rows", reduce_rows(tool_payload(reply), shape))
+                    except ValueError:
+                        # An error answer arrives as text, so `tool_payload` cannot parse it; the
+                        # text itself is the comparable fact.
+                        try:
+                            return ("refused", reply["result"]["content"][0]["text"])
+                        except (KeyError, IndexError, TypeError):
+                            return ("refused", json.dumps(reply)[:400])
+
+                kind_a, a = ask(left)
+                kind_b, b = ask(right)
+                if kind_a == "rows" and kind_b == "rows":
+                    difference = first_difference(a, b)
+                    results.append({"fact": name, "agree": not difference,
+                                    "detail": difference or f"{len(a)} rows"})
+                    if difference:
+                        status = 1
+                elif kind_a == kind_b == "refused":
+                    same = a == b
+                    results.append({"fact": name, "agree": same,
+                                    "detail": "both refused: the engine predates this verb"
+                                              if same else "both refused, differently"})
+                    if not same:
+                        status = 1
+                else:
+                    results.append({"fact": name, "agree": False,
+                                    "detail": f"installed={kind_a}, built={kind_b}: {a if kind_a != 'rows' else b}"})
                     status = 1
     except StdioMcpError as error:
-        print(f"a client could not start: {error}", file=sys.stderr)
+        print(f"a server refused the handshake: {error}", file=sys.stderr)
         return 2
 
     if args.json:
-        print(json.dumps({"engine_socket": str(engine_socket), "daemon_socket": str(daemon_socket),
-                          "results": results, "status": status}, indent=1))
-        return status
-
-    print(f"engine: {engine_socket}")
-    print(f"daemon: {daemon_socket}")
-    print()
-    print(f"{'fact':<16} {'adapter':>8} {'bridge':>7}  verdict")
-    print("-" * 66)
-    for row in results:
-        if row.get("agree") is None:
-            verdict = row["detail"]
-        elif row["agree"]:
-            verdict = "identical"
-        else:
-            verdict = f"DIFFERS: {row['detail']}"
-        counts = f"{row.get('adapter', '-'):>8} {row.get('bridge', '-'):>7}"
-        print(f"{row['fact']:<16} {counts}  {verdict}")
-    print()
-    compared = [r for r in results if r.get("agree") is not None]
-    if status == 0:
-        print(f"PASS: {len(compared)} facts agree between the live bridge and the Rust adapter")
-    elif status == 2:
-        print("INCOMPLETE: at least one fact could not be compared; that is not a pass", file=sys.stderr)
+        print(json.dumps({"socket": str(socket), "results": results, "status": status}, indent=2))
     else:
-        print("FAIL: the two stacks disagree; do not switch a client yet", file=sys.stderr)
+        for row in results:
+            mark = "identical" if row["agree"] else "DIFFERENT"
+            print(f"{row['fact']:<16} {mark:<10} {row['detail']}")
+        print("PASS" if status == 0 else "FAIL")
     return status
 
 

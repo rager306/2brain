@@ -1,12 +1,17 @@
 # Architecture plan: guardrails, thin ports, a legible gate, an ontology with a consumer
 
+**Status 2026-11-16: closed.** Every track is either executed or cancelled by measurement, and the
+adapter this plan describes is now the only serving path (`/usr/local/bin/2brain`). The closeout with
+before/after numbers is in §8; `docs/detach-and-consolidate.md` carries what came after, and
+`docs/repo-inventory.md` describes the tree this plan produced.
+
 Trajectory for the directions ranked in `docs/architecture-assessment.md`. This file is the
 plan of record; it is re-checked by code and commands, not by its own claims — §7 is a ledger
 that only fills with evidence.
 
 Scope: `au-mcp-rs` (the adapter) and the two dogfood defects. The engine's crate graph, the
-Node-stack retirement (`docs/phase-d.md`) and anything that changes the wire contract are
-**out of scope** and stay separate decisions.
+Node-stack retirement (`docs/phase-d.md`, **executed 2026-11-16**) and anything that changes the wire
+contract are **out of scope** and stay separate decisions.
 
 ## 1. The contract every merge keeps
 

@@ -1,5 +1,9 @@
 # Client compatibility matrix
 
+> **Historical record, 2026-11-14.** The client matrix was run against the adapter under the server id
+> `arsumbris-rs`; the product name is `2brain` since 2026-11-16, and tool names now register as
+> `2brain__au_*`. The transcripts are kept verbatim — they are the evidence, not a how-to.
+
 Measured by `scripts/client-matrix.sh` on 2026-11-13, on this host, against a
 disposable two-file repository and a private engine socket. The script uses a
 throwaway `HOME`, so no user or project configuration is read or written.

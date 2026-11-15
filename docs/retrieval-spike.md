@@ -1,5 +1,10 @@
 # Retrieval spike (R1): a bundled engine against the current one
 
+> **Historical measurement, 2026-11-15.** A spike against HelixDB; its traces were removed. The
+> numbers decided against migration and against variable-length traversals. Nothing in the current
+> tree depends on it.
+
+
 Status: measured, 2026-11-15. Evidence track R1 of `docs/architecture-plan.md`, commissioned by
 `docs/graph-engine-assessment.md` §7 step 5. **No repository code was changed to run it**; the
 corpus lives under `/tmp`, the vault was read-only, and nothing was written back.

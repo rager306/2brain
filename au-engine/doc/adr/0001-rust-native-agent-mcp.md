@@ -1,4 +1,8 @@
 ---
+
+> **Note 2026-11-16.** This ADR's plan was executed and then finished off: the TypeScript MCP layer
+> (`au-mcp`, `au-mcp-core`, both adapters, the SDK's code, the codegen) and the Python bridge are
+> deleted, and the served path is `/usr/local/bin/2brain`. The tree it describes no longer exists.
 id: ADR-0001
 title: Rust-native, agent-neutral MCP serving for Arsumbris
 status: Proposed

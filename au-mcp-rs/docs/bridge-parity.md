@@ -1,5 +1,9 @@
 # Parity with the existing Python bridge
 
+> **Historical, 2026-11-14.** The Python bridge and the Node daemon were deleted 2026-11-16; this is
+> the record of the parity check that justified it. The current surface is `skills/arsumbris/references/tool-map.md`.
+
+
 Measured by `scripts/bridge_parity.py` on 2026-11-13, re-run 2026-11-14 against
 the fork engine and the 51-tool adapter (see the last section). The script builds a
 disposable workspace, starts a private engine, the Node `au-mcp` daemon, the

@@ -59,11 +59,17 @@ grant. The Node path exposed those five tools ungated, which was a defect, not a
 ## 4. Verify before trusting it
 
 ```sh
-/root/.local/bin/2brain --version
-/root/.local/bin/2brain info /root/vault          # surface + a probe read
+/usr/local/bin/2brain --version
+HOME=/root /usr/local/bin/2brain info /root/vault    # surface + a probe read
+cd /root/arsumbris/au-mcp-rs && HOME=/root python3 scripts/live_parity.py
 /root/.allspark-home/.prime/agent/kernel-venv/bin/python \
-  /root/arsumbris/au-mcp-rs/scripts/strict-client.py   # validates a mutation answer client-side
+  /root/arsumbris/au-mcp-rs/scripts/strict-client.py  # validates a mutation answer client-side
 ```
+
+`live_parity.py` compares the installed binary with the one this tree builds; it exits 2 when it could
+not compare, which is not a pass. On 2026-11-16 it reported five facts identical and `au_search` refused
+**identically by both** — the live engine predates the verb, because the fifth swap has not happened
+yet (`docs/engine-swap-2026-11-16.md`).
 
 Then one session that does a read and a write. A read proves the socket resolution; the write
 proves the gate and the answer schema, which is where the 2026-11-15 failure lived.

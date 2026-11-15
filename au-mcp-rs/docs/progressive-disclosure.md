@@ -131,7 +131,7 @@ tool" loops.
 | annotations | `readOnlyHint` / `destructiveHint` / `idempotentHint` on every tool |
 | result metadata | `_meta["io.arsumbris/engineVersion"]` |
 | stable names, deterministic order | yes; search sorts by score then name |
-| `tools/list` cursor pagination | not used: 51 tools fit one page |
+| `tools/list` cursor pagination | not used: 52 tools fit one page |
 | `listChanged` | not used: the catalogue is fixed at launch |
 | task-augmented execution | not used: reads finish in milliseconds to seconds |
 | result budgets | `au_content` (`max_chars`, explicit truncation fields) and `au_instances_of` (`limit`/`offset`, `total`, `next_offset`) |
@@ -142,13 +142,13 @@ Live workspace, release build, raw stdio:
 
 | profile | tools | tools/list | tokens (chars/4) | `au_search_tools` (query "write") | `au_describe_tool au_batch` |
 |---|---|---|---|---|---|
-| `full` | 51 | 74 850 chars | ≈18 713 | 741 chars | 3 064 chars |
-| `concise` | 51 | 26 323 chars | ≈6 581 | 741 chars | 3 064 chars |
+| `full` | 52 | 91 189 chars | ≈22 797 | 741 chars | 3 064 chars |
+| `concise` | 52 | 29 564 chars | ≈7 391 | 741 chars | 3 064 chars |
 
 −65% at discovery. The break-even rule: describing one tool costs between 0.8k
 and 3k chars (the examples above), so the concise profile pays when fewer than
 about 20 full definitions are needed, and pays less as a session describes more
-of the catalogue. With 51 tools it is a clear win for narrow tasks and still a
+of the catalogue. With 52 tools it is a clear win for narrow tasks and still a
 loss for a session that describes most of the catalogue; with 200 tools it is the
 difference between a usable agent and a blown context.
 

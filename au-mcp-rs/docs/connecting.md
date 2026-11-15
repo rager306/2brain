@@ -70,7 +70,7 @@ still exits 0 when the engine is unreachable, so it is safe in a health script.
 `~/.allspark-home/.prime/agent/settings.json`, under `mcpServers`:
 
 ```json
-"arsumbris-rs": {
+"2brain": {
   "type": "stdio",
   "command": "/usr/local/bin/2brain",
   "args": ["mcp", "/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"]
@@ -79,24 +79,24 @@ still exits 0 when the engine is unreachable, so it is safe in a health script.
 
 The host reads `mcpServers` at session start, so a new entry appears in a new
 session. A running session may pick it up later, but do not rely on it: verify
-with `mcp.list_connections()` and `mcp.list_tools("arsumbris-rs")`.
+with `mcp.list_connections()` and `mcp.list_tools("2brain")`.
 
 ### Claude Code
 
 ```sh
-claude mcp add --scope local arsumbris-rs -- \
+claude mcp add --scope local 2brain -- \
   /usr/local/bin/2brain mcp \
   /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
-claude mcp list          # expect: arsumbris-rs ... ✔ Connected
+claude mcp list          # expect: 2brain ... ✔ Connected
 ```
 
 ### Codex CLI
 
 ```sh
-codex mcp add arsumbris-rs -- \
+codex mcp add 2brain -- \
   /usr/local/bin/2brain mcp \
   /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
-codex mcp list           # expect: arsumbris-rs  ...  enabled
+codex mcp list           # expect: 2brain  ...  enabled
 ```
 
 Codex has no non-interactive health check, so `list` proves the configuration
@@ -107,7 +107,7 @@ shape, not the handshake.
 ```json
 {
   "mcpServers": {
-    "arsumbris-rs": {
+    "2brain": {
       "command": "/usr/local/bin/2brain",
       "args": ["mcp", "/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"]
     }
@@ -150,9 +150,9 @@ is the OS user that owns the engine socket.
 | `--payload structured` | no text block, for clients that read `structuredContent` and would otherwise pay twice |
 | `--payload text` | no `structuredContent` |
 
-Measured discovery cost on the live workspace: 74 850 chars in `full` and
-26 323 in `concise` for the 51-tool surface with all grants; a read-only launch
-advertises 35 tools at 50 019 and 16 881 chars (see
+Measured discovery cost on the live workspace: 91 189 chars in `full` and
+29 564 in `concise` for the 52-tool surface with all grants; a read-only launch
+advertises 36 tools at 57 620 and 19 356 chars (see
 `docs/progressive-disclosure.md`).
 
 ## 6. Troubleshooting

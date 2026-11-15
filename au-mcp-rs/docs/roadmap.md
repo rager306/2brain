@@ -1,11 +1,13 @@
 # Roadmap
 
-Status on 2026-11-14, HEAD `16de348` (rechecked against the code, not these notes:
-51 tools registered — 35 advertised without a grant, 16 mutating; 32 synthetic
-fixtures plus 3 production and 4 engine golden captures; 165 adapter tests run by
-default and 2 ignored; eleven documents under `docs/`). The evidence for each line
-lives in [`verification.md`](verification.md); the gaps are listed at the end of
-this file.
+Status on 2026-11-16, HEAD `3706515`. **The roadmap is closed**: the adapter is the only serving path
+(`/usr/local/bin/2brain`), 52 tools are registered — 36 advertised without a grant, 47 with mutations,
+52 with every grant — and the Node/Python stack it was competing with is deleted. The evidence for
+each line below lives in [`verification.md`](verification.md); the items that stayed open, and why,
+are at the end of the file.
+
+The 2026-11-14 status line, kept for comparison: 51 tools, 35 without a grant, 165 adapter tests,
+eleven documents.
 
 ## Done — with evidence
 
@@ -114,8 +116,9 @@ refusal, recovery, batch, revert), and plugins are moot here — this vault decl
 none, so freezing costs nothing and a process-per-plugin contract is the option if
 extensions return later.
 
-What goes: `au-mcp`, `au-mcp-sdk`, `au-type-codegen`, `au-engine-sdk`,
-`au-mcp-bridge`, and both client adapters. What stays: the engine, `au-engine-sdk`'s
+What goes: `au-mcp`, `au-mcp-core`, `au-mcp-sdk`'s **code**, `au-type-codegen`, `au-engine-sdk`,
+`au-mcp-bridge`, and both client adapters — all deleted 2026-11-16; `au-mcp-sdk`'s `type/` stays as the
+`mcp.*` vocabulary. What stays: the engine, and
 successor role is covered by `WIRE.md` plus the adapter's `src/wire.rs`, and the
 vault's content contract is untouched by any of this.
 
@@ -153,4 +156,4 @@ Honest ledger, so a reader does not have to infer the gaps from the evidence fil
 | generated schemas | `tests/schema_contract.rs` catches drift against captured payloads, which is the safety half. Generating the schemas needs `WIRE.md` marked up machine-readably; today it is prose |
 | an `au_files` golden capture | the engine golden set covers four reads; the file listing is size-heavy and still uncaptured |
 | a scripted live A/B | the eleven byte-identical reads of 2026-11-13 were a manual session, so they cannot be re-run by the next person |
-| Phase D (retire the Node stack) | checklist in [`../../docs/phase-d.md`](../../docs/phase-d.md). The plugin question is measured: this vault declares no plugins, so "freeze" costs nothing. What remains is the 8 daemon tools without a counterpart (6 are host tools by decision) and a live parity sweep before anything is deleted |
+| ~~Phase D (retire the Node stack)~~ | **done 2026-11-16**: the bridge, the Node daemon, both adapters, the SDK code and the codegen are deleted; the client spawns `/usr/local/bin/2brain`. Decisions and measurements in [`../../docs/serving-parity.md`](../../docs/serving-parity.md) |

@@ -1,5 +1,8 @@
 # Live A/B: `arsumbris` (bridge) vs `arsumbris-rs` (Rust adapter)
 
+> **Historical, 2026-11-13.** An A/B against the Python bridge, which was deleted 2026-11-16.
+
+
 Measured on 2026-11-13 in one allspark session, both servers connected to the
 same production workspace (`/root/vault` + six dependency members). The bridge
 reaches the Node `au-mcp` daemon; the adapter reads the engine socket directly.

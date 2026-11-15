@@ -26,7 +26,7 @@ prepare_fixture
 
 before=$(git -C "$repo" rev-list --count HEAD)
 config=$root/turn-mcp.json
-printf '{"mcpServers":{"arsumbris-rs":{"command":"%s","args":["%s","--allow-mutations"]}}}\n' \
+printf '{"mcpServers":{"2brain":{"command":"%s","args":["%s","--allow-mutations"]}}}\n' \
   "$ADAPTER" "$socket" >"$config"
 
 echo "engine:  $socket"
@@ -35,23 +35,23 @@ echo "prompt:  one change across notes/a.md and notes/b.md"
 
 transcript=$(cd "$repo" && HOME="$TURN_HOME" claude -p \
 'Both notes/a.md and notes/b.md must gain the line `batched` at the end, and the two
-changes must land together or not at all. Use the arsumbris-rs MCP server: read each
+changes must land together or not at all. Use the 2brain MCP server: read each
 file with au_content to get its hash, then apply both changes with a single au_batch
 call (one write_file operation per file, each with its own hash). Finish with one line
 saying whether the batch applied.' \
   --mcp-config "$config" \
-  --allowedTools 'mcp__arsumbris-rs__au_overview,mcp__arsumbris-rs__au_content,mcp__arsumbris-rs__au_batch,mcp__arsumbris-rs__au_write_file' \
+  --allowedTools 'mcp__2brain__au_overview,mcp__2brain__au_content,mcp__2brain__au_batch,mcp__2brain__au_write_file' \
   --output-format stream-json --verbose 2>&1 || true)
 
 status=0
 fail() { printf 'FAIL: %s\n' "$1" >&2; status=1; }
 pass() { printf 'PASS: %s\n' "$1"; }
 
-calls=$(grep -o '"name":"mcp__arsumbris-rs__[a-z_]*"' <<<"$transcript" | sed 's/.*__//;s/"//' | tr '\n' ' ')
+calls=$(grep -o '"name":"mcp__2brain__[a-z_]*"' <<<"$transcript" | sed 's/.*__//;s/"//' | tr '\n' ' ')
 echo "tool calls: ${calls:-none}"
 
-batches=$(grep -o '"name":"mcp__arsumbris-rs__au_batch"' <<<"$transcript" | wc -l)
-writes=$(grep -o '"name":"mcp__arsumbris-rs__au_write_file"' <<<"$transcript" | wc -l)
+batches=$(grep -o '"name":"mcp__2brain__au_batch"' <<<"$transcript" | wc -l)
+writes=$(grep -o '"name":"mcp__2brain__au_write_file"' <<<"$transcript" | wc -l)
 [[ $batches -ge 1 ]] && pass "the model used au_batch" || fail "no au_batch call"
 [[ $writes -eq 0 ]] && pass "the model did not fall back to two single writes" \
   || fail "the model issued $writes single writes instead of one batch"

@@ -1,5 +1,11 @@
 # Architecture assessment: hexagonal layers, FSM control, and an ontology for the tool surface
 
+> **Historical measurement, 2026-11-15.** This assessed the tree as it was *before* the
+> TypeScript and Python layers were deleted (2026-11-16). The findings stand as evidence for the
+> decisions taken; the file counts and module lists do not describe the current tree — see
+> `docs/repo-inventory.md` for that.
+
+
 Status: assessment, 2026-11-15. **No code was changed to produce it.** Every number below was
 measured on `main` by reading the tree; every external claim is attributed in §8; every vault
 claim cites a note that was read through our own MCP server. The test baseline was re-measured

@@ -1,5 +1,9 @@
 # Switching a Hermes session to the Rust adapter
 
+> **Superseded 2026-11-16** by `docs/hermes-2brain.md`. This document describes the switch from the
+> Python bridge to `arsumbris-rs`; both are gone now — the client spawns `/usr/local/bin/2brain`.
+
+
 Written for the operator: what to change, what to ask Hermes, what to check, and how to
 take it back. Nothing here restarts the engine or touches the vault's data unless you
 ask for the write test.

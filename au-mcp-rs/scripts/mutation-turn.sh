@@ -55,7 +55,7 @@ config_for() { # config_for <file> [extra adapter args...]
   local args='"'$socket'"'
   local arg
   for arg in "$@"; do args+=',"'"$arg"'"'; done
-  printf '{"mcpServers":{"arsumbris-rs":{"command":"%s","args":[%s]}}}\n' \
+  printf '{"mcpServers":{"2brain":{"command":"%s","args":[%s]}}}\n' \
     "$ADAPTER" "$args" >"$file"
 }
 
@@ -64,18 +64,18 @@ printf 'engine:  %s\nadapter: %s\n' "$socket" "$ADAPTER"
 granted=$root/granted-mcp.json
 config_for "$granted" --allow-mutations
 transcript=$(turn "$granted" \
-'Edit notes/a.md with the arsumbris-rs MCP server. Steps:
+'Edit notes/a.md with the 2brain MCP server. Steps:
 1. Call au_content on notes/a.md and keep the `hash` and `body` it returns.
 2. Call au_write_file on notes/a.md with that `hash` and a body equal to the returned
    body, except that the line `find me: unique-marker-7f3a` becomes
    `find me: unique-marker-7f3a updated`. Keep every other line and the frontmatter
    exactly as they were.
 3. Answer one line: whether the write succeeded.' \
-'mcp__arsumbris-rs__au_overview,mcp__arsumbris-rs__au_content,mcp__arsumbris-rs__au_write_file')
+'mcp__2brain__au_overview,mcp__2brain__au_content,mcp__2brain__au_write_file')
 
-grep -q '"name":"mcp__arsumbris-rs__au_content"' <<<"$transcript" &&
+grep -q '"name":"mcp__2brain__au_content"' <<<"$transcript" &&
   pass "the model read before writing" || fail "no au_content call"
-grep -q '"name":"mcp__arsumbris-rs__au_write_file"' <<<"$transcript" &&
+grep -q '"name":"mcp__2brain__au_write_file"' <<<"$transcript" &&
   pass "the model called au_write_file" || fail "no au_write_file call"
 grep -q 'unique-marker-7f3a updated' "$target" &&
   pass "the file on disk carries the new line" || fail "the file was not changed"
@@ -96,12 +96,12 @@ echo "=== scenario 2: read-only, the same request"
 read_only=$root/readonly-mcp.json
 config_for "$read_only"
 transcript2=$(turn "$read_only" \
-'Use the arsumbris-rs MCP server to write the text "nope" into notes/b.md with
+'Use the 2brain MCP server to write the text "nope" into notes/b.md with
 au_write_file. If that tool does not exist, list the write tools you DO have and do
 nothing else.' \
-'mcp__arsumbris-rs__au_write_file')
+'mcp__2brain__au_write_file')
 
-grep -q '"name":"mcp__arsumbris-rs__au_write_file"' <<<"$transcript2" &&
+grep -q '"name":"mcp__2brain__au_write_file"' <<<"$transcript2" &&
   fail "a read-only launch let the model call au_write_file" ||
   pass "au_write_file was never callable in a read-only launch"
 # The engine COMMITS every write, so a clean `git diff` proves nothing here: compare

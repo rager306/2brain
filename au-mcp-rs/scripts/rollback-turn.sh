@@ -23,7 +23,7 @@ source "$(dirname "$0")/lib/disposable-fixture.sh"
 prepare_fixture
 
 config=$root/turn-mcp.json
-printf '{"mcpServers":{"arsumbris-rs":{"command":"%s","args":["%s","--allow-mutations"]}}}\n' \
+printf '{"mcpServers":{"2brain":{"command":"%s","args":["%s","--allow-mutations"]}}}\n' \
   "$ADAPTER" "$socket" >"$config"
 
 echo "engine:  $socket"
@@ -65,29 +65,29 @@ before=$(git -C "$repo" rev-list --count HEAD)
 echo "prompt:  plan a revert of the last write"
 
 transcript=$(cd "$repo" && HOME="$TURN_HOME" claude -p \
-'Using the arsumbris-rs MCP server only: read notes/a.md with au_content and note the
+'Using the 2brain MCP server only: read notes/a.md with au_content and note the
 `commit` it reports. Then call au_rollback_preview for that commit. Do not change
 anything else. Finish with one line: the files the revert would touch, and whether the
 preview says it is safe.' \
   --mcp-config "$config" \
-  --allowedTools 'mcp__arsumbris-rs__au_content,mcp__arsumbris-rs__au_rollback_preview' \
+  --allowedTools 'mcp__2brain__au_content,mcp__2brain__au_rollback_preview' \
   --output-format stream-json --verbose 2>&1 || true)
 
 status=0
 fail() { printf 'FAIL: %s\n' "$1" >&2; status=1; }
 pass() { printf 'PASS: %s\n' "$1"; }
 
-calls=$(grep -o '"name":"mcp__arsumbris-rs__[a-z_]*"' <<<"$transcript" | sed 's/.*__//;s/"//' | tr '\n' ' ')
+calls=$(grep -o '"name":"mcp__2brain__[a-z_]*"' <<<"$transcript" | sed 's/.*__//;s/"//' | tr '\n' ' ')
 echo "tool calls: ${calls:-none}"
 
-grep -q '"name":"mcp__arsumbris-rs__au_content"' <<<"$transcript" \
+grep -q '"name":"mcp__2brain__au_content"' <<<"$transcript" \
   && pass "the model read the file" || fail "no au_content call"
-grep -q '"name":"mcp__arsumbris-rs__au_rollback_preview"' <<<"$transcript" \
+grep -q '"name":"mcp__2brain__au_rollback_preview"' <<<"$transcript" \
   && pass "the model asked for a rollback preview" || fail "no au_rollback_preview call"
 # The commit must be the one au_content reported, not something invented: the answer
 # is only meaningful if the model took the id from the engine.
 read_commit=$(grep -oE '"commit":"[0-9a-f]{40}"' <<<"$transcript" | head -1 | cut -d'"' -f4 || true)
-preview_arg=$(grep -oE '"name":"mcp__arsumbris-rs__au_rollback_preview","input":\{"repo":"[^"]*","commit":"[0-9a-f]+"' <<<"$transcript" | grep -oE '[0-9a-f]{40}' | head -1 || true)
+preview_arg=$(grep -oE '"name":"mcp__2brain__au_rollback_preview","input":\{"repo":"[^"]*","commit":"[0-9a-f]+"' <<<"$transcript" | grep -oE '[0-9a-f]{40}' | head -1 || true)
 if [[ -n $read_commit && $preview_arg == "$read_commit" ]]; then
   pass "the preview used the commit au_content reported"
 else

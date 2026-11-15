@@ -1,98 +1,106 @@
-# Tool map
+# Tool map — the 52 tools of the `2brain` adapter
 
-`arsumbris-rs` (`au_*`) against the legacy bridge (`mcp__*`). The adapter's
-answers are the engine's own JSON under the read key; the bridge's are daemon
-projections with summaries and paging.
+Generated from the running binary rather than hand-maintained: the table below is what
+`tools/list` actually advertises with every grant, and the capability split is read from
+`src/capability.rs` (the one place a tool is classified; a test fails when a tool has no row).
 
-## Adapter reads (35: 29 engine reads, 6 derived and observability helpers)
+Regenerate with:
 
-| tool | argument | answers |
+```sh
+/usr/local/bin/2brain mcp /root/vault --allow-mutations --allow-composition \
+  --allow-workspace-shape --tools concise     # then read tools/list
+```
+
+Counts: **33 read + 16 mutate + 2 discover + 1 watch = 52**. Without `--allow-mutations` a launch
+advertises 36; with mutations alone 47; composition adds 2; workspace shape adds 3.
+
+## Reads (33) — no grant needed
+
+| tool | arguments | answers |
 |---|---|---|
-| `au_overview` | — | `{overview}`: members, paths, counts |
-| `au_top_level_dirs` | — | `{top_level_dirs}` |
-| `au_members` | `repo?` | `{members}`: repo, role, editable, root |
-| `au_types` | `repo?`, `limit`, `offset` | `{types}` |
-| `au_type` | `name`, `repo?` | `{type}` or null |
-| `au_type_tree` | — | `{type_tree: {roots, nodes}}` |
-| `au_subtypes` | `base` | `{base, subtypes}` |
-| `au_hubs` | `repo?`, `scope?`, `limit`, `offset` | `{hubs}` |
-| `au_diagnostics` | `repo?`, `severity?`, `code?`, `limit`, `offset` | `{diagnostics}` |
-| `au_files` | `repo?`, `scope?`, `limit`, `offset` | `{files}` |
-| `au_children` | `repo`, `path` | `{dir_entries}`: direct files and subdirectories |
-| `au_grep` | `query`, `repo?`, `scope?`, `case_sensitive?`, `limit`, `offset` | `{grep: {matches, total, truncated, skipped_files}}` |
-| `au_watch` | `timeout_ms` | `{watch: {added, removed, modified, version, timed_out}}` — the engine's `changes` subscription, one event or a timeout |
-| `au_rollback_preview` | `repo`, `commit` | `{rollback_preview: {subject, parent, paths, safe}}` |
-| `au_graph_health` | `repo?`, `scope?`, `limit` | `{graph_health: {counts, cycles, isolated, dead_ends, sources, broken_links, central, truncated}}` |
-| `au_content` | `repo`, `path` | `{content: {text, hash, commit}}` |
-| `au_imports` | `scope?` | `{imports}` |
-| `au_instances_of` | `type_name`, `origins?`, `instance?`, `body?`, `limit?`, `offset?` | `{instances_of, total, offset, next_offset}` |
-| `au_validate_value` | `type_name`, `value`, `repo?` | `{validate_value: [verdict]}` |
-| `au_preview_mutation` | `repo`, `path`, `op`, ... | `{preview_mutation}` |
-| `au_reconcile` | `repo`, `path`, `expected_hash?` / `expect_absent?` | `{outcome, current_hash, current_commit}` |
-| `au_frontmatter` | `repo`, `path` | `{frontmatter}` or null |
-| `au_anchors` | `repo`, `path` | `{anchors}` (headings) or null |
-| `au_block_ids` | `repo`, `path` | `{block_ids}` (records, fences, markers) or null |
-| `au_references` | `repo`, `path`, `direction?` | `{references_out}` and/or `{references_in}` |
-| `au_follow` | `repo`, `origin_path`, `target`, `peek?` | `{follow}`: resolution verdict, referent, the `resolve_*` fields, and a line `snippet` |
-| `au_neighborhood` | `repo`, `path`, `direction?`, `depth?`, `kinds?`, `scope?`, `max_nodes?` | `{neighborhood: {nodes, edges, truncated}}` |
-| `au_instances` | `limit?`, `offset?` | `{instances, count, total, offset, next_offset}` |
-| `au_candidates` | `summary?`, `limit?`, `offset?` | `{candidates, aborted_at_load}` |
-| `au_semantic_tokens` | `repo`, `path` | `{semantic_tokens}` |
-| `au_resolve_member` | `repo`, `path` | `{resolve_member}` |
-| `au_typed` | `repo`, `path` | `{typed, kind, path, claim, resolves, closure}` |
-| `au_resolved` | `repo`, `path` | `{instance}`: field values, provenance, claim, closure, candidates |
-| `au_search_tools` | `query`, `detail?`, `limit?` | `{tools}` |
-| `au_describe_tool` | `name` | one full tool definition |
+| `au_anchors` | `path`, `repo` | List every heading in one file, in document order, as the anchors a `#fragment` can address: text, level, and span. |
+| `au_block_ids` | `path`, `repo` | List every addressable block id in one file, in document order, with kind (record, typed_block, marker), type claim, and span. |
+| `au_candidates` | `limit`, `offset`, `summary` | List the files that satisfy a type's required fields without claiming it, grouped by file, with the candidate type names and the fields that |
+| `au_children` | `path`, `repo` | List a directory's direct entries: files and subdirectories, hidden excluded, catalog-derived so only directories holding a catalogued file |
+| `au_content` | `max_chars`, `path`, `repo` | Read one member's file text, resolved from the member's declared root, with the content hash that guards a later write and the HEAD commit o |
+| `au_diagnostics` | `code`, `limit`, `offset`, `repo`, `scope`, `severity` | List a page of diagnostics. |
+| `au_files` | `limit`, `offset`, `repo`, `scope` | List a page of catalogued files, including assets and dependencies by default. |
+| `au_follow` | `origin_path`, `peek`, `repo`, `target` | Resolve one wikilink string, including one you are about to write: does this address resolve, and what is there? target carries the link (`n |
+| `au_frontmatter` | `path`, `repo` | Read one file's parsed frontmatter as JSON. |
+| `au_graph_health` | `limit`, `repo`, `scope` | Report what is wrong with the graph in one answer: directed cycles (strongly connected components, shortest first), dead ends (nothing links |
+| `au_grep` | `case_sensitive`, `limit`, `offset`, `query`, `repo`, `scope` | Search the catalogued files for literal text, one match per line. |
+| `au_hubs` | `limit`, `offset`, `repo`, `scope` | List a ranked page of hubs. |
+| `au_imports` | `scope` | List resolved cross-repo type imports. |
+| `au_instances` | `limit`, `offset` | List every resolved instance in the workspace, with its file, claim, closure, effective shape and values, and addressable inline records. |
+| `au_instances_of` | `body`, `instance`, `limit`, `offset`, `origins`, `type_name` | List every instance matching a type. |
+| `au_members` | `repo` | List workspace members, optionally selecting an exact repo. |
+| `au_neighborhood` | `depth`, `direction`, `kinds`, `max_nodes`, `path`, `repo`, `scope` | Walk the reference graph from one seed file and return the reachable subgraph (nodes plus edges). |
+| `au_overview` | — | Get the workspace overview. |
+| `au_preview_mutation` | `content`, `new_string`, `old_string`, `op`, `path`, `replace_all`, `repo` | Preview a write, edit, or delete without changing anything. |
+| `au_reconcile` | `expect_absent`, `expected_hash`, `path`, `repo` | Check what actually happened after an outcome_unknown mutation. |
+| `au_references` | `direction`, `path`, `repo` | List one file's wikilink edges, classified by kind and surface: outgoing (what it links to) and incoming (what links to it), each with span |
+| `au_resolve_member` | `path`, `repo` | Resolve which declared member owns a member-relative path, with its root, role, and whether it is editable and local. |
+| `au_resolved` | `path`, `repo` | Resolve one instance: field values with their contribution provenance, the type claim and closure, and the candidates it could have claimed. |
+| `au_rollback_preview` | `commit`, `repo` | Preview reverting one commit without touching anything: the paths it changed, whether a revert would restore the parent's bytes or delete th |
+| `au_search` | `exact`, `limit`, `min_should_match`, `offset`, `query`, `repo`, `scope` | Rank notes by relevance to a query instead of scanning them. |
+| `au_semantic_tokens` | `path`, `repo` | Read one file's semantic token stream: resolved and broken wikilinks, pinned commits, typed field values, type claims with the identity they |
+| `au_subtypes` | `base`, `scope` | List all direct and transitive subtypes of a base type. |
+| `au_top_level_dirs` | — | List top-level directories in own scope. |
+| `au_type` | `name`, `repo` | Get one type definition by name, across the workspace or in a named member. |
+| `au_type_tree` | — | Get the complete, unpaged type tree for the whole workspace, including dependencies. |
+| `au_typed` | `path`, `repo` | Classify a path: a typed instance (with its claim, whether it resolves, and its closure), a type-def, or a plain note. |
+| `au_types` | `limit`, `offset`, `repo`, `summary` | List a name-sorted page of types across the workspace or in a named member. |
+| `au_validate_value` | `repo`, `type_name`, `value` | Validate a value against a type without touching disk. |
 
-Mutations (only when the launch grants them; three grants, each requiring
-`allow_mutations`):
+## Mutations (16) — require `--allow-mutations`
 
-- mutation grant (11): `au_write_file`, `au_edit_file`, `au_delete_file`,
-  `au_batch`, `au_assign_block_id`, `au_rename_block_id`, `au_rename`,
-  `au_rename_type`, `au_inline`, `au_promote`, `au_create_file`;
-- composition grant (2): `au_add_dep`, `au_remove_dep`;
-- workspace-shape grant (3): `au_add_workspace_member`,
-  `au_remove_workspace_member`, `au_set_workspace_member_role`.
-
-A single-file write or edit needs `expected_hash` from a prior `au_content` of
-the same path and answers the engine's mutation result (`path`, `hash`,
-`commit`, `diagnostics`, `reflected`, ...); the structural tools carry the same
-read-then-hash gate.
-
-## Bridge equivalents
-
-| bridge | adapter | difference |
+| tool | arguments | answers |
 |---|---|---|
-| `mcp__au_overview` | `au_overview` | bridge returns the bare payload |
-| `mcp__au_members`, `mcp__au_files`, `mcp__au_hubs`, `mcp__au_top_level_dirs`, `mcp__au_type_tree`, `mcp__au_subtypes` | same names under `au_` | payload identical once unwrapped |
-| `mcp__au_types` | `au_types` | bridge adds `total`, `by_repo`, `detail`, paging |
-| `mcp__au_diagnostics` | `au_diagnostics` | bridge adds `summary` and defaults to one severity |
-| `mcp__au_validate` | `au_validate_value` | bridge adds `valid`, `unresolved` |
-| `mcp__au_instances_of` | `au_instances_of` | bridge uses `ofType`; both page the records |
-| `mcp__au_instances` | `au_instances` | same set; the adapter pages it with `limit`/`offset` |
-| `mcp__au_list_imports` | `au_imports` | same list |
-| `mcp__grep_files` | `au_grep` | the bridge tool is a stub; the adapter reads the engine's catalogue |
+| `au_add_dep` | `dep`, `expected_hash`, `ref`, `remote`, `repo` | Declare a dependency in one member's .arsumbris/repo.yaml, as a byte splice that keeps comments and order. |
+| `au_add_workspace_member` | `expected_hash`, `name`, `repo`, `role` | Declare a member in one workspace's .arsumbris/workspace.yaml, in the edit or discover list. |
+| `au_assign_block_id` | `at`, `expected_hash`, `path`, `repo` | Mint a block id for the entity at a byte offset and return the id and its [[target^id]] ref. |
+| `au_batch` | `ops`, `repo` | Apply 1 to 50 file operations (write_file, edit_file, delete_file) as one all-or-nothing saga: every op passed the same gate it would pass a |
+| `au_create_file` | `content`, `path`, `repo` | Create a new file in a member. |
+| `au_delete_file` | `expected_hash`, `path`, `repo` | Delete one member's file after a successful au_content read of the same path. |
+| `au_edit_file` | `expected_hash`, `new_string`, `old_string`, `path`, `replace_all`, `repo` | Replace one exact string in a member's file after a successful au_content read of the same path. |
+| `au_inline` | `at`, `expected_hash`, `into`, `into_expected_hash`, `path`, `repo` | Fold one file into a referrer as an inline record and delete it, as one saga: the chosen [[path]] becomes the record, other whole-file links |
+| `au_promote` | `at`, `block_id`, `expected_hash`, `path`, `repo`, `to` | Lift an inline record into its own file and leave a reference where it sat, as one saga: every [[host^id]] referrer follows to the new file, |
+| `au_remove_dep` | `dep`, `expected_hash`, `repo` | Remove a dependency from one member's .arsumbris/repo.yaml, as a byte splice that keeps siblings and comments; a sole entry collapses deps t |
+| `au_remove_workspace_member` | `expected_hash`, `name`, `repo` | Remove a member from one workspace's edit and discover lists. |
+| `au_rename` | `expected_hash`, `path`, `repo`, `to` | Move a file inside its member and rewrite every inbound reference to the new name, preserving each referrer's spelling, fragments, and ::rep |
+| `au_rename_block_id` | `block_id`, `expected_hash`, `path`, `repo`, `to_block_id` | Rename an inline record's block id and carry every referrer with it: the ^: declaration and each [[host^id]] / [[^id]] rewrite as one mutati |
+| `au_rename_type` | `expected_hash`, `new_name`, `old_name` | Rename a type-def and carry every reference with it, as one saga: the def file moves and claims, slot shapes, meta, and wikilinks follow. |
+| `au_set_workspace_member_role` | `expected_hash`, `name`, `repo`, `role` | Move a declared member between the edit and discover lists in one commit. |
+| `au_write_file` | `content`, `expected_hash`, `path`, `repo` | Write one member's file text after a successful au_content read of the same path. |
 
-The bridge declares the workspace-member verbs too, so the adapter now matches it
-there as well — behind a third grant, because reshaping a workspace is a bigger
-trust decision than editing a note.
+Five of those need one more grant: `au_add_dep`, `au_remove_dep` require `--allow-composition`;
+`au_add_workspace_member`, `au_remove_workspace_member`, `au_set_workspace_member_role` require
+`--allow-workspace-shape`. Without the grant the tool is absent from `tools/list` and a call is
+refused with `policy/member_grant`.
 
-The adapter also has `au_create_file` (create a file that does not exist, refused
-if it does) and `au_batch` (1-50 file ops as one all-or-nothing saga: the bridge
-requires a per-op confirm instead, so a batch there is N calls)
- — the bridge's `write_file` covers both cases, so a create on the
-bridge side needs no extra verb.
+## Discovery (2) — answered from the catalogue, no engine contact
 
-The adapter now also answers `grep_files`' job with `au_grep` (the engine's own
-`grep` read, literal and catalogue-scoped), so the bridge's `grep_files` — a stub
-there — is the last one standing on that side.
+| tool | arguments | answers |
+|---|---|---|
+| `au_describe_tool` | `name` | Get one tool's full definition: description, input and output schemas, and annotations. |
+| `au_search_tools` | `capability`, `detail`, `limit`, `query` | Find tools by words from their name, description, or parameter names. |
 
-Tools with no adapter counterpart (8): `mcp__bash`, `mcp__glob`,
-`mcp__read_file_pinned`, the four `mcp__au_host_*` tools, and
-`mcp__au_type_system` (it reads typed `doc` atoms from a content package, not
-the engine). Every other bridge tool has the counterpart named in the table
-above, including the graph reads (`mcp__au_neighborhood`, `mcp__au_references`,
-`mcp__au_children`, `mcp__au_candidates`, `mcp__au_anchors`,
-`mcp__au_block_ids`, `mcp__au_frontmatter`, `mcp__au_follow`,
-`mcp__au_resolved`, `mcp__au_semantic_tokens`, `mcp__au_typed`,
-`mcp__au_resolve_member`).
+## Watch (1) — a change subscription
+
+| tool | arguments | answers |
+|---|---|---|
+| `au_watch` | `timeout_ms` | Wait for the next change to the workspace, up to timeout_ms (default 10000, max 30000). |
+
+## Resources
+
+`arsumbris://<repo>/<path>` is a catalogued file a client can hold and re-read without a tool call:
+`resources/list` pages the catalogue, `resources/read` returns the text. There is no resource
+subscription — `au_watch` is the change signal. The URI scheme is a contract and moved only with a
+versioned alias (`docs/naming.md`, phase N4), which is why it still says `arsumbris://` while the
+server is `2brain`.
+
+## What is not here
+
+The retired Node daemon's surface (`bash`, `glob`, `grep_files`, the four `au_host_*` relays,
+`au_type_system`) is deliberately absent — the reasons are in `docs/serving-parity.md` §2b. `au_grep`
+is literal text over catalogued files; it is not a regex or glob tool.

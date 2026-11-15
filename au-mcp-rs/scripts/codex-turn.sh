@@ -49,7 +49,7 @@ if [[ -n ${AU_TEE_TRANSCRIPT:-} ]]; then
 else
   server_cmd=("$ADAPTER" "$socket")
 fi
-CODEX_HOME=$codex_home codex mcp add arsumbris-rs -- "${server_cmd[@]}" >/dev/null 2>&1 || {
+CODEX_HOME=$codex_home codex mcp add 2brain -- "${server_cmd[@]}" >/dev/null 2>&1 || {
   echo "codex refused the MCP registration" >&2; exit 1; }
 
 echo "engine:  $socket"
@@ -58,7 +58,7 @@ echo "client:  codex $(codex --version 2>/dev/null | awk '{print $2}')"
 
 transcript=$(cd "$repo" && HOME="$TURN_HOME" CODEX_HOME=$codex_home codex exec \
   --json --skip-git-repo-check -C "$repo" \
-  'Use the arsumbris-rs MCP server: call au_grep to search the workspace for
+  'Use the 2brain MCP server: call au_grep to search the workspace for
 unique-marker-7f3a. Then answer with one line: the path of the file that contains it
 and the text of that line.' 2>&1 || true)
 

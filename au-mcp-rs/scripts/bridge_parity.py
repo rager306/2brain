@@ -1,19 +1,8 @@
 #!/usr/bin/env python3
-"""Compare the Rust adapter's surface with the existing Python bridge.
+"""RETIRED 2026-11-16: the Python bridge and the Node daemon this compared are deleted.
 
-The bridge speaks to the Node `au-mcp` daemon, which projects its own tool shapes
-(a diagnostics tool returns a summary and paging on top of the engine read), so a
-byte-for-byte comparison would be wrong. This report compares what a cutover
-actually depends on:
-
-- the two tool surfaces, classified as shared facts, daemon-only, or rust-only;
-- the facts both surfaces can state: diagnostic codes, severities, and spans.
-
-It runs against a disposable workspace that mounts the bundled plugin package
-(`au-mcp-core`), because the daemon core compiles in no tools: its surface comes
-from `mcp.tool` plugins discovered in the served workspace.
-
-    AU_ENGINE_BIN=../au-engine/target/debug/au python3 scripts/bridge_parity.py
+Kept as the record behind `docs/bridge-parity.md`. The live equivalent that still runs is
+`live_parity.py`, which compares the installed `2brain` binary with the one this tree builds.
 """
 
 import json
@@ -239,4 +228,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # The packages this needs (au-mcp-core, au-mcp-sdk code, au-mcp-bridge) were deleted on
+    # 2026-11-16. Fail with the reason instead of a traceback from a missing path.
+    missing = [p for p in (BRIDGE, BUNDLE / "au-mcp-core") if not Path(p).exists()]
+    if missing:
+        print("retired: the Python bridge / Node workspace is gone (" +
+              ", ".join(str(m) for m in missing) + "); see live_parity.py", file=sys.stderr)
+        sys.exit(2)
     sys.exit(main())

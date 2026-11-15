@@ -8,7 +8,7 @@ time and `resources/read` returns the engine's own text with `text/markdown`.
 without listing first. Resource subscriptions are not advertised: a client that
 needs change notification calls `au_watch`.
 
-51 tools: 29 engine reads, 6 derived reads and observability helpers, and 16
+52 tools: 29 engine reads, 4 derived reads and observability helpers, 2 discovery, 1 watch, and 16
 mutations that exist only when the launch grants them (11 with the mutation
 grant, 2 more with composition, 3 more with workspace shape). The three grants
 are independent, and composition and workspace shape each require

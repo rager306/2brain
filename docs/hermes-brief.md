@@ -13,27 +13,20 @@
 Типы волта: `claim`, `decision`, `error`, `extract`, `insight`, `manual`, `moc`,
 `pattern`, `principle`.
 
-Мирволт (workspace) — несколько репозиториев, смонтированных вместе. Участников 7:
-`vault`, `mcp-bundle`, `au-mcp`, `au-mcp-core`, `au-mcp-sdk`, `au-mcp-adapter-cc`,
-`au-mcp-adapter-codex`.
+Мирволт (workspace) — несколько репозиториев, смонтированных вместе. Участников 3:
+`vault` (вход), `mcp-bundle` (агрегатор) и `au-mcp-sdk` (словарь типов `mcp.*`).
 
-К движку подключены два MCP-сервера, и имена инструментов у них разные:
+К движку подключён **один** MCP-сервер — `2brain`, Rust-адаптер прямо к сокету движка.
+Ответ — объект движка под ключом самого чтения. Hermes регистрирует инструменты как
+`2brain__au_overview`, `2brain__au_content`, … (префикс = имя сервера, дефисов нет).
 
-| сервер | имена инструментов | что это |
-|---|---|---|
-| `arsumbris` | `mcp__au_overview`, `mcp__au_content`, … | старый путь: Python-мост к Node-демону; ответы — проекции |
-| `arsumbris-rs` | `mcp__arsumbris-rs__au_overview`, … | новый путь: Rust-адаптер прямо к сокету движка; ответ — объект движка под ключом самого чтения |
+Python-мост и Node-демон удалены 2026-11-16: второго пути больше нет.
 
-Клиенты рендерят имя сервера по-своому: Claude Code оставляет дефис
-(`mcp__arsumbris-rs__au_overview`), Hermes заменяет его подчёркиванием
-(`mcp__arsumbris_rs__au_overview`). Это одно и то же; ориентируйтесь на суффикс
-`__au_overview`, а не на префикс.
-
-**В этой задаче используется только `arsumbris-rs`.** Если инструмент не найден под
-этим именем — задача не выполнена, а не «сделана другим способом».
+**В этой задаче используется только `2brain`.** Если инструмент не найден под этим
+именем — задача не выполнена, а не «сделана другим способом».
 
 Сокет движка: `/root/.arsumbris/au-engine/run/adcfe8680a485529.sock`
-Бинарь адаптера: `/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs`
+Бинарь: `/usr/local/bin/2brain` (сборка: `au-mcp-rs/scripts/install.sh`).
 
 ## 2. Правила, которые нельзя нарушать
 
@@ -65,20 +58,30 @@
    `path` (путь внутри него, без `..`). Абсолютный путь отклоняется.
 10. **Не пишите в `/root/vault` ничего, кроме файлов, названных в задаче.**
 
-## 3. Карта инструментов: 35 без грантов, +16 мутаций с грантом
+## 3. Карта инструментов: 36 без грантов, 52 со всеми
 
-Чтение: `au_overview` (участники, топология, счётчики) · `au_members` (корни
+**Чтение (33).** `au_overview` (участники, топология, счётчики) · `au_members` (корни
 участников) · `au_types`, `au_type` (словарь типов, один тип с полями) · `au_type_tree` ·
-`au_hubs` (самые связанные заметки) · `au_diagnostics` (проблемы волта) · `au_files` ·
-`au_content` (текст + `hash` + `commit`) · `au_frontmatter` · `au_anchors` (заголовки
-файла) · `au_block_ids` · `au_references` · `au_neighborhood` · `au_grep` (литеральный
-поиск по тексту) · `au_graph_health` (циклы, тупики, битые ссылки) ·
-`au_rollback_preview` · `au_search_tools` / `au_describe_tool` (найти инструмент по
-описанию) · `au_children` (содержимое каталога).
+`au_subtypes` · `au_instances`, `au_instances_of` (что относится к типу) · `au_candidates`,
+`au_resolved`, `au_typed` · `au_hubs` (самые связанные заметки) · `au_neighborhood`,
+`au_follow`, `au_references` (граф) · `au_diagnostics` (проблемы волта) · `au_graph_health`
+(циклы, тупики, битые ссылки) · `au_files`, `au_children` · `au_content` (текст + `hash` +
+`commit`) · `au_frontmatter`, `au_anchors`, `au_block_ids` · `au_semantic_tokens` ·
+`au_imports` · `au_resolve_member` · `au_grep` (литеральный поиск) · **`au_search`**
+(BM25-ранжирование, `exact` для точных термов) · `au_validate_value` ·
+`au_preview_mutation`, `au_reconcile` · `au_rollback_preview`.
 
-Запись (только с грантом): `au_write_file`, `au_edit_file`, `au_delete_file`,
+**Обнаружение (2):** `au_search_tools`, `au_describe_tool` — найти инструмент по описанию.
+
+**Подписка (1):** `au_watch {timeout_ms}` — дельта изменений или таймаут.
+
+**Запись (16, только с грантом):** `au_write_file`, `au_edit_file`, `au_delete_file`,
 `au_create_file`, `au_batch`, `au_assign_block_id`, `au_rename_block_id`, `au_rename`,
-`au_rename_type`, `au_inline`, `au_promote`, `au_reconcile`.
+`au_rename_type`, `au_inline`, `au_promote`, `au_add_dep`, `au_remove_dep`,
+`au_add_workspace_member`, `au_remove_workspace_member`, `au_set_workspace_member_role`.
+
+Пять последних требуют второго гранта: `add_dep`/`remove_dep` — `--allow-composition`, три
+`*_workspace_member*` — `--allow-workspace-shape`.
 
 ## 4. Куда положить результат
 
@@ -141,8 +144,8 @@
 
 Промпт для Hermes:
 
-    Используй только инструменты сервера arsumbris-rs (имена начинаются с
-    mcp__arsumbris-rs__), сервер arsumbris не трогай. Ответь на русском:
+    Используй только инструменты сервера 2brain (имена начинаются с
+    2brain__au_), других серверов волта не трогай. Ответь на русском:
     1) какие участники смонтированы в волте и кто из них editable;
     2) пять заметок волта с наибольшим числом ссылок — путь и refs_total;
     3) у самой связанной из них — её frontmatter и список заголовков;
@@ -159,7 +162,7 @@
 
 Промпт:
 
-    Используй только инструменты сервера arsumbris-rs. Сделай две вещи по порядку.
+    Используй только инструменты сервера 2brain. Сделай две вещи по порядку.
     1) Создай файл inbox/adapter-write-test.md с типом insight (обязательные поля:
     description, status: current, topics, source_url, provenance), заголовком
     «Adapter write test» и одной строкой текста «written through the Rust adapter».
@@ -205,52 +208,46 @@
 
 ## 7. Операторские шаги
 
-Файл `~/.hermes/config.yaml`, раздел `mcp_servers:`.
+Файл `~/.hermes/config.yaml`, раздел `mcp_servers:`. Блок уже стоит и выглядит так:
 
-**Шаг 1 — read-only.** Добавить рядом с существующим `arsumbris` (не заменяя его):
-
-    arsumbris-rs:
-      type: stdio
-      command: /root/arsumbris/au-mcp-rs/target/release/au-mcp-rs
+    2brain:
+      command: /usr/local/bin/2brain
       args:
-        - /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
+        - mcp
+        - /root/vault
+        - --allow-mutations
 
-`arsumbris-rs:` — на том же уровне, что `arsumbris:`, ключи под ним — на два пробела
-глубже. Затем **новая сессия Hermes**: конфиг читается при старте.
+`mcp` принимает **цель**, а не сокет: `/root/vault` — участник-вход, сокет выводится той же
+функцией, что у `au daemon start` (FNV-1a от канонического пути). Поэтому в конфиге нет
+хеша, и он не устаревает при смене написания пути.
 
-Ожидаемо: 35 инструментов, и среди них НЕТ `au_write_file`, `au_batch`,
-`au_create_file`.
+Гранты и размер поверхности:
 
-**Шаг 2 — с грантом.** Тот же блок, второй аргумент:
+| args | инструментов |
+|---|---:|
+| без грантов | 36 |
+| `--allow-mutations` | 47 |
+| `+ --allow-composition` | 49 |
+| `+ --allow-workspace-shape` | 52 |
 
-    args:
-      - /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
-      - --allow-mutations
+**Грант не подхватывается перезагрузкой конфига.** `/reload-mcp` сверяет серверы по имени
+и не замечает, что изменились аргументы. Рабочий путь: `hermes mcp remove 2brain`, затем
+`hermes mcp add 2brain ...` с новым набором аргументов, затем новая сессия. Признак
+успеха — в процессе адаптера виден нужный флаг (`ps -eo cmd | grep 2brain`).
 
-Снова новая сессия.
+**Проверка без сессии:**
 
-**Грант не подхватывается перезагрузкой конфига.** `/reload-mcp` сверяет серверы по
-имени и не замечает, что изменились аргументы. Рабочий путь: `hermes mcp remove
-arsumbris-rs`, затем `hermes mcp add arsumbris-rs ...` с новым набором аргументов, затем
-новая сессия. Признак успеха — в процессе адаптера виден `--allow-mutations`
-(`ps -eo cmd | grep au-mcp-rs`).
+    /usr/local/bin/2brain --version                 # версия несёт коммит сборки
+    HOME=/root /usr/local/bin/2brain info /root/vault   # поверхность + проба движка
+    cd /root/arsumbris/au-mcp-rs && python3 scripts/live_parity.py
 
-Теперь инструментов 46 = 35 чтений + 11 мутаций.
-Не 51: полные 51 требуют всех трёх грантов, а `--allow-mutations` открывает только
-мутации файлов. Оставшиеся пять — `add_dep`/`remove_dep` (нужен
-`--allow-composition`) и три `*_workspace_member` (нужен `--allow-workspace-shape`).
-`au_reconcile` и `au_preview_mutation` — чтения, они видны и без грантов.
+`live_parity.py` сравнивает два адаптера на одном сокете (read-only): пять строк
+`identical` и `PASS`. Коды выхода: `0` — сошлось, `1` — расхождение, `2` — не смог
+сравнить (это не успех).
 
-**Шаг 3 — сравнение стеков (read-only, в любой момент):**
-
-    cd /root/arsumbris/au-mcp-rs
-    python3 scripts/live_parity.py
-
-Ожидаемо пять строк `identical` и `PASS`. Коды выхода: `0` — сошлось, `1` —
-расхождение, `2` — не смог сравнить (это не успех).
-
-**Откат:** удалить блок `arsumbris-rs` из `~/.hermes/config.yaml` и начать новую сессию.
-Движок, волт и Node-стек при этой процедуре не менялись, поэтому возврат мгновенный.
+**Откат:** вернуть `~/.hermes/config.yaml` из `/root/backups/hermes-config-20261116.yaml` и
+начать новую сессию. Движок и волт при переключении не менялись, поэтому возврат
+мгновенный.
 
 ## 8. Что прислать назад
 

@@ -1,5 +1,10 @@
 # Graph-engine assessment: is migrating to Samyama Graph (or another) justified?
 
+> **Historical measurement, 2026-11-15.** The verdict (do not migrate to a graph database) is
+> unchanged and still the decision of record; the bundle it measured included the TypeScript MCP
+> layer, deleted 2026-11-16. The engine numbers it compares are unaffected.
+
+
 Status: assessment, 2026-11-15. No migration was performed and no code changed. Numbers that
 decide the question were measured on the live engine, on `/root/samyama-graph` (v1.10.0) and in
 a survey of the candidate field; every claim has a command, a file:line, a note, or a source.
