@@ -25,6 +25,12 @@ prepare_fixture() {
   # second EXIT trap, because bash runs only the last one and the first would be lost.
   trap cleanup_fixture EXIT
 
+  # An EXIT trap does not run when the caller is killed (a harness timeout sends the
+  # whole process group a signal), and `au daemon start` may detach, so a trap alone
+  # left fourteen orphans on this host by 2026-11-16. Reap the signature of that
+  # failure before adding another: a daemon whose fixture root no longer exists.
+  reap_orphaned_fixtures
+
   repo=$root/fixture
   mkdir -p "$repo/.arsumbris" "$repo/type" "$repo/notes"
   printf 'name: fixture\n' >"$repo/.arsumbris/repo.yaml"
@@ -64,7 +70,37 @@ except OSError:
   fi
 }
 
+# Kill daemons left behind by a fixture whose directory is gone.
+#
+# Identified by argv, not by pid or by $daemon_pid: the daemon outlives the shell that
+# started it, and the root directory is the only reliable join between the two.
+reap_orphaned_fixtures() {
+  local pid root reaped=0
+  while read -r pid root; do
+    [[ -d $root ]] && continue
+    kill "$pid" 2>/dev/null && reaped=$((reaped + 1))
+  done < <(
+    ps -eo pid=,args= 2>/dev/null |
+      awk '/au daemon start \/tmp\/au-fixture-/ {
+             pid = $1
+             for (i = 1; i <= NF; i++) if ($i == "start") { print pid, $(i + 1); break }
+           }'
+  )
+  (( reaped > 0 )) && echo "fixture: reaped $reaped orphaned engine(s)" >&2
+  return 0
+}
+
 cleanup_fixture() {
+  if [[ ${AU_KEEP_FIXTURE:-0} == 1 ]]; then
+    echo "fixture kept: root=$root socket=$socket (AU_KEEP_FIXTURE=1)" >&2
+    return 0
+  fi
+  # Ask the engine to stop first: it owns its pid file, and this works even when the
+  # process detached from the shell that started it. Then fall back to signals.
+  [[ -n ${ENGINE:-} && -n ${repo:-} ]] && "$ENGINE" daemon stop "$repo" >/dev/null 2>&1 || true
+  if [[ -n ${repo:-} ]]; then
+    pkill -f "au daemon start $repo" 2>/dev/null || true
+  fi
   if [[ -n ${daemon_pid:-} ]]; then
     kill "$daemon_pid" 2>/dev/null || true
     # Bounded: a daemon that ignores SIGTERM must not hang the script's exit.
