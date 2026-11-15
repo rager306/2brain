@@ -380,6 +380,23 @@ later stages read (`recorded` hash, resolved target, armed file). `arm_file`, `f
 and the engine call stay where they are: they are dispatch, and a reduction that performs IO
 cannot be tested without a socket.
 
+**P2.2 the armed mutation is a value — measured out, 2026-11-16.** The plan wanted
+`Prepared { stage, repo, path, expected_hash, recorded }` so a mutation in flight could be
+"described, logged and resumed as data". Reading the consumers before building it: the only place a
+description could go is the `outcome_unknown` message, and there it would mislead — `au_reconcile`
+wants the digest the write *should have produced*, not the pre-write hash the gate holds, so naming
+the held hash next to "reconcile" would invite exactly the wrong call. The path and repo are already
+the caller's own arguments. So the value would be a struct nothing reads, which is the same finding
+as P2.3.
+
+What would make it pay, recorded here rather than built: the **audit log** records `applied`,
+`rejected` and `outcome_unknown` at member granularity (`audit.record(principal, "mutation", repo,
+verdict)` in `lib.rs`), so an operator cannot reconstruct which file and which hash were in flight.
+Extending the record to carry `repo:path@hash` is the consumer that would justify `Prepared` — and it
+changes a hash-chained log format, so it needs its own decision, not a refactor commit.
+
+The original wording is kept below for the record.
+
 **P2.2 the armed mutation is a value.** `Prepared { stage, repo, path, expected_hash, recorded }`
 so a mutation in flight can be logged, described and resumed as data instead of living in locals.
 `Denial` keeps its stage and gains `next: Vec<Next>`.
