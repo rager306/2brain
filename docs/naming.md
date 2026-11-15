@@ -25,8 +25,9 @@ The rebrand ran in tiers (`docs/rebrand-plan.md`). This page states what is true
 ## What is still open, with the numbers
 
 **Tier C — the engine file format.** `.arsumbris/` as a directory name (79 literals in 12 files, five
-crates), `au.engine.*` as a schema-name prefix (52 occurrences in 28 files), and 314 `repo.yaml` files
-declaring `type: au.engine.repo::au-engine`. The type namespace *is* the vault contract: a partial rename
+crates), `au.engine.*` as a schema-name prefix (52 occurrences in 28 files), and 308 tracked `repo.yaml` files, of
+which 304 declare `type: au.engine.repo::au-engine` (1 the wrong floor, 3 no written type) plus 30
+`workspace.yaml` and 11 `extends: au.engine.meta::au-engine` lines. The type namespace *is* the vault contract: a partial rename
 leaves a type system that cannot open its own content, which is why the shape is two releases —
 `identity_dir()` and `schema_type_matches()` first (accept both), then `au migrate identity --dry-run`,
 then the data move, then dropping the legacy spelling. Inventory: `docs/research/tier-c-inventory.md`.
