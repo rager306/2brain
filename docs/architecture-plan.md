@@ -154,8 +154,13 @@ edited by hand.
 | P1.3 resources | done `a4228c0` | pure functions; `resources -> wire` edge removed |
 | P1.4 schemas table | dropped | 15 shapes are not one table |
 | P1.5 read ledger | done `3e402e8` | `ReadLedger` + 3 tests |
-| T1 phase 1 | done `3d4bc40` | `search.rs` 982 lines; **release** p50 79 µs OR / 9.7 µs exact, 4.7 KiB/doc |
+| T1 phase 1 | done `3d4bc40` | `search.rs`; **release** p50 79 µs OR / 9.7 µs exact, 4.7 KiB/doc |
 | P2 first slice | done `ac91a9d` | `Denial` beside `Stage`; P2.3 remedy table measured out |
+| P2 core | done `2f00339` | `gate.rs`: pure `reduce` + 7 tests; `lib.rs` 4521 → 4424 |
+| T1 engine half | done `d888abe` | index on `KnowledgeBase` + `search` parity fact; `Request::Search` from held state; 6 integration tests |
+| T1 adapter half | done `c3472e5` | `au_search` is the 52nd tool; counts moved together; suite 203 |
+| T1 dead code | done `44c6967` | `Bm25Index::is_empty` removed with the crate-wide allow |
+| W4.1 phase 1 | done `6b8f0f0` | `tools/judgement/`: 50-note labelled sample + gated client |
 | W4.2 roles | done `3c16fc7` | `docs/agent-roles.md` |
 
 Ratchet trail, which is the cheapest honest progress metric: `lib.rs` production lines
@@ -190,6 +195,36 @@ new directory and touches no code that either A or B compiles. The one rule that
 
 **Re-baselined estimate:** A ≈ 1 day, B ≈ 1–1.5 days, C ≈ 0.5 day, running together → about
 1.5–2 days wall, then the adapter `au_search` (0.5 day) after B.
+
+## 2d. Second revision (2026-11-16)
+
+Three things changed since 2c, and each one changes what to do next.
+
+1. **The ratchet gained one explicit exception.** Adding `au_search` cost 81 lines in `lib.rs`, so the
+   budget moved 4 424 → 4 505 with the reason written into the constant. The rule now reads: the
+   ratchet guards a refactor from re-growing the file; a feature pays its own lines once, and the
+   number and its reason are recorded in the same edit.
+2. **A cleanup lesson worth keeping.** Deleting `.cargo-target` while another `cargo` held the
+   build lock made that build start restoring the directory; the target is shared by two workspaces
+   and by other sessions on this host. Clean it only when idle. The "duplicate" crates in
+   `deps/` (16 `mio`, 14 `syn`, 12 `au_mcp_rs`) are the **feature matrix** — `clippy
+   --all-features` versus `test` versus release — not a misconfiguration, and not worth chasing.
+3. **T1 is closed but unmeasured on the real thing.** The engine tests prove behaviour; the
+   acceptance in 2b (≤ 15 ms median on the eight probe queries, ≥ 5× faster than `au_grep`) has
+   never been run against the new verb on a vault-shaped corpus, because the live daemon still runs
+   the previous engine binary.
+
+**What is left, and what can run together:**
+
+| track | work | surface | conflicts with |
+|---|---|---|---|
+| **D** T1 acceptance measurement | build a disposable fixture engine from HEAD, run `au_search` and `au_grep` over the eight probe queries, record the table in `docs/verification.md`; the live vault and daemon stay untouched | `/tmp` + `scripts/lib/disposable-fixture.sh` | nothing |
+| **A** P2.2 | `Prepared` as a value: the armed mutation carries its stage and the recorded hash, so it can be described, logged and asserted in a test | `au-mcp-rs` (`gate.rs`, `lib.rs`) | nothing |
+| **B** P3 | two procedures (`mutation-turn.sh`, `recovery-turn.sh`) expressed as states with code transitions and negative cases | `scripts/` | nothing |
+
+**Order:** D first because it is the only one producing evidence about what just shipped; A and B
+are code work that can follow in either order. W4.1 phase 2 stays blocked on a vendor key, and the
+local-first default means it is not on the critical path.
 
 ## 3. What blocks what
 
