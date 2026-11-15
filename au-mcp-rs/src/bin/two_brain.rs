@@ -143,15 +143,15 @@ fn main() -> ExitCode {
             // (`--help`, `--info`, …), in which case the server answers it directly.
             let mut rest = arguments.into_iter().peekable();
             let mut forwarded: Vec<std::ffi::OsString> = Vec::with_capacity(rest.len());
-            if let Some(first) = rest.peek() {
-                if !first.starts_with('-') {
-                    let target = PathBuf::from(rest.next().expect("peeked"));
-                    match resolve_socket(&target) {
-                        Ok(socket) => forwarded.push(socket.into_os_string()),
-                        Err(error) => {
-                            eprintln!("2brain: {error}");
-                            return ExitCode::FAILURE;
-                        }
+            if let Some(first) = rest.peek()
+                && !first.starts_with('-')
+            {
+                let target = PathBuf::from(rest.next().expect("peeked"));
+                match resolve_socket(&target) {
+                    Ok(socket) => forwarded.push(socket.into_os_string()),
+                    Err(error) => {
+                        eprintln!("2brain: {error}");
+                        return ExitCode::FAILURE;
                     }
                 }
             }
