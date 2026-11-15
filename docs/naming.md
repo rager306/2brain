@@ -1,6 +1,7 @@
 # Naming: the product is 2brain
 
-Decision (2026-11-16): the consolidated system is called **2brain**. The name belongs to the whole —
+Decision (2026-11-16): the consolidated system is called **2brain**, short form **2b** — used in
+headers, commits and conversation, never as an identifier that crosses a process boundary. The name belongs to the whole —
 the Rust knowledge engine, the MCP surface agents talk to, and the judgement layer that decides small
 things cheaply. "arsumbris" is not deleted; it becomes the working name of the parts that already
 carry it, and every rename is a migration rather than a find-and-replace.
