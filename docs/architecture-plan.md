@@ -255,4 +255,4 @@ invariant. Any step that cannot state its acceptance in a command is not a step 
 | P2.1–P2.3 gate | not started | — | — |
 | P3.1–P3.2 agent layer | not started | — | — |
 | P4.1 generated manual | not started | — | — |
-| R1 retrieval probe | not started | — | — |
+| R1 retrieval probe | **measured 2026-11-15** — not adopted | `docs/retrieval-spike.md`: HelixDB 0.0.16 on 1 036 nodes / 2 730 edges — hubs 103.5 ms vs 9.8 ms, 2-hop count 54.7 ms vs `au_neighborhood` 102.2 ms for 253 materialised nodes, BM25 24.2 ms vs `au_grep` 132.8 ms, variable-length patterns unsupported; decision: tantivy plus our own traversal | 2026-11-15 |

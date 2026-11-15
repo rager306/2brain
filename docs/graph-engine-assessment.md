@@ -246,8 +246,11 @@ bottleneck exactly where it is.
    filter first (type/topic), then vector inside the subgraph.
 4. **Analytics stay in-memory**: extend `graph_health`'s pass (PageRank, WCC, CDLP) instead of
    adopting a store to get them.
-5. **If hybrid retrieval becomes a product requirement, spike HelixDB embedded — as a derived
-   index, never as authority.** One to two days, fixed acceptance:
+5. ~~**If hybrid retrieval becomes a product requirement, spike HelixDB embedded**~~ — **measured
+   2026-11-15, see `docs/retrieval-spike.md`.** Outcome: BM25 is a genuine win over the literal scan
+   (24.2 ms ranked versus 132.8 ms); traversal is not (hub ranking 103.5 ms versus 9.8 ms); and the
+   Cypher profile rejects variable-length patterns, so the bundled engine does not justify a git
+   dependency. The original acceptance criteria stay below, for the record:
    - rebuild the index from the files deterministically (same input → same digest), then load
      1 036 notes / 5 046 links;
    - three queries with numbers attached: hub ranking, 2-hop neighbourhood with a type filter,
@@ -257,6 +260,8 @@ bottleneck exactly where it is.
    - **go rule:** it must beat tantivy-plus-manual-traversal by enough to justify a git-tag
      dependency and a second data model. Otherwise take tantivy now and revisit HelixDB when
      `embedded` ships on crates.io.
+   - **result: the rule was not met.** Take tantivy, and adopt their prefilter order
+     (traversal → exact membership → ranking → top `k`) into our own composition.
 6. **Adopt the honesty sentence** for documentation: *the graph is an index over files, not a
    database*.
 
