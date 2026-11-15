@@ -1,5 +1,6 @@
 mod bounded_stdio;
 mod capability;
+mod gate;
 mod ledger;
 mod policy;
 mod resources;
@@ -2720,75 +2721,22 @@ impl Server {
         path: &str,
         expected_hash: &str,
     ) -> Result<ArmedFile, Denial> {
-        use policy::Stage;
-
         let key = (repo.to_owned(), path.to_owned());
-        let mut served: Option<String> = None;
-        let mut target: Option<String> = None;
-
-        for stage in policy::MUTATION_STAGES {
-            match stage {
-                Stage::Arguments => {
-                    if repo.is_empty() {
-                        return Err(Denial::new(stage, "'repo' must not be empty"));
-                    }
-                    if path.is_empty() {
-                        return Err(Denial::new(stage, "'path' must not be empty"));
-                    }
-                    if expected_hash.is_empty() {
-                        return Err(Denial::new(stage, "'expected_hash' must not be empty"));
-                    }
-                }
-                Stage::PathScope => {
-                    if let Err(error) = relative_path(path) {
-                        return Err(Denial::new(stage, error));
-                    }
-                }
-                Stage::MemberGrant => {
-                    if !self.policy.permits_member(repo) {
-                        return Err(Denial::new(
-                            stage,
-                            format!("mutations are not allowed in workspace member {repo}"),
-                        ));
-                    }
-                }
-                Stage::PriorRead => {
-                    let Some(recorded) = self.ledger.recorded(&key) else {
-                        return Err(Denial::new(
-                            stage,
-                            "read this file with au_content before writing it",
-                        ));
-                    };
-                    served = Some(recorded);
-                }
-                Stage::Freshness => {
-                    if served.as_deref() != Some(expected_hash) {
-                        return Err(Denial::new(
-                            stage,
-                            "'expected_hash' does not match the hash returned by the last au_content read",
-                        ));
-                    }
-                }
-                Stage::Editability => {
-                    // A mutation is not cancelled: an aborted write has an
-                    // unknown outcome, so the bounded exchange finishes instead.
-                    match resolve_editable(self.transport.as_ref(), repo, path).await {
-                        Ok(resolved) => target = Some(resolved),
-                        Err(error) => return Err(Denial::new(stage, error)),
-                    }
-                }
-                // Absence belongs to the create gate; a mutation never asks it.
-                Stage::Capacity | Stage::Absence => {}
-            }
-        }
-
-        match target {
-            Some(target) => Ok(ArmedFile { key, target }),
-            None => Err(Denial::new(
-                Stage::Arguments,
-                "internal: the mutation gate did not complete",
-            )),
-        }
+        // The pure half of the gate: order and answers, no IO. See `gate::reduce`.
+        let input = gate::Input {
+            repo,
+            path,
+            expected_hash,
+            recorded: self.ledger.recorded(&key),
+            permits_member: self.policy.permits_member(repo),
+        };
+        gate::reduce(&policy::MUTATION_STAGES, &input)?;
+        // The engine answers whether it will author this member; capacity is a resource,
+        // not a judgement.
+        let target = resolve_editable(self.transport.as_ref(), repo, path)
+            .await
+            .map_err(|error| Denial::new(policy::Stage::Editability, error))?;
+        Ok(ArmedFile { key, target })
     }
 
     /// Send an armed mutation and settle its outcome, consuming every recorded
@@ -2835,75 +2783,31 @@ impl Server {
         repo: &str,
         path: &str,
     ) -> Result<(ArmedFile, tokio::sync::OwnedSemaphorePermit), Denial> {
-        use policy::Stage;
-
-        let mut target: Option<String> = None;
-        for stage in policy::CREATE_STAGES {
-            match stage {
-                Stage::Arguments => {
-                    if repo.is_empty() {
-                        return Err(Denial::new(stage, "'repo' must not be empty"));
-                    }
-                    if path.is_empty() {
-                        return Err(Denial::new(stage, "'path' must not be empty"));
-                    }
-                }
-                Stage::PathScope => {
-                    if let Err(error) = relative_path(path) {
-                        return Err(Denial::new(stage, error));
-                    }
-                }
-                Stage::MemberGrant => {
-                    if !self.policy.permits_member(repo) {
-                        return Err(Denial::new(
-                            stage,
-                            format!("mutations are not allowed in workspace member {repo}"),
-                        ));
-                    }
-                }
-                Stage::Absence => {
-                    // The engine owns the catalogue, so this is its answer, not
-                    // a filesystem check. The window between this read and the
-                    // write is a few milliseconds and is documented.
-                    match read_content(self.transport.as_ref(), repo, path).await {
-                        Ok(read) => {
-                            if read.payload.get("content").is_some_and(|c| !c.is_null()) {
-                                return Err(Denial::new(
-                                    stage,
-                                    "file already exists; use au_write_file to change it",
-                                ));
-                            }
-                        }
-                        Err(error) => return Err(Denial::new(stage, error)),
-                    }
-                }
-                Stage::Editability => {
-                    match resolve_editable(self.transport.as_ref(), repo, path).await {
-                        Ok(resolved) => target = Some(resolved),
-                        Err(error) => return Err(Denial::new(stage, error)),
-                    }
-                }
-                Stage::PriorRead | Stage::Freshness | Stage::Capacity => {}
-            }
-        }
-
-        let target = match target {
-            Some(target) => target,
-            None => {
-                return Err(Denial::new(
-                    Stage::Arguments,
-                    "internal: the create gate did not complete",
-                ));
-            }
+        let key = (repo.to_owned(), path.to_owned());
+        let input = gate::Input {
+            repo,
+            path,
+            expected_hash: "",
+            recorded: None,
+            permits_member: self.policy.permits_member(repo),
         };
+        gate::reduce(&policy::CREATE_STAGES, &input)?;
+        // Absence is the engine's answer, not a filesystem check: the window between this
+        // read and the write is a few milliseconds and is documented.
+        let read = read_content(self.transport.as_ref(), repo, path)
+            .await
+            .map_err(|error| Denial::new(policy::Stage::Absence, error))?;
+        if read.payload.get("content").is_some_and(|c| !c.is_null()) {
+            return Err(Denial::new(
+                policy::Stage::Absence,
+                "file already exists; use au_write_file to change it",
+            ));
+        }
+        let target = resolve_editable(self.transport.as_ref(), repo, path)
+            .await
+            .map_err(|error| Denial::new(policy::Stage::Editability, error))?;
         let permit = self.take_slot()?;
-        Ok((
-            ArmedFile {
-                key: (repo.to_owned(), path.to_owned()),
-                target,
-            },
-            permit,
-        ))
+        Ok((ArmedFile { key, target }, permit))
     }
 
     /// Take the single mutation slot.

@@ -325,6 +325,7 @@ fn digest(preimage: &str) -> String {
 }
 
 /// The first gate that refused a mutation.
+#[derive(Debug)]
 pub(crate) struct Denial {
     pub(crate) stage: Stage,
     pub(crate) message: String,
