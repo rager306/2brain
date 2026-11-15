@@ -15,8 +15,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use tb_engine::{Client, ConfigSource, Engine, serve};
 use serde_json::{Value, json};
+use tb_engine::{Client, ConfigSource, Engine, serve};
 
 use crate::wire_fixtures::{Harness, harness};
 

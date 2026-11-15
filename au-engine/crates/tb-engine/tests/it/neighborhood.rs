@@ -9,8 +9,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// A single repo: a chain a → b → c (prose), a frontmatter field edge, a
 /// typed block with a `^^` block-referent and a bare `^` anchor into it, and a

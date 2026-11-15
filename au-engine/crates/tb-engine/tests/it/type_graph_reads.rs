@@ -8,8 +8,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::{Value, json};
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// One repo `v`. `thing` is a base; `note` extends it (a subtype edge); `book`
 /// references `note` through TWO fields (a field-type edge weighted 2); `n1`

@@ -438,8 +438,8 @@ mod tests {
     use crate::graph::build_graph;
     use crate::resolution::PeerGraphResolver;
     use crate::typedef::{FieldDecl, FieldName, ParentClaim, ParentClaimForm, TypeNameClaim};
-    use tb_diagnostics::ByteRange;
     use std::path::PathBuf;
+    use tb_diagnostics::ByteRange;
 
     fn td(name: &str, parents: &[&str]) -> TypeDef {
         let parent_claim = if parents.is_empty() {

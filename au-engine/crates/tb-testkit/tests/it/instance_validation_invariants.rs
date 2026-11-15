@@ -4,12 +4,12 @@
 //! regardless of input details — proptest randomizes names where applicable
 //! and explicit permutation tests cover ordering.
 
+use proptest::prelude::*;
 use tb_core::{FieldName, InstanceValue, build_graph};
 use tb_testkit::{
     arb_field_name, arb_type_name, instance_bare, instance_field, type_def_with_fields,
     validate_simple,
 };
-use proptest::prelude::*;
 
 // ----- 1. Removing a required field always triggers required-field-absent -----
 

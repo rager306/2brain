@@ -11,8 +11,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 fn w(root: &Path, rel: &str, content: &str) {
     let p = root.join(rel);

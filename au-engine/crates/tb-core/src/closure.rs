@@ -795,9 +795,9 @@ mod tests {
     use crate::graph::build_graph;
     use crate::instance::TypeClaim;
     use crate::typedef::{FieldDecl, FieldName, TypeDef, TypeName, TypeNameClaim};
+    use std::path::PathBuf;
     use tb_diagnostics::{ByteRange, Diagnostic, DiagnosticCode, Severity, Span};
     use tb_grammar::{DefBound, Primitive, Shape};
-    use std::path::PathBuf;
 
     fn td(name: &str, parents: &[&str], fields: &[&str]) -> TypeDef {
         td_with_shapes(

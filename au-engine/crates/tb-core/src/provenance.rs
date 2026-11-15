@@ -1192,9 +1192,9 @@ fn collapse_to_containers(mut contribs: Vec<(Contribution, bool)>) -> Vec<ValueC
 mod tests {
     use super::*;
     use crate::instance::{Instance, parse_instance};
+    use std::path::Path;
     use tb_parser::yaml::parse;
     use tb_parser::{scan_body, split_frontmatter};
-    use std::path::Path;
 
     fn parse_md(src: &str) -> (Instance, Vec<BodyEvent<'_>>, usize) {
         let split = split_frontmatter(src).unwrap();

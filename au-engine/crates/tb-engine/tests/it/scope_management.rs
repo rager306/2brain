@@ -10,8 +10,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// One git-backed member rooted at the knowledge base: a couple of instances, a pruned
 /// `node_modules`, and an `.auignore` excluding `docs/`.

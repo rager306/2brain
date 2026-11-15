@@ -587,8 +587,8 @@ mod tests {
     use super::*;
     use crate::build::build;
     use crate::ir::KnowledgeBase;
-    use tb_parser::MemoryFileSystem;
     use std::path::Path;
+    use tb_parser::MemoryFileSystem;
 
     /// Build a two-repo workspace: `base` owns `note { title }`, `app` peers base
     /// and carries `app_files`.
@@ -1256,8 +1256,8 @@ mod tests {
 mod bodyuse_tests {
     use crate::build::build;
     use crate::ir::KnowledgeBase;
-    use tb_parser::MemoryFileSystem;
     use std::path::Path;
+    use tb_parser::MemoryFileSystem;
 
     /// `base` (present, owns `base_files`) and `app` (peers base, owns `app_files`).
     fn build_repos(base_files: &[(&str, &str)], app_files: &[(&str, &str)]) -> KnowledgeBase {
@@ -1430,8 +1430,8 @@ mod bodyuse_tests {
 mod candidate_scope_tests {
     use crate::RepoName;
     use crate::build::build;
-    use tb_parser::MemoryFileSystem;
     use std::path::Path;
+    use tb_parser::MemoryFileSystem;
 
     #[test]
     fn the_candidate_scan_stays_scoped_to_the_own_graph() {
@@ -1491,8 +1491,8 @@ mod candidate_scope_tests {
 mod qualified_demand_tests {
     use crate::build::build;
     use crate::ir::KnowledgeBase;
-    use tb_parser::MemoryFileSystem;
     use std::path::{Path, PathBuf};
+    use tb_parser::MemoryFileSystem;
 
     /// A two-repo workspace: `base` (present, owns the given files) and `app`
     /// (peers base, owns the given files). `app` demands `base`'s types via

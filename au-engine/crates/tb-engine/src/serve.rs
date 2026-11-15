@@ -53,11 +53,11 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
 use tb_diagnostics::{Diagnostic, Severity};
 use tb_grammar::{Shape, ShapeSpanRole};
 use tb_parser::{BodyEvent, scan_body};
 use tb_references::{extract_field_marker, parse_wikilink, parse_wikilink_inner};
-use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::runtime::Runtime;
 use tokio::sync::{mpsc, watch};

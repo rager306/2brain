@@ -3,13 +3,13 @@
 //! independently be a non-sealed type-def. A non-sealed sibling does not
 //! excuse a sealed claim.
 
+use proptest::prelude::*;
 use tb_core::{InstanceValue, TypeDef, TypeName, TypeNameClaim, build_graph};
 use tb_diagnostics::ByteRange;
 use tb_testkit::{
     instance_bare, instance_field, instance_list, type_def_with_fields, type_def_with_parents,
     validate_simple,
 };
-use proptest::prelude::*;
 
 fn codes_of(diags: &[tb_diagnostics::Diagnostic]) -> Vec<&str> {
     diags.iter().map(|d| d.code.as_str()).collect()

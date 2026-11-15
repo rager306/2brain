@@ -27,9 +27,9 @@ use std::sync::mpsc::{RecvTimeoutError, channel};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use notify::{RecursiveMode, Watcher};
 use tb_diagnostics::Diagnostic;
 use tb_parser::{FileSystem, RealFileSystem};
-use notify::{RecursiveMode, Watcher};
 use tokio::sync::watch;
 
 use crate::KnowledgeBase;

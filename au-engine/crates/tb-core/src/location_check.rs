@@ -264,8 +264,8 @@ mod tests {
     use crate::graph::build_graph;
     use crate::instance::TypeClaim;
     use crate::typedef::{TypeDef, TypeNameClaim, parse_type_def};
-    use tb_diagnostics::ByteRange;
     use std::path::Path;
+    use tb_diagnostics::ByteRange;
 
     fn def(name: &str, src: &str) -> TypeDef {
         let docs = tb_parser::yaml::parse(src).unwrap();

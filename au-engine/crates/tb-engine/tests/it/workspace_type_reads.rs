@@ -8,8 +8,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// Two repos under one tree. `base` owns `thing`. `app` imports `base` and owns
 /// `task` (extends the peer `thing::base`), `tag`, and `audited-task` (a mixin

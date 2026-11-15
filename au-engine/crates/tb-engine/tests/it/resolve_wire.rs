@@ -12,8 +12,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use tb_engine::{Client, ConfigSource, Engine, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, serve};
 
 fn git(repo: &Path, args: &[&str]) -> String {
     let out = Command::new("git")

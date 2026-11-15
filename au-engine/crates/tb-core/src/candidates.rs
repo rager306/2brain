@@ -620,9 +620,9 @@ mod tests {
     use crate::graph::build_graph;
     use crate::instance::{Instance, InstanceField, InstanceValue, TypeClaim};
     use crate::typedef::{FieldDecl, TypeDef, TypeNameClaim};
+    use std::path::PathBuf;
     use tb_diagnostics::ByteRange;
     use tb_grammar::{Primitive, Shape};
-    use std::path::PathBuf;
 
     /// Build a minimal type-def. Each field is `(name, optional)` — all
     /// fields share `String` shape since most candidate tests only look at

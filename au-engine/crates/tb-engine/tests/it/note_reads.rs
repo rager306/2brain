@@ -7,8 +7,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// A knowledge base of untyped notes, no type vocabulary at all. `index.md` links to
 /// `topic.md`, which carries a typed `^block-id` block.

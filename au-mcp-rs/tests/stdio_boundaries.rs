@@ -107,7 +107,8 @@ fn queued_responses_are_delivered_when_client_resumes_draining_stdout() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("unused.sock");
     let mut child = OwnedChild(
-        Command::new(env!("CARGO_BIN_EXE_2brain")).arg("mcp")
+        Command::new(env!("CARGO_BIN_EXE_2brain"))
+            .arg("mcp")
             .arg(path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -186,7 +187,8 @@ fn queued_responses_are_delivered_when_client_resumes_draining_stdout() {
 fn eof_with_blocked_stdout_terminates_within_bound() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("unused.sock");
-    let mut child = Command::new(env!("CARGO_BIN_EXE_2brain")).arg("mcp")
+    let mut child = Command::new(env!("CARGO_BIN_EXE_2brain"))
+        .arg("mcp")
         .arg(path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

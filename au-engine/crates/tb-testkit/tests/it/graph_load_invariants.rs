@@ -1,12 +1,12 @@
 //! Property tests for graph-load invariants: determinism, cycle-detection
 //! termination, sealed reachability, redeclare detection.
 
+use proptest::prelude::*;
 use tb_core::{TypeDef, build_graph, run_graph_structure_checks, run_inheritance_checks};
 use tb_testkit::{
     cycle_of_size, empty_type_def, self_cycle, type_def_sealed, type_def_with_fields,
     type_def_with_parents,
 };
-use proptest::prelude::*;
 
 // ----- 1. Graph-load determinism -----
 //

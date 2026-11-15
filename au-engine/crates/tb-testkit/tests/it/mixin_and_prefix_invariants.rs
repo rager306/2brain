@@ -8,6 +8,7 @@
 //! everywhere); diverging-shape invariants use `type_def_with_enum_field`
 //! to vary literals without leaving the existing builder set.
 
+use proptest::prelude::*;
 use tb_core::{FieldDecl, FieldName, InstanceValue, TypeDef, build_graph};
 use tb_diagnostics::ByteRange;
 use tb_grammar::{Primitive, Shape};
@@ -15,7 +16,6 @@ use tb_testkit::{
     instance_bare, instance_field, instance_list, type_def_with_enum_field, type_def_with_fields,
     type_def_with_parents, validate_simple,
 };
-use proptest::prelude::*;
 
 fn codes_of(diags: &[tb_diagnostics::Diagnostic]) -> Vec<&str> {
     diags.iter().map(|d| d.code.as_str()).collect()

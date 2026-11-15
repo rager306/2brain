@@ -7,8 +7,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::{Value, json};
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 struct Harness {
     _dir: tempfile::TempDir,

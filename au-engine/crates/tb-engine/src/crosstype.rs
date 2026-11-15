@@ -785,8 +785,8 @@ pub(crate) fn cross_repo_type_diagnostics(
 mod tests {
     use super::*;
     use crate::build::build;
-    use tb_parser::MemoryFileSystem;
     use std::path::Path;
+    use tb_parser::MemoryFileSystem;
 
     /// Build a two-repo workspace and return only its `::repo` type-gating
     /// diagnostics. `base` is present and owns `note { title }`; `ghost` is a

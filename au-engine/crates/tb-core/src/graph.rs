@@ -227,8 +227,8 @@ fn duplicate_type_def_diag(td: &TypeDef, existing: &TypeDef) -> Diagnostic {
 mod tests {
     use super::*;
     use crate::typedef::{ParentClaim, ParentClaimForm};
-    use tb_diagnostics::ByteRange;
     use std::path::PathBuf;
+    use tb_diagnostics::ByteRange;
 
     fn td(name: &str, parents: &[&str], sealed: &[&str]) -> TypeDef {
         TypeDef {
@@ -362,8 +362,8 @@ mod tests {
         // shape Err is held on the FieldDecl until validation. The graph
         // build itself emits zero diagnostics.
         use crate::typedef::parse_type_def;
-        use tb_parser::yaml::parse;
         use std::path::Path;
+        use tb_parser::yaml::parse;
 
         let src = "fields:\n  r: '@bad'\n";
         let docs = parse(src).unwrap();

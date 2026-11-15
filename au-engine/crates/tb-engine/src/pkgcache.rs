@@ -1188,11 +1188,11 @@ pub(crate) fn locate_locked_dependencies(
 mod tests {
     use super::*;
     use crate::repo::RepoEntry;
-    use tb_parser::RealFileSystem;
     use std::collections::BTreeMap;
     use std::fs;
     use std::path::Path;
     use std::process::Command;
+    use tb_parser::RealFileSystem;
     use tempfile::TempDir;
 
     fn run(repo: &Path, args: &[&str]) -> String {

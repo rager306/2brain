@@ -14,8 +14,8 @@
 
 use std::fmt;
 
-use tb_diagnostics::{ByteRange, DiagnosticCode, Severity};
 use serde::{Deserialize, Serialize};
+use tb_diagnostics::{ByteRange, DiagnosticCode, Severity};
 
 /// Forward-compat hook for future deferred shape features. No
 /// `parse_shape` path produces this code today, and no validate-time

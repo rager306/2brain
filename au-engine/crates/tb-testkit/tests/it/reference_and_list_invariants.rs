@@ -11,6 +11,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use proptest::prelude::*;
 use tb_core::{InstanceValue, TypeName, build_graph};
 use tb_grammar::{Primitive, Shape};
 use tb_references::RepoIndex;
@@ -18,7 +19,6 @@ use tb_testkit::{
     instance_bare, instance_field, instance_field_seq, type_def_with_fields,
     type_def_with_list_field, type_def_with_reference_field, validate_with,
 };
-use proptest::prelude::*;
 
 // ---------- helpers ----------
 

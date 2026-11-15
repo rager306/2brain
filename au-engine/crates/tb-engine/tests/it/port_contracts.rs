@@ -15,8 +15,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::{Value, json};
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// A knowledge base exercising every read: a type hierarchy with a body, instances with
 /// field values and a typed block, a resolving body wikilink, and one instance

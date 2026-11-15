@@ -13,8 +13,8 @@
 //! happens in `au-core`. The scanner never panics on malformed input; it emits
 //! what it can and ignores the rest.
 
-use tb_diagnostics::ByteRange;
 use std::collections::BTreeMap;
+use tb_diagnostics::ByteRange;
 
 /// One token in the body scan.
 ///

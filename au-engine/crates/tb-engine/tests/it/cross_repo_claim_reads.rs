@@ -8,8 +8,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// `base` owns `note` and `dm`. `app` peers `base` and holds one instance that
 /// claims `note::base` at the top level and carries an inline record claiming

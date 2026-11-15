@@ -1973,9 +1973,9 @@ mod tests {
         FieldDecl, FieldName, MetaBlock, ParentClaim, ParentClaimForm, TypeDef, TypeName,
         TypeNameClaim,
     };
+    use std::path::PathBuf;
     use tb_diagnostics::{ByteRange, DiagnosticCode};
     use tb_grammar::DefBound;
-    use std::path::PathBuf;
 
     fn empty_td(name: &str) -> TypeDef {
         TypeDef {

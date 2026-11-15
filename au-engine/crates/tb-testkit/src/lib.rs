@@ -7,6 +7,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use proptest::prelude::*;
 use tb_core::{
     FieldDecl, FieldName, Instance, InstanceField, InstanceValue, MapRefData, ParentClaim,
     ParentClaimForm, SequenceElement, TypeClaim, TypeDef, TypeGraph, TypeName, TypeNameClaim,
@@ -15,7 +16,6 @@ use tb_core::{
 use tb_diagnostics::{ByteRange, Diagnostic};
 use tb_grammar::{DefBound, Shape};
 use tb_references::RepoIndex;
-use proptest::prelude::*;
 
 pub mod opcat;
 pub mod repogen;

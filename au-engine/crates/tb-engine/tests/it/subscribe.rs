@@ -6,8 +6,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, serve};
 
 fn fixture() -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();

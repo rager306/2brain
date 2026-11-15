@@ -195,8 +195,8 @@ mod tests {
     use super::*;
     use crate::graph::build_graph;
     use crate::typedef::{TypeNameClaim, parse_type_def};
-    use tb_diagnostics::ByteRange;
     use std::path::Path;
+    use tb_diagnostics::ByteRange;
 
     fn graph(defs: &[(&str, &str)]) -> TypeGraph {
         let parsed = defs

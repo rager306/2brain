@@ -98,7 +98,10 @@ fn a_bad_option_exits_two_and_points_at_help() {
     assert_eq!(output.status.code(), Some(2));
     let text = String::from_utf8(output.stderr).unwrap();
     assert!(text.contains("unknown option: --bogus"), "{text}");
-    assert!(text.contains(&format!("try '{} --help'", env!("CARGO_PKG_NAME"))), "{text}");
+    assert!(
+        text.contains(&format!("try '{} --help'", env!("CARGO_PKG_NAME"))),
+        "{text}"
+    );
 }
 
 #[test]

@@ -54,8 +54,8 @@ pub(crate) fn edge_flip_sources(
 mod tests {
     use super::*;
     use crate::build::build;
-    use tb_parser::MemoryFileSystem;
     use std::path::Path;
+    use tb_parser::MemoryFileSystem;
 
     #[test]
     fn edge_flip_set_finds_same_repo_and_cross_repo_referrers() {

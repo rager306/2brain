@@ -28,8 +28,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::{Value, json};
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// A running daemon over a fixture root, with a connected client.
 pub struct Harness {

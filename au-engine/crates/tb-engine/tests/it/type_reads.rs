@@ -7,8 +7,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::{Value, json};
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// A small hierarchy: `task` inherits `thing` and declares a body. Two
 /// instances, one of each type, so closure membership is observable.

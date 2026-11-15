@@ -1406,8 +1406,8 @@ pub fn apply_recompute(held: &KnowledgeBase, rc: InstanceRecompute) -> Knowledge
 mod tests {
     use super::*;
     use crate::build::build;
-    use tb_parser::MemoryFileSystem;
     use std::path::Path;
+    use tb_parser::MemoryFileSystem;
 
     /// A single repo: registry, one type-def, one instance.
     fn kb() -> KnowledgeBase {

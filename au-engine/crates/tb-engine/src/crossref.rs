@@ -660,8 +660,8 @@ mod tests {
         // the incremental path can recompute one instance's `::repo` diagnostics
         // alone.
         use crate::build::build;
-        use tb_parser::MemoryFileSystem;
         use std::path::Path;
+        use tb_parser::MemoryFileSystem;
 
         let mut fs = MemoryFileSystem::new();
         fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());

@@ -7,10 +7,10 @@
 use std::cell::RefCell;
 use std::marker::PhantomData;
 
-use tb_diagnostics::ByteRange;
 pub use saphyr::{LoadableYamlNode, MarkedYaml, Scalar, YamlData};
 use saphyr_parser::{Event, Parser};
 pub use saphyr_parser::{Marker, Span};
+use tb_diagnostics::ByteRange;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct YamlError {

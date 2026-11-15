@@ -445,9 +445,9 @@ fn node_in_own_scope(kb: &KnowledgeBase, node: &NodeId) -> bool {
 mod tests {
     use super::*;
     use crate::build::build;
-    use tb_parser::MemoryFileSystem;
     use std::collections::BTreeSet;
     use std::path::Path;
+    use tb_parser::MemoryFileSystem;
 
     /// Params with sane defaults: out, the given depth, all kinds, all repos, no
     /// practical node cap.

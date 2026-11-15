@@ -13,8 +13,8 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
 
-use tb_engine::{Client, socket_file_name};
 use serde_json::json;
+use tb_engine::{Client, socket_file_name};
 
 /// A minimal repo, plus a fake `$HOME` the daemon derives its hashed socket
 /// under. Both live in tempdirs, so the test never touches the real

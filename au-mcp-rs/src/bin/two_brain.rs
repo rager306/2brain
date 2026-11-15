@@ -185,11 +185,14 @@ fn main() -> ExitCode {
 /// (`tb_engine::serve::socket_path` documents this), and a symlinked or relative
 /// spelling would otherwise hash to a socket nobody bound.
 fn resolve_socket(target: &Path) -> Result<PathBuf, String> {
-    if target.extension().is_some_and(|extension| extension == "sock") {
+    if target
+        .extension()
+        .is_some_and(|extension| extension == "sock")
+    {
         return Ok(target.to_path_buf());
     }
-    let canonical = std::fs::canonicalize(target)
-        .map_err(|error| format!("{}: {error}", target.display()))?;
+    let canonical =
+        std::fs::canonicalize(target).map_err(|error| format!("{}: {error}", target.display()))?;
     Ok(tb_cli::socket_path(&canonical))
 }
 

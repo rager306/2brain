@@ -7,8 +7,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// Two repos. `base` owns `projection`. `app` imports `base` and owns `bento`
 /// (type: projection::base, with its own runtime meta block) and `grid`

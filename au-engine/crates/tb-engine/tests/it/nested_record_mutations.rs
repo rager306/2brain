@@ -7,8 +7,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, serve};
 
 /// A plan knowledge base: `plan` holds `phases`, a `phase` holds `actions`, and `action`
 /// is a sealed family whose `action.done` leaf REQUIRES `outputs`. The required

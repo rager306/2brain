@@ -9,8 +9,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::{Value, json};
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// A type-def whose every field shape is a QUOTED scalar: a reference, a union,
 /// and an enum. Held as a const so the test can slice each leaf's source range

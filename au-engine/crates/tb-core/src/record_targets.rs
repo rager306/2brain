@@ -707,8 +707,8 @@ fn value_kind(v: &InstanceValue) -> ValueKind {
 mod tests {
     use super::*;
     use crate::graph::build_graph;
-    use tb_parser::yaml::parse;
     use std::path::Path;
+    use tb_parser::yaml::parse;
 
     fn graph_for(defs: &[(&str, &str)]) -> TypeGraph {
         let defs = defs

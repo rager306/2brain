@@ -14,9 +14,9 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use serde::Serialize;
 use tb_diagnostics::Diagnostic;
 use tb_parser::FileSystem;
-use serde::Serialize;
 
 use crate::build::{BuildError, Composition, MemberMount, compose, member_mount};
 use crate::repo::{MemberRole, RepoName, ResolveNote, UserRegistry};

@@ -11,8 +11,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// One git-backed member (entry name `v`) carrying a consumer type-def
 /// `viewer-default-set` with one required field, so a written config validates.

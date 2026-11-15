@@ -3,6 +3,8 @@
 //! and the §4.6 wikilink-pattern routing in primitive-vs-reference
 //! unions.
 
+use proptest::prelude::*;
+use std::path::PathBuf;
 use tb_core::{
     FieldDecl, FieldName, InlineValue, InstanceField, InstanceValue, TypeClaim, TypeDef, TypeGraph,
     TypeName, TypeNameClaim, build_graph,
@@ -13,8 +15,6 @@ use tb_testkit::{
     instance_bare, instance_field, instance_list, type_def_with_fields, type_def_with_parents,
     validate_simple,
 };
-use proptest::prelude::*;
-use std::path::PathBuf;
 
 fn codes_of(diags: &[tb_diagnostics::Diagnostic]) -> Vec<&str> {
     diags.iter().map(|d| d.code.as_str()).collect()

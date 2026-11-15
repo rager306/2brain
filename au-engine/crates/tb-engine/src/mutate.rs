@@ -9,12 +9,12 @@
 
 use std::path::{Component, Path, PathBuf};
 
+use serde_json::{Map, Value};
 use tb_core::{
     Instance, InstanceValue, Located, PathSegment, TypeClaim, TypeNameClaim, ValueKind,
     locate_field_path, parse_instance,
 };
 use tb_diagnostics::ByteRange;
-use serde_json::{Map, Value};
 
 use crate::ir::ContentHash;
 use crate::repo::RepoMap;

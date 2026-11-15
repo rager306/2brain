@@ -8,11 +8,11 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
+use serde_json::Value;
 use tb_core::{Instance, InstanceParseResult, parse_instance, validate};
 use tb_diagnostics::{Diagnostic, LineIndex, Span};
 use tb_parser::yaml::parse;
 use tb_references::RepoIndex;
-use serde_json::Value;
 
 use crate::build::ContextMaps;
 use crate::diagnostics::{duplicate_key_diags, sort_diagnostics};
@@ -427,8 +427,8 @@ fn attach_line_cols(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tb_core::{InstanceValue, TypeClaim};
     use serde_json::json;
+    use tb_core::{InstanceValue, TypeClaim};
 
     #[test]
     fn object_value_synthesizes_a_typed_mapping() {

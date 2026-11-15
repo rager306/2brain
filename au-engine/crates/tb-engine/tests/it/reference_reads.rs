@@ -8,8 +8,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// A knowledge base with a `type/` vocabulary and a `content/` graph. `research.md`
 /// links to `decision.md` and carries a typed `^block-id` block.

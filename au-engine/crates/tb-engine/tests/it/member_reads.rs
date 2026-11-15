@@ -7,8 +7,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// Two repos nested under one root: `base` and `app`, each declaring itself.
 /// Both are subdirs of the root, so neither is scattered.

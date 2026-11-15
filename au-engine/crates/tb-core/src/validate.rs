@@ -7151,9 +7151,9 @@ mod tests {
     use crate::graph::build_graph;
     use crate::instance::{Instance, InstanceField, InstanceValue, SequenceElement, TypeClaim};
     use crate::typedef::{BrandShape, FieldDecl, FieldName, TypeDef, TypeName, TypeNameClaim};
+    use std::path::PathBuf;
     use tb_diagnostics::ByteRange;
     use tb_grammar::{DefBound, Primitive, Shape};
-    use std::path::PathBuf;
 
     fn td(name: &str, parents: &[&str], fields: &[(&str, bool, Result<Shape, &str>)]) -> TypeDef {
         TypeDef {

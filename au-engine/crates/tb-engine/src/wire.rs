@@ -4810,10 +4810,10 @@ mod tests {
     }
 
     fn type_def(name: &str, parents: &[&str], fields: &[(&str, &str)]) -> TypeDef {
+        use std::path::PathBuf;
         use tb_core::{ParentClaim, ParentClaimForm, TypeNameClaim};
         use tb_diagnostics::ByteRange;
         use tb_grammar::parse_shape;
-        use std::path::PathBuf;
 
         TypeDef {
             name: TypeName(name.into()),
@@ -5696,8 +5696,8 @@ mod tests {
 
     #[test]
     fn ignores_view_reports_patterns_defaults_and_floor() {
-        use tb_parser::MemoryFileSystem;
         use std::path::PathBuf;
+        use tb_parser::MemoryFileSystem;
         let mut fs = MemoryFileSystem::new();
         fs.insert("/v/.arsumbris/.auignore", b"docs/\n# a comment\n".to_vec());
         let members = vec![("root".to_string(), PathBuf::from("/v"))];
@@ -5719,8 +5719,8 @@ mod tests {
 
     #[test]
     fn ignores_view_absent_auignore_yields_empty_patterns() {
-        use tb_parser::MemoryFileSystem;
         use std::path::PathBuf;
+        use tb_parser::MemoryFileSystem;
         let mut fs = MemoryFileSystem::new();
         fs.insert("/v/note.md", b"".to_vec());
         let members = vec![("root".to_string(), PathBuf::from("/v"))];
@@ -5734,8 +5734,8 @@ mod tests {
 
     #[test]
     fn ignores_view_resolve_reports_boundaries_not_contents() {
-        use tb_parser::MemoryFileSystem;
         use std::path::PathBuf;
+        use tb_parser::MemoryFileSystem;
         let mut fs = MemoryFileSystem::new();
         fs.insert("/v/.arsumbris/.auignore", b"docs/\n".to_vec());
         fs.insert("/v/keep.md", b"".to_vec());

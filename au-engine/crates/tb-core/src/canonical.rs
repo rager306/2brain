@@ -268,8 +268,8 @@ fn canonical_fills(contract: Option<&FillsContract>, out: &mut String) {
 mod tests {
     use super::*;
     use crate::typedef::parse_type_def;
-    use tb_parser::yaml::parse;
     use std::path::Path;
+    use tb_parser::yaml::parse;
 
     fn td(source: &str, path: &str) -> TypeDef {
         let docs = parse(source).unwrap();

@@ -7,8 +7,8 @@
 //!
 //! Plus a deterministic property: scanning twice yields the same events.
 
-use tb_parser::{BodyEvent, scan_body};
 use proptest::prelude::*;
+use tb_parser::{BodyEvent, scan_body};
 
 fn event_span(e: &BodyEvent<'_>) -> (usize, usize) {
     let s = e.span();

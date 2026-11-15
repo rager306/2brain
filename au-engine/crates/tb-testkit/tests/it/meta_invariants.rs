@@ -13,6 +13,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use proptest::prelude::*;
 use tb_core::def_closure::SingleGraph;
 use tb_core::{
     InstanceValue, MapRefData, MetaBlock, TypeDef, TypeGraph, TypeName, ValidateContext,
@@ -24,7 +25,6 @@ use tb_testkit::{
     instance_bare, instance_field, type_def_sealed, type_def_with_fields, type_def_with_parents,
     validate_simple,
 };
-use proptest::prelude::*;
 
 // ----- helpers -----
 

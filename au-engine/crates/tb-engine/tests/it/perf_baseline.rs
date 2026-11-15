@@ -18,8 +18,8 @@
 use std::fs;
 use std::time::{Duration, Instant};
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 struct Harness {
     _dir: tempfile::TempDir,

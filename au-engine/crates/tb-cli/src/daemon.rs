@@ -57,9 +57,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
+use serde_json::json;
 use tb_diagnostics::Diagnostic;
 use tb_engine::{Client, Engine, SCHEMA_VERSION, serve, socket_path};
-use serde_json::json;
 
 /// Exit codes for `au daemon`. `0` is success. `2` is a usage or environment
 /// error (unresolvable repo, cannot create/watch/bind, an IO error reaching a

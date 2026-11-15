@@ -8,9 +8,9 @@
 use std::fs;
 use std::path::Path;
 
+use serde_json::json;
 use tb_engine::{Client, ConfigSource, Engine, ServeHandle, build, serve};
 use tb_parser::RealFileSystem;
-use serde_json::json;
 
 fn write(root: &Path, rel: &str, content: &str) {
     let path = root.join(rel);

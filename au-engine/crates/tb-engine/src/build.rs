@@ -2923,8 +2923,8 @@ fn catalog_remaining_files(files: &[PathBuf], catalog: &mut BTreeMap<PathBuf, Fi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tb_parser::MemoryFileSystem;
     use std::path::Path;
+    use tb_parser::MemoryFileSystem;
 
     /// `base` owns `view-meta` and a `card` carrying one. `app` owns its own
     /// `view-meta` (`app_meta`, in-sync with base's or diverged), a `panel`
@@ -4022,8 +4022,8 @@ mod reuse_tests {
     //! build is identical to a from-scratch build.
 
     use super::*;
-    use tb_parser::MemoryFileSystem;
     use std::path::Path;
+    use tb_parser::MemoryFileSystem;
 
     /// A single-repo knowledge base: registry, one type-def, two instances.
     fn base_fs() -> MemoryFileSystem {

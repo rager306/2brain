@@ -3,11 +3,11 @@
 //! branch-order significance, suffix non-commutativity, and subsumption
 //! parity with `subsumption-in-mixin`.
 
+use proptest::prelude::*;
 use tb_core::{TypeDef, TypeName, TypeNameClaim, build_graph, run_graph_structure_checks};
 use tb_diagnostics::ByteRange;
 use tb_grammar::{CompoundRefOp, Primitive, RefMode, Shape, parse_shape};
 use tb_testkit::{empty_type_def, type_def_with_parents};
-use proptest::prelude::*;
 
 fn run_struct(defs: Vec<TypeDef>) -> Vec<tb_diagnostics::Diagnostic> {
     let g = build_graph(defs).graph;

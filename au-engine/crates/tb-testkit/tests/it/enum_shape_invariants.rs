@@ -2,13 +2,13 @@
 //! membership, parser round-trip, token-equality, and key-order
 //! determinism on enum-field instances.
 
+use proptest::prelude::*;
 use tb_core::{InstanceValue, build_graph};
 use tb_grammar::{Shape, parse_shape};
 use tb_testkit::{
     arb_enum_literal, arb_enum_shape, instance_bare, instance_field, type_def_with_enum_field,
     validate_simple,
 };
-use proptest::prelude::*;
 
 // ----- 1. Membership: any literal in the set passes; outside fails -----
 

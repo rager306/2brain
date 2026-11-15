@@ -6,8 +6,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::{Value, json};
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 /// A knowledge base with one type-def: `widget` requires `name: String`, allows an
 /// optional `size: Number`. `content/probe.md` claims `widget` but omits the

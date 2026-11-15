@@ -19,8 +19,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 use serde_json::{Value, json};
+use tb_engine::{Client, ConfigSource, Engine, ServeHandle, serve};
 
 struct Harness {
     _sock_dir: tempfile::TempDir,

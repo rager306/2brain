@@ -8,8 +8,8 @@ use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use tb_engine::{Client, ConfigSource, Engine, serve};
 use serde_json::json;
+use tb_engine::{Client, ConfigSource, Engine, serve};
 
 fn fixture() -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();

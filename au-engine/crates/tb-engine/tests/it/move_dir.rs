@@ -6,8 +6,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use tb_engine::{Client, ConfigSource, Engine, serve};
 use serde_json::{Value, json};
+use tb_engine::{Client, ConfigSource, Engine, serve};
 
 pub(crate) struct Harness {
     _dir: tempfile::TempDir,
