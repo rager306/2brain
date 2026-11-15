@@ -215,6 +215,11 @@ invariant. Any step that cannot state its acceptance in a command is not a step 
 - **Engine crate split** (`serve.rs` 16 772): separate project, separate risk; the engine serves
   production while this plan runs.
 - **Node-stack retirement** (`docs/phase-d.md`): a decision and a window, not a task.
+- **Text index (FTS5 `bm25()` or `tantivy`)** and the storage question around it: a product
+  feature, not an architecture step. It is the cheapest fix for the measured 133 ms `au_grep`
+  and belongs to backlog P1; the storage argument is settled in `docs/graph-engine-assessment.md`
+  (do not migrate; a graph store does not touch the text scan). Schedule it before any storage
+  discussion, not as part of the port work.
 - **TLA+ for the gate**: the vault says a table plus property tests covers this size; revisit if
   the stage count passes ~10 or a concurrency bug appears.
 
