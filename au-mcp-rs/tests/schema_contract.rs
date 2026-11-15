@@ -267,23 +267,33 @@ fn every_mutation_payload_fits_the_schema_its_tool_declares() {
                     problems.push(format!("{tool}: field `{key}` is not declared"))
                 }
                 Some(declared) => {
-                    // The declared type must match the shape the engine really sends:
-                    // this is the check that turns "commits is an array" from a schema
-                    // nobody validated into a failing test.
-                    if let Some(kind) = declared["type"].as_str() {
-                        let actual = match value {
-                            Value::Array(_) => "array",
-                            Value::Object(_) => "object",
-                            Value::String(_) => "string",
-                            Value::Bool(_) => "boolean",
-                            Value::Number(_) => "number",
-                            Value::Null => "null",
-                        };
-                        if kind != actual && actual != "null" {
-                            problems.push(format!(
-                                "{tool}: `{key}` is declared {kind} but the engine sends {actual}"
-                            ));
-                        }
+                    // The declared type must match the shape the engine really sends.
+                    // A union (`["string", "null"]`) is checked member by member, which
+                    // is how `hash: null` after a delete stays legal while
+                    // `commits: array` did not.
+                    let actual = match value {
+                        Value::Array(_) => "array",
+                        Value::Object(_) => "object",
+                        Value::String(_) => "string",
+                        Value::Bool(_) => "boolean",
+                        Value::Number(_) => "number",
+                        Value::Null => "null",
+                    };
+                    let declared_kinds: Vec<String> = match &declared["type"] {
+                        Value::String(kind) => vec![kind.clone()],
+                        Value::Array(kinds) => kinds
+                            .iter()
+                            .filter_map(|kind| kind.as_str().map(str::to_owned))
+                            .collect(),
+                        _ => Vec::new(),
+                    };
+                    if !declared_kinds.is_empty()
+                        && !declared_kinds.iter().any(|kind| kind == actual)
+                    {
+                        problems.push(format!(
+                            "{tool}: `{key}` is declared {} but the engine sends {actual}",
+                            declared_kinds.join("|")
+                        ));
                     }
                 }
                 None => {}
@@ -298,8 +308,8 @@ fn every_mutation_payload_fits_the_schema_its_tool_declares() {
         checked += 1;
     }
     assert_eq!(
-        checked, 2,
-        "expected the two captured mutations, checked {checked}"
+        checked, 3,
+        "expected the three captured mutations, checked {checked}"
     );
     assert!(
         problems.is_empty(),

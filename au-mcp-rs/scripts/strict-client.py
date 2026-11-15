@@ -94,6 +94,32 @@ async def main() -> int:
             if not payload.get("hash"):
                 print("FAIL: the answer carries no content hash")
                 failures += 1
+
+            # A delete answers `hash: null`, and its schema must say so: declaring a
+            # plain string broke delete at a validating client right after the write
+            # path was fixed. The write invalidated the read, so delete needs a fresh
+            # one — that is the guard working, not an obstacle to route around.
+            fresh = await session.call_tool(
+                "au_content", {"repo": "fixture", "path": "notes/a.md"})
+            fresh_hash = json.loads(fresh.content[0].text)["content"]["hash"]
+            try:
+                delete_answer = await session.call_tool(
+                    "au_delete_file",
+                    {"repo": "fixture", "path": "notes/a.md", "expected_hash": fresh_hash})
+            except Exception as error:  # noqa: BLE001 - the failure IS the result
+                print(f"FAIL: the client rejected the delete answer: {type(error).__name__}: {error}")
+                return 1
+            deleted = (getattr(delete_answer, "structuredContent", None)
+                       or getattr(delete_answer, "structured_content", None) or {})
+            if getattr(delete_answer, "isError", False):
+                print(f"FAIL: the delete was refused: {delete_answer.content[0].text[:200]}")
+                return 1
+            print("PASS: the client accepted a delete answer")
+            print("  keys:", ", ".join(sorted(deleted)))
+            print("  hash:", repr(deleted.get("hash")))
+            if deleted.get("hash") is not None:
+                print("FAIL: a deleted file should report hash: null")
+                failures += 1
         return 1 if failures else 0
     finally:
         daemon.terminate()

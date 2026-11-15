@@ -390,7 +390,18 @@ pub(crate) fn mutation_schema() -> Arc<serde_json::Map<String, Value>> {
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "absolute path that was written"},
-                "hash": {"type": "string", "description": "content hash after the mutation"},
+                // Null after a delete: a deleted file has no content hash, and declaring
+                // this as a plain string made every successful delete invalid at a strict
+                // client — the same class as `commits`, found by a live session on
+                // 2026-11-15 immediately after that one was fixed.
+                "hash": {
+                    "type": ["string", "null"],
+                    "description": "content hash after the mutation; null after a delete",
+                },
+                "last_live_commit": {
+                    "type": ["string", "null"],
+                    "description": "the commit the deleted file last existed in, null for writes",
+                },
                 "reflected": {"type": "boolean"},
                 "commit": {},
                 "commits": commits_object(),
