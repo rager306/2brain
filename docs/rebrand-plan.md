@@ -79,3 +79,53 @@ doing them as one find-and-replace breaks the live vault.
 ## Executed in this pass
 
 See the commits after this file; the table above is updated as each tier lands.
+
+## The trap this pass discovered
+
+A directory rename must stop at the state root. `au-engine` means two different things:
+
+- `tb-engine/` — a repository directory, renamed;
+- `~/.arsumbris/au-engine/` — the device layout name the engine hardcodes (`run/`, `config/`, logs).
+
+The first pass renamed both, because the rule was "a path segment". `swap-engine.sh --check` caught it
+with a socket path that does not exist; 116 occurrences in 53 files were reverted. The symptom was
+otherwise invisible: the running daemon still used the old binary, so every test stayed green while the
+next build would have started with an empty state root and resolved zero members.
+
+The rule for future passes: a rename may cross a repository directory; it may not cross a *storage
+layout*, and the two are recognised by what reads them, not by their spelling.
+
+## Recipes for the open tiers
+
+### Tier B — state root and unit
+
+```sh
+systemctl stop arsumbris-engine.service
+mv ~/.arsumbris ~/.2brain                       # sockets, config, logs, the installed `au`
+ln -s ~/.2brain ~/.arsumbris                    # one release of compatibility
+# engine must accept both: `$ARSUMBRIS_HOME` or the new default, tested by a unit test
+systemctl start 2brain-engine.service           # after renaming the unit file + daemon-reload
+HOME=/root 2brain info /root/vault              # 3 members, 0 diagnostics
+```
+
+Rollback: stop, remove the symlink name, `mv ~/.2brain ~/.arsumbris`, start the old unit. Gate: the
+four reads in `verification.md` and one write, because the write path reads the registry.
+
+### Tier C — the on-disk format
+
+1. Engine release 1: accept `.arsumbris/` **and** `.2brain/` for the identity directory, and both
+   `au.engine.*` and `tb.engine.*` for the schema types; `BUILTIN_ENGINE_REPO` matches either name.
+2. A migration command (`au migrate identity`) that rewrites every `repo.yaml` this registry knows,
+   committing per repository, and refuses when the tree is dirty.
+3. Run it over the monorepo and the vault; gate on `au_diagnostics == 0` and `graph_health.broken_links == 0`.
+4. Release 2 drops the old spelling, with a diagnostic that names the migration.
+
+Content that cites `type: mcp.skill::au-mcp-sdk` moves in step 2, in the same commit as the member
+rename — a half-renamed tree cannot resolve.
+
+### Tier D — the resource scheme
+
+Serve `2brain://` and `arsumbris://` from the same handler for one release, publish the deprecation in
+`WIRE.md`, then drop the old scheme and regenerate the golden captures in the drop commit. Fixtures that
+compare bytes will fail on the drop unless they are blessed in the same change — the reason this is a
+tier and not a sed.
