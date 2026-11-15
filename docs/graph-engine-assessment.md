@@ -76,6 +76,19 @@ Samyama's own benchmarks are LDBC SF1 = 3.7 M nodes / 21 M edges — about 3 600
 its docs mark SF10 unverified and name deep traversal (IC1/IC3/IC5/IC6/IC9) as an open
 optimization area.
 
+### 3.5 Same-name traps, checked
+
+Two different things answer to the name "rust-graph", and neither is a candidate:
+
+| name | what it is | why not |
+|---|---|---|
+| `deargen/rust-graph` (GitHub, PyPI) | a **Python package** wrapping one Rust function, `all_pairs_dijkstra_path_length`, networkx-compatible; Rust core behind `maturin`; Apache-2.0; 8★; created 2024-06-28; one contributor; 0 open issues; reports 12–23× faster than networkx | it is not a Rust crate — a Rust daemon cannot depend on a wheel; and the one algorithm (all-pairs shortest paths) is not one we need over 1 036 unweighted nodes |
+| `rust-graph` on crates.io | v0.0.3, **6 554 downloads, last published 2015-12-11**, keywords graph/algorithm/mst/dfs | dead for a decade |
+
+If weighted shortest paths are ever needed, the honest options are `petgraph` 0.8.3 (616 M
+downloads) or ~60 lines over a `BinaryHeap` inside the existing in-memory graph — which is the
+same conclusion as everywhere else here: **add algorithms, not a store.**
+
 ## 4. Capability by capability: what would we actually gain?
 
 | capability | do we need it now? | evidence | cheaper alternative |
