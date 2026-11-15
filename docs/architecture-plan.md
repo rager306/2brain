@@ -305,7 +305,7 @@ token.
 files). The adapter half waits for P1.4, so the new tool is declared through the schema table
 instead of adding one more hand-written function to it.
 
-### T1 phase 2 — where the index lives in the engine (designed, not built)
+### T1 phase 2 — where the index lives in the engine (built 2026-11-15)
 
 Reading the engine to place it, rather than guessing:
 
@@ -454,9 +454,10 @@ pairs); W4.2 is documentation and runs in parallel with anything.
 | P1.3 resources | **done** (`a4228c0`) | `member_roots(payload)` and the new `resource_page` are pure; the `resources -> wire` edge is gone (ALLOWED 7 → 6); `lib.rs` 4659 → 4631 production lines and the ratchet tightened to 4631; 4 inline tests without a socket | 2026-11-15 |
 | P1.4 schemas table | **dropped as written** (2026-11-15) | the 15 functions carry distinct shapes; the invariant that matters is already a test (P0.2d). T1's new tool is the only place this had to be paid for, and it is paid there | 2026-11-15 |
 | P1.5 read ledger | **done** (`3e402e8`) | `ledger::ReadLedger` with 3 tests (forget, member in the key, clone shares); `lib.rs` 4631 → 4612 and the ratchet tightened; the two refusal codes unchanged | 2026-11-15 |
-| T1 text index (engine half, phase 2) | **in review** — index on `KnowledgeBase`, `Request::Search` answering, 6 integration tests, golden capture; uncommitted | — | — |
+| T1 text index (engine half, phase 2) | **done** (`d888abe`) | index on `KnowledgeBase` with a `search` parity fact; `Request::Search` from held state; 6 integration tests including "a body rewrite changes the ranking on the next read"; golden capture from the fixture | 2026-11-15 |
+| T1 text index (adapter half) | **done** (`c3472e5`) | `au_search` is the 52nd tool; capability 33 read / 16 mutate / 2 discover / 1 watch; counts in architecture, capability, stdio, fixture_schema and wire_catalog all moved together; suite 203 passed | 2026-11-15 |
 | T1 text index (engine half) | **phase 1 done** (`3d4bc40`) | `search.rs` 982 lines; 7 tests + ignored measurement; build 1.07 s / 1 000 docs, 4.7 KiB/doc, OR p50 1.65 ms p95 2.45 ms, exact p50 73 µs; engine `--lib` 685 passed / 1 known root-only failure; **no verb yet** | 2026-11-15 |
-| T1 text index (adapter half) | blocked on P1.4 | — | — |
+
 | P2.1–P2.3 gate | not started | — | — |
 | W4.1 ingest auditor | **phase 1 done** (`6b8f0f0`) | `tools/judgement/`: 50-note stratified sample with hand labels (10 stale / 40 not), a `systemone`-shaped client with `--dry-run` (exit 0, ~$0.0018 per pass) and exit 3 without a key; real path proven against a local fake; vendor response shape unverified (no key) | 2026-11-15 |
 | W4.2 role definitions | not started | assessment §1.1 | — |
