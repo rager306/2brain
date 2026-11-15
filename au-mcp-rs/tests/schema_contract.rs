@@ -223,3 +223,87 @@ fn derived_tools_answers_fit_their_schemas() {
         problems.join("\n")
     );
 }
+
+/// Mutations answer with the engine's mutation result, and the same rule applies to
+/// them: a declared schema a client validates must describe what the adapter sends.
+/// `commits` was declared as an array while the engine sends `{repo: sha}`, so every
+/// SUCCESSFUL write came back to a live client as "Invalid structured content" — with
+/// the mutation applied. The fixtures here are captured from a real engine on
+/// 2026-11-15, one write and one batch.
+#[test]
+fn every_mutation_payload_fits_the_schema_its_tool_declares() {
+    let temp = tempfile::tempdir().unwrap();
+    let socket = temp.path().join("engine.sock");
+    let mut client = Client::start(&socket);
+    let listed = client.request(json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}));
+    let mut schemas: BTreeMap<String, Value> = BTreeMap::new();
+    for tool in listed["result"]["tools"].as_array().unwrap() {
+        schemas.insert(
+            tool["name"].as_str().unwrap().to_owned(),
+            tool["outputSchema"].clone(),
+        );
+    }
+
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mutations");
+    let mut checked = 0;
+    let mut problems: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|e| e != "json") {
+            continue;
+        }
+        let tool = path.file_stem().unwrap().to_string_lossy().into_owned();
+        let payload: Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let Some(schema) = schemas.get(&tool) else {
+            problems.push(format!("{tool}: no such advertised tool"));
+            continue;
+        };
+        let properties = &schema["properties"];
+        let object = payload.as_object().expect("a mutation answer is an object");
+        for (key, value) in object {
+            match properties.get(key) {
+                None if schema["additionalProperties"] == json!(false) => {
+                    problems.push(format!("{tool}: field `{key}` is not declared"))
+                }
+                Some(declared) => {
+                    // The declared type must match the shape the engine really sends:
+                    // this is the check that turns "commits is an array" from a schema
+                    // nobody validated into a failing test.
+                    if let Some(kind) = declared["type"].as_str() {
+                        let actual = match value {
+                            Value::Array(_) => "array",
+                            Value::Object(_) => "object",
+                            Value::String(_) => "string",
+                            Value::Bool(_) => "boolean",
+                            Value::Number(_) => "number",
+                            Value::Null => "null",
+                        };
+                        if kind != actual && actual != "null" {
+                            problems.push(format!(
+                                "{tool}: `{key}` is declared {kind} but the engine sends {actual}"
+                            ));
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
+        for required in schema["required"].as_array().into_iter().flatten() {
+            let key = required.as_str().unwrap();
+            if !object.contains_key(key) {
+                problems.push(format!("{tool}: declared key `{key}` is missing"));
+            }
+        }
+        checked += 1;
+    }
+    assert_eq!(
+        checked, 2,
+        "expected the two captured mutations, checked {checked}"
+    );
+    assert!(
+        problems.is_empty(),
+        "mutation schema drift:\n{}",
+        problems.join("\n")
+    );
+}

@@ -197,7 +197,7 @@ pub(crate) fn batch_schema() -> Arc<serde_json::Map<String, Value>> {
                 },
                 "reflected": {"type": "boolean"},
                 "commit": {},
-                "commits": {"type": "array"},
+                "commits": commits_object(),
                 "diagnostics": {"type": "array"},
                 "untracked_files": {"type": "array"}
             },
@@ -369,6 +369,20 @@ pub(crate) fn references_schema() -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
+/// The engine answers a mutation with `commits` as an OBJECT — `{repo: sha}`, one
+/// entry per touched member — and declaring it as an array made every successful
+/// mutation reply invalid at a strict client, while the mutation itself had landed.
+/// Found by a live Hermes session on 2026-11-15: the write succeeded and the answer
+/// came back as "Invalid structured content". `tests/schema_contract.rs` pins it
+/// against payloads captured from a real engine.
+fn commits_object() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": {"type": "string"},
+        "description": "one entry per touched member: repo -> commit",
+    })
+}
+
 /// The output schema shared by every mutation: the engine's mutation result.
 pub(crate) fn mutation_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
@@ -379,7 +393,7 @@ pub(crate) fn mutation_schema() -> Arc<serde_json::Map<String, Value>> {
                 "hash": {"type": "string", "description": "content hash after the mutation"},
                 "reflected": {"type": "boolean"},
                 "commit": {},
-                "commits": {"type": "array"},
+                "commits": commits_object(),
                 "diagnostics": {"type": "array"},
                 "untracked_files": {"type": "array"}
             },
