@@ -27,7 +27,7 @@ pub(crate) enum Capability {
 
 /// Every advertised tool with its one class. Order is by name so a reader can find a
 /// tool without a search; the tests assert the set matches the router exactly.
-pub(crate) const CAPABILITIES: [(&str, Capability); 51] = [
+pub(crate) const CAPABILITIES: [(&str, Capability); 52] = [
     ("au_add_dep", Capability::Mutate),
     ("au_add_workspace_member", Capability::Mutate),
     ("au_anchors", Capability::Read),
@@ -67,6 +67,7 @@ pub(crate) const CAPABILITIES: [(&str, Capability); 51] = [
     ("au_resolve_member", Capability::Read),
     ("au_resolved", Capability::Read),
     ("au_rollback_preview", Capability::Read),
+    ("au_search", Capability::Read),
     ("au_search_tools", Capability::Discover),
     ("au_semantic_tokens", Capability::Read),
     ("au_set_workspace_member_role", Capability::Mutate),

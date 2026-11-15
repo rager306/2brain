@@ -338,6 +338,33 @@ struct GrepArguments {
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct SearchArguments {
+    /// Words to rank notes by; not a regular expression.
+    #[schemars(length(min = 1))]
+    query: String,
+    /// Search only this member's files.
+    #[schemars(length(min = 1))]
+    repo: Option<String>,
+    /// Select own or all members (default all).
+    scope: Option<HubScope>,
+    /// Require every term instead of a ranked subset. Use it for punctuation or a
+    /// two-word phrase; ranking alone can put a heavier document first.
+    #[serde(default)]
+    exact: bool,
+    /// Minimum number of query terms a note must hold (default: all terms for 1-2
+    /// terms, 2 above that).
+    min_should_match: Option<usize>,
+    /// Maximum number of matches, from 1 to 100 (default 20).
+    #[serde(default = "default_rank_limit")]
+    #[schemars(range(min = 1, max = 100))]
+    limit: usize,
+    /// Number of matches to skip (default 0).
+    #[serde(default)]
+    offset: usize,
+}
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct FileArguments {
     /// Workspace member that owns the file.
     #[schemars(length(min = 1))]
@@ -1057,6 +1084,56 @@ impl Server {
             });
         }
         self.read(request, "grep", ctx).await
+    }
+
+    #[tool(
+        description = "Rank notes by relevance to a query instead of scanning them. BM25 over each note's body and its frontmatter description, with the description weighted higher; the answer carries matches (path, score, matched_terms), the total, and paging. exact requires every term and is the way to find a punctuation token or a two-word phrase exactly. min_should_match defaults to all terms for one or two terms and to two above that, so a three-word query is not an OR over a third of the vault. Use au_grep when you need the literal line, and this when you need the right notes.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true
+        ),
+        output_schema = crate::schemas::envelope_schema("search"),
+    )]
+    async fn au_search(
+        &self,
+        Parameters(args): Parameters<SearchArguments>,
+        ctx: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        if args.query.trim().is_empty() {
+            return CallToolResult::error(vec![ContentBlock::text("'query' must not be empty")]);
+        }
+        if args.repo.as_deref() == Some("") {
+            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
+        }
+        if !(1..=100).contains(&args.limit) {
+            return CallToolResult::error(vec![ContentBlock::text(
+                "'limit' must be between 1 and 100",
+            )]);
+        }
+        let mut request = json!({
+            "read": "search",
+            "id": 1,
+            "query": args.query,
+            "limit": args.limit,
+            "offset": args.offset,
+        });
+        if args.exact {
+            request["exact"] = json!(true);
+        }
+        if let Some(min) = args.min_should_match {
+            request["min_should_match"] = json!(min);
+        }
+        if let Some(repo) = args.repo {
+            request["repo"] = json!(repo);
+        }
+        if let Some(scope) = args.scope {
+            request["scope"] = json!(match scope {
+                HubScope::Own => "own",
+                HubScope::All => "all",
+            });
+        }
+        self.read(request, "search", ctx).await
     }
 
     #[tool(
@@ -3798,6 +3875,10 @@ enum SearchDetail {
 
 fn default_search_limit() -> usize {
     5
+}
+
+fn default_rank_limit() -> usize {
+    20
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]

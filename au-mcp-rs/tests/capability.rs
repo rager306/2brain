@@ -89,7 +89,7 @@ fn the_classes_partition_the_advertised_catalogue() {
         "--allow-workspace-shape",
     ]);
     let advertised = advertised(&mut client);
-    assert_eq!(advertised.len(), 51, "{advertised:?}");
+    assert_eq!(advertised.len(), 52, "{advertised:?}");
 
     let mut classified: Vec<String> = Vec::new();
     for (capability, expected) in [("mutate", 16), ("discover", 2), ("watch", 1)] {
@@ -111,7 +111,7 @@ fn the_classes_partition_the_advertised_catalogue() {
         .filter(|name| !classified.contains(name))
         .cloned()
         .collect();
-    assert_eq!(reads.len(), 32, "{reads:?}");
+    assert_eq!(reads.len(), 33, "{reads:?}");
 
     let page = search(
         &mut client,
