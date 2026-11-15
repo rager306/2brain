@@ -1,8 +1,9 @@
 # Architecture assessment: hexagonal layers, FSM control, and an ontology for the tool surface
 
 Status: assessment, 2026-11-15. **No code was changed to produce it.** Every number below was
-measured on `main` (`304cd0f`) by reading the tree; every external claim is attributed in
-§8; every vault claim cites a note that was read through our own MCP server.
+measured on `main` by reading the tree; every external claim is attributed in §8; every vault
+claim cites a note that was read through our own MCP server. The test baseline was re-measured
+on this checkout (`cargo +1.99.0 test --offline`: 39 suites, 173 passed, 2 ignored, `rc=0`).
 
 ## 1. The question, split into four
 
@@ -322,7 +323,8 @@ Ordered by evidence-per-cost, with a stop rule at each step:
    classification for all 51 tools (direction D). This is the fitness-function layer the
    literature says must exist *before* restructuring, and it costs nothing to start.
 2. **Then, one to two days (direction A):** invert rows 1–5 of §2.4. Success criteria are
-   mechanical: `cargo test` unchanged at 173 passing, golden fixtures byte-identical,
+   mechanical: `cargo test` unchanged at 173 passing (baseline re-measured 2026-11-15:
+   39 suites, 173 passed, 0 failed, 2 ignored, `rc=0`), golden fixtures byte-identical,
    `lib.rs` under ~3 200 lines, no cycle outside the exception list.
 3. **Then, decide on C1 with data:** if the gate is still the biggest block, split
    reduction (pure: stage → verdict) from dispatch (IO), and add `allowed_next` to denials.
