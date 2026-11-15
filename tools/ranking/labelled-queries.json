@@ -1,0 +1,429 @@
+{
+ "vault": "/root/vault",
+ "rows": [
+  {
+   "query": "lavrov ch22 kuratowski wagner",
+   "expected": "inbox/lavrov-ch22-kuratowski-wagner.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "astral tar codec secure",
+   "expected": "inbox/astral-tar-codec-secure-parser.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "pattern editorial stage scoring",
+   "expected": "f/patterns/pattern-editorial-two-stage-scoring.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "pattern role locus operation",
+   "expected": "inbox/pattern-role-locus-operation-attribution.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "anolisa agentic layer",
+   "expected": "inbox/anolisa-agentic-os-layer.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "pattern distractor semantic eval",
+   "expected": "inbox/pattern-distractor-semantic-eval.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "ppa ch11 decision making",
+   "expected": "inbox/ppa-ch11-12-decision-making-rl.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "escher loop optimizers evolve",
+   "expected": "inbox/escher-loop-optimizers-that-evolve-themselves-scored-by-the-evolution-they-cause.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "octopus kernel patterns deepdive",
+   "expected": "inbox/octopus-kernel-patterns-deepdive.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "video S6AJuzyoCjU",
+   "expected": "inbox/da-video-S6AJuzyoCjU.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "antithesis bombadil pbt",
+   "expected": "inbox/antithesis-bombadil-ui-pbt.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "pattern defeasible norm conflicts",
+   "expected": "f/patterns/pattern-defeasible-norm-conflicts.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "pattern crossover first",
+   "expected": "inbox/pattern-crossover-first.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "pattern llm emits intent",
+   "expected": "inbox/pattern-llm-emits-intent-not-query.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "mirror reflection coding harness",
+   "expected": "inbox/mirror-reflection-coding-harness-patterns.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "Behavior into Model Weights",
+   "expected": "inbox/harness-zero-agent-as-harness-distills-harness-behavior-into-model-weights.md",
+   "class": "literal",
+   "type": "extract",
+   "source": "synthetic-unique-phrase"
+  },
+  {
+   "query": "harness zero agent harness",
+   "expected": "inbox/harness-zero-agent-as-harness-distills-harness-behavior-into-model-weights.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "allspark module matrix glue",
+   "expected": "inbox/allspark-module-matrix-v2-glue-cascades-metrics.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "pattern calibrated confidence contract",
+   "expected": "f/patterns/pattern-calibrated-confidence-contract.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "awesome reverse engineered index",
+   "expected": "inbox/awesome-reverse-engineered-index.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "adaptive skill granularity runtime",
+   "expected": "inbox/adaptive-skill-granularity-runtime-routing-recovery.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "multi agent debate trading",
+   "expected": "inbox/multi-agent-debate-trading-sycophantic-convergence.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "Universal Time-Series Anomaly Detector",
+   "expected": "inbox/no-universal-time-series-anomaly-detector-exists.md",
+   "class": "literal",
+   "type": "insight",
+   "source": "synthetic-unique-phrase"
+  },
+  {
+   "query": "universal time series anomaly",
+   "expected": "inbox/no-universal-time-series-anomaly-detector-exists.md",
+   "class": "topical",
+   "type": "insight",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "insight verifiable artifact beats",
+   "expected": "inbox/insight-verifiable-artifact-beats-green-gates.md",
+   "class": "topical",
+   "type": "insight",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "video yfepTKKhgKg",
+   "expected": "inbox/da-video-yfepTKKhgKg.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "harness learning field map",
+   "expected": "inbox/harness-learning-field-map.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "paramo1d mobile recursive verification",
+   "expected": "inbox/paramo1d-mobile-recursive-verification.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "harnessmm guarded decision reuse",
+   "expected": "inbox/harnessmm-guarded-decision-reuse-rsi.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "algorithmic self portrait chatgpt",
+   "expected": "inbox/algorithmic-self-portrait-chatgpt-memory.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "pattern dock dont mock",
+   "expected": "inbox/pattern-dock-dont-mock.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "pattern supersede discipline",
+   "expected": "inbox/pattern-supersede-discipline.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "Evolved Against Held-Out Validation",
+   "expected": "inbox/procedural-graphs-what-to-do-as-triplets-evolved-against-held-out-validation.md",
+   "class": "literal",
+   "type": "extract",
+   "source": "synthetic-unique-phrase"
+  },
+  {
+   "query": "procedural graphs triplets evolved",
+   "expected": "inbox/procedural-graphs-what-to-do-as-triplets-evolved-against-held-out-validation.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "hamel decision model evals",
+   "expected": "inbox/hamel-decision-model-evals.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "claude single loop folds",
+   "expected": "inbox/claude-single-loop-folds-subagents.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "parallel agent verified integration",
+   "expected": "inbox/parallel-agent-verified-integration-block-optimization.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "ari amortized reasoning index",
+   "expected": "inbox/ari-amortized-reasoning-index.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "pattern cache aligned context",
+   "expected": "f/patterns/pattern-cache-aligned-context-packs.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "properagent memory driven proactive",
+   "expected": "inbox/properagent-memory-driven-proactive-assistance.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "lavrov ch12 dags",
+   "expected": "inbox/lavrov-ch12-dags.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "allspark reactivegraph per file",
+   "expected": "inbox/allspark-reactivegraph-per-file-fsm-and-completeness-envelope.md",
+   "class": "topical",
+   "type": "insight",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "cga finding panics monomorphized",
+   "expected": "inbox/cga-finding-panics-monomorphized-mir.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "Past Decisions Without Their",
+   "expected": "inbox/past-decisions-without-their-conditions-quietly-become-general-rules.md",
+   "class": "literal",
+   "type": "pattern",
+   "source": "synthetic-unique-phrase"
+  },
+  {
+   "query": "past decisions without conditions",
+   "expected": "inbox/past-decisions-without-their-conditions-quietly-become-general-rules.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "pingcap tidb breach claim",
+   "expected": "inbox/pingcap-tidb-breach-claim.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "ppa ch9 causality jev",
+   "expected": "inbox/ppa-ch9-10-causality-jev-bridge.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "add none without human",
+   "expected": "f/patterns/pattern-agents-remove-apparatus-freely.md",
+   "class": "literal",
+   "type": "pattern",
+   "source": "synthetic-unique-phrase"
+  },
+  {
+   "query": "pattern agents remove apparatus",
+   "expected": "f/patterns/pattern-agents-remove-apparatus-freely.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "matsakis agentic dev rust",
+   "expected": "inbox/matsakis-agentic-dev-and-rust.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "Remember per User via",
+   "expected": "inbox/da-video-RM8hyRzt4No.md",
+   "class": "literal",
+   "type": "extract",
+   "source": "synthetic-unique-phrase"
+  },
+  {
+   "query": "video RM8hyRzt4No",
+   "expected": "inbox/da-video-RM8hyRzt4No.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "pattern raw transformed",
+   "expected": "inbox/pattern-raw-over-transformed.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "allspark pattern transfer prompt",
+   "expected": "inbox/allspark-pattern-transfer-prompt.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "mirror harness allspark",
+   "expected": "inbox/mirror-harness-vs-allspark.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "mbrotli mzstd formal verification",
+   "expected": "inbox/mbrotli-mzstd-formal-verification.md",
+   "class": "topical",
+   "type": "extract",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "pattern known broken main",
+   "expected": "f/patterns/pattern-known-broken-main-queue.md",
+   "class": "topical",
+   "type": "pattern",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "allspark jev agent harness",
+   "expected": "inbox/allspark-jev-agent-harness-arxiv-2610-21412-decision-thresholds.md",
+   "class": "topical",
+   "type": "insight",
+   "source": "synthetic-from-filename"
+  },
+  {
+   "query": "Behind The TypeSafe Jev",
+   "expected": "inbox/ollaya-open-local-runner-behind-typesafe-jev-contract.md",
+   "class": "literal",
+   "type": "insight",
+   "source": "synthetic-unique-phrase"
+  },
+  {
+   "query": "ollaya open local runner",
+   "expected": "inbox/ollaya-open-local-runner-behind-typesafe-jev-contract.md",
+   "class": "topical",
+   "type": "insight",
+   "source": "synthetic-from-filename"
+  }
+ ],
+ "counts": {
+  "topical": 53,
+  "literal": 7
+ }
+}

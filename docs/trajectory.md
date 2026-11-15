@@ -13,6 +13,9 @@ gate, its cost, and the evidence it would produce.
 | tools | 52; `au_search` answers through the live binary (ranked + exact verified) |
 | judge | batched: 100 questions per call, 0.76 s, 7.6 ms/question (`docs/research/judge-capabilities.md`) |
 | rebrand | tier A + B done; tier C (format) and D (scheme) open with recipes |
+| FSM run log | **done** — `tools/fsm/check_run.py`, seven rules, `--selftest` proves each bites |
+| hygiene pass | **done and applied** — `tools/hygiene/pass.py`, `inbox/hygiene-2026-11-16.md` |
+| ranking eval | **baseline measured** — 60 labelled queries, hit@1 0.43 (literal) / 0.60 (topical) |
 
 ## Track 1 — make a run auditable (no model, small)
 
@@ -39,7 +42,31 @@ One job, read-mostly, writes exactly one note per night:
 - **Why second**: it exercises batch, the FSM's CONSOLIDATE state, and the write gate against real
   content, without touching anyone's notes.
 
-## Track 3 — type-aware ranking (engine, measurable)
+## Track 3 — ranking (engine, measurable) — baseline exists, change not started
+
+The measuring instrument now exists: `tools/ranking/build_queries.py` derives 60 queries from the vault
+(7 `literal` — a phrase occurring in exactly one note, so any correct ranker must return that note first —
+and 53 `topical` — content words from a note's own filename), and `tools/ranking/eval.py` scores hit@1,
+hit@5 and MRR per class.
+
+Baseline on 2026-11-16, before any change:
+
+| class | n | hit@1 | hit@5 | MRR |
+|---|---:|---:|---:|---:|
+| literal | 7 | 0.429 | 0.714 | 0.568 |
+| topical | 53 | 0.604 | 0.811 | 0.697 |
+
+Nine queries do not place the expected note in the top ten at all. **The literal class is the finding**:
+a phrase that occurs in exactly one note reaches rank 1 only 43% of the time, because BM25 scores bag of
+terms — no proximity, no phrase credit. So the first change is not freshness; it is ranking what matched.
+
+Candidate changes, each scored against this baseline:
+
+1. **phrase proximity** — score a document higher when query terms appear adjacent (the literal class is
+   the direct test);
+2. **type-aware freshness prior** — `current 1.0, aging 0.7, stale 0.3, superseded 0.05`, durable
+   families undecayed (the topical class is where a stale note currently outranks a fresh one);
+3. **field weights** — title/description vs body, already partially there.
 
 Multiplicative freshness prior on top of BM25: `current 1.0, aging 0.7, stale 0.3, superseded 0.05`, and a
 family multiplier so durable types (`pattern`, `decision`, `extract`) do not decay while inbox/session
