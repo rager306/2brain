@@ -1,9 +1,13 @@
-# arsumbris (fork monorepo)
+# 2brain
 
-One repository for the whole arsumbris fork: the typed knowledge-graph engine,
-its MCP layers, the Rust MCP adapter, and the content/knowledge repositories.
-Each former repository is a top-level directory with its own history preserved
-by `git subtree`.
+The product is **2brain**: one Rust knowledge engine over a typed graph of notes, the MCP surface
+agents talk to, and a judgement layer for the small decisions. The repository keeps its working name
+and paths (`arsumbris`, `au-*`) — see `docs/naming.md` for what is renamed when, and why a name that
+crosses a process boundary is a migration rather than a find-and-replace.
+
+One repository for the whole system: the typed knowledge-graph engine, its MCP layers, the Rust MCP
+adapter, and the content/knowledge repositories. Each former repository is a top-level directory with
+its own history preserved by `git subtree` (upstream is detached: `archive/upstream-0.0.5`).
 
 Origin: `github.com/rager306/arsumbris` (private).
 

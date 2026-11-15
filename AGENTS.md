@@ -6,13 +6,9 @@ code is never vendored into allspark/prime-agent.
 
 ## What this is
 
-A closed-distribution bundle of sibling repos implementing the arsumbris
-typed knowledge-graph engine (typed markdown + `[[wiki-links]]` + `^block-ids`,
-frontmatter contracts, MCP serving). Upstream: https://github.com/arsumbris
-(engine last upstream commit 2026-09-25, `release 0.0.2-alpha`; upstream
-development has stalled). The local bundle is NEWER than the last release:
-local au-engine carries `0.0.5`-era unreleased work on
-`feat/hotpath-profiling-and-memchr-wikilinks` (commit `44b32f4`).
+**2brain** is the product; `arsumbris` is the working name its parts still carry. 2brain is a closed-distribution bundle implementing a typed knowledge graph (typed markdown + `[[wiki-links]]` + `^block-ids`, frontmatter contracts, MCP serving) in Rust, with a judgement layer for the small decisions kept outside the serving path. `docs/naming.md` records what is renamed when; until then, a document says 2brain and a path says `arsumbris`.
+
+Upstream: https://github.com/arsumbris (engine last upstream commit 2026-09-25, `release 0.0.2-alpha`; upstream development has stalled and is **detached** since 2026-11-16). The local bundle is NEWER than the last release: local au-engine carries `0.0.5`-era unreleased work, archived as the tag `archive/upstream-0.0.5` (commit `44b32f4`).
 
 ## Layout
 
