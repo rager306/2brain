@@ -9,7 +9,7 @@ fn binary() -> Command {
 }
 
 fn unified() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_arsumbris"))
+    Command::new(env!("CARGO_BIN_EXE_2brain"))
 }
 
 #[test]
@@ -118,7 +118,7 @@ fn the_unified_binary_exposes_both_halves() {
     assert!(
         version
             .trim()
-            .starts_with(&format!("arsumbris {}+", env!("CARGO_PKG_VERSION"))),
+            .starts_with(&format!("2brain {}+", env!("CARGO_PKG_VERSION"))),
         "{version}"
     );
 }
@@ -128,7 +128,7 @@ fn the_unified_binary_names_itself_in_info() {
     let output = unified().arg("info").output().unwrap();
     assert!(output.status.success(), "{output:?}");
     let text = String::from_utf8(output.stdout).unwrap();
-    assert!(text.starts_with("arsumbris "), "{text}");
+    assert!(text.starts_with("2brain "), "{text}");
     assert!(text.contains("2026-07-28"), "{text}");
 }
 
@@ -143,7 +143,7 @@ fn the_mcp_subcommand_takes_the_same_flags() {
         "--principal",
         "--tools",
         "--payload",
-        "<SOCKET>",
+        "SOCKET_OR_WORKSPACE",
     ] {
         assert!(text.contains(expected), "mcp help lacks {expected}: {text}");
     }

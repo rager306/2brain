@@ -13,8 +13,8 @@ name = "au-mcp-rs"
 path = "src/main.rs"
 
 [[bin]]
-name = "arsumbris"
-path = "src/bin/arsumbris.rs"
+name = "2brain"
+path = "src/bin/two_brain.rs"
 
 [dependencies]
 au-cli = { path = "../au-engine/crates/au-cli" }

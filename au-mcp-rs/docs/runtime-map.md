@@ -94,7 +94,7 @@ is measured as a bottleneck.
 | A | 13 reads from group A, each with a test and most with a captured fixture | low: pure mapping, no new authority |
 | B | 16 mutations from group B, behind the existing gate, one at a time | medium: rename/move semantics, workspace reshaping |
 | C | decide group C: keep in host, or a scoped `arsumbris host` | product decision |
-| D | retire `au-mcp`, `au-mcp-sdk`, `au-type-codegen`, `au-engine-sdk`, `au-mcp-bridge`, both adapters once clients point at `arsumbris mcp` | after A and B prove parity |
+| D | retire `au-mcp`, `au-mcp-sdk`, `au-type-codegen`, `au-engine-sdk`, `au-mcp-bridge`, both adapters once clients point at `2brain mcp` | after A and B prove parity |
 | E | content repos unchanged; `au-ingest` converters stay a toolchain, not a server | none |
 
 Phase A is the cheapest and the most useful: it closes the read gap that makes

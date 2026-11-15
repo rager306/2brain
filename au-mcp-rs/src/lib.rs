@@ -3464,7 +3464,7 @@ impl ServerHandler for Server {
                 .build(),
         )
         .with_server_info(Implementation::new(
-            env!("CARGO_PKG_NAME"),
+            "2brain", // the product name clients see; the crate keeps `au-mcp-rs`
             version_string(),
         ))
         .with_instructions(INSTRUCTIONS)

@@ -88,7 +88,8 @@ fn modern_discovery_and_direct_requests_without_initialize() {
     assert!(discover["result"]["capabilities"]["tools"].is_object());
     assert_eq!(
         discover["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],
-        env!("CARGO_PKG_NAME")
+        // The product name, not the crate name: clients see `2brain`.
+        "2brain"
     );
 
     // A fresh process receives tools/list as its first message, without discovery or initialize.

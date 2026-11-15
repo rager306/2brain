@@ -9,11 +9,11 @@ derives a default socket.
 ```sh
 cd au-mcp-rs
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
-# target/release/arsumbris  — engine daemon + MCP server in one binary
+# target/release/2brain  — engine daemon + MCP server in one binary
 # target/release/au-mcp-rs  — the MCP server alone
 ```
 
-Use `arsumbris mcp <socket>` everywhere below; `au-mcp-rs <socket>` is the same
+Use `2brain mcp <workspace-or-socket>` everywhere below; `au-mcp-rs <socket>` is the same
 server with the same flags, kept so an existing configuration keeps working.
 
 The result is one self-contained executable (6 MB, dynamically linked only to
@@ -56,7 +56,7 @@ arsumbris --help                       # both halves and their subcommands
 arsumbris --version                    # version + build commit
 arsumbris info                         # MCP surface and launch defaults, no engine
 arsumbris info <engine.sock>           # the same, plus ready/schema/version/workspace
-arsumbris daemon status <entry>        # engine side, same as `au daemon status`
+2brain daemon status <entry>        # engine side, same as `au daemon status`
 au-mcp-rs --help / --version / --info  # the MCP half alone
 ```
 
@@ -72,7 +72,7 @@ still exits 0 when the engine is unreachable, so it is safe in a health script.
 ```json
 "arsumbris-rs": {
   "type": "stdio",
-  "command": "/root/arsumbris/au-mcp-rs/target/release/arsumbris",
+  "command": "/usr/local/bin/2brain",
   "args": ["mcp", "/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"]
 }
 ```
@@ -85,7 +85,7 @@ with `mcp.list_connections()` and `mcp.list_tools("arsumbris-rs")`.
 
 ```sh
 claude mcp add --scope local arsumbris-rs -- \
-  /root/arsumbris/au-mcp-rs/target/release/arsumbris mcp \
+  /usr/local/bin/2brain mcp \
   /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
 claude mcp list          # expect: arsumbris-rs ... ✔ Connected
 ```
@@ -94,7 +94,7 @@ claude mcp list          # expect: arsumbris-rs ... ✔ Connected
 
 ```sh
 codex mcp add arsumbris-rs -- \
-  /root/arsumbris/au-mcp-rs/target/release/arsumbris mcp \
+  /usr/local/bin/2brain mcp \
   /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
 codex mcp list           # expect: arsumbris-rs  ...  enabled
 ```
@@ -108,7 +108,7 @@ shape, not the handshake.
 {
   "mcpServers": {
     "arsumbris-rs": {
-      "command": "/root/arsumbris/au-mcp-rs/target/release/arsumbris",
+      "command": "/usr/local/bin/2brain",
       "args": ["mcp", "/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"]
     }
   }
