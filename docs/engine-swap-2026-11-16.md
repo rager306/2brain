@@ -1,10 +1,26 @@
-# Engine swap — 2026-11-16: the `search` read (rehearsed, not executed)
+# Fifth engine swap: `au_search` into the served daemon
 
-Status: **rehearsed on a copy, not executed.** Written 2026-11-16. Nothing under
-`/root/vault` or the live daemon was touched: no install, no restart, and no read
-comparison against the live socket. Every step below is marked **REHEARSED** (run on
-a copy, result recorded) or **IN THE WINDOW** (the copy-pasteable half that needs the
-live socket and the maintenance decision).
+**The procedure is scripted: `au-engine/scripts/swap-engine.sh`.** This document is the reasoning and
+the rehearsal record; the script is the execution, because the risky part is the ordering, not the
+decisions.
+
+```sh
+cd /root/arsumbris/au-engine
+./scripts/swap-engine.sh --check      # preconditions; changes nothing
+./scripts/swap-engine.sh              # install + restart + compare + auto-rollback on any failure
+./scripts/swap-engine.sh --restore    # put the backed-up binary back and restart
+```
+
+The script encodes the properties this document argues for:
+
+- it **refuses** instead of guessing (no candidate, a candidate older than the sources it claims to
+  build, uncommitted engine changes, a running cargo job, an engine that already answers `search`);
+- it captures the four-read baseline and the rollback copy **before** touching the live binary;
+- after `install` it never leaves the window open: a failed restart, a silent engine, a shape
+  difference, or a `search` that is still refused all end in `restore`, and `restore` is a file put back
+  plus a restart — not a diagnosis;
+- a *content* difference (the vault moved between captures) is reported as such and does not roll back
+  a working engine; a *shape* difference does.
 
 ## What changes
 
