@@ -16,7 +16,6 @@ Run with a built `au` engine and adapter:
 Exit status is non-zero on the first failed expectation.
 """
 
-import json
 import os
 import shutil
 import socket
@@ -26,62 +25,17 @@ import tempfile
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from mcp_stdio import StdioMcp, is_error, tool_payload
+
 ENGINE = os.environ.get("AU_ENGINE_BIN", "../au-engine/target/debug/au")
 ADAPTER = os.environ.get("AU_MCP_RS_BIN", "target/debug/au-mcp-rs")
 TIMEOUT = 20.0
 
 
-class Adapter:
-    """One MCP stdio session with the adapter."""
-
-    def __init__(self, socket_path: Path, *extra: str) -> None:
-        self.process = subprocess.Popen(
-            [ADAPTER, str(socket_path), *extra],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            bufsize=1,
-        )
-        reply = self.request(
-            1,
-            "initialize",
-            {
-                "protocolVersion": "2025-06-18",
-                "capabilities": {},
-                "clientInfo": {"name": "rollback-rehearsal", "version": "1"},
-            },
-        )
-        assert "result" in reply, reply
-        self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
-
-    def send(self, message: dict) -> None:
-        assert self.process.stdin is not None
-        self.process.stdin.write(json.dumps(message) + "\n")
-        self.process.stdin.flush()
-
-    def request(self, request_id: int, method: str, params: dict) -> dict:
-        self.send({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
-        assert self.process.stdout is not None
-        line = self.process.stdout.readline()
-        assert line, "the adapter closed stdout"
-        reply = json.loads(line)
-        assert reply.get("id") == request_id, reply
-        return reply
-
-    def call(self, request_id: int, name: str, arguments: dict) -> dict:
-        reply = self.request(
-            request_id, "tools/call", {"name": name, "arguments": arguments}
-        )
-        return reply["result"]
-
-    def close(self) -> None:
-        self.process.kill()
-        self.process.wait()
-
-
-def payload(result: dict) -> dict:
-    return json.loads(result["content"][0]["text"])
+def adapter(socket_path: Path, *extra: str, name: str) -> StdioMcp:
+    """A started stdio session with the adapter."""
+    return StdioMcp([ADAPTER, str(socket_path), *extra], name=name, timeout=TIMEOUT).start()
 
 
 def fail(message: str) -> "None":
@@ -155,12 +109,11 @@ def main() -> int:
             fail("the disposable engine never became ready")
 
         # 1. A granted adapter writes through the engine.
-        writer = Adapter(socket_path, "--allow-mutations")
-        read = payload(writer.call(2, "au_content", {"repo": "fixture", "path": "notes/a.md"}))
+        writer = adapter(socket_path, "--allow-mutations", name="rollback-writer")
+        read = tool_payload(writer.call("au_content", {"repo": "fixture", "path": "notes/a.md"}))
         assert read["content"]["hash"], read
         written = "---\ntype: note\ntitle: after\n---\n"
         result = writer.call(
-            3,
             "au_write_file",
             {
                 "repo": "fixture",
@@ -169,7 +122,7 @@ def main() -> int:
                 "expected_hash": read["content"]["hash"],
             },
         )
-        if result.get("isError"):
+        if is_error(result):
             fail(f"the write was refused: {result}")
         step("a granted adapter writes through the engine")
         writer.close()
@@ -192,26 +145,22 @@ def main() -> int:
         step("the adapter left no files behind")
 
         # 4. A fresh read-only process still reads the write and refuses to write.
-        reader = Adapter(socket_path)
-        again = payload(reader.call(4, "au_content", {"repo": "fixture", "path": "notes/a.md"}))
+        reader = adapter(socket_path, name="rollback-reader")
+        again = tool_payload(reader.call("au_content", {"repo": "fixture", "path": "notes/a.md"}))
         if again["content"]["text"] != written:
             fail(f"a fresh adapter read {again['content']['text']!r}")
         step("a fresh process reads the written file")
-        refused = reader.request(
-            5,
-            "tools/call",
+        refused = reader.call(
+            "au_write_file",
             {
-                "name": "au_write_file",
-                "arguments": {
-                    "repo": "fixture",
-                    "path": "notes/a.md",
-                    "content": "x",
-                    "expected_hash": again["content"]["hash"],
-                },
+                "repo": "fixture",
+                "path": "notes/a.md",
+                "content": "x",
+                "expected_hash": again["content"]["hash"],
             },
         )
         # A read-only adapter refuses at the protocol layer, before the tool runs.
-        if "error" not in refused and not refused.get("result", {}).get("isError"):
+        if not is_error(refused):
             fail(f"a read-only adapter accepted a write: {refused}")
         step("rolling back to read-only is a launch flag: the write is refused")
         reader.close()

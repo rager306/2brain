@@ -25,6 +25,9 @@ import tempfile
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from mcp_stdio import StdioMcp, is_error, tool_payload
+
 ENGINE = os.environ.get("AU_ENGINE_BIN", "../au-engine/target/debug/au")
 ADAPTER = os.environ.get("AU_MCP_RS_BIN", "target/debug/au-mcp-rs")
 BRIDGE = os.environ.get(
@@ -40,74 +43,34 @@ SHARED = {
 }
 
 
-class Stdio:
-    """Minimal MCP stdio client."""
-
-    def __init__(self, command: list[str], env: dict | None = None) -> None:
-        self.process = subprocess.Popen(
-            command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-            env=env,
-        )
-        reply = self.request(
-            1,
-            "initialize",
-            {
-                "protocolVersion": "2025-06-18",
-                "capabilities": {},
-                "clientInfo": {"name": "bridge-parity", "version": "1"},
-            },
-        )
-        assert "result" in reply, reply
-        self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
-
-    def send(self, message: dict) -> None:
-        assert self.process.stdin is not None
-        self.process.stdin.write(json.dumps(message) + "\n")
-        self.process.stdin.flush()
-
-    def request(self, request_id: int, method: str, params: dict) -> dict:
-        self.send({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
-        assert self.process.stdout is not None
-        line = self.process.stdout.readline()
-        if not line:
-            stderr = self.process.stderr.read() if self.process.stderr else ""
-            raise SystemExit(f"stdio server closed its output: {stderr[-2000:]}")
-        return json.loads(line)
-
-    def tools(self) -> "list[str]":
-        reply = self.request(2, "tools/list", {})
-        return sorted(tool["name"] for tool in reply["result"]["tools"])
-
-    def call(self, request_id: int, name: str, arguments: dict) -> dict:
-        reply = self.request(
-            request_id, "tools/call", {"name": name, "arguments": arguments}
-        )
-        result = reply.get("result") or {}
-        if result.get("isError"):
-            return {"error": result["content"][0]["text"]}
-        return json.loads(result["content"][0]["text"])
-
-    def close(self) -> None:
-        self.process.kill()
-        self.process.wait()
+def tools(client: StdioMcp) -> "list[str]":
+    """The tool names a server reports."""
+    reply = client.request("tools/list", {})
+    return sorted(tool["name"] for tool in reply["result"]["tools"])
 
 
 def engine_read(socket: Path, request: dict) -> dict:
     import socket as socket_module
     import struct
 
+    def read_exactly(connection, count: int) -> bytes:
+        # A socket may deliver a frame in pieces; one recv is not the frame.
+        chunks, remaining = [], count
+        while remaining:
+            chunk = connection.recv(remaining)
+            if not chunk:
+                raise SystemExit(f"the engine closed the socket after {count - remaining} of {count} bytes")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
     with socket_module.socket(socket_module.AF_UNIX) as connection:
         connection.settimeout(TIMEOUT)
         connection.connect(str(socket))
         body = json.dumps(request).encode()
         connection.sendall(struct.pack(">I", len(body)) + body)
-        (length,) = struct.unpack(">I", connection.recv(4))
-        return json.loads(connection.recv(length))
+        (length,) = struct.unpack(">I", read_exactly(connection, 4))
+        return json.loads(read_exactly(connection, length))
 
 
 def commit(directory: Path) -> None:
@@ -176,7 +139,7 @@ def main() -> int:
     repo = build_workspace(root)
     env = dict(os.environ, HOME=str(home))
     processes: list[subprocess.Popen] = []
-    clients: list[Stdio] = []
+    clients: list[StdioMcp] = []
     try:
         engine = subprocess.Popen(
             [ENGINE, "daemon", "start", str(repo)],
@@ -199,11 +162,14 @@ def main() -> int:
         if daemon_socket is None:
             raise SystemExit("the Node daemon never became ready")
 
-        bridge = Stdio([sys.executable, BRIDGE], env=dict(env, AU_MCP_SOCKET=str(daemon_socket)))
-        rust = Stdio([ADAPTER, str(engine_socket)])
+        bridge = StdioMcp([sys.executable, BRIDGE], name="bridge", timeout=TIMEOUT,
+                          env=dict(env, AU_MCP_SOCKET=str(daemon_socket)))
+        rust = StdioMcp([ADAPTER, str(engine_socket)], name="adapter", timeout=TIMEOUT)
         clients.extend((bridge, rust))
-        bridge_tools = set(bridge.tools())
-        rust_tools = set(rust.tools())
+        bridge.start()
+        rust.start()
+        bridge_tools = set(tools(bridge))
+        rust_tools = set(tools(rust))
 
         print(f"bridge tools: {len(bridge_tools)}")
         print(f"rust tools:   {len(rust_tools)}")
@@ -231,10 +197,10 @@ def main() -> int:
             # severities the engine can emit.
             bridge_facts = set()
             for severity in ("error", "drift", "warning", "hint"):
-                answer = bridge.call(10, bridge_name, {"severity": severity, "limit": 500})
-                if "error" not in answer:
-                    bridge_facts |= diagnostics_facts(answer)
-            from_rust = rust.call(11, rust_name, {"limit": 500})
+                reply = bridge.call(bridge_name, {"severity": severity, "limit": 500})
+                if not is_error(reply):
+                    bridge_facts |= diagnostics_facts(tool_payload(reply))
+            from_rust = tool_payload(rust.call(rust_name, {"limit": 500}))
             from_engine = engine_read(engine_socket, {"read": fact, "id": 1})["result"]
             rust_facts = diagnostics_facts(from_rust)
             engine_facts = diagnostics_facts(from_engine)

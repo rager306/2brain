@@ -42,58 +42,38 @@ for _ in $(seq 1 100); do [[ -S $proxy_sock ]] && break; sleep 0.05; done
 echo "engine: $socket"
 echo "proxy:  $proxy_sock (drops one reply)"
 
-python3 - "$ADAPTER" "$proxy_sock" "$repo" <<'PY'
+python3 - "$ADAPTER" "$proxy_sock" "$repo" "$(dirname "$0")/lib" <<'PY'
 import json, subprocess, sys
 
-adapter, proxy, repo = sys.argv[1], sys.argv[2], sys.argv[3]
+adapter, proxy, repo, lib = sys.argv[1:5]
+sys.path.insert(0, lib)
+from mcp_stdio import StdioMcp, tool_payload, tool_text
+
 target = f"{repo}/notes/a.md"
 before = subprocess.run(["git", "-C", repo, "rev-list", "--count", "HEAD"],
                         capture_output=True, text=True).stdout.strip()
 
-# stderr is not read by any check, and an undrained pipe can fill and deadlock the
-# run with no PASS or FAIL: send it nowhere rather than buffer it.
-proc = subprocess.Popen([adapter, proxy, "--allow-mutations"],
-                        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                        stderr=subprocess.DEVNULL, text=True)
+client = StdioMcp([adapter, proxy, "--allow-mutations"], name="lost-reply").start()
 
-def rpc(id_, method, params):
-    proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": id_, "method": method,
-                                 "params": params}) + "\n")
-    proc.stdin.flush()
-    line = proc.stdout.readline()
-    if not line:
-        raise SystemExit(f"adapter closed the stream answering {method}")
-    return json.loads(line)
-
-rpc(1, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
-                      "clientInfo": {"name": "lost-reply", "version": "1"}})
-proc.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n")
-proc.stdin.flush()
-
-def call(id_, name, args):
-    return rpc(id_, "tools/call", {"name": name, "arguments": args})
-
-read = call(2, "au_content", {"repo": "fixture", "path": "notes/a.md"})
-if "error" in read or "content" not in read.get("result", {}):
-    raise SystemExit(f"au_content answered: {json.dumps(read)[:600]}")
-payload = json.loads(read["result"]["content"][0]["text"])
+read = client.call("au_content", {"repo": "fixture", "path": "notes/a.md"})
+payload = tool_payload(read)
 content, hash_ = payload["content"]["text"], payload["content"]["hash"]
 
-write = call(3, "au_write_file", {"repo": "fixture", "path": "notes/a.md",
-                                  "content": content.replace("unique-marker-7f3a", "unique-marker-7f3a once"),
-                                  "expected_hash": hash_})
-text = write["result"]["content"][0]["text"]
+write = client.call("au_write_file",
+                    {"repo": "fixture", "path": "notes/a.md",
+                     "content": content.replace("unique-marker-7f3a", "unique-marker-7f3a once"),
+                     "expected_hash": hash_})
+text = tool_text(write)
 print("write reply:", text[:200])
 
-after_read = call(4, "au_content", {"repo": "fixture", "path": "notes/a.md"})
-after_payload = json.loads(after_read["result"]["content"][0]["text"])
-current_hash = after_payload["content"]["hash"]
-reconcile = call(5, "au_reconcile", {"repo": "fixture", "path": "notes/a.md",
-                                     "expected_hash": current_hash})
-report = json.loads(reconcile["result"]["content"][0]["text"])
+after_read = client.call("au_content", {"repo": "fixture", "path": "notes/a.md"})
+current_hash = tool_payload(after_read)["content"]["hash"]
+reconcile = client.call("au_reconcile", {"repo": "fixture", "path": "notes/a.md",
+                                         "expected_hash": current_hash})
+report = tool_payload(reconcile)
 print("reconcile:  ", json.dumps(report)[:300])
 head = subprocess.run(["git", "-C", repo, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-proc.terminate()
+client.close()
 
 after = subprocess.run(["git", "-C", repo, "rev-list", "--count", "HEAD"],
                        capture_output=True, text=True).stdout.strip()

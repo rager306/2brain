@@ -26,37 +26,25 @@ prepare_fixture
 echo "engine:  $socket"
 echo "adapter: $ADAPTER"
 
-python3 - "$ADAPTER" "$socket" "$repo" <<'PY'
+python3 - "$ADAPTER" "$socket" "$repo" "$(dirname "$0")/lib" <<'PY'
 import json, subprocess, sys
 
-adapter, socket_path, repo = sys.argv[1:4]
-# stderr is not read by any check, and an undrained pipe can fill and deadlock the
-# run with no PASS or FAIL.
-proc = subprocess.Popen([adapter, socket_path, "--allow-mutations", "--allow-composition"],
-                        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                        stderr=subprocess.DEVNULL, text=True)
+adapter, socket_path, repo, lib = sys.argv[1:5]
+sys.path.insert(0, lib)
+from mcp_stdio import StdioMcp, is_error, tool_text
 
-def rpc(id_, method, params):
-    proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": id_, "method": method,
-                                 "params": params}) + "\n")
-    proc.stdin.flush()
-    return json.loads(proc.stdout.readline())
+client = StdioMcp([adapter, socket_path, "--allow-mutations", "--allow-composition"],
+                  name="saga").start()
 
-def call(id_, name, args):
-    reply = rpc(id_, "tools/call", {"name": name, "arguments": args})
-    payload = reply["result"]["content"][0]["text"]
-    return payload, reply["result"].get("isError", False)
+def call(name, args):
+    reply = client.call(name, args)
+    return tool_text(reply), is_error(reply)
 
 def git(*args):
     return subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True).stdout.strip()
 
-rpc(1, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
-                      "clientInfo": {"name": "saga", "version": "1"}})
-proc.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n")
-proc.stdin.flush()
-
 def read(path):
-    payload, _ = call(90, "au_content", {"repo": "fixture", "path": path})
+    payload, _ = call("au_content", {"repo": "fixture", "path": path})
     return json.loads(payload)["content"]
 
 a, b, c = read("notes/a.md"), read("notes/b.md"), read("notes/c.md")
@@ -74,7 +62,7 @@ ops = [
     {"op": "edit_file", "path": "notes/c.md", "old_string": "text-that-is-not-there",
      "new_string": "x", "expected_hash": c["hash"]},
 ]
-payload, is_error = call(2, "au_batch", {"repo": "fixture", "ops": ops})
+payload, _ = call("au_batch", {"repo": "fixture", "ops": ops})
 print("batch reply:", payload[:220])
 
 after_commit = git("rev-parse", "HEAD")
@@ -92,12 +80,11 @@ checks = [
 ]
 
 # Scenario 2: a real write, then a preview of reverting THAT commit.
-payload, _ = call(3, "au_write_file", {"repo": "fixture", "path": "notes/a.md",
-                                       "content": a["text"] + "\nwritten\n",
-                                       "expected_hash": a["hash"]})
+payload, _ = call("au_write_file", {"repo": "fixture", "path": "notes/a.md",
+                                    "content": a["text"] + "\nwritten\n",
+                                    "expected_hash": a["hash"]})
 written = git("rev-parse", "HEAD")
-plan_payload, plan_error = call(4, "au_rollback_preview",
-                                {"repo": "fixture", "commit": written})
+plan_payload, _ = call("au_rollback_preview", {"repo": "fixture", "commit": written})
 plan = json.loads(plan_payload)
 plan = plan.get("rollback_preview", plan)
 print("rollback plan:", json.dumps(plan)[:260])
@@ -112,7 +99,7 @@ checks += [
      and "written" in open(f"{repo}/notes/a.md").read()),
 ]
 
-proc.terminate()
+client.close()
 failed = False
 for label, ok in checks:
     print(("PASS: " if ok else "FAIL: ") + label)
