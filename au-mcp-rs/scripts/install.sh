@@ -25,7 +25,14 @@ prefix=${PREFIX:-/usr/local}
 target=${CARGO_TARGET_DIR:-$here/target}
 
 cd "$here"
-RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup} cargo +1.99.0 build --release --bin 2brain
+# The runbook pins RUSTUP_HOME=/root/.rustup (`AGENTS.md`). Honour it when the
+# caller set it, and otherwise prefer that home: an agent shell whose HOME is
+# /root/.allspark-home would silently compile the same tree with a second
+# toolchain root, which both starves the shared target lock and mixes caches.
+if [[ -z ${RUSTUP_HOME:-} ]]; then
+  export RUSTUP_HOME=$([[ -d /root/.rustup ]] && echo /root/.rustup || echo "$HOME/.rustup")
+fi
+cargo +1.99.0 build --release --bin 2brain
 
 install -d "$prefix/bin"
 install -m 0755 "$target/release/2brain" "$prefix/bin/2brain"

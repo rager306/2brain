@@ -12,8 +12,9 @@ carry it, and every rename is a migration rather than a find-and-replace.
 |---|---|---|
 | the product, in prose and docs | arsumbris | **2brain**, from now |
 | this repository's path and GitHub slug | `arsumbris`, `github.com/rager306/arsumbris` | unchanged; a GitHub rename is a one-off action with its own redirect consequences |
-| crates and binary | `au-engine`… `au-mcp-rs`, `au`, `au-mcp-rs` | unchanged |
-| MCP server identifiers | `arsumbris-rs` (Rust adapter), `arsumbris` (Python bridge, retiring) | unchanged until N2 |
+| crates and the engine binary | `au-engine`… `au-mcp-rs`, `au` | unchanged |
+| the MCP binary | `au-mcp-rs`, `arsumbris` | **`2brain`**, installed at `/usr/local/bin/2brain` (phase N2) |
+| MCP server identifiers | `arsumbris-rs` (Rust adapter), `arsumbris` (Python bridge, retiring) | **`2brain`** for the Rust server (N2); `arsumbris` disappears with the bridge |
 | resource URI scheme | `arsumbris://<member>/<path>` | unchanged: it is in fixtures, clients and the WIRE contract |
 | socket and state paths | `~/.arsumbris/au-engine/run/*.sock`, `~/.arsumbris/bin/au` | unchanged |
 | systemd units | `arsumbris-engine`, `arsumbris-mcp` | unchanged |
@@ -33,7 +34,7 @@ say 2brain today, and they should: the point of a name is that the docs agree on
 | phase | change | gate |
 |---|---|---|
 | **N1** (now) | identity only: `README.md`, `AGENTS.md`, the plans and `docs/` say 2brain; nothing technical moves | `git grep -c 2brain` matches the documents, `cargo test` unchanged |
-| **N2** | the MCP server identifier the clients see: `arsumbris-rs` → `2brain` in Hermes' config, the adapter's `--info` name and `docs/` | one live session works on the new id; rollback is a config edit |
+| **N2** | **done 2026-11-16**: the binary is `2brain` (one executable for both halves), the MCP server name is `2brain`, install is `/usr/local/bin/2brain`; Hermes' stanza is in `docs/hermes-2brain.md` | the installed binary answers `--version` with its commit, `info /root/vault` resolves the live socket, and a session on the new id does a read |
 | **N3** | crates and directories (`au-*` → `brain-*`?) — **only if worth it** | a pure-Rust mechanical change with no path in it; every `use` and `Cargo.toml` moves together |
 | **N4** | wire-visible strings: the resource URI scheme, socket paths, unit names | a versioned alias: the new scheme answers, the old one keeps answering for one release |
 

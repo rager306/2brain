@@ -7,12 +7,15 @@ The Rust adapter is the serving path; the Node daemon and the Python bridge are 
 
 ```sh
 /root/arsumbris/au-mcp-rs/scripts/install.sh
-# installed /root/.local/bin/2brain
-# 2brain 0.1.0+<commit>
-# <sha256>  /root/.local/bin/2brain
+# installed /usr/local/bin/2brain
+# 2brain 0.1.0+e038727cfa05
+# 5d1580d3885eb77fdc26f93da5ef76d2c0a77db3e3acee72245b82a74449c5a4  /usr/local/bin/2brain
 ```
 
-`~/.local/bin` is on `PATH` here, and the path is outside the build tree on purpose: a
+That identity was measured on 2026-11-16 at commit `e038727`; a later build says its own commit in
+the version string, which is the point of embedding it.
+
+The path is outside the build tree on purpose: a
 `cargo clean` or a rebuilt release profile must not be able to leave the configured command
 pointing at nothing. That is exactly what happened to `au-mcp-rs/target/release/au-mcp-rs` on
 2026-11-16 — the config was right, the file was gone.
