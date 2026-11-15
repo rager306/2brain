@@ -255,6 +255,34 @@ token.
 files). The adapter half waits for P1.4, so the new tool is declared through the schema table
 instead of adding one more hand-written function to it.
 
+### Wave 3 in detail — P2, the gate becomes legible data
+
+The gate already is a state machine (`Stage` 8 variants, `MUTATION_STAGES` 7, `CREATE_STAGES` 6,
+denials that name their stage, a ledger of prior reads). What it lacks is what the assessment
+called out: the state is not a value, the transitions are not queryable, and a caller learns the
+rule by being refused. Concretely:
+
+**P2.1 reduction apart from dispatch.** `fn reduce(stage: Stage, ctx: &GateInput) -> Step` is a
+pure function; `Step` is `Denied(Denial)` or `Continue(Progress)`, and `Progress` accumulates what
+later stages read (`recorded` hash, resolved target, armed file). `arm_file`, `finish_mutation`
+and the engine call stay where they are: they are dispatch, and a reduction that performs IO
+cannot be tested without a socket.
+
+**P2.2 the armed mutation is a value.** `Prepared { stage, repo, path, expected_hash, recorded }`
+so a mutation in flight can be logged, described and resumed as data instead of living in locals.
+`Denial` keeps its stage and gains `next: Vec<Next>`.
+
+**P2.3 a refusal says what unblocks it.** `Next { stage: &'static str, tool: Option<&'static str> }`
+— for example `{"stage":"prior_read","tool":"au_content"}` or
+`{"stage":"freshness","tool":"au_content"}`. An agent that was refused at `editability` learns it
+must satisfy `prior_read` first, instead of trying mutations until one lands. Additive wire field;
+annotate `WIRE.md`; no existing refusal text changes.
+
+**Acceptance:** the 31 tests that pin the gate order and the two refusal codes stay unchanged
+(they are the contract); a property test asserts the stage table is total and that every denial
+carries a non-empty `next`; one live client run (`scripts/mutation-turn.sh`) shows the field; the
+denial payload is the only shape that changes.
+
 ### Wave 3
 
 **P2** is one track: the gate, its types, the payload field and the tests are one change
