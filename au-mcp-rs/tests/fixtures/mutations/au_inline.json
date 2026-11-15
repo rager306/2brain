@@ -1,0 +1,11 @@
+{
+ "commit": "$COMMIT",
+ "commits": {
+  "fixture": "$COMMIT"
+ },
+ "diagnostics": [],
+ "hash": "4546db335b434824",
+ "path": "$FIXTURE/into.md",
+ "reflected": true,
+ "untracked_files": []
+}

@@ -402,6 +402,17 @@ pub(crate) fn mutation_schema() -> Arc<serde_json::Map<String, Value>> {
                     "type": ["string", "null"],
                     "description": "the commit the deleted file last existed in, null for writes",
                 },
+                // `au_assign_block_id` answers with the block it named and the reference
+                // that addresses it; every other mutation omits both. Declared because
+                // the schema is the client's contract, not a hint.
+                "id": {
+                    "type": ["string", "null"],
+                    "description": "the block id, for au_assign_block_id",
+                },
+                "ref": {
+                    "type": ["string", "null"],
+                    "description": "the reference that addresses the block, for au_assign_block_id",
+                },
                 "reflected": {"type": "boolean"},
                 "commit": {},
                 "commits": commits_object(),

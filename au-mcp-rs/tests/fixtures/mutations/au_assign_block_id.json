@@ -1,0 +1,11 @@
+{
+ "commit": "$COMMIT",
+ "commits": {},
+ "diagnostics": [],
+ "hash": "94bfcd2993b10798",
+ "id": "seedid",
+ "path": "$FIXTURE/notes/marker.md",
+ "ref": "[[marker^seedid]]",
+ "reflected": true,
+ "untracked_files": []
+}

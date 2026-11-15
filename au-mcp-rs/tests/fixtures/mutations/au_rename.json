@@ -1,0 +1,11 @@
+{
+ "commit": "$COMMIT",
+ "commits": {
+  "fixture": "$COMMIT"
+ },
+ "diagnostics": [],
+ "hash": "b121f3803b531851",
+ "path": "$FIXTURE/notes/renamed.md",
+ "reflected": true,
+ "untracked_files": []
+}

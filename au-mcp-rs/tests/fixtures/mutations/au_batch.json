@@ -3,35 +3,17 @@
  "commits": {
   "fixture": "$COMMIT"
  },
- "diagnostics": [
-  {
-   "code": "unknown-type-claim",
-   "message": "type-def 'note' is not present in the type graph",
-   "severity": "error",
-   "span": {
-    "file": "$FIXTURE/notes/b.md",
-    "line_col": {
-     "end": {
-      "col": 11,
-      "line": 2
-     },
-     "start": {
-      "col": 7,
-      "line": 2
-     }
-    },
-    "range": {
-     "end": 14,
-     "start": 10
-    }
-   }
-  }
- ],
+ "diagnostics": [],
  "ops": [
   {
-   "hash": "8981e31c0305d49d",
+   "hash": "d7724e7ef81d0364",
    "op": "write_file",
-   "path": "$FIXTURE/notes/b.md"
+   "path": "$FIXTURE/notes/batch-write.md"
+  },
+  {
+   "hash": "7d4be34d28318a93",
+   "op": "edit_file",
+   "path": "$FIXTURE/notes/batch-edit.md"
   }
  ],
  "reflected": true,

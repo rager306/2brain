@@ -1,0 +1,11 @@
+{
+ "commit": "$COMMIT",
+ "commits": {
+  "fixture": "$COMMIT"
+ },
+ "diagnostics": [],
+ "hash": "019ec437cbce0b66",
+ "path": "$FIXTURE/.arsumbris/repo.yaml",
+ "reflected": true,
+ "untracked_files": []
+}

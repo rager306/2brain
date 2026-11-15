@@ -1,0 +1,37 @@
+{
+ "commit": "$COMMIT",
+ "commits": {
+  "fixture": "$COMMIT"
+ },
+ "diagnostics": [
+  {
+   "code": "edit-member-unmounted",
+   "fix": {
+    "description": "register a local path for 'aux', or place it as a co-present sibling"
+   },
+   "message": "workspace edit member 'aux' resolves to nothing; the workspace opens degraded over its present members",
+   "severity": "warning",
+   "span": {
+    "file": "$FIXTURE/.arsumbris/workspace.yaml",
+    "line_col": {
+     "end": {
+      "col": 1,
+      "line": 1
+     },
+     "start": {
+      "col": 1,
+      "line": 1
+     }
+    },
+    "range": {
+     "end": 0,
+     "start": 0
+    }
+   }
+  }
+ ],
+ "hash": "70ad4fc577aa3586",
+ "path": "$FIXTURE/.arsumbris/workspace.yaml",
+ "reflected": true,
+ "untracked_files": []
+}

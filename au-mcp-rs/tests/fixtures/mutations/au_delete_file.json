@@ -6,7 +6,7 @@
  "diagnostics": [],
  "hash": null,
  "last_live_commit": "$COMMIT",
- "path": "$FIXTURE/notes/a.md",
+ "path": "$FIXTURE/notes/delete.md",
  "reflected": true,
  "untracked_files": []
 }

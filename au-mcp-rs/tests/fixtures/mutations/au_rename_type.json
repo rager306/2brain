@@ -1,0 +1,11 @@
+{
+ "commit": "$COMMIT",
+ "commits": {
+  "fixture": "$COMMIT"
+ },
+ "diagnostics": [],
+ "hash": "858447ad9cd45202",
+ "path": "$FIXTURE/type/memo.type.yaml",
+ "reflected": true,
+ "untracked_files": []
+}

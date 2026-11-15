@@ -3,31 +3,8 @@
  "commits": {
   "fixture": "$COMMIT"
  },
- "diagnostics": [
-  {
-   "code": "unknown-type-claim",
-   "message": "type-def 'note' is not present in the type graph",
-   "severity": "error",
-   "span": {
-    "file": "$FIXTURE/notes/a.md",
-    "line_col": {
-     "end": {
-      "col": 11,
-      "line": 2
-     },
-     "start": {
-      "col": 7,
-      "line": 2
-     }
-    },
-    "range": {
-     "end": 14,
-     "start": 10
-    }
-   }
-  }
- ],
- "hash": "37d978c497897b5b",
+ "diagnostics": [],
+ "hash": "2db475b5b9af8d06",
  "path": "$FIXTURE/notes/a.md",
  "reflected": true,
  "untracked_files": []

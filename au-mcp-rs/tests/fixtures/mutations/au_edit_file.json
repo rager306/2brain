@@ -1,0 +1,11 @@
+{
+ "commit": "$COMMIT",
+ "commits": {
+  "fixture": "$COMMIT"
+ },
+ "diagnostics": [],
+ "hash": "aa9ab3c83f935e43",
+ "path": "$FIXTURE/notes/edit.md",
+ "reflected": true,
+ "untracked_files": []
+}

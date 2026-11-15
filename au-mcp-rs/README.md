@@ -207,6 +207,9 @@ RUSTUP_HOME=/root/.rustup AU_ENGINE_BIN=../au-engine/target/debug/au \
 
 Captured contracts:
 
+- `tests/fixtures/mutations/` — one captured answer per mutating tool (16), because a
+  validating client rejects an answer the declared schema does not describe, after the
+  mutation has landed.
 - `tests/fixtures/synthetic-reads/` — 32 captured reads, one per engine read tool, from a real engine on a
   disposable repository, paths as `$FIXTURE`, commit ids as `$COMMIT`; the ignored
   test re-verifies and `tests/fixture_schema.rs` checks the corpus without an

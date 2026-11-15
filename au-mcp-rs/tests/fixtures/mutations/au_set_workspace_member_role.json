@@ -1,0 +1,37 @@
+{
+ "commit": "$COMMIT",
+ "commits": {
+  "fixture": "$COMMIT"
+ },
+ "diagnostics": [
+  {
+   "code": "discover-member-unmounted",
+   "fix": {
+    "description": "register a path for 'aux', place it as a co-present sibling, or run resolve to fetch it"
+   },
+   "message": "workspace discover member 'aux' is declared but not mounted on this machine",
+   "severity": "warning",
+   "span": {
+    "file": "$FIXTURE/.arsumbris/workspace.yaml",
+    "line_col": {
+     "end": {
+      "col": 1,
+      "line": 1
+     },
+     "start": {
+      "col": 1,
+      "line": 1
+     }
+    },
+    "range": {
+     "end": 0,
+     "start": 0
+    }
+   }
+  }
+ ],
+ "hash": "0ae9e6640d5dd275",
+ "path": "$FIXTURE/.arsumbris/workspace.yaml",
+ "reflected": true,
+ "untracked_files": []
+}

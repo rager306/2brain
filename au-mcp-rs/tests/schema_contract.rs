@@ -308,8 +308,8 @@ fn every_mutation_payload_fits_the_schema_its_tool_declares() {
         checked += 1;
     }
     assert_eq!(
-        checked, 3,
-        "expected the three captured mutations, checked {checked}"
+        checked, 16,
+        "expected the sixteen captured mutations, checked {checked}"
     );
     assert!(
         problems.is_empty(),
