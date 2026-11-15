@@ -21,9 +21,12 @@ and carries `_meta["io.arsumbris/engineVersion"]`.
 or description. `detail` is `name`, `summary` (default), or `schema`; `limit` is
 1–20, default 5.
 
-`au_describe_tool {name}` — one full definition with input and output schemas.
+`au_describe_tool {name}` — one full definition with input and output schemas,
+returned as `{"tool": {name, description, inputSchema, outputSchema, annotations}}`.
 It refuses a name this launch does not expose, so a read-only server cannot leak
-a mutation's schema.
+a mutation's schema. The definition sits under a key because the declared
+`outputSchema` is closed: returning it bare made a strict client reject the answer
+with "additional properties are not allowed".
 
 ## Workspace shape
 

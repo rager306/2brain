@@ -1931,8 +1931,13 @@ impl Server {
                 args.name
             ))]);
         };
+        // The definition goes under `tool`, matching the envelope every other
+        // answer uses and the one `envelope_schema("tool")` declares. Returning it
+        // bare made a strict client reject the answer: the declared schema is
+        // closed, and `name`, `description`, `inputSchema` and `annotations` are
+        // not its properties.
         success_json(
-            serde_json::to_value(&tool).unwrap_or(Value::Null),
+            json!({"tool": serde_json::to_value(&tool).unwrap_or(Value::Null)}),
             self.payload,
         )
     }

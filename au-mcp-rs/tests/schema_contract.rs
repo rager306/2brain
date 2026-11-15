@@ -158,3 +158,68 @@ fn every_captured_payload_fits_the_schema_its_tool_declares() {
         problems.join("\n")
     );
 }
+
+/// The tools an agent discovers with, which have no captured fixture: they answer
+/// from the adapter's own inventory, so the only way to check their declared schema
+/// is to call them. `au_describe_tool` used to return a bare tool definition under a
+/// closed schema that declared `{tool, total, offset, next_offset}` — every real
+/// client rejected the answer, and nothing caught it because no fixture covers it.
+#[test]
+fn derived_tools_answers_fit_their_schemas() {
+    let temp = tempfile::tempdir().unwrap();
+    let socket = temp.path().join("engine.sock");
+    let mut client = Client::start(&socket);
+    let listed = client.request(json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}));
+    let mut schemas: BTreeMap<String, Value> = BTreeMap::new();
+    for tool in listed["result"]["tools"].as_array().unwrap() {
+        schemas.insert(
+            tool["name"].as_str().unwrap().to_owned(),
+            tool["outputSchema"].clone(),
+        );
+    }
+
+    let cases = [
+        ("au_search_tools", json!({"query": "content", "limit": 3})),
+        ("au_describe_tool", json!({"name": "au_content"})),
+    ];
+    let mut problems = Vec::new();
+    for (id, (tool, arguments)) in cases.into_iter().enumerate() {
+        let reply = client.request(json!({
+            "jsonrpc": "2.0",
+            "id": (id as u32) + 10,
+            "method": "tools/call",
+            "params": {"name": tool, "arguments": arguments},
+        }));
+        let structured = &reply["result"]["structuredContent"];
+        if structured.is_null() {
+            problems.push(format!(
+                "{tool}: no structuredContent ({}),",
+                reply["result"]
+            ));
+            continue;
+        }
+        let schema = &schemas[tool];
+        if schema["additionalProperties"] != json!(false) {
+            continue;
+        }
+        let object = structured
+            .as_object()
+            .expect("structured answer is an object");
+        for key in object.keys() {
+            if schema["properties"].get(key).is_none() {
+                problems.push(format!("{tool}: field `{key}` is not declared"));
+            }
+        }
+        for required in schema["required"].as_array().into_iter().flatten() {
+            let key = required.as_str().unwrap();
+            if !object.contains_key(key) {
+                problems.push(format!("{tool}: declared key `{key}` is missing"));
+            }
+        }
+    }
+    assert!(
+        problems.is_empty(),
+        "derived-tool schema drift:\n{}",
+        problems.join("\n")
+    );
+}
