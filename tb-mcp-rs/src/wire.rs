@@ -65,6 +65,85 @@ fn watch_timeout() -> Value {
     })
 }
 
+/// The shape a read's payload must have, one entry per engine verb.
+///
+/// This table is the only place a verb's shape is stated. It used to be a `match` inside
+/// [`read_engine`], and when the engine learned `search` the arm was missing: every call failed with
+/// "invalid read result payload" while the suite stayed green, because no test ever fed a payload the
+/// table did not know. `verb_shapes_cover_every_captured_read` in the test module now derives the verb
+/// from each captured fixture and fails when the table has no entry, so a new verb cannot ship
+/// unvalidated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Shape {
+    Object,
+    Array,
+    ObjectOrNull,
+    ArrayOrNull,
+    /// `{roots: [...], nodes: [...]}`.
+    TypeTree,
+}
+
+/// The shape table. Every verb the adapter reads must appear here.
+const VERB_SHAPES: &[(&str, Shape)] = &[
+    ("overview", Shape::Object),
+    ("top_level_dirs", Shape::Array),
+    ("hubs", Shape::Array),
+    ("diagnostics", Shape::Array),
+    ("members", Shape::Array),
+    ("imports", Shape::Array),
+    ("files", Shape::Array),
+    ("subtypes", Shape::Array),
+    ("type_tree", Shape::TypeTree),
+    ("type", Shape::ObjectOrNull),
+    ("content", Shape::ObjectOrNull),
+    ("instances_of", Shape::Array),
+    ("validate_value", Shape::Array),
+    ("frontmatter", Shape::ObjectOrNull),
+    ("anchors", Shape::ArrayOrNull),
+    ("block_ids", Shape::ArrayOrNull),
+    ("references_out", Shape::Array),
+    ("references_in", Shape::Array),
+    ("neighborhood", Shape::Object),
+    ("instances", Shape::Array),
+    ("candidates", Shape::Array),
+    ("semantic_tokens", Shape::ArrayOrNull),
+    ("resolve_member", Shape::ObjectOrNull),
+    ("instance", Shape::ObjectOrNull),
+    ("resolve_target", Shape::ObjectOrNull),
+    ("resolve_block_id", Shape::ObjectOrNull),
+    ("resolve_anchor", Shape::ObjectOrNull),
+    ("dir_entries", Shape::Array),
+    ("grep", Shape::Object),
+    ("graph_health", Shape::Object),
+    ("rollback_preview", Shape::Object),
+    ("preview_mutation", Shape::Object),
+    ("types", Shape::ArrayOrNull),
+    ("search", Shape::Object),
+];
+
+/// The declared shape of `verb`, or `None` when the table has no entry.
+pub(crate) fn shape_of(verb: &str) -> Option<Shape> {
+    VERB_SHAPES
+        .iter()
+        .find(|(name, _)| *name == verb)
+        .map(|(_, shape)| *shape)
+}
+
+/// Whether `payload` matches the declared shape.
+pub(crate) fn payload_matches(shape: Shape, payload: &Value) -> bool {
+    match shape {
+        Shape::Object => payload.is_object(),
+        Shape::Array => payload.is_array(),
+        Shape::ObjectOrNull => payload.is_object() || payload.is_null(),
+        Shape::ArrayOrNull => payload.is_array() || payload.is_null(),
+        Shape::TypeTree => {
+            payload.is_object()
+                && payload.get("roots").is_some_and(Value::is_array)
+                && payload.get("nodes").is_some_and(Value::is_array)
+        }
+    }
+}
+
 pub(crate) async fn read_engine(
     transport: &dyn EngineTransport,
     request: Value,
@@ -75,51 +154,30 @@ pub(crate) async fn read_engine(
         .exchange(request)
         .await
         .map_err(WireError::message)?;
-    let version = response["version"]
+    // Owned from here on: the result is moved out of the frame instead of being deep-cloned, which for
+    // a paged read (`au_files` at 500 rows) used to copy the whole array on every call.
+    let mut frame = response;
+    let version = frame["version"]
         .as_u64()
         .ok_or("missing or invalid engine version")?;
-    let result = response["result"]
-        .as_object()
-        .ok_or("invalid result envelope")?;
-    let payload = result.get(verb).ok_or("missing read result payload")?;
-    let valid = match verb {
-        "overview" => payload.is_object(),
-        "top_level_dirs" | "hubs" | "diagnostics" | "members" | "imports" | "files" => {
-            payload.is_array()
-        }
-        "subtypes" => payload.is_array() && result.get("base") == base.as_ref(),
-        "type_tree" => {
-            payload.is_object()
-                && payload.get("roots").is_some_and(Value::is_array)
-                && payload.get("nodes").is_some_and(Value::is_array)
-        }
-        "type" => payload.is_object() || payload.is_null(),
-        "content" => payload.is_object() || payload.is_null(),
-        "instances_of" | "validate_value" => payload.is_array(),
-        "frontmatter" => payload.is_object() || payload.is_null(),
-        "anchors" | "block_ids" => payload.is_array() || payload.is_null(),
-        "references_out" | "references_in" => payload.is_array(),
-        "neighborhood" => payload.is_object(),
-        "instances" | "candidates" => payload.is_array(),
-        "semantic_tokens" => payload.is_array() || payload.is_null(),
-        "resolve_member" | "instance" | "resolve_target" | "resolve_block_id"
-        | "resolve_anchor" => payload.is_object() || payload.is_null(),
-        "dir_entries" => payload.is_array(),
-        "grep" => payload.is_object(),
-        "graph_health" => payload.is_object(),
-        "rollback_preview" => payload.is_object(),
-        "preview_mutation" => payload.is_object(),
-        "types" => payload.is_array() || payload.is_null(),
-        // The BM25 index answers a paged object: `{exact, matches, total, truncated}`.
-        "search" => payload.is_object(),
-        _ => false,
+    let result = match frame
+        .as_object_mut()
+        .and_then(|frame| frame.remove("result"))
+    {
+        Some(Value::Object(result)) => result,
+        _ => return Err("invalid result envelope".into()),
     };
-    if !valid {
+    let shape = shape_of(verb).ok_or_else(|| format!("unvalidated read verb: {verb}"))?;
+    let payload = result.get(verb).ok_or("missing read result payload")?;
+    if !payload_matches(shape, payload) {
+        return Err("invalid read result payload".into());
+    }
+    if verb == "subtypes" && result.get("base") != base.as_ref() {
         return Err("invalid read result payload".into());
     }
     Ok(ReadResult {
         version,
-        payload: Value::Object(result.clone()),
+        payload: Value::Object(result),
     })
 }
 
@@ -279,4 +337,75 @@ pub(crate) async fn read_content(
         "content",
     )
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every captured read must have a declared shape, and the captured payload must satisfy it.
+    ///
+    /// The verb is taken from the payload itself — a read result object is keyed by the verb — so this
+    /// test needs no hand-written list to drift from. A verb the engine learns without a `VERB_SHAPES`
+    /// entry fails here instead of failing every call at runtime, which is how `search` shipped broken.
+    #[test]
+    fn verb_shapes_cover_every_captured_read() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/synthetic-reads");
+        let mut checked = std::collections::BTreeSet::new();
+        for entry in std::fs::read_dir(&dir).expect("fixture directory") {
+            let path = entry.expect("fixture entry").path();
+            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("json") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).expect("fixture text");
+            let fixture: Value = serde_json::from_str(&text).expect("fixture json");
+            // A composed tool builds its answer in the adapter and never crosses the engine boundary,
+            // so its payload has no engine verb to declare. Adding one here is a deliberate act.
+            const COMPOSED: &[&str] = &["au_follow"];
+            if fixture
+                .get("tool")
+                .and_then(Value::as_str)
+                .is_some_and(|tool| COMPOSED.contains(&tool))
+            {
+                continue;
+            }
+            let payload = fixture
+                .get("payload")
+                .and_then(Value::as_object)
+                .unwrap_or_else(|| panic!("{}: no payload object", path.display()));
+            // A verb-keyed read answers `{<verb>: …}`; a few tools (`au_typed`, `au_resolved`) flatten
+            // their answer into several fields instead, and those have no verb to check.
+            let keys: Vec<&String> = payload.keys().filter(|key| *key != "base").collect();
+            if keys.len() != 1 {
+                continue;
+            }
+            for (verb, value) in payload {
+                // `subtypes` carries the base it answered for beside the payload.
+                if verb == "base" {
+                    continue;
+                }
+                let shape = shape_of(verb).unwrap_or_else(|| {
+                    panic!(
+                        "{}: verb `{verb}` has no shape in VERB_SHAPES",
+                        path.display()
+                    )
+                });
+                assert!(
+                    payload_matches(shape, value),
+                    "{}: payload for `{verb}` does not match {shape:?}",
+                    path.display()
+                );
+                checked.insert(verb.clone());
+            }
+        }
+        assert!(checked.len() >= 25, "checked only {checked:?}");
+    }
+
+    #[test]
+    fn an_unknown_verb_is_refused_rather_than_guessed() {
+        assert_eq!(shape_of("not_a_verb"), None);
+        let shape = shape_of("search").expect("search is declared");
+        assert!(payload_matches(shape, &json!({"matches": [], "total": 0})));
+        assert!(!payload_matches(shape, &json!([])));
+    }
 }

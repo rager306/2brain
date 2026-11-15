@@ -173,7 +173,10 @@ mod tests {
             parse_resource_uri("2brain://vault/inbox/a.md"),
             Some(("vault".to_owned(), "inbox/a.md".to_owned()))
         );
-        assert!(resource_uri("vault", "inbox/a.md").starts_with("2brain://"), "emission is the new scheme only");
+        assert!(
+            resource_uri("vault", "inbox/a.md").starts_with("2brain://"),
+            "emission is the new scheme only"
+        );
     }
 
     #[test]

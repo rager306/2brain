@@ -58,10 +58,10 @@ fn list_resources_returns_member_scoped_uris() {
         client.request(json!({"jsonrpc":"2.0","id":2,"method":"resources/list","params":{}}));
     let resources = reply["result"]["resources"].as_array().unwrap();
     assert_eq!(resources.len(), 2, "{reply}");
-    assert_eq!(resources[0]["uri"], "arsumbris://fixture/notes/a.md");
+    assert_eq!(resources[0]["uri"], "2brain://fixture/notes/a.md");
     assert_eq!(resources[0]["mimeType"], "text/markdown");
     assert_eq!(
-        resources[1]["uri"], "arsumbris://fixture/notes/b%20c.md",
+        resources[1]["uri"], "2brain://fixture/notes/b%20c.md",
         "a space in a file name must not break the URI"
     );
     daemon.join().unwrap();
