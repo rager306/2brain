@@ -227,6 +227,7 @@ This suite does not establish full MCP conformance or production readiness.
 | `scripts/saga-and-rollback.sh` | that a refused `au_batch` leaves no trace, and that `au_rollback_preview` reports a plan without touching the tree |
 | `scripts/codex-turn.sh` | the same read round trip as `model-turn.sh` through a second client implementation, Codex — one model turn |
 | `scripts/live_parity.py` | that the live bridge and the Rust adapter answer the same facts on the served vault, read-only and re-runnable |
+| `scripts/strict-client.py` | that a client which validates `structuredContent` against `outputSchema` accepts a mutation answer — the check a live session failed on 2026-11-15 |
 | `scripts/batch-turn.sh` | that a model reaches for `au_batch` instead of two single writes when the task spans files — one model turn |
 | `scripts/rollback-turn.sh` | that a model plans a revert from the commit `au_content` reports, and reads the plan — one model turn |
 | `scripts/bridge_parity.py` | shared facts between the Python bridge and this adapter ([result](docs/bridge-parity.md)) |
