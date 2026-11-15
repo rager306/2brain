@@ -88,7 +88,7 @@ all for the text scan.
 | **Oxigraph** 0.5.13 | yes | RocksDB | SPARQL 1.1 | maintained, 107 revdeps — but RDF triples, not our typed markdown; docs.rs: "query evaluation has not been optimized yet" |
 | **SurrealDB** 4.0.1 | nominally | SurrealKV/RocksDB | SurrealQL | BSL 1.1, pulls a full server stack |
 | **Memgraph / Neo4j** | no | — | Cypher | separate process / JVM — not candidates for a single-binary daemon |
-| **HelixDB** | no (LMDB locks) | LMDB | HelixQL | separate process |
+| **HelixDB** 3.7.0 / image 0.0.16 | **yes** (in-process; needs a git dependency) | memory, local dir, or S3-compatible | operation tree + Cypher **profile** + BM25 + ANN | the strongest retrieval candidate — see §3.6 |
 | **RuVector** | claimed | own | own | no `ruvector` crate on crates.io, only satellites |
 | **`petgraph` / `hnsw_rs` / `tantivy` / SQLite FTS5** | libraries | in-memory / one file | none | the component stack |
 
@@ -118,6 +118,45 @@ Two different things answer to the name "rust-graph", and neither is a candidate
 If weighted shortest paths are ever needed, the honest options are `petgraph` 0.8.3 (616 M
 downloads) or ~60 lines over a `BinaryHeap` inside the existing in-memory graph — which is the
 same conclusion as everywhere else here: **add algorithms, not a store.**
+
+### 3.6 HelixDB, looked at properly
+
+Its first-row verdict ("not embedded, LMDB, own language") was wrong on two counts, so here is
+the corrected pass, from the repository and its own documentation (2026-11-15).
+
+**What it is.** Apache-2.0, 6 289★, 398 forks, 19 open issues, created 2024-11-23, active
+(CLI v3.7.0 → image v0.0.16). One transactional engine holding a labeled property graph, **BM25
+full-text** indexes and **approximate vector** indexes, queried with an operation tree, with a
+Cypher *profile* beside it (`POST /v2/cypher`, served by local servers ≥ image v0.0.13 and by
+Cloud; the crates.io SDKs — Rust 3.0.0, TS 3.2.0, Python 0.3.4, Go 0.3.1 — do **not** ship the
+Cypher methods, so that path also needs a repository build).
+
+**The part that is genuinely well designed for us: prefiltered search.** Their documented order
+is *graph traversal → exact candidate membership → ranking → top k*, with the warning that
+"searching the whole index and filtering afterwards" silently returns fewer than `k` eligible
+results because ineligible high-ranking hits consume the budget. That is exactly the failure the
+vault's own note describes (`knowledge/hybrid-search-combines-cypher-filtering-with-hnsw-in-subgraph`)
+and exactly what is expensive to hand-roll correctly on top of a standalone vector index.
+
+**The three objections, in order of weight.**
+
+1. **Packaging.** `crates.io helix-db 3.0.0` has **no `embedded` feature**; the documented
+   recipe is `cargo add helix-db --git … --tag v3.7.0 --features embedded`. Go has no embedded
+   runtime at all. A git-tag dependency in a daemon pinned to one toolchain, serving a vault that
+   is itself a contract, is a supply-chain decision, not a `cargo add`.
+2. **Its own tradeoff page disqualifies the shape we would want.** "Not optimal for
+   sub-millisecond reads — cold reads require an object-storage round trip; workloads that
+   require guaranteed sub-millisecond latency on every read are better served by in-memory
+   databases", and "ultra-low write latency" is not its target either. Our reads are 4–20 ms from
+   RAM and local files; its system of record is object storage with read caches.
+3. **Still a second data model.** Typed frontmatter, spans, block ids and diagnostics would be
+   projected into a property graph and validated outside it, so `au-type-system` stays ours; and
+   as an authority it would reintroduce the dual-write window against git.
+
+**Where that leaves it.** HelixDB is the **best-fit known candidate for the retrieval problem** —
+the three modalities we lack, in one transaction, with prefiltering done right — and it is not a
+candidate for replacing the graph. The two questions have different answers, which is why §7
+gets a spike with acceptance criteria rather than a verdict.
 
 ## 4. Capability by capability: what would we actually gain?
 
@@ -199,17 +238,29 @@ bottleneck exactly where it is.
 1. **Text index — fixes the measured bottleneck.** SQLite FTS5 `bm25()` (one file, one writer,
    WAL) or `tantivy`; kept as a derived artefact, rebuilt from files. `au_grep` stays as the
    literal escape hatch with its current contract. Target: single-digit ms for ranked search,
-   backlog P1 delivered.
+   backlog P1 delivered. This step is **independent of the spike below**: FTS alone is worth
+   having whether or not a bundle ever replaces it.
 2. **Declarative traversal object** (start set, edge filter, depth, projection, limit) behind
    one read verb — the 80% of Cypher agents actually ask for, with fail-closed typing intact.
 3. **Vector sidecar only if retrieval quality is the goal**, rebuildable, never authority;
    filter first (type/topic), then vector inside the subgraph.
 4. **Analytics stay in-memory**: extend `graph_health`'s pass (PageRank, WCC, CDLP) instead of
    adopting a store to get them.
-5. **Adopt the honesty sentence** for documentation: *the graph is an index over files, not a
+5. **If hybrid retrieval becomes a product requirement, spike HelixDB embedded — as a derived
+   index, never as authority.** One to two days, fixed acceptance:
+   - rebuild the index from the files deterministically (same input → same digest), then load
+     1 036 notes / 5 046 links;
+   - three queries with numbers attached: hub ranking, 2-hop neighbourhood with a type filter,
+     and "notes similar to X inside topic Y" (BM25 + ANN with graph prefilter);
+   - compare against today (`au_hubs` 9.8 ms, `au_graph_health` 20.5 ms, `au_grep` 132.8 ms) and
+     against a tantivy-only baseline;
+   - **go rule:** it must beat tantivy-plus-manual-traversal by enough to justify a git-tag
+     dependency and a second data model. Otherwise take tantivy now and revisit HelixDB when
+     `embedded` ships on crates.io.
+6. **Adopt the honesty sentence** for documentation: *the graph is an index over files, not a
    database*.
 
-### 7.5 Honest gaps in this assessment
+## 8. Honest gaps in this assessment
 
 - **Per-mutation cost is not measured.** The write path is known by code (`incremental.rs:1251`,
   `:1355`, `:697`), not by a benchmark; no timing for "one note edit on a 1 036-file vault"
@@ -226,7 +277,7 @@ None of these gaps changes the direction: the two numbers we do have (20 ms whol
 133 ms text scan) point at text search, and every candidate gap points at validation work we cannot
 do for a component we would not use.
 
-## 8. Measured triggers that would reopen the question
+## 9. Measured triggers that would reopen the question
 
 | trigger | threshold | why it changes the answer |
 |---|---|---|
@@ -236,7 +287,7 @@ do for a component we would not use.
 | writers | more than one concurrent writer, or a second host | MVCC/Raft stop being irrelevant |
 | temporal queries | "what did this note say on date X" over the graph | needs bitemporal edges with an index we do not have |
 
-## 9. If it is ever done, the only safe shape
+## 10. If it is ever done, the only safe shape
 
 Make the graph store a **derived index, not an authority**: written through from the file/git
 mutation path, rebuildable from scratch, verified by rebuilding and comparing digests. Then a
@@ -244,7 +295,7 @@ store crash is a cache miss, not data loss — exactly the discipline that keeps
 in-memory graph safe. Moving the *authority* into a graph DB is a different, much larger project
 and should be rejected on its own merits.
 
-## 10. Sources
+## 11. Sources
 
 Measured here: `au-engine/Cargo.toml`; `crates/au-engine/src/ir.rs:42`;
 `crates/au-references/src/lib.rs:35`; `crates/au-engine/src/serve.rs:13522` (grep scan),
@@ -256,7 +307,7 @@ Candidate survey (crates.io, repos, dbdb.io, vendor changelogs), 2026-11-15: sam
 (archived), cozo (abandoned), oxigraph 0.5.13, surrealdb 4.0.1 (BSL), memgraph (BSL),
 helix-db, ruvector, `petgraph` / `hnsw_rs` / `usearch` / `tantivy` / `rusqlite`. The
 SQLite-CTE-versus-graph-engine benchmark (100k/500k) and the "node/edge model is a performance
-tax" preprint (arXiv 2609.01525) are the two numbers that set §8's thresholds.
+tax" preprint (arXiv 2609.01525) are the two numbers that set §9's thresholds.
 
 Vault, read through `arsumbris-rs`: `knowledge/zeroclaw-stack-hnsw-rs-plus-tantivy-plus-petgraph-plus-fastembed.md`,
 `knowledge/hybrid-search-combines-cypher-filtering-with-hnsw-in-subgraph.md`,
