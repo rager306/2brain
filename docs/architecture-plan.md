@@ -222,9 +222,27 @@ read tool `au_search`. `au_grep` keeps its exact contract as the literal escape 
 | golden | a capture for `search` in `au-engine/tests-golden/engine/`, and the adapter's read fixture |
 | tests | an engine test that a mutation changes the ranking; an adapter test that the declared schema holds a float score |
 
+**Prototype numbers (Python, `/tmp/bm25-probe`, 2026-11-15):** build 1.7 s; index 3.4–3.8 MiB
+for 5.4 MiB of text (+12 MiB RSS); 45 708 terms, 282 886 postings; query latency **0.003–0.56 ms**
+against 110–135 ms for the literal scan (198×–43 000×); `description` weighted ×3 costs +18%
+postings for a clearly better top-5 on two of three spot checks.
+
+**What the prototype says the design must include, beyond plain BM25:**
+
+1. **AND or a minimum-should-match.** Pure OR returned 335–343 documents for a two- or
+   three-term query, which makes the top-5 close to arbitrary.
+2. **A phrase path for punctuation.** BM25 ranked `error->fix` over 118 documents and put the
+   wrong one first; the literal scan found exactly the one document that contains the token.
+   Both are needed: ranked for recall, literal for exactness.
+3. **Per-field weight, not token repetition.** `description` deserves its own field.
+4. **Path hygiene.** `templates/` (6 files) and `.claude/` (16) polluted results; 547 of 1 037
+   files live in `inbox/`, and hub notes (`knowledge/index.md`) rank on link text alone.
+
 **Acceptance:** median ≤ 15 ms for the eight probe queries on the live vault; ≥ 5× faster than
 `au_grep` on the same query; top-5 stable across runs; no existing verb changes shape; the
-literal escape hatch unchanged.
+literal escape hatch unchanged; and — now that the prototype exists — a labelled check on three
+queries where the ranked top-3 must contain the document the literal scan finds for the same
+token.
 
 **Order:** the engine half can start in parallel with P1.5/P1.1 (different crate, no shared
 files). The adapter half waits for P1.4, so the new tool is declared through the schema table
@@ -292,7 +310,7 @@ invariant. Any step that cannot state its acceptance in a command is not a step 
 | P1.2 bounded_stdio | **done** (`328baa3`) | `Bounds` parameter + `over(input, output, …)`; two tests on a 16-byte duplex prove the queue blocks a third send and releases it on drain, and that a closed transport refuses; suite 190 passed | 2026-11-15 |
 | P1.3 resources | **done** (`a4228c0`) | `member_roots(payload)` and the new `resource_page` are pure; the `resources -> wire` edge is gone (ALLOWED 7 → 6); `lib.rs` 4659 → 4631 production lines and the ratchet tightened to 4631; 4 inline tests without a socket | 2026-11-15 |
 | P1.4 schemas table | not started | — | — |
-| P1.5 read ledger | not started | — | — |
+| P1.5 read ledger | **done** (`3e402e8`) | `ledger::ReadLedger` with 3 tests (forget, member in the key, clone shares); `lib.rs` 4631 → 4612 and the ratchet tightened; the two refusal codes unchanged | 2026-11-15 |
 | T1 text index (engine half) | not started | design in Wave 2b; prototype numbers in progress | — |
 | T1 text index (adapter half) | blocked on P1.4 | — | — |
 | P2.1–P2.3 gate | not started | — | — |

@@ -11,10 +11,10 @@ binary used for the surface measurements was built from `1bcc08e` and reports
 
 - **51 tools**: 35 advertised without a grant (29 engine reads plus 6 derived
   reads), 16 mutating behind three independent grants.
-- **192 registered tests**: 190 run by default, 2 `#[ignore]`d because they need
+- **195 registered tests**: 193 run by default, 2 `#[ignore]`d because they need
   a built `au` (measured 2026-11-15 after the capability axis, the paging fix, the
-  architecture tests, the resources port and the transport bounds: 41 suites, 190 passed,
-  0 failed, `rc=0`).
+  architecture tests, the resources port, the transport bounds and the read ledger: 41
+  suites, 193 passed, 0 failed, `rc=0`).
 - **32** synthetic read fixtures, **3** production golden payloads.
 - **4** known engine test failures on this host, all needing a non-root runner.
 
