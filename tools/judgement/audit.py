@@ -41,12 +41,17 @@ DEFAULT_ENDPOINT = "https://api.subq.ai"
 DEFAULT_MODEL = "subq-snap-1.2"
 EXPECTED_NOTES = 50
 
+# The id and the question must point the same way. Measured 2026-11-16: with the id
+# `stale_description` and a "does the description still describe the body?" question, the
+# model answered "yes" for good descriptions (mean probability 0.88 for accurate notes
+# against 0.58 for stale ones), so precision sat at 0.12 at every threshold. The id was
+# rephrased to match the question; the question itself is unchanged.
 STALE_INSTRUCTIONS = (
-    "The NOTE is one vault note: a DESCRIPTION and a BODY_EXCERPT. Does the "
-    "description still describe the body? Answer yes only if the description's "
-    "substantive claims are supported by the body. Answer no if it names a "
-    "different subject, contradicts the body, or asserts a scope, status or "
-    "count the body does not contain. The CANDIDATE is irrelevant here."
+    "The NOTE is one vault note: a DESCRIPTION and a BODY_EXCERPT. Decide whether the "
+    "description still describes the body. Say true only if the description's "
+    "substantive claims are supported by the body. Say false if it names a different "
+    "subject, contradicts the body, or asserts a scope, status or count the body does "
+    "not contain. The CANDIDATE is irrelevant here."
 )
 TYPE_INSTRUCTIONS = (
     "Which single note type does the NOTE's BODY_EXCERPT belong to? Choose by "
@@ -184,28 +189,29 @@ def build_request(note: dict, model: str) -> dict:
             "body_excerpt": candidate["excerpt"],
         },
     }
-    questions = [
-        {
-            "id": "stale_description",
+    # The vendor's shape, measured 2026-11-16 against subq-snap-1.2: questions is an
+    # object keyed by question id, and the type-specific parts live under `criteria` —
+    # {true, false} for `noul`, {option: description-or-null} for `choice`.
+    questions = {
+        "stale_description": {
             "type": "noul",
             "instructions": STALE_INSTRUCTIONS,
-            "true": "the description still describes the body",
-            "false": "the description is stale, wrong, or about another subject",
+            "criteria": {
+                "true": "the description still describes the body",
+                "false": "the description is stale, wrong, or about another subject",
+            },
         },
-        {
-            "id": "type",
+        "type": {
             "type": "choice",
             "instructions": TYPE_INSTRUCTIONS,
-            "options": list(NOTE_TYPES),
+            "criteria": {note_type: None for note_type in NOTE_TYPES},
         },
-        {
-            "id": "duplicate",
+        "duplicate": {
             "type": "noul",
             "instructions": DUPLICATE_INSTRUCTIONS,
-            "true": "the same claim",
-            "false": "a different claim",
+            "criteria": {"true": "the same claim", "false": "a different claim"},
         },
-    ]
+    }
     return {"model": model, "state": state, "questions": questions}
 
 
@@ -230,6 +236,39 @@ def post_systemone(endpoint: str, body: dict, key: str | None, timeout: float) -
     if not isinstance(parsed, dict):
         raise ValueError("response is not a JSON object")
     return parsed
+
+
+def load_project_env(start: str) -> str | None:
+    """Load KEY=VALUE pairs from the nearest `.env` above this file.
+
+    The project keeps its key in `<repo>/.env` (gitignored), so the harness works from
+    a checkout with no shell setup. A variable already in the environment wins: an
+    explicit export is a stronger statement than a file, and a CI run must be able to
+    override the file without editing it.
+    """
+    directory = os.path.dirname(os.path.abspath(start))
+    while True:
+        candidate = os.path.join(directory, ".env")
+        if os.path.isfile(candidate):
+            try:
+                with open(candidate, encoding="utf-8") as handle:
+                    for line in handle:
+                        line = line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        name, _, value = line.partition("=")
+                        name = name.strip()
+                        if name.startswith("export "):
+                            name = name[len("export ") :].strip()
+                        value = value.strip().strip('"').strip("'")
+                        os.environ.setdefault(name, value)
+            except OSError:
+                pass
+            return candidate
+        parent = os.path.dirname(directory)
+        if parent == directory:
+            return None
+        directory = parent
 
 
 def pick_answer(payload: dict, question_id: str):
@@ -307,9 +346,16 @@ def score_note(note: dict, payload: dict, threshold: float) -> dict:
 
     raw = pick_answer(payload, "stale_description")
     probability = noul_probability(raw)
-    verdict = noul_verdict(probability, threshold)
+    # Polarity, and the bug this comment exists to prevent: the model answers "does the
+    # description still describe the body?" (yes = accurate), while the hand label is
+    # `stale_description` (yes = stale). Comparing the two directly scores a perfectly
+    # calibrated judge at zero; measured 2026-11-16, that is exactly what happened and
+    # precision sat at 0.12 while the answers were fine. `verdict` is reported in the
+    # label's own direction.
+    answers = noul_verdict(probability, threshold)
+    verdict = {"yes": "no", "no": "yes"}.get(answers, answers)
     rows["stale_description"] = {
-        "question": "does the description still describe the body?",
+        "question": "does the description still describe the body? (verdict in the label's direction: yes = stale)",
         "answer": probability,
         "probability": probability,
         "threshold": threshold,
@@ -379,10 +425,29 @@ def summarise(rows: list[dict]) -> dict:
             else:
                 decided += 1
                 correct += int(bool(cell["matched"]))
+        # Accuracy alone hides the base rate: 40 of the 50 notes are not stale, so
+        # answering "no" every time scores 0.80 while finding nothing. For the yes/no
+        # questions report the yes class's precision and recall beside it, which is what
+        # "does this detector work" actually asks.
+        tp = fp = fn = 0
+        for row in rows:
+            cell = row["questions"][question_id]
+            if "error" in cell or cell.get("matched") is None:
+                continue
+            if cell["verdict"] == "yes" and cell["gold"] == "yes":
+                tp += 1
+            elif cell["verdict"] == "yes":
+                fp += 1
+            elif cell["gold"] == "yes":
+                fn += 1
         summary[question_id] = {
             "decided": decided,
             "correct": correct,
+            "accuracy": (correct / decided) if decided else None,
+            # Kept for callers that read the old key; it was always accuracy.
             "precision": (correct / decided) if decided else None,
+            "yes_precision": (tp / (tp + fp)) if (tp + fp) else None,
+            "yes_recall": (tp / (tp + fn)) if (tp + fn) else None,
             "uncertain": uncertain,
             "errors": errors,
         }
@@ -391,13 +456,18 @@ def summarise(rows: list[dict]) -> dict:
 
 def print_precision(summary: dict) -> None:
     print()
-    print(f"{'question':<20}{'decided':>8}{'correct':>8}{'precision':>11}{'uncertain':>11}{'errors':>7}")
+    header = f"{'question':<20}{'decided':>8}{'accuracy':>9}{'yes_prec':>9}{'yes_rec':>8}{'uncertain':>10}{'errors':>7}"
+    print(header)
     for question_id in ("stale_description", "type", "duplicate"):
         row = summary[question_id]
-        precision = "n/a" if row["precision"] is None else f"{row['precision']:.3f}"
+
+        def fmt(value):
+            return "n/a" if value is None else f"{value:.3f}"
+
         print(
-            f"{question_id:<20}{row['decided']:>8}{row['correct']:>8}{precision:>11}"
-            f"{row['uncertain']:>11}{row['errors']:>7}"
+            f"{question_id:<20}{row['decided']:>8}{fmt(row['accuracy']):>9}"
+            f"{fmt(row['yes_precision']):>9}{fmt(row['yes_recall']):>8}"
+            f"{row['uncertain']:>10}{row['errors']:>7}"
         )
 
 
@@ -436,6 +506,7 @@ def main(argv: list[str]) -> int:
     cost = tokens / 1_000_000.0 * args.price_per_mtok
 
     endpoint = args.endpoint or os.environ.get("JUDGEMENT_ENDPOINT") or DEFAULT_ENDPOINT
+    env_file = load_project_env(__file__)
     key = os.environ.get("SUBQ_API_KEY") or None
 
     if args.dry_run:
@@ -461,7 +532,8 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         print(
-            "audit: set SUBQ_API_KEY for the vendor, or JUDGEMENT_ENDPOINT (or --endpoint) "
+            "audit: set SUBQ_API_KEY for the vendor (env or <repo>/.env), or JUDGEMENT_ENDPOINT "
+            "(--endpoint) "
             "for a local systemone-compatible judge. Use --dry-run to inspect the request "
             "without a key.",
             file=sys.stderr,

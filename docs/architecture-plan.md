@@ -236,7 +236,7 @@ the pieces are consequences of the last stretch rather than of the original plan
 | track | work | why now | surface | conflicts with |
 |---|---|---|---|---|
 | ~~**E** fixture hygiene~~ | **done `ea164f9`** — the trap was already there; what was missing is that a killed process group runs no trap. So `prepare_fixture` now reaps daemons whose fixture root no longer exists (proven: one real orphan, killed, `fixtures left: 0`), cleanup asks the engine to stop before signalling, and `AU_KEEP_FIXTURE=1` keeps a failing fixture | found 14 orphans | `scripts/lib/` | — |
-| **F** production parity | build a release engine from HEAD, serve a **copy** of the vault, compare the four daemon-shaped golden captures (`au-engine/tests-golden/*.json`) against live answers | this is the gate for promoting `search` to the live daemon; the engine tests replay captures against fixtures, which does not prove the production vault answers the same | `au-engine` + `/tmp` | nothing |
+| ~~**F** production parity~~ | **done 2026-11-16** — HEAD and the served binary are byte-identical on a frozen copy for 8/8 reads, so `search` is the whole delta and nothing must be regenerated for a swap | measured | `au-engine` + `/tmp` | — |
 | **G** P3 procedures | `scripts/lib/procedure.py`: two procedures (`mutation-turn.sh`, `recovery-turn.sh`) as states with code transitions, negative cases, and a dry-run mode | the last piece of the agent layer, and the honest form of C2: FSM owns the process, the model is free inside a state | `au-mcp-rs/scripts/` | E (same directory) |
 
 **Order:** F in parallel with E; G after E, because both edit `scripts/`. Promotion of `search` to the
@@ -532,6 +532,7 @@ pairs); W4.2 is documentation and runs in parallel with anything.
 | T1 text index (engine half) | **phase 1 done** (`3d4bc40`) | `search.rs` 982 lines; 7 tests + ignored measurement; build 1.07 s / 1 000 docs, 4.7 KiB/doc, OR p50 1.65 ms p95 2.45 ms, exact p50 73 µs; engine `--lib` 685 passed / 1 known root-only failure; **no verb yet** | 2026-11-15 |
 
 | P2.1–P2.3 gate | not started | — | — |
+| W4.1 judge run | **measured 2026-11-16** (`docs/w4.1-judgement-run-2026-11-16.md`) | 50 notes, $0.0019/pass: duplicates 1.000/0.889 (adopt), stale recall 0.333 (not usable as a detector), type 0.729 with adjacent confusions; two harness bugs found by running it (vendor wire, inverted polarity) | 2026-11-16 |
 | W4.1 ingest auditor | **phase 1 done** (`6b8f0f0`) | `tools/judgement/`: 50-note stratified sample with hand labels (10 stale / 40 not), a `systemone`-shaped client with `--dry-run` (exit 0, ~$0.0018 per pass) and exit 3 without a key; real path proven against a local fake; vendor response shape unverified (no key) | 2026-11-15 |
 | W4.2 role definitions | not started | assessment §1.1 | — |
 | P3.1–P3.2 agent layer | not started | — | — |

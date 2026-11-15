@@ -3,6 +3,9 @@
 node_modules/
 **/target/
 **/node_modules/
+.env
+.env.*
+!.env.example
 __pycache__/
 *.pyc
 *.sock
