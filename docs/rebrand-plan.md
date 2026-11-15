@@ -61,6 +61,7 @@ doing them as one find-and-replace breaks the live vault.
 | step | gate | rollback |
 |---|---|---|
 | repo rename | `git remote -v`; `gh repo view` | `gh repo rename arsumbris` |
+| **state root + unit (tier B) — done 2026-11-16** | `2brain-engine.service` active, socket under `~/.2brain`, `2brain info` 3 members / 0 diagnostics, health `engine=1 bin=1 action=ok` | restore `/root/backups/arsumbris-engine.service.20261116`, `mv ~/.2brain ~/.arsumbris` |
 | local dir | `au members /root/vault` (3 members), `2brain info` | `mv` back |
 | dirs `au-*` | `cargo check --workspace`; `au members`; diagnostics 0 | `git revert` |
 | prose | `git grep -i arsumbris` lists only dated records + README attribution | `git revert` |
@@ -97,7 +98,11 @@ layout*, and the two are recognised by what reads them, not by their spelling.
 
 ## Recipes for the open tiers
 
-### Tier B — state root and unit
+### Tier B — state root and unit — **executed 2026-11-16**
+
+The engine now resolves the state root as: `$2BRAIN_HOME` → an existing `$HOME/.2brain` → the legacy
+`$HOME/.arsumbris`, so a machine that has not been migrated keeps working, and after the move both
+spellings reach the same inode through a symlink.
 
 ```sh
 systemctl stop arsumbris-engine.service

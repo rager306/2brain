@@ -110,6 +110,8 @@ pub(crate) async fn read_engine(
         "rollback_preview" => payload.is_object(),
         "preview_mutation" => payload.is_object(),
         "types" => payload.is_array() || payload.is_null(),
+        // The BM25 index answers a paged object: `{exact, matches, total, truncated}`.
+        "search" => payload.is_object(),
         _ => false,
     };
     if !valid {

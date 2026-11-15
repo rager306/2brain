@@ -838,10 +838,38 @@ pub fn device_root() -> Result<PathBuf, HomeUnset> {
     device_root_from(std::env::var_os("HOME"))
 }
 
+/// The state directory name used under `$HOME`.
+pub const STATE_DIR: &str = ".2brain";
+
+/// The name this directory carried before the rebrand. Kept as a fallback so a machine
+/// that has not been migrated keeps its sockets, registry and logs where they are; the
+/// migration is `mv ~/.arsumbris ~/.2brain` plus a symlink for one release
+/// (`docs/rebrand-plan.md`, tier B).
+pub const LEGACY_STATE_DIR: &str = ".arsumbris";
+
+/// The state directory under `home`: `$2BRAIN_HOME` wins (tests, non-standard installs),
+/// then an existing `.2brain`, then the legacy `.arsumbris`.
+///
+/// Existence decides, not a version flag: after the migration the new directory is there and
+/// the old name is a symlink to it, so both spellings reach the same inode and neither an old
+/// client nor a new one has to be told which world it is in.
+pub fn state_dir_in(home: &Path) -> PathBuf {
+    match std::env::var_os("2BRAIN_HOME") {
+        Some(explicit) if !explicit.is_empty() => PathBuf::from(explicit),
+        _ => {
+            let new = home.join(STATE_DIR);
+            if new.exists() { new } else { home.join(LEGACY_STATE_DIR) }
+        }
+    }
+}
+
 /// [`device_root`] over an explicit `$HOME`, the determinism seam for tests.
 fn device_root_from(home: Option<std::ffi::OsString>) -> Result<PathBuf, HomeUnset> {
     match home {
-        Some(h) if !h.is_empty() => Ok(canonical_root(&PathBuf::from(h)).join(".arsumbris")),
+        Some(h) if !h.is_empty() => {
+            let home = canonical_root(&PathBuf::from(h));
+            Ok(state_dir_in(&home))
+        }
         _ => Err(HomeUnset),
     }
 }

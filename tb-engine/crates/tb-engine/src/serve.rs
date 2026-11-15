@@ -183,12 +183,10 @@ pub fn socket_file_name(entry: &Path) -> String {
 /// unreachable on the daemon-start path, which requires `$HOME`), so a socket path
 /// always exists for `stop` / `status`.
 fn sockets_dir() -> PathBuf {
-    std::env::var_os("HOME")
+    let home = std::env::var_os("HOME")
         .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir)
-        .join(".arsumbris")
-        .join("au-engine")
-        .join("run")
+        .unwrap_or_else(std::env::temp_dir);
+    crate::repo::state_dir_in(&home).join("au-engine").join("run")
 }
 
 #[cfg(test)]

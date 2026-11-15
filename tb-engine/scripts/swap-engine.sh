@@ -18,10 +18,10 @@ export HOME=/root
 
 DATE=${AU_SWAP_DATE:-$(date +%Y%m%d)}
 BACKUPS=/root/backups
-INSTALLED=/root/.arsumbris/bin/au
+INSTALLED=/root/.2brain/bin/au
 CANDIDATE=${AU_CANDIDATE:-/root/2brain/tb-engine/target/release/au}
-SERVICE=arsumbris-engine.service
-SOCKET=/root/.arsumbris/au-engine/run/adcfe8680a485529.sock
+SERVICE=2brain-engine.service
+SOCKET=/root/.2brain/au-engine/run/adcfe8680a485529.sock
 PROBE=/root/2brain/tb-engine/scripts/engine_probe.py
 PRE=$BACKUPS/au-$DATE-pre-search
 CAND=$BACKUPS/au-$DATE-candidate
