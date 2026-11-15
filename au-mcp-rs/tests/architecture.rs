@@ -37,7 +37,7 @@ const ALLOWED: [(&str, &str); 9] = [
 
 /// Production lines of `src/lib.rs`, excluding the inline test module. A ratchet: lower it
 /// when a port moves out, never raise it to make room.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4561;
+const LIB_RS_PRODUCTION_BUDGET: usize = 4520;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")

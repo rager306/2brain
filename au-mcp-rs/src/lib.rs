@@ -1223,22 +1223,14 @@ impl Server {
                         &repo,
                         &format!("denied:{}", denial.stage.name()),
                     );
-                    return return_error(format!(
-                        "policy/{}: {}",
-                        denial.stage.name(),
-                        denial.message
-                    ));
+                    return return_error(denial.text());
                 }
             }
         }
         let _permit = match self.take_slot() {
             Ok(permit) => permit,
             Err(denial) => {
-                return return_error(format!(
-                    "policy/{}: {}",
-                    denial.stage.name(),
-                    denial.message
-                ));
+                return return_error(denial.text());
             }
         };
         let keys: Vec<(String, String)> = armed.iter().map(|file| file.key.clone()).collect();
@@ -1304,11 +1296,7 @@ impl Server {
                     &repo,
                     &format!("denied:{}", denial.stage.name()),
                 );
-                return return_error(format!(
-                    "policy/{}: {}",
-                    denial.stage.name(),
-                    denial.message
-                ));
+                return return_error(denial.text());
             }
         };
         let request = json!({
@@ -1448,11 +1436,7 @@ impl Server {
                     &repo,
                     &format!("denied:{}", denial.stage.name()),
                 );
-                return return_error(format!(
-                    "policy/{}: {}",
-                    denial.stage.name(),
-                    denial.message
-                ));
+                return return_error(denial.text());
             }
         };
         let mut request = json!({
@@ -1516,21 +1500,13 @@ impl Server {
                     &repo,
                     &format!("denied:{}", denial.stage.name()),
                 );
-                return return_error(format!(
-                    "policy/{}: {}",
-                    denial.stage.name(),
-                    denial.message
-                ));
+                return return_error(denial.text());
             }
         };
         let _permit = match self.take_slot() {
             Ok(permit) => permit,
             Err(denial) => {
-                return return_error(format!(
-                    "policy/{}: {}",
-                    denial.stage.name(),
-                    denial.message
-                ));
+                return return_error(denial.text());
             }
         };
         let mut request = json!({
@@ -2705,11 +2681,7 @@ impl Server {
                     &repo,
                     &format!("denied:{}", denial.stage.name()),
                 );
-                return CallToolResult::error(vec![ContentBlock::text(format!(
-                    "policy/{}: {}",
-                    denial.stage.name(),
-                    denial.message
-                ))]);
+                return CallToolResult::error(vec![ContentBlock::text(denial.text())]);
             }
         };
         let request = build(&prepared.target);
@@ -3884,20 +3856,7 @@ struct PreparedMutation {
     _permit: tokio::sync::OwnedSemaphorePermit,
 }
 
-/// The first gate that refused a mutation.
-struct Denial {
-    stage: policy::Stage,
-    message: String,
-}
-
-impl Denial {
-    fn new(stage: policy::Stage, message: impl Into<String>) -> Self {
-        Self {
-            stage,
-            message: message.into(),
-        }
-    }
-}
+use policy::Denial;
 
 /// What a client should know before choosing a tool.
 const INSTRUCTIONS: &str = "Read-only access to an arsumbris workspace, plus gated mutations. Every result is the engine's own result object under the read's key: au_overview answers {\"overview\": ...}, au_type answers {\"type\": ...}. Start with au_overview, then au_members for member roots, au_types and au_type for vocabulary, and au_files or au_content to locate text. Paged tools take limit and offset; au_type_tree, au_content, au_instances_of, and au_validate_value are unpaged and can return large answers. Mutations are disabled unless the operator granted them at launch; when enabled they need a prior au_content read of the same path and the hash it returned. A lost reply is outcome_unknown and must not be retried blindly; au_reconcile reports whether it landed.";

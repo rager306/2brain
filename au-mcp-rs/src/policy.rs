@@ -324,6 +324,31 @@ fn digest(preimage: &str) -> String {
         .collect()
 }
 
+/// The first gate that refused a mutation.
+pub(crate) struct Denial {
+    pub(crate) stage: Stage,
+    pub(crate) message: String,
+}
+
+impl Denial {
+    pub(crate) fn new(stage: Stage, message: impl Into<String>) -> Self {
+        Self {
+            stage,
+            message: message.into(),
+        }
+    }
+
+    /// The refusal as the caller sees it.
+    ///
+    /// The stage code (`policy/<stage>`) is the machine-readable half — the audit log
+    /// records `denied:<stage>` from the same value — and the message is the human
+    /// half. Each message already names the step that clears it; a separate remedy
+    /// table would only repeat them (measured: it broke a test that pins the text).
+    pub(crate) fn text(&self) -> String {
+        format!("policy/{}: {}", self.stage.name(), self.message)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -353,6 +378,25 @@ mod tests {
         let error = Policy::load(&path).unwrap_err();
         assert!(error.contains("audit"), "{error}");
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_denial_names_its_stage_before_its_reason() {
+        let denial = Denial::new(Stage::PriorRead, "read this file first");
+        assert_eq!(
+            denial.text(),
+            "policy/prior_read: read this file first",
+            "the stage code is the machine-readable half and must come first"
+        );
+        // The audit log records the same value, so a client can correlate the two.
+        assert_eq!(denial.stage.name(), "prior_read");
+        let freshness = Denial::new(Stage::Freshness, "hash moved");
+        assert!(freshness.text().starts_with("policy/freshness: "));
+        assert_ne!(
+            denial.text(),
+            freshness.text(),
+            "two stages must not collapse into one code"
+        );
     }
 
     #[test]
