@@ -235,7 +235,7 @@ the pieces are consequences of the last stretch rather than of the original plan
 
 | track | work | why now | surface | conflicts with |
 |---|---|---|---|---|
-| **E** fixture hygiene | `scripts/lib/disposable-fixture.sh` must stop its engine on **any** exit (`trap`), so the orphan class cannot come back; a `--keep` flag for debugging | the acceptance run found **14** orphaned `au daemon start /tmp/...` processes from earlier sessions; the script is where they came from | `au-mcp-rs/scripts/lib/` | P3 (same directory) |
+| ~~**E** fixture hygiene~~ | **done `ea164f9`** — the trap was already there; what was missing is that a killed process group runs no trap. So `prepare_fixture` now reaps daemons whose fixture root no longer exists (proven: one real orphan, killed, `fixtures left: 0`), cleanup asks the engine to stop before signalling, and `AU_KEEP_FIXTURE=1` keeps a failing fixture | found 14 orphans | `scripts/lib/` | — |
 | **F** production parity | build a release engine from HEAD, serve a **copy** of the vault, compare the four daemon-shaped golden captures (`au-engine/tests-golden/*.json`) against live answers | this is the gate for promoting `search` to the live daemon; the engine tests replay captures against fixtures, which does not prove the production vault answers the same | `au-engine` + `/tmp` | nothing |
 | **G** P3 procedures | `scripts/lib/procedure.py`: two procedures (`mutation-turn.sh`, `recovery-turn.sh`) as states with code transitions, negative cases, and a dry-run mode | the last piece of the agent layer, and the honest form of C2: FSM owns the process, the model is free inside a state | `au-mcp-rs/scripts/` | E (same directory) |
 
