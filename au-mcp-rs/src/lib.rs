@@ -28,8 +28,8 @@ use rmcp::{
         CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation,
         InitializeRequestParams, InitializeResult, ListResourceTemplatesResult,
         ListResourcesResult, ListToolsResult, MetaObject, PaginatedRequestParams, ProtocolVersion,
-        ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult, Resource,
-        ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig,
+        ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult, ResourceContents,
+        ResourceTemplate, ServerCapabilities, ServerConfig,
     },
     service::RequestContext,
     tool, tool_handler, tool_router,
@@ -3395,40 +3395,20 @@ impl ServerHandler for Server {
         )
         .await
         .map_err(|error| rmcp::ErrorData::internal_error(error, None))?;
-        let members = member_roots(&self.socket).await.map_err(|error| {
+        let members_read = read_engine_with_timeout(
+            &self.socket,
+            json!({"read": "members", "id": 1}),
+            "members",
+            ENGINE_READ_TIMEOUT,
+        )
+        .await
+        .map_err(|error| {
             rmcp::ErrorData::internal_error(format!("reading members: {error}"), None)
         })?;
-        let entries = read
-            .payload
-            .get("files")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        let mut resources = Vec::with_capacity(entries.len());
-        for entry in &entries {
-            let Some(path) = entry.get("path").and_then(Value::as_str) else {
-                continue;
-            };
-            let repo = entry
-                .get("repo")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            let relative = member_relative(repo, path, &members);
-            let Some(relative) = relative else {
-                continue;
-            };
-            let name = entry
-                .get("stem")
-                .and_then(Value::as_str)
-                .filter(|stem| !stem.is_empty())
-                .unwrap_or(&relative);
-            resources.push(
-                Resource::new(resource_uri(repo, &relative), name)
-                    .with_mime_type("text/markdown")
-                    .with_description(format!("{repo}/{relative}")),
-            );
-        }
-        let next_cursor = (entries.len() == page).then(|| (offset + page).to_string());
+        let members = member_roots(&members_read.payload);
+        let resources = resource_page(&read.payload, &members);
+        let entries_len = resources.len();
+        let next_cursor = (entries_len == page).then(|| (offset + page).to_string());
         Ok(ListResourcesResult {
             resources,
             next_cursor,
