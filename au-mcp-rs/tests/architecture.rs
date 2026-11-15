@@ -23,9 +23,10 @@ const LEAVES: [&str; 4] = ["bounded_stdio", "capability", "policy", "schemas"];
 
 /// Every module dependency that is allowed today. Adding one is a decision, so it needs a
 /// line here and a reason in the message.
-const ALLOWED: [(&str, &str); 6] = [
+const ALLOWED: [(&str, &str); 7] = [
     ("lib", "bounded_stdio"),
     ("lib", "capability"),
+    ("lib", "ledger"),
     ("lib", "policy"),
     ("lib", "resources"),
     ("lib", "schemas"),
@@ -34,7 +35,7 @@ const ALLOWED: [(&str, &str); 6] = [
 
 /// Production lines of `src/lib.rs`, excluding the inline test module. A ratchet: lower it
 /// when a port moves out, never raise it to make room.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4631;
+const LIB_RS_PRODUCTION_BUDGET: usize = 4612;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")

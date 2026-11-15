@@ -1,5 +1,6 @@
 mod bounded_stdio;
 mod capability;
+mod ledger;
 mod policy;
 mod resources;
 mod schemas;
@@ -10,10 +11,8 @@ pub(crate) use wire::*;
 
 use std::{
     borrow::Cow,
-    collections::HashMap,
     env,
     path::{Path, PathBuf},
-    sync::Mutex,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -567,7 +566,7 @@ struct Server {
     initialize_called: Arc<AtomicBool>,
     read_slots: Arc<Semaphore>,
     mutation_slot: Arc<Semaphore>,
-    served: Arc<Mutex<HashMap<(String, String), String>>>,
+    ledger: ledger::ReadLedger,
     profile: ToolProfile,
     payload: PayloadMode,
     tool_router: ToolRouter<Self>,
@@ -592,7 +591,7 @@ impl Server {
             initialize_called: Arc::new(AtomicBool::new(false)),
             read_slots: Arc::new(Semaphore::new(MAX_IN_FLIGHT_READS)),
             mutation_slot: Arc::new(Semaphore::new(1)),
-            served: Arc::new(Mutex::new(HashMap::new())),
+            ledger: ledger::ReadLedger::new(),
             profile,
             payload,
             tool_router: Self::tool_router(),
@@ -1079,7 +1078,7 @@ impl Server {
             _ = ctx.ct.cancelled() => CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]),
             result = self.content_with_timeout(args.repo, args.path, ENGINE_READ_TIMEOUT) => {
                 if let Some(hash) = served_hash(&result) {
-                    self.served.lock().expect("served lock poisoned").insert(key, hash);
+                    self.ledger.record(key, hash);
                 }
                 match max_chars {
                     Some(max) => window_content(result, max, self.payload),
@@ -2640,17 +2639,15 @@ impl Server {
             None => current.is_null(),
             Some(expected) => current_hash.as_deref() == Some(expected.as_str()),
         };
-        let mut served = self.served.lock().expect("served lock poisoned");
         if applied {
-            served.remove(&key);
+            self.ledger.forget(&key);
         } else if let Some(hash) = current_hash.clone() {
             // A differing file is a fresh, coherent read: arm the guard so a
             // deliberate retry does not need a second call.
-            served.insert(key, hash);
+            self.ledger.record(key, hash);
         } else {
-            served.remove(&key);
+            self.ledger.forget(&key);
         }
-        drop(served);
         let payload = json!({
             "outcome": if applied { "applied" } else { "not_applied" },
             "current_hash": current_hash,
@@ -2695,10 +2692,7 @@ impl Server {
             Ok(result) => {
                 self.audit
                     .record(&self.principal, "mutation", &repo, "applied");
-                self.served
-                    .lock()
-                    .expect("served lock poisoned")
-                    .remove(&prepared.key);
+                self.ledger.forget(&prepared.key);
                 success_result(result, self.payload)
             }
             Err(MutationFailure::Rejected(error)) => {
@@ -2709,10 +2703,7 @@ impl Server {
             Err(MutationFailure::Unknown(error)) => {
                 self.audit
                     .record(&self.principal, "mutation", &repo, "outcome_unknown");
-                self.served
-                    .lock()
-                    .expect("served lock poisoned")
-                    .remove(&prepared.key);
+                self.ledger.forget(&prepared.key);
                 CallToolResult::error(vec![ContentBlock::text(format!(
                     "outcome_unknown: {error}. The mutation may have landed; read the file again before retrying."
                 ))])
@@ -2763,13 +2754,7 @@ impl Server {
                     }
                 }
                 Stage::PriorRead => {
-                    let recorded = self
-                        .served
-                        .lock()
-                        .expect("served lock poisoned")
-                        .get(&key)
-                        .cloned();
-                    let Some(recorded) = recorded else {
+                    let Some(recorded) = self.ledger.recorded(&key) else {
                         return Err(Denial::new(
                             stage,
                             "read this file with au_content before writing it",
@@ -2821,10 +2806,7 @@ impl Server {
             Ok(result) => {
                 self.audit.record(&self.principal, tool, repo, "applied");
                 for key in keys {
-                    self.served
-                        .lock()
-                        .expect("served lock poisoned")
-                        .remove(&key);
+                    self.ledger.forget(&key);
                 }
                 success_result(result, self.payload)
             }
@@ -2836,10 +2818,7 @@ impl Server {
                 self.audit
                     .record(&self.principal, tool, repo, "outcome_unknown");
                 for key in keys {
-                    self.served
-                        .lock()
-                        .expect("served lock poisoned")
-                        .remove(&key);
+                    self.ledger.forget(&key);
                 }
                 return_error(format!(
                     "outcome_unknown: {error}. The mutation may have landed; read the file again before retrying."
