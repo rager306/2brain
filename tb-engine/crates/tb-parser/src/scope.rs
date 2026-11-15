@@ -1,11 +1,11 @@
 //! Walk scoping: a per-root filter deciding which files the walk keeps.
 //!
-//! Applied ABOVE the hard floor. The floor (`.git`, `.arsumbris`) is a name
+//! Applied ABOVE the hard floor. The floor (`.git`, the identity directory) is a name
 //! check in the walk itself, structurally unsafe to ingest and never
 //! reachable by any pattern. This filter decides the rest.
 //!
 //! One shape, deny. The default excludes (`node_modules`, `target`) plus any
-//! `.arsumbris/.auignore` file are one layered gitignore. A matched path is
+//! `<identity>/.auignore` file are one layered gitignore. A matched path is
 //! dropped, a matched directory is pruned. Allowlisting is negation inside the
 //! one file, the standard gitignore idiom `/*` then `!/keep`, there is no
 //! separate allowlist mode.
@@ -16,10 +16,19 @@
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::path::Path;
 
-/// Directory names never walked, regardless of any user scoping. `.arsumbris/`
+/// Directory names never walked, regardless of any user scoping. An identity
+/// directory (`.2brain/`, or `.arsumbris/` before a repository is migrated)
 /// holds the engine's own index / socket / lock / registry, `.git` is VCS
 /// internals. No `.auignore` pattern, negation included, reaches them.
-pub const FLOOR_DIR_NAMES: &[&str] = &[".git", ".arsumbris"];
+///
+/// Both spellings are on the floor at once so a half-migrated tree cannot have
+/// its new identity directory walked as content. Resolution to exactly one
+/// directory is [`crate::identity`]'s job, not the floor's.
+pub const FLOOR_DIR_NAMES: &[&str] = &[
+    ".git",
+    crate::identity::IDENTITY_DIR,
+    crate::identity::LEGACY_IDENTITY_DIR,
+];
 
 /// Directory names excluded by default, overridable by an `.auignore`.
 /// Conventionally build / cache output, large and rarely graph content.

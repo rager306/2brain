@@ -7,6 +7,7 @@
 //! [`WalkFilter`] (the default excludes plus any `.arsumbris/.auignore`). See
 //! the `scope` module.
 
+use crate::identity::{identity_marker_with, is_identity_dir_name};
 use crate::scope::{FLOOR_DIR_NAMES, WalkFilter};
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
@@ -53,7 +54,10 @@ fn dir_reachable(root: &Path, dir: &Path, filter: &WalkFilter) -> bool {
 fn nested_repo_roots<'a>(keys: impl Iterator<Item = &'a PathBuf>, root: &Path) -> Vec<PathBuf> {
     keys.filter(|p| {
         p.file_name() == Some(std::ffi::OsStr::new("repo.yaml"))
-            && p.parent().and_then(Path::file_name) == Some(std::ffi::OsStr::new(".arsumbris"))
+            && p.parent()
+                .and_then(Path::file_name)
+                .and_then(|name| name.to_str())
+                .is_some_and(is_identity_dir_name)
     })
     .filter_map(|p| p.parent().and_then(Path::parent))
     .filter(|d| d.starts_with(root) && *d != root)
@@ -356,7 +360,7 @@ fn walk_core(
                         // walked as content), so a repo is found content-free.
                         if is_floored_name(&name_str) {
                             let marker = path.join("repo.yaml");
-                            if name_str == ".arsumbris"
+                            if is_identity_dir_name(&name_str)
                                 && std::fs::metadata(&marker)
                                     .map(|m| m.is_file())
                                     .unwrap_or(false)
@@ -378,7 +382,10 @@ fn walk_core(
                         // report the nested repo as an ignore). The walk's own root
                         // is entered directly, never reached here as a child, so it
                         // is never bounded — its content walks.
-                        let nested_marker = path.join(".arsumbris").join("repo.yaml");
+                        // Either spelling: a repository that has been migrated keeps its marker under
+                        // the new name, and an unmigrated one under the legacy name.
+                        let nested_marker =
+                            identity_marker_with(&path, |candidate| candidate.is_dir());
                         if std::fs::metadata(&nested_marker)
                             .map(|m| m.is_file())
                             .unwrap_or(false)
@@ -622,8 +629,10 @@ impl FileSystem for MemoryFileSystem {
             .filter(|p| {
                 p.starts_with(root)
                     && p.file_name() == Some(std::ffi::OsStr::new("repo.yaml"))
-                    && p.parent().and_then(Path::file_name)
-                        == Some(std::ffi::OsStr::new(".arsumbris"))
+                    && p.parent()
+                        .and_then(Path::file_name)
+                        .and_then(|name| name.to_str())
+                        .is_some_and(is_identity_dir_name)
                     && p.parent().and_then(Path::parent).is_some_and(|dir| {
                         // The walk root's OWN marker always surfaces (the real
                         // walker enters the root directly and surfaces its
@@ -1012,6 +1021,33 @@ mod tests {
         assert!(
             b.ignored_dirs.is_empty() && b.ignored_files.is_empty(),
             "memory port agrees: a nested repo is not this member's boundary: {b:?}"
+        );
+    }
+
+    #[test]
+    fn a_migrated_identity_directory_is_a_boundary_and_surfaces_its_marker() {
+        // Tier C, the shape a migrated repository has: the identity directory is `.2brain`. The floor
+        // must treat it exactly like the legacy spelling — never walked as content, its `repo.yaml`
+        // surfaced as a discovery marker — because a tree that has moved and a tree that has not are
+        // both valid input during the two-release window.
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("keep.md"), b"").unwrap();
+        let nested = tmp.path().join("migrated");
+        std::fs::create_dir_all(nested.join(".2brain")).unwrap();
+        std::fs::write(nested.join(".2brain/repo.yaml"), b"name: migrated\n").unwrap();
+        std::fs::write(nested.join(".2brain/secret.md"), b"never content\n").unwrap();
+        std::fs::write(nested.join("inside.md"), b"").unwrap();
+        let filter = WalkFilter::default_excludes(tmp.path());
+        let w = walk(tmp.path(), 8, &filter).unwrap();
+        assert_eq!(
+            w.repo_markers,
+            vec![nested.join(".2brain/repo.yaml")],
+            "the migrated marker surfaces, so a declared member mounts"
+        );
+        assert_eq!(
+            w.files,
+            vec![tmp.path().join("keep.md")],
+            "neither the nested repo's content nor its identity directory is walked"
         );
     }
 

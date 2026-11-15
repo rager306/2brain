@@ -5712,7 +5712,9 @@ mod tests {
             vec!["docs/".to_string(), "# a comment".to_string()]
         );
         assert_eq!(m.default_excludes, vec!["node_modules", "target"]);
-        assert_eq!(m.floor, vec![".git", ".arsumbris"]);
+        // Both identity spellings are on the floor at once: a client that walks a tree the engine
+        // serves must not descend into a half-migrated repository's new identity directory either.
+        assert_eq!(m.floor, vec![".git", ".2brain", ".arsumbris"]);
         // No `resolve`, no boundary effect.
         assert!(m.resolved.is_none());
     }
