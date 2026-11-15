@@ -226,6 +226,26 @@ Three things changed since 2c, and each one changes what to do next.
 are code work that can follow in either order. W4.1 phase 2 stays blocked on a vendor key, and the
 local-first default means it is not on the critical path.
 
+## 2e. Third revision (2026-11-16, after acceptance)
+
+T1 is measured and closed: `search` beats `grep` by 105×–698× on a vault copy, worst p95 3.47 ms,
+identical answers across two daemon starts. P2's remaining two items were dropped by measurement
+(no consumer adds truth; the audit log is what would justify them). What is left is small, and two of
+the pieces are consequences of the last stretch rather than of the original plan.
+
+| track | work | why now | surface | conflicts with |
+|---|---|---|---|---|
+| **E** fixture hygiene | `scripts/lib/disposable-fixture.sh` must stop its engine on **any** exit (`trap`), so the orphan class cannot come back; a `--keep` flag for debugging | the acceptance run found **14** orphaned `au daemon start /tmp/...` processes from earlier sessions; the script is where they came from | `au-mcp-rs/scripts/lib/` | P3 (same directory) |
+| **F** production parity | build a release engine from HEAD, serve a **copy** of the vault, compare the four daemon-shaped golden captures (`au-engine/tests-golden/*.json`) against live answers | this is the gate for promoting `search` to the live daemon; the engine tests replay captures against fixtures, which does not prove the production vault answers the same | `au-engine` + `/tmp` | nothing |
+| **G** P3 procedures | `scripts/lib/procedure.py`: two procedures (`mutation-turn.sh`, `recovery-turn.sh`) as states with code transitions, negative cases, and a dry-run mode | the last piece of the agent layer, and the honest form of C2: FSM owns the process, the model is free inside a state | `au-mcp-rs/scripts/` | E (same directory) |
+
+**Order:** F in parallel with E; G after E, because both edit `scripts/`. Promotion of `search` to the
+live daemon waits for F and for a window, and it is a decision, not a step.
+
+**Two things that stay out of the trajectory unless asked:** the audit record gaining `repo:path@hash`
+(that is the consumer `Prepared` would need, and it changes a hash-chained log format), and W4.1 phase
+2 (blocked on a judge key; local-first is the default).
+
 ## 3. What blocks what
 
 ```
