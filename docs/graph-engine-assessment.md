@@ -28,9 +28,10 @@ that, and the answer is no — with measured reasons.
 | quantity | value | how |
 |---|---:|---|
 | markdown files | 1 036 | `find /root/vault -name '*.md' -not -path '*/.git/*'` |
-| markdown text | 4.25 MB | sum of file sizes (the 49 MB working tree is mostly `.git`) |
+| markdown text | 5.37 MiB | sum of `.md` sizes, `.git` excluded (the 49 MB working tree is mostly history) |
 | wikilinks | 5 046 | `grep -ro '\[\[[^]]*\]\]' --include=*.md` |
-| out-degree | median 3, p95 12, max 78 | `au_overview.graph_shape.degree` |
+| graph nodes | 1 184 | `au_overview.graph_shape.degree` row counts |
+| out-degree | median 3, p95 11, max 66 | same |
 | strongest hub (in-degree) | 140 | same |
 | components | 213 | same |
 | diagnostics | 0 | same |
@@ -72,9 +73,12 @@ incoming edges the same queries cost 49.9 ms and 305 ms, while the graph engine 
 and 38.7 µs. At depth 10 the gap is 390×; at depth 50, 2 819×. **The threshold is hubs × depth,
 not graph-ness** — and our hubs have 140 edges with traversal depth 1–3.
 
-Samyama's own benchmarks are LDBC SF1 = 3.7 M nodes / 21 M edges — about 3 600× our node count;
+Samyama's own benchmarks are LDBC SF1 = 3.7 M nodes / 21 M edges — about 3 000× our node count;
 its docs mark SF10 unverified and name deep traversal (IC1/IC3/IC5/IC6/IC9) as an open
-optimization area.
+optimization area. Package facts re-measured on crates.io 2026-11-15: `samyama` 1.14.0,
+**25 downloads**, last published 2026-11-03; `kuzu` 0.11.3, last published 2025-10-10 (the day
+the repository was archived); `cozo` 0.7.6, last published 2023-12-11; `oxigraph` 0.5.13,
+1.0 M downloads, 2026-10-22; `surrealdb` 4.0.1, 2026-11-09.
 
 ### 3.5 Same-name traps, checked
 
