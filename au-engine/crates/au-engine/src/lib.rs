@@ -46,6 +46,7 @@ mod refnames;
 mod rename;
 pub mod repo;
 mod resolution_build;
+mod search;
 #[cfg(unix)]
 mod serve;
 #[cfg(test)]
