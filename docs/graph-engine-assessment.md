@@ -14,8 +14,17 @@ maps), `tokio`, `tracing`. The graph lives in memory as persistent maps
 `crates/au-references/src/lib.rs:35`), derived from markdown on load and kept current by a
 watcher plus an incremental rebuild.
 
-The store is the filesystem plus git. That is not an accident of immaturity; it is what makes
-"one commit = one logical mutation" true, and it is why `au_reconcile` can read a git HEAD.
+The store is the filesystem plus git. Between runs the graph does not exist at all; what
+persists is the working tree, `.arsumbris/repo.yaml` and friends (typed by built-in defaults,
+`engine_schema.rs:190-320`), the package cache (`pkgcache.rs`), and the saga journal under
+`.arsumbris/au-engine/run/`. Inside a run, one `Arc<KnowledgeBase>` in `Held.kb`
+(`engine.rs:475-484`) holds `catalog: OrdMap<PathBuf, FileEntry>`, `graphs: Arc<RepoGraphs>`,
+`resolution_graphs`, `repos`, `indexes`, `instances`, `backlinks`, `closure_members`,
+`referenced_names` and `diagnostics_by_source` (`ir.rs:340-470`), where `OrdMap` is
+`rpds::RedBlackTreeMapSync` (`ir.rs:52-53`).
+
+That is not an accident of immaturity; it is what makes "one commit = one logical mutation"
+true, and it is why `au_reconcile` can read a git HEAD.
 
 So the question is not "swap SQLite for a graph DB". It is: **should the graph stop being a
 derived in-memory index and become a database in its own right?** Everything below turns on
@@ -36,7 +45,24 @@ that, and the answer is no — with measured reasons.
 | components | 213 | same |
 | diagnostics | 0 | same |
 
-### 2.2 Latency of the read verbs a graph DB would touch
+### 2.2 How one write updates the graph (the path a graph DB would replace)
+
+`serve.rs:4954` → `rebuild_paths` (`engine.rs:856-960`) → scope filter → `try_incremental_fast_path`
+(`engine.rs:792+`) → else `build_reusing` (`engine.rs:926`). A note-body edit is classified
+`Incremental`; a type definition, manifest or registry change is `NeedsFull` (`incremental.rs:70-89`).
+
+The incremental path is real, not a stub: `apply_recompute` (`incremental.rs:1251`) clones the
+knowledge base in O(1) through structural sharing (`ir.rs:22-30`) and patches deltas — catalog,
+instances, diagnostics, backlinks, closure members, referenced names, indexes, served
+(`incremental.rs:1280-1352`) — with invalidation bounded by blast radius through reverse indexes
+(`identity_dependents`, `ir.rs:577+`). What is *not* incremental is the second fold of resolution
+graphs on every edit (`incremental.rs:1355`) and the index clone (`incremental.rs:697`): both stay
+O(vault).
+
+So the write path is already "incremental with a blast-radius bound plus a small residual
+full pass". A graph database would replace that machinery with its own — not with nothing.
+
+### 2.3 Latency of the read verbs a graph DB would touch
 
 Release binary, live socket, 5 calls each, median:
 
@@ -148,8 +174,11 @@ Read through `arsumbris-rs` while preparing this:
 5. **Dependency quality.** One published crate version with 25 downloads is the wrong class of
    dependency for a project whose vault format is a contract; Oxigraph, the mature option,
    migrates its on-disk format between minor versions.
-6. **Nothing that is slow gets fixed.** The 133 ms grep is unaffected; the parse cost (~60% of a
-   cold build, per `knowledge/au-engine-build-profiling-2026-10.md`) is unaffected.
+6. **Nothing that is slow gets fixed.** The 133 ms grep is unaffected. The build is also not
+   graph-bound: profiling a 529-file cold build (1.1–1.3 s dev) puts `au_parser::body` at 18%
+   self time (~38% including inlined iterator tails) and `au_engine` graph/validate/resolve at
+   **2.2%** (`knowledge/au-engine-build-profiling-2026-10.md`, hotpath + perf, 20 K samples).
+   A graph store would optimize the 2.2% and leave the 98% where it is.
 
 ## 6. Effect estimate
 
@@ -179,6 +208,23 @@ bottleneck exactly where it is.
    adopting a store to get them.
 5. **Adopt the honesty sentence** for documentation: *the graph is an index over files, not a
    database*.
+
+### 7.5 Honest gaps in this assessment
+
+- **Per-mutation cost is not measured.** The write path is known by code (`incremental.rs:1251`,
+  `:1355`, `:697`), not by a benchmark; no timing for "one note edit on a 1 036-file vault"
+  exists in the repo.
+- **The cold-build split comes from one profiling note**, not from a bench in the repo: the
+  `hotpath` instrumentation and `examples/op_bench.rs` exist, but no committed run reproduces
+  the 2.2% graph figure. It is the best measurement available, and it is a single run.
+- **Samyama has no external validation.** One published crate version, 25 downloads, stubs in
+  its own skill, a 404 on the scorecard its README cites. Treat its feature list as a claim.
+- **The hub × depth benchmark is one reproduced experiment** at 100k/500k edges plus a preprint;
+  no industry threshold exists in a citable form.
+
+None of these gaps changes the direction: the two numbers we do have (20 ms whole-graph analytics,
+133 ms text scan) point at text search, and every candidate gap points at validation work we cannot
+do for a component we would not use.
 
 ## 8. Measured triggers that would reopen the question
 
