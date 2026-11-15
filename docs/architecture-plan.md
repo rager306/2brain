@@ -168,10 +168,16 @@ vault `au_diagnostics` still 0.
 
 ### Wave 2 (P1, two passes)
 
-Pass 1 — disjoint files, one merge each, any order: **P1.2** (`bounded_stdio`, 1 site),
-**P1.3** (`resources.rs`), **P1.5** (`ledger.rs` + 6 sites in the gate region).
+Pass 1 — disjoint files, one merge each, any order: **P1.2** (`bounded_stdio`, 1 site) — done,
+**P1.3** (`resources.rs`) — done, **P1.5** (`ledger.rs` + 6 sites in the gate region).
 Pass 2 — both rewrite `lib.rs` widely, so they are sequential: **P1.1** (`transport.rs` +
 `wire.rs` + read sites), then **P1.4** (`schemas.rs` table + 51 attributes).
+
+Revised after P1.2/P1.3: the two finished steps removed the `resources -> wire` edge and tightened
+the `lib.rs` ratchet to 4 631 lines, so P1.5 must not spend the headroom it gained — the ledger
+extraction is expected to *lower* the number, and the ratchet moves with it. **T1's engine half
+runs in parallel with pass 1 and pass 2** because it touches `au-engine`, not this crate; its
+adapter half is the last item, after P1.4.
 Rule for pass 2: whoever is second rebases onto the first and re-runs the golden set before
 merging; the first must not touch schema declarations.
 
@@ -190,6 +196,39 @@ for a spike; this is its place in the plan. It ships evidence, not features.
   column for the hybrid query, and a go/no-go written against the rule in §7 step 5.
 - Guardrail: no `au-engine` or `au-mcp-rs` file is touched; the export lives under `/tmp`; the
   vault is read-only; the engine's own numbers are re-measured in the same session for fairness.
+
+### Wave 2b — text index (T1), the one measured product gap
+
+`docs/retrieval-spike.md` measured it: `au_grep` is a literal byte scan at **132.8 ms**, and a
+BM25 index over the same 5.4 MiB answers in the low tens of milliseconds while ranking. The
+backlog already wants this (P1: bm25 with type-aware freshness). It is a product feature, not an
+architecture step, so it is scheduled on its own terms and does not block the ports.
+
+**Where it lives: the engine.** `grep` is an engine read; every client — this adapter, Hermes
+through the bridge — goes through it. An index in the adapter would be a second source of truth
+inside a single client. So the engine gains a new read verb `search` and the adapter gains one
+read tool `au_search`. `au_grep` keeps its exact contract as the literal escape hatch.
+
+**Ripple checklist (all mechanical, all must be in the same change):**
+
+| item | change |
+|---|---|
+| engine verb | `Request::Search` beside `Request::Grep`; `wire.rs` catalogue; describe entry |
+| WIRE.md | annotate the new verb; `SCHEMA_VERSION` does not move (additive) |
+| engine index | in-memory per repo, built during the existing build and patched on the incremental path; rebuilt from files on start, never persisted |
+| ranking | BM25 over `body`, with `description` weighted; type-aware freshness multiplier as a **second** step, measured separately |
+| adapter | one tool `au_search` (capability `read`), schema with declared `score`, fixtures |
+| counts | 51 → 52 tools, 35 → 36 advertised without grants; `tests/architecture.rs`, `tests/capability.rs`, the capability table, `--info`, `docs/verification.md`, roadmap |
+| golden | a capture for `search` in `au-engine/tests-golden/engine/`, and the adapter's read fixture |
+| tests | an engine test that a mutation changes the ranking; an adapter test that the declared schema holds a float score |
+
+**Acceptance:** median ≤ 15 ms for the eight probe queries on the live vault; ≥ 5× faster than
+`au_grep` on the same query; top-5 stable across runs; no existing verb changes shape; the
+literal escape hatch unchanged.
+
+**Order:** the engine half can start in parallel with P1.5/P1.1 (different crate, no shared
+files). The adapter half waits for P1.4, so the new tool is declared through the schema table
+instead of adding one more hand-written function to it.
 
 ### Wave 3
 
@@ -254,6 +293,8 @@ invariant. Any step that cannot state its acceptance in a command is not a step 
 | P1.3 resources | **done** (`a4228c0`) | `member_roots(payload)` and the new `resource_page` are pure; the `resources -> wire` edge is gone (ALLOWED 7 → 6); `lib.rs` 4659 → 4631 production lines and the ratchet tightened to 4631; 4 inline tests without a socket | 2026-11-15 |
 | P1.4 schemas table | not started | — | — |
 | P1.5 read ledger | not started | — | — |
+| T1 text index (engine half) | not started | design in Wave 2b; prototype numbers in progress | — |
+| T1 text index (adapter half) | blocked on P1.4 | — | — |
 | P2.1–P2.3 gate | not started | — | — |
 | P3.1–P3.2 agent layer | not started | — | — |
 | P4.1 generated manual | not started | — | — |
