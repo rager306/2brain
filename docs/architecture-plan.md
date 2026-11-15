@@ -141,6 +141,56 @@ Acceptance: the manual states 51/35/46/51 and the real argument names (`type_nam
 `origin_path`), replacing today's stale 44-tool note; the drift test fails when one row is
 edited by hand.
 
+## 2b. Status after the first execution pass (2026-11-15)
+
+| step | state | evidence |
+|---|---|---|
+| P0.1 capability axis | done `298960c` | 51 rows; partition test 19 + 32 |
+| P0.2 architecture tests | done `e74dde7` | 4 rules, each proved to bite |
+| P0.3 last-page defect | done `c34879c` | union + revert-proof |
+| P0.4 vault capture | done | vault `f26cc54`, `4bcc4f2` |
+| P1.1 transport port | done `4b66625` | cycle gone; `MemoryTransport`; 2 tests |
+| P1.2 bounded_stdio | done `328baa3` | backpressure proved on a 16-byte duplex |
+| P1.3 resources | done `a4228c0` | pure functions; `resources -> wire` edge removed |
+| P1.4 schemas table | dropped | 15 shapes are not one table |
+| P1.5 read ledger | done `3e402e8` | `ReadLedger` + 3 tests |
+| T1 phase 1 | done `3d4bc40` | `search.rs` 982 lines; **release** p50 79 µs OR / 9.7 µs exact, 4.7 KiB/doc |
+| P2 first slice | done `ac91a9d` | `Denial` beside `Stage`; P2.3 remedy table measured out |
+| W4.2 roles | done `3c16fc7` | `docs/agent-roles.md` |
+
+Ratchet trail, which is the cheapest honest progress metric: `lib.rs` production lines
+4 636 (start) → 4 612 → 4 561 → **4 521**, and the budget follows it down each time.
+
+Three measurements changed the plan since it was written, and are the reason this section
+exists: the reconciliation of the text gap (T1 is worth it and is cheap), the refutation of the
+remedy table (the refusal messages already say what to do), and the collapse of P1.4 (the schema
+functions carry distinct shapes).
+
+## 2c. What is left, and what can run at the same time
+
+| track | work | crate / surface | conflicts with |
+|---|---|---|---|
+| **A** P2 core | `gate.rs`: pure `reduce(stage, ctx) -> Step`, `Prepared` as a value, the stage loop moved out of `lib.rs`; 31 gate tests are the net | `au-mcp-rs` (`lib.rs`, new `gate.rs`) | nothing (B is another crate, C is tooling) |
+| **B** T1 phase 2 | `Request::Search` + args, index on `KnowledgeBase`, build-pass construction, incremental patch, WIRE.md annotation, golden capture, engine tests | `au-engine` | nothing |
+| **C** W4.1 phase 1 | `tools/judgement/`: the labelled 50-note sample with three questions and thresholds, plus a `systemone`-shaped client behind an endpoint/key env var — no vendor call without a key | new `tools/` dir, docs | nothing |
+
+**Why these three in parallel:** A and B are different crates with no shared file; C writes only a
+new directory and touches no code that either A or B compiles. The one rule that still holds: T1's
+**adapter** half (`au_search`, the 52nd tool) waits until B lands, because it needs the verb.
+
+**Acceptance.**
+- A: `lib.rs` production lines fall again; `MUTATION_STAGES`/`CREATE_STAGES` order unchanged; the
+  31 gate tests untouched and green; a denial still names its stage; a mutation can be described
+  as a `Prepared` value in a test.
+- B: the eight probe queries answer ≤ 15 ms median on the live vault; a write changes the ranking
+  of the changed note on the next read; `au_grep` unchanged; golden capture added; WIRE.md
+  annotated; no schema-version bump.
+- C: 50 notes labelled with the source they came from; the runner exits non-zero without a key
+  rather than silently passing; the report names question, probability, threshold and verdict.
+
+**Re-baselined estimate:** A ≈ 1 day, B ≈ 1–1.5 days, C ≈ 0.5 day, running together → about
+1.5–2 days wall, then the adapter `au_search` (0.5 day) after B.
+
 ## 3. What blocks what
 
 ```
