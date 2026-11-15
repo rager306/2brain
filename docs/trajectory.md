@@ -12,7 +12,7 @@ gate, its cost, and the evidence it would produce.
 | state root | `~/.2brain` (legacy `~/.arsumbris` is a symlink), unit `2brain-engine.service` |
 | tools | 52; `au_search` answers through the live binary (ranked + exact verified) |
 | judge | batched: 100 questions per call, 0.76 s, 7.6 ms/question (`docs/research/judge-capabilities.md`) |
-| rebrand | tier A + B done; tier C (format) and D (scheme) open with recipes |
+| rebrand | tier A + B + **D done** (resources emit `2brain://`, legacy accepted); tier C open, inventory counted |
 | FSM run log | **done** — `tools/fsm/check_run.py`, seven rules, `--selftest` proves each bites |
 | hygiene pass | **done and applied** — `tools/hygiene/pass.py`, `inbox/hygiene-2026-11-16.md` |
 | ranking eval | started — 60 labelled queries; coverage weighting lifted literal hit@1 0.43 → 0.57 |
@@ -106,7 +106,7 @@ notes get a half-life. This is the backlog's P1-5, and it now has a search surfa
 - **Cost**: ~150 lines in `search.rs` + tests.
 - **Why not first**: without the labelled set it is a guess with a plausible story.
 
-## Track 4 — finish the rebrand (tier C, then D)
+## Track 4 — finish the rebrand (tier C only now)
 
 Tier C: engine accepts `.arsumbris/` and `.2brain/`, `au.engine.*` and `tb.engine.*`, plus a migration
 command; gate is `au_diagnostics == 0` on the vault after the rewrite. Tier D: serve both resource
