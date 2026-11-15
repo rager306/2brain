@@ -858,7 +858,11 @@ pub fn state_dir_in(home: &Path) -> PathBuf {
         Some(explicit) if !explicit.is_empty() => PathBuf::from(explicit),
         _ => {
             let new = home.join(STATE_DIR);
-            if new.exists() { new } else { home.join(LEGACY_STATE_DIR) }
+            if new.exists() {
+                new
+            } else {
+                home.join(LEGACY_STATE_DIR)
+            }
         }
     }
 }

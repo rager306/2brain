@@ -186,7 +186,9 @@ fn sockets_dir() -> PathBuf {
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
-    crate::repo::state_dir_in(&home).join("au-engine").join("run")
+    crate::repo::state_dir_in(&home)
+        .join("au-engine")
+        .join("run")
 }
 
 #[cfg(test)]
