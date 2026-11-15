@@ -36,7 +36,7 @@ Applied 2026-11-16 (commit `crates: rename au-* to tb-*`):
 | adapter package and lib | `au-mcp-rs`, `au_mcp_rs` | `tb-mcp-rs`, `tb_mcp_rs` |
 | crate directories | `crates/au-*` | `crates/tb-*` |
 | engine binary | `au` | unchanged — `~/.arsumbris/bin/au`, the systemd unit and `au-health.sh` name it |
-| adapter binary | `2brain` | unchanged |
+| adapter binary | `2brain` | unchanged — and since 2026-11-16 it is the **only** binary: the bare `au-mcp-rs` server target was deleted, so `2brain mcp <target>` is the server |
 | tool names, resource scheme, wire fields, socket paths, `au.engine.repo` | `au_*`, `arsumbris://` | **unchanged: they are the contract** |
 
 The two rows that did not move are the point. A crate name is internal — nothing outside the build reads
