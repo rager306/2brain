@@ -70,8 +70,24 @@ single rare word. Results on the same set, live engine:
 | topical | hit@1 / hit@5 / MRR | 0.604 / 0.811 / 0.697 | **0.642 / 0.811 / 0.717** |
 | — | missing from top-10 | 9 | **8** |
 
-No metric regressed. The constant was chosen against this set and is recorded as such; the next change
-(proximity, then the freshness prior) is scored the same way.
+No metric regressed. The constant was chosen against this set and is recorded as such.
+
+**Second change, measured and rejected.** The freshness prior (`current 1.0, aging 0.7, stale 0.3,
+superseded 0.05`, durable types exempt) was implemented, built and measured on the same set:
+
+| class | metric | with coverage only | + freshness prior |
+|---|---|---:|---:|
+| literal | hit@1 / hit@5 / MRR | 0.571 / 0.857 / 0.690 | 0.571 / 0.857 / 0.690 |
+| topical | hit@1 / hit@5 / MRR | 0.642 / 0.811 / 0.717 | **0.623** / 0.811 / **0.707** |
+
+It changed nothing on the literal class and cost 1.9 points of topical hit@1, so it was **reverted**, not
+tuned into acceptance. The reason is structural rather than a bad constant: this set asks "which note holds
+this phrase or these words", and the expected note stays the expected note whether it is `current` or
+`stale`. A freshness prior answers a different question — "what is *currently true*" — which needs queries
+whose expected answer changes with the lifecycle. Building that class is the prerequisite for revisiting
+P1-5, not a better multiplier.
+
+Next candidate is proximity (positions in the index), which the literal class can measure directly.
 
 Candidate changes, each scored against this baseline:
 
