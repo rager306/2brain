@@ -18,7 +18,9 @@ the answer:
 | D | **Ontology of the tool surface** — typed capability model | schemas, discovery, docs, tests | contract |
 
 A and B are alternatives, not stages. C and D are orthogonal to both, and D partly exists
-already — see §4.3.
+already — see §3.2.
+
+Trajectory and parallel tracks for the recommendation in §6: `docs/architecture-plan.md`.
 
 ## 2. What the code is, measured
 
