@@ -255,6 +255,33 @@ token.
 files). The adapter half waits for P1.4, so the new tool is declared through the schema table
 instead of adding one more hand-written function to it.
 
+### T1 phase 2 — where the index lives in the engine (designed, not built)
+
+Reading the engine to place it, rather than guessing:
+
+- `FileParse::Instance { body: String, .. }` and the `Note` variant hold the note text in the
+  **catalog** (`ir.rs:415`, `FileEntry.parse`), so the index is built from held state and a
+  `search` read needs no disk IO — unlike `grep`, which reads bytes in `spawn_blocking`.
+- Placement: an `Arc<SearchIndex>` field on `KnowledgeBase` beside `backlinks`, built in the same
+  pass that fills `instances`/`backlinks`, with `doc_id` assigned from the catalog's path order so
+  a build is deterministic.
+- Incremental: the patch point is `incremental.rs:1280-1352`, where catalog/instances/backlinks/
+  diagnostics are patched by delta — the same delta drives `remove(changed)` + `add(changed)`. A
+  type-def or manifest change already forces a full rebuild, which rebuilds the index by
+  construction.
+- Verb: `Request::Search(SearchArgs)`, answered through `handle.read(|kb| …)` (no blocking task),
+  response `{"search": {matches: [{path, score, matched_terms}], total, offset, next_offset}}`.
+  `min_should_match` defaults to the number of distinct query terms for a 1–2 term query and to 2
+  above that, so a three-term query is not an OR that returns a third of the vault; `exact: true`
+  routes to the conjunction path instead.
+- Fields and weights at build time: `[body, description]` with `[1.0, 3.0]`. Path hygiene is a
+  query-side filter (a `path_prefix` argument), not baked into the index, so it stays inspectable.
+
+**Acceptance for phase 2:** the eight probe queries from `docs/retrieval-spike.md` answer in ≤ 15 ms
+median on the live vault (measured p95 is 2.45 ms on 1 000 synthetic documents); a mutation changes
+the ranking of the changed note in the next read; `au_grep` unchanged; a golden capture added for
+`search`; WIRE.md annotated; no schema-version bump (additive verb).
+
 ### Wave 3 in detail — P2, the gate becomes legible data
 
 The gate already is a state machine (`Stage` 8 variants, `MUTATION_STAGES` 7, `CREATE_STAGES` 6,
