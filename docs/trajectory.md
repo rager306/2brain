@@ -1,129 +1,96 @@
-# Trajectory after the rebrand — three tracks, in order of payoff per unit of risk
+# Trajectory after the rebrand — what stands, what is open, what runs in parallel
 
-Written 2026-11-16, after tier A and B of the rebrand landed and the research documents under
-`docs/research/` were measured. This replaces "what next" with a ranked queue: every track names its
-gate, its cost, and the evidence it would produce.
+Written 2026-11-16, revised the same evening after tier B, tier D, the wire refactor and the first measured
+ranking change landed. This replaces "what next" with a queue where every open item names its gate, its
+cost, and the evidence it would produce.
 
 ## Where the system stands
 
 | | state |
 |---|---|
-| serving path | `/usr/local/bin/2brain` → engine socket, Rust only |
+| serving path | `/usr/local/bin/2brain` → engine socket; Rust only, one binary (`2brain mcp <target>`) |
 | state root | `~/.2brain` (legacy `~/.arsumbris` is a symlink), unit `2brain-engine.service` |
-| tools | 52; `au_search` answers through the live binary (ranked + exact verified) |
+| tools | 52 (33 read, 16 mutate behind three grants, 2 discover, 1 watch) |
+| read contract | one `VERB_SHAPES` table; the table is checked by the captured fixtures, not by memory |
 | judge | batched: 100 questions per call, 0.76 s, 7.6 ms/question (`docs/research/judge-capabilities.md`) |
-| rebrand | tier A + B + **D done** (resources emit `2brain://`, legacy accepted); tier C open, inventory counted |
-| FSM run log | **done** — `tools/fsm/check_run.py`, seven rules, `--selftest` proves each bites |
-| hygiene pass | **done and applied** — `tools/hygiene/pass.py`, `inbox/hygiene-2026-11-16.md` |
-| ranking eval | started — 60 labelled queries; coverage weighting lifted literal hit@1 0.43 → 0.57 |
+| rebrand | tiers A, B, **D done**; tier C open with an inventory (`docs/research/tier-c-inventory.md`) |
+| tool names | `au_*` — a client contract; the rename is a decision, not a sweep (`docs/naming.md`) |
+| FSM run log | done — `tools/fsm/check_run.py`, seven rules, `--selftest` proves each bites |
+| hygiene pass | done and applied — `tools/hygiene/pass.py`, `inbox/hygiene-2026-11-16.md` |
+| ranking | coverage weighting landed and measured; freshness prior measured and **rejected** |
 
-## Track 1 — make a run auditable (no model, small)
+Gates that must stay green on every change: adapter 207 tests, engine `--lib` 685/1 (the one failure is the
+documented root-runner), `search_read` 6/6, `fmt --check`, `clippy -D warnings` on the adapter, and
+`scripts/live_parity.py` against the installed binary.
 
-Ship the FSM run log and its checker (`docs/research/meta-prompt-fsm.md` §"Next steps" 1):
-`tools/fsm/check_run.py` validates a JSON-lines run log — every transition has a state, a guard name, the
-call that evaluated it, and an outcome; a transition without evidence fails the check.
+## The open queue, in order of payoff per unit of risk
 
-- **Gate**: the checker fails on a hand-written bad log (a real negative test) and passes on a real run.
-- **Cost**: a day, no model calls, no live risk.
-- **Why first**: it makes every later track's output auditable, and it is the only piece of the FSM that
-  needs no judgment at all.
+### 1. The MCP↔engine path (`docs/research/mcp-engine-path.md`)
 
-## Track 2 — nightly hygiene pass (first real batched-judge user)
+Measured: a raw engine frame costs 1.1–1.2 ms with or without a fresh connection; the adapter adds ~1.7 ms
+including the client's own stdio round trip; the daemon holds the IR at 72.6 MiB, so an in-process engine
+would duplicate that per session *and* become a second writer. What is left is not transport, it is
+ceremony:
 
-One job, read-mostly, writes exactly one note per night:
+1. **per-verb typed payloads** for the hot reads (`overview`, `content`, `files`, `search`, `diagnostics`,
+   `hubs`, `graph_health`) — the shape table is the first half; typing the payload is the second. Cost:
+   a day. Gate: the fixture replay test fails to compile when a payload field it pins disappears.
+2. **one source for the verb list** — `VERB_SHAPES` now holds every read verb, but the tool→verb mapping
+   still lives in the router. Gate: a test that every `au_*` read tool names a verb in the table.
+3. **`--payload structured` as the default** — measured before deciding (`docs/research/payload-modes.md`).
 
-1. deterministic candidates: orphans, cycles, components, staleness by git (body changed, description not);
-2. one judge batch of ≤100 candidates asking the inverted staleness question;
-3. emit `inbox/hygiene-<date>.md` with the ranked list; never edit an existing note.
+### 2. Ranking: proximity (`tb-engine/crates/tb-engine/src/search.rs`)
 
-- **Gate**: the note validates (`au_validate_value`), diagnostics stay 0, the job is idempotent for the
-  same vault commit, and a dry run writes nothing.
-- **Cost**: ~1 s of graph work + 1 judge call + 1 write.
-- **Why second**: it exercises batch, the FSM's CONSOLIDATE state, and the write gate against real
-  content, without touching anyone's notes.
+The literal class is the finding: a phrase occurring in exactly one note reaches rank 1 in 57% of cases,
+because BM25 scores a bag of terms with no proximity credit. Coverage weighting already moved literal
+hit@1 from 0.429 to 0.571 with no regression on topical.
 
-## Track 3 — ranking (engine, measurable) — baseline exists, change not started
+Next: store term positions in the index and let adjacency raise the score. That changes the index structure,
+so it must be measured for memory against the 6 144 B/doc budget before it is measured for quality.
 
-The measuring instrument now exists: `tools/ranking/build_queries.py` derives 60 queries from the vault
-(7 `literal` — a phrase occurring in exactly one note, so any correct ranker must return that note first —
-and 53 `topical` — content words from a note's own filename), and `tools/ranking/eval.py` scores hit@1,
-hit@5 and MRR per class.
+- **Gate**: `tools/ranking/eval.py` on the same 60 queries — literal hit@1 above 0.571 with topical hit@1
+  not below 0.642; golden `au_search` capture blessed in the same commit.
+- **Cost**: ~120 lines in `search.rs` + the index structure + a memory measurement.
+- **Risk**: the index doubles its per-document footprint; the budget is the constraint, not the code.
 
-Baseline on 2026-11-16, before any change:
+### 3. Tier C — the engine's on-disk identity
 
-| class | n | hit@1 | hit@5 | MRR |
-|---|---:|---:|---:|---:|
-| literal | 7 | 0.429 | 0.714 | 0.568 |
-| topical | 53 | 0.604 | 0.811 | 0.697 |
+`.arsumbris/` (79 literals, 12 files) and `au.engine.*` (52 occurrences, 28 files) plus 314 `repo.yaml`
+files. Two releases: accept both behind `identity_dir()` and `schema_type_matches()`, then migrate with
+`au migrate identity --dry-run`, then drop the legacy spelling. Seam plan: `docs/research/tier-c-seams.md`.
 
-Nine queries do not place the expected note in the top ten at all. **The literal class is the finding**:
-a phrase that occurs in exactly one note reaches rank 1 only 43% of the time, because BM25 scores bag of
-terms — no proximity, no phrase credit. So the first change is not freshness; it is ranking what matched.
+- **Gate**: a migrated repository opens with 0 diagnostics and the unmigrated tree still opens.
+- **Cost**: the largest single change left, and the only one that touches files on disk.
+- **Why not first**: it buys brand consistency, not capability.
 
-First change, landed and measured (`COVERAGE = 0.6` in `search.rs`): a document's BM25 sum is multiplied by
-`1 + COVERAGE × matched_terms/total_terms`, so the note holding the whole query outranks one holding a
-single rare word. Results on the same set, live engine:
+### 4. The recency query class — a prerequisite, not a feature
 
-| class | metric | before | after |
-|---|---|---:|---:|
-| literal | hit@1 / hit@5 / MRR | 0.429 / 0.714 / 0.568 | **0.571 / 0.857 / 0.690** |
-| topical | hit@1 / hit@5 / MRR | 0.604 / 0.811 / 0.697 | **0.642 / 0.811 / 0.717** |
-| — | missing from top-10 | 9 | **8** |
+The freshness prior was measured, cost 1.9 points of topical hit@1 and was reverted. The reason is that the
+labelled set asks "which note holds these words", and the expected note is the expected note whether it is
+`current` or `stale`. A freshness prior answers "what is *currently true*", which needs queries whose
+expected answer changes over the note's lifecycle. Until that class exists, any freshness constant is a
+guess with a plausible story.
 
-No metric regressed. The constant was chosen against this set and is recorded as such.
+- **Gate**: a third class in `tools/ranking/labelled-queries.json` where the expected note is the one that
+  supersedes an older note; measured before and after the prior.
+- **Cost**: building the class is the work; the prior itself is already written and reverted.
 
-**Second change, measured and rejected.** The freshness prior (`current 1.0, aging 0.7, stale 0.3,
-superseded 0.05`, durable types exempt) was implemented, built and measured on the same set:
+### 5. Tool names — one decision, then a mechanical commit
 
-| class | metric | with coverage only | + freshness prior |
-|---|---|---:|---:|
-| literal | hit@1 / hit@5 / MRR | 0.571 / 0.857 / 0.690 | 0.571 / 0.857 / 0.690 |
-| topical | hit@1 / hit@5 / MRR | 0.642 / 0.811 / 0.717 | **0.623** / 0.811 / **0.707** |
+52 names, 618 occurrences in 81 files, 34 fixtures named after them, 91 vault mentions. The safe form is
+`tb_*` with `au_*` accepted as a deprecated alias for one release. Nothing moves until the prefix is
+chosen; `docs/naming.md` records the open state.
 
-It changed nothing on the literal class and cost 1.9 points of topical hit@1, so it was **reverted**, not
-tuned into acceptance. The reason is structural rather than a bad constant: this set asks "which note holds
-this phrase or these words", and the expected note stays the expected note whether it is `current` or
-`stale`. A freshness prior answers a different question — "what is *currently true*" — which needs queries
-whose expected answer changes with the lifecycle. Building that class is the prerequisite for revisiting
-P1-5, not a better multiplier.
+## What runs in parallel, and why it is safe
 
-Next candidate is proximity (positions in the index), which the literal class can measure directly.
+These tracks touch different files and different gates, so they can run at the same time:
 
-Candidate changes, each scored against this baseline:
+| track | touches | gate | conflicts with |
+|---|---|---|---|
+| MCP path | `tb-mcp-rs/src/{wire,schemas,lib}.rs` | adapter suite + live parity | none |
+| ranking | `tb-engine/crates/tb-engine/src/search.rs` | ranking eval + engine suite | none |
+| tier C | `tb-engine/crates/tb-core`, `tb-engine` repo discovery | vault opens with 0 diagnostics | none (different crates) |
+| tool names | every tool string | adapter suite + live server | MCP path (same files) |
 
-1. **phrase proximity** — score a document higher when query terms appear adjacent (the literal class is
-   the direct test);
-2. **type-aware freshness prior** — `current 1.0, aging 0.7, stale 0.3, superseded 0.05`, durable
-   families undecayed (the topical class is where a stale note currently outranks a fresh one);
-3. **field weights** — title/description vs body, already partially there.
-
-Multiplicative freshness prior on top of BM25: `current 1.0, aging 0.7, stale 0.3, superseded 0.05`, and a
-family multiplier so durable types (`pattern`, `decision`, `extract`) do not decay while inbox/session
-notes get a half-life. This is the backlog's P1-5, and it now has a search surface to measure against.
-
-- **Gate**: a labelled query set (30–50 queries with a known best note) shows no regression and at least
-  one clear improvement; the golden `au_search` capture is blessed in the same commit.
-- **Cost**: ~150 lines in `search.rs` + tests.
-- **Why not first**: without the labelled set it is a guess with a plausible story.
-
-## Track 4 — finish the rebrand (tier C only now)
-
-Tier C: engine accepts `.arsumbris/` and `.2brain/`, `au.engine.*` and `tb.engine.*`, plus a migration
-command; gate is `au_diagnostics == 0` on the vault after the rewrite. Tier D: serve both resource
-schemes for one release, then drop.
-
-- **Gate**: tier C — a repository migrated by the command opens with 0 diagnostics and the old tree still
-  opens; tier D — both schemes answer, fixtures blessed in the drop commit.
-- **Cost**: tier C is the largest single change left; tier D is small once C exists.
-- **Why last**: it is the only track that changes files users have on disk.
-
-## Track 5 — consolidation (only after 1–3)
-
-Duplicate families via MinHash prefilter → one judge batch → proposals as `inbox/` notes. Deferred until
-tracks 1–3 give it a log, a batched path, and a ranking to sort proposals by.
-
-## Evidence discipline for all of them
-
-Each track adds a row to `docs/verification.md` with the command that re-measures it, and each measurement
-that came from a model run records the model, the batch size and the probability. "It looked right" is not
-a result in this repository.
+The one ordering constraint: **the tool rename comes after the MCP path**, because both rewrite the router
+and the schemas, and a rename on top of an unfinished refactor makes the diff unreadable.
