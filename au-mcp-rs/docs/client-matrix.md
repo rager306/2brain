@@ -318,3 +318,30 @@ then sent one batch carrying each file's own digest:
 Then it read both files again — verifying its own work, which the prompt did not ask
 for. One engine commit for the pair, which is what "once per touched member" means
 in practice.
+
+## 2026-11-15 (eighth): a model plans a revert from the engine's own history
+
+`rollback-turn.sh` gives the model no git: the only way to name a commit is the one
+`au_content` reports, and the only way to see what a revert would do is
+`au_rollback_preview`.
+
+```text
+tool calls: au_content au_rollback_preview
+PASS: the model read the file
+PASS: the model asked for a rollback preview
+PASS: the preview used the commit au_content reported
+PASS: the engine's plan names a restore
+PASS: the engine reports the revert as safe
+PASS: the preview made no commit
+PASS: the final answer names the file the revert would touch
+```
+
+Two things this caught while being written, both worth keeping:
+
+- The first run previewed the fixture's ROOT commit, because the scenario never made a
+  write, so every path came back `delete` and there was nothing to restore. The script
+  now performs one real write as a Python client before the model's turn: the turn
+  tests the model, not the setup.
+- "The plan names a restore" is checked in the tool RESULT, not in the transcript, for
+  the same reason the marker is: the model's own arguments and prose repeat words like
+  `restore`, so a whole-transcript grep proves nothing about what the engine said.
