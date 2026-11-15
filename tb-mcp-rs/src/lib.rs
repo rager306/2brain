@@ -4792,7 +4792,10 @@ mod tests {
         // payload: the validator's match fell through to `_ => false` and every call failed with
         // "invalid read result payload" the moment the engine started answering. This pins the arm.
         for (payload, valid) in [
-            (json!({"exact":false,"matches":[],"total":0,"truncated":false}), true),
+            (
+                json!({"exact":false,"matches":[],"total":0,"truncated":false}),
+                true,
+            ),
             (json!({}), true),
             (json!([]), false),
             (Value::Null, false),
@@ -4800,7 +4803,8 @@ mod tests {
         ] {
             let result = json!({"search":payload,"extra_result":123});
             let frame = json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":1,"result":result});
-            let actual = fake_response_for(serde_json::to_vec(&frame).unwrap(), None, "search").await;
+            let actual =
+                fake_response_for(serde_json::to_vec(&frame).unwrap(), None, "search").await;
             if valid {
                 assert_eq!(
                     actual.unwrap(),
