@@ -85,11 +85,18 @@ behaviour under `tests/stdio_boundaries.rs`; no `Option` plumbed through the han
 table instead of reaching for the engine. Acceptance: `tests/resources.rs` 4/4 plus a pure unit
 test with no socket.
 
-**P1.4 `schemas` as one table.** Replace 15 `fn *_schema()` with `schemas::for_tool(verb)`;
-the 51 `output_schema` attributes read from it. Acceptance: every declared schema byte-identical
-to today's (`schema_contract` unchanged), `--info` unchanged. This is the step that makes
-direction D generative: the capability table and the schema table are then one table with two
-columns.
+**P1.4 `schemas` as one table — reconsidered, not done as written (2026-11-15).** The 15
+functions encode genuinely different shapes: an envelope over one verb, the instances envelope
+with its own counts, grep's match array, the typed/type-tree/follow shapes, the mutation answer,
+the batch and reconcile answers. Merging them into `for_tool(name)` moves each shape into a match
+arm and removes no knowledge — the "one table, two columns" win was about *adding a tool in one
+place*, and the invariant that actually matters (every advertised tool declares an output
+schema) is already asserted by `tests/architecture.rs`. So the step is dropped as churn.
+
+What replaces it: when T1 adds `au_search`, the new tool's declaration must be written once, in
+the same file as its capability row's neighbour, and `tests/architecture.rs` must still pass
+without touching its ALLOWED list or the 51-row count (the count becomes 52 — that is the one
+number T1 is allowed to change).
 
 **P1.5 `ReadLedger`.** Extract `self.served` and its six sites into `src/ledger.rs` with an
 explicit API (`record_read`, `check_freshness`). Acceptance: `policy/freshness` and
@@ -309,7 +316,7 @@ invariant. Any step that cannot state its acceptance in a command is not a step 
 | P1.1 transport port | not started | — | — |
 | P1.2 bounded_stdio | **done** (`328baa3`) | `Bounds` parameter + `over(input, output, …)`; two tests on a 16-byte duplex prove the queue blocks a third send and releases it on drain, and that a closed transport refuses; suite 190 passed | 2026-11-15 |
 | P1.3 resources | **done** (`a4228c0`) | `member_roots(payload)` and the new `resource_page` are pure; the `resources -> wire` edge is gone (ALLOWED 7 → 6); `lib.rs` 4659 → 4631 production lines and the ratchet tightened to 4631; 4 inline tests without a socket | 2026-11-15 |
-| P1.4 schemas table | not started | — | — |
+| P1.4 schemas table | **dropped as written** (2026-11-15) | the 15 functions carry distinct shapes; the invariant that matters is already a test (P0.2d). T1's new tool is the only place this had to be paid for, and it is paid there | 2026-11-15 |
 | P1.5 read ledger | **done** (`3e402e8`) | `ledger::ReadLedger` with 3 tests (forget, member in the key, clone shares); `lib.rs` 4631 → 4612 and the ratchet tightened; the two refusal codes unchanged | 2026-11-15 |
 | T1 text index (engine half) | not started | design in Wave 2b; prototype numbers in progress | — |
 | T1 text index (adapter half) | blocked on P1.4 | — | — |
