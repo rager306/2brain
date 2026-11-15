@@ -158,7 +158,7 @@ fn a_malformed_policy_stops_the_process_before_serving() {
     let socket = temp.path().join("engine.sock");
     let policy_path = temp.path().join("policy.json");
     std::fs::write(&policy_path, "{not json").unwrap();
-    let mut child = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_2brain")).arg("mcp")
         .arg(&socket)
         .args(["--policy", policy_path.to_str().unwrap()])
         .stdin(Stdio::piped())
@@ -181,7 +181,7 @@ fn a_malformed_policy_stops_the_process_before_serving() {
 
 #[test]
 fn unknown_options_are_rejected() {
-    let output = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
+    let output = Command::new(env!("CARGO_BIN_EXE_2brain")).arg("mcp")
         .args(["/tmp/none.sock", "--danger"])
         .output()
         .unwrap();

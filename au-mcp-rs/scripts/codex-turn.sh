@@ -17,7 +17,7 @@
 set -euo pipefail
 
 ENGINE=${AU_ENGINE_BIN:-../au-engine/target/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-target/debug/au-mcp-rs}
+ADAPTER=${AU_MCP_RS_BIN:-target/debug/2brain}
 TURN_HOME=${AU_TURN_HOME:-$HOME}
 
 [[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE (set AU_ENGINE_BIN)" >&2; exit 1; }
@@ -45,9 +45,9 @@ tee=$root/mcp-wire.jsonl
 if [[ -n ${AU_TEE_TRANSCRIPT:-} ]]; then
   # Absolute, because the client spawns the server with its own working directory.
   tee_script=$(cd "$(dirname "$0")" && pwd)/stdio_tee.py
-  server_cmd=(python3 "$tee_script" --record "$tee" -- "$ADAPTER" "$socket")
+  server_cmd=(python3 "$tee_script" --record "$tee" -- "$ADAPTER" mcp "$socket")
 else
-  server_cmd=("$ADAPTER" "$socket")
+  server_cmd=("$ADAPTER" mcp "$socket")
 fi
 CODEX_HOME=$codex_home codex mcp add 2brain -- "${server_cmd[@]}" >/dev/null 2>&1 || {
   echo "codex refused the MCP registration" >&2; exit 1; }

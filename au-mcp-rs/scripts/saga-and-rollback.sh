@@ -13,7 +13,7 @@
 set -euo pipefail
 
 ENGINE=${AU_ENGINE_BIN:-../au-engine/target/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-target/debug/au-mcp-rs}
+ADAPTER=${AU_MCP_RS_BIN:-target/debug/2brain}
 
 [[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE (set AU_ENGINE_BIN)" >&2; exit 1; }
 [[ -x $ADAPTER ]] || { echo "missing adapter: $ADAPTER (set AU_MCP_RS_BIN)" >&2; exit 1; }
@@ -33,7 +33,7 @@ adapter, socket_path, repo, lib = sys.argv[1:5]
 sys.path.insert(0, lib)
 from mcp_stdio import StdioMcp, is_error, tool_text
 
-client = StdioMcp([adapter, socket_path, "--allow-mutations", "--allow-composition"],
+client = StdioMcp([adapter, "mcp", socket_path, "--allow-mutations", "--allow-composition"],
                   name="saga").start()
 
 def call(name, args):

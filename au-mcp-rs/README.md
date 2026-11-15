@@ -1,7 +1,15 @@
-# au-mcp-rs
+# tb-mcp-rs (the `2brain` adapter)
 
 The MCP stdio server for the 2brain engine, and **the only serving path**: installed as
-`/usr/local/bin/2brain` by `scripts/install.sh`. It reads a workspace through the engine's Unix socket,
+`/usr/local/bin/2brain` by `scripts/install.sh`.
+
+**One binary**: `2brain`. There is no separate server binary any more — `2brain mcp <target>` is the
+server, and `2brain mcp --help|--info|--version` answers with the server's own contract, which is why
+those flags pass through the dispatcher unchanged.
+
+The package and crate are `tb-mcp-rs` / `tb_mcp_rs` since 2026-11-16 (`2b_` is not a legal Rust
+prefix; see `../docs/naming.md`). The **directory** keeps the name `au-mcp-rs`, because paths that
+scripts and docs carry are a migration, not a rename. It reads a workspace through the engine's Unix socket,
 and can write only when the launch grants it.
 
 - **33 reads** (29 engine, 4 derived and observability), **2 discovery** tools, **1 watch**, and **16
@@ -40,11 +48,11 @@ to this crate, so the two halves cannot drift from their standalone binaries.
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
 ./target/release/2brain --help
 ./target/release/2brain mcp ~/.arsumbris/au-engine/run/<hash>.sock
-./target/release/au-mcp-rs --help          # the MCP half alone
-./target/release/au-mcp-rs --version
-./target/release/au-mcp-rs --info          # MCP surface, no engine needed
-./target/release/au-mcp-rs --info ~/.arsumbris/au-engine/run/<hash>.sock   # + probe
-./target/release/au-mcp-rs ~/.arsumbris/au-engine/run/<hash>.sock          # serve
+./target/release/2brain mcp --help         # the MCP server's own contract
+./target/release/2brain mcp --version
+./target/release/2brain mcp --info         # MCP surface, no engine needed
+./target/release/2brain mcp /root/vault    # serve (a socket path works too)
+./target/release/2brain info /root/vault   # surface + a probe of the live engine
 ```
 
 `--info` is the self-description: server name and version, both protocol
@@ -201,7 +209,7 @@ The ignored real-engine test starts its own daemon on a synthetic repository wit
 a temporary `HOME`:
 
 ```sh
-cd ../au-engine && RUSTUP_HOME=/root/.rustup cargo +1.99.0 build -p au-cli --bin au
+cd ../au-engine && RUSTUP_HOME=/root/.rustup cargo +1.99.0 build -p tb-cli --bin au
 cd ../au-mcp-rs
 RUSTUP_HOME=/root/.rustup AU_ENGINE_BIN=../au-engine/target/debug/au \
   cargo +1.99.0 test --offline --test real_engine -- --ignored

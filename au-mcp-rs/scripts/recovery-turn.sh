@@ -14,7 +14,7 @@
 set -euo pipefail
 
 ENGINE=${AU_ENGINE_BIN:-../au-engine/target/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-target/debug/au-mcp-rs}
+ADAPTER=${AU_MCP_RS_BIN:-target/debug/2brain}
 TURN_HOME=${AU_TURN_HOME:-$HOME}
 
 [[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE" >&2; exit 1; }

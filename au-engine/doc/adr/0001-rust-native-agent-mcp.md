@@ -34,7 +34,7 @@ Arsumbris serves a typed graph over files, including Markdown, YAML, wikilinks
 and block IDs. The engine is a Rust workspace, while the current agent path
 includes a Python stdio bridge, a TypeScript/Node MCP kernel, and TypeScript or
 JavaScript plugin implementations. The engine wire contract is documented in
-[`WIRE.md`](../../crates/au-engine/WIRE.md). [bounded]
+[`WIRE.md`](../../crates/tb-engine/WIRE.md). [bounded]
 
 The production vault is shared with live agent sessions. An engine or writer
 defect can affect real data. Tests must use isolated fixtures, and the live
@@ -226,7 +226,7 @@ runtimes in development or CI. [proposed]
 
 ## References
 
-- Engine wire: [`crates/au-engine/WIRE.md`](../../crates/au-engine/WIRE.md).
+- Engine wire: [`crates/tb-engine/WIRE.md`](../../crates/tb-engine/WIRE.md).
 - Existing golden coverage: [`tests-golden/README.md`](../../tests-golden/README.md).
 - Local sibling source for current behavior: `../au-mcp/src/daemon/daemon.ts`,
   `../au-mcp/src/daemon/session.ts`, `../au-mcp-core/`, `../au-mcp-bridge/`.

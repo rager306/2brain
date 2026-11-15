@@ -1,7 +1,7 @@
 //! One binary for the whole 2brain runtime: the engine daemon and the MCP
 //! server, chosen by subcommand.
 //!
-//! `2brain daemon …` delegates to the engine's own implementation (`au_cli`),
+//! `2brain daemon …` delegates to the engine's own implementation (`tb_cli`),
 //! and `2brain mcp …` delegates to this crate's server, so the two cannot drift
 //! from their standalone binaries.
 //!
@@ -53,32 +53,16 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Serve one engine socket over MCP on stdio (same as `au-mcp-rs`).
+    /// Serve one engine socket over MCP on stdio.
+    ///
+    /// The first argument is a `.sock` path or a workspace entry; everything after it is handed to
+    /// the MCP server unchanged, so `2brain mcp --help` and `2brain mcp --info` are the server's own
+    /// CLI rather than a second grammar. That is why the arguments are passed through verbatim
+    /// instead of being re-declared here: one binary should not need two spellings of one contract.
     Mcp {
-        /// A `.sock` path, or a workspace entry whose socket is derived.
-        #[arg(value_name = "SOCKET_OR_WORKSPACE")]
-        target: PathBuf,
-        /// JSON policy file: allow_mutations, members, audit.
-        #[arg(long)]
-        policy: Option<PathBuf>,
-        /// Grant the mutating tools (off by default).
-        #[arg(long)]
-        allow_mutations: bool,
-        /// Grant composition tools (add_dep, remove_dep); needs mutations.
-        #[arg(long)]
-        allow_composition: bool,
-        /// Grant workspace-shape tools (members, roles); needs mutations.
-        #[arg(long)]
-        allow_workspace_shape: bool,
-        /// Label for audit records; not authentication.
-        #[arg(long)]
-        principal: Option<String>,
-        /// Definition detail in `tools/list`.
-        #[arg(long, value_parser = ["full", "concise"])]
-        tools: Option<String>,
-        /// Result representation.
-        #[arg(long, value_parser = ["both", "text", "structured"])]
-        payload: Option<String>,
+        /// A target (a `.sock` path or a workspace entry) followed by the server's own options.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        arguments: Vec<String>,
     },
     /// Describe the MCP surface, and probe an engine when a target is given.
     Info {
@@ -128,66 +112,51 @@ fn main() -> ExitCode {
         .skip(1)
         .any(|argument| argument == "--version" || argument == "-V")
     {
-        au_mcp_rs::reset_sigpipe();
-        println!("2brain {}", au_mcp_rs::version_string());
+        tb_mcp_rs::reset_sigpipe();
+        println!("2brain {}", tb_mcp_rs::version_string());
         return ExitCode::SUCCESS;
+    }
+    // `2brain mcp --help|--info|--version` belongs to the MCP server, not to this dispatcher: route
+    // the flags straight through so the server's own USAGE answers them (clap would otherwise answer
+    // `--help` for the subcommand, giving one contract two spellings).
+    let argv: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    if matches!(argv.first().and_then(|a| a.to_str()), Some("mcp"))
+        && matches!(argv.get(1).and_then(|a| a.to_str()), Some(flag) if flag.starts_with('-'))
+    {
+        tb_mcp_rs::reset_sigpipe();
+        return mcp(argv[1..].to_vec());
     }
     let cli = Cli::parse();
     if !matches!(cli.command, Command::Mcp { .. } | Command::Serve { .. }) {
-        au_mcp_rs::reset_sigpipe();
+        tb_mcp_rs::reset_sigpipe();
     }
     match cli.command {
         Command::Daemon { command } => match command {
-            DaemonCommand::Start { entry } => au_cli::daemon::start(&entry),
-            DaemonCommand::Stop { entry, force } => au_cli::daemon::stop(&entry, force),
-            DaemonCommand::Status { entry } => au_cli::daemon::status(&entry),
+            DaemonCommand::Start { entry } => tb_cli::daemon::start(&entry),
+            DaemonCommand::Stop { entry, force } => tb_cli::daemon::stop(&entry, force),
+            DaemonCommand::Status { entry } => tb_cli::daemon::status(&entry),
         },
-        Command::Open { name } => au_cli::daemon::open(&name),
-        Command::Members { entry, json } => au_cli::members::members(&entry, json),
-        Command::Mcp {
-            target,
-            policy,
-            allow_mutations,
-            allow_composition,
-            allow_workspace_shape,
-            principal,
-            tools,
-            payload,
-        } => {
-            let socket = match resolve_socket(&target) {
-                Ok(socket) => socket,
-                Err(error) => {
-                    eprintln!("2brain: {error}");
-                    return ExitCode::FAILURE;
+        Command::Open { name } => tb_cli::daemon::open(&name),
+        Command::Members { entry, json } => tb_cli::members::members(&entry, json),
+        Command::Mcp { arguments } => {
+            // The target is the first argument unless that argument is itself an option
+            // (`--help`, `--info`, …), in which case the server answers it directly.
+            let mut rest = arguments.into_iter().peekable();
+            let mut forwarded: Vec<std::ffi::OsString> = Vec::with_capacity(rest.len());
+            if let Some(first) = rest.peek() {
+                if !first.starts_with('-') {
+                    let target = PathBuf::from(rest.next().expect("peeked"));
+                    match resolve_socket(&target) {
+                        Ok(socket) => forwarded.push(socket.into_os_string()),
+                        Err(error) => {
+                            eprintln!("2brain: {error}");
+                            return ExitCode::FAILURE;
+                        }
+                    }
                 }
-            };
-            let mut arguments: Vec<std::ffi::OsString> = vec![socket.into_os_string()];
-            if let Some(policy) = policy {
-                arguments.push("--policy".into());
-                arguments.push(policy.into_os_string());
             }
-            if allow_mutations {
-                arguments.push("--allow-mutations".into());
-            }
-            if allow_composition {
-                arguments.push("--allow-composition".into());
-            }
-            if allow_workspace_shape {
-                arguments.push("--allow-workspace-shape".into());
-            }
-            if let Some(principal) = principal {
-                arguments.push("--principal".into());
-                arguments.push(principal.into());
-            }
-            if let Some(tools) = tools {
-                arguments.push("--tools".into());
-                arguments.push(tools.into());
-            }
-            if let Some(payload) = payload {
-                arguments.push("--payload".into());
-                arguments.push(payload.into());
-            }
-            mcp(arguments)
+            forwarded.extend(rest.map(std::ffi::OsString::from));
+            mcp(forwarded)
         }
         Command::Info { target } => {
             let mut arguments: Vec<std::ffi::OsString> = vec!["--info".into()];
@@ -213,7 +182,7 @@ fn main() -> ExitCode {
 /// entry whose socket is derived the way `au daemon start` derives it.
 ///
 /// The entry is canonicalized first because the daemon hashes a canonical path
-/// (`au_engine::serve::socket_path` documents this), and a symlinked or relative
+/// (`tb_engine::serve::socket_path` documents this), and a symlinked or relative
 /// spelling would otherwise hash to a socket nobody bound.
 fn resolve_socket(target: &Path) -> Result<PathBuf, String> {
     if target.extension().is_some_and(|extension| extension == "sock") {
@@ -221,7 +190,7 @@ fn resolve_socket(target: &Path) -> Result<PathBuf, String> {
     }
     let canonical = std::fs::canonicalize(target)
         .map_err(|error| format!("{}: {error}", target.display()))?;
-    Ok(au_cli::socket_path(&canonical))
+    Ok(tb_cli::socket_path(&canonical))
 }
 
 /// Run the MCP server half with `arguments` and map its result to an exit code.
@@ -236,7 +205,7 @@ fn mcp(arguments: Vec<std::ffi::OsString>) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match runtime.block_on(au_mcp_rs::run(arguments)) {
+    match runtime.block_on(tb_mcp_rs::run(arguments)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("2brain: {error}");

@@ -1,23 +1,19 @@
 [package]
-name = "au-mcp-rs"
+name = "tb-mcp-rs"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
 
 [lib]
-name = "au_mcp_rs"
+name = "tb_mcp_rs"
 path = "src/lib.rs"
-
-[[bin]]
-name = "au-mcp-rs"
-path = "src/main.rs"
 
 [[bin]]
 name = "2brain"
 path = "src/bin/two_brain.rs"
 
 [dependencies]
-au-cli = { path = "../au-engine/crates/au-cli" }
+tb-cli = { path = "../au-engine/crates/tb-cli" }
 clap = { version = "4", features = ["derive"] }
 libc = "0.2"
 futures = "0.3"

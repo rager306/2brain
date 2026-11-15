@@ -63,7 +63,7 @@ items below with explicit decisions before implementing assertions for them.
 - Start a test-owned fake engine at the injected endpoint. Implement only the
   required engine protocol, record each request, and return controlled frames.
   Use it to distinguish the MCP contract from the daemon wire. The daemon wire
-  is documented in `../crates/au-engine/WIRE.md`: length-prefixed JSON over a
+  is documented in `../crates/tb-engine/WIRE.md`: length-prefixed JSON over a
   Unix socket, with tagged responses and a `schema_version`.
 - For each agreed tool, verify the exact permitted read request and arguments,
   correlation, and translation of ready results. Exercise null payloads,

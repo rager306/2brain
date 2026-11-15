@@ -45,7 +45,7 @@ Run again on this host with the fork release builds instead of the debug builds:
 ```sh
 cd au-mcp-rs
 AU_ENGINE_BIN=/root/arsumbris/au-engine/target/release/au \
-AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs \
+AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/tb-mcp-rs \
 bash scripts/client-matrix.sh
 ```
 
@@ -64,11 +64,11 @@ Full output of the run, including the exit status the harness appended:
 
 ```text
 engine: /tmp/au-client-matrix-1vQCCf/home/.arsumbris/au-engine/run/afa490f1da63b5bb.sock
-adapter: /root/arsumbris/au-mcp-rs/target/release/au-mcp-rs
+adapter: /root/arsumbris/au-mcp-rs/target/release/tb-mcp-rs
 
 client         version    result
 ---------------------------------------------------------------
-claude         2.1.323    FAILED: arsumbris-rs: /root/arsumbris/au-mcp-rs//root/arsumbris/au-mcp-rs/target/release/au-mcp-rs /tmp/au-client-matrix-1vQCCf/home/.arsumbris/au-engine/run/afa490f1da63b5bb.sock - ✘ Failed to connect — ENOENT: no such file or directory, posix_spawn '/root/arsumbris/au-mcp-rs//root/arsumbris/au-mcp-rs/target/release/au-mcp-rs'
+claude         2.1.323    FAILED: arsumbris-rs: /root/arsumbris/au-mcp-rs//root/arsumbris/au-mcp-rs/target/release/tb-mcp-rs /tmp/au-client-matrix-1vQCCf/home/.arsumbris/au-engine/run/afa490f1da63b5bb.sock - ✘ Failed to connect — ENOENT: no such file or directory, posix_spawn '/root/arsumbris/au-mcp-rs//root/arsumbris/au-mcp-rs/target/release/tb-mcp-rs'
 codex          0.164.0    registered; no non-interactive health check
 cursor-agent   2026.10.22-27dcf5f configured via .cursor/mcp.json; needs an API key, not exercised
 EXIT:1
@@ -105,7 +105,7 @@ Same command, same binaries, after the fix:
 
 ```text
 engine: /tmp/au-client-matrix-MNGeir/home/.arsumbris/au-engine/run/af3ace6d988bed39.sock
-adapter: /root/arsumbris/au-mcp-rs/target/release/au-mcp-rs
+adapter: /root/arsumbris/au-mcp-rs/target/release/tb-mcp-rs
 
 client         version    result
 ---------------------------------------------------------------
@@ -132,7 +132,7 @@ except this one, so a correct answer cannot be a lucky guess:
 
 ```text
 engine:  /tmp/au-fixture-DSYaVF/home/.arsumbris/au-engine/run/123e4ed907267994.sock
-adapter: /root/arsumbris/au-mcp-rs/target/release/au-mcp-rs
+adapter: /root/arsumbris/au-mcp-rs/target/release/tb-mcp-rs
 prompt:  find unique-marker-7f3a with au_grep
 PASS: the model called mcp__arsumbris-rs__au_grep
 PASS: the marker travelled through the engine (tool result and/or answer)

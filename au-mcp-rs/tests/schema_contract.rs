@@ -35,7 +35,7 @@ impl Drop for Client {
 
 impl Client {
     fn start(socket: &Path) -> Self {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
+        let mut child = Command::new(env!("CARGO_BIN_EXE_2brain")).arg("mcp")
             .args([
                 "--allow-mutations",
                 "--allow-composition",

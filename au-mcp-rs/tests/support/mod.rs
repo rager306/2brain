@@ -87,7 +87,9 @@ impl Client {
         timeout: Duration,
         capture_stderr: bool,
     ) -> Self {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"));
+        // One binary for the product: `2brain mcp <target> …` (there is no separate server binary).
+        let mut command = Command::new(env!("CARGO_BIN_EXE_2brain"));
+        command.arg("mcp");
         command
             .arg(socket)
             .args(extra)

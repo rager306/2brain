@@ -72,7 +72,7 @@ Worked examples, so the rule is not abstract:
 |---|---|---|
 | `au-mcp-rs/src/gate.rs` — the mutation gate's state machine | product | the serving path walks it on every write |
 | `au-mcp-rs/scripts/lib/procedure.py` — two procedures as states, with `--selftest` | tooling | its only consumer is `mutation-turn.sh`, a verification script; no Rust file imports it |
-| the Python BM25 prototype behind `docs/architecture-plan.md` T1 | model | it produced numbers and nothing else; the index that shipped is Rust (`au-engine/crates/au-engine/src/search.rs`) |
+| the Python BM25 prototype behind `docs/architecture-plan.md` T1 | model | it produced numbers and nothing else; the index that shipped is Rust (`au-engine/crates/tb-engine/src/search.rs`) |
 
 If the procedure runtime ever gets a **product** consumer — the server itself running an
 agent procedure — it moves to `au-mcp-rs/src/procedure.rs` and gains a tool; until then its
@@ -249,4 +249,4 @@ dashboard). Backlog notes cite their source studies.
 - Docs and commits in English.
 - `au-type-system` is a contract, not a playground: type changes require a
   migration note and vault-rollback reasoning first.
-- When a change alters wire shapes, bump/annotate per `au-engine/crates/au-engine/WIRE.md`.
+- When a change alters wire shapes, bump/annotate per `au-engine/crates/tb-engine/WIRE.md`.

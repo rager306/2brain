@@ -10,7 +10,7 @@ derives a default socket.
 cd au-mcp-rs
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
 # target/release/2brain  — engine daemon + MCP server in one binary
-# target/release/au-mcp-rs  — the MCP server alone
+# target/release/tb-mcp-rs  — the MCP server alone
 ```
 
 Use `2brain mcp <workspace-or-socket>` everywhere below; `au-mcp-rs <socket>` is the same

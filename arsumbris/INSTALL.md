@@ -90,7 +90,7 @@ cargo build --release
 Put the resulting `au` binary on your PATH (it is the `au-cli` crate):
 
 ```sh
-cargo install --path crates/au-cli
+cargo install --path crates/tb-cli
 ```
 
 See [au-engine.md](au-engine.md) and au-engine's own README for the daemon commands and the optional faster linker.

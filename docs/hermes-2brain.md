@@ -17,7 +17,7 @@ the version string, which is the point of embedding it.
 
 The path is outside the build tree on purpose: a
 `cargo clean` or a rebuilt release profile must not be able to leave the configured command
-pointing at nothing. That is exactly what happened to `au-mcp-rs/target/release/au-mcp-rs` on
+pointing at nothing. That is exactly what happened to `au-mcp-rs/target/release/tb-mcp-rs` on
 2026-11-16 — the config was right, the file was gone.
 
 ## 2. The stanza

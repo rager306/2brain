@@ -76,7 +76,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
         }
     });
     let mut child = OwnedChild(
-        Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
+        Command::new(env!("CARGO_BIN_EXE_2brain")).arg("mcp")
             .arg(socket)
             .arg("--allow-mutations")
             .arg("--allow-composition")

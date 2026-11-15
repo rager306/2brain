@@ -20,6 +20,31 @@ carry it, and every rename is a migration rather than a find-and-replace.
 | systemd units | `arsumbris-engine`, `arsumbris-mcp` | unchanged |
 | the vault | `/root/vault` | unchanged; a vault is content, not a product name |
 
+## Identifiers: `tb_` is the legal spelling of 2b
+
+`2b_` cannot be a Rust identifier or a Cargo package name: both must start with a letter or an
+underscore, so a leading digit is a hard error (not a style choice). The rename therefore uses **`tb`**
+— the same two letters, in the order a compiler accepts — while `2brain` stays the name a client sees and
+`2b` stays the prose form.
+
+Applied 2026-11-16 (commit `crates: rename au-* to tb-*`):
+
+| surface | before | now |
+|---|---|---|
+| engine package names | `au-cli`, `au-core`, `au-engine`, `au-parser`, `au-grammar`, `au-diagnostics`, `au-references`, `au-testkit` | `tb-*` |
+| engine crate paths (Rust) | `au_cli`, `au_core`, … | `tb_cli`, `tb_core`, … |
+| adapter package and lib | `au-mcp-rs`, `au_mcp_rs` | `tb-mcp-rs`, `tb_mcp_rs` |
+| crate directories | `crates/au-*` | `crates/tb-*` |
+| engine binary | `au` | unchanged — `~/.arsumbris/bin/au`, the systemd unit and `au-health.sh` name it |
+| adapter binary | `2brain` | unchanged |
+| tool names, resource scheme, wire fields, socket paths, `au.engine.repo` | `au_*`, `arsumbris://` | **unchanged: they are the contract** |
+
+The two rows that did not move are the point. A crate name is internal — nothing outside the build reads
+it, so renaming is mechanical and verifiable with a compile. A tool name, a resource URI, a socket path
+or a type identity in a vault's `repo.yaml` is read by clients and stored in content: `au.engine.repo` is
+a *type name* that every member of the workspace declares, so renaming it is a vault migration, not a
+rename (phase N4 material).
+
 ## The rule that keeps this from becoming a sweep
 
 **A name that crosses a process boundary is a migration, not a rename.** It needs a compatibility

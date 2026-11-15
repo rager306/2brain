@@ -170,7 +170,7 @@ struct Catalog {
 /// or `## The mutation catalog`, and `resolve` as a heading only. The bold form
 /// is regular: a lowercase verb, underscore included.
 fn catalog() -> Catalog {
-    let text = read(&manifest_dir().join("../au-engine/crates/au-engine/WIRE.md"));
+    let text = read(&manifest_dir().join("../au-engine/crates/tb-engine/WIRE.md"));
     let mut catalog = Catalog {
         reads: BTreeSet::new(),
         mutations: BTreeSet::new(),

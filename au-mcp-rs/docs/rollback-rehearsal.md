@@ -41,7 +41,7 @@ disposable repository and a private engine socket under a throwaway `HOME`:
 ```sh
 cd au-mcp-rs
 AU_ENGINE_BIN=/root/arsumbris/au-engine/target/release/au \
-AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs \
+AU_MCP_RS_BIN=/root/arsumbris/au-mcp-rs/target/release/tb-mcp-rs \
 python3 scripts/rollback_rehearsal.py
 ```
 

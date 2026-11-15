@@ -46,7 +46,7 @@ DEFAULT_DEVICE_ROOT = os.path.join(HOME, ".arsumbris")
 # where `au` / `node` / agent binaries commonly land, probed after PATH. mirrors the
 # fallback set au-host itself uses, so the seeded path matches what au-host would find.
 WELL_KNOWN_BIN_DIRS = [
-    os.path.join(HOME, ".cargo", "bin"),   # `cargo install --path crates/au-cli` (INSTALL step 3)
+    os.path.join(HOME, ".cargo", "bin"),   # `cargo install --path crates/tb-cli` (INSTALL step 3)
     "/opt/homebrew/bin",
     "/usr/local/bin",
     "/usr/bin",

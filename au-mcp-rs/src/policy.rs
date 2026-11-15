@@ -297,12 +297,12 @@ impl Audit {
             {
                 Ok(mut file) => {
                     if writeln!(file, "{line}").is_err() {
-                        eprintln!("au-mcp-rs: audit write failed for {}", path.display());
+                        eprintln!("tb-mcp-rs: audit write failed for {}", path.display());
                         return;
                     }
                 }
                 Err(error) => {
-                    eprintln!("au-mcp-rs: audit open failed: {error}");
+                    eprintln!("tb-mcp-rs: audit open failed: {error}");
                     return;
                 }
             },

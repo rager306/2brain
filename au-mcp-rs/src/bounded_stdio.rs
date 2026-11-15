@@ -161,7 +161,7 @@ impl Transport<RoleServer> for BoundedStdio {
             Ok(Err(_)) => return None,
             Err(_) => {
                 eprintln!(
-                    "au-mcp-rs: client stopped reading stdout for {}s; closing the connection",
+                    "tb-mcp-rs: client stopped reading stdout for {}s; closing the connection",
                     self.bounds.outbound_wait.as_secs()
                 );
                 // Drop queued output instead of waiting for a client that is not
@@ -189,7 +189,7 @@ impl Transport<RoleServer> for BoundedStdio {
                     return Some(message);
                 }
                 Some(Err(error)) => {
-                    eprintln!("au-mcp-rs: rejecting unreadable input frame: {error}");
+                    eprintln!("tb-mcp-rs: rejecting unreadable input frame: {error}");
                     if let Some(sender) = self.sender.as_ref() {
                         let rejection = TxJsonRpcMessage::<RoleServer>::error(
                             ErrorData::invalid_request("Invalid request", None),
@@ -214,7 +214,7 @@ impl Transport<RoleServer> for BoundedStdio {
             && timeout(self.bounds.close_wait, writer).await.is_err()
         {
             eprintln!(
-                "au-mcp-rs: queued output did not flush within {}s; abandoning it",
+                "tb-mcp-rs: queued output did not flush within {}s; abandoning it",
                 self.bounds.close_wait.as_secs()
             );
         }

@@ -27,7 +27,7 @@ The script encodes the properties this document argues for:
 The served binary is `b7e48c82…` from the fourth swap (`015aeda`). Engine HEAD
 `44c6967` is that build plus one additive read: `search` (verb landed in `d888abe`,
 dead code removed in `44c6967`). `SCHEMA_VERSION` stays 29
-(`crates/au-engine/src/serve.rs:132`), no key changes shape, and nothing in
+(`crates/tb-engine/src/serve.rs:132`), no key changes shape, and nothing in
 `tests-golden` needs regenerating. `au-engine/tests-golden/engine/au_search.json`
 is fixture-derived, not vault-derived, and is checked on every `--test it` run.
 
@@ -54,7 +54,7 @@ health signal.
 
 ```sh
 cd /root/arsumbris/au-engine
-RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release -p au-cli
+RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release -p tb-cli
 ```
 
 | fact | value |

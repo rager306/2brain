@@ -122,7 +122,7 @@ types move next to it.
 
 **P2.3 `allowed_next` in every denial.** The refusal payload lists the stages reachable from the
 current one, so an agent asks "what may I do here" instead of learning the rule by being
-refused. Additive wire field → annotate per `au-engine/crates/au-engine/WIRE.md`.
+refused. Additive wire field → annotate per `au-engine/crates/tb-engine/WIRE.md`.
 Acceptance: the 31 gate tests unchanged; a property test asserts the transition table is total
 and that every denial carries a non-empty `allowed_next`; one live client run (Hermes or
 `scripts/mutation-turn.sh`) shows the field.

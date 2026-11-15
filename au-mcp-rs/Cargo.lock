@@ -86,109 +86,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d902e3d592a523def97af8f317b08ce16b7ab854c1985a0c671e6f15cebc236"
 
 [[package]]
-name = "au-cli"
-version = "0.0.5"
-dependencies = [
- "au-core",
- "au-diagnostics",
- "au-engine",
- "au-grammar",
- "au-parser",
- "au-references",
- "clap",
- "libc",
- "serde",
- "serde_json",
- "tracing",
- "tracing-appender",
- "tracing-chrome",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "au-core"
-version = "0.0.5"
-dependencies = [
- "au-diagnostics",
- "au-grammar",
- "au-parser",
- "au-references",
- "regex",
-]
-
-[[package]]
-name = "au-diagnostics"
-version = "0.0.5"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "au-engine"
-version = "0.0.5"
-dependencies = [
- "au-core",
- "au-diagnostics",
- "au-grammar",
- "au-parser",
- "au-references",
- "fs4",
- "notify",
- "rpds",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "au-grammar"
-version = "0.0.5"
-dependencies = [
- "au-diagnostics",
- "serde",
-]
-
-[[package]]
-name = "au-mcp-rs"
-version = "0.1.0"
-dependencies = [
- "au-cli",
- "clap",
- "futures",
- "libc",
- "rmcp",
- "schemars",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "tokio",
- "tokio-util",
-]
-
-[[package]]
-name = "au-parser"
-version = "0.0.5"
-dependencies = [
- "au-diagnostics",
- "ignore",
- "memchr",
- "saphyr",
- "saphyr-parser",
-]
-
-[[package]]
-name = "au-references"
-version = "0.0.5"
-dependencies = [
- "au-diagnostics",
- "au-parser",
- "rpds",
- "serde",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1268,6 +1165,109 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "tb-cli"
+version = "0.0.5"
+dependencies = [
+ "clap",
+ "libc",
+ "serde",
+ "serde_json",
+ "tb-core",
+ "tb-diagnostics",
+ "tb-engine",
+ "tb-grammar",
+ "tb-parser",
+ "tb-references",
+ "tracing",
+ "tracing-appender",
+ "tracing-chrome",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "tb-core"
+version = "0.0.5"
+dependencies = [
+ "regex",
+ "tb-diagnostics",
+ "tb-grammar",
+ "tb-parser",
+ "tb-references",
+]
+
+[[package]]
+name = "tb-diagnostics"
+version = "0.0.5"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "tb-engine"
+version = "0.0.5"
+dependencies = [
+ "fs4",
+ "notify",
+ "rpds",
+ "serde",
+ "serde_json",
+ "tb-core",
+ "tb-diagnostics",
+ "tb-grammar",
+ "tb-parser",
+ "tb-references",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "tb-grammar"
+version = "0.0.5"
+dependencies = [
+ "serde",
+ "tb-diagnostics",
+]
+
+[[package]]
+name = "tb-mcp-rs"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "futures",
+ "libc",
+ "rmcp",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tb-cli",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "tb-parser"
+version = "0.0.5"
+dependencies = [
+ "ignore",
+ "memchr",
+ "saphyr",
+ "saphyr-parser",
+ "tb-diagnostics",
+]
+
+[[package]]
+name = "tb-references"
+version = "0.0.5"
+dependencies = [
+ "rpds",
+ "serde",
+ "tb-diagnostics",
+ "tb-parser",
 ]
 
 [[package]]

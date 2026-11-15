@@ -1,14 +1,14 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/au-cli",
-    "crates/au-core",
-    "crates/au-engine",
-    "crates/au-parser",
-    "crates/au-grammar",
-    "crates/au-diagnostics",
-    "crates/au-references",
-    "crates/au-testkit",
+    "crates/tb-cli",
+    "crates/tb-core",
+    "crates/tb-engine",
+    "crates/tb-parser",
+    "crates/tb-grammar",
+    "crates/tb-diagnostics",
+    "crates/tb-references",
+    "crates/tb-testkit",
 ]
 
 [workspace.package]
@@ -19,14 +19,14 @@ license = "UNLICENSED"
 publish = false
 
 [workspace.dependencies]
-au-cli = { path = "crates/au-cli" }
-au-core = { path = "crates/au-core" }
-au-engine = { path = "crates/au-engine" }
-au-parser = { path = "crates/au-parser" }
-au-grammar = { path = "crates/au-grammar" }
-au-diagnostics = { path = "crates/au-diagnostics" }
-au-references = { path = "crates/au-references" }
-au-testkit = { path = "crates/au-testkit" }
+tb-cli = { path = "crates/tb-cli" }
+tb-core = { path = "crates/tb-core" }
+tb-engine = { path = "crates/tb-engine" }
+tb-parser = { path = "crates/tb-parser" }
+tb-grammar = { path = "crates/tb-grammar" }
+tb-diagnostics = { path = "crates/tb-diagnostics" }
+tb-references = { path = "crates/tb-references" }
+tb-testkit = { path = "crates/tb-testkit" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

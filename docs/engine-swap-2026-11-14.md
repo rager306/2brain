@@ -20,7 +20,7 @@ Node MCP layer | `arsumbris-mcp.service`, pid 1336489 |
 |---|---|
 binary | same path, 13 624 840 bytes |
 sha256 | `97826aaee81e5cd3f43b164ff4ba567753b435dc54cce719e8d65d4458a6c5f7` |
-built from | monorepo `5625aff` (engine `crates/au-cli` release build) |
+built from | monorepo `5625aff` (engine `crates/tb-cli` release build) |
 daemon pid | 3133009, started 2026-11-14 13:07 |
 rollback artifact | `/root/backups/au-pre-swap-20261114-1307` |
 

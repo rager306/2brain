@@ -4,7 +4,7 @@ This is the fork integration branch of the arsumbris engine (`fork/main`, create
 from the pristine 0.0.5-era local work at `44b32f4`), not upstream `main`
 (`release 0.0.2-alpha`, frozen). It carries fork-local work on profiling and the mutation
 path; the type system and vault format remain compatible, and wire shapes follow
-`crates/au-engine/WIRE.md`.
+`crates/tb-engine/WIRE.md`.
 
 ## Test baseline
 
@@ -41,7 +41,7 @@ Compare a fresh run against the recorded baseline, from `au-engine/` (export
 `RUSTUP_HOME=/root/.rustup` first when `cargo +1.99.0` cannot find the toolchain):
 
 ```sh
-fail() { t=$1; shift; cargo +1.99.0 test -p au-engine --offline "$@" 2>&1 \
+fail() { t=$1; shift; cargo +1.99.0 test -p tb-engine --offline "$@" 2>&1 \
   | sed -n '/^failures:$/,$p' | sed -n 's/^    \([A-Za-z_][A-Za-z0-9_:]*\)$/\1/p' \
   | sed "s/^/$t::/"; }
 { fail lib --lib; fail it --test it; } | sort > /tmp/engine-fail-now
@@ -57,5 +57,5 @@ unchanged. The file's header records the expected `fmt`/`clippy` state.
 only); the engine's test counts did not move. `clippy -D warnings` is NOT a gate for
 the engine: upstream style lints remain in `au-core` and the crates clippy reaches
 after it, so a red clippy says nothing about a fork change. The gate is per crate —
-`cargo clippy -p au-engine -p au-cli --all-targets -- -D warnings` — plus the whole
+`cargo clippy -p tb-engine -p tb-cli --all-targets -- -D warnings` — plus the whole
 `au-mcp-rs` workspace, which is clean.

@@ -57,7 +57,7 @@ from mcp_stdio import StdioMcp  # noqa: E402
 
 CRATE = HERE.parent
 ENGINE = os.environ.get("AU_ENGINE_BIN", str(CRATE.parent / "au-engine/target/release/au"))
-ADAPTER = os.environ.get("AU_MCP_RS_BIN", str(CRATE / "target/release/au-mcp-rs"))
+ADAPTER = os.environ.get("AU_MCP_RS_BIN", str(CRATE / "target/release/2brain"))
 REPO = "fixture"
 
 # The fixture, one file per capture so the captures stay independent. The two types and
@@ -316,7 +316,7 @@ def main() -> int:
         socket = wait_for_socket(root / "home")
         print(f"fixture: {repo}")
         print(f"engine:  {ENGINE}\nadapter: {ADAPTER}\nsocket:  {socket}")
-        with StdioMcp([ADAPTER, socket, "--allow-mutations", "--allow-composition",
+        with StdioMcp([ADAPTER, "mcp", socket, "--allow-mutations", "--allow-composition",
                        "--allow-workspace-shape"], name="capture-mutations") as rpc:
             for tool, capture in CAPTURES:
                 payload = capture(rpc)

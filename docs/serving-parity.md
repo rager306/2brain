@@ -5,11 +5,11 @@ it lists what the retirement would remove, and it leads with the check that fail
 
 ## 0. The first check fails, and it is not about parity
 
-Hermes launches `/root/arsumbris/au-mcp-rs/target/release/au-mcp-rs`
+Hermes launches `/root/arsumbris/au-mcp-rs/target/release/tb-mcp-rs`
 (`~/.hermes/config.yaml:588`). **That file does not exist.** The path is right — `au-mcp-rs/target` is
 a symlink to the shared `.cargo-target` (`/root/arsumbris/.cargo/config.toml`), and both names resolve
 to the same missing release binary. Both live adapter processes run from a **deleted inode**
-(`/proc/1194089/exe -> /root/arsumbris/.cargo-target/release/au-mcp-rs (deleted)`), so they work only
+(`/proc/1194089/exe -> /root/arsumbris/.cargo-target/release/tb-mcp-rs (deleted)`), so they work only
 until the next connection: a new Hermes session cannot start `arsumbris-rs` at all.
 
 One fault, and it is not a config fault: the release binary has to exist, and be kept. A debug build
@@ -22,7 +22,7 @@ not a parity question, it is an outage waiting for the next session.
 ### 0a. Resolved, 2026-11-16
 
 `cargo +1.99.0 build --release` in `au-mcp-rs` produced
-`.cargo-target/release/au-mcp-rs`, 6 465 992 B, sha256 `1172e8c3e2cca2d0f5b1…`, reporting
+`.cargo-target/release/tb-mcp-rs`, 6 465 992 B, sha256 `1172e8c3e2cca2d0f5b1…`, reporting
 `au-mcp-rs 0.1.0+6eff2117645e` (the version string embeds the commit). The Hermes path resolves to it
 through the `target` symlink, and a launch through that exact path lists tools and answers a read:
 

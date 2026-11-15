@@ -9,7 +9,7 @@
 set -euo pipefail
 
 ENGINE=${AU_ENGINE_BIN:-../au-engine/target/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-target/debug/au-mcp-rs}
+ADAPTER=${AU_MCP_RS_BIN:-target/debug/2brain}
 
 if [[ ! -x $ENGINE ]]; then
   echo "missing engine binary: $ENGINE (set AU_ENGINE_BIN)" >&2
@@ -40,7 +40,7 @@ echo "---------------------------------------------------------------"
 
 if command -v claude >/dev/null; then
   version=$(claude --version 2>/dev/null | head -1 | awk '{print $1}')
-  (cd "$repo" && claude mcp add --scope local 2brain -- "$ADAPTER" "$socket" >/dev/null 2>&1) || true
+  (cd "$repo" && claude mcp add --scope local 2brain -- "$ADAPTER" mcp "$socket" >/dev/null 2>&1) || true
   # The row, not the whole table: another connected server must not make this one
   # look healthy. `mcp list` prints one line per server, naming it.
   listed=$(cd "$repo" && timeout 60 claude mcp list 2>&1 || true)
@@ -59,7 +59,7 @@ fi
 
 if command -v codex >/dev/null; then
   version=$(codex --version 2>/dev/null | head -1 | awk '{print $2}')
-  codex mcp add 2brain -- "$ADAPTER" "$socket" >/dev/null 2>&1 || true
+  codex mcp add 2brain -- "$ADAPTER" mcp "$socket" >/dev/null 2>&1 || true
   listed=$(codex mcp list 2>/dev/null || true)
   if grep -q '^2brain' <<<"$listed"; then
     report codex "$version" "registered; no non-interactive health check"

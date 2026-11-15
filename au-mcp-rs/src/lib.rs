@@ -4308,14 +4308,14 @@ pub fn build_lines() -> Vec<String> {
     ]
 }
 
-const USAGE: &str = "usage: au-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--allow-composition] [--allow-workspace-shape] [--principal <name>] [--tools full|concise] [--payload both|text|structured]";
+const USAGE: &str = "usage: tb-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--allow-composition] [--allow-workspace-shape] [--principal <name>] [--tools full|concise] [--payload both|text|structured]";
 
 const HELP: &str = "\
-au-mcp-rs — MCP stdio server for the arsumbris engine
+tb-mcp-rs — MCP stdio server for the 2brain engine
 
 USAGE
-    au-mcp-rs <engine-socket> [OPTIONS]
-    au-mcp-rs --help | --version | --info [<engine-socket>]
+    tb-mcp-rs <engine-socket> [OPTIONS]
+    tb-mcp-rs --help | --version | --info [<engine-socket>]
 
 ARGUMENT
     <engine-socket>   Unix socket of a running `au` engine daemon,
@@ -4435,7 +4435,7 @@ pub fn reset_sigpipe() {
     }
 }
 
-/// Entry point for the `au-mcp-rs` binary: build a runtime and serve.
+/// Entry point for the `tb-mcp-rs` binary: build a runtime and serve.
 pub fn main_entry() -> std::process::ExitCode {
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -4443,14 +4443,14 @@ pub fn main_entry() -> std::process::ExitCode {
     {
         Ok(runtime) => runtime,
         Err(error) => {
-            eprintln!("au-mcp-rs: cannot start a runtime: {error}");
+            eprintln!("tb-mcp-rs: cannot start a runtime: {error}");
             return std::process::ExitCode::FAILURE;
         }
     };
     match runtime.block_on(run(env::args_os().skip(1).collect())) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("au-mcp-rs: {error}");
+            eprintln!("tb-mcp-rs: {error}");
             std::process::ExitCode::FAILURE
         }
     }
@@ -4489,8 +4489,8 @@ pub async fn run(arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn std::
     }
     let (socket, policy, principal, profile, payload) = parse_args(arguments.into_iter())
         .unwrap_or_else(|message| {
-            eprintln!("au-mcp-rs: {message}");
-            eprintln!("try 'au-mcp-rs --help'");
+            eprintln!("tb-mcp-rs: {message}");
+            eprintln!("try 'tb-mcp-rs --help'");
             std::process::exit(2);
         });
     let service = Server::new(socket, policy, principal, profile, payload)

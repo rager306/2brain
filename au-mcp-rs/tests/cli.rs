@@ -4,8 +4,11 @@
 
 use std::process::Command;
 
+/// The MCP server, reached through the one binary the product ships: `2brain mcp …`.
 fn binary() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_au-mcp-rs"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_2brain"));
+    command.arg("mcp");
+    command
 }
 
 fn unified() -> Command {
@@ -18,7 +21,7 @@ fn help_lists_the_contract_without_a_socket() {
     assert!(output.status.success(), "{output:?}");
     let text = String::from_utf8(output.stdout.clone()).unwrap();
     for expected in [
-        "au-mcp-rs",
+        "tb-mcp-rs",
         "USAGE",
         "--allow-mutations",
         "--tools full|concise",
@@ -44,7 +47,11 @@ fn version_is_one_line() {
     let (package, build) = line
         .split_once('+')
         .unwrap_or_else(|| panic!("version carries no build metadata: {line}"));
-    assert_eq!(package, format!("au-mcp-rs {}", env!("CARGO_PKG_VERSION")));
+    // The package name, which is `tb-mcp-rs` since 2026-11-16 (docs/naming.md): the binary says the
+    // name it was compiled as, so this assertion tracks `CARGO_PKG_NAME` rather than a literal.
+    // `2brain mcp --version` names the binary a client launches, which is `2brain` (the server's own
+    // usage text still carries the package name, and that is what `--help` is for).
+    assert_eq!(package, format!("2brain {}", env!("CARGO_PKG_VERSION")));
     assert!(
         build == "unknown"
             || build
@@ -91,7 +98,7 @@ fn a_bad_option_exits_two_and_points_at_help() {
     assert_eq!(output.status.code(), Some(2));
     let text = String::from_utf8(output.stderr).unwrap();
     assert!(text.contains("unknown option: --bogus"), "{text}");
-    assert!(text.contains("try 'au-mcp-rs --help'"), "{text}");
+    assert!(text.contains(&format!("try '{} --help'", env!("CARGO_PKG_NAME"))), "{text}");
 }
 
 #[test]
@@ -101,7 +108,7 @@ fn a_missing_socket_argument_exits_two() {
     assert!(
         String::from_utf8(output.stderr)
             .unwrap()
-            .contains("usage: au-mcp-rs")
+            .contains("usage: tb-mcp-rs")
     );
 }
 
@@ -133,17 +140,21 @@ fn the_unified_binary_names_itself_in_info() {
 }
 
 #[test]
-fn the_mcp_subcommand_takes_the_same_flags() {
-    let output = unified().arg("mcp").arg("--help").output().unwrap();
+fn the_mcp_subcommand_documents_the_server_contract() {
+    // `2brain mcp --help` is the MCP server's own USAGE — the same text a bare server would print —
+    // so the flags are documented once, by the server, not twice by the dispatcher and the server.
+    let output = binary().arg("--help").output().unwrap();
     assert!(output.status.success(), "{output:?}");
     let text = String::from_utf8(output.stdout).unwrap();
     for expected in [
         "--policy",
         "--allow-mutations",
+        "--allow-composition",
+        "--allow-workspace-shape",
         "--principal",
-        "--tools",
-        "--payload",
-        "SOCKET_OR_WORKSPACE",
+        "--tools full|concise",
+        "--payload both|text|structured",
+        "<engine-socket>",
     ] {
         assert!(text.contains(expected), "mcp help lacks {expected}: {text}");
     }

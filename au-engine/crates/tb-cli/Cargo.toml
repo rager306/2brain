@@ -1,0 +1,52 @@
+[package]
+name = "tb-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+# The integration suite is one linked binary, not one per file, so a workspace
+# edit relinks once. Submodules live under tests/it/.
+autotests = false
+
+[lib]
+name = "tb_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "au"
+path = "src/main.rs"
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+
+[features]
+# Profiling is opt-in: `cargo build --features hotpath` instruments the daemon.
+# Without the feature every hotpath macro compiles to a noop. The feature also
+# propagates into au-engine, whose build functions carry measure annotations.
+hotpath = ["dep:hotpath", "tb-engine/hotpath"]
+
+[dependencies]
+tb-core = { workspace = true }
+tb-diagnostics = { workspace = true }
+tb-engine = { workspace = true }
+tb-grammar = { workspace = true }
+tb-parser = { workspace = true }
+tb-references = { workspace = true, features = ["serde"] }
+hotpath = { version = "0.28", optional = true, features = ["hotpath", "json"] }
+clap = { workspace = true }
+# Signal a booting/wedged daemon's recorded pid (SIGTERM/SIGKILL) and probe its
+# liveness (kill(pid, 0)) for `daemon stop --force` / `status`. Already in the
+# tree transitively; the daemon is Unix-only (it serves over a Unix socket).
+libc = "0.2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-chrome = { workspace = true }
+tracing-appender = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+tempfile = { workspace = true }

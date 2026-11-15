@@ -15,8 +15,8 @@ The arsumbris engine is **not a database**. No SQLite, no embedded store, no `pe
 dependencies are visible in `au-engine/Cargo.toml`: `serde`, `serde_json`, `regex`, `memchr`,
 `saphyr` (YAML), `notify` (file watching), `fs4` (file locks), `rpds` (persistent immutable
 maps), `tokio`, `tracing`. The graph lives in memory as persistent maps
-(`rpds::RedBlackTreeMapSync` in `crates/au-engine/src/ir.rs:42` and
-`crates/au-references/src/lib.rs:35`), derived from markdown on load and kept current by a
+(`rpds::RedBlackTreeMapSync` in `crates/tb-engine/src/ir.rs:42` and
+`crates/tb-references/src/lib.rs:35`), derived from markdown on load and kept current by a
 watcher plus an incremental rebuild.
 
 The store is the filesystem plus git. Between runs the graph does not exist at all; what
@@ -307,8 +307,8 @@ and should be rejected on its own merits.
 
 ## 11. Sources
 
-Measured here: `au-engine/Cargo.toml`; `crates/au-engine/src/ir.rs:42`;
-`crates/au-references/src/lib.rs:35`; `crates/au-engine/src/serve.rs:13522` (grep scan),
+Measured here: `au-engine/Cargo.toml`; `crates/tb-engine/src/ir.rs:42`;
+`crates/tb-references/src/lib.rs:35`; `crates/tb-engine/src/serve.rs:13522` (grep scan),
 `:14202`, `:14369` (graph health, Tarjan); live scale and latencies (§2); `/root/samyama-graph`
 (Cargo.toml, `docs/BENCHMARKS.md`, `docs/ADR`, test and LOC counts).
 

@@ -49,12 +49,12 @@ are sorted. Two consecutive captures are byte-identical — verified.
 property of corpus statistics (document frequency, average field length), so a
 capture of it can only be compared against the corpus it came from; the living
 vault cannot serve that. This capture therefore comes from the fixture in
-`crates/au-engine/tests/it/search_read.rs`, taken in process by that test rather
+`crates/tb-engine/tests/it/search_read.rs`, taken in process by that test rather
 than through the probe, and it is checked on every `cargo test --test it` run —
 structure and values. Regenerate it with:
 
 ```sh
-cd au-engine && AU_BLESS_SEARCH_CAPTURE=1 cargo +1.99.0 test -p au-engine --test it search_read
+cd au-engine && AU_BLESS_SEARCH_CAPTURE=1 cargo +1.99.0 test -p tb-engine --test it search_read
 ```
 
 A probe run captures `search` against the vault under the same name, so it

@@ -10,7 +10,7 @@
 set -euo pipefail
 
 ENGINE=${AU_ENGINE_BIN:-../au-engine/target/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-target/debug/au-mcp-rs}
+ADAPTER=${AU_MCP_RS_BIN:-target/debug/2brain}
 TURN_HOME=${AU_TURN_HOME:-$HOME}
 
 [[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE" >&2; exit 1; }
@@ -24,7 +24,7 @@ prepare_fixture
 
 config=$root/turn-mcp.json
 printf '{"mcpServers":{"2brain":{"command":"%s","args":["%s","--allow-mutations"]}}}\n' \
-  "$ADAPTER" "$socket" >"$config"
+  "$ADAPTER" mcp "$socket" >"$config"
 
 echo "engine:  $socket"
 echo "adapter: $ADAPTER"
@@ -36,7 +36,7 @@ python3 - "$ADAPTER" "$socket" "$repo" <<'PY'
 import json, subprocess, sys
 
 adapter, socket_path, repo = sys.argv[1:4]
-proc = subprocess.Popen([adapter, socket_path, "--allow-mutations"],
+proc = subprocess.Popen([adapter, "mcp", socket_path, "--allow-mutations"],
                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                         stderr=subprocess.DEVNULL, text=True)
 

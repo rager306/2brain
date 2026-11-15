@@ -14,7 +14,7 @@ whatever directory encloses the temporary parent.
 ## Regenerate
 
 ```sh
-RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --manifest-path ../au-engine/Cargo.toml -p au-cli --bin au
+RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --manifest-path ../au-engine/Cargo.toml -p tb-cli --bin au
 CAPTURE_FIXTURES=1 RUSTUP_HOME=/root/.rustup AU_ENGINE_BIN=../au-engine/target/debug/au \
   cargo +1.99.0 test --offline --test real_engine -- --ignored --test-threads=1
 ```

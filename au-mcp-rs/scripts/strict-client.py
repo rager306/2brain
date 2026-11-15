@@ -29,7 +29,7 @@ from pathlib import Path
 
 ENGINE = os.environ.get("AU_ENGINE_BIN", "/root/arsumbris/au-engine/target/release/au")
 ADAPTER = os.environ.get(
-    "AU_MCP_RS_BIN", str(Path(__file__).resolve().parent.parent / "target/release/au-mcp-rs"))
+    "AU_MCP_RS_BIN", str(Path(__file__).resolve().parent.parent / "target/release/2brain"))
 
 
 def disposable() -> tuple[str, dict, str]:
@@ -65,7 +65,7 @@ async def main() -> int:
             print("FAIL: the disposable engine never became ready", file=sys.stderr)
             return 2
 
-        params = StdioServerParameters(command=ADAPTER, args=[socket, "--allow-mutations"])
+        params = StdioServerParameters(command=ADAPTER, args=["mcp", socket, "--allow-mutations"])
         failures = 0
         async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
             await session.initialize()

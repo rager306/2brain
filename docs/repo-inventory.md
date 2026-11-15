@@ -23,7 +23,7 @@ counted). This is the map the consolidation works from: every directory has one 
 | ~~`au-mcp-core`~~ | 0 | — | — | no | **deleted 2026-11-16**: 55 `mcp.tool.*`/`mcp.hook.*` definitions for a tool surface that no longer exists |
 | ~~`au-mcp-adapter-codex`~~ | 0 | — | — | no | **deleted 2026-11-16**: no consumer |
 | ~~`au-mcp-adapter-cc`~~ | 0 | — | — | no | **deleted 2026-11-16**: no consumer |
-| ~~`au-engine-sdk`~~ | 0 | — | — | no | **deleted 2026-11-16**: no JS consumer; the content-hash vectors it mirrored are the engine's own (`au-engine/crates/au-engine/content-hash-vectors.json`, byte-identical copy verified before deletion) |
+| ~~`au-engine-sdk`~~ | 0 | — | — | no | **deleted 2026-11-16**: no JS consumer; the content-hash vectors it mirrored are the engine's own (`au-engine/crates/tb-engine/content-hash-vectors.json`, byte-identical copy verified before deletion) |
 | `au-mcp-sdk` | 20 | 17 yaml type defs + docs | **contract** | no | **kept as vocabulary**; its TypeScript (`src/`, `tests/`, `skills/`, package, lockfile) was deleted 2026-11-16 — `au-weave` declares `type: mcp.skill::au-mcp-sdk` in six files and the vault's `mcp-bundle` resolves through it |
 | ~~`au-type-codegen`~~ | 0 | — | — | no | **deleted 2026-11-16**: its only runtime consumer was the Node daemon's plugin discovery |
 | ~~`au-mcp-bridge`~~ | 0 | — | — | **no** | **retired 2026-11-16** (Y1): `bridge.py`, its `.bak` and the directory are gone; `~/.arsumbris/au-mcp/` deleted |

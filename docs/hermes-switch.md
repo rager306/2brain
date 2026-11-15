@@ -28,7 +28,7 @@ The Rust adapter speaks to the engine's own socket, so it needs no Node daemon:
 ```yaml
   arsumbris-rs:
     type: stdio
-    command: /root/arsumbris/au-mcp-rs/target/release/au-mcp-rs
+    command: /root/arsumbris/au-mcp-rs/target/release/tb-mcp-rs
     args:
       - /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
 ```

@@ -26,4 +26,4 @@ Edit a file in the repo.
 The change events print live.
 
 Pure stdlib, no dependencies.
-The wire it implements is `crates/au-engine/WIRE.md`.
+The wire it implements is `crates/tb-engine/WIRE.md`.

@@ -98,114 +98,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d92bec98840b8f03a5ff5413de5293bfcd8bf96467cf5452609f939ec6f5de16"
 
 [[package]]
-name = "au-cli"
-version = "0.0.5"
-dependencies = [
- "au-core",
- "au-diagnostics",
- "au-engine",
- "au-grammar",
- "au-parser",
- "au-references",
- "clap",
- "hotpath",
- "insta",
- "libc",
- "serde",
- "serde_json",
- "tempfile",
- "tracing",
- "tracing-appender",
- "tracing-chrome",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "au-core"
-version = "0.0.5"
-dependencies = [
- "au-diagnostics",
- "au-grammar",
- "au-parser",
- "au-references",
- "regex",
-]
-
-[[package]]
-name = "au-diagnostics"
-version = "0.0.5"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "au-engine"
-version = "0.0.5"
-dependencies = [
- "au-core",
- "au-diagnostics",
- "au-grammar",
- "au-parser",
- "au-references",
- "au-testkit",
- "fs4",
- "hotpath",
- "notify",
- "rpds",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "au-grammar"
-version = "0.0.5"
-dependencies = [
- "au-diagnostics",
- "serde",
-]
-
-[[package]]
-name = "au-parser"
-version = "0.0.5"
-dependencies = [
- "au-diagnostics",
- "ignore",
- "memchr",
- "saphyr",
- "saphyr-parser",
- "tempfile",
-]
-
-[[package]]
-name = "au-references"
-version = "0.0.5"
-dependencies = [
- "au-diagnostics",
- "au-parser",
- "rpds",
- "serde",
-]
-
-[[package]]
-name = "au-testkit"
-version = "0.0.5"
-dependencies = [
- "au-core",
- "au-diagnostics",
- "au-grammar",
- "au-parser",
- "au-references",
- "fs4",
- "proptest",
- "tempfile",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1230,6 +1122,114 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "tb-cli"
+version = "0.0.5"
+dependencies = [
+ "clap",
+ "hotpath",
+ "insta",
+ "libc",
+ "serde",
+ "serde_json",
+ "tb-core",
+ "tb-diagnostics",
+ "tb-engine",
+ "tb-grammar",
+ "tb-parser",
+ "tb-references",
+ "tempfile",
+ "tracing",
+ "tracing-appender",
+ "tracing-chrome",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "tb-core"
+version = "0.0.5"
+dependencies = [
+ "regex",
+ "tb-diagnostics",
+ "tb-grammar",
+ "tb-parser",
+ "tb-references",
+]
+
+[[package]]
+name = "tb-diagnostics"
+version = "0.0.5"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "tb-engine"
+version = "0.0.5"
+dependencies = [
+ "fs4",
+ "hotpath",
+ "notify",
+ "rpds",
+ "serde",
+ "serde_json",
+ "tb-core",
+ "tb-diagnostics",
+ "tb-grammar",
+ "tb-parser",
+ "tb-references",
+ "tb-testkit",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "tb-grammar"
+version = "0.0.5"
+dependencies = [
+ "serde",
+ "tb-diagnostics",
+]
+
+[[package]]
+name = "tb-parser"
+version = "0.0.5"
+dependencies = [
+ "ignore",
+ "memchr",
+ "saphyr",
+ "saphyr-parser",
+ "tb-diagnostics",
+ "tempfile",
+]
+
+[[package]]
+name = "tb-references"
+version = "0.0.5"
+dependencies = [
+ "rpds",
+ "serde",
+ "tb-diagnostics",
+ "tb-parser",
+]
+
+[[package]]
+name = "tb-testkit"
+version = "0.0.5"
+dependencies = [
+ "fs4",
+ "proptest",
+ "tb-core",
+ "tb-diagnostics",
+ "tb-grammar",
+ "tb-parser",
+ "tb-references",
+ "tempfile",
 ]
 
 [[package]]

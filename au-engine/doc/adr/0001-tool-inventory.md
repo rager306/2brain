@@ -138,7 +138,7 @@ before exposing them in another host.
 
 Source: corresponding `au-mcp-core/type/mcp.tool.<name>.type.yaml` and
 `au-mcp-core/src/tool-*.ts` entries; engine mutation semantics live in
-`au-engine/crates/au-engine/src/`.
+`au-engine/crates/tb-engine/src/`.
 
 ### Workspace composition (5)
 
@@ -203,4 +203,4 @@ This inventory does not authorize a daemon replacement, change vault formats,
 or establish wire compatibility. An implementation must independently compare
 schemas and effect boundaries, test on fixtures rather than the production
 vault, and pass the engine golden wire contract before any live engine swap.
-Any intentional wire-shape change must follow `crates/au-engine/WIRE.md`.
+Any intentional wire-shape change must follow `crates/tb-engine/WIRE.md`.
