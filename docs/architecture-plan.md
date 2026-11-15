@@ -237,7 +237,7 @@ the pieces are consequences of the last stretch rather than of the original plan
 |---|---|---|---|---|
 | ~~**E** fixture hygiene~~ | **done `ea164f9`** — the trap was already there; what was missing is that a killed process group runs no trap. So `prepare_fixture` now reaps daemons whose fixture root no longer exists (proven: one real orphan, killed, `fixtures left: 0`), cleanup asks the engine to stop before signalling, and `AU_KEEP_FIXTURE=1` keeps a failing fixture | found 14 orphans | `scripts/lib/` | — |
 | ~~**F** production parity~~ | **done 2026-11-16** — HEAD and the served binary are byte-identical on a frozen copy for 8/8 reads, so `search` is the whole delta and nothing must be regenerated for a swap | measured | `au-engine` + `/tmp` | — |
-| **G** P3 procedures | `scripts/lib/procedure.py`: two procedures (`mutation-turn.sh`, `recovery-turn.sh`) as states with code transitions, negative cases, and a dry-run mode | the last piece of the agent layer, and the honest form of C2: FSM owns the process, the model is free inside a state | `au-mcp-rs/scripts/` | E (same directory) |
+| ~~**G** P3 procedures~~ | **done `2f8d29f`** — `procedure.py` with two state machines, `--selftest` proving twelve rejection cases, and `mutation-turn.sh` cross-checking its own assertions against the machine. Follow-up: remove the duplicate assertions after one live run confirms they agree | done | `scripts/` | — |
 
 **Order:** F in parallel with E; G after E, because both edit `scripts/`. Promotion of `search` to the
 live daemon waits for F and for a window, and it is a decision, not a step.
@@ -535,6 +535,6 @@ pairs); W4.2 is documentation and runs in parallel with anything.
 | W4.1 judge run | **measured 2026-11-16** (`docs/w4.1-judgement-run-2026-11-16.md`) | 50 notes, $0.0019/pass: duplicates 1.000/0.889 (adopt), stale recall 0.333 (not usable as a detector), type 0.729 with adjacent confusions; two harness bugs found by running it (vendor wire, inverted polarity) | 2026-11-16 |
 | W4.1 ingest auditor | **phase 1 done** (`6b8f0f0`) | `tools/judgement/`: 50-note stratified sample with hand labels (10 stale / 40 not), a `systemone`-shaped client with `--dry-run` (exit 0, ~$0.0018 per pass) and exit 3 without a key; real path proven against a local fake; vendor response shape unverified (no key) | 2026-11-15 |
 | W4.2 role definitions | not started | assessment §1.1 | — |
-| P3.1–P3.2 agent layer | not started | — | — |
+| P3.1–P3.2 agent layer | **P3.1 done** (`2f8d29f`) | `procedure.py` + `--selftest` (12 cases, all bite) + cross-check wired into `mutation-turn.sh`; P3.2 (the vault pattern note) not written | 2026-11-16 |
 | P4.1 generated manual | not started | — | — |
 | R1 retrieval probe | **measured 2026-11-15** — not adopted | `docs/retrieval-spike.md`: HelixDB 0.0.16 on 1 036 nodes / 2 730 edges — hubs 103.5 ms vs 9.8 ms, 2-hop count 54.7 ms vs `au_neighborhood` 102.2 ms for 253 materialised nodes, BM25 24.2 ms vs `au_grep` 132.8 ms, variable-length patterns unsupported; decision: tantivy plus our own traversal | 2026-11-15 |
