@@ -19,14 +19,14 @@ counted). This is the map the consolidation works from: every directory has one 
 |---|---:|---|---|---|---|
 | `au-engine` | 1 869 | Rust (180 src files, 157 k LOC) + yaml fixtures | code | **yes** — `arsumbris-engine.service` | keep; primary target for every architectural feature |
 | `au-mcp-rs` | 140 | Rust (51 src/test files, 20 k LOC) + 11 shell + 10 py in `scripts/` | code + tooling | **yes** — `arsumbris-rs` MCP server | keep; its `scripts/` stays tooling |
-| `au-mcp` | 72 | TypeScript (62 files, 10.6 k LOC) | code | **yes** — `arsumbris-mcp.service` runs `node au-mcp/src/cli.ts` | **retire** after the parity gate (Y2) |
+| `au-mcp` | 72 | TypeScript (62 files, 10.6 k LOC) | code | **no** — `arsumbris-mcp.service` is stopped and disabled (Y2, 2026-11-16) | retire the code; the contract packages stay |
 | `au-mcp-core` | 145 | TypeScript (82) + 57 yaml type defs | contract + code | no (library) | keep the `type/` definitions as contract; its runtime code retires with `au-mcp` |
 | `au-mcp-adapter-codex` | 96 | TypeScript (86) | code | no | retire unless a consumer is demonstrated |
 | `au-mcp-adapter-cc` | 55 | TypeScript (43) | code | no | retire unless a consumer is demonstrated |
 | `au-engine-sdk` | 45 | TypeScript (36, 14 k LOC) | client library | no | keep only if an external JS consumer exists; otherwise retire |
 | `au-mcp-sdk` | 45 | TypeScript (17) + 19 yaml type defs | contract + client | no | keep the `type/` definitions (`mcp.tool`, `mcp.inject`, `agent-profile`); the client follows the SDK decision |
 | `au-type-codegen` | 36 | TypeScript (30, 3.5 k LOC) | tooling | no | keep as tooling; a Rust port is possible but not scheduled |
-| `au-mcp-bridge` | 3 | Python (1 file, 293 LOC) + a `.bak` | code | **yes** — Hermes' `mcp_servers.arsumbris` invokes `bridge.py` | **retire** first (Y1); the `.bak` goes with it |
+| ~~`au-mcp-bridge`~~ | 0 | — | — | **no** | **retired 2026-11-16** (Y1): `bridge.py`, its `.bak` and the directory are gone; `~/.arsumbris/au-mcp/` deleted |
 | `au-ingest` | 38 | yaml types + 1 py fixture generator | contract + tooling | no | keep the contract; the generator is tooling |
 | `au-govern` | 19 | yaml types + markdown | contract | no | keep |
 | `au-type-system` | 68 | yaml + markdown | contract | no | keep; **not** a migration-free zone |

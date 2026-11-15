@@ -114,14 +114,20 @@ hooks, subscriptions or lifecycle, and the relays were already dead on this host
 3. ~~**Grants.**~~ Decided in §2b: keep them off, enable per session. Original note: The config passes only `--allow-mutations`; `au_add_dep`/`au_remove_dep` need
    `--allow-composition` and the three `*_workspace_member*` tools need `--allow-workspace-shape`
    (`policy.rs`). Node exposed all five ungated, so this must be decided *before* the bridge goes.
-4. **Update Hermes text that pins Node tool names**: `~/.hermes/skills/knowledge-graphs/arsumbris-vault/SKILL.md`,
+4. ~~**Update Hermes text that pins Node tool names**~~ — **done 2026-11-16**: the vault skill carries a
+   CURRENT banner (tool prefix `2brain__`, `au_validate_value {type_name, value}`, `{repo, path}` file
+   args, the new liveness oracle), `skills/arsumbris/SKILL.md` was rewritten to the current stack, and
+   `skills/research/jev/SKILL.md` names `2brain__au_write_file`. Original note:: `~/.hermes/skills/knowledge-graphs/arsumbris-vault/SKILL.md`,
    `.../scripts/bridge_probe.py`, `~/.hermes/skills/research/jev/SKILL.md:94`,
    `~/.hermes/skills/arsumbris/SKILL.md`. Signature deltas to state there:
    `au_validate{typeName,value}` → `au_validate_value{type_name,value}`; absolute `file_path` →
    `{member, path}`; `au_grep` literal, not regex.
-5. **Remove `mcp_servers.arsumbris`** (`config.yaml:576-583`); confirm a session sees only
-   `mcp__arsumbris_rs__*` and completes one read and one write turn.
-6. **Only now** stop `arsumbris-mcp.service`, delete `au-mcp-bridge/bridge.py` and `~/.arsumbris/au-mcp/`.
+5. ~~**Remove `mcp_servers.arsumbris`**~~ — **done 2026-11-16**: both stanzas replaced by one `2brain`
+   entry (`docs/hermes-2brain.md`); backup at `/root/backups/hermes-config-20261116.yaml`. A session
+   proves it; the adapter's own read and write turns were already measured here.
+6. ~~**Only now** stop `arsumbris-mcp.service`~~ — **done 2026-11-16**: stopped and disabled; the bridge,
+   its `.bak`, and `~/.arsumbris/au-mcp/` (104 KiB of generated state) removed. `au-health.sh` no longer
+   restarts the Node unit; it checks the engine and that `/usr/local/bin/2brain` is executable.
 7. **Then** the code retirement (`au-mcp`, `au-mcp-core` runtime, `au-mcp-sdk` runtime, `au-type-codegen`,
    both adapters, `au-engine-sdk`) — subject to `docs/repo-inventory.md`'s contract/code split.
 

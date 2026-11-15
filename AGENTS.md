@@ -14,13 +14,13 @@ Upstream: https://github.com/arsumbris (engine last upstream commit 2026-09-25, 
 
 | path | role |
 |---|---|
-| `au-engine/` | Rust engine Cargo workspace; primary fork target. `fork/main` is the fork integration branch; `feat/hotpath-*` is pristine local upstream work |
-| `au-mcp-rs/` | Experimental standalone Rust MCP stdio server; fixed read-only engine operations, explicit socket, not a production replacement |
+| `au-engine/` | Rust engine Cargo workspace — the authoritative writer, serving `/root/vault` through `arsumbris-engine.service` |
+| `au-mcp-rs/` | **The serving path**: the Rust MCP adapter behind `/usr/local/bin/2brain` (52 tools, fail-closed gate, `scripts/install.sh` builds and installs it) |
 | `au-engine-sdk/` | TypeScript client and wire helpers for the Rust engine |
-| `au-mcp-bridge/` | Python stdio MCP bridge Hermes talks to (`~/.hermes/config.yaml` → `mcp_servers.arsumbris`). Own git now (first snapshot committed) |
+| ~~`au-mcp-bridge/`~~ | **retired 2026-11-16** — the Python stdio bridge Hermes used to speak; removed with the Node daemon when Hermes moved to `/usr/local/bin/2brain` (`docs/hermes-2brain.md`) |
 | `au-type-system/` | the type-system contract. **Do not break**: vault format compatibility depends on it |
-| `au-mcp/`, `au-mcp-sdk/`, `au-mcp-core/` | Existing MCP daemon, SDK contracts, tools, and hooks |
-| `au-mcp-adapter-cc/`, `au-mcp-adapter-codex/` | Client-specific adapters |
+| `au-mcp/`, `au-mcp-sdk/`, `au-mcp-core/` | the retired TypeScript MCP layer: `au-mcp` is the Node daemon (stopped), `au-mcp-core`/`au-mcp-sdk` keep the type definitions (`mcp.tool`, `mcp.inject`, `agent-profile`) that outlive it |
+| `au-mcp-adapter-cc/`, `au-mcp-adapter-codex/` | client-specific TypeScript adapters, off the serving path — a product decision (`docs/repo-inventory.md`) |
 | `au-ingest/`, `au-govern/` | ingest pipeline, workspace composition (`workspace.yaml` members) |
 | `au-skills/`, `au-agent-guides/`, `au-rules/`, `au-writing-style/`, `au-competency/`, `au-defaults/` | content/knowledge repos |
 
@@ -62,7 +62,8 @@ the product's language or move it into tooling with tests. Nothing sits in betwe
 forces a change in `au-mcp-rs/`, the boundary was crossed in the wrong direction.
 - **No Rust crate depends on a script or an interpreter.** A `python3` invocation inside
 Rust is a design smell; a `python3` invocation inside a shell script is fine.
-- **The one serving-path exception is `au-mcp-bridge/`** (Python), which Hermes speaks to.
+- ~~The one serving-path exception is `au-mcp-bridge/`~~ (Python). **Removed 2026-11-16**: the serving
+  path is Rust end to end — `/usr/local/bin/2brain` (adapter) → engine socket. There is no exception left.
 It is legacy scheduled for retirement by `docs/phase-d.md`, not a precedent to copy.
 - **Every model states its evidence:** what it measured, on what corpus, and what it did not
 measure. `docs/w4.1-judgement-run-2026-11-16.md` is the shape to copy.

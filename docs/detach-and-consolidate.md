@@ -84,7 +84,9 @@ client library with its own published artifact, not a serving dependency.
 |---|---|
 | X detach | **done** (`e511507`): one-branch branch model in `AGENTS.md`, `archive/upstream-0.0.5` pushed |
 | inventory | **done** (`docs/repo-inventory.md`): every directory with its layer and fate, measured from `git ls-files` |
-| parity gate for Y2 | **in flight** — what the Node daemon registers, what the Rust adapter lacks, what the bridge adds, and the ordered retirement checklist |
+| parity gate for Y2 | **done** — `docs/serving-parity.md`: the Node daemon's 49 tools and 6 hooks measured, the 8 gaps decided, the checklist executed |
+| Y1, Y2 | **done 2026-11-16** — the bridge is out of Hermes, `arsumbris-mcp.service` is stopped and disabled, the bridge and its generated state are deleted |
+| Z (one build) | **open** — the Node workspace is no longer on the serving path, but the TS packages are still in the tree (`docs/repo-inventory.md`) |
 | fifth engine swap runbook | **in flight** — independent of the retirement, but it is the same "prove it on a copy first" discipline |
 
 Two facts from the inventory change the shape of Y:
