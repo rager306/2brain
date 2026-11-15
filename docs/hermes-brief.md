@@ -25,8 +25,8 @@ Python-мост и Node-демон удалены 2026-11-16: второго п�
 **В этой задаче используется только `2brain`.** Если инструмент не найден под этим
 именем — задача не выполнена, а не «сделана другим способом».
 
-Сокет движка: `/root/.arsumbris/au-engine/run/adcfe8680a485529.sock`
-Бинарь: `/usr/local/bin/2brain` (сборка: `au-mcp-rs/scripts/install.sh`).
+Сокет движка: `/root/.arsumbris/tb-engine/run/adcfe8680a485529.sock`
+Бинарь: `/usr/local/bin/2brain` (сборка: `tb-mcp-rs/scripts/install.sh`).
 
 ## 2. Правила, которые нельзя нарушать
 
@@ -106,7 +106,7 @@ Python-мост и Node-демон удалены 2026-11-16: второго п�
     topics:
       - "[[tool-use]]"
     confidence: medium
-    provenance: "Сессия Hermes <дата>; инструменты mcp__arsumbris_rs__*"
+    provenance: "Сессия Hermes <дата>; инструменты 2brain__au_*"
     ---
 
     # Прогон Rust-адаптера на живом волте
@@ -133,7 +133,7 @@ Python-мост и Node-демон удалены 2026-11-16: второго п�
 Туда оператор складывает транскрипт сессии и вывод команд:
 
     mkdir -p /root/hermes-runs/2026-11-15
-    cd /root/arsumbris/au-mcp-rs
+    cd /root/2brain/tb-mcp-rs
     python3 scripts/live_parity.py | tee /root/hermes-runs/2026-11-15/live-parity.txt
     cp <транскрипт сессии> /root/hermes-runs/2026-11-15/transcript.txt
     git -C /root/vault log --oneline -5 > /root/hermes-runs/2026-11-15/vault-log.txt
@@ -239,7 +239,7 @@ Python-мост и Node-демон удалены 2026-11-16: второго п�
 
     /usr/local/bin/2brain --version                 # версия несёт коммит сборки
     HOME=/root /usr/local/bin/2brain info /root/vault   # поверхность + проба движка
-    cd /root/arsumbris/au-mcp-rs && python3 scripts/live_parity.py
+    cd /root/2brain/tb-mcp-rs && python3 scripts/live_parity.py
 
 `live_parity.py` сравнивает два адаптера на одном сокете (read-only): пять строк
 `identical` и `PASS`. Коды выхода: `0` — сошлось, `1` — расхождение, `2` — не смог

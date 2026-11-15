@@ -6,7 +6,7 @@ The Rust adapter is the serving path; the Node daemon and the Python bridge are 
 ## 1. Install the binary
 
 ```sh
-/root/arsumbris/au-mcp-rs/scripts/install.sh
+/root/2brain/tb-mcp-rs/scripts/install.sh
 # installed /usr/local/bin/2brain
 # 2brain 0.1.0+e038727cfa05
 # 5d1580d3885eb77fdc26f93da5ef76d2c0a77db3e3acee72245b82a74449c5a4  /usr/local/bin/2brain
@@ -17,7 +17,7 @@ the version string, which is the point of embedding it.
 
 The path is outside the build tree on purpose: a
 `cargo clean` or a rebuilt release profile must not be able to leave the configured command
-pointing at nothing. That is exactly what happened to `au-mcp-rs/target/release/tb-mcp-rs` on
+pointing at nothing. That is exactly what happened to `tb-mcp-rs/target/release/tb-mcp-rs` on
 2026-11-16 — the config was right, the file was gone.
 
 ## 2. The stanza
@@ -31,7 +31,7 @@ pointing at nothing. That is exactly what happened to `au-mcp-rs/target/release/
 
 `mcp` takes a **target**, not a socket: a path ending in `.sock` is used as given, anything else
 is a workspace entry whose socket is derived exactly as `au daemon start` derives it
-(`au_engine::socket_path`: FNV-1a of the canonical entry path, `~/.arsumbris/au-engine/run/<hash>.sock`).
+(`au_engine::socket_path`: FNV-1a of the canonical entry path, `~/.arsumbris/tb-engine/run/<hash>.sock`).
 So the configuration carries no hash and survives any change of the entry path's spelling, as long
 as it still canonicalizes to the same directory.
 
@@ -61,9 +61,9 @@ grant. The Node path exposed those five tools ungated, which was a defect, not a
 ```sh
 /usr/local/bin/2brain --version
 HOME=/root /usr/local/bin/2brain info /root/vault    # surface + a probe read
-cd /root/arsumbris/au-mcp-rs && HOME=/root python3 scripts/live_parity.py
+cd /root/2brain/tb-mcp-rs && HOME=/root python3 scripts/live_parity.py
 /root/.allspark-home/.prime/agent/kernel-venv/bin/python \
-  /root/arsumbris/au-mcp-rs/scripts/strict-client.py  # validates a mutation answer client-side
+  /root/2brain/tb-mcp-rs/scripts/strict-client.py  # validates a mutation answer client-side
 ```
 
 `live_parity.py` compares the installed binary with the one this tree builds; it exits 2 when it could
@@ -76,12 +76,12 @@ proves the gate and the answer schema, which is where the 2026-11-15 failure liv
 
 ## 5. Rollback
 
-Revert the stanza. Nothing is deleted before the old path is proven unused: `arsumbris-mcp.service`
-and `au-mcp-bridge/bridge.py` stay in place until the new stanza has served a session, and
+Revert the stanza. Nothing is deleted before the old path is proven unused: the retired Node service
+and the old bridge stay in place until the new stanza has served a session, and
 `mcp_servers.arsumbris` is removed only after that (`docs/serving-parity.md` §3).
 
 ## 6. One id, not two
 
-Do not configure `2brain` and `arsumbris-rs` in the same client: both would register the same tools
+Do not configure `2brain` and the old server id in the same client: both would register the same tools
 under different prefixes, and the model would see two names for one capability. The switch is a
 replacement, not an addition.

@@ -23,7 +23,7 @@ counted). This is the map the consolidation works from: every directory has one 
 | ~~`au-mcp-core`~~ | 0 | — | — | no | **deleted 2026-11-16**: 55 `mcp.tool.*`/`mcp.hook.*` definitions for a tool surface that no longer exists |
 | ~~`au-mcp-adapter-codex`~~ | 0 | — | — | no | **deleted 2026-11-16**: no consumer |
 | ~~`au-mcp-adapter-cc`~~ | 0 | — | — | no | **deleted 2026-11-16**: no consumer |
-| ~~`au-engine-sdk`~~ | 0 | — | — | no | **deleted 2026-11-16**: no JS consumer; the content-hash vectors it mirrored are the engine's own (`au-engine/crates/tb-engine/content-hash-vectors.json`, byte-identical copy verified before deletion) |
+| ~~`au-engine-sdk`~~ | 0 | — | — | no | **deleted 2026-11-16**: no JS consumer; the content-hash vectors it mirrored are the engine's own (`tb-engine/crates/tb-engine/content-hash-vectors.json`, byte-identical copy verified before deletion) |
 | `au-mcp-sdk` | 20 | 17 yaml type defs + docs | **contract** | no | **kept as vocabulary**; its TypeScript (`src/`, `tests/`, `skills/`, package, lockfile) was deleted 2026-11-16 — `au-weave` declares `type: mcp.skill::au-mcp-sdk` in six files and the vault's `mcp-bundle` resolves through it |
 | ~~`au-type-codegen`~~ | 0 | — | — | no | **deleted 2026-11-16**: its only runtime consumer was the Node daemon's plugin discovery |
 | ~~`au-mcp-bridge`~~ | 0 | — | — | **no** | **retired 2026-11-16** (Y1): `bridge.py`, its `.bak` and the directory are gone; `~/.arsumbris/au-mcp/` deleted |
@@ -32,7 +32,7 @@ counted). This is the map the consolidation works from: every directory has one 
 | `au-type-system` | 68 | yaml + markdown | contract | no | keep; **not** a migration-free zone |
 | `au-base-types` | 12 | yaml types | contract | no | keep |
 | `au-agent-guides`, `au-rules`, `au-writing-style`, `au-competency`, `au-defaults`, `au-skills`, `au-weave`, `au-tree-research` | 203 | markdown + yaml | content / contract | no | keep |
-| `arsumbris` | 11 | markdown (upstream docs project: README, INSTALL, au-host.md, banner) | docs (upstream) | no | keep as archived upstream documentation; it is the only surviving description of the `au-host` launcher |
+| `2brain` | 11 | markdown (upstream docs project: README, INSTALL, au-host.md, banner) | docs (upstream) | no | keep as archived upstream documentation; it is the only surviving description of the `au-host` launcher |
 | `tools` | 4 | Python (2) + md | tooling | no | keep |
 | `docs` | 13 | markdown | docs | no | keep |
 
@@ -51,11 +51,11 @@ counted). This is the map the consolidation works from: every directory has one 
    split inside each package — `type/` versus runtime — is what the retirement must respect.
 5. **`au-engine-sdk` is the only substantial client library** (14 k LOC). Its fate is a product
    question: do we support a JS client, or is the Rust adapter the only supported surface?
-6. **`arsumbris/` is upstream's documentation project**, imported whole. It describes the `au-host`
+6. **`2brain/` is upstream's documentation project**, imported whole. It describes the `au-host`
    launcher, which nothing in this repository implements — keep it as an archival reference, and do not
    mistake it for a component.
 ## Follow-ups this inventory creates
 
 | item | why | gate |
 |---|---|---|
-| check whether `au-host` exists anywhere | measured: `arsumbris/README.md:51` documents it and the deleted SDK named it, so it is a *referenced* launcher with no implementation here | a `grep` says "referenced, not implemented"; anyone relying on it must be told |
+| check whether `au-host` exists anywhere | measured: `2brain/README.md:51` documents it and the deleted SDK named it, so it is a *referenced* launcher with no implementation here | a `grep` says "referenced, not implemented"; anyone relying on it must be told |

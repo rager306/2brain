@@ -1,42 +1,50 @@
 # 2brain
 
-The product is **2brain**: one Rust knowledge engine over a typed graph of notes, the MCP surface
-agents talk to, and a judgement layer for the small decisions. The repository keeps its working name
-and paths (`arsumbris`, `au-*`) — see `docs/naming.md` for what is renamed when, and why a name that
-crosses a process boundary is a migration rather than a find-and-replace.
+**2brain** is a Rust knowledge engine over a typed graph of notes, the MCP surface agents talk to, and a
+judgement layer for the small decisions. One repository, one serving binary, one language on the request
+path.
 
-One repository for the whole system: the typed knowledge-graph engine, its MCP layers, the Rust MCP
-adapter, and the content/knowledge repositories. Each former repository is a top-level directory with
-its own history preserved by `git subtree` (upstream is detached: `archive/upstream-0.0.5`).
+```sh
+/usr/local/bin/2brain mcp /root/vault --allow-mutations     # the MCP server a client spawns
+/usr/local/bin/2brain info /root/vault                      # surface + a probe of the live engine
+/root/.arsumbris/bin/au daemon status /root/vault           # the engine daemon
+```
 
-Origin: `github.com/rager306/arsumbris` (private).
+## Lineage
+
+2brain is a fork of the **2brain** project — a typed knowledge-graph engine over markdown workspaces
+with `[[wiki-links]]`, `^block-ids` and frontmatter type contracts: <https://github.com/arsumbris>.
+That project stopped receiving changes after `0.0.2-alpha` (last commit 2026-09-25); its `0.0.5`-era
+work is preserved here as the tag `archive/upstream-0.0.5` (commit `44b32f4`). Everything since —
+the Rust MCP serving path, the BM25 index, the fail-closed write gate, the retirement of the
+TypeScript and Python layers — is 2brain's own.
 
 ## Layout
 
 | path | role |
 |---|---|
-| `au-engine/` | Rust core: `au-cli`, `au-engine`, `au-core`, `au-parser`, `au-grammar`, `au-references`, `au-diagnostics`, `au-testkit` |
-| `au-mcp-rs/` | **the serving path**: the Rust MCP adapter behind `/usr/local/bin/2brain`, built and installed by `scripts/install.sh` |
-| ~~`au-mcp-bridge/`~~ | retired Python bridge, deleted with the Node daemon (2026-11-16) |
-| `au-mcp-sdk/` | the `mcp.*` type vocabulary (contract); the TypeScript MCP layer it belonged to was deleted 2026-11-16 |
-| `au-ingest/`, `au-govern/` | ingest pipeline, workspace composition |
-| `au-type-system/`, `au-base-types/` | the type-system contract |
-| `au-skills/`, `au-agent-guides/`, `au-rules/`, `au-writing-style/`, `au-competency/`, `au-defaults/` | content and knowledge repositories |
-| `au-tree-research/`, `au-weave/` | domain repositories |
-| `arsumbris/` | upstream bundle documentation (release notes, installation, safety) |
-| `AGENTS.md` | working instructions for coding agents |
+| `tb-engine/` | the engine: parser, type graph, diagnostics, daemon, wire, the BM25 index (crates `tb-cli`, `tb-engine`, `tb-core`, `tb-parser`, `tb-grammar`, `tb-references`, `tb-diagnostics`, `tb-testkit`) |
+| `tb-mcp-rs/` | **the serving path**: the MCP adapter behind `/usr/local/bin/2brain` (`scripts/install.sh` builds and installs it) |
+| `tb-mcp-sdk/` | the `mcp.*` type vocabulary that content notes are written in (`mcp.skill`, `mcp.inject`, …) |
+| `tb-defaults/` | workspace bundles: `minimal`, `blank`, `studio`, `host-bundle`, `mcp-bundle` |
+| `tb-type-system/`, `tb-base-types/` | the type-system contract and the base ontology |
+| `tb-ingest/`, `tb-govern/` | ingest contracts, workspace composition |
+| `tb-rules/`, `tb-skills/`, `tb-agent-guides/`, `tb-writing-style/`, `tb-competency/` | content: rules, skills, guides, style, competency |
+| `tb-weave/`, `tb-tree-research/` | domain knowledge repositories |
+| `upstream/` | the upstream project's own documentation, kept verbatim as an archive |
+| `docs/` | the trajectory: architecture, verification index, swap runbooks, rebrand plan |
+| `tools/` | tooling that never runs on the request path |
 
-## History model
+The engine's own file format still uses the historical `au.engine.*` schema names and `.arsumbris/`
+identity directories; that is a format, not a brand, and moving it is a migration with its own gate
+(`docs/rebrand-plan.md`, tier C).
 
-Each directory entered this repository through `git subtree add`, so its
-original commits are reachable. `git log -- <dir>` shows the import commit;
-`git log --follow -- <dir>/<file>` follows a file across it.
+## Gates
 
-The pre-monorepo sibling checkouts under `/root/arsumbris/` are untouched and
-remain usable as read-only references until they are retired.
+```sh
+cd tb-engine && RUSTUP_HOME=/root/.rustup cargo +1.99.0 test --offline --lib
+cd tb-mcp-rs && RUSTUP_HOME=/root/.rustup cargo +1.99.0 test --offline
+```
 
-## Build notes
-
-`target/` and `node_modules/` are ignored at every level. The Rust toolchain is
-pinned by `au-engine/rust-toolchain.toml`; on this host the complete 1.99.0
-toolchain lives under `RUSTUP_HOME=/root/.rustup`.
+`docs/verification.md` is the evidence index: every property this repository claims, with the command
+that re-measures it and the date it was last measured.

@@ -1,33 +1,37 @@
-# AGENTS.md — arsumbris fork runbook
+# AGENTS.md — 2brain runbook
 
-You are working in the arsumbris fork workspace. Development happens HERE
-(allspark coding sessions run with this directory as the workdir); arsumbris
-code is never vendored into allspark/prime-agent.
+You are working in the 2brain workspace (`/root/2brain`). Development happens HERE
+(allspark coding sessions run with this directory as the workdir); product code is never vendored
+into allspark/prime-agent.
 
 ## What this is
 
-**2brain** is the product; `arsumbris` is the working name its parts still carry. 2brain is a closed-distribution bundle implementing a typed knowledge graph (typed markdown + `[[wiki-links]]` + `^block-ids`, frontmatter contracts, MCP serving) in Rust, with a judgement layer for the small decisions kept outside the serving path. `docs/naming.md` records what is renamed when; until then, a document says 2brain and a path says `arsumbris`.
-
-Upstream: https://github.com/arsumbris (engine last upstream commit 2026-09-25, `release 0.0.2-alpha`; upstream development has stalled and is **detached** since 2026-11-16). The local bundle is NEWER than the last release: local au-engine carries `0.0.5`-era unreleased work, archived as the tag `archive/upstream-0.0.5` (commit `44b32f4`).
+**2brain** is a Rust implementation of a typed knowledge graph (typed markdown + `[[wiki-links]]` +
+`^block-ids`, frontmatter contracts, MCP serving) with a judgement layer kept outside the serving path.
+It is a fork of the `2brain` project (<https://github.com/arsumbris>), which stalled after
+`0.0.2-alpha`; the `0.0.5`-era upstream work is preserved as the tag `archive/upstream-0.0.5`
+(commit `44b32f4`). The only place the upstream name belongs now is the lineage paragraph in
+`README.md`; the engine's file format still spells `au.engine.*` and `.arsumbris/`, which is a format
+waiting for its migration (`docs/rebrand-plan.md`, tier C).
 
 ## Layout
 
 | path | role |
 |---|---|
-| `au-engine/` | Rust engine Cargo workspace — the authoritative writer, serving `/root/vault` through `arsumbris-engine.service` |
-| `au-mcp-rs/` | **The serving path**: the Rust MCP adapter behind `/usr/local/bin/2brain` (52 tools, fail-closed gate, `scripts/install.sh` builds and installs it) |
+| `tb-engine/` | Rust engine Cargo workspace — the authoritative writer, serving `/root/vault` through `arsumbris-engine.service` |
+| `tb-mcp-rs/` | **The serving path**: the Rust MCP adapter behind `/usr/local/bin/2brain` (52 tools, fail-closed gate, `scripts/install.sh` builds and installs it) |
 | ~~`au-mcp-bridge/`~~ | **retired 2026-11-16** — the Python stdio bridge Hermes used to speak; removed with the Node daemon when Hermes moved to `/usr/local/bin/2brain` (`docs/hermes-2brain.md`) |
-| `au-type-system/` | the type-system contract. **Do not break**: vault format compatibility depends on it |
-| `au-mcp-sdk/` | the `mcp.*` vocabulary: 17 type definitions (`mcp.tool`, `mcp.skill`, `mcp.inject`, `agent-profile`) that content notes are written in. Its TypeScript was deleted 2026-11-16 |
-| `au-ingest/`, `au-govern/` | ingest pipeline, workspace composition (`workspace.yaml` members) |
-| `au-skills/`, `au-agent-guides/`, `au-rules/`, `au-writing-style/`, `au-competency/`, `au-defaults/` | content/knowledge repos |
+| `tb-type-system/` | the type-system contract. **Do not break**: vault format compatibility depends on it |
+| `tb-mcp-sdk/` | the `mcp.*` vocabulary: 17 type definitions (`mcp.tool`, `mcp.skill`, `mcp.inject`, `agent-profile`) that content notes are written in. Its TypeScript was deleted 2026-11-16 |
+| `tb-ingest/`, `tb-govern/` | ingest pipeline, workspace composition (`workspace.yaml` members) |
+| `tb-skills/`, `tb-agent-guides/`, `tb-rules/`, `tb-writing-style/`, `tb-competency/`, `tb-defaults/` | content/knowledge repos |
 
 ## Branch model
 
-There is **one branch**: `main`, tracking `origin` (`github.com/rager306/arsumbris`). Development
+There is **one branch**: `main`, tracking `origin` (`github.com/rager306/2brain`). Development
 happens on `main` or on short-lived feature branches that merge back into it.
 
-**Upstream is detached (2026-11-16).** The upstream arsumbris project stalled; its work lives here as
+**Upstream is detached (2026-11-16).** The upstream project stalled; its work lives here as
 imported history, not as a branch to merge from. Merges from upstream are not planned. Where a
 document needs to cite upstream state, it cites a hash or an archive tag:
 
@@ -48,7 +52,7 @@ and the review bar. Name the layer before adding a file.
 
 | layer | where | language | rule |
 |---|---|---|---|
-| **Product code** | `au-engine/`, `au-mcp-rs/`, `au-ingest/`, `au-govern/` | **Rust only** | it runs in the serving path; nothing here may import, spawn, or require a script, a notebook, or a prototype |
+| **Product code** | `tb-engine/`, `tb-mcp-rs/`, `tb-ingest/`, `tb-govern/` | **Rust only** | it runs in the serving path; nothing here may import, spawn, or require a script, a notebook, or a prototype |
 | **Tooling** | `scripts/`, `tools/`, test support | shell, Python, or Rust — whatever fits | it may drive the product, never be driven by it; it exits honestly (non-zero on failure) and prints what it measured; it is never on the request path |
 | **Models** | `tools/*`, spikes, a section of `docs/` | any language | allowed, and often the cheapest way to settle a design question — but it is labelled a model, it is never cited as shipped behaviour, and it names where the real implementation would live |
 
@@ -57,7 +61,7 @@ Rules that make the split hold:
 - **A model that something other than a human reads has graduated.** Either rewrite it in
 the product's language or move it into tooling with tests. Nothing sits in between.
 - **Tooling may be replaced without touching the serving path.** If changing `scripts/`
-forces a change in `au-mcp-rs/`, the boundary was crossed in the wrong direction.
+forces a change in `tb-mcp-rs/`, the boundary was crossed in the wrong direction.
 - **No Rust crate depends on a script or an interpreter.** A `python3` invocation inside
 Rust is a design smell; a `python3` invocation inside a shell script is fine.
 - ~~The one serving-path exception is `au-mcp-bridge/`~~ (Python). **Removed 2026-11-16**: the serving
@@ -70,12 +74,12 @@ Worked examples, so the rule is not abstract:
 
 | what | layer | why there |
 |---|---|---|
-| `au-mcp-rs/src/gate.rs` — the mutation gate's state machine | product | the serving path walks it on every write |
-| `au-mcp-rs/scripts/lib/procedure.py` — two procedures as states, with `--selftest` | tooling | its only consumer is `mutation-turn.sh`, a verification script; no Rust file imports it |
-| the Python BM25 prototype behind `docs/architecture-plan.md` T1 | model | it produced numbers and nothing else; the index that shipped is Rust (`au-engine/crates/tb-engine/src/search.rs`) |
+| `tb-mcp-rs/src/gate.rs` — the mutation gate's state machine | product | the serving path walks it on every write |
+| `tb-mcp-rs/scripts/lib/procedure.py` — two procedures as states, with `--selftest` | tooling | its only consumer is `mutation-turn.sh`, a verification script; no Rust file imports it |
+| the Python BM25 prototype behind `docs/architecture-plan.md` T1 | model | it produced numbers and nothing else; the index that shipped is Rust (`tb-engine/crates/tb-engine/src/search.rs`) |
 
 If the procedure runtime ever gets a **product** consumer — the server itself running an
-agent procedure — it moves to `au-mcp-rs/src/procedure.rs` and gains a tool; until then its
+agent procedure — it moves to `tb-mcp-rs/src/procedure.rs` and gains a tool; until then its
 home is `scripts/`.
 
 ## Workspace and Rust environment
@@ -85,7 +89,7 @@ home is `scripts/`.
   was imported with `git subtree`; there are no nested repositories and no
   submodules. Run `git status` and `git log` once, at the monorepo root, and
   scope pathspecs when you mean one project (`git log -- au-engine`).
-- The pre-monorepo sibling checkouts under `/root/arsumbris/` are untouched and
+- The pre-monorepo sibling checkouts under `/root/2brain/` are untouched and
   remain readable references. Do not edit them expecting changes to appear
   here; treat this repository as the working tree.
 - Use **Rust 1.99.0 and edition 2024** for Rust work. On this host the complete
@@ -101,8 +105,8 @@ home is `scripts/`.
 
 ### `au-engine` crates
 
-All paths below are under `au-engine/crates/`; the workspace is defined in
-`au-engine/Cargo.toml`.
+All paths below are under `tb-engine/crates/`; the workspace is defined in
+`tb-engine/Cargo.toml`.
 
 | Crate | Purpose |
 |---|---|
@@ -115,10 +119,10 @@ All paths below are under `au-engine/crates/`; the workspace is defined in
 | `au-diagnostics` | Structured diagnostic codes, spans, and suggested fixes |
 | `au-testkit` | Property generators and adversarial fixtures for tests |
 
-`au-mcp-rs/` is a separate Cargo package, not an `au-engine` workspace member.
+`tb-mcp-rs/` is a separate Cargo package, not an `au-engine` workspace member.
 Its `src/main.rs` uses `rmcp` over stdio and the engine's Unix socket; `tests/`
 contains fake-daemon tests and an opt-in real-engine test on a temporary fixture.
-See `au-mcp-rs/README.md` and `au-engine/doc/adr/0001-implementation-plan.md` for
+See `tb-mcp-rs/README.md` and `tb-engine/doc/adr/0001-implementation-plan.md` for
 its current limitations and plan. Do not assume bridge, policy, or client parity.
 
 ## Live-system rules (read before touching anything)
@@ -130,7 +134,7 @@ its current limitations and plan. Do not assume bridge, policy, or client parity
 2. Never point tests at the live vault. Use a fixture copy:
    `git -C /root/vault worktree add /tmp/vault-fixture` or `cp -r`.
 3. Never kill or restart the engine daemon / bridge processes while Hermes
-   sessions are live. Socket: `~/.arsumbris/au-engine/run/*.sock`.
+   sessions are live. Socket: `~/.arsumbris/tb-engine/run/*.sock`.
 4. Engine swaps to the live daemon require the golden wire contract to pass
    (below) — no exceptions. A swap is a read comparison on a frozen copy of the
    vault working tree first, then the install, then the same reads against the
@@ -147,9 +151,9 @@ RUSTUP_HOME=/root/.rustup cargo +1.99.0 test -p <crate>  # smallest sufficient s
 ```
 
 Build layout: every crate in the monorepo shares ONE target directory,
-`/root/arsumbris/.cargo-target` (set in `.cargo/config.toml`), with
-`au-engine/target` and `au-mcp-rs/target` as symlinks to it so documented paths keep
-working. Before this, `au-mcp-rs/target` recompiled the whole engine dependency graph:
+`/root/2brain/.cargo-target` (set in `.cargo/config.toml`), with
+`tb-engine/target` and `tb-mcp-rs/target` as symlinks to it so documented paths keep
+working. Before this, `tb-mcp-rs/target` recompiled the whole engine dependency graph:
 10.6 GiB for one graph.
 
 The profile settings are a budget, not a preference, and both manifests must agree —
@@ -175,9 +179,9 @@ a missing path only costs a rebuild, but the symlinks in both crates would dangl
 Two traps worth knowing: a stale `cargo test` from an earlier session can hold the target
 lock for days and make every build look slow (`pgrep -af "cargo test"`), and an empty
 `/tmp/.git` makes every `tempfile()` fixture look like a git tree, which turns ~40 engine
-tests red (see `au-engine/README-fork.md`).
+tests red (see `tb-engine/README-fork.md`).
 
-For the standalone MCP prototype, run from `au-mcp-rs/`:
+For the standalone MCP prototype, run from `tb-mcp-rs/`:
 
 ```sh
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 fmt --check
@@ -189,8 +193,8 @@ The opt-in real-engine test and private fixture setup are documented in its
 README. It requires a separately built `au` binary and must never use the live
 vault or production socket.
 
-Golden wire contract: `au-engine/tests-golden/engine/*.json` hold real engine
-reads captured with `au-engine/scripts/engine_probe.py` (read-only). After
+Golden wire contract: `tb-engine/tests-golden/engine/*.json` hold real engine
+reads captured with `tb-engine/scripts/engine_probe.py` (read-only). After
 engine changes, responses must be identical unless the diff is intentional —
 intentional diffs regenerate the fixture in the same commit, with the reason in
 the message. The top-level `tests-golden/*.json` are the 2026-11-12 pre-fork
@@ -198,7 +202,7 @@ captures in the retired daemon's shapes; they are history, not a contract.
 
 Gates: `cargo fmt --check` is clean for both halves and is a real gate; `clippy -D
 warnings` is a gate only for `au-mcp-rs` (the engine workspace carries 85 upstream
-style warnings, see `au-engine/tests-known-environment.txt`).
+style warnings, see `tb-engine/tests-known-environment.txt`).
 
 ## Improvement backlog
 
@@ -249,4 +253,4 @@ dashboard). Backlog notes cite their source studies.
 - Docs and commits in English.
 - `au-type-system` is a contract, not a playground: type changes require a
   migration note and vault-rollback reasoning first.
-- When a change alters wire shapes, bump/annotate per `au-engine/crates/tb-engine/WIRE.md`.
+- When a change alters wire shapes, bump/annotate per `tb-engine/crates/tb-engine/WIRE.md`.

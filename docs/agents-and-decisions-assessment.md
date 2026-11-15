@@ -24,7 +24,7 @@ The rule that keeps it honest: **only the runtime may declare a state complete.*
 ### 1.1 The four capability agents worth having here
 
 Each is a prompt + a tool whitelist + entry/exit checks — in product form an `agent-profile`
-instance, a type our SDK already defines (`au-mcp-sdk/type/agent-profile.type.yaml`: adapter,
+instance, a type our SDK already defines (`tb-mcp-sdk/type/agent-profile.type.yaml`: adapter,
 skills, injects, allowed tools).
 
 | agent | state it lives in | tools it may use | exit check (code) |

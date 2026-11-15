@@ -1,6 +1,6 @@
 # Build layout and disk budget
 
-Measured on 2026-11-15, `/root/arsumbris`, toolchain 1.99.0. This file exists because
+Measured on 2026-11-15, `/root/2brain`, toolchain 1.99.0. This file exists because
 the build directory grew to 8.8 GiB and the reasons were not obvious from any manifest:
 two profile mismatches between the workspaces, and incremental state that the compiler
 cache can never serve.
@@ -9,7 +9,7 @@ cache can never serve.
 
 `au-engine` and `au-mcp-rs` are separate Cargo workspaces over one dependency graph
 (`au-mcp-rs` → `au-cli` → `au-engine`). `.cargo/config.toml` points both at
-`/root/arsumbris/.cargo-target`, and `au-engine/target` / `au-mcp-rs/target` are
+`/root/2brain/.cargo-target`, and `tb-engine/target` / `tb-mcp-rs/target` are
 symlinks to it, so documented paths keep working. Before that unification the same
 graph was compiled twice: 10.6 GiB.
 

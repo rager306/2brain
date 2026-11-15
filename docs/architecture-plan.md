@@ -19,7 +19,7 @@ These hold after every step, without exception. A step that cannot keep them is 
 
 1. `cargo +1.99.0 test --offline` in `au-mcp-rs`: **39 suites, 173 passed, 0 failed, 2
    ignored** (baseline re-measured 2026-11-15), plus whatever the step adds.
-2. `au-engine/tests-golden/engine/*.json` (4 captures) byte-identical, or an intentional diff
+2. `tb-engine/tests-golden/engine/*.json` (4 captures) byte-identical, or an intentional diff
    regenerated in the same commit with the reason in the message.
 3. `scripts/live_parity.py` on a disposable fixture: 5/5 facts `identical`, exit 0.
 4. `scripts/strict-client.py`: PASS on write and delete (the MCP SDK validates
@@ -122,7 +122,7 @@ types move next to it.
 
 **P2.3 `allowed_next` in every denial.** The refusal payload lists the stages reachable from the
 current one, so an agent asks "what may I do here" instead of learning the rule by being
-refused. Additive wire field → annotate per `au-engine/crates/tb-engine/WIRE.md`.
+refused. Additive wire field → annotate per `tb-engine/crates/tb-engine/WIRE.md`.
 Acceptance: the 31 gate tests unchanged; a property test asserts the transition table is total
 and that every denial carries a non-empty `allowed_next`; one live client run (Hermes or
 `scripts/mutation-turn.sh`) shows the field.
@@ -134,7 +134,7 @@ and that every denial carries a non-empty `allowed_next`; one live client run (H
 and no Rust file imports it. The split is now written into `AGENTS.md` (product code = Rust only;
 tooling = `scripts/`/`tools/`, any language; models = allowed but labelled and never cited as
 shipped). If a product consumer ever appears — the server running a procedure itself — the runtime
-moves to `au-mcp-rs/src/procedure.rs` and gains a tool.
+moves to `tb-mcp-rs/src/procedure.rs` and gains a tool.
 
 **P3.1 Two procedures, expressed once.** `mutation-turn.sh` and `recovery-turn.sh` are already
 deterministic state-per-prompt procedures. Write each as a state list with entry/exit checks and
@@ -388,7 +388,7 @@ read tool `au_search`. `au_grep` keeps its exact contract as the literal escape 
 | ranking | BM25 over `body`, with `description` weighted; type-aware freshness multiplier as a **second** step, measured separately |
 | adapter | one tool `au_search` (capability `read`), schema with declared `score`, fixtures |
 | counts | 51 → 52 tools, 35 → 36 advertised without grants; `tests/architecture.rs`, `tests/capability.rs`, the capability table, `--info`, `docs/verification.md`, roadmap |
-| golden | a capture for `search` in `au-engine/tests-golden/engine/`, and the adapter's read fixture |
+| golden | a capture for `search` in `tb-engine/tests-golden/engine/`, and the adapter's read fixture |
 | tests | an engine test that a mutation changes the ranking; an adapter test that the declared schema holds a float score |
 
 **Prototype numbers (Python, `/tmp/bm25-probe`, 2026-11-15):** build 1.7 s; index 3.4–3.8 MiB

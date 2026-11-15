@@ -16,7 +16,7 @@ carry it, and every rename is a migration rather than a find-and-replace.
 | the MCP binary | `au-mcp-rs`, `arsumbris` | **`2brain`**, installed at `/usr/local/bin/2brain` (phase N2) |
 | MCP server identifiers | `arsumbris-rs` (Rust adapter), `arsumbris` (Python bridge, retiring) | **`2brain`** for the Rust server (N2); `arsumbris` disappears with the bridge |
 | resource URI scheme | `arsumbris://<member>/<path>` | unchanged: it is in fixtures, clients and the WIRE contract |
-| socket and state paths | `~/.arsumbris/au-engine/run/*.sock`, `~/.arsumbris/bin/au` | unchanged |
+| socket and state paths | `~/.arsumbris/tb-engine/run/*.sock`, `~/.arsumbris/bin/au` | unchanged |
 | systemd units | `arsumbris-engine`, `arsumbris-mcp` | unchanged |
 | the vault | `/root/vault` | unchanged; a vault is content, not a product name |
 

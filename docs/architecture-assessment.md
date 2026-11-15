@@ -70,7 +70,7 @@ root.
 `Stage` has 11 call sites in `lib.rs` (2732–2930, 3887–3892), `expected_hash` appears at
 49 sites, `self.served` (the read-before-write ledger) at 6.
 
-### 2.3 Engine `au-engine/crates`
+### 2.3 Engine `tb-engine/crates`
 
 | crate | src lines | prod | tests in src | test files | pub fn / types |
 |---|---:|---:|---:|---:|---|
@@ -139,7 +139,7 @@ All of this was retrieved through `arsumbris-rs`, read-only, in this session.
 
 ### 3.2 The ontology idea is already partly built — as types, not as prose
 
-`au-mcp-sdk/type/` contains `mcp.tool.type.yaml`, `mcp.inject.type.yaml`,
+`tb-mcp-sdk/type/` contains `mcp.tool.type.yaml`, `mcp.inject.type.yaml`,
 `agent-profile.type.yaml`, `tool-access-meta.type.yaml`, `required-scope-meta.type.yaml`;
 `au-mcp-core/type/` contains one `mcp.tool.<verb>.type.yaml` per mutation. The model is:
 a tool's **fields are its input**; orchestration data goes into a typed `meta:`; discovery
@@ -388,7 +388,7 @@ Vault (read through `arsumbris-rs`, all `current` unless noted):
 `knowledge/mcp-tools-as-typescript-api-outperforms-direct-tool-calling.md`,
 `knowledge/tool-use.md`, `knowledge/index.md`, `inbox/arsumbris-fork-backlog.md`,
 `inbox/hermes-adapter-run-2026-11-15.md`, `manual/mcp-access.md` (stale),
-and the type definitions in `au-mcp-sdk/type/` and `au-mcp-core/type/`.
+and the type definitions in `tb-mcp-sdk/type/` and `au-mcp-core/type/`.
 
 External:
 1. V. Rentea, "Overengineering in Onion/Hexagonal Architectures" — victorrentea.ro.

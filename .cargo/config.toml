@@ -7,4 +7,4 @@
 # resolved against this file, and an absolute path cannot drift when a crate is
 # built from a different working directory.
 [build]
-target-dir = "/root/arsumbris/.cargo-target"
+target-dir = "/root/2brain/.cargo-target"

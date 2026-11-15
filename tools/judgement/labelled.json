@@ -332,7 +332,7 @@
       "duplicate_candidate": {
         "path": "inbox/rust-release-wave-2025-2026-maps-fifteen-versions-by-usefulness.md",
         "description": "Rust 1.85-1.99 (2025-2026): 15 версий по категориям — 2024 edition, trait upcasting, let chains, LLD-линкер, algebraic float — с оценкой полезности для нашего стека",
-        "excerpt": "# Rust Release Wave 2025-2026 Maps Fifteen Versions By Usefulness\n\nСводка всех стабильных релизов 2025-2026 (1.85.0 февраль 2025 → 1.99.0 октябрь 2026, 15 мажоров + 8 патчей). Классификация: language/stdlib/safety/tooling/platform + вердикт полезности для нашего стека (EPYC-бокс, au-engine/vault-препроцессор, SIMD-код).\n\n## Волны (крупные фичи)\n\n- **Edition 2024** (1.85, фев 2025): RPIT lifetime capture, async closures, if let scope. ФУНДАМЕНТ — let chains и будущие изменения требуют этот edition. Миграция: rustup + cargo fix\n- **Эргономика match/if** (1.88 let chains → 1.95 if-let guards): вложенные if let разворачиваются в цепочки; match-гварды принимают let."
+        "excerpt": "# Rust Release Wave 2025-2026 Maps Fifteen Versions By Usefulness\n\nСводка всех стабильных релизов 2025-2026 (1.85.0 февраль 2025 → 1.99.0 октябрь 2026, 15 мажоров + 8 патчей). Классификация: language/stdlib/safety/tooling/platform + вердикт полезности для нашего стека (EPYC-бокс, tb-engine/vault-препроцессор, SIMD-код).\n\n## Волны (крупные фичи)\n\n- **Edition 2024** (1.85, фев 2025): RPIT lifetime capture, async closures, if let scope. ФУНДАМЕНТ — let chains и будущие изменения требуют этот edition. Миграция: rustup + cargo fix\n- **Эргономика match/if** (1.88 let chains → 1.95 if-let guards): вложенные if let разворачиваются в цепочки; match-гварды принимают let."
       }
     },
     {

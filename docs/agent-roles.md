@@ -6,7 +6,7 @@ here owns ordering: the FSM owns the process, a role owns one state's work, and 
 declares a state complete.
 
 Product form, when a workspace instance exists, is an `agent-profile` instance
-(`au-mcp-sdk/type/agent-profile.type.yaml`): `tools?` is the whitelist, `inject?` the always-on
+(`tb-mcp-sdk/type/agent-profile.type.yaml`): `tools?` is the whitelist, `inject?` the always-on
 context, and the field's **presence** is the restriction. Until then this file is the definition of
 record, and the scripts in `scripts/` are its executable half.
 

@@ -5,15 +5,15 @@ it lists what the retirement would remove, and it leads with the check that fail
 
 ## 0. The first check fails, and it is not about parity
 
-Hermes launches `/root/arsumbris/au-mcp-rs/target/release/tb-mcp-rs`
-(`~/.hermes/config.yaml:588`). **That file does not exist.** The path is right — `au-mcp-rs/target` is
-a symlink to the shared `.cargo-target` (`/root/arsumbris/.cargo/config.toml`), and both names resolve
+Hermes launches `/root/2brain/tb-mcp-rs/target/release/tb-mcp-rs`
+(`~/.hermes/config.yaml:588`). **That file does not exist.** The path is right — `tb-mcp-rs/target` is
+a symlink to the shared `.cargo-target` (`/root/2brain/.cargo/config.toml`), and both names resolve
 to the same missing release binary. Both live adapter processes run from a **deleted inode**
-(`/proc/1194089/exe -> /root/arsumbris/.cargo-target/release/tb-mcp-rs (deleted)`), so they work only
+(`/proc/1194089/exe -> /root/2brain/.cargo-target/release/tb-mcp-rs (deleted)`), so they work only
 until the next connection: a new Hermes session cannot start `arsumbris-rs` at all.
 
 One fault, and it is not a config fault: the release binary has to exist, and be kept. A debug build
-survived in `au-mcp-rs/target/debug/`, so this was a release build that was never made here — the
+survived in `tb-mcp-rs/target/debug/`, so this was a release build that was never made here — the
 adapter ran from a binary later deleted by a cleanup.
 
 This is the reason the retirement checklist is ordered the way it is: an unlaunchable Rust server is
@@ -40,7 +40,7 @@ Step 1 of the gate is also closed: `scripts/strict-client.py` — the SDK client
 `commits: dict`. The mutation answer is now valid as declared.
 
 ```sh
-/root/.allspark-home/.prime/agent/kernel-venv/bin/python au-mcp-rs/scripts/strict-client.py
+/root/.allspark-home/.prime/agent/kernel-venv/bin/python tb-mcp-rs/scripts/strict-client.py
 # PASS: the client accepted a mutation answer
 #   keys: commit, commits, diagnostics, hash, path, reflected, untracked_files
 #   commits: dict {'fixture': '7cd5cdc…'}
@@ -75,7 +75,7 @@ Hooks: 6 (`mcp.hook` plugins: `read-guard`, `tool-precondition`, `nativeToolRedi
 (`daemon.ts:701-722`; `bridge.py:241-256` has no `session-start-context`).
 
 Resource URI scheme: **none**. The Rust adapter has `arsumbris://<member>/<path>`
-(`au-mcp-rs/src/resources.rs`), which is a gap in the other direction.
+(`tb-mcp-rs/src/resources.rs`), which is a gap in the other direction.
 
 ## 2. Gaps in the Rust adapter, by class
 
@@ -138,7 +138,7 @@ restore, and the vault is not touched.
 
 ~4.1 MiB of TypeScript, 8 lockfiles, and the only runtime consumer of `au-type-codegen`
 (`discovery.ts:19`). No third-party `node_modules` anywhere: the repo-root `node_modules/` is 8 KiB of
-`@arsumbris/*` symlinks, and the daemon runs on Node builtins plus workspace links.
+`@2brain/*` symlinks, and the daemon runs on Node builtins plus workspace links.
 
 ## 5. Not determined
 

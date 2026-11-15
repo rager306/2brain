@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline judgement harness for the arsumbris vault (W4.1 phase 1).
+"""Offline judgement harness for the 2brain vault (W4.1 phase 1).
 
 Reads labelled.json, builds one `systemone` request per note with three
 questions (stale description, note type, duplicate claim) and compares the

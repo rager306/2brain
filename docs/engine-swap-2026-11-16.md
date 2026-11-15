@@ -1,11 +1,11 @@
 # Fifth engine swap: `au_search` into the served daemon
 
-**The procedure is scripted: `au-engine/scripts/swap-engine.sh`.** This document is the reasoning and
+**The procedure is scripted: `tb-engine/scripts/swap-engine.sh`.** This document is the reasoning and
 the rehearsal record; the script is the execution, because the risky part is the ordering, not the
 decisions.
 
 ```sh
-cd /root/arsumbris/au-engine
+cd /root/2brain/tb-engine
 ./scripts/swap-engine.sh --check      # preconditions; changes nothing
 ./scripts/swap-engine.sh              # install + restart + compare + auto-rollback on any failure
 ./scripts/swap-engine.sh --restore    # put the backed-up binary back and restart
@@ -28,7 +28,7 @@ The served binary is `b7e48c82…` from the fourth swap (`015aeda`). Engine HEAD
 `44c6967` is that build plus one additive read: `search` (verb landed in `d888abe`,
 dead code removed in `44c6967`). `SCHEMA_VERSION` stays 29
 (`crates/tb-engine/src/serve.rs:132`), no key changes shape, and nothing in
-`tests-golden` needs regenerating. `au-engine/tests-golden/engine/au_search.json`
+`tests-golden` needs regenerating. `tb-engine/tests-golden/engine/au_search.json`
 is fixture-derived, not vault-derived, and is checked on every `--test it` run.
 
 ## Before (measured read-only, 2026-11-16)
@@ -40,7 +40,7 @@ sha256 | `b7e48c82c7ffe891272a9c32822354e065333ca48e21c0ff5344c94f491d5991` |
 version | `au 0.0.5` (no commit marker — the checksum is the only identity) |
 built from | monorepo `015aeda` (fourth swap, `rollback_preview`) |
 daemon | `arsumbris-engine.service`, Main PID 3288310, started 2026-11-14 14:45:28 +07 |
-socket | `/root/.arsumbris/au-engine/run/adcfe8680a485529.sock` |
+socket | `/root/.arsumbris/tb-engine/run/adcfe8680a485529.sock` |
 status line | `daemon running for /root/vault (engine=up, ref=ready, ready=true, version=90)` |
 vault | HEAD `4bcc4f2d432d96f923a55b89cb2a28b1651a872a`, 5 dirty entries (3 modified, 2 untracked) |
 clients | `au-mcp-rs` on the same socket (pids 1194089 granted, 1194879 read-only) and the Python bridge |
@@ -53,13 +53,13 @@ health signal.
 **REHEARSED** — built exactly as the swap would build it:
 
 ```sh
-cd /root/arsumbris/au-engine
+cd /root/2brain/tb-engine
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release -p tb-cli
 ```
 
 | fact | value |
 |---|---|
-path | `/root/arsumbris/au-engine/target/release/au` |
+path | `/root/2brain/tb-engine/target/release/au` |
 size | 13 926 360 bytes |
 sha256 | `4601966524667503af41f7dbdb48281fc065638b185950b017c097ad2195654b` |
 version | `au 0.0.5` |
@@ -84,7 +84,7 @@ cp -a /root/vault /tmp/swap5/vault     # HEAD and dirty set identical before/aft
 Three lessons from the copy that the runbook must keep:
 
 1. **A bare `HOME` makes the copy a one-member workspace.** Members resolve through
-   `~/.arsumbris/au-engine/config/repos.yaml`; with an empty `HOME` the copy answers
+   `~/.arsumbris/tb-engine/config/repos.yaml`; with an empty `HOME` the copy answers
    `members: 1` and one `peer-unmounted` warning for `mcp-bundle`. The rehearsal
    therefore copied the live registry with the `vault` entry re-pointed to the copy
    — **and only that entry**, because leaving it at `/root/vault` would have made
@@ -110,7 +110,7 @@ malformed read: unknown variant `search`, expected one of `diagnostics`, …
 ```
 
 and the candidate answers. That is the whole delta, which is what
-`au-mcp-rs/docs/verification.md` already recorded (8/8 identical, `search` the only
+`tb-mcp-rs/docs/verification.md` already recorded (8/8 identical, `search` the only
 verb the served build rejects).
 
 ### Rehearsal table
@@ -127,7 +127,7 @@ verb the served build rejects).
 | `search` paging | `{"read":"search","query":"pattern","limit":5}` | served refuses; candidate: `total 273`, 5 rows, `next_offset: 5`, `next_offset: null` on the last page | — | **paging and null-offset behave** |
 | `search` exact | `{"read":"search","query":"error->fix","exact":true,"limit":5}` | served refuses; candidate: `exact: true`, `total 13`, first document `$VAULT/inbox/arsumbris-fork-backlog.md` | — | **matches the T1 acceptance record** |
 | daemon-shaped `au_diagnostics` | projection of the above | — | **identical**: `summary` 0/0/0, `severity: error` list empty, same `offset/limit/truncated` | **identical** |
-| daemon-shaped `au_overview` | same engine read | — | same 8 keys, 7 members (same roots), 9 dirs; counter drift, `diagnostic_counts` 1 warning → 0; `members[].git.root` is now `/root/arsumbris` because the bundle became one monorepo | **same shape; named drift** |
+| daemon-shaped `au_overview` | same engine read | — | same 8 keys, 7 members (same roots), 9 dirs; counter drift, `diagnostic_counts` 1 warning → 0; `members[].git.root` is now `/root/2brain` because the bundle became one monorepo | **same shape; named drift** |
 | daemon-shaped `au_hubs` | same engine read | — | 20 rows, 19 paths shared; `inbox/pattern-oracle-problem.md` left the top 20, `inbox/jevact-ibm-runtime-decision-gate.md` entered; 6 ref counts moved | **same shape; named drift** |
 
 What the copy cannot prove: the live socket, the live index's BM25 statistics
@@ -156,9 +156,9 @@ tail -1 /root/.arsumbris/logs/health-checks.log        # engine=1 mcp=1 action=o
 systemctl status arsumbris-engine --no-pager | head -4 # active (running), Main PID
 HOME=/root /root/.arsumbris/bin/au daemon status /root/vault
 sha256sum /root/.arsumbris/bin/au                      # b7e48c82… (rollback source)
-sha256sum /root/arsumbris/au-engine/target/release/au  # 46019665… (candidate)
+sha256sum /root/2brain/tb-engine/target/release/au  # 46019665… (candidate)
 pgrep -af "cargo test"                                 # must be empty: a stale test holds the target lock
-cd /root/arsumbris && git diff --stat 44c6967..HEAD -- au-engine   # must be empty, else rebuild
+cd /root/2brain && git diff --stat 44c6967..HEAD -- au-engine   # must be empty, else rebuild
 cd /root/vault && git rev-parse HEAD && git status --porcelain | wc -l   # 4bcc4f2, 5
 ```
 
@@ -184,7 +184,7 @@ they are no longer the first thing the window does.
 
 ```sh
 install -d /root/backups/au-20261116-pre-live
-install -m 0755 /root/arsumbris/au-engine/target/release/au /root/backups/au-20261116-candidate
+install -m 0755 /root/2brain/tb-engine/target/release/au /root/backups/au-20261116-candidate
 install -m 0755 /root/.arsumbris/bin/au /root/backups/au-20261116-pre-search
 sha256sum /root/backups/au-20261116-candidate /root/backups/au-20261116-pre-search
 # 46019665…  candidate      b7e48c82…  pre-search (the rollback binary)
@@ -193,15 +193,15 @@ sha256sum /root/backups/au-20261116-candidate /root/backups/au-20261116-pre-sear
 ### 2. Live baseline — IN THE WINDOW
 
 ```sh
-SOCK=/root/.arsumbris/au-engine/run/adcfe8680a485529.sock
+SOCK=/root/.arsumbris/tb-engine/run/adcfe8680a485529.sock
 OUT=/root/backups/au-20261116-pre-live
-/root/arsumbris/au-engine/scripts/engine_probe.py --socket "$SOCK" \
+/root/2brain/tb-engine/scripts/engine_probe.py --socket "$SOCK" \
   --root /root/vault --out "$OUT" \
   --verb au_overview --verb au_hubs --verb au_diagnostics --verb au_graph_health
 # `search` is excluded on purpose: the served binary refuses it and the probe exits.
 python3 - "$SOCK" "$OUT" <<'PY'
 import importlib.util, json, pathlib, sys
-spec = importlib.util.spec_from_file_location("p", "/root/arsumbris/au-engine/scripts/engine_probe.py")
+spec = importlib.util.spec_from_file_location("p", "/root/2brain/tb-engine/scripts/engine_probe.py")
 p = importlib.util.module_from_spec(spec); spec.loader.exec_module(p)
 sock, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 for name, q in {"au_grep": "wikilink", "au_grep_bm25": "bm25 ranking"}.items():
@@ -233,7 +233,7 @@ the PID changed.
 ```sh
 systemctl status arsumbris-engine --no-pager | head -6     # active, NEW Main PID
 HOME=/root /root/.arsumbris/bin/au daemon status /root/vault
-ls -l /root/.arsumbris/au-engine/run/                      # adcfe8680a485529.sock back
+ls -l /root/.arsumbris/tb-engine/run/                      # adcfe8680a485529.sock back
 ```
 
 The unit's `ExecStartPost` already polls `daemon status` 40 times at one second
@@ -246,15 +246,15 @@ The same captures against the live socket after the restart. `search` is added h
 and only here, because the old binary refuses it.
 
 ```sh
-SOCK=/root/.arsumbris/au-engine/run/adcfe8680a485529.sock
+SOCK=/root/.arsumbris/tb-engine/run/adcfe8680a485529.sock
 OUT=/root/backups/au-20261116-post-live
 install -d "$OUT"
-/root/arsumbris/au-engine/scripts/engine_probe.py --socket "$SOCK" \
+/root/2brain/tb-engine/scripts/engine_probe.py --socket "$SOCK" \
   --root /root/vault --out "$OUT" \
   --verb au_overview --verb au_hubs --verb au_diagnostics --verb au_graph_health
 python3 - "$SOCK" "$OUT" <<'PY'
 import importlib.util, json, pathlib, sys
-spec = importlib.util.spec_from_file_location("p", "/root/arsumbris/au-engine/scripts/engine_probe.py")
+spec = importlib.util.spec_from_file_location("p", "/root/2brain/tb-engine/scripts/engine_probe.py")
 p = importlib.util.module_from_spec(spec); spec.loader.exec_module(p)
 sock, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 reqs = {
@@ -289,7 +289,7 @@ corpus may have moved since the copy was frozen.
 ### 6. Client paths — IN THE WINDOW
 
 ```sh
-cd /root/arsumbris/au-mcp-rs && python3 scripts/live_parity.py   # exit 0 = PASS, 2 = could not compare
+cd /root/2brain/tb-mcp-rs && python3 scripts/live_parity.py   # exit 0 = PASS, 2 = could not compare
 /root/.arsumbris/bin/au-health.sh                                # engine=1 mcp=1 action=ok
 ```
 

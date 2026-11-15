@@ -12,7 +12,7 @@ a survey of the candidate field; every claim has a command, a file:line, a note,
 ## 1. The framing that decides most of it
 
 The arsumbris engine is **not a database**. No SQLite, no embedded store, no `petgraph`. Its
-dependencies are visible in `au-engine/Cargo.toml`: `serde`, `serde_json`, `regex`, `memchr`,
+dependencies are visible in `tb-engine/Cargo.toml`: `serde`, `serde_json`, `regex`, `memchr`,
 `saphyr` (YAML), `notify` (file watching), `fs4` (file locks), `rpds` (persistent immutable
 maps), `tokio`, `tracing`. The graph lives in memory as persistent maps
 (`rpds::RedBlackTreeMapSync` in `crates/tb-engine/src/ir.rs:42` and
@@ -22,7 +22,7 @@ watcher plus an incremental rebuild.
 The store is the filesystem plus git. Between runs the graph does not exist at all; what
 persists is the working tree, `.arsumbris/repo.yaml` and friends (typed by built-in defaults,
 `engine_schema.rs:190-320`), the package cache (`pkgcache.rs`), and the saga journal under
-`.arsumbris/au-engine/run/`. Inside a run, one `Arc<KnowledgeBase>` in `Held.kb`
+`.arsumbris/tb-engine/run/`. Inside a run, one `Arc<KnowledgeBase>` in `Held.kb`
 (`engine.rs:475-484`) holds `catalog: OrdMap<PathBuf, FileEntry>`, `graphs: Arc<RepoGraphs>`,
 `resolution_graphs`, `repos`, `indexes`, `instances`, `backlinks`, `closure_members`,
 `referenced_names` and `diagnostics_by_source` (`ir.rs:340-470`), where `OrdMap` is
@@ -221,7 +221,7 @@ Read through `arsumbris-rs` while preparing this:
 6. **Nothing that is slow gets fixed.** The 133 ms grep is unaffected. The build is also not
    graph-bound: profiling a 529-file cold build (1.1–1.3 s dev) puts `au_parser::body` at 18%
    self time (~38% including inlined iterator tails) and `au_engine` graph/validate/resolve at
-   **2.2%** (`knowledge/au-engine-build-profiling-2026-10.md`, hotpath + perf, 20 K samples).
+   **2.2%** (`knowledge/tb-engine-build-profiling-2026-10.md`, hotpath + perf, 20 K samples).
    A graph store would optimize the 2.2% and leave the 98% where it is.
 
 ## 6. Effect estimate
@@ -307,7 +307,7 @@ and should be rejected on its own merits.
 
 ## 11. Sources
 
-Measured here: `au-engine/Cargo.toml`; `crates/tb-engine/src/ir.rs:42`;
+Measured here: `tb-engine/Cargo.toml`; `crates/tb-engine/src/ir.rs:42`;
 `crates/tb-references/src/lib.rs:35`; `crates/tb-engine/src/serve.rs:13522` (grep scan),
 `:14202`, `:14369` (graph health, Tarjan); live scale and latencies (§2); `/root/samyama-graph`
 (Cargo.toml, `docs/BENCHMARKS.md`, `docs/ADR`, test and LOC counts).
@@ -326,5 +326,5 @@ Vault, read through `arsumbris-rs`: `knowledge/zeroclaw-stack-hnsw-rs-plus-tanti
 `inbox/lance-csr-cypher-over-lance-csr-index.md`,
 `inbox/ldbc-snb-interactive-benchmark-anatomy.md`,
 `inbox/allspark-applicability-analysis-15-research-sources-full-disposition.md`,
-`inbox/open-ontologies-vs-arsumbris.md`, `knowledge/au-engine-build-profiling-2026-10.md`,
+`inbox/open-ontologies-vs-arsumbris.md`, `knowledge/tb-engine-build-profiling-2026-10.md`,
 `inbox/arsumbris-fork-backlog.md`.

@@ -7,14 +7,14 @@ the architecture work that is already closed.
 
 ## 1. What "detach" means here, measured
 
-The repository is already one git repo with one remote (`origin` = `github.com/rager306/arsumbris`)
+The repository is already one git repo with one remote (`origin` = `github.com/rager306/2brain`)
 and **one branch** (`main`). Upstream is gone as a *remote*; what is left of it is:
 
 | remnant | where | action |
 |---|---|---|
 | upstream history inside the subtree imports | reachable commits (`44b32f4` = `0.0.5`-era engine work; the 24 `Add '<dir>/'` merge commits) | keep; it is the provenance of every file |
 | a **stale branch model** in the runbook | `AGENTS.md` still names `remotes/origin/main`, `feat/hotpath-profiling-and-memchr-wikilinks`, `fork/main` — none exist (`git branch -a` shows `main` only) | rewrite that section to describe the repository as it is, with the upstream commits named by hash as archive |
-| the "upstream is frozen" framing in docs | `AGENTS.md`, `au-engine/README-fork.md` | keep the fact, drop the implication that a merge may come |
+| the "upstream is frozen" framing in docs | `AGENTS.md`, `tb-engine/README-fork.md` | keep the fact, drop the implication that a merge may come |
 
 **Decision:** no more merges from upstream. Upstream is *reading material*, referenced by commit hash,
 never a branch to rebase onto. Archive it as an annotated tag so the state is citable after the branch
@@ -27,7 +27,7 @@ identified, `archive/upstream-0.0.2-alpha`).
 |---|---:|---|---|
 | TypeScript | 368 | `au-mcp` (62), `au-mcp-core` (82), `au-mcp-adapter-codex` (86), `au-mcp-adapter-cc` (43), `au-engine-sdk` (36), `au-type-codegen` (30), `au-mcp-sdk` (17) | **yes**: `arsumbris-mcp.service` runs `/usr/bin/node au-mcp/src/cli.ts start /root/vault` |
 | Rust | 238 | `au-engine` (8 crates), `au-mcp-rs` | **yes**: `arsumbris-engine.service`, and the `arsumbris-rs` MCP server Hermes already uses |
-| Python | 39 | `au-mcp-bridge` (1, **serving**), `au-mcp-rs/scripts` (10, tooling), `tools` (2), `au-ingest`/`au-govern` (1 each) | **yes, one file**: `bridge.py`, which Hermes' `mcp_servers.arsumbris` invokes |
+| Python | 39 | `au-mcp-bridge` (1, **serving**), `tb-mcp-rs/scripts` (10, tooling), `tools` (2), `au-ingest`/`au-govern` (1 each) | **yes, one file**: `bridge.py`, which Hermes' `mcp_servers.arsumbris` invokes |
 | Shell | 19 | verification scripts | no |
 | YAML/Markdown | 2 023 | type definitions, contracts, docs | contracts, not code |
 
