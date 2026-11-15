@@ -1,11 +1,15 @@
 //! BM25 lexical search over an in-memory document set.
 //!
-//! The engine's only lexical search today is a literal byte scan in the
-//! adapter's `au_grep`, measured at 132.8 ms over the live vault. This module is
-//! phase one of a replacement: an inverted index over note text that a query
-//! answers in microseconds. Nothing wires it to a read or to the wire yet, so it
-//! depends on neither [`crate::KnowledgeBase`] nor [`crate::wire`] and is tested
-//! on its own.
+//! The engine's other lexical search is `grep`, a literal byte scan measured at
+//! 132.8 ms over the live vault. This module replaces it for the ranking half: an
+//! inverted index over note text that a query answers in microseconds.
+//!
+//! [`Bm25Index`] is the index itself, a plain value with no knowledge-base
+//! coupling. [`SearchIndex`] is the served form the engine holds: the same index
+//! plus the document-id to path table, built from the held catalogue in the same
+//! pass that fills `instances` and `backlinks`, patched by the incremental delta
+//! on a content edit, and rebuilt from the patched catalogue when the path set
+//! changes. The `search` read is its only caller.
 //!
 //! # Documents and fields
 //!
@@ -47,12 +51,13 @@
 //! caller chooses between OR (`0` or `1`) and AND (the distinct query-term
 //! count).
 
-// The index has no consumer in the engine yet: construction, mutation, and
-// queries are exercised by this module's tests, and the read that uses them is
-// a later slice.
-#![allow(dead_code)]
-
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+
+use au_core::{InstanceField, InstanceValue};
+
+use crate::ir::{FileEntry, OrdMap};
+use crate::parse::FileParse;
 
 /// BM25 term-frequency saturation.
 const K1: f64 = 1.2;
@@ -126,10 +131,12 @@ struct Accumulator {
 /// `body`/`description` index and a one-field test index share one
 /// implementation without boxing.
 ///
-/// Build with [`Bm25Index::from_docs`] (default weights) or
-/// [`Bm25Index::from_docs_with`] (explicit weights), or start empty with
-/// [`Bm25Index::new`] and grow it with [`Bm25Index::add`]. An index is a plain
-/// value: it is not shared, not locked, and not `Clone`.
+/// Build with [`Bm25Index::from_docs_with`] (explicit weights), or start empty
+/// with [`Bm25Index::new`] and grow it with [`Bm25Index::add`]. An index is a
+/// plain value: not shared and not locked. `Clone` is a deep copy of every
+/// table, so the held state reaches it through an `Arc` and copies it once per
+/// patch rather than per read.
+#[derive(Debug, Clone)]
 pub(crate) struct Bm25Index<const N: usize> {
     weights: [f64; N],
     /// Term text to term id. The only owner of the term text; the postings and
@@ -151,7 +158,7 @@ pub(crate) struct Bm25Index<const N: usize> {
 impl<const N: usize> Bm25Index<N> {
     /// An empty index with the given per-field weights.
     ///
-    /// [`Bm25Index::from_docs`] supplies the body/description defaults; this
+    /// [`default_weights`] supplies the body/description defaults; this
     /// constructor always takes the weights explicitly.
     pub(crate) fn new(weights: [f64; N]) -> Self {
         Self {
@@ -163,13 +170,6 @@ impl<const N: usize> Bm25Index<N> {
             total_len: [0; N],
             live_docs: 0,
         }
-    }
-
-    /// Build from `(doc_id, fields)` pairs with the default weights: 1.0 for
-    /// field 0 (body), 3.0 for field 1 (description), 1.0 for any further
-    /// field.
-    pub(crate) fn from_docs<'a>(docs: impl IntoIterator<Item = (usize, [&'a str; N])>) -> Self {
-        Self::from_docs_with(default_weights(), docs)
     }
 
     /// Build from `(doc_id, fields)` pairs with explicit per-field weights.
@@ -184,12 +184,14 @@ impl<const N: usize> Bm25Index<N> {
         index
     }
 
-    /// Number of live documents.
+    /// Number of live documents, for the module's tests and the size budget.
+    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.live_docs
     }
 
     /// Whether the index holds no live document.
+    #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.live_docs == 0
     }
@@ -436,6 +438,7 @@ impl<const N: usize> Bm25Index<N> {
     /// An estimate: it counts capacity rather than length for every vector and
     /// string and one control byte per term-map slot, and it excludes allocator
     /// bookkeeping and the caller's own document table.
+    #[cfg(test)]
     pub(crate) fn memory_bytes(&self) -> usize {
         let mut bytes = std::mem::size_of::<Self>();
         bytes += self.term_ids.capacity()
@@ -499,6 +502,190 @@ impl<const N: usize> Bm25Index<N> {
         let documents = self.live_docs as f64;
         let frequency = document_frequency as f64;
         (1.0 + (documents - frequency + 0.5) / (frequency + 0.5)).ln()
+    }
+
+    /// One document's parity facts: its per-field token counts and whether the
+    /// slot is live. Read by [`SearchIndex::parity_facts`].
+    #[cfg(test)]
+    pub(crate) fn doc_fact(&self, doc_id: usize) -> ([u32; N], bool) {
+        match self.docs.get(doc_id) {
+            Some(slot) => (slot.lens, slot.alive),
+            None => ([0; N], false),
+        }
+    }
+}
+
+/// The servable search index: the BM25 index plus the document-id to path table.
+///
+/// The engine holds one in [`crate::KnowledgeBase::search`]. Document ids are
+/// assigned in the catalogue's path order at build time, which buys three things
+/// at once: a rebuild over the same content produces the same ids, a hit's path is
+/// one indexed lookup, and a score tie breaks by path (through
+/// [`Bm25Index::search`]'s ascending-doc-id rule) rather than arbitrarily.
+///
+/// The two fields are the note body (weight 1.0) and its frontmatter
+/// `description:` (weight 3.0). The weighting is the prototype's finding: a
+/// description is hand-written and short, so a match there is stronger evidence
+/// than the same term repeated in prose.
+#[derive(Debug, Clone)]
+pub struct SearchIndex {
+    index: Bm25Index<2>,
+    /// Document id to path, in the path order the ids were assigned in. Sorted,
+    /// and an edit never renumbers, so a path's id is a binary search away.
+    paths: Vec<PathBuf>,
+}
+
+impl SearchIndex {
+    /// Build over a catalogue, in path order.
+    ///
+    /// One pass over the catalogue in its own order: an entry with no body
+    /// contributes no document, and every other entry takes the next id.
+    pub(crate) fn build(catalog: &OrdMap<PathBuf, FileEntry>) -> Self {
+        let mut paths = Vec::new();
+        let mut docs: Vec<(usize, [&str; 2])> = Vec::new();
+        for (path, entry) in catalog {
+            let Some(fields) = indexed_fields(entry.parse.as_ref()) else {
+                continue;
+            };
+            docs.push((paths.len(), fields));
+            paths.push(path.clone());
+        }
+        Self {
+            index: Bm25Index::from_docs_with(default_weights(), docs),
+            paths,
+        }
+    }
+
+    /// Re-index one path from its new parse, at the id it already holds.
+    ///
+    /// The content-edit case of the incremental patch: the path keeps its rank,
+    /// so only its own postings move. An add or a delete renumbers every later
+    /// path, so the caller rebuilds instead (see `apply_recompute`).
+    ///
+    /// # Panics
+    ///
+    /// If `path` is not indexed. A path enters the index through a build, so a
+    /// caller reaching a missing one skipped the renumbering rebuild.
+    pub(crate) fn update(&mut self, path: &Path, parse: &FileParse) {
+        let id = self
+            .id_of(path)
+            .expect("an updated path is indexed; an add rebuilds the index");
+        self.index.remove(id);
+        if let Some(fields) = indexed_fields(parse) {
+            self.index.add(id, fields);
+        }
+    }
+
+    /// The ranked documents matching `query`, best first, unfiltered and unpaged.
+    ///
+    /// `exact` takes the conjunction path ([`Bm25Index::exact`]); otherwise
+    /// `min_should_match` decides how many distinct query terms a document must
+    /// hold. The whole answer comes back because scope (`repo` / `scope`) is a
+    /// query-side filter this index knows nothing about: the caller filters, then
+    /// totals and pages over what it kept.
+    pub(crate) fn query(
+        &self,
+        query: &str,
+        exact: bool,
+        min_should_match: usize,
+    ) -> Vec<SearchHit<'_>> {
+        let hits = if exact {
+            self.index.exact(query, usize::MAX)
+        } else {
+            self.index.search(query, min_should_match, usize::MAX)
+        };
+        hits.into_iter()
+            .map(|hit| SearchHit {
+                path: self.paths[hit.doc_id].as_path(),
+                score: hit.score,
+                matched_terms: hit.matched_terms,
+            })
+            .collect()
+    }
+
+    /// The id of an indexed path, `None` when the index holds no document for it.
+    fn id_of(&self, path: &Path) -> Option<usize> {
+        self.paths
+            .binary_search_by(|probe| probe.as_path().cmp(path))
+            .ok()
+    }
+
+    /// One line per document, for the identical-rebuild parity oracle: the id, its
+    /// path, whether the slot is live, and its per-field token counts. A full
+    /// build and an incremental patch must agree on all of them, which is what
+    /// makes the ranking, including its ties, identical.
+    #[cfg(test)]
+    pub(crate) fn parity_facts(&self) -> Vec<String> {
+        (0..self.paths.len())
+            .map(|id| {
+                let (lens, live) = self.index.doc_fact(id);
+                format!("search {id}|{}|{live}|{lens:?}", self.paths[id].display())
+            })
+            .collect()
+    }
+}
+
+/// One ranked document, with the path its id stands for.
+pub(crate) struct SearchHit<'a> {
+    pub path: &'a Path,
+    pub score: f64,
+    pub matched_terms: usize,
+}
+
+/// Whether a parse contributes a document to the index. See [`indexed_fields`].
+pub(crate) fn indexed(parse: &FileParse) -> bool {
+    indexed_fields(parse).is_some()
+}
+
+/// The index text of one parse: `[body, description]`, `None` when the parse
+/// carries no body.
+///
+/// A parse with no body is skipped: a type-def, an unread asset, a pure-YAML
+/// instance. The read answers "which note says this", so a file whose only text
+/// is a frontmatter declaration is not an answer.
+fn indexed_fields(parse: &FileParse) -> Option<[&str; 2]> {
+    match parse {
+        FileParse::Instance { body, instance, .. } if !body.is_empty() => {
+            let description = instance
+                .as_ref()
+                .map(|inst| description_of(&inst.fields))
+                .unwrap_or("");
+            Some([body, description])
+        }
+        FileParse::Note { body, fields, .. } if !body.is_empty() => {
+            Some([body, description_of(fields)])
+        }
+        _ => None,
+    }
+}
+
+/// The `description:` frontmatter value, empty when absent or not a string.
+fn description_of(fields: &[InstanceField]) -> &str {
+    fields
+        .iter()
+        .find_map(|field| match (&*field.key, &field.value) {
+            ("description", InstanceValue::String(text)) => Some(text.as_str()),
+            _ => None,
+        })
+        .unwrap_or("")
+}
+
+/// The default minimum should match for a query: how many distinct terms a
+/// document must hold to be a candidate.
+///
+/// One or two distinct terms require all of them; three or more require two. A
+/// plain OR over two or three common terms matched 335–343 documents in the
+/// prototype — an OR answers a third of the vault — while requiring every term of
+/// a long natural-language query answers nothing. Two is the middle: one stray
+/// word cannot flood the page, and a caller need not phrase a query like a search
+/// engine.
+pub(crate) fn default_min_should_match(query: &str) -> usize {
+    let mut terms = tokenize(query);
+    terms.sort();
+    terms.dedup();
+    match terms.len() {
+        count if count <= 2 => count,
+        _ => 2,
     }
 }
 

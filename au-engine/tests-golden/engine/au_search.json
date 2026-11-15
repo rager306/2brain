@@ -1,0 +1,15 @@
+{
+  "search": {
+    "exact": false,
+    "matches": [
+      {
+        "matched_terms": 1,
+        "path": "$VAULT/alpha.md",
+        "score": 0.875254830615015
+      }
+    ],
+    "next_offset": null,
+    "offset": 0,
+    "total": 1
+  }
+}

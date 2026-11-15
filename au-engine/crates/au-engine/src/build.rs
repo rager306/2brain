@@ -895,6 +895,11 @@ pub fn build_reusing(
     let _reverse_indexes = tracing::info_span!("phase.reverse_indexes").entered();
     let backlinks = crate::backlinks::build_index(&catalog, &indexes, &repos, &workspaces);
 
+    // The lexical search index, over the same parses the resolved layer read. One
+    // pass in catalogue path order, so the document ids are the indexed paths'
+    // rank and a rebuild over the same content numbers them identically.
+    let search = Arc::new(crate::search::SearchIndex::build(&catalog));
+
     // Referenced-name index over every edge's NAME, resolved or dangling: the
     // reverse-dependency index a path-set change walks to its edge-flip set.
     let referenced_names = crate::refnames::build_index(&catalog, &repos);
@@ -1011,6 +1016,7 @@ pub fn build_reusing(
         indexes,
         instances,
         backlinks: backlinks.into_iter().collect(),
+        search,
         closure_members: closure_members.into_iter().collect(),
         referenced_names: referenced_names.into_iter().collect(),
         served,

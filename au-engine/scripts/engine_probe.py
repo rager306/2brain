@@ -33,12 +33,17 @@ from pathlib import Path
 MAX_FRAME = 16 * 1024 * 1024
 
 # The reads captured by default: the shape of the workspace, its navigation
-# crossroads, its problem list, and the graph's hygiene summary.
+# crossroads, its problem list, the graph's hygiene summary, and a ranked search
+# answer. The graph_health limit matches `tests-golden/README.md`.
 DEFAULT_VERBS = {
     "au_overview": {"read": "overview", "id": 1},
     "au_hubs": {"read": "hubs", "id": 1, "limit": 20, "offset": 0},
     "au_diagnostics": {"read": "diagnostics", "id": 1, "limit": 50, "offset": 0},
     "au_graph_health": {"read": "graph_health", "id": 1, "limit": 20},
+    # A ranked read: `matches` carries a BM25 score and the distinct-term count,
+    # and `next_offset` is null on the last page. The scores are only comparable
+    # against the corpus captured here, so re-capture against a frozen vault.
+    "au_search": {"read": "search", "id": 1, "query": "engine", "limit": 20, "offset": 0},
 }
 
 

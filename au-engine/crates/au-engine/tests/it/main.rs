@@ -113,6 +113,7 @@ mod rollback_preview_read;
 mod scale_fuzz;
 mod scope_management;
 mod scoped_orientation;
+mod search_read;
 mod semantic_tokens;
 mod serve;
 mod subscribe;

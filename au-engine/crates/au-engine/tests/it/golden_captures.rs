@@ -17,13 +17,14 @@ use std::path::PathBuf;
 use serde_json::Value;
 
 /// The captures, with the read verb each one pins and whether that read's payload
-/// is a JSON array: `hubs` and `diagnostics` answer with lists, `overview` and
-/// `graph_health` with objects.
+/// is a JSON array: `hubs` and `diagnostics` answer with lists, `overview`,
+/// `graph_health`, and `search` with objects.
 const CAPTURES: &[(&str, &str, bool)] = &[
     ("au_overview.json", "overview", false),
     ("au_hubs.json", "hubs", true),
     ("au_diagnostics.json", "diagnostics", true),
     ("au_graph_health.json", "graph_health", false),
+    ("au_search.json", "search", false),
 ];
 
 fn capture_dir() -> PathBuf {

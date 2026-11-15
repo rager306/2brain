@@ -30,6 +30,7 @@ use au_references::{RepoIndex, ResolutionError};
 use crate::backlinks::Backlink;
 use crate::parse::FileParse;
 use crate::repo::{RepoMap, RepoName, Workspace};
+use crate::search::SearchIndex;
 
 /// The persistent ordered map backing the held [`KnowledgeBase`]'s patched fields.
 ///
@@ -440,6 +441,17 @@ pub struct KnowledgeBase {
     /// The reverse reference index: inbound edges keyed by target file. Empty
     /// when the build aborted before the repo indices were built.
     pub backlinks: OrdMap<PathBuf, Vec<Backlink>>,
+    /// The lexical search index over the catalogued note text, the state behind
+    /// the `search` read. Built in the same pass that fills `instances` and
+    /// `backlinks`, from the parses already held, so a search reads no disk.
+    ///
+    /// `Arc`-shared like the other invariant fields: an incremental apply copies
+    /// it once per patch (`Arc::make_mut`) instead of once per knowledge-base
+    /// clone. A content edit patches it at the changed path's own document id; a
+    /// path-set change rebuilds it from the patched catalogue, because the ids
+    /// are the paths' rank order and an add or a delete renumbers them. See
+    /// [`crate::search`].
+    pub search: Arc<SearchIndex>,
     /// Closure membership: a `(repo, type)` to the instances in that repo whose
     /// effective closure includes the type. The reverse-dependency index a
     /// type-def edit walks to find the instances it must re-validate.
@@ -785,6 +797,7 @@ impl KnowledgeBase {
         for (p, bl) in &self.backlinks {
             facts.push(format!("backlinks {}|{:?}", p.display(), bl));
         }
+        facts.extend(self.search.parity_facts());
         for ((repo, ty), members) in &self.closure_members {
             let members: Vec<String> = members.iter().map(|p| p.display().to_string()).collect();
             facts.push(format!("closure_member {repo:?}|{ty:?}|{members:?}"));

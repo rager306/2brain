@@ -753,6 +753,24 @@ The `shape_ast` value, a tagged union on `kind` mirroring the engine's parsed sl
 - two bounds, both counted in `skipped_files`: a file above 1 MiB is not scanned (a note is kilobytes, a megabyte under a text extension is a binary someone committed), and a file holding a NUL byte in its first 8 KiB is treated as binary.
 - additive: a NEW read verb, no `schema_version` bump.
 
+**search.**
+- args: `query` (required, non-empty), optional `repo`, optional `scope` (`all` default / `own`), optional `exact` (default false), optional `min_should_match`, optional `limit` / `offset`. An unknown arg is an `error` frame.
+- result: `{ search: { matches, total, offset, next_offset, exact } }`.
+  - `matches`: one entry per matching DOCUMENT (not line), best score first: `path`, `score`, `matched_terms`. `score` is the BM25 sum over the document's two fields, comparable only within one query over one corpus.
+  - `total`: matches over the whole in-scope set, not just the page. `offset`: the page's start, echoed.
+  - `next_offset`: where the next page starts, or `null` on the page that reached the end. **Null, not a sentinel**: a count past the end is indistinguishable from a page already read. A caller loops until it sees null.
+  - `exact`: whether the conjunction path answered.
+- RANKED, not literal: the dual of `grep`. `grep` reads every file and answers lines; `search` reads the held index and answers documents. Both stay: `grep` is the literal escape hatch and the only read that sees a file's bytes as they are on disk.
+- the two indexed fields, and their weights: the note body at 1.0 and its `description:` frontmatter at 3.0. A description is hand-written and short, so a match there is stronger evidence than the same term repeated in prose.
+- a document is a catalogue entry with a body: a markdown instance or a note. A type-def, an unread asset, and a pure-YAML instance contribute none — the read answers which note says this.
+- terms, not substrings: lowercase, a run of Unicode alphanumerics is one term, every other character separates. No stemming (the exact path must keep `error` and `errors` apart) and no stopwords (a list would silently change what a conjunction requires). So `error->fix`, `error_fix` and `error fix` are one query.
+- `min_should_match` is how many DISTINCT query terms a document must hold. Absent: all of them for one or two terms, two for three or more — a plain OR over two or three common terms matched 335–343 documents in the prototype, so an OR answers a third of the vault, while an AND over a long query answers nothing. `exact: true` requires every term and takes the conjunction path.
+- `exact` is a conjunction, not a phrase: `fix error` matches `error->fix`. Order would need a position per posting, which the index does not store; the engine's phrase queries are punctuation-shaped, not order-sensitive.
+- scope is a QUERY-SIDE filter over the same `repo` / `scope` set `files` and `grep` use (one derivation), so a scoped-out note's text is never ranked.
+- answered from held state, no disk IO and no `spawn_blocking`: the index is built by the same pass that fills `instances` and `backlinks`, and an incremental edit patches it at the changed note's own document id, so a write changes the ranking of the changed note on the next read.
+- paging is capped at 100 (page size default 20), smaller than `grep`'s 200: a ranked note is the start of a reading, not a line to jump to.
+- additive: a NEW read verb, no `schema_version` bump.
+
 **frontmatter.**
 - args: `path`.
 - result: `{ frontmatter: {...} | null }` — the parsed frontmatter as a JSON map, null when the file is neither a typed instance nor a note.

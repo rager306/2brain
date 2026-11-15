@@ -36,6 +36,7 @@ use crate::parse::{FileParse, parse_file};
 use crate::pathset::edge_flip_sources;
 use crate::refnames::{NameKey, source_name_keys, source_repo};
 use crate::repo::RepoName;
+use crate::search::SearchIndex;
 
 /// How a dirty set can be rebuilt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1268,6 +1269,33 @@ pub fn apply_recompute(held: &KnowledgeBase, rc: InstanceRecompute) -> Knowledge
         )
         .collect();
 
+    // The search index is patched, not rebuilt, while every change is a content
+    // edit of a path the index already holds: a document id is the path's rank,
+    // and an edit leaves the rank alone. An add, a delete, or a file crossing the
+    // "has a body" boundary in either direction changes which paths are indexed
+    // or their order, so the ids have to be reassigned, and the only way to stay
+    // identical to a from-scratch build is to rebuild from the patched catalogue.
+    // Captured before `rc` is consumed.
+    let search_rebuild = !rc.removed.is_empty()
+        || rc.catalog.iter().any(|(path, entry)| {
+            let was_indexed = held
+                .catalog
+                .get(path)
+                .is_some_and(|held| crate::search::indexed(held.parse.as_ref()));
+            was_indexed != crate::search::indexed(entry.parse.as_ref())
+        });
+    // The changed parses to re-index. Only documents: a file that is not one stays
+    // out of the index, and one that became a document is a rebuild above.
+    let search_updates: Vec<(PathBuf, Arc<FileParse>)> = if search_rebuild {
+        Vec::new()
+    } else {
+        rc.catalog
+            .iter()
+            .filter(|(_, entry)| crate::search::indexed(entry.parse.as_ref()))
+            .map(|(path, entry)| (path.clone(), entry.parse.clone()))
+            .collect()
+    };
+
     // Deleted instances leave the catalog, the resolved map, and their
     // diagnostic slices. Their reverse-index entries drop via the deltas below.
     for path in rc.removed {
@@ -1283,6 +1311,21 @@ pub fn apply_recompute(held: &KnowledgeBase, rc: InstanceRecompute) -> Knowledge
     for (path, entry) in rc.catalog {
         next.catalog.insert_mut(path, entry);
     }
+
+    // The lexical index, over the catalogue as patched. `Arc::make_mut` copies the
+    // shared index once (a memcpy of its tables) and each changed document is then
+    // spliced at its own id: cheaper than re-tokenising the corpus, and a reader
+    // holding the previous knowledge base never sees a partial index. Nothing to
+    // splice (an asset edit) costs nothing: no copy either.
+    if search_rebuild {
+        next.search = Arc::new(SearchIndex::build(&next.catalog));
+    } else if !search_updates.is_empty() {
+        let search = Arc::make_mut(&mut next.search);
+        for (path, parse) in &search_updates {
+            search.update(path, parse);
+        }
+    }
+
     for (path, resolved) in rc.resolved {
         match resolved {
             Some(ri) => {

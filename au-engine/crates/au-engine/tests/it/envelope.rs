@@ -146,7 +146,7 @@ fn read_surface_kb() -> (tempfile::TempDir, PathBuf) {
 /// with no structural read/mutation split, so there is no single source to
 /// enumerate the read SUBSET from. The pinned count is the pragmatic guard; the
 /// daemon still rejects an unknown verb, so a typo'd row fails on send.
-const READ_VERB_COUNT: usize = 41;
+const READ_VERB_COUNT: usize = 42;
 
 /// Every read verb, with arguments that resolve against the fixture. The list
 /// IS the catalog: a read added without a row here is a read the compliance
@@ -186,6 +186,7 @@ fn every_read() -> Vec<(&'static str, Value)> {
         ("dir_entries", json!({ "dir": "content" })),
         ("frontmatter", json!({ "path": hub })),
         ("grep", json!({ "query": "Rationale" })),
+        ("search", json!({ "query": "Rationale" })),
         ("graph_health", json!({})),
         // The commit read needs a history; the fixture is a git tree with one
         // commit, so HEAD names it without a hard-coded oid.

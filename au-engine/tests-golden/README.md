@@ -39,10 +39,29 @@ au-engine/scripts/engine_probe.py \
 | `au_hubs.json` | `hubs {limit: 20}` | the navigational crossroads, ranked |
 | `au_diagnostics.json` | `diagnostics {limit: 50}` | the workspace's problem list |
 | `au_graph_health.json` | `graph_health {limit: 20}` | cycles, dead ends, sources, broken links, centrality |
+| `au_search.json` | `search {query: "zarquon"}` | ranked notes, the paging totals, and the `next_offset` nullability — **fixture-derived**, see below |
 
 The probe normalizes what would otherwise differ on every run: the workspace root
 becomes `$VAULT`, the observed `version` is dropped (it counts rebuilds), and keys
 are sorted. Two consecutive captures are byte-identical — verified.
+
+**`au_search.json` is captured from a fixture, not the vault.** A BM25 score is a
+property of corpus statistics (document frequency, average field length), so a
+capture of it can only be compared against the corpus it came from; the living
+vault cannot serve that. This capture therefore comes from the fixture in
+`crates/au-engine/tests/it/search_read.rs`, taken in process by that test rather
+than through the probe, and it is checked on every `cargo test --test it` run —
+structure and values. Regenerate it with:
+
+```sh
+cd au-engine && AU_BLESS_SEARCH_CAPTURE=1 cargo +1.99.0 test -p au-engine --test it search_read
+```
+
+A probe run captures `search` against the vault under the same name, so it
+replaces this file with a vault answer. That is a deliberate act: the equality
+test then fails and names the re-bless command, and the capture is either
+re-blessed back to the fixture answer or kept as a vault capture with its scores
+recorded against a frozen vault.
 
 **The vault is a living corpus.** New notes change `nodes`, `edges`, and every
 count in these files, so the contract is STRUCTURE plus, when comparing content,

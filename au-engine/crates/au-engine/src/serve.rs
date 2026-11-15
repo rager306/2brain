@@ -428,6 +428,12 @@ enum Request {
     /// line and character column, paged by `limit` / `offset`. Additive, no
     /// `schema_version` bump. See [`GrepArgs`] for the scan bounds.
     Grep(GrepArgs),
+    /// Ranked lexical search over the catalogued note text: BM25 over each note's
+    /// body and its `description:`, answered from the held index so no file is
+    /// read. One match per document, best score first, paged by `limit` /
+    /// `offset`. The ranking dual of `grep`, which stays the literal byte scan.
+    /// Additive, no `schema_version` bump. See [`SearchArgs`].
+    Search(SearchArgs),
     /// Every type-def across the workspace whose closure includes `base`, each
     /// as its owning repo's def with the owner repo. The type-level
     /// dual of `instances_of`. The base itself is excluded. `scope: own` keeps
@@ -1941,6 +1947,41 @@ struct GrepArgs {
     case_sensitive: bool,
     /// Match page size after `offset`. Default [`GREP_DEFAULT_LIMIT`], capped at
     /// [`GREP_MAX_LIMIT`].
+    limit: Option<usize>,
+    /// Match page start. Absent is 0.
+    offset: Option<usize>,
+}
+
+/// Args for the `search` read: BM25 over the catalogued note text.
+///
+/// The ranking dual of [`GrepArgs`]. `grep` answers "which file contains this
+/// text" by reading every file; this answers "which note is most about this
+/// text" from the index the build already holds, so it ranks and reads no disk.
+/// A note is a document when it has a body: its body is field 0 (weight 1.0) and
+/// its `description:` frontmatter is field 1 (weight 3.0).
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SearchArgs {
+    /// The words to look for. Matched by term, so `error->fix` is the conjunction
+    /// of `error` and `fix`. Empty is rejected: it carries no term to rank.
+    query: String,
+    /// Absent = every mounted member. Present = only this member's documents.
+    #[serde(default)]
+    repo: Option<String>,
+    /// `all` (default) or `own` (only the user's own editable repos).
+    #[serde(default)]
+    scope: Scope,
+    /// Require every distinct query term instead of the `min_should_match`
+    /// default. A conjunction, not a phrase: the index stores no positions.
+    #[serde(default)]
+    exact: bool,
+    /// How many distinct query terms a document must hold. Absent uses
+    /// [`crate::search::default_min_should_match`]: all of them for one or two
+    /// terms, two for three or more. `exact` overrides it.
+    #[serde(default)]
+    min_should_match: Option<usize>,
+    /// Match page size after `offset`. Default [`SEARCH_DEFAULT_LIMIT`], capped at
+    /// [`SEARCH_MAX_LIMIT`].
     limit: Option<usize>,
     /// Match page start. Absent is 0.
     offset: Option<usize>,
@@ -11422,6 +11463,40 @@ async fn handle_request(handle: &EngineHandle, req: Request, shutdown_tx: &Shutd
             .unwrap_or_else(|_| GrepScan::default());
             Response::ready(version, serde_json::json!({ "grep": scan }))
         }
+        Request::Search(args) => {
+            if args.query.is_empty() {
+                return Response::invalid("`query` must not be empty: it carries no term to rank");
+            }
+            let repo = args.repo.clone();
+            let scope = wire::TypeScope::new(args.scope.own_only());
+            let limit = args
+                .limit
+                .unwrap_or(SEARCH_DEFAULT_LIMIT)
+                .min(SEARCH_MAX_LIMIT);
+            let offset = args.offset.unwrap_or(0);
+            // The whole answer comes from the held index: no disk read and no
+            // blocking task, unlike `grep`, whose bytes come from the working tree.
+            let query = args.query;
+            let min_should_match = args
+                .min_should_match
+                .unwrap_or_else(|| crate::search::default_min_should_match(&query));
+            let exact = args.exact;
+            enveloped(
+                "search",
+                handle.read(move |v| {
+                    search_view(
+                        v,
+                        &query,
+                        exact,
+                        min_should_match,
+                        repo.as_deref(),
+                        scope,
+                        limit,
+                        offset,
+                    )
+                }),
+            )
+        }
         Request::DirEntries { dir } => {
             let root = handle.root().to_path_buf();
             let abs = abs_arg(&root, &dir);
@@ -13443,6 +13518,13 @@ const GREP_DEFAULT_LIMIT: usize = 20;
 /// The largest match page `grep` will return.
 const GREP_MAX_LIMIT: usize = 200;
 
+/// Default match page for `search`: one page of ranked notes.
+const SEARCH_DEFAULT_LIMIT: usize = 20;
+
+/// The largest match page `search` will return. Smaller than `grep`'s: a ranked
+/// note is the start of a reading, not a line to jump to.
+const SEARCH_MAX_LIMIT: usize = 100;
+
 /// The largest file `grep` reads. A note is kilobytes; a megabyte is a binary
 /// someone committed under a text extension, and scanning it per query is not a
 /// cost a search surface should carry silently.
@@ -13484,6 +13566,103 @@ struct GrepScan {
     skipped_files: usize,
 }
 
+/// One ranked document.
+#[derive(Debug, Serialize)]
+struct SearchMatch {
+    /// The absolute path, the same address space every other read serves.
+    path: String,
+    /// The BM25 score: the sum of the matched terms' contributions over both
+    /// fields. Higher is better and comparable only within one query over one
+    /// corpus.
+    score: f64,
+    /// How many distinct query terms this document holds, the quantity
+    /// `min_should_match` is compared against.
+    matched_terms: usize,
+}
+
+/// The `search` answer: one page of ranked documents plus the totals that make
+/// the page interpretable.
+#[derive(Debug, Serialize)]
+struct SearchAnswer {
+    matches: Vec<SearchMatch>,
+    /// Matches over the whole in-scope set, not just this page.
+    total: usize,
+    /// The page's start, echoed so a caller need not remember it.
+    offset: usize,
+    /// Where the next page starts, or `null` on the page that reached the end.
+    /// Nullable rather than a sentinel: a count past the end is indistinguishable
+    /// from a page the caller has already read.
+    next_offset: Option<usize>,
+    /// Whether the conjunction path answered.
+    exact: bool,
+}
+
+/// The `search` answer over the held index.
+///
+/// Ranking and paging are separate passes on purpose: `total` counts every match
+/// in scope, so a page is interpretable without a second call, and the scope
+/// filter runs before paging because it can drop any of the ranked documents.
+fn search_view(
+    kb: &KnowledgeBase,
+    query: &str,
+    exact: bool,
+    min_should_match: usize,
+    repo: Option<&str>,
+    scope: wire::TypeScope,
+    limit: usize,
+    offset: usize,
+) -> SearchAnswer {
+    let hits: Vec<crate::search::SearchHit<'_>> = kb
+        .search
+        .query(query, exact, min_should_match)
+        .into_iter()
+        .filter(|hit| in_read_scope(kb, hit.path, repo, scope))
+        .collect();
+    let total = hits.len();
+    let matches: Vec<SearchMatch> = hits
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .map(|hit| SearchMatch {
+            path: hit.path.display().to_string(),
+            score: hit.score,
+            matched_terms: hit.matched_terms,
+        })
+        .collect();
+    let next_offset = (offset + matches.len() < total).then_some(offset + matches.len());
+    SearchAnswer {
+        matches,
+        total,
+        offset,
+        next_offset,
+        exact,
+    }
+}
+
+/// Whether a path is in the `repo` / `scope` selection the catalogue-wide reads
+/// share, spelled once so `grep` and `search` cannot disagree about scope.
+fn in_read_scope(
+    kb: &KnowledgeBase,
+    path: &std::path::Path,
+    repo: Option<&str>,
+    scope: wire::TypeScope,
+) -> bool {
+    if repo.is_none() && !scope.own_only() {
+        return true;
+    }
+    let Some(owner) = kb.repos.repo_of(path) else {
+        // An unowned file cannot answer "is this mine", so it is out of scope
+        // whenever either filter is engaged.
+        return false;
+    };
+    if let Some(want) = repo {
+        if owner.name.as_str() != want {
+            return false;
+        }
+    }
+    scope.includes_repo(kb, owner)
+}
+
 /// The catalogued paths a `grep` scans, paired with their owning repo.
 fn grep_paths(
     kb: &KnowledgeBase,
@@ -13492,20 +13671,7 @@ fn grep_paths(
 ) -> Vec<(std::path::PathBuf, Option<String>)> {
     kb.catalog
         .iter()
-        .filter(|(path, _)| {
-            if repo.is_none() && !scope.own_only() {
-                return true;
-            }
-            let Some(owner) = kb.repos.repo_of(path) else {
-                return false;
-            };
-            if let Some(want) = repo {
-                if owner.name.as_str() != want {
-                    return false;
-                }
-            }
-            scope.includes_repo(kb, owner)
-        })
+        .filter(|(path, _)| in_read_scope(kb, path, repo, scope))
         .map(|(path, _)| {
             (
                 path.clone(),
