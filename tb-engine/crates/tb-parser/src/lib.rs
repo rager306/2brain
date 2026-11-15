@@ -8,6 +8,7 @@ pub mod codes;
 pub mod file_kind;
 pub mod frontmatter;
 pub mod fs;
+pub mod identity;
 pub mod scope;
 pub mod yaml;
 
@@ -30,6 +31,10 @@ pub use frontmatter::{
 pub use fs::{
     FileSystem, MemoryFileSystem, RealFileSystem, ScopeBoundaries, SubtreeAudit, Walk, WalkError,
     audit_subtree,
+};
+pub use identity::{
+    IDENTITY_DIR, IDENTITY_MARKER, LEGACY_IDENTITY_DIR, identity_dir_with, identity_marker_with,
+    is_identity_dir_name,
 };
 pub use scope::{DEFAULT_EXCLUDE_DIR_NAMES, FLOOR_DIR_NAMES, WalkFilter};
 pub use yaml::{

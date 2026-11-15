@@ -1,0 +1,110 @@
+//! Where a repository keeps its identity directory, and how a name is recognised as one.
+//!
+//! Two spellings exist during the rebrand (`docs/research/tier-c-seams.md`): `.2brain` is what a
+//! migrated repository holds, `.arsumbris` is what an un-migrated one holds. This module states the
+//! rule once so no call site invents its own join:
+//!
+//! - **resolution is per root, never per file**: the new name wins when it exists at a root, the
+//!   legacy name answers only when it does not, so one repository can never yield two identity
+//!   directories;
+//! - **the probe is a closure**, because the walk asks a [`FileSystem`](crate::fs::FileSystem) — a key
+//!   map in memory — rather than `std::fs`;
+//! - **the floor predicate is pure**: a walk must be able to reject the directory name before it
+//!   touches anything.
+//!
+//! No crate outside this module should spell either name.
+
+use std::path::{Path, PathBuf};
+
+/// The identity directory of a migrated repository.
+pub const IDENTITY_DIR: &str = ".2brain";
+
+/// The identity directory of a repository that has not been migrated yet.
+pub const LEGACY_IDENTITY_DIR: &str = ".arsumbris";
+
+/// The marker file that makes a directory a repository.
+pub const IDENTITY_MARKER: &str = "repo.yaml";
+
+/// Whether `name` is an identity directory under either spelling.
+///
+/// This is the walk's floor predicate: a directory whose name answers `true` is a repository
+/// boundary, not content.
+pub fn is_identity_dir_name(name: &str) -> bool {
+    name == IDENTITY_DIR || name == LEGACY_IDENTITY_DIR
+}
+
+/// The identity directory of `root`, preferring the new spelling when `exists` says it is there.
+///
+/// `exists` is asked about the joined paths only, so a memory filesystem is as good as a real one.
+/// When neither spelling exists the new one is returned: a caller that is about to create it writes
+/// the current name, and a caller that is reading gets a path that does not answer — which is what
+/// "no repository here" already looks like.
+pub fn identity_dir_with(root: &Path, exists: impl Fn(&Path) -> bool) -> PathBuf {
+    let current = root.join(IDENTITY_DIR);
+    if exists(&current) {
+        return current;
+    }
+    let legacy = root.join(LEGACY_IDENTITY_DIR);
+    if exists(&legacy) {
+        return legacy;
+    }
+    current
+}
+
+/// The identity marker (`repo.yaml`) of `root`, resolved by the same rule as [`identity_dir_with`].
+pub fn identity_marker_with(root: &Path, exists: impl Fn(&Path) -> bool) -> PathBuf {
+    identity_dir_with(root, exists).join(IDENTITY_MARKER)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn present<'a>(entries: &'a [&'static str]) -> impl Fn(&Path) -> bool + 'a {
+        move |path: &Path| {
+            entries
+                .iter()
+                .any(|entry| path.ends_with(entry) && path.to_string_lossy().ends_with(entry))
+        }
+    }
+
+    #[test]
+    fn a_migrated_repository_resolves_to_the_new_name() {
+        let root = Path::new("/repo");
+        let dir = identity_dir_with(root, present(&[".2brain"]));
+        assert_eq!(dir, root.join(".2brain"));
+    }
+
+    #[test]
+    fn an_unmigrated_repository_resolves_to_the_legacy_name() {
+        let root = Path::new("/repo");
+        let dir = identity_dir_with(root, present(&[".arsumbris"]));
+        assert_eq!(dir, root.join(".arsumbris"));
+    }
+
+    #[test]
+    fn both_spellings_present_still_yields_one_directory() {
+        let root = Path::new("/repo");
+        let dir = identity_dir_with(root, present(&[".2brain", ".arsumbris"]));
+        assert_eq!(dir, root.join(".2brain"), "the new spelling wins, per root");
+    }
+
+    #[test]
+    fn nothing_present_yields_the_name_a_writer_should_create() {
+        let root = Path::new("/repo");
+        let dir = identity_dir_with(root, present(&[]));
+        assert_eq!(dir, root.join(".2brain"));
+        assert_eq!(
+            identity_marker_with(root, present(&[])),
+            root.join(".2brain/repo.yaml")
+        );
+    }
+
+    #[test]
+    fn the_floor_predicate_accepts_exactly_the_two_spellings() {
+        assert!(is_identity_dir_name(".2brain"));
+        assert!(is_identity_dir_name(".arsumbris"));
+        assert!(!is_identity_dir_name("brain"));
+        assert!(!is_identity_dir_name(".git"));
+    }
+}
