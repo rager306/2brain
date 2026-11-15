@@ -251,7 +251,7 @@ invariant. Any step that cannot state its acceptance in a command is not a step 
 | P0.4 vault capture | **done** | vault commit `f26cc54` (`inbox/decision-tool-surface-trajectory.md`, type decision, status current) and `4bcc4f2` (backlog P0 item 4, closed defect with its fix commit); both written and read back through `arsumbris-rs`; `au_diagnostics` 0, `graph_health.broken_links` 0 | 2026-11-15 |
 | P1.1 transport port | not started | — | — |
 | P1.2 bounded_stdio | not started | — | — |
-| P1.3 resources | not started | — | — |
+| P1.3 resources | **done** (`a4228c0`) | `member_roots(payload)` and the new `resource_page` are pure; the `resources -> wire` edge is gone (ALLOWED 7 → 6); `lib.rs` 4659 → 4631 production lines and the ratchet tightened to 4631; 4 inline tests without a socket | 2026-11-15 |
 | P1.4 schemas table | not started | — | — |
 | P1.5 read ledger | not started | — | — |
 | P2.1–P2.3 gate | not started | — | — |
