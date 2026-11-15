@@ -53,9 +53,15 @@ The term map is where that room is: `term_ids: HashMap<String, u32>` over the va
 **0.84 KB per document, 14% of the budget** (`docs/research/pogocache-patterns.md` §2). So the compact map
 is not a memory diet (1.2% of RSS); it is the payment for proximity.
 
-- **Order**: compact map first, measured alone; then positions, measured against the same 60 queries.
-- **Gate**: compact map changes no ranking output and saves ≥0.5 KB/doc; proximity lifts literal hit@1
-  above 0.571 with topical hit@1 not below 0.642, golden `au_search` blessed in the same commit.
+- **Compact map: built, measured, reverted.** 4 703 → 4 695 bytes per document on the budget-test corpus
+  (8 bytes, against ~840 predicted); the vault's vocabulary transfers to ~0.22 KB/doc, below the 0.5 KB/doc
+  criterion set in advance. The arithmetic was wrong about what dominates the index — postings do, not the
+  term keys. Recorded in `docs/research/pogocache-patterns.md` §3.
+- **So proximity must pay for itself differently**: either a tighter posting encoding (delta + varint
+  document ids and positions) or a budget raised with the reason written next to it. Deciding that needs the
+  budget measured on the real vault, not on the generated corpus.
+- **Gate**: proximity lifts literal hit@1 above 0.571 with topical hit@1 not below 0.642, golden `au_search`
+  blessed in the same commit, and `memory_bytes()/doc` stays inside the budget after the change.
 - **Risk**: the index's per-document footprint doubles with positions; the budget is the constraint, not
   the code.
 

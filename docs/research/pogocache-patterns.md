@@ -71,10 +71,16 @@ item this project deletes on measurement. Revisit when something needs it — no
 
 ## 3. The three experiments worth running, ranked
 
-1. **Compact term map in the search index** (~120 lines + tests).
-   Measure: `memory_bytes()` per document before/after, and `tools/ranking/eval.py` unchanged (the ranking
-   must not move — the map is a lookup, not a scorer). Kill criterion: less than 0.5 KB/doc saved, or any
-   change in ranking output.
+1. **Compact term map in the search index** — built, measured, **reverted** (`/tmp` experiment, no commit).
+   The table was 8-byte buckets (tag, dib, id) over one key arena, with spans and hashes by dense term id,
+   open-addressed with Robin Hood growth; a differential test proved it answers exactly like the
+   `HashMap` it replaced over 210 terms including growth past 16 buckets. Measured on the generated corpus
+   the budget tests use: **4 703 → 4 695 bytes per document**, 8 bytes, not the ~840 predicted. The
+   prediction was arithmetic on key bytes; the corpus's vocabulary is small and the postings dominate, so
+   the term map is a smaller share than the real vault suggests. Even taking the vault's 21 001 terms and
+   the measured ~11 bytes saved per term, the transfer is **0.22 KB/doc — below the 0.5 KB/doc kill
+   criterion** this entry set for itself. Reverted rather than kept as a curiosity; the estimate in §2 was
+   wrong about the division of weight inside the index, and the measurement is the correction.
 2. **Per-verb histograms in the engine** (~80 lines). Measure: the distribution of `au_grep` vs `au_search`
    on the live vault, which today is two stopwatch numbers. Kill criterion: no verb shows a tail worth
    acting on.
