@@ -22,7 +22,7 @@ struct Tool {
 /// Handlers whose engine read verb sits in a helper, not in the handler.
 const HELPER_VERBS: [(&str, &str); 2] = [
     ("self.content_with_timeout", "content"),
-    ("read_content(&self.socket", "content"),
+    ("read_content(", "content"),
 ];
 
 /// A handler that picks its read verb at runtime, so no request literal names it.

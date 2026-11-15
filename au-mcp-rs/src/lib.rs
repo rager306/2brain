@@ -4,9 +4,11 @@ mod ledger;
 mod policy;
 mod resources;
 mod schemas;
+mod transport;
 mod wire;
 
 pub(crate) use resources::*;
+pub(crate) use transport::*;
 pub(crate) use wire::*;
 
 use std::{
@@ -40,8 +42,6 @@ use tokio::sync::Semaphore;
 // and the socket type; the server itself goes through `wire`.
 #[cfg(test)]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-const SCHEMA_VERSION: u64 = 29;
 
 /// The protocol revisions this server answers. `2026-07-28` is the inline
 /// lifecycle: a request carries its version in `_meta` and needs no handshake.
@@ -557,9 +557,9 @@ enum ToolProfile {
     Concise,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct Server {
-    socket: PathBuf,
+    transport: Arc<dyn EngineTransport>,
     policy: policy::Policy,
     principal: String,
     audit: policy::Audit,
@@ -582,9 +582,27 @@ impl Server {
         profile: ToolProfile,
         payload: PayloadMode,
     ) -> Self {
+        Self::with_transport(
+            Arc::new(UnixTransport::new(socket)),
+            policy,
+            principal,
+            profile,
+            payload,
+        )
+    }
+
+    /// Build a server over any transport. `new` is the production caller; a
+    /// test supplies a `MemoryTransport` here instead of a socket.
+    fn with_transport(
+        transport: Arc<dyn EngineTransport>,
+        policy: policy::Policy,
+        principal: String,
+        profile: ToolProfile,
+        payload: PayloadMode,
+    ) -> Self {
         let audit = policy::Audit::new(&policy.audit);
         Self {
-            socket,
+            transport,
             policy,
             principal,
             audit,
@@ -922,7 +940,7 @@ impl Server {
         tokio::select! {
             biased;
             _ = ctx.ct.cancelled() => return_error("watch cancelled"),
-            outcome = watch_engine(&self.socket, timeout) => match outcome {
+            outcome = watch_engine(self.transport.as_ref(), timeout) => match outcome {
                 Ok(watch) => success_payload(json!({ "watch": watch }), self.payload),
                 Err(error) => return_error(error),
             },
@@ -1485,7 +1503,7 @@ impl Server {
             _ => {}
         }
         let repo = args.repo;
-        let to = match absolute_member_path(&self.socket, &repo, &args.to).await {
+        let to = match absolute_member_path(self.transport.as_ref(), &repo, &args.to).await {
             Ok(path) => path,
             Err(error) => return return_error(error),
         };
@@ -1560,7 +1578,7 @@ impl Server {
         // The gate: the type still has the hash the caller read, and its owner is
         // an allowed member. A type has no path, so its hash is the freshness check.
         let read = read_engine(
-            &self.socket,
+            self.transport.as_ref(),
             json!({"read": "type", "id": 1, "name": args.old_name}),
             "type",
         )
@@ -1604,7 +1622,9 @@ impl Server {
             "old_name": args.old_name,
             "new_name": args.new_name,
         });
-        match read_mutation_with_timeout(&self.socket, request, ENGINE_READ_TIMEOUT).await {
+        match read_mutation_with_timeout(self.transport.as_ref(), request, ENGINE_READ_TIMEOUT)
+            .await
+        {
             Ok(result) => {
                 self.audit
                     .record(&self.principal, "au_rename_type", &owner, "applied");
@@ -1763,7 +1783,7 @@ impl Server {
         }
         let repo = args.repo;
         let to = args.to;
-        let to_absolute = match absolute_member_path(&self.socket, &repo, &to).await {
+        let to_absolute = match absolute_member_path(self.transport.as_ref(), &repo, &to).await {
             Ok(path) => path,
             Err(error) => return return_error(error),
         };
@@ -1852,7 +1872,7 @@ impl Server {
                 "engine read capacity reached; retry later",
             )]);
         };
-        let target = match resolve_editable(&self.socket, &args.repo, &args.path).await {
+        let target = match resolve_editable(self.transport.as_ref(), &args.repo, &args.path).await {
             Ok(target) => target,
             Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
         };
@@ -2020,7 +2040,9 @@ impl Server {
         };
         let peek = args.peek;
         let outcome = async {
-            let origin = absolute_member_path(&self.socket, &args.repo, &args.origin_path).await?;
+            let origin =
+                absolute_member_path(self.transport.as_ref(), &args.repo, &args.origin_path)
+                    .await?;
             let parts = split_follow(args.target.trim());
             let (verb, key) = match (&parts.block, &parts.anchor) {
                 (Some(_), _) => ("resolve_block_id", "resolve_block_id"),
@@ -2035,7 +2057,7 @@ impl Server {
             if let Some(anchor) = &parts.anchor {
                 request["anchor"] = json!(anchor);
             }
-            let resolved = read_engine(&self.socket, request, verb).await?;
+            let resolved = read_engine(self.transport.as_ref(), request, verb).await?;
             let answer = &resolved.payload[key];
             let mut out = json!({
                 "target": args.target.trim(),
@@ -2064,7 +2086,7 @@ impl Server {
                     .and_then(Value::as_u64)
                 && !addressed.is_null()
                 && let Ok(content) = read_engine(
-                    &self.socket,
+                    self.transport.as_ref(),
                     json!({"read": "content", "id": 1, "path": addressed}),
                     "content",
                 )
@@ -2122,9 +2144,10 @@ impl Server {
             return return_error("engine read capacity reached; retry later");
         };
         let outcome = async {
-            let absolute = absolute_member_path(&self.socket, &args.repo, &args.path).await?;
+            let absolute =
+                absolute_member_path(self.transport.as_ref(), &args.repo, &args.path).await?;
             let instance = read_engine(
-                &self.socket,
+                self.transport.as_ref(),
                 json!({"read": "instance", "id": 1, "path": absolute}),
                 "instance",
             )
@@ -2142,7 +2165,7 @@ impl Server {
             }
             // Not an instance: the local resolve form tells a type-def from a plain note.
             let kind = read_engine(
-                &self.socket,
+                self.transport.as_ref(),
                 json!({"read": "resolve_target", "id": 1, "target": "", "origin": absolute}),
                 "resolve_target",
             )
@@ -2214,9 +2237,9 @@ impl Server {
             return return_error("engine read capacity reached; retry later");
         };
         let outcome = async {
-            let dir = absolute_member_path(&self.socket, &args.repo, &args.path).await?;
+            let dir = absolute_member_path(self.transport.as_ref(), &args.repo, &args.path).await?;
             read_engine(
-                &self.socket,
+                self.transport.as_ref(),
                 json!({"read": "dir_entries", "id": 1, "dir": dir}),
                 "dir_entries",
             )
@@ -2410,14 +2433,15 @@ impl Server {
         };
         let direction = args.direction;
         let outcome = async {
-            let path = absolute_member_path(&self.socket, &args.repo, &args.path).await?;
+            let path =
+                absolute_member_path(self.transport.as_ref(), &args.repo, &args.path).await?;
             let mut payload = serde_json::Map::new();
             if matches!(
                 direction,
                 ReferenceDirection::Out | ReferenceDirection::Both
             ) {
                 let out = read_engine(
-                    &self.socket,
+                    self.transport.as_ref(),
                     json!({"read": "references_out", "id": 1, "path": path}),
                     "references_out",
                 )
@@ -2429,7 +2453,7 @@ impl Server {
             }
             if matches!(direction, ReferenceDirection::In | ReferenceDirection::Both) {
                 let inb = read_engine(
-                    &self.socket,
+                    self.transport.as_ref(),
                     json!({"read": "references_in", "id": 1, "path": path}),
                     "references_in",
                 )
@@ -2482,7 +2506,8 @@ impl Server {
                 "engine read capacity reached; retry later",
             )]);
         };
-        let path = match absolute_member_path(&self.socket, &args.repo, &args.path).await {
+        let path = match absolute_member_path(self.transport.as_ref(), &args.repo, &args.path).await
+        {
             Ok(path) => path,
             Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
         };
@@ -2613,7 +2638,7 @@ impl Server {
             }
             result = tokio::time::timeout(
                 ENGINE_READ_TIMEOUT,
-                read_content(&self.socket, &args.repo, &args.path),
+                read_content(self.transport.as_ref(), &args.repo, &args.path),
             ) => result,
         };
         let result = match result {
@@ -2688,7 +2713,9 @@ impl Server {
             }
         };
         let request = build(&prepared.target);
-        match read_mutation_with_timeout(&self.socket, request, ENGINE_READ_TIMEOUT).await {
+        match read_mutation_with_timeout(self.transport.as_ref(), request, ENGINE_READ_TIMEOUT)
+            .await
+        {
             Ok(result) => {
                 self.audit
                     .record(&self.principal, "mutation", &repo, "applied");
@@ -2773,7 +2800,7 @@ impl Server {
                 Stage::Editability => {
                     // A mutation is not cancelled: an aborted write has an
                     // unknown outcome, so the bounded exchange finishes instead.
-                    match resolve_editable(&self.socket, repo, path).await {
+                    match resolve_editable(self.transport.as_ref(), repo, path).await {
                         Ok(resolved) => target = Some(resolved),
                         Err(error) => return Err(Denial::new(stage, error)),
                     }
@@ -2802,7 +2829,9 @@ impl Server {
         keys: impl IntoIterator<Item = (String, String)>,
     ) -> CallToolResult {
         let keys: Vec<(String, String)> = keys.into_iter().collect();
-        match read_mutation_with_timeout(&self.socket, request, ENGINE_READ_TIMEOUT).await {
+        match read_mutation_with_timeout(self.transport.as_ref(), request, ENGINE_READ_TIMEOUT)
+            .await
+        {
             Ok(result) => {
                 self.audit.record(&self.principal, tool, repo, "applied");
                 for key in keys {
@@ -2864,7 +2893,7 @@ impl Server {
                     // The engine owns the catalogue, so this is its answer, not
                     // a filesystem check. The window between this read and the
                     // write is a few milliseconds and is documented.
-                    match read_content(&self.socket, repo, path).await {
+                    match read_content(self.transport.as_ref(), repo, path).await {
                         Ok(read) => {
                             if read.payload.get("content").is_some_and(|c| !c.is_null()) {
                                 return Err(Denial::new(
@@ -2876,10 +2905,12 @@ impl Server {
                         Err(error) => return Err(Denial::new(stage, error)),
                     }
                 }
-                Stage::Editability => match resolve_editable(&self.socket, repo, path).await {
-                    Ok(resolved) => target = Some(resolved),
-                    Err(error) => return Err(Denial::new(stage, error)),
-                },
+                Stage::Editability => {
+                    match resolve_editable(self.transport.as_ref(), repo, path).await {
+                        Ok(resolved) => target = Some(resolved),
+                        Err(error) => return Err(Denial::new(stage, error)),
+                    }
+                }
                 Stage::PriorRead | Stage::Freshness | Stage::Capacity => {}
             }
         }
@@ -3009,7 +3040,7 @@ impl Server {
                 "policy/member_grant: mutations are not allowed in workspace member {repo}"
             ));
         }
-        let root = match member_root(&self.socket, &repo).await {
+        let root = match member_root(self.transport.as_ref(), &repo).await {
             Ok(root) => root,
             Err(error) => return return_error(error),
         };
@@ -3017,7 +3048,9 @@ impl Server {
             return return_error("another mutation is in progress; retry later");
         };
         request["root"] = json!(root);
-        match read_mutation_with_timeout(&self.socket, request, ENGINE_READ_TIMEOUT).await {
+        match read_mutation_with_timeout(self.transport.as_ref(), request, ENGINE_READ_TIMEOUT)
+            .await
+        {
             Ok(result) => {
                 self.audit.record(&self.principal, tool, &repo, "applied");
                 success_result(result, self.payload)
@@ -3061,7 +3094,7 @@ impl Server {
                 "policy/member_grant: mutations are not allowed in workspace member {repo}"
             ));
         }
-        let root = match member_root(&self.socket, &repo).await {
+        let root = match member_root(self.transport.as_ref(), &repo).await {
             Ok(root) => root,
             Err(error) => return return_error(error),
         };
@@ -3069,7 +3102,9 @@ impl Server {
             return return_error("another mutation is in progress; retry later");
         };
         request["root"] = json!(root);
-        match read_mutation_with_timeout(&self.socket, request, ENGINE_READ_TIMEOUT).await {
+        match read_mutation_with_timeout(self.transport.as_ref(), request, ENGINE_READ_TIMEOUT)
+            .await
+        {
             Ok(result) => {
                 self.audit.record(&self.principal, tool, &repo, "applied");
                 success_result(result, self.payload)
@@ -3114,7 +3149,8 @@ impl Server {
             )]);
         };
         let request = async {
-            let path = absolute_member_path(&self.socket, &args.repo, &args.path).await?;
+            let path =
+                absolute_member_path(self.transport.as_ref(), &args.repo, &args.path).await?;
             Ok::<Value, String>(json!({"read": verb, "id": 1, "path": path}))
         };
         let request = tokio::select! {
@@ -3158,7 +3194,8 @@ impl Server {
             // `target` carries the wikilink grammar, not a path. The empty
             // target with an `origin` is the engine's local form: it resolves to
             // the origin file itself, which is the file the caller named.
-            let origin = absolute_member_path(&self.socket, &args.repo, &args.path).await?;
+            let origin =
+                absolute_member_path(self.transport.as_ref(), &args.repo, &args.path).await?;
             Ok::<Value, String>(json!({"read": verb, "id": 1, "target": "", "origin": origin}))
         };
         let request = tokio::select! {
@@ -3220,7 +3257,7 @@ impl Server {
         verb: &str,
         timeout: Duration,
     ) -> CallToolResult {
-        match read_engine_with_timeout(&self.socket, request, verb, timeout).await {
+        match read_engine_with_timeout(self.transport.as_ref(), request, verb, timeout).await {
             Ok(result) => success_result(result, self.payload),
             Err(error) => CallToolResult::error(vec![ContentBlock::text(error)]),
         }
@@ -3232,7 +3269,12 @@ impl Server {
         relative: String,
         timeout: Duration,
     ) -> CallToolResult {
-        match tokio::time::timeout(timeout, read_content(&self.socket, &repo, &relative)).await {
+        match tokio::time::timeout(
+            timeout,
+            read_content(self.transport.as_ref(), &repo, &relative),
+        )
+        .await
+        {
             Err(_) => CallToolResult::error(vec![ContentBlock::text(format!(
                 "engine read 'content' timed out after {timeout:?}; no retry was attempted"
             ))]),
@@ -3367,7 +3409,7 @@ impl ServerHandler for Server {
             ));
         };
         let read = read_engine_with_timeout(
-            &self.socket,
+            self.transport.as_ref(),
             json!({"read": "files", "id": 1, "limit": page, "offset": offset}),
             "files",
             ENGINE_READ_TIMEOUT,
@@ -3375,7 +3417,7 @@ impl ServerHandler for Server {
         .await
         .map_err(|error| rmcp::ErrorData::internal_error(error, None))?;
         let members_read = read_engine_with_timeout(
-            &self.socket,
+            self.transport.as_ref(),
             json!({"read": "members", "id": 1}),
             "members",
             ENGINE_READ_TIMEOUT,
@@ -3443,7 +3485,7 @@ impl ServerHandler for Server {
                 None,
             ));
         };
-        let read = read_content(&self.socket, &repo, &path)
+        let read = read_content(self.transport.as_ref(), &repo, &path)
             .await
             .map_err(|error| rmcp::ErrorData::internal_error(error, None))?;
         let content = read.payload.get("content").cloned().unwrap_or(Value::Null);
@@ -4039,38 +4081,6 @@ fn served_hash(result: &CallToolResult) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// Resolve a member-relative path to an absolute one, refusing members the
-/// engine does not author.
-async fn resolve_editable(socket: &Path, repo: &str, relative: &str) -> Result<String, String> {
-    let members = read_engine(
-        socket,
-        json!({"read": "members", "id": 1, "repo": repo}),
-        "members",
-    )
-    .await?;
-    let member = members
-        .payload
-        .get("members")
-        .and_then(Value::as_array)
-        .and_then(|members| members.iter().find(|m| m.get("repo") == Some(&json!(repo))))
-        .ok_or_else(|| format!("unknown workspace member: {repo}"))?;
-    if member.get("editable").and_then(Value::as_bool) != Some(true) {
-        return Err(format!(
-            "workspace member {repo} is not editable; a consumed member cannot be written"
-        ));
-    }
-    let root = member
-        .get("root")
-        .and_then(Value::as_str)
-        .filter(|root| !root.is_empty())
-        .ok_or_else(|| format!("workspace member {repo} has no local root"))?;
-    Path::new(root)
-        .join(relative)
-        .to_str()
-        .map(str::to_owned)
-        .ok_or_else(|| "resolved path is not valid UTF-8".to_owned())
-}
-
 /// The wire spelling of a workspace role.
 fn workspace_role(role: WorkspaceRole) -> &'static str {
     match role {
@@ -4171,9 +4181,10 @@ async fn print_info(arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn st
     );
     println!("  engine       {}", socket.display());
 
+    let transport = UnixTransport::new(socket);
     match tokio::time::timeout(
         Duration::from_secs(5),
-        exchange(&socket, &json!({"read": "overview", "id": 1})),
+        transport.exchange(json!({"read": "overview", "id": 1})),
     )
     .await
     {
@@ -4320,66 +4331,6 @@ fn relative_path(path: &str) -> Result<(), &'static str> {
         return Err("'path' must not contain '..'");
     }
     Ok(())
-}
-
-/// Join a member's declared root with a client-supplied relative path.
-///
-/// The path is validated by the caller; this only resolves the member and joins.
-async fn absolute_member_path(socket: &Path, repo: &str, relative: &str) -> Result<String, String> {
-    let members = read_engine(
-        socket,
-        json!({"read": "members", "id": 1, "repo": repo}),
-        "members",
-    )
-    .await?;
-    let member = members
-        .payload
-        .get("members")
-        .and_then(Value::as_array)
-        .and_then(|members| members.iter().find(|m| m.get("repo") == Some(&json!(repo))))
-        .ok_or_else(|| format!("unknown workspace member: {repo}"))?;
-    let root = member
-        .get("root")
-        .and_then(Value::as_str)
-        .filter(|root| !root.is_empty())
-        .ok_or_else(|| format!("workspace member {repo} has no local root"))?;
-    Path::new(root)
-        .join(relative)
-        .to_str()
-        .map(str::to_owned)
-        .ok_or_else(|| "resolved path is not valid UTF-8".to_owned())
-}
-
-/// A member's declared root, without joining a relative path.
-async fn member_root(socket: &Path, repo: &str) -> Result<String, String> {
-    let members = read_engine(
-        socket,
-        json!({"read": "members", "id": 1, "repo": repo}),
-        "members",
-    )
-    .await?;
-    members
-        .payload
-        .get("members")
-        .and_then(Value::as_array)
-        .and_then(|members| members.iter().find(|m| m.get("repo") == Some(&json!(repo))))
-        .and_then(|member| member.get("root"))
-        .and_then(Value::as_str)
-        .filter(|root| !root.is_empty())
-        .map(str::to_owned)
-        .ok_or_else(|| format!("workspace member {repo} has no local root"))
-}
-
-/// Read one member's file text by joining its declared root with a
-/// client-supplied relative path. The path is validated by the caller.
-async fn read_content(socket: &Path, repo: &str, relative: &str) -> Result<ReadResult, String> {
-    let path = absolute_member_path(socket, repo, relative).await?;
-    read_engine(
-        socket,
-        json!({"read": "content", "id": 1, "path": path}),
-        "content",
-    )
-    .await
 }
 
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -4623,6 +4574,20 @@ mod tests {
         )
     }
 
+    /// A server whose engine is a script, so a test can both see the exact
+    /// request the adapter built and choose the frame that answers it.
+    fn scripted_server(
+        answer: impl Fn(&Value) -> Result<Value, WireError> + Send + Sync + 'static,
+    ) -> Server {
+        Server::with_transport(
+            Arc::new(MemoryTransport::new(answer)),
+            policy::Policy::read_only(),
+            "test".to_owned(),
+            ToolProfile::Full,
+            PayloadMode::Both,
+        )
+    }
+
     /// The capability table is the single place a tool is classified. It must cover the
     /// router exactly — one row per advertised tool, no row for a tool that does not
     /// exist — and it must agree with the grant lists that decide advertising.
@@ -4710,7 +4675,7 @@ mod tests {
                 let _ = socket.write_all(&body).await;
             }
         });
-        let result = read_engine(&path, request, verb).await;
+        let result = read_engine(&UnixTransport::new(path), request, verb).await;
         task.await.unwrap();
         result
     }
@@ -5091,7 +5056,9 @@ mod tests {
         let path = temp.path().join("missing.sock");
         let request = json!({"read":"type", "id":1, "name":"a".repeat(MAX_FRAME_BYTES)});
         assert_eq!(
-            read_engine(&path, request, "type").await.unwrap_err(),
+            read_engine(&UnixTransport::new(path), request, "type")
+                .await
+                .unwrap_err(),
             "request frame too large"
         );
     }
@@ -5105,7 +5072,9 @@ mod tests {
         assert!(name.len() < MAX_FRAME_BYTES);
         let request = json!({"read":"type", "id":1, "name":name});
         assert_eq!(
-            read_engine(&path, request, "type").await.unwrap_err(),
+            read_engine(&UnixTransport::new(path), request, "type")
+                .await
+                .unwrap_err(),
             "request frame too large"
         );
         assert!(
@@ -5200,5 +5169,75 @@ mod tests {
                 payload: json!({"overview":{}})
             }
         );
+    }
+
+    #[tokio::test]
+    async fn a_memory_transport_answers_one_read_and_sees_the_request_the_adapter_sent() {
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let recorder = Arc::clone(&seen);
+        let server = scripted_server(move |request: &Value| {
+            recorder.lock().unwrap().push(request.clone());
+            Ok(json!({
+                "type": "response",
+                "schema_version": SCHEMA_VERSION,
+                "id": request.get("id").cloned().unwrap_or(Value::Null),
+                "ready": true,
+                "version": 7,
+                "result": {
+                    "overview": {"members": [], "type_counts": {}, "diagnostic_counts": {"total": 0}}
+                },
+            }))
+        });
+        let result = server
+            .au_overview(Parameters(EmptyArguments {}), request_context())
+            .await;
+        let result = serde_json::to_value(result).unwrap();
+        assert_ne!(result["isError"], true, "{result}");
+        assert_eq!(
+            result["structuredContent"]["overview"]["members"],
+            json!([])
+        );
+        assert_eq!(
+            result["_meta"]["io.arsumbris/engineVersion"], "7",
+            "the engine version rides the answer metadata"
+        );
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 1, "one read is one exchange: {seen:?}");
+        assert_eq!(seen[0]["read"], "overview", "unexpected verb");
+        assert_eq!(seen[0]["id"], 1, "unexpected request id");
+    }
+
+    #[tokio::test]
+    async fn a_broken_frame_is_a_tool_error_and_is_not_retried() {
+        for (frame, expected) in [
+            (
+                json!({"type": "response", "schema_version": SCHEMA_VERSION - 1, "id": 1}),
+                "schema_version",
+            ),
+            (
+                json!({"type": "error", "schema_version": SCHEMA_VERSION, "id": 1, "error": "bad request"}),
+                "engine error: bad request",
+            ),
+        ] {
+            let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let counter = Arc::clone(&calls);
+            let answer = frame.clone();
+            let server = scripted_server(move |_request: &Value| {
+                counter.fetch_add(1, Ordering::AcqRel);
+                Ok(answer.clone())
+            });
+            let result = server
+                .au_overview(Parameters(EmptyArguments {}), request_context())
+                .await;
+            let result = serde_json::to_value(result).unwrap();
+            assert_eq!(result["isError"], true, "{frame}: {result}");
+            let text = result["content"][0]["text"].as_str().unwrap();
+            assert!(text.contains(expected), "{frame}: {text}");
+            assert_eq!(
+                calls.load(Ordering::Acquire),
+                1,
+                "{frame}: a failed exchange must not be retried"
+            );
+        }
     }
 }

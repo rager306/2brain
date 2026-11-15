@@ -1,207 +1,78 @@
-//! The engine wire: framed JSON over a unix socket.
+//! The engine wire: what one answering frame means for a read or a mutation.
 //!
-//! One request frame in, one response frame out, except a subscription, which
-//! answers an `ack` and then events until the caller stops listening. Nothing
-//! here knows a tool name or a policy; the server layer decides what to ask and
-//! what a refusal means.
+//! The frames themselves belong to `transport.rs`; nothing here opens a socket.
+//! A read checks that the verb's payload has the shape its tool promises, a
+//! mutation checks that the engine named what it wrote, a member-relative path
+//! is resolved against the member table, and a failure is split by what it
+//! proves about a mutation.
 
 use std::path::Path;
 use std::time::Duration;
 
 use serde_json::{Value, json};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::UnixStream;
 
-use crate::SCHEMA_VERSION;
-
-pub(crate) const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
-
-#[derive(Debug, PartialEq)]
-pub(crate) struct ReadResult {
-    pub(crate) version: u64,
-    pub(crate) payload: Value,
-}
-
-/// A framed engine exchange that failed, split by what it proves about a
-/// mutation: an engine rejection wrote nothing, while a transport failure may
-/// have landed.
-pub(crate) enum WireError {
-    /// The engine answered with a rejection: nothing was written.
-    Rejected(String),
-    /// No usable answer: the operation may or may not have happened.
-    Broken(String),
-}
-
-pub(crate) enum MutationFailure {
-    /// The engine rejected the mutation: nothing was written.
-    Rejected(String),
-    /// No usable answer: the outcome is unknown and a retry could double-apply.
-    Unknown(String),
-}
-
-impl WireError {
-    pub(crate) fn message(self) -> String {
-        match self {
-            Self::Rejected(message) | Self::Broken(message) => message,
-        }
-    }
-}
-
-/// Read one engine frame: a big-endian length, then that many JSON bytes.
-pub(crate) async fn read_frame(stream: &mut UnixStream) -> Result<Value, WireError> {
-    let len = stream
-        .read_u32()
-        .await
-        .map_err(|e| WireError::Broken(format!("reading response length: {e}")))?
-        as usize;
-    if len > MAX_FRAME_BYTES {
-        return Err(WireError::Broken("response frame too large".into()));
-    }
-    let mut data = vec![0; len];
-    stream
-        .read_exact(&mut data)
-        .await
-        .map_err(|e| WireError::Broken(format!("reading response: {e}")))?;
-    serde_json::from_slice(&data)
-        .map_err(|e| WireError::Broken(format!("invalid response JSON: {e}")))
-}
-
-/// Encode one request frame, refusing an oversized one BEFORE any connection is
-/// opened: a request that cannot be sent must not cost the peer a socket.
-pub(crate) fn encode_frame(request: &Value) -> Result<Vec<u8>, WireError> {
-    let data = serde_json::to_vec(request)
-        .map_err(|e| WireError::Broken(format!("encoding request: {e}")))?;
-    if data.len() > MAX_FRAME_BYTES {
-        return Err(WireError::Broken("request frame too large".into()));
-    }
-    Ok(data)
-}
-
-/// Write an encoded frame: a big-endian length, then the JSON bytes.
-pub(crate) async fn write_encoded(stream: &mut UnixStream, data: &[u8]) -> Result<(), WireError> {
-    let frame_len = u32::try_from(data.len())
-        .map_err(|_| WireError::Broken("request frame too large".into()))?;
-    stream
-        .write_u32(frame_len)
-        .await
-        .map_err(|e| WireError::Broken(format!("writing request length: {e}")))?;
-    stream
-        .write_all(data)
-        .await
-        .map_err(|e| WireError::Broken(format!("writing request: {e}")))?;
-    Ok(())
-}
-
-/// Encode and write one request frame.
-pub(crate) async fn write_frame(stream: &mut UnixStream, request: &Value) -> Result<(), WireError> {
-    let data = encode_frame(request)?;
-    write_encoded(stream, &data).await
-}
+use crate::transport::{EngineTransport, MutationFailure, ReadResult, WireError};
 
 /// Wait for the next file change the engine reports, or for the deadline.
 ///
-/// A watch is a SUBSCRIPTION, not a read: this opens its own connection, skips
-/// the `ack`, and ends at the first `change_event`. The engine's `changes`
-/// channel delivers net file deltas per rebuild, so a caller learns what moved
-/// without polling `au_files` and diffing by hand. Never waits past `timeout`.
-pub(crate) async fn watch_engine(socket: &Path, timeout: Duration) -> Result<Value, String> {
-    let mut stream = UnixStream::connect(socket)
-        .await
-        .map_err(|e| format!("connecting to engine: {e}"))?;
-    write_frame(&mut stream, &json!({"subscribe": "changes", "id": 1}))
-        .await
-        .map_err(|e| e.message())?;
-    let deadline = tokio::time::Instant::now() + timeout;
-    loop {
-        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-        if remaining.is_zero() {
-            return Ok(
-                json!({"added": [], "removed": [], "modified": [], "version": serde_json::Value::Null, "timed_out": true}),
-            );
+/// A watch is a SUBSCRIPTION, not a read: the transport opens its own
+/// connection, skips the `ack`, and ends at the first `change_event`. The
+/// engine's `changes` channel delivers net file deltas per rebuild, so a caller
+/// learns what moved without polling `au_files` and diffing by hand. Never waits
+/// past `timeout`.
+pub(crate) async fn watch_engine(
+    transport: &dyn EngineTransport,
+    timeout: Duration,
+) -> Result<Value, String> {
+    let frame = match tokio::time::timeout(
+        timeout,
+        transport.watch(json!({"subscribe": "changes", "id": 1})),
+    )
+    .await
+    {
+        Err(_) => return Ok(watch_timeout()),
+        Ok(Err(error)) => return Err(error.message()),
+        Ok(Ok(frame)) => frame,
+    };
+    match frame.get("type").and_then(Value::as_str) {
+        Some("change_event") => {
+            let hint = &frame["scope_hint"];
+            Ok(json!({
+                "added": hint.get("added").cloned().unwrap_or_else(|| json!([])),
+                "removed": hint.get("removed").cloned().unwrap_or_else(|| json!([])),
+                "modified": hint.get("modified").cloned().unwrap_or_else(|| json!([])),
+                "version": frame.get("at_version").cloned().unwrap_or(Value::Null),
+                "timed_out": false,
+            }))
         }
-        let frame = match tokio::time::timeout(remaining, read_frame(&mut stream)).await {
-            Err(_) => {
-                return Ok(json!({"added": [], "removed": [], "modified": [],
-                    "version": serde_json::Value::Null, "timed_out": true}));
-            }
-            Ok(Err(error)) => return Err(error.message()),
-            Ok(Ok(frame)) => frame,
-        };
-        match frame.get("type").and_then(Value::as_str) {
-            Some("ack") => continue,
-            Some("change_event") => {
-                let hint = &frame["scope_hint"];
-                return Ok(json!({
-                    "added": hint.get("added").cloned().unwrap_or_else(|| json!([])),
-                    "removed": hint.get("removed").cloned().unwrap_or_else(|| json!([])),
-                    "modified": hint.get("modified").cloned().unwrap_or_else(|| json!([])),
-                    "version": frame.get("at_version").cloned().unwrap_or(Value::Null),
-                    "timed_out": false,
-                }));
-            }
-            Some("error") => {
-                return Err(frame
-                    .get("error")
-                    .and_then(Value::as_str)
-                    .unwrap_or("engine refused the subscription")
-                    .to_owned());
-            }
-            _ => continue,
-        }
+        Some("error") => Err(frame
+            .get("error")
+            .and_then(Value::as_str)
+            .unwrap_or("engine refused the subscription")
+            .to_owned()),
+        _ => Err("unexpected engine subscription frame".to_owned()),
     }
 }
 
-pub(crate) async fn exchange(socket: &Path, request: &Value) -> Result<Value, WireError> {
-    let data = encode_frame(request)?;
-    let mut stream = UnixStream::connect(socket)
-        .await
-        .map_err(|e| WireError::Broken(format!("connecting to engine: {e}")))?;
-    write_encoded(&mut stream, &data).await?;
-    let response = read_frame(&mut stream).await?;
-    if response.get("schema_version").and_then(Value::as_u64) != Some(SCHEMA_VERSION) {
-        return Err(WireError::Broken(
-            "unsupported or missing engine schema_version (expected 29)".into(),
-        ));
-    }
-    if response.get("id") != request.get("id") {
-        return Err(WireError::Broken("response id mismatch".into()));
-    }
-    match response.get("type").and_then(Value::as_str) {
-        Some("error") => {
-            // The engine may omit `for`; the id check above already tied this
-            // frame to our request, so any error frame is a rejection: the
-            // engine refused before writing and nothing landed.
-            let message = response
-                .get("error")
-                .and_then(Value::as_str)
-                .ok_or_else(|| WireError::Broken("invalid engine error frame".into()))?;
-            return Err(WireError::Rejected(format!("engine error: {message}")));
-        }
-        Some("response") => {}
-        _ => return Err(WireError::Broken("unexpected engine frame type".into())),
-    }
-    match response.get("ready").and_then(Value::as_bool) {
-        Some(false) => return Err(WireError::Rejected("engine not ready".into())),
-        Some(true) => {}
-        None => return Err(WireError::Broken("invalid engine readiness".into())),
-    }
-    if response.get("version").and_then(Value::as_u64).is_none() {
-        return Err(WireError::Broken(
-            "missing or invalid engine version".into(),
-        ));
-    }
-    if response.get("result").and_then(Value::as_object).is_none() {
-        return Err(WireError::Broken("invalid result envelope".into()));
-    }
-    Ok(response)
+/// A timeout is an ordinary `au_watch` answer, not an error.
+fn watch_timeout() -> Value {
+    json!({
+        "added": [],
+        "removed": [],
+        "modified": [],
+        "version": Value::Null,
+        "timed_out": true,
+    })
 }
 
 pub(crate) async fn read_engine(
-    socket: &Path,
+    transport: &dyn EngineTransport,
     request: Value,
     verb: &str,
 ) -> Result<ReadResult, String> {
-    let response = exchange(socket, &request)
+    let base = request.get("base").cloned();
+    let response = transport
+        .exchange(request)
         .await
         .map_err(WireError::message)?;
     let version = response["version"]
@@ -216,7 +87,7 @@ pub(crate) async fn read_engine(
         "top_level_dirs" | "hubs" | "diagnostics" | "members" | "imports" | "files" => {
             payload.is_array()
         }
-        "subtypes" => payload.is_array() && result.get("base") == request.get("base"),
+        "subtypes" => payload.is_array() && result.get("base") == base.as_ref(),
         "type_tree" => {
             payload.is_object()
                 && payload.get("roots").is_some_and(Value::is_array)
@@ -251,20 +122,23 @@ pub(crate) async fn read_engine(
 }
 
 pub(crate) async fn read_engine_with_timeout(
-    socket: &Path,
+    transport: &dyn EngineTransport,
     request: Value,
     verb: &str,
     timeout: Duration,
 ) -> Result<ReadResult, String> {
-    tokio::time::timeout(timeout, read_engine(socket, request, verb))
+    tokio::time::timeout(timeout, read_engine(transport, request, verb))
         .await
         .map_err(|_| format!("engine read '{verb}' timed out after {timeout:?} (connect, write, or response); no retry was attempted"))?
 }
 
 /// Send one mutation. A rejection is definitive; anything else means the
 /// mutation may have landed, so a caller must never retry it blindly.
-pub(crate) async fn mutate_engine(socket: &Path, request: Value) -> Result<ReadResult, WireError> {
-    let response = exchange(socket, &request).await?;
+pub(crate) async fn mutate_engine(
+    transport: &dyn EngineTransport,
+    request: Value,
+) -> Result<ReadResult, WireError> {
+    let response = transport.exchange(request).await?;
     let version = response["version"]
         .as_u64()
         .ok_or_else(|| WireError::Broken("missing or invalid engine version".into()))?;
@@ -284,11 +158,11 @@ pub(crate) async fn mutate_engine(socket: &Path, request: Value) -> Result<ReadR
 }
 
 pub(crate) async fn read_mutation_with_timeout(
-    socket: &Path,
+    transport: &dyn EngineTransport,
     request: Value,
     timeout: Duration,
 ) -> Result<ReadResult, MutationFailure> {
-    match tokio::time::timeout(timeout, mutate_engine(socket, request)).await {
+    match tokio::time::timeout(timeout, mutate_engine(transport, request)).await {
         Err(_) => Err(MutationFailure::Unknown(format!(
             "engine mutation timed out after {timeout:?}"
         ))),
@@ -296,4 +170,111 @@ pub(crate) async fn read_mutation_with_timeout(
         Ok(Err(WireError::Broken(message))) => Err(MutationFailure::Unknown(message)),
         Ok(Ok(result)) => Ok(result),
     }
+}
+
+/// Resolve a member-relative path to an absolute one, refusing members the
+/// engine does not author.
+pub(crate) async fn resolve_editable(
+    transport: &dyn EngineTransport,
+    repo: &str,
+    relative: &str,
+) -> Result<String, String> {
+    let members = read_engine(
+        transport,
+        json!({"read": "members", "id": 1, "repo": repo}),
+        "members",
+    )
+    .await?;
+    let member = members
+        .payload
+        .get("members")
+        .and_then(Value::as_array)
+        .and_then(|members| members.iter().find(|m| m.get("repo") == Some(&json!(repo))))
+        .ok_or_else(|| format!("unknown workspace member: {repo}"))?;
+    if member.get("editable").and_then(Value::as_bool) != Some(true) {
+        return Err(format!(
+            "workspace member {repo} is not editable; a consumed member cannot be written"
+        ));
+    }
+    let root = member
+        .get("root")
+        .and_then(Value::as_str)
+        .filter(|root| !root.is_empty())
+        .ok_or_else(|| format!("workspace member {repo} has no local root"))?;
+    Path::new(root)
+        .join(relative)
+        .to_str()
+        .map(str::to_owned)
+        .ok_or_else(|| "resolved path is not valid UTF-8".to_owned())
+}
+
+/// Join a member's declared root with a client-supplied relative path.
+///
+/// The path is validated by the caller; this only resolves the member and joins.
+pub(crate) async fn absolute_member_path(
+    transport: &dyn EngineTransport,
+    repo: &str,
+    relative: &str,
+) -> Result<String, String> {
+    let members = read_engine(
+        transport,
+        json!({"read": "members", "id": 1, "repo": repo}),
+        "members",
+    )
+    .await?;
+    let member = members
+        .payload
+        .get("members")
+        .and_then(Value::as_array)
+        .and_then(|members| members.iter().find(|m| m.get("repo") == Some(&json!(repo))))
+        .ok_or_else(|| format!("unknown workspace member: {repo}"))?;
+    let root = member
+        .get("root")
+        .and_then(Value::as_str)
+        .filter(|root| !root.is_empty())
+        .ok_or_else(|| format!("workspace member {repo} has no local root"))?;
+    Path::new(root)
+        .join(relative)
+        .to_str()
+        .map(str::to_owned)
+        .ok_or_else(|| "resolved path is not valid UTF-8".to_owned())
+}
+
+/// A member's declared root, without joining a relative path.
+pub(crate) async fn member_root(
+    transport: &dyn EngineTransport,
+    repo: &str,
+) -> Result<String, String> {
+    let members = read_engine(
+        transport,
+        json!({"read": "members", "id": 1, "repo": repo}),
+        "members",
+    )
+    .await?;
+    members
+        .payload
+        .get("members")
+        .and_then(Value::as_array)
+        .and_then(|members| members.iter().find(|m| m.get("repo") == Some(&json!(repo))))
+        .and_then(|member| member.get("root"))
+        .and_then(Value::as_str)
+        .filter(|root| !root.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| format!("workspace member {repo} has no local root"))
+}
+
+/// Read one member's file text by joining its declared root with a
+/// client-supplied relative path. The path is validated by the caller.
+pub(crate) async fn read_content(
+    transport: &dyn EngineTransport,
+    repo: &str,
+    relative: &str,
+) -> Result<ReadResult, String> {
+    let path = absolute_member_path(transport, repo, relative).await?;
+    read_engine(
+        transport,
+        json!({"read": "content", "id": 1, "path": path}),
+        "content",
+    )
+    .await
 }

@@ -5,9 +5,9 @@
 //! god module. These are fitness functions in the sense of `docs/architecture-plan.md`
 //! P0.2 — they exist so a refactor has a floor, not to describe the ideal.
 //!
-//! Not modelled here: `wire.rs` reads `crate::SCHEMA_VERSION`, a symbol dependency that
-//! the transport port (P1.1) removes. It is not a module edge, so the rules below let it
-//! through; P1.1's own acceptance covers it.
+//! `wire.rs` no longer reads `crate::SCHEMA_VERSION` (the transport port, P1.1, moved it
+//! into `transport.rs`), so every module edge that exists is declared below. The test does
+//! not detect a cycle itself; it fails when an edge nobody declared appears.
 
 use std::{collections::BTreeSet, fs, path::Path, time::Duration};
 
@@ -23,19 +23,21 @@ const LEAVES: [&str; 4] = ["bounded_stdio", "capability", "policy", "schemas"];
 
 /// Every module dependency that is allowed today. Adding one is a decision, so it needs a
 /// line here and a reason in the message.
-const ALLOWED: [(&str, &str); 7] = [
+const ALLOWED: [(&str, &str); 9] = [
     ("lib", "bounded_stdio"),
     ("lib", "capability"),
     ("lib", "ledger"),
     ("lib", "policy"),
     ("lib", "resources"),
     ("lib", "schemas"),
+    ("lib", "transport"),
     ("lib", "wire"),
+    ("wire", "transport"),
 ];
 
 /// Production lines of `src/lib.rs`, excluding the inline test module. A ratchet: lower it
 /// when a port moves out, never raise it to make room.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4612;
+const LIB_RS_PRODUCTION_BUDGET: usize = 4561;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
@@ -54,14 +56,26 @@ fn modules() -> Vec<String> {
     names
 }
 
-/// Module edges, read from the source rather than from the compiler. Any of `policy::`,
-/// `crate::policy::`, `super::policy::` counts: all three are the same dependency.
+/// Module edges, read from the source rather than from the compiler.
+///
+/// Inside a module a dependency must be rooted at `crate::`, `self::`, or `super::`,
+/// because a bare segment can belong to a foreign path: `rmcp::transport::` reads
+/// exactly like a sibling module named `transport`. At the crate root a bare `x::`
+/// is how the declared modules are named, so it counts there. The three rooted
+/// spellings and the root's bare one all name the same edge.
 fn edges(known: &[String]) -> BTreeSet<(String, String)> {
     let mut found = BTreeSet::new();
     for from in known {
         let text = fs::read_to_string(src().join(format!("{from}.rs"))).unwrap();
         for to in known {
-            if to != from && text.contains(&format!("{to}::")) {
+            if to == from {
+                continue;
+            }
+            let rooted = ["crate", "self", "super"]
+                .iter()
+                .any(|root| text.contains(&format!("{root}::{to}::")));
+            let local = from == "lib" && text.contains(&format!("{to}::"));
+            if rooted || local {
                 found.insert((from.clone(), to.clone()));
             }
         }
