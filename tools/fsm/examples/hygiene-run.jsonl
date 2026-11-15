@@ -1,0 +1,7 @@
+{"run": "hygiene-20261116", "state": "CONSOLIDATE", "event": "enter", "at": "2026-11-16T03:00:00Z"}
+{"run": "hygiene-20261116", "state": "CONSOLIDATE", "event": "guard", "guard": "candidates_found", "source": "engine", "call": "au_graph_health", "ok": true}
+{"run": "hygiene-20261116", "state": "CONSOLIDATE", "event": "guard", "guard": "stale_batch_judged", "source": "judge", "question": "stale_description", "probability": 0.17, "threshold": 0.2, "model": "subq-snap-1.2", "batch_id": "b1", "ok": true, "comparison": "lt"}
+{"run": "hygiene-20261116", "state": "CONSOLIDATE", "event": "exit", "to": "PROPOSE", "at": "2026-11-16T03:00:02Z"}
+{"run": "hygiene-20261116", "state": "PROPOSE", "event": "enter", "at": "2026-11-16T03:00:02Z"}
+{"run": "hygiene-20261116", "state": "PROPOSE", "event": "guard", "guard": "note_validated", "source": "tool", "call": "au_validate_value", "ok": true}
+{"run": "hygiene-20261116", "state": "PROPOSE", "event": "exit", "to": "VALIDATE", "at": "2026-11-16T03:00:03Z"}
