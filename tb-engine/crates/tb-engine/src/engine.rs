@@ -520,7 +520,7 @@ struct Inner {
     /// `User` resolves the device root (`$HOME/.arsumbris`, then
     /// `tb-engine/config/`); a test injects a tempdir so the
     /// `register` write and every registry read stay hermetic, off the
-    /// developer's real `~/.arsumbris/tb-engine/config`. The build, the resolve verb, and
+    /// developer's real `~/.arsumbris/au-engine/config`. The build, the resolve verb, and
     /// the `register` mutation read the same value, so they never disagree.
     config: crate::repo::ConfigSource,
     /// The on-demand git-reflog watchers backing `recent_commits` subscriptions,
@@ -1369,7 +1369,7 @@ impl Engine {
     /// [`ConfigSource::User`](crate::repo::ConfigSource::User), a test passes
     /// `Empty` (hermetic) or `Dir` (an injected tempdir). It was formerly an
     /// `Option<PathBuf>` defaulting to `None`, which meant the developer's real
-    /// `~/.arsumbris/tb-engine/config` — so every test that never called the old
+    /// `~/.arsumbris/au-engine/config` — so every test that never called the old
     /// `set_config_dir` read the machine's own registry, and a fixture naming a
     /// dep that happened to be registered there would resolve against a real
     /// repo on disk. Making the caller choose removes the silent default.

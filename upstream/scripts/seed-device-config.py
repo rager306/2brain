@@ -7,7 +7,7 @@ files cannot be produced by the engine. This script writes them by plain IO.
 
 It writes (idempotent merges, per-user, under ~/.arsumbris/, never committed):
 
-  ~/.arsumbris/tb-engine/config/repos.yaml
+  ~/.arsumbris/au-engine/config/repos.yaml
     the located-repo registry. every real repo under the install parent, so a
     materialized workspace's `discover:` resolves AND the create flow can list
     "dependencies you can also add". shape: `repos: - {name, path}`.
@@ -174,7 +174,7 @@ def parse_template_repos(path):
 
 def render_engine_repos(merged):
     lines = [
-        "# ~/.arsumbris/tb-engine/config/repos.yaml",
+        "# ~/.arsumbris/au-engine/config/repos.yaml",
         "# Device-global located-repo registry. Seeded by INSTALL.md; extended live by the",
         "# create flow (registerLocations) and engine.register. Per-user, never committed.",
         "repos:",

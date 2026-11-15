@@ -1,4 +1,4 @@
-The per-user `~/.arsumbris/tb-engine/config/repos.yaml` file,
+The per-user `~/.arsumbris/au-engine/config/repos.yaml` file,
 the device-global registry mapping every known repo name to its remote and local path.
 
 See [[cross-repo file set]] for the whole file set.
@@ -7,7 +7,7 @@ See [[cross repo typed graph]] for the workspace of repos it serves.
 # Properties
 
 ## Per-user, device-global
-One file per user, `~/.arsumbris/tb-engine/config/repos.yaml`.
+One file per user, `~/.arsumbris/au-engine/config/repos.yaml`.
 - shared across every workspace on the machine.
 - never committed as identity, this machine's view of where repos sit.
 
@@ -67,7 +67,7 @@ Two different registries, do not conflate.
 
 # Structure
 ```yaml
-# ~/.arsumbris/tb-engine/config/repos.yaml
+# ~/.arsumbris/au-engine/config/repos.yaml
 repos:
   - name: library
     remote: git@github.com:org/library.git

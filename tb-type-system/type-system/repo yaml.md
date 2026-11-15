@@ -67,7 +67,7 @@ The file carries identity, never a machine path.
 - `name` and `remote` travel with the repo, the same on every machine.
 - where each dep sits on THIS machine is resolved by an order.
   - a co-present sibling, a repo under the entry or a declared member, discovered by its `repo.yaml` marker and matched by its DECLARED name, so folder-name drift never hides it.
-  - registry-located, the per-user `~/.arsumbris/tb-engine/config/repos.yaml` gives it a local path.
+  - registry-located, the per-user `~/.arsumbris/au-engine/config/repos.yaml` gives it a local path.
   - cache-resolved, the package manager fetched it into the device cache, see [[package cache]].
 - reachability is declaration-driven, a repo nested inside an UNDECLARED repo is unreachable, the enclosing walk stops there, declare it as a `dep` or register its path to reach it.
 - present as none is unmounted.

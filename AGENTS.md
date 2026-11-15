@@ -134,7 +134,7 @@ its current limitations and plan. Do not assume bridge, policy, or client parity
 2. Never point tests at the live vault. Use a fixture copy:
    `git -C /root/vault worktree add /tmp/vault-fixture` or `cp -r`.
 3. Never kill or restart the engine daemon / bridge processes while Hermes
-   sessions are live. Socket: `~/.arsumbris/tb-engine/run/*.sock`.
+   sessions are live. Socket: `~/.arsumbris/au-engine/run/*.sock`.
 4. Engine swaps to the live daemon require the golden wire contract to pass
    (below) — no exceptions. A swap is a read comparison on a frozen copy of the
    vault working tree first, then the install, then the same reads against the

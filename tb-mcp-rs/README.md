@@ -47,7 +47,7 @@ to this crate, so the two halves cannot drift from their standalone binaries.
 ```sh
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
 ./target/release/2brain --help
-./target/release/2brain mcp ~/.arsumbris/tb-engine/run/<hash>.sock
+./target/release/2brain mcp ~/.arsumbris/au-engine/run/<hash>.sock
 ./target/release/2brain mcp --help         # the MCP server's own contract
 ./target/release/2brain mcp --version
 ./target/release/2brain mcp --info         # MCP surface, no engine needed

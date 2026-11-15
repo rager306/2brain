@@ -4,7 +4,7 @@
 //! def. These files sit OUTSIDE every knowledge base, so the diagnostics land on this
 //! read, not on the workspace `diagnostics` read, and their spans point at the
 //! real file. The per-user device root is the engine's INJECTED `config_dir`, a
-//! tempdir, so the test never touches the developer's real `~/.arsumbris/tb-engine/config`.
+//! tempdir, so the test never touches the developer's real `~/.arsumbris/au-engine/config`.
 //!
 //! See [[spec - engine-schema files - hardwired-schema files are first-class substrate nodes]]
 //! and [[spec - cross-repo resolution - in-repo identity and deps over a per-user repo registry]].

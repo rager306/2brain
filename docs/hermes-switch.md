@@ -30,7 +30,7 @@ The Rust adapter speaks to the engine's own socket, so it needs no Node daemon:
     type: stdio
     command: /root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs
     args:
-      - /root/.arsumbris/tb-engine/run/adcfe8680a485529.sock
+      - /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
 ```
 
 **Add it, do not replace `arsumbris`.** Both can be mounted in one session, which is

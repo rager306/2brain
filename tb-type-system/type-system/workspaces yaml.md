@@ -1,4 +1,4 @@
-The per-user `~/.arsumbris/tb-engine/config/workspaces.yaml` file,
+The per-user `~/.arsumbris/au-engine/config/workspaces.yaml` file,
 a user-authored index pointing at workspace-repo folders by name.
 
 See [[cross-repo file set]] for the whole file set.
@@ -7,7 +7,7 @@ See [[workspace manifest]] for the workspace composition each folder carries.
 # Properties
 
 ## Per-user, user-authored
-One file per user, `~/.arsumbris/tb-engine/config/workspaces.yaml`.
+One file per user, `~/.arsumbris/au-engine/config/workspaces.yaml`.
 - a human or a consumer writes it, the engine only reads it.
 - device-scoped, this machine's named selections, never committed as identity.
 
@@ -42,7 +42,7 @@ The read path is the injected config port, the same as [[repos yaml]].
 
 # Structure
 ```yaml
-# ~/.arsumbris/tb-engine/config/workspaces.yaml
+# ~/.arsumbris/au-engine/config/workspaces.yaml
 workspaces:
   - path: /Users/username/kb/my-workspace          # name defaults to the folder basename
   - name: scratch

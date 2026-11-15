@@ -340,7 +340,7 @@ fn a_git_ignored_file_moves_with_the_folder_outside_git() {
         "the tree is clean: the ignored file uncommitted, the saga's run state ignored"
     );
     assert!(
-        h.root.join(".arsumbris/tb-engine/run/.gitignore").is_file(),
+        h.root.join(".arsumbris/au-engine/run/.gitignore").is_file(),
         "the saga's run directory ignores itself"
     );
 }

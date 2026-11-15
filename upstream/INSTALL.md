@@ -145,7 +145,7 @@ If your parent directory is not `~/arsumbris`, pass it: `--root /path/to/parent`
 
 This writes, under `~/.arsumbris/` (per-user device state, never committed):
 
-- `~/.arsumbris/tb-engine/config/repos.yaml` — every located repo (`name` → `path`), so a new workspace's members resolve and the create flow can offer them as addable dependencies.
+- `~/.arsumbris/au-engine/config/repos.yaml` — every located repo (`name` → `path`), so a new workspace's members resolve and the create flow can offer them as addable dependencies.
 - `~/.arsumbris/au-host/config/workspace-template-repos.yaml` — the template-repos the launcher reads for its create gallery, seeded to point at the cloned `au-defaults`.
 - `~/.arsumbris/au-host/config/paths.yaml` — absolute paths to the tools au-host launches: the `au` engine binary, the `au-mcp` CLI entry, `node`, and your agent binary (`claude`). Seeding these makes a **Finder/Dock launch** work out of the box, where the app's PATH differs from your terminal's.
 

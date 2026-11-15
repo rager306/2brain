@@ -24,7 +24,7 @@ doing them as one find-and-replace breaks the live vault.
 
 1. **GitHub**: `gh repo rename 2brain` (keeps redirects), then `git remote set-url`.
 2. **Local directory**: `/root/arsumbris` → `/root/2brain`. References to update: the workspace registry
-   (`~/.arsumbris/tb-engine/config/workspaces.yaml`), `au-health.sh` (install path), `swap-engine.sh`,
+   (`~/.arsumbris/au-engine/config/workspaces.yaml`), `au-health.sh` (install path), `swap-engine.sh`,
    `install.sh` (its own location is derived), docs.
 3. **Directories `au-*` → `tb-*`**, plus `arsumbris/` → `upstream/`. The member `name:` in
    `.arsumbris/repo.yaml` is the workspace identity; the directory is a path. Renaming the directory is

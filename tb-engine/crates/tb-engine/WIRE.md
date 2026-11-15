@@ -13,7 +13,7 @@ Consumers normalize names to their own conventions.
 Unix domain socket, one endpoint per entry point.
 
 Socket path:
-- `~/.arsumbris/tb-engine/run/<hash>.sock`, outside the repo.
+- `~/.arsumbris/au-engine/run/<hash>.sock`, outside the repo.
 - derived by `au_engine::socket_path(entry)`.
 - `entry` is the absolute path the engine was pointed at: a folder-repo
   DIRECTORY (a repo carrying `.arsumbris/repo.yaml`, composed by its optional
@@ -23,13 +23,13 @@ Socket path:
   hex digits. A consumer derives the same path by canonicalizing (realpath) the
   entry it was given, then hashing its bytes:
   - `hash = 0xcbf29ce484222325`; for each byte `b`: `hash = (hash ^ b) * 0x100000001b3` (wrapping u64).
-  - path: `${HOME}/.arsumbris/tb-engine/run/${hash:016x}.sock`.
+  - path: `${HOME}/.arsumbris/au-engine/run/${hash:016x}.sock`.
 - the socket lives outside the repo so a deep repo path can no longer overrun
   the platform `sun_path` limit (the SUN_LEN failure).
 - both sides must canonicalize the entry first, so they hash an identical string.
 - the wire is UNAUTHENTICATED; the trust boundary is the owning user. The socket
   path is world-derivable (a non-secret hash of a non-secret entry path), so
-  protection is file-mode: the socket is `0o600` and its `~/.arsumbris/tb-engine/run`
+  protection is file-mode: the socket is `0o600` and its `~/.arsumbris/au-engine/run`
   directory `0o700`, both owner-only. A multi-user deployment would need real
   caller authentication, not just file mode.
 
@@ -966,7 +966,7 @@ The `shape_ast` value, a tagged union on `kind` mirroring the engine's parsed sl
 
 **device_config.**
 - args: none.
-- result: `{ device_config: { repos, workspaces } }` — the two per-user device-global engine-schema files, `~/.arsumbris/tb-engine/config/repos.yaml` and `~/.arsumbris/tb-engine/config/workspaces.yaml`.
+- result: `{ device_config: { repos, workspaces } }` — the two per-user device-global engine-schema files, `~/.arsumbris/au-engine/config/repos.yaml` and `~/.arsumbris/au-engine/config/workspaces.yaml`.
 - each entry is `{ path, exists, content, diagnostics }`, or null when its path cannot be resolved (no device root: `$HOME` unset).
   - `path`: the resolved absolute path, present even when the file is absent, so a consumer knows where to author.
   - `exists`: true when the file was read; false is a legitimate not-yet-authored state, with null `content` and no `diagnostics`.
@@ -1371,8 +1371,8 @@ Attribution rider: `write_file`, `edit_file`, and `delete_file` accept an option
 
 **register.**
 - args: `name` (the repo to register), `path` (its local absolute path on this machine), `remote` (optional git remote).
-- writes or updates one `{ name, remote, path }` entry in the per-user registry `~/.arsumbris/tb-engine/config/repos.yaml`, the locator for a scattered repo, then rebuilds so a newly-locatable member mounts. The consumer-driven bootstrap for a `peer-unmounted` dep: a folder picker supplies `path`, `register` records it.
-- a CONFIG-sort mutation over a DEVICE-GLOBAL file. Unlike `set_ignores`, the file sits OUTSIDE every repo, so there is NO git commit. The registry path is under the engine's device root (`$HOME/.arsumbris/tb-engine/config/repos.yaml`), injectable for tests.
+- writes or updates one `{ name, remote, path }` entry in the per-user registry `~/.arsumbris/au-engine/config/repos.yaml`, the locator for a scattered repo, then rebuilds so a newly-locatable member mounts. The consumer-driven bootstrap for a `peer-unmounted` dep: a folder picker supplies `path`, `register` records it.
+- a CONFIG-sort mutation over a DEVICE-GLOBAL file. Unlike `set_ignores`, the file sits OUTSIDE every repo, so there is NO git commit. The registry path is under the engine's device root (`$HOME/.arsumbris/au-engine/config/repos.yaml`), injectable for tests.
 - refuses (an `error` frame, nothing written) when: `name` is not a valid repo name; `path` or `remote` carries a newline (a line-oriented-registry breakout); the name's identity disagrees, `dependency-identity-conflict` (an existing entry with a different `remote`, or a `path` whose `repo.yaml` declares a name other than `name`); or the `path` has no readable / parseable `repo.yaml` (register-before-clone is not supported, the path must be an existing checkout that declares `name`). The identity check is the same one resolution runs, so a mis-registration is caught up front, never silently resolved later.
 - a bare `{ name, path }` re-register (no `remote`) PRESERVES the entry's recorded remote rather than clearing it.
 - a successful register answers a `registered` frame: `name`, `path` (echoed, absolute), and `version` (the post-rebuild held version). Additive, no `schema_version` bump.

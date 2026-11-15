@@ -1,7 +1,7 @@
 //! In-repo runtime output that git must never see.
 //!
 //! The engine writes ephemeral state inside a repo's working tree, under its own
-//! `<repo>/.arsumbris/tb-engine/` namespace: the saga's recovery markers and
+//! `<repo>/.arsumbris/au-engine/` namespace: the saga's recovery markers and
 //! parked pre-images in `run/`, the operation trace in `logs/trace/`. None of it
 //! is ever committed, see
 //! [[spec - 2brain layout - a reserved multi-tenant device root, owner-namespaced with a category sublayer]].
@@ -52,7 +52,7 @@ mod tests {
         let repo = tempfile::tempdir().unwrap();
         let p = repo.path();
         git(p, &["init", "-q", "-b", "main"]);
-        let run = p.join(".arsumbris/tb-engine/run");
+        let run = p.join(".arsumbris/au-engine/run");
         ensure_git_ignored_dir(&run).unwrap();
         std::fs::write(run.join("saga.intent"), "mutation-id=m\n").unwrap();
         std::fs::create_dir_all(run.join("preimage.m")).unwrap();

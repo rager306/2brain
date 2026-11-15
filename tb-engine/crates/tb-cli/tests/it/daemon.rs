@@ -18,7 +18,7 @@ use tb_engine::{Client, socket_file_name};
 
 /// A minimal repo, plus a fake `$HOME` the daemon derives its hashed socket
 /// under. Both live in tempdirs, so the test never touches the real
-/// `~/.arsumbris/tb-engine/run/` and never reads the developer's registry.
+/// `~/.arsumbris/au-engine/run/` and never reads the developer's registry.
 struct Fixture {
     repo: tempfile::TempDir,
     home: tempfile::TempDir,
@@ -237,7 +237,7 @@ fn open_resolves_a_named_workspace_and_serves_it() {
     // The per-user workspaces index names the folder `kb` (an explicit alias, its
     // basename is a random tempdir name). Written under the fake $HOME device root so
     // the run is hermetic.
-    let cfg = home.join(".arsumbris/tb-engine/config");
+    let cfg = home.join(".arsumbris/au-engine/config");
     fs::create_dir_all(&cfg).unwrap();
     fs::write(
         cfg.join("workspaces.yaml"),
@@ -432,7 +432,7 @@ fn open_an_unknown_name_is_a_usage_error_naming_the_known_ones() {
         .tempdir_in("/tmp")
         .unwrap();
     let home = fs::canonicalize(home.path()).unwrap();
-    let cfg = home.join(".arsumbris/tb-engine/config");
+    let cfg = home.join(".arsumbris/au-engine/config");
     fs::create_dir_all(&cfg).unwrap();
     fs::write(
         cfg.join("workspaces.yaml"),

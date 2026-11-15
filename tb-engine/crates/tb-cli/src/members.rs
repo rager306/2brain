@@ -4,7 +4,7 @@
 //! A launcher checks a workspace before it starts the engine. This runs the
 //! build's own composition over the entry (`tb_engine::members::resolve_members`),
 //! with the inputs a daemon over the same entry would use: the per-user
-//! `~/.arsumbris/tb-engine/config/repos.yaml` registry and the device package cache.
+//! `~/.arsumbris/au-engine/config/repos.yaml` registry and the device package cache.
 //! So the answer is what `au daemon start` would mount, never a re-derivation.
 //!
 //! Reads only: no write, no registry change, no fetch.

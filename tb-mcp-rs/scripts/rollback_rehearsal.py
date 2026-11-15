@@ -87,7 +87,7 @@ def main() -> int:
         stderr=subprocess.DEVNULL,
     )
     try:
-        run_dir = home / ".arsumbris/tb-engine/run"
+        run_dir = home / ".arsumbris/au-engine/run"
         deadline = time.monotonic() + TIMEOUT
         socket_path = None
         while time.monotonic() < deadline:

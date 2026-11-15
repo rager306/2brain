@@ -36,5 +36,5 @@ The engine-owned files and their assigned types.
 - `<repo>/.arsumbris/repo.lock`, `au.engine.repo-lock`.
 - `<repo>/.arsumbris/workspace.yaml`, the [[workspace manifest]], `au.engine.workspace`, `edit?: String[]` plus `discover?: String[]`.
 - `<repo>/.arsumbris/workspace.lock`, `au.engine.workspace-lock`, the pinned discover closure, parallel to `au.engine.repo-lock`.
-- `~/.arsumbris/tb-engine/config/repos.yaml`, [[repos yaml]], `au.engine.repos`.
-- `~/.arsumbris/tb-engine/config/workspaces.yaml`, [[workspaces yaml]], `au.engine.workspaces`.
+- `~/.arsumbris/au-engine/config/repos.yaml`, [[repos yaml]], `au.engine.repos`.
+- `~/.arsumbris/au-engine/config/workspaces.yaml`, [[workspaces yaml]], `au.engine.workspaces`.

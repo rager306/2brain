@@ -40,7 +40,7 @@ sha256 | `b7e48c82c7ffe891272a9c32822354e065333ca48e21c0ff5344c94f491d5991` |
 version | `au 0.0.5` (no commit marker — the checksum is the only identity) |
 built from | monorepo `015aeda` (fourth swap, `rollback_preview`) |
 daemon | `arsumbris-engine.service`, Main PID 3288310, started 2026-11-14 14:45:28 +07 |
-socket | `/root/.arsumbris/tb-engine/run/adcfe8680a485529.sock` |
+socket | `/root/.arsumbris/au-engine/run/adcfe8680a485529.sock` |
 status line | `daemon running for /root/vault (engine=up, ref=ready, ready=true, version=90)` |
 vault | HEAD `4bcc4f2d432d96f923a55b89cb2a28b1651a872a`, 5 dirty entries (3 modified, 2 untracked) |
 clients | `au-mcp-rs` on the same socket (pids 1194089 granted, 1194879 read-only) and the Python bridge |
@@ -84,7 +84,7 @@ cp -a /root/vault /tmp/swap5/vault     # HEAD and dirty set identical before/aft
 Three lessons from the copy that the runbook must keep:
 
 1. **A bare `HOME` makes the copy a one-member workspace.** Members resolve through
-   `~/.arsumbris/tb-engine/config/repos.yaml`; with an empty `HOME` the copy answers
+   `~/.arsumbris/au-engine/config/repos.yaml`; with an empty `HOME` the copy answers
    `members: 1` and one `peer-unmounted` warning for `mcp-bundle`. The rehearsal
    therefore copied the live registry with the `vault` entry re-pointed to the copy
    — **and only that entry**, because leaving it at `/root/vault` would have made
@@ -193,7 +193,7 @@ sha256sum /root/backups/au-20261116-candidate /root/backups/au-20261116-pre-sear
 ### 2. Live baseline — IN THE WINDOW
 
 ```sh
-SOCK=/root/.arsumbris/tb-engine/run/adcfe8680a485529.sock
+SOCK=/root/.arsumbris/au-engine/run/adcfe8680a485529.sock
 OUT=/root/backups/au-20261116-pre-live
 /root/2brain/tb-engine/scripts/engine_probe.py --socket "$SOCK" \
   --root /root/vault --out "$OUT" \
@@ -233,7 +233,7 @@ the PID changed.
 ```sh
 systemctl status arsumbris-engine --no-pager | head -6     # active, NEW Main PID
 HOME=/root /root/.arsumbris/bin/au daemon status /root/vault
-ls -l /root/.arsumbris/tb-engine/run/                      # adcfe8680a485529.sock back
+ls -l /root/.arsumbris/au-engine/run/                      # adcfe8680a485529.sock back
 ```
 
 The unit's `ExecStartPost` already polls `daemon status` 40 times at one second
@@ -246,7 +246,7 @@ The same captures against the live socket after the restart. `search` is added h
 and only here, because the old binary refuses it.
 
 ```sh
-SOCK=/root/.arsumbris/tb-engine/run/adcfe8680a485529.sock
+SOCK=/root/.arsumbris/au-engine/run/adcfe8680a485529.sock
 OUT=/root/backups/au-20261116-post-live
 install -d "$OUT"
 /root/2brain/tb-engine/scripts/engine_probe.py --socket "$SOCK" \

@@ -29,7 +29,7 @@ verbs only, a socket per request, no mutation verb ever sent). Re-capture:
 
 ```sh
 tb-engine/scripts/engine_probe.py \
-    --socket ~/.arsumbris/tb-engine/run/<hash>.sock \
+    --socket ~/.arsumbris/au-engine/run/<hash>.sock \
     --out tb-engine/tests-golden/engine
 ```
 

@@ -136,7 +136,7 @@ def main() -> int:
             stderr=subprocess.DEVNULL,
         )
         processes.append(engine)
-        engine_socket = wait_for(home / ".arsumbris/tb-engine/run", time.monotonic() + TIMEOUT)
+        engine_socket = wait_for(home / ".arsumbris/au-engine/run", time.monotonic() + TIMEOUT)
         if engine_socket is None:
             raise SystemExit("the disposable engine never became ready")
 

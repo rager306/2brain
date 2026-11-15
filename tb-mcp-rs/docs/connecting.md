@@ -24,7 +24,7 @@ socket.
 ## 2. Find the engine socket
 
 ```sh
-ls ~/.arsumbris/tb-engine/run/*.sock
+ls ~/.arsumbris/au-engine/run/*.sock
 ```
 
 There is one socket per served workspace, named by a hash of the workspace path.
@@ -36,7 +36,7 @@ Check it answers before wiring a client:
 ```sh
 python3 - <<'PY'
 import json, socket, struct
-path = "/root/.arsumbris/tb-engine/run/adcfe8680a485529.sock"
+path = "/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"
 with socket.socket(socket.AF_UNIX) as s:
     s.connect(path)
     body = json.dumps({"read": "overview", "id": 1}).encode()
@@ -73,7 +73,7 @@ still exits 0 when the engine is unreachable, so it is safe in a health script.
 "2brain": {
   "type": "stdio",
   "command": "/usr/local/bin/2brain",
-  "args": ["mcp", "/root/.arsumbris/tb-engine/run/adcfe8680a485529.sock"]
+  "args": ["mcp", "/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"]
 }
 ```
 
@@ -86,7 +86,7 @@ with `mcp.list_connections()` and `mcp.list_tools("2brain")`.
 ```sh
 claude mcp add --scope local 2brain -- \
   /usr/local/bin/2brain mcp \
-  /root/.arsumbris/tb-engine/run/adcfe8680a485529.sock
+  /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
 claude mcp list          # expect: 2brain ... ✔ Connected
 ```
 
@@ -95,7 +95,7 @@ claude mcp list          # expect: 2brain ... ✔ Connected
 ```sh
 codex mcp add 2brain -- \
   /usr/local/bin/2brain mcp \
-  /root/.arsumbris/tb-engine/run/adcfe8680a485529.sock
+  /root/.arsumbris/au-engine/run/adcfe8680a485529.sock
 codex mcp list           # expect: 2brain  ...  enabled
 ```
 
@@ -109,7 +109,7 @@ shape, not the handshake.
   "mcpServers": {
     "2brain": {
       "command": "/usr/local/bin/2brain",
-      "args": ["mcp", "/root/.arsumbris/tb-engine/run/adcfe8680a485529.sock"]
+      "args": ["mcp", "/root/.arsumbris/au-engine/run/adcfe8680a485529.sock"]
     }
   }
 }
@@ -132,7 +132,7 @@ allowlist narrow:
 ```
 
 ```json
-"args": ["mcp", "/root/.arsumbris/tb-engine/run/adcfe8680a485529.sock",
+"args": ["mcp", "/root/.arsumbris/au-engine/run/adcfe8680a485529.sock",
          "--policy", "/etc/au-mcp-policy.json",
          "--principal", "allspark"]
 ```

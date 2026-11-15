@@ -142,7 +142,7 @@ const MAX_FRAME: usize = 16 << 20;
 /// never interleave a partial frame on the socket.
 type FrameTx = mpsc::Sender<Vec<u8>>;
 
-/// The per-entry socket path, `~/.arsumbris/tb-engine/run/<hash>.sock`.
+/// The per-entry socket path, `~/.arsumbris/au-engine/run/<hash>.sock`.
 ///
 /// One endpoint per entry point, derivable by both the daemon and a consumer
 /// from the entry path alone, no configuration. `entry` is the absolute path the
@@ -174,7 +174,7 @@ pub fn socket_file_name(entry: &Path) -> String {
     format!("{:016x}.sock", hash.0)
 }
 
-/// The directory holding per-entry daemon sockets, `~/.arsumbris/tb-engine/run`.
+/// The directory holding per-entry daemon sockets, `~/.arsumbris/au-engine/run`.
 ///
 /// Read from RAW `$HOME`, not the canonicalized [`crate::device_root`], because
 /// this path is a wire contract mirrored byte-for-byte by the SDK, which reads
@@ -348,7 +348,7 @@ mod socket_path_tests {
     }
 
     /// The socket lives outside the knowledge base, under the device-global
-    /// `.arsumbris/tb-engine/run/`, so it never sits in a watched member tree.
+    /// `.arsumbris/au-engine/run/`, so it never sits in a watched member tree.
     #[test]
     fn socket_is_under_state_run() {
         let p = socket_path(Path::new("/repo/kb"));
@@ -358,7 +358,7 @@ mod socket_path_tests {
                     .join("run")
                     .join(socket_file_name(Path::new("/repo/kb")))
             ),
-            "under .arsumbris/tb-engine/run: {}",
+            "under .arsumbris/au-engine/run: {}",
             p.display()
         );
         assert!(p.to_str().unwrap().contains(".arsumbris"));
@@ -948,7 +948,7 @@ enum Mutation {
     /// [[spec - scope management surface - an ignores read and a set_ignores config mutation]].
     SetIgnores(SetIgnoresArgs),
     /// Register (write or update) one `{ name, remote, path }` entry in the
-    /// per-user registry (`~/.arsumbris/tb-engine/config/repos.yaml`) — a CONFIG-sort
+    /// per-user registry (`~/.arsumbris/au-engine/config/repos.yaml`) — a CONFIG-sort
     /// mutation over a DEVICE-GLOBAL file, so NO git commit (the file is outside
     /// every repo), unlike `set_ignores`. The consumer-driven bootstrap for an
     /// unmounted peer: a folder picker supplies the path, `register` records it,
@@ -4155,7 +4155,7 @@ fn require_git_reject(plan: &SagaPlan) -> Option<MutationReject> {
 /// `git` is the swappable mechanism; production passes `&ShellGit`. The port is
 /// injected so the saga's compensation logic is testable against a writer that
 /// fails a chosen member's commit. `marker_dir` is [`saga_marker_dir`] (the launch
-/// entry's `.arsumbris/tb-engine/run/`), a single per-daemon location, where the intent marker opens and
+/// entry's `.arsumbris/au-engine/run/`), a single per-daemon location, where the intent marker opens and
 /// closes the saga across all its members. `moves` records each member's renames
 /// as `Moved:` trailers for the pinned-reference forward trace.
 fn apply_saga_with_moves<T>(
@@ -4542,7 +4542,7 @@ fn committed_moves(
 const INTENT_MARKER_NAME: &str = "saga.intent";
 
 /// The engine's saga-recovery directory under the launch entry root,
-/// `<root>/.arsumbris/tb-engine/run/`. Holds the `saga.intent` marker and the
+/// `<root>/.arsumbris/au-engine/run/`. Holds the `saga.intent` marker and the
 /// `saga.failed.<id>` sentinels: ephemeral run-state, owner-namespaced under the
 /// engine, see
 /// [[spec - 2brain layout - a reserved multi-tenant device root, owner-namespaced with a category sublayer]].
@@ -4566,7 +4566,7 @@ fn saga_marker_dir(root: &Path) -> PathBuf {
 /// complete it.
 ///
 /// Engine-internal, under `marker_dir` ([`saga_marker_dir`], the launch entry's
-/// `.arsumbris/tb-engine/run/`). That root is the entry repo's
+/// `.arsumbris/au-engine/run/`). That root is the entry repo's
 /// directory, an ancestor of every co-present member but not of a scattered member
 /// that sits elsewhere. Either way it is a single
 /// per-daemon location, so one marker spans the whole cross-repo saga, never one

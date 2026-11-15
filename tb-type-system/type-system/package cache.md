@@ -7,7 +7,7 @@ See [[cross-repo file set]] for the whole file set.
 # Properties
 
 ## What it holds
-- device-global, `~/.arsumbris/tb-engine/cache/packages/<sha>/`, one immutable snapshot per resolved commit.
+- device-global, `~/.arsumbris/au-engine/cache/packages/<sha>/`, one immutable snapshot per resolved commit.
 - shared across every workspace on the machine, so one commit is fetched once and reused.
 - a monorepo's subpackages share one snapshot, the subpath is applied at mount.
 

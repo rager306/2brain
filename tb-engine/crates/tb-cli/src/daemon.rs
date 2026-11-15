@@ -5,7 +5,7 @@
 //! non-repo entry (a bare directory, a stray file) with the `NOT_A_REPO` exit
 //! code before it binds. One daemon serves one entry over a
 //! Unix socket at a short hashed path outside the repo,
-//! `~/.arsumbris/tb-engine/run/<hash-of-abs-entry-path>.sock` (see
+//! `~/.arsumbris/au-engine/run/<hash-of-abs-entry-path>.sock` (see
 //! [`tb_engine::socket_path`]), so a deep repo path can never overrun the
 //! socket-path limit and many workspaces in one folder each get their own
 //! endpoint. `start` runs in the foreground: it boots the engine, watches every
@@ -79,7 +79,7 @@ const NOT_A_REPO: u8 = 5;
 const FORCE_STOP_WINDOW: Duration = Duration::from_millis(1500);
 
 /// The pid file for an entry, `<hash>.pid` beside the socket in
-/// `~/.arsumbris/tb-engine/run/`.
+/// `~/.arsumbris/au-engine/run/`.
 ///
 /// It shares the socket's entry-derived hash name and lives outside the repo, so
 /// it exists for the same reasons the socket does (a deep repo path never
@@ -168,7 +168,7 @@ impl Drop for PidFile {
 }
 
 /// `au open <name>`: resolve a NAMED workspace through the per-user
-/// `~/.arsumbris/tb-engine/config/workspaces.yaml` index to its workspace-repo FOLDER, then
+/// `~/.arsumbris/au-engine/config/workspaces.yaml` index to its workspace-repo FOLDER, then
 /// enter it exactly as `daemon start <folder>`.
 ///
 /// The index only POINTS at folders (it never inlines a selection), so the
@@ -191,7 +191,7 @@ pub fn open(name: &str) -> ExitCode {
             if known.is_empty() {
                 eprintln!(
                     "au open: no workspace named '{name}' — the per-user workspaces index \
-                     (~/.arsumbris/tb-engine/config/workspaces.yaml) is empty or absent. Add a \
+                     (~/.arsumbris/au-engine/config/workspaces.yaml) is empty or absent. Add a \
                      '- path: <workspace-repo folder>' entry, or point 'au daemon start' at the \
                      folder directly."
                 );
@@ -260,7 +260,7 @@ pub fn start(entry: &Path) -> ExitCode {
         return ExitCode::from(ALREADY_SERVING);
     }
 
-    // The socket lives outside the repo now, under `~/.arsumbris/tb-engine/run/`, so
+    // The socket lives outside the repo now, under `~/.arsumbris/au-engine/run/`, so
     // ensure that directory exists before `serve` binds into it. Restrict it to
     // the owning user (`0o700`): the socket path is world-derivable (a non-secret
     // hash of a non-secret entry path) and the wire is unauthenticated, so the
@@ -721,7 +721,7 @@ struct TraceGuards {
 }
 
 /// Install the operation-tracing subscriber when `AU_TRACE` is set, writing a
-/// Perfetto trace and a timing log under `<entry>/.arsumbris/tb-engine/logs/trace/`,
+/// Perfetto trace and a timing log under `<entry>/.arsumbris/au-engine/logs/trace/`,
 /// each named by the run's start time. `None` when tracing is off, the default,
 /// where no subscriber is installed and the span macros cost nothing.
 ///

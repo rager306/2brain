@@ -203,7 +203,7 @@ fields:
     (
         "au.engine.repos",
         "\
-#: The per-user registry, `~/.arsumbris/tb-engine/config/repos.yaml`, name to remote+path.
+#: The per-user registry, `~/.arsumbris/au-engine/config/repos.yaml`, name to remote+path.
 fields:
   repos?: au.engine.registry-entry[]
 ",
@@ -211,7 +211,7 @@ fields:
     (
         "au.engine.workspaces",
         "\
-#: The per-user workspaces index, `~/.arsumbris/tb-engine/config/workspaces.yaml`.
+#: The per-user workspaces index, `~/.arsumbris/au-engine/config/workspaces.yaml`.
 fields:
   workspaces?: au.engine.workspace-entry[]
 ",

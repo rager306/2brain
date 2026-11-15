@@ -24,13 +24,13 @@ from pathlib import Path
 
 # The wire: each frame is a 4-byte big-endian length prefix, then that many
 # bytes of JSON. One endpoint per entry point, at a short hashed path outside the
-# repo, ~/.arsumbris/tb-engine/run/<hash>.sock (see socket_path).
+# repo, ~/.arsumbris/au-engine/run/<hash>.sock (see socket_path).
 LENGTH_PREFIX = struct.Struct(">I")
 
 
 def socket_path(entry: str) -> Path:
     # Match au_engine::socket_path: the socket lives outside the repo, at
-    # ~/.arsumbris/tb-engine/run/<hash>.sock, so a deep repo path never overruns the
+    # ~/.arsumbris/au-engine/run/<hash>.sock, so a deep repo path never overruns the
     # Unix sun_path limit. <hash> is the FNV-1a-64 of the absolute entry path's
     # bytes, in 16 hex digits. Resolve symlinks first (realpath) so this hashes
     # the same string the daemon does (on macOS /var -> /private/var).

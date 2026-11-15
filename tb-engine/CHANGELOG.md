@@ -172,9 +172,9 @@ changes that alter what existing calls return are listed in 2brain
   `rename` itself does. It used to return a product for a rename that would
   then refuse.
 - The engine's in-repo runtime output now ignores itself in git: the saga's
-  recovery state under `.arsumbris/tb-engine/run/` (the intent marker, the
+  recovery state under `.arsumbris/au-engine/run/` (the intent marker, the
   parked copies of git-ignored files, the failure sentinels) and the
-  `AU_TRACE` output under `.arsumbris/tb-engine/logs/trace/`.
+  `AU_TRACE` output under `.arsumbris/au-engine/logs/trace/`.
   - Each directory gets a `.gitignore` holding `*` when the engine creates it;
     an existing one is never overwritten.
   - Before, nothing ignored them, so a human's `git add -A` could commit them,

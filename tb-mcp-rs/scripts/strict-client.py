@@ -56,7 +56,7 @@ async def main() -> int:
     try:
         socket = None
         for _ in range(100):
-            found = glob.glob(home + "/.arsumbris/tb-engine/run/*.sock")
+            found = glob.glob(home + "/.arsumbris/au-engine/run/*.sock")
             if found:
                 socket = found[0]
                 break

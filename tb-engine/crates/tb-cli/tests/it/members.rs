@@ -38,7 +38,7 @@ fn json_reports_each_member_tier_from_the_user_registry_and_siblings() {
     repo(&top.join("sib"), "name: sib\n");
     let reg = top.join("elsewhere").join("reg-checkout");
     repo(&reg, "name: reg\n");
-    let config = home.join(".arsumbris/tb-engine/config");
+    let config = home.join(".arsumbris/au-engine/config");
     fs::create_dir_all(&config).unwrap();
     fs::write(
         config.join("repos.yaml"),

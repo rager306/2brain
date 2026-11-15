@@ -25,7 +25,7 @@ enum TopCommand {
         cmd: DaemonCommand,
     },
     /// Open a named workspace: resolve it through the per-user
-    /// `~/.arsumbris/tb-engine/config/workspaces.yaml` index to its workspace-repo folder,
+    /// `~/.arsumbris/au-engine/config/workspaces.yaml` index to its workspace-repo folder,
     /// then serve it in the foreground like `daemon start <folder>`.
     Open {
         /// The workspace name, an entry in `workspaces.yaml` (an explicit `name`,
@@ -54,7 +54,7 @@ enum TopCommand {
 }
 
 /// Per-workspace daemon lifecycle. The daemon serves the engine's reads and
-/// subscriptions over a Unix socket at a hashed path under `~/.arsumbris/tb-engine/run/`.
+/// subscriptions over a Unix socket at a hashed path under `~/.arsumbris/au-engine/run/`.
 #[cfg(unix)]
 #[derive(Subcommand)]
 enum DaemonCommand {

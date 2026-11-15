@@ -135,7 +135,7 @@ pub fn build(repo: &std::path::Path, fs: &impl FileSystem) -> Result<KnowledgeBa
     )
 }
 
-/// The device-global package cache root, `~/.arsumbris/tb-engine/cache/packages`.
+/// The device-global package cache root, `~/.arsumbris/au-engine/cache/packages`.
 ///
 /// `None` when `$HOME` is unknown (the daemon has already refused to start by
 /// then). The daemon passes this into [`build_reusing`] so a locked dependency

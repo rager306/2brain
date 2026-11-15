@@ -50,7 +50,7 @@ prepare_fixture() {
 
   socket=
   for _ in $(seq 1 200); do
-    socket=$(ls "$HOME"/.arsumbris/tb-engine/run/*.sock 2>/dev/null | head -1 || true)
+    socket=$(ls "$HOME"/.arsumbris/au-engine/run/*.sock 2>/dev/null | head -1 || true)
     # A socket file can exist before the daemon listens on it, so connect once:
     # `test -S` alone has produced "connection refused" races in these scripts.
     [[ -n $socket ]] && python3 -c '

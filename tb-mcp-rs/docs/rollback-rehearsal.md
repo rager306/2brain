@@ -16,7 +16,7 @@ AU_ENGINE_BIN=../tb-engine/target/debug/au python3 scripts/rollback_rehearsal.py
 2. **The write is an engine commit, not adapter state.** The fixture gains
    exactly one commit and `git status --porcelain` is empty afterwards.
 3. **The adapter leaves no files behind.** The file list, excluding `.git` and
-   the engine's own `.arsumbris/tb-engine` runtime directory, is unchanged.
+   the engine's own `.arsumbris/au-engine` runtime directory, is unchanged.
 4. **Nothing is lost when the adapter stops.** A fresh adapter process, with no
    inherited state, reads the written text.
 5. **Rolling back to read-only is a launch flag, not a migration.** The same

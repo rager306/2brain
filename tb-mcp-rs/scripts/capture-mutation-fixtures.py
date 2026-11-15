@@ -114,7 +114,7 @@ def start_daemon(engine: str, repo: Path, home: Path) -> subprocess.Popen:
 def wait_for_socket(home: Path, timeout: float = 120.0) -> str:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        for candidate in glob.glob(str(home / ".arsumbris/tb-engine/run/*.sock")):
+        for candidate in glob.glob(str(home / ".arsumbris/au-engine/run/*.sock")):
             # A socket file can exist before the daemon listens, so connect once.
             try:
                 with socket_module.socket(socket_module.AF_UNIX) as probe:

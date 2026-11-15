@@ -63,12 +63,12 @@ each client reported in this run.
 Full output of the run, including the exit status the harness appended:
 
 ```text
-engine: /tmp/au-client-matrix-1vQCCf/home/.arsumbris/tb-engine/run/afa490f1da63b5bb.sock
+engine: /tmp/au-client-matrix-1vQCCf/home/.arsumbris/au-engine/run/afa490f1da63b5bb.sock
 adapter: /root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs
 
 client         version    result
 ---------------------------------------------------------------
-claude         2.1.323    FAILED: arsumbris-rs: /root/arsumbris/tb-mcp-rs//root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs /tmp/au-client-matrix-1vQCCf/home/.arsumbris/tb-engine/run/afa490f1da63b5bb.sock - ✘ Failed to connect — ENOENT: no such file or directory, posix_spawn '/root/arsumbris/tb-mcp-rs//root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs'
+claude         2.1.323    FAILED: arsumbris-rs: /root/arsumbris/tb-mcp-rs//root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs /tmp/au-client-matrix-1vQCCf/home/.arsumbris/au-engine/run/afa490f1da63b5bb.sock - ✘ Failed to connect — ENOENT: no such file or directory, posix_spawn '/root/arsumbris/tb-mcp-rs//root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs'
 codex          0.164.0    registered; no non-interactive health check
 cursor-agent   2026.10.22-27dcf5f configured via .cursor/mcp.json; needs an API key, not exercised
 EXIT:1
@@ -104,7 +104,7 @@ written, and passing that path to both `claude mcp add` and `codex mcp add`.
 Same command, same binaries, after the fix:
 
 ```text
-engine: /tmp/au-client-matrix-MNGeir/home/.arsumbris/tb-engine/run/af3ace6d988bed39.sock
+engine: /tmp/au-client-matrix-MNGeir/home/.arsumbris/au-engine/run/af3ace6d988bed39.sock
 adapter: /root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs
 
 client         version    result
@@ -131,7 +131,7 @@ The fixture holds `unique-marker-7f3a` in `notes/a.md`, a string no engine knows
 except this one, so a correct answer cannot be a lucky guess:
 
 ```text
-engine:  /tmp/au-fixture-DSYaVF/home/.arsumbris/tb-engine/run/123e4ed907267994.sock
+engine:  /tmp/au-fixture-DSYaVF/home/.arsumbris/au-engine/run/123e4ed907267994.sock
 adapter: /root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs
 prompt:  find unique-marker-7f3a with au_grep
 PASS: the model called mcp__arsumbris-rs__au_grep

@@ -362,7 +362,7 @@ fn synthetic_read_fixtures_match_the_engine() {
             .spawn()
             .expect("start private engine"),
     );
-    let socket = wait_ready(&home.join(".arsumbris/tb-engine/run"), &mut daemon.0);
+    let socket = wait_ready(&home.join(".arsumbris/au-engine/run"), &mut daemon.0);
     let mut mcp = OwnedChild(
         Command::new(env!("CARGO_BIN_EXE_2brain"))
             .arg("mcp")
@@ -458,7 +458,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
             .spawn()
             .expect("start private engine"),
     );
-    let socket = wait_ready(&home.join(".arsumbris/tb-engine/run"), &mut daemon.0);
+    let socket = wait_ready(&home.join(".arsumbris/au-engine/run"), &mut daemon.0);
     let mut mcp = OwnedChild(
         Command::new(env!("CARGO_BIN_EXE_2brain"))
             .arg("mcp")

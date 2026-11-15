@@ -52,7 +52,7 @@ pub(crate) struct CachedPackage {
 
 /// The device-global package cache, rooted at `root`.
 ///
-/// `root` is e.g. `~/.arsumbris/tb-engine/cache/packages`; the caller resolves the home
+/// `root` is e.g. `~/.arsumbris/au-engine/cache/packages`; the caller resolves the home
 /// dir, the cache stays a pure function of its root so it is testable off the
 /// real home.
 pub(crate) struct PackageCache {
@@ -68,7 +68,7 @@ impl PackageCache {
         PackageCache { root }
     }
 
-    /// The cache root, `~/.arsumbris/tb-engine/cache/packages`. Distinguishes an editable
+    /// The cache root, `~/.arsumbris/au-engine/cache/packages`. Distinguishes an editable
     /// member (a local working tree, its root NOT under here) from a read-only
     /// cache snapshot, so the per-repo lock partition locks only editable members.
     pub(crate) fn root(&self) -> &Path {

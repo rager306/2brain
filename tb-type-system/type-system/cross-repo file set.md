@@ -84,7 +84,7 @@ packages:
 
 This machine only, never committed as identity.
 
-**`~/.arsumbris/tb-engine/config/repos.yaml`**, the location registry.
+**`~/.arsumbris/au-engine/config/repos.yaml`**, the location registry.
 - `au.engine.repos`, engine-written, name to `{ remote, path }`, where each repo sits here.
 ```yaml
 repos:
@@ -93,7 +93,7 @@ repos:
     path: /Users/username/kb/library
 ```
 
-**`~/.arsumbris/tb-engine/config/workspaces.yaml`**, the workspace index.
+**`~/.arsumbris/au-engine/config/workspaces.yaml`**, the workspace index.
 - `au.engine.workspaces`, user-authored, pointers to workspace-repo FOLDERS by name, never inline selections.
 ```yaml
 workspaces:
@@ -102,10 +102,10 @@ workspaces:
     path: /Users/username/experiments/scratch
 ```
 
-**`~/.arsumbris/tb-engine/cache/packages/<sha>/`**, the device cache.
+**`~/.arsumbris/au-engine/cache/packages/<sha>/`**, the device cache.
 - immutable dependency snapshots, one per resolved commit, what the `repo.lock` and `workspace.lock` shas point into, see [[package cache]].
 
-**`~/.arsumbris/tb-engine/run/<hash>.sock`**, the daemon socket.
+**`~/.arsumbris/au-engine/run/<hash>.sock`**, the daemon socket.
 - runtime, ephemeral, `<hash>` is the FNV-1a of the absolute entry-FOLDER path, injective by folder, outside the knowledge base so a deep path never overruns the socket-path limit.
 
 # The split

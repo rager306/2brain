@@ -41,7 +41,7 @@ enum Command {
     },
     /// Open a named workspace from the user's workspace index (same as `au open`).
     Open {
-        /// The workspace name from `~/.arsumbris/tb-engine/config/workspaces.yaml`.
+        /// The workspace name from `~/.arsumbris/au-engine/config/workspaces.yaml`.
         name: String,
     },
     /// Show a workspace's resolved members without a daemon (same as `au members`).

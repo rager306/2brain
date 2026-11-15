@@ -22,7 +22,7 @@ watcher plus an incremental rebuild.
 The store is the filesystem plus git. Between runs the graph does not exist at all; what
 persists is the working tree, `.arsumbris/repo.yaml` and friends (typed by built-in defaults,
 `engine_schema.rs:190-320`), the package cache (`pkgcache.rs`), and the saga journal under
-`.arsumbris/tb-engine/run/`. Inside a run, one `Arc<KnowledgeBase>` in `Held.kb`
+`.arsumbris/au-engine/run/`. Inside a run, one `Arc<KnowledgeBase>` in `Held.kb`
 (`engine.rs:475-484`) holds `catalog: OrdMap<PathBuf, FileEntry>`, `graphs: Arc<RepoGraphs>`,
 `resolution_graphs`, `repos`, `indexes`, `instances`, `backlinks`, `closure_members`,
 `referenced_names` and `diagnostics_by_source` (`ir.rs:340-470`), where `OrdMap` is

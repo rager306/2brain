@@ -750,7 +750,7 @@ pub struct RegistryLocation {
     pub path: PathBuf,
 }
 
-/// The per-user registry, `~/.arsumbris/tb-engine/config/repos.yaml`: every known
+/// The per-user registry, `~/.arsumbris/au-engine/config/repos.yaml`: every known
 /// repo name to its `{ remote, path }`. Engine-written, read on build, the locator
 /// for repos that are not co-present as siblings.
 pub type UserRegistry = BTreeMap<RepoName, RegistryLocation>;
@@ -902,7 +902,7 @@ impl ConfigSource {
     }
 }
 
-/// The per-user registry file, `~/.arsumbris/tb-engine/config/repos.yaml`.
+/// The per-user registry file, `~/.arsumbris/au-engine/config/repos.yaml`.
 ///
 /// `None` when the source resolves no base, so the registry is empty and
 /// resolution falls to siblings and the cache only.
@@ -924,7 +924,7 @@ pub fn user_registry_path(config: &ConfigSource) -> Option<PathBuf> {
 /// separator or a control character (which covers an absolute path). And
 /// `consumer` equal to the engine's own writing-tenant name (`au-engine`) is
 /// reserved: a machine-scope path there would resolve straight onto the engine's
-/// own `~/.arsumbris/tb-engine/config/repos.yaml`, so the channel refuses it,
+/// own `~/.arsumbris/au-engine/config/repos.yaml`, so the channel refuses it,
 /// keeping the engine's own config separate by mechanism. See
 /// [[spec - scoped config channel - a config read and set_config mutation over scope, consumer, file, type]].
 ///
@@ -941,7 +941,7 @@ pub(crate) fn config_path(state_dir: &Path, consumer: &str, file: &str) -> Resul
 /// joins.
 ///
 /// The engine's own `au-engine` owner segment is reserved on BOTH scopes. Only
-/// machine scope can actually collide (its `~/.arsumbris/tb-engine/config/` IS the
+/// machine scope can actually collide (its `~/.arsumbris/au-engine/config/` IS the
 /// engine's device registry); repo scope cannot, but the engine's name is
 /// genuinely reserved everywhere, so the check is uniform rather than
 /// scope-conditional. The compare is CASE-INSENSITIVE: on a case-insensitive
@@ -1018,7 +1018,7 @@ pub fn serialize_user_registry(reg: &UserRegistry) -> String {
     out
 }
 
-/// The per-user workspaces index, `~/.arsumbris/tb-engine/config/workspaces.yaml`:
+/// The per-user workspaces index, `~/.arsumbris/au-engine/config/workspaces.yaml`:
 /// a local alias `name` to the workspace-repo FOLDER it points at.
 /// USER-AUTHORED, read only (never engine-written, unlike [`UserRegistry`]), the
 /// lookup for `au open <name>`. Symmetric with `repos.yaml`: one indexes repo
@@ -1081,7 +1081,7 @@ pub fn parse_user_workspaces(bytes: &[u8]) -> UserWorkspaces {
     out
 }
 
-/// The per-user workspaces file, `~/.arsumbris/tb-engine/config/workspaces.yaml`.
+/// The per-user workspaces file, `~/.arsumbris/au-engine/config/workspaces.yaml`.
 ///
 /// The `ConfigSource` selects the device-root base, the test injection seam,
 /// mirroring [`user_registry_path`]. `Empty`, or `User` with no `$HOME`, returns
@@ -3517,7 +3517,7 @@ mod tests {
         assert!(!reserved_against(Path::new("/no/such/home/repo"), &dev));
         // A cache-mounted member UNDER `~/.arsumbris` is not: equality, not subtree.
         assert!(!reserved_against(
-            Path::new("/no/such/home/.arsumbris/tb-engine/cache/packages/abc"),
+            Path::new("/no/such/home/.arsumbris/au-engine/cache/packages/abc"),
             &dev
         ));
     }
@@ -3599,7 +3599,7 @@ mod tests {
     #[test]
     fn config_path_reserves_the_engine_owner_segment() {
         // A machine-scope write with consumer `au-engine` would resolve onto the
-        // engine's own `~/.arsumbris/tb-engine/config/repos.yaml`, so the channel
+        // engine's own `~/.arsumbris/au-engine/config/repos.yaml`, so the channel
         // refuses the reserved owner segment.
         let dir = Path::new("/home/me/.arsumbris");
         assert!(config_path(dir, crate::engine_schema::BUILTIN_ENGINE_REPO, "repos.yaml").is_err());
@@ -3610,7 +3610,7 @@ mod tests {
 
     /// `Empty` reaches NO file on this machine, whatever `HOME` says. This is
     /// the determinism seam: a test constructing an engine with `Empty` cannot
-    /// read the developer's real `~/.arsumbris/tb-engine/config`, so a fixture naming a
+    /// read the developer's real `~/.arsumbris/au-engine/config`, so a fixture naming a
     /// dep that happens to be registered there resolves to nothing rather than
     /// to a real repo on disk.
     #[test]

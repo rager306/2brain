@@ -75,7 +75,7 @@
         "sealed": null
       },
       {
-        "doc": "The per-user registry, `~/.arsumbris/tb-engine/config/repos.yaml`, name to remote+path.",
+        "doc": "The per-user registry, `~/.arsumbris/au-engine/config/repos.yaml`, name to remote+path.",
         "hash": "f929f74971168348",
         "name": "au.engine.repos",
         "parents": [],
@@ -107,7 +107,7 @@
         "sealed": null
       },
       {
-        "doc": "The per-user workspaces index, `~/.arsumbris/tb-engine/config/workspaces.yaml`.",
+        "doc": "The per-user workspaces index, `~/.arsumbris/au-engine/config/workspaces.yaml`.",
         "hash": "08f9318a7dae8195",
         "name": "au.engine.workspaces",
         "parents": [],

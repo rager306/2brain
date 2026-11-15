@@ -99,7 +99,7 @@ def first_difference(left: list[str], right: list[str]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--socket", help="engine socket (default: newest under ~/.arsumbris/tb-engine/run)")
+    parser.add_argument("--socket", help="engine socket (default: newest under ~/.arsumbris/au-engine/run)")
     parser.add_argument("--json", action="store_true", help="machine-readable result")
     args = parser.parse_args()
 
