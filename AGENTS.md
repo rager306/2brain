@@ -39,7 +39,7 @@ document needs to cite upstream state, it cites a hash or an archive tag:
 |---|---|
 | engine `0.0.5`-era work, including the hotpath profiling and memchr wikilink scan | commit `44b32f4`, tagged `archive/upstream-0.0.5` |
 | release `0.0.2-alpha` | whichever commit the release pointed at, tagged `archive/upstream-0.0.2-alpha` when identified |
-| the 24 sibling repositories | the `Add '<dir>/' from commit '<sha>'` merge commits in history |
+| the sibling repositories the bundle was assembled from | the `Add '<dir>/' from commit '<sha>'` merge commits in history; their content now lives in the `tb-*` directories, and their `remote:` anchors were removed when the tree became one repository |
 
 Older revisions of this section named `remotes/origin/main`, `feat/hotpath-profiling-and-memchr-wikilinks`
 and `fork/main`. None of those branches exist; the names are kept here only so an old document that
