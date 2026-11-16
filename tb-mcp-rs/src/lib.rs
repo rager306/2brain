@@ -312,6 +312,13 @@ struct GraphHealthArguments {
     #[serde(default = "default_graph_health_limit")]
     #[schemars(range(min = 1, max = 200))]
     limit: usize,
+    /// Include the engine's per-verb request counts and latency histogram.
+    ///
+    /// Diagnostic: it describes the engine process, not the graph, so it rides beside the payload as a
+    /// `verbs` sibling key rather than inside `graph_health`. Off by default, because a client that does not
+    /// ask should not pay for it in bytes.
+    #[serde(default)]
+    verbs: bool,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -1027,6 +1034,9 @@ impl Server {
                 HubScope::Own => "own",
                 HubScope::All => "all",
             });
+        }
+        if args.verbs {
+            request["verbs"] = json!(true);
         }
         self.read(request, "tb_graph_health", ctx).await
     }

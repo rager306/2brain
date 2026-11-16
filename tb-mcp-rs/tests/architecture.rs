@@ -49,7 +49,9 @@ const ALLOWED: [(&str, &str); 12] = [
 // call site names a tool instead of also repeating the verb, and `file_read` lost an unused key.
 // 4501 after `init` and `doctor` moved into `src/cli.rs`: the module is public for the binary's
 // dispatcher, which costs one line here and no logic — the budget did not move.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4501;
+// 4501 after the verb table, plus 10 on 2026-11-16: `tb_graph_health` gained the `verbs` argument that reaches
+// the engine's per-verb counters — a diagnostic no client could reach before the engine exposed it.
+const LIB_RS_PRODUCTION_BUDGET: usize = 4511;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")

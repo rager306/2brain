@@ -120,16 +120,22 @@ The engine has no per-verb counters, so "is `tb_grep` slow or is the vault big" 
 first attempt drafted the whole counter module — fixed log2 histogram, one relaxed atomic add per request, no lock
 on the hot path — and stopped at the wiring, which is the part that decides whether it is worth having:
 
-- `handle_request` dispatches through a 40-arm `match`, and the verb is known only inside each arm. Counting
+- `handle_request` dispatches through a `match` whose arms are the 51 read verbs plus `shutdown`, and the verb is
+  known only inside each arm. Counting
   without restructuring the dispatch needs `Request::verb(&self) -> &'static str`, a mechanical 40-arm map — real
   work, but work that also gives the wire a single place to name a verb (the same class of "one source" the
   adapter's `READ_VERBS` solved for tools);
 - and counters nobody can read are not counters: exposure means a field on an existing read (`graph_health` with a
   `verbs` argument), a `WIRE.md` note, a re-blessed golden capture and one adapter passthrough.
 
-So the item is restated rather than half-built: **first `Request::verb()`, then the histogram, then the field**,
-with the census in `WIRE.md` as the test that the map is total. The drafted module is not in the tree — an
-unreferenced module is the "item without a consumer" this project deletes, and it would have been the second.
+**Done in that order** (`39b35a6`): `Request::verb()` over 52 variants with a test that it equals `WIRE.md`'s
+census in both directions, a 25-bucket log2 histogram at two relaxed atomic adds per request, and `graph_health
+{verbs: true}` returning the snapshot as a sibling key — absent unless asked, so the golden capture needed no
+re-bless and the schema stays 29.
+
+What is still open is the last hop: the MCP adapter's `tb_graph_health` arguments are `deny_unknown_fields` and do
+not declare `verbs`, so a client cannot reach the counters yet. That is a product decision — whether an agent should
+be able to read the engine's own latency histogram — not a missing wire.
 
 ### 5. Freshness prior — measured a second time, rejected for a new reason
 
