@@ -1,0 +1,1882 @@
+{
+ "engine": "au 0.0.5 debug dc0170ce",
+ "vault": "/root/vault (copy)",
+ "rows": [
+  {
+   "id": "T01",
+   "source": "tasks.json",
+   "query": "ReasoningBank",
+   "class": "exact",
+   "expect": "hit",
+   "args": {},
+   "total": 50,
+   "target_rank": 2,
+   "top1": "M",
+   "levels": "M P M P A",
+   "group": "answer_below",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/agentic-flow-deploys-66-specialized-agents-across-seven-categories-each-with-reasoningbank-self-learning.md",
+     "level": "M",
+     "quote": "agentic-flow provides 66 pre-built specialized agents, each with autonomous self-learning powered by ReasoningBank"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/agentdb-architecture.md",
+     "level": "P",
+     "quote": "ReasoningBank Cognitive Layer"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/claude-flow-deploys-15-agent-hierarchical-mesh-with-queen-coordinator-and-three-domain-clusters.md",
+     "level": "M",
+     "quote": "self-learning (SONA patterns, ReasoningBank, trajectory learning"
+    },
+    {
+     "rank": 4,
+     "path": "inbox/routed-continual-learning-meta.md",
+     "level": "P",
+     "quote": "ReasoningBank | стратегии, индуцированные из само-оценённых успехов и провалов"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/agentdb-reasoningbank-has-four-components-pattern-matcher-experience-curator-memory-optimizer-context-synthesizer.md",
+     "level": "A",
+     "quote": "ReasoningBank is the cognitive layer of AgentDB"
+    }
+   ]
+  },
+  {
+   "id": "T02",
+   "source": "tasks.json",
+   "query": "NVDA translation addon blind user",
+   "class": "exact",
+   "expect": "hit",
+   "args": {},
+   "total": 148,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A A M W W",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/a-blind-since-birth-user-shipped-an-nvda-translation-addon.md",
+     "level": "A",
+     "quote": "I have been blind since birth. I use a screen reader program."
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/hermes-stories-general.md",
+     "level": "A",
+     "quote": "Blind since birth, I built an NVDA translator addon with Nous"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/hermes-user-stories.md",
+     "level": "M",
+     "quote": "[[a-blind-since-birth-user-shipped-an-nvda-translation-addon]] — доступность, построенная тем, кому она нужна"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/hermes-stories-content-creation.md",
+     "level": "W",
+     "quote": "HermesAI Translator, an open-source, AI-powered browser extension"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/hermes-stories-research.md",
+     "level": "W",
+     "quote": "every model has blind spots the others would have caught"
+    }
+   ]
+  },
+  {
+   "id": "T03",
+   "source": "tasks.json",
+   "query": "агент не вызывает доступные скиллы, если выбор оставлен на его усмотрение",
+   "class": "paraphrase",
+   "expect": "hit",
+   "args": {},
+   "total": 731,
+   "target_rank": null,
+   "top1": "W",
+   "levels": "W W W W W",
+   "group": "cross-lingual",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/jev-context-curation-pattern.md",
+     "level": "W",
+     "quote": "Jev решает, что попадает в контекст и что остаётся"
+    },
+    {
+     "rank": 2,
+     "path": "f/patterns/pattern-describe-dont-render.md",
+     "level": "W",
+     "quote": "LLM-агент НИКОГДА не производит финальную поверхность"
+    },
+    {
+     "rank": 3,
+     "path": "inbox/amv-guard-action-conditioned-verification.md",
+     "level": "W",
+     "quote": "нужно ли перепроверять запись перед действием — не свойство записи"
+    },
+    {
+     "rank": 4,
+     "path": "inbox/claude-single-loop-folds-subagents.md",
+     "level": "W",
+     "quote": "одиночный агент со скиллами регулярно превосходит"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/deltadb-zed-between-commits.md",
+     "level": "W",
+     "quote": "Разговор, порождающий код, становится истинным источником нашего ПО"
+    }
+   ]
+  },
+  {
+   "id": "T04",
+   "source": "tasks.json",
+   "query": "перехват аргументов tool-call до исполнения",
+   "class": "ru-cross",
+   "expect": "hit",
+   "args": {},
+   "total": 193,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A P M W W",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/agent-tool-call-breakpoint-pattern.md",
+     "level": "A",
+     "quote": "Хук перед вызовом тула возвращает не только block/reason, но и input: подменённые аргументы ревалидируются по схеме"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/toolcall-repair-layers-pattern.md",
+     "level": "P",
+     "quote": "L0 coerce (unwrap-массив, null→{}, строка-JSON→объект)"
+    },
+    {
+     "rank": 3,
+     "path": "f/patterns/pattern-enforced-memory.md",
+     "level": "M",
+     "quote": "graveyard тупиков с ценой (try/why/cost) проверяется ДО исполнения вызова"
+    },
+    {
+     "rank": 4,
+     "path": "inbox/vercel-durable-harness.md",
+     "level": "W",
+     "quote": "каждый model/tool call — записи в event log прогона"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/minimind-64m-from-scratch.md",
+     "level": "W",
+     "quote": "Train a 64M-parameter LLM from scratch in 2h"
+    }
+   ]
+  },
+  {
+   "id": "T05",
+   "source": "tasks.json",
+   "query": "как Zettelkasten применяют к памяти агента",
+   "class": "multi-hop",
+   "expect": "hit",
+   "args": {},
+   "total": 460,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A P A W W",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/a-mem-uses-zettelkasten-method-for-agentic-memory-with-retroactive-evolution.md",
+     "level": "A",
+     "quote": "A-MEM (NeurIPS 2025) применяет Zettelkasten метод к памяти LLM агентов"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/amem-search-agentic-graph-traversal.md",
+     "level": "P",
+     "quote": "exploits the Zettelkasten \"follow the card links\" retrieval pattern"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/amem-zettelkasten-retroactive-evolution.md",
+     "level": "A",
+     "quote": "A-MEM (NeurIPS 2025) applies the Zettelkasten method to agent memory"
+    },
+    {
+     "rank": 4,
+     "path": "inbox/memoryrouter-cross-ai-vault.md",
+     "level": "W",
+     "quote": "MemoryRouter (SaaS, $20/мес): коммерческая реализация идеи"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/mintlify-self-updating-docs-architecture.md",
+     "level": "W",
+     "quote": "runner agents (триггер→скилл→docs PR)"
+    }
+   ]
+  },
+  {
+   "id": "T06",
+   "source": "tasks.json",
+   "query": "Q-learning меняет топологию графа агентов",
+   "class": "paraphrase",
+   "expect": "hit",
+   "args": {},
+   "total": 172,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A M M W W",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/adaptive-dag-routing-uses-q-learning-to-optimize-agent-topology.md",
+     "level": "A",
+     "quote": "Модуль `ruvector-dag` реализует самообучающиеся ориентированные ациклические графы"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/agentdb-ships-12-rl-algorithms-from-decision-transformer-to-hierarchical-rl-via-plugin-wizard.md",
+     "level": "M",
+     "quote": "Q-Learning | Value-Based | Discrete action spaces"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/learning-patterns.md",
+     "level": "M",
+     "quote": "[[adaptive-dag-routing-uses-q-learning-to-optimize-agent-topology]] — Q-learning для топологии агентов"
+    },
+    {
+     "rank": 4,
+     "path": "inbox/ppa-ch11-12-decision-making-rl.md",
+     "level": "W",
+     "quote": "Q-learning: 1 бит информации за сэмпл в high-dim"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/implicithop-context-vs-weights.md",
+     "level": "W",
+     "quote": "точность резко падает с глубиной композиции"
+    }
+   ]
+  },
+  {
+   "id": "T07",
+   "source": "tasks.json",
+   "query": "ночная задача в 3:00 компилирует день в контекст",
+   "class": "paraphrase",
+   "expect": "hit",
+   "args": {},
+   "total": 597,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A P W W W",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/a-3am-dreaming-job-compiles-the-day-into-tomorrows-context-across-28-cron-jobs.md",
+     "level": "A",
+     "quote": "ночью в 3:00 агент перечитывает все диалоги за день"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/rem-cycle-dreaming-runs-at-night-for-0-014-on-haiku.md",
+     "level": "P",
+     "quote": "вместо одного «в 3:00 прочти всё» здесь 5 распределённых «REM-циклов»"
+    },
+    {
+     "rank": 3,
+     "path": "inbox/muckscraper-story-aggregator.md",
+     "level": "W",
+     "quote": "STORY-кластеризация"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/razorpay-runs-220-isolated-per-employee-agents-on-kubernetes.md",
+     "level": "W",
+     "quote": "Razorpay выдал 220+ сотрудникам по собственному always-on Hermes-агенту"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/ln-legal-intent-bridge.md",
+     "level": "W",
+     "quote": "детерминированное ядро валидирует и компилирует в точный запрос"
+    }
+   ]
+  },
+  {
+   "id": "T08",
+   "source": "tasks.json",
+   "query": "как держать 2FA-коды вне доступа агента",
+   "class": "multi-hop",
+   "expect": "hit",
+   "args": {},
+   "total": 260,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A M W W W",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/a-local-email-gatekeeper-keeps-2fa-codes-out-of-agent-reach.md",
+     "level": "A",
+     "quote": "2FA-коды, сбросы паролей и банковские уведомления физически не доходят до него"
+    },
+    {
+     "rank": 2,
+     "path": "inbox/meta-privacylib-data-access-boundary.md",
+     "level": "M",
+     "quote": "приватность как модули на границе доступа к данным"
+    },
+    {
+     "rank": 3,
+     "path": "inbox/memcurrent-databricks-persistent-memory.md",
+     "level": "W",
+     "quote": "production-память агентов из трёх паттернов доступа"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/rollback-restores-destroyed-codebase-and-agent-context-in-one-command.md",
+     "level": "W",
+     "quote": "Агент уничтожил кодовую базу за 3 секунды"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/rauch-agentic-coding-workflow-seven-practices.md",
+     "level": "W",
+     "quote": "тест идеи до выбора стека"
+    }
+   ]
+  },
+  {
+   "id": "T09",
+   "source": "tasks.json",
+   "query": "agent memory",
+   "class": "ambiguous",
+   "expect": "any",
+   "args": {},
+   "total": 228,
+   "target_rank": null,
+   "top1": "P",
+   "levels": "P P M P P",
+   "group": "ambiguous",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/memory-agent-abstraction-enables-natural-language-memory-operations.md",
+     "level": "P",
+     "quote": "OpenSage's memory agent provides natural language interface to graph memory"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/amem-zettelkasten-retroactive-evolution.md",
+     "level": "P",
+     "quote": "A-MEM (NeurIPS 2025) applies the Zettelkasten method to agent memory"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/surrealdb-agent-memory-openapi-facts-pin.md",
+     "level": "M",
+     "quote": "Pinned Agent Memory OpenAPI 0.2.1"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/surrealdb-stack-map.md",
+     "level": "P",
+     "quote": "SurrealDB stack map Oct 2026"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/surrealdb-agent-memory-vs-kutha.md",
+     "level": "P",
+     "quote": "SurrealDB Agent Memory vs kutha"
+    }
+   ]
+  },
+  {
+   "id": "T10",
+   "source": "tasks.json",
+   "query": "какая лицензия у Apache Kafka",
+   "class": "absent",
+   "expect": "none",
+   "args": {},
+   "total": 85,
+   "target_rank": null,
+   "top1": "W",
+   "levels": "W W W W W",
+   "group": "no_abstention",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/search-weak-flag-is-a-signal-not-a-verdict.md",
+     "level": "W",
+     "quote": "флаг weak в tb_search помечает «эти слова здесь встречаются»"
+    },
+    {
+     "rank": 2,
+     "path": "inbox/indra-ocr-1m-parameters-read-49-pages-per-second-on-cpu-and-the-open-tier-sells-the-ceiling.md",
+     "level": "W",
+     "quote": "код Apache-2.0; веса modified OpenRAIL-M"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/pullenti-sdk-analysis.md",
+     "level": "W",
+     "quote": "SDK Pullenti: rule-based лингвистический анализ русского текста"
+    },
+    {
+     "rank": 4,
+     "path": "inbox/vela-20-adds-span-answers-to-the-systemone-decision-interface.md",
+     "level": "W",
+     "quote": "Vela 2.0 (vLLM Semantic Router): open decision-модели со span-ответами"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/mistral-timestral.md",
+     "level": "W",
+     "quote": "Лицензия весов: Modified MIT"
+    }
+   ]
+  },
+  {
+   "id": "T11",
+   "source": "tasks.json",
+   "query": "сколько стоит подписка Netflix в Таиланде",
+   "class": "absent",
+   "expect": "none",
+   "args": {},
+   "total": 122,
+   "target_rank": null,
+   "top1": "W",
+   "levels": "W W W W W",
+   "group": "no_abstention",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "inbox/ppa-ch8-datasets-benchmark-science.md",
+     "level": "W",
+     "quote": "Netflix Prize убит linkage attack"
+    },
+    {
+     "rank": 2,
+     "path": "inbox/cloudflare-branch-predictor-btb.md",
+     "level": "W",
+     "quote": "Branch predictor: сколько if-ов слишком много"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/rust-modern-algorithms-patterns.md",
+     "level": "W",
+     "quote": "Современные приёмы и алгоритмы в Rust-экосистеме 2026"
+    },
+    {
+     "rank": 4,
+     "path": "inbox/annas-archive-shadow-library-infrastructure.md",
+     "level": "W",
+     "quote": "SciDB = Sci-Hub 2.0"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/jev-confidence-is-a-second-axis-not-a-stronger-answer.md",
+     "level": "W",
+     "quote": "Confidence у Choice/Score — метрика того, стоит ли действовать"
+    }
+   ]
+  },
+  {
+   "id": "T12",
+   "source": "tasks.json",
+   "query": "the exact number of stars on the 2brain repository",
+   "class": "absent",
+   "expect": "none",
+   "args": {},
+   "total": 457,
+   "target_rank": null,
+   "top1": "W",
+   "levels": "W W W W W",
+   "group": "no_abstention",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "inbox/exact-discipline-deep.md",
+     "level": "W",
+     "quote": "expo/exact internal discipline deep dive"
+    },
+    {
+     "rank": 2,
+     "path": ".claude/skills/tasks/SKILL.md",
+     "level": "W",
+     "quote": "View and manage the task stack and processing queue"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/2brain-serving-state-lags-the-repository.md",
+     "level": "W",
+     "quote": "Обслуживаемый бинарь 2brain отстаёт от репозитория"
+    },
+    {
+     "rank": 4,
+     "path": "inbox/law-ai-nlp-landscape.md",
+     "level": "W",
+     "quote": "awesome-legal-nlp (345 stars"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/pgx-patterns-for-kutha-graph.md",
+     "level": "W",
+     "quote": "Ценные паттерны PGX для kutha-graph"
+    }
+   ]
+  },
+  {
+   "id": "T13",
+   "source": "tasks.json",
+   "query": "capsules",
+   "class": "word-form",
+   "expect": "any",
+   "args": {},
+   "total": 2,
+   "target_rank": 1,
+   "top1": "P",
+   "levels": "P P",
+   "group": "word_form",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "inbox/statcraft-safe-rust-spss-alternative.md",
+     "level": "P",
+     "quote": "CapsuleCraft KB (.capsule/ 341 .eml-капсула с provenance"
+    },
+    {
+     "rank": 2,
+     "path": "inbox/evolver-gene-experience-framework.md",
+     "level": "P",
+     "quote": "Capsule=source+provenance"
+    }
+   ]
+  },
+  {
+   "id": "T14",
+   "source": "tasks.json",
+   "query": "as of",
+   "class": "exact-and",
+   "expect": "hit",
+   "args": {
+    "exact": true
+   },
+   "total": 218,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A M M W W",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/bitemporal-valid-transaction-time.md",
+     "level": "A",
+     "quote": "AS OF-запросы по обеим осям"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/kutha-temporal-graphs.md",
+     "level": "M",
+     "quote": "FF5 green as of 2026-10-23"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/graphiti-bitemporal-fact-edges-contrast.md",
+     "level": "M",
+     "quote": "рынок ожидает as-of факты"
+    },
+    {
+     "rank": 4,
+     "path": "f/patterns/pattern-dashboard-flows-as-mcp-tools.md",
+     "level": "W",
+     "quote": "repetitive product setup UI sequences"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/agents-of-chaos-social-coherence-failure.md",
+     "level": "W",
+     "quote": "Agents lack stable internal models of social hierarchy"
+    }
+   ]
+  },
+  {
+   "id": "T15",
+   "source": "tasks.json",
+   "query": "oracle matrix tests",
+   "class": "mixed-language",
+   "expect": "any",
+   "args": {},
+   "total": 83,
+   "target_rank": 3,
+   "top1": "W",
+   "levels": "W M A M M",
+   "group": "answer_below",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "inbox/insight-verifiable-artifact-beats-green-gates.md",
+     "level": "W",
+     "quote": "Зелёные гейты и повторное ревью не гарантируют корректность"
+    },
+    {
+     "rank": 2,
+     "path": "inbox/pattern-three-anchors-before-tuning.md",
+     "level": "M",
+     "quote": "oracle (идеальные входные данные вручную)"
+    },
+    {
+     "rank": 3,
+     "path": "f/patterns/pattern-oracle-drift-ci.md",
+     "level": "A",
+     "quote": "Реин implementations/эмуляции проверяются в CI дифференциально против живого эталона"
+    },
+    {
+     "rank": 4,
+     "path": "inbox/properagent-memory-driven-proactive-assistance.md",
+     "level": "M",
+     "quote": "oracle-факт в окне 96%"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/pattern-latent-memory-complement.md",
+     "level": "M",
+     "quote": "oracle-union до +10pt"
+    }
+   ]
+  },
+  {
+   "id": "T16",
+   "source": "tasks.json",
+   "query": "oracle matrix tests",
+   "class": "mixed-language",
+   "expect": "any",
+   "args": {
+    "min_should_match": 1
+   },
+   "total": 83,
+   "target_rank": 3,
+   "top1": "W",
+   "levels": "W M A M M",
+   "group": "answer_below",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "inbox/insight-verifiable-artifact-beats-green-gates.md",
+     "level": "W",
+     "quote": "Зелёные гейты и повторное ревью не гарантируют корректность"
+    },
+    {
+     "rank": 2,
+     "path": "inbox/pattern-three-anchors-before-tuning.md",
+     "level": "M",
+     "quote": "oracle (идеальные входные данные вручную)"
+    },
+    {
+     "rank": 3,
+     "path": "f/patterns/pattern-oracle-drift-ci.md",
+     "level": "A",
+     "quote": "Реин implementations/эмуляции проверяются в CI дифференциально против живого эталона"
+    },
+    {
+     "rank": 4,
+     "path": "inbox/properagent-memory-driven-proactive-assistance.md",
+     "level": "M",
+     "quote": "oracle-факт в окне 96%"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/pattern-latent-memory-complement.md",
+     "level": "M",
+     "quote": "oracle-union до +10pt"
+    }
+   ]
+  },
+  {
+   "id": "T17",
+   "source": "tasks.json",
+   "query": "event log as source of truth",
+   "class": "hub-vs-atomic",
+   "expect": "hit",
+   "args": {},
+   "total": 369,
+   "target_rank": 8,
+   "top1": "P",
+   "levels": "P P P M M",
+   "group": "general_note",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/kutha-temporal-graphs.md",
+     "level": "P",
+     "quote": "append-only event log = source of truth; рабочий граф = детерминированный fold"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/surrealdb-agent-memory-vs-kutha.md",
+     "level": "P",
+     "quote": "tri-temporal app tier on multi-model DB vs event-log SoT engine"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/kutha-graph-project-snapshot.md",
+     "level": "P",
+     "quote": "event log SoT, deterministic fold, harness H5"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/pullenti-decree-model-bridge.md",
+     "level": "M",
+     "quote": "модель редакций закона как event log"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/kutha-stca-paradigm.md",
+     "level": "M",
+     "quote": "временной (event log → проекция)"
+    }
+   ]
+  },
+  {
+   "id": "T18",
+   "source": "tasks.json",
+   "query": "битемпоральная модель ребра отслеживает валидность и время загрузки отдельно",
+   "class": "bilingual",
+   "expect": "any",
+   "args": {},
+   "total": 351,
+   "target_rank": null,
+   "top1": "W",
+   "levels": "W W P W W",
+   "group": "cross-lingual",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "inbox/pattern-blocker-rubric-grading.md",
+     "level": "W",
+     "quote": "Двухслойный гейт оценки работы агента"
+    },
+    {
+     "rank": 2,
+     "path": "inbox/claims-slot-graph-balance-gate-for-proofgate.md",
+     "level": "W",
+     "quote": "слой 1: пучок над графом ЭКСТРАКТОРОВ"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/bitemporal-valid-transaction-time.md",
+     "level": "P",
+     "quote": "Bi-temporal модель: valid time (мировая истина) × transaction time (время записи/веры)"
+    },
+    {
+     "rank": 4,
+     "path": "inbox/hotreload-in-rust-dynamic-libraries.md",
+     "level": "W",
+     "quote": "Защита от выгрузки во время исполнения"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/nyxis-lean-formally-verified-authorization.md",
+     "level": "W",
+     "quote": "формально доказанной авторизационной"
+    }
+   ]
+  },
+  {
+   "id": "MA",
+   "source": "mine",
+   "query": "Why did ZeroClaw not adopt RuVector?",
+   "class": "negation",
+   "expect": "hit",
+   "args": {},
+   "total": 232,
+   "target_rank": 3,
+   "top1": "P",
+   "levels": "P A A W M",
+   "group": "general_note",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/selective-dependency-adoption-over-monolithic-integration.md",
+     "level": "P",
+     "quote": "When evaluating large multi-crate projects like RuVector (90+ crates), adopt only the validated components"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md",
+     "level": "A",
+     "quote": "rejecting RuVector (168 downloads) due to low adoption risk"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/ruvector-rejected-for-zeroclaw-due-to-168-downloads-and-single-author-risk.md",
+     "level": "A",
+     "quote": "citing 168 total downloads and single-author risk"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/fact-extraction-must-precede-graph-construction-intelligence-before-infrastructure.md",
+     "level": "W",
+     "quote": "ZeroClaw's 9-phase roadmap sequences memory capabilities in strict dependency order"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/zeroclaw-decisions.md",
+     "level": "M",
+     "quote": "validated stack: hnsw_rs + tantivy + petgraph"
+    }
+   ]
+  },
+  {
+   "id": "MB",
+   "source": "mine",
+   "query": "How many timestamps does a ZeroClaw edge carry, and what do they separate?",
+   "class": "number+condition",
+   "expect": "hit",
+   "args": {},
+   "total": 497,
+   "target_rank": 2,
+   "top1": "A",
+   "levels": "A A W W W",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/tkg-bi-temporal-edge-model-tracks-four-timestamps-for-non-lossy-history.md",
+     "level": "A",
+     "quote": "facts are never deleted, only invalidated via 4 timestamps per edge"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md",
+     "level": "A",
+     "quote": "Every edge in the graph carries four timestamps"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/agents-of-chaos-no-stakeholder-model.md",
+     "level": "W",
+     "quote": "Current agentic systems lack an explicit stakeholder model"
+    },
+    {
+     "rank": 4,
+     "path": "ops/skills-archive/next-2026-03-06-pre-upgrade.md",
+     "level": "W",
+     "quote": "Surface the most valuable next action by combining task stack"
+    },
+    {
+     "rank": 5,
+     "path": ".claude/skills/next/SKILL.md",
+     "level": "W",
+     "quote": "Surface the most valuable next action by combining task stack"
+    }
+   ]
+  },
+  {
+   "id": "MC",
+   "source": "mine",
+   "query": "At what entity-resolution accuracy does knowledge-graph reasoning start to break?",
+   "class": "near-duplicate-numbers",
+   "expect": "hit",
+   "args": {},
+   "total": 479,
+   "target_rank": 2,
+   "top1": "P",
+   "levels": "P A M M A",
+   "group": "duplicate_divergent",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/entity-resolution-accuracy-below-90-percent-corrupts-knowledge-graph-reasoning-chains.md",
+     "level": "P",
+     "quote": "When ER accuracy drops below 85%, errors compound"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/entity-resolution-accuracy-below-85-percent-corrupts-graph.md",
+     "level": "A",
+     "quote": "When ER accuracy drops below 85%, errors compound with each graph traversal"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/zeroclaw-fact-extraction.md",
+     "level": "M",
+     "quote": "90% accuracy gate"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/hierarchical-graph-schema-enables-semantic-abstraction-layers.md",
+     "level": "M",
+     "quote": "Entity quality importance"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md",
+     "level": "A",
+     "quote": "Entity Resolution ниже 85% приводит к каскадным ошибкам при обходе графа"
+    }
+   ]
+  },
+  {
+   "id": "MD",
+   "source": "mine",
+   "query": "When is building a graph index a mistake, and what should happen first?",
+   "class": "paraphrase",
+   "expect": "hit",
+   "args": {},
+   "total": 596,
+   "target_rank": null,
+   "top1": "W",
+   "levels": "W W W W W",
+   "group": "non_note",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "manual/getting-started.md",
+     "level": "W",
+     "quote": "First session guide — creating your first insight and building connections"
+    },
+    {
+     "rank": 2,
+     "path": ".claude/skills/next/SKILL.md",
+     "level": "W",
+     "quote": "Dangling links block graph traversal → fix first"
+    },
+    {
+     "rank": 3,
+     "path": "ops/skills-archive/next-2026-03-06-pre-upgrade.md",
+     "level": "W",
+     "quote": "Dangling links block graph traversal → fix first"
+    },
+    {
+     "rank": 4,
+     "path": "ops/skills-archive/connect-2026-03-06-pre-upgrade.md",
+     "level": "W",
+     "quote": "You are building a traversable knowledge graph, not tagging documents."
+    },
+    {
+     "rank": 5,
+     "path": ".claude/skills/connect/SKILL.md",
+     "level": "W",
+     "quote": "You are building a traversable knowledge graph, not tagging documents."
+    }
+   ]
+  },
+  {
+   "id": "ME",
+   "source": "mine",
+   "query": "Do self-generated skills improve agent pass rates?",
+   "class": "yes/no-negative",
+   "expect": "hit",
+   "args": {},
+   "total": 406,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A M A W M",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/curated-skills-boost-agent-pass-rate-by-16pp-while-self-generated-skills-degrade-by-1pp.md",
+     "level": "A",
+     "quote": "Curated Skills boost agent pass rate by 16pp while self-generated Skills degrade by 1pp"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/agentdb-skill-library-auto-consolidates-successful-patterns-into-parameterized-composable-skills.md",
+     "level": "M",
+     "quote": "SkillsBench warns that auto-consolidated skills may face the same quality gap as self-generated ones"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/optimal-skill-count-is-two-to-three-modules-at-1500-tokens-four-plus-causes-cognitive-overload.md",
+     "level": "A",
+     "quote": "self-generated Skills fail not just because of quality"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/agentdb-reflexion-memory-stores-episodes-with-self-critique-for-experience-replay-learning.md",
+     "level": "W",
+     "quote": "agents store execution episodes with self-critique"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/harness-learning-field-map.md",
+     "level": "M",
+     "quote": "Пара статей, формирующих новое поле harness learning"
+    }
+   ]
+  },
+  {
+   "id": "MF",
+   "source": "mine",
+   "query": "What share of agent tasks remain unsolvable even with curated skills?",
+   "class": "number",
+   "expect": "hit",
+   "args": {},
+   "total": 521,
+   "target_rank": 2,
+   "top1": "P",
+   "levels": "P A M M M",
+   "group": "answer_below",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/curated-skills-boost-agent-pass-rate-by-16pp-while-self-generated-skills-degrade-by-1pp.md",
+     "level": "P",
+     "quote": "Even optimally curated Skills hit a ceiling"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/nineteen-percent-of-agent-tasks-remain-unsolvable-even-with-curated-skills-defining-current-capability-ceiling.md",
+     "level": "A",
+     "quote": "16 of 84 SkillsBench tasks have 0% pass rate across all models"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/optimal-skill-count-is-two-to-three-modules-at-1500-tokens-four-plus-causes-cognitive-overload.md",
+     "level": "M",
+     "quote": "[[nineteen-percent-of-agent-tasks-remain-unsolvable-even-with-curated-skills"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/domain-specific-skills-boost-agents-42-to-52pp-in-healthcare-manufacturing-but-only-4-to-6pp-in-software-engineering.md",
+     "level": "M",
+     "quote": "even domain-specific Skills cannot breach tasks requiring multi-step pipelines"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/passive-context-agents-md-achieves-100-percent-pass-rate-where-on-demand-skills-achieve-53-percent-by-eliminating-invocation-decision.md",
+     "level": "M",
+     "quote": "SkillsBench's eval harness explicitly integrated Skills into the agent workflow"
+    }
+   ]
+  },
+  {
+   "id": "MG",
+   "source": "mine",
+   "query": "Сколько операций в секунду выдаёт HNSW в ruvector и на какой задержке?",
+   "class": "ru-cross",
+   "expect": "hit",
+   "args": {},
+   "total": 868,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A M W W M",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/ruvector-hnsw-achieves-52k-ops-sec-with-sub-millisecond-latency.md",
+     "level": "A",
+     "quote": "52K вставок/сек и 0.019ms p50 задержку поиска"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/ruvector-hnsw-core-validated-but-gnn-experimental.md",
+     "level": "M",
+     "quote": "HNSW vector search is production-ready"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/ruvector-rejected-for-zeroclaw-due-to-168-downloads-and-single-author-risk.md",
+     "level": "W",
+     "quote": "rejected RuVector as a dependency"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md",
+     "level": "W",
+     "quote": "rejecting RuVector (168 downloads)"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/pattern-role-locus-operation-attribution.md",
+     "level": "M",
+     "quote": "Оценивать граф-механики на уровне ОТДЕЛЬНЫХ операций"
+    }
+   ]
+  },
+  {
+   "id": "MH",
+   "source": "mine",
+   "query": "How much RAM does an HNSW index need for 100k vectors at 1536 dimensions?",
+   "class": "number",
+   "expect": "hit",
+   "args": {},
+   "total": 388,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A M W M W",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/hnsw-memory-bloat-index-requires-ram-residency-100k-vectors-at-1536-dims-needs-600mb-plus.md",
+     "level": "A",
+     "quote": "100K vectors at 1536 dims потребляет 600MB+"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/zeroclaw-semantic-memory.md",
+     "level": "M",
+     "quote": "memory constraints"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/claude-flow-hybrid-memory-combines-sqlite-acid-with-agentdb-hnsw-for-150x-to-12500x-search-speedup.md",
+     "level": "W",
+     "quote": "Default configuration targets production workloads: vectorDimension=1536"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/zeroclaw-decisions.md",
+     "level": "M",
+     "quote": "when to add HNSW"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/compressed-8kb-docs-index-preserves-full-agent-effectiveness-agents-need-pointers-not-content.md",
+     "level": "W",
+     "quote": "Vercel compressed 40KB docs to 8KB pipe-delimited index"
+    }
+   ]
+  },
+  {
+   "id": "MI",
+   "source": "mine",
+   "query": "How fast is ruvector's distance kernel across hardware targets?",
+   "class": "number",
+   "expect": "hit",
+   "args": {},
+   "total": 378,
+   "target_rank": 17,
+   "top1": "M",
+   "levels": "M M M M M",
+   "group": "referrer",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/hyperbolic-geometry-appears-at-every-layer-of-the-ruvnet-stack-from-sql-functions-to-onnx-embeddings.md",
+     "level": "M",
+     "quote": "HNSW indexes the hyperbolic vectors produced by claude-flow's embedding pipeline"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/ruvector-rejected-for-zeroclaw-due-to-168-downloads-and-single-author-risk.md",
+     "level": "M",
+     "quote": "the architectural capability"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/dual-route-memory-combines-vector-similarity-with-hierarchical-graph-traversal.md",
+     "level": "M",
+     "quote": "ZeroClaw's System-1 component"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/claude-flow-hybrid-memory-combines-sqlite-acid-with-agentdb-hnsw-for-150x-to-12500x-search-speedup.md",
+     "level": "M",
+     "quote": "RuVector's HNSW is the ultimate backend"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/agentdb-auto-selects-backend-from-ruvector-rust-down-to-wasm-sqlite-for-universal-runtime.md",
+     "level": "M",
+     "quote": "RuVector is the top-tier backend"
+    }
+   ]
+  },
+  {
+   "id": "MJ",
+   "source": "mine",
+   "query": "Why was rten replaced for embeddings in ZeroClaw?",
+   "class": "why",
+   "expect": "hit",
+   "args": {},
+   "total": 377,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A A W M M",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/zeroclaw-replaced-rten-with-ort-for-embeddings-due-to-performance-gap.md",
+     "level": "A",
+     "quote": "rten was 30-50x slower, lacked INT8 quantization"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/zeroclaw-decisions.md",
+     "level": "A",
+     "quote": "ORT 30-50x faster than rten with INT8 quantization"
+    },
+    {
+     "rank": 3,
+     "path": "ops/methodology/derivation-rationale.md",
+     "level": "W",
+     "quote": "Why each configuration dimension was chosen"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/zeroclaw-uses-inserted-phases-for-tech-debt-and-integration-fixes.md",
+     "level": "M",
+     "quote": "embedding provider iterations (rten, ORT hybrid"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/zeroclaw-semantic-memory.md",
+     "level": "M",
+     "quote": "Topic map for ZeroClaw Phase 4 — vector embeddings"
+    }
+   ]
+  },
+  {
+   "id": "MK",
+   "source": "mine",
+   "query": "When does the ZeroClaw agent loop trim history?",
+   "class": "condition",
+   "expect": "hit",
+   "args": {},
+   "total": 529,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A W M W M",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/zeroclaw-agent-loop-enforces-max-10-tool-iterations-and-auto-trims-history-at-50-messages.md",
+     "level": "A",
+     "quote": "Auto-Trims History at 50 Messages"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/agents-of-chaos-forwarding-reframes-bypass.md",
+     "level": "W",
+     "quote": "Agent refused to 'share' PII but complied when asked to 'forward'"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/miroflow-orchestrator-loop-uses-turn-based-execution.md",
+     "level": "M",
+     "quote": "[[zeroclaw-agent-loop-enforces-max-10-tool-iterations-and-auto-trims-hi"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/rl2f-consolidation-problem-remains-unsolved.md",
+     "level": "W",
+     "quote": "does not address consolidation"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/zeroclaw-decisions.md",
+     "level": "M",
+     "quote": "loop constants"
+    }
+   ]
+  },
+  {
+   "id": "ML",
+   "source": "mine",
+   "query": "How many skill modules should be loaded at once, and why not more?",
+   "class": "number+why",
+   "expect": "hit",
+   "args": {},
+   "total": 449,
+   "target_rank": 2,
+   "top1": "M",
+   "levels": "M A W W W",
+   "group": "answer_below",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/domain-specific-skills-boost-agents-42-to-52pp-in-healthcare-manufacturing-but-only-4-to-6pp-in-software-engineering.md",
+     "level": "M",
+     "quote": "2-3 focused domain Skills hit the sw"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/optimal-skill-count-is-two-to-three-modules-at-1500-tokens-four-plus-causes-cognitive-overload.md",
+     "level": "A",
+     "quote": "tasks with 2-3 Skills gained +18.6 percentage points, while tasks with 4+ Skills dropped to +5.9pp"
+    },
+    {
+     "rank": 3,
+     "path": ".claude/skills/review/SKILL.md",
+     "level": "W",
+     "quote": "Only report patterns that pass all four checks"
+    },
+    {
+     "rank": 4,
+     "path": ".claude/skills/next/SKILL.md",
+     "level": "W",
+     "quote": "Surface the most valuable next action"
+    },
+    {
+     "rank": 5,
+     "path": "ops/skills-archive/next-2026-03-06-pre-upgrade.md",
+     "level": "W",
+     "quote": "Surface the most valuable next action"
+    }
+   ]
+  },
+  {
+   "id": "MM",
+   "source": "mine",
+   "query": "What do skills save, and what problem comes with that saving?",
+   "class": "two-part",
+   "expect": "hit",
+   "args": {},
+   "total": 479,
+   "target_rank": null,
+   "top1": "W",
+   "levels": "W W W W M",
+   "group": "non_note",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "ops/skills-archive/next-2026-03-06-pre-upgrade.md",
+     "level": "W",
+     "quote": "Surface the most valuable next action"
+    },
+    {
+     "rank": 2,
+     "path": ".claude/skills/next/SKILL.md",
+     "level": "W",
+     "quote": "Surface the most valuable next action"
+    },
+    {
+     "rank": 3,
+     "path": ".claude/skills/refresh/SKILL.md",
+     "level": "W",
+     "quote": "Update old insights with new connections"
+    },
+    {
+     "rank": 4,
+     "path": "ops/skills-archive/refresh-2026-03-06-pre-upgrade.md",
+     "level": "W",
+     "quote": "Update old insights with new connections"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/agentdb-skill-library-auto-consolidates-successful-patterns-into-parameterized-composable-skills.md",
+     "level": "M",
+     "quote": "even well-consolidated skills are worthless if agents fail to invoke them"
+    }
+   ]
+  },
+  {
+   "id": "MN",
+   "source": "mine",
+   "query": "Which sandbox mechanisms does auto-detection try, and in what order?",
+   "class": "ordered-list",
+   "expect": "hit",
+   "args": {},
+   "total": 473,
+   "target_rank": 3,
+   "top1": "W",
+   "levels": "W W A W W",
+   "group": "answer_below",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/rl2f-consolidation-problem-remains-unsolved.md",
+     "level": "W",
+     "quote": "does not address consolidation--transient adaptation does not become permanent knowledge"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/claude-flow-runs-12-background-workers-from-ultralearn-to-testgaps-with-daemon-management.md",
+     "level": "W",
+     "quote": "12 trigger types with auto-detection"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/sandbox-auto-detection-tries-landlock-bubblewrap-firejail-docker-in-order.md",
+     "level": "A",
+     "quote": "tries landlock → bubblewrap → firejail → docker → noop sandbox"
+    },
+    {
+     "rank": 4,
+     "path": ".claude/skills/review/SKILL.md",
+     "level": "W",
+     "quote": "NEVER auto-implement proposals"
+    },
+    {
+     "rank": 5,
+     "path": "ops/skills-archive/next-2026-03-06-pre-upgrade.md",
+     "level": "W",
+     "quote": "Surface the most valuable next action"
+    }
+   ]
+  },
+  {
+   "id": "MO",
+   "source": "mine",
+   "query": "How many MCP tools does claude-flow expose, and across how many categories?",
+   "class": "number+hub",
+   "expect": "hit",
+   "args": {},
+   "total": 403,
+   "target_rank": 3,
+   "top1": "A",
+   "levels": "A W A W M",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/claude-flow-architecture.md",
+     "level": "A",
+     "quote": "MCP-first design with 19 tool categories"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/agentic-flow-exposes-213-mcp-tools-for-swarm-memory-neural-github-and-performance-operations.md",
+     "level": "W",
+     "quote": "213 MCP tools"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/claude-flow-exposes-171-mcp-tools-across-19-categories-with-multi-transport-stdio-http-websocket.md",
+     "level": "A",
+     "quote": "organizing 171 tools into 19 categories"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/agentic-flow-architecture.md",
+     "level": "W",
+     "quote": "213 across 7 tool groups"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/claude-flow-organizes-64-specialized-agents-in-25-subdirectories-with-yaml-config-and-mcp-integration.md",
+     "level": "M",
+     "quote": "64 specialized agents organized across 25 subdirectories"
+    }
+   ]
+  },
+  {
+   "id": "MP",
+   "source": "mine",
+   "query": "What does the weak flag on a search answer mean?",
+   "class": "definition",
+   "expect": "hit",
+   "args": {},
+   "total": 557,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A M W W W",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/search-weak-flag-is-a-signal-not-a-verdict.md",
+     "level": "A",
+     "quote": "флаг оставлен как сигнал, а не как гейт"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/2brain-serving-state-lags-the-repository.md",
+     "level": "M",
+     "quote": "решения о search/weak/create_file описаны в коде"
+    },
+    {
+     "rank": 3,
+     "path": "ops/skills-archive/connect-2026-03-06-pre-upgrade.md",
+     "level": "W",
+     "quote": "evaluated: weak, only surface vocabulary"
+    },
+    {
+     "rank": 4,
+     "path": ".claude/skills/connect/SKILL.md",
+     "level": "W",
+     "quote": "evaluated: weak, only surface vocabulary"
+    },
+    {
+     "rank": 5,
+     "path": ".claude/skills/check/SKILL.md",
+     "level": "W",
+     "quote": "Full hybrid search with LLM reranking compensates for weak descriptions"
+    }
+   ]
+  },
+  {
+   "id": "MQ",
+   "source": "mine",
+   "query": "Why does search default to the own workspace?",
+   "class": "why",
+   "expect": "hit",
+   "args": {},
+   "total": 498,
+   "target_rank": 4,
+   "top1": "W",
+   "levels": "W W W A W",
+   "group": "non_note",
+   "hits": [
+    {
+     "rank": 1,
+     "path": ".claude/skills/extract/SKILL.md",
+     "level": "W",
+     "quote": "Extract structured knowledge from source material"
+    },
+    {
+     "rank": 2,
+     "path": "ops/skills-archive/extract-2026-03-06-pre-upgrade.md",
+     "level": "W",
+     "quote": "Extract structured knowledge from source material"
+    },
+    {
+     "rank": 3,
+     "path": "ops/methodology/derivation-rationale.md",
+     "level": "W",
+     "quote": "Why each configuration dimension was chosen"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/search-scope-defaults-to-the-own-workspace.md",
+     "level": "A",
+     "quote": "вопрос, на который волт ответить не может"
+    },
+    {
+     "rank": 5,
+     "path": ".claude/skills/learn/SKILL.md",
+     "level": "W",
+     "quote": "Research a topic and grow your knowledge graph"
+    }
+   ]
+  },
+  {
+   "id": "MR",
+   "source": "mine",
+   "query": "How does ZeroClaw's retrieval combine two routes?",
+   "class": "multi-hop",
+   "expect": "hit",
+   "args": {},
+   "total": 288,
+   "target_rank": 2,
+   "top1": "W",
+   "levels": "W A P W W",
+   "group": "answer_below",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/rl2f-consolidation-problem-remains-unsolved.md",
+     "level": "W",
+     "quote": "Store feedback in vector DB for similar-problem retrieval"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/zeroclaw-retrieval-uses-mnemis-dual-route-system-1-vector-plus-system-2-graph.md",
+     "level": "A",
+     "quote": "System-1 provides fast retrieval (<50ms target) via vector similarity search (HNSW)"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/dual-route-memory-combines-vector-similarity-with-hierarchical-graph-traversal.md",
+     "level": "P",
+     "quote": "Mnemis introduces a dual-route memory architecture where two complementary retrieval mechanisms work together"
+    },
+    {
+     "rank": 4,
+     "path": ".claude/skills/graph/SKILL.md",
+     "level": "W",
+     "quote": "Routes natural language questions to graph scripts"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/embedding-drift-silent-retrieval-killer.md",
+     "level": "W",
+     "quote": "old and new embeddings exist in different"
+    }
+   ]
+  },
+  {
+   "id": "MS",
+   "source": "mine",
+   "query": "What does the vault say about Kafka Streams exactly-once guarantees?",
+   "class": "absent",
+   "expect": "none",
+   "args": {},
+   "total": 273,
+   "target_rank": null,
+   "top1": "W",
+   "levels": "W W W W W",
+   "group": "no_abstention",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "inbox/ai-memory-akitaonrails-coding-agent-memory.md",
+     "level": "W",
+     "quote": "exactly-once handoffs между вендорами"
+    },
+    {
+     "rank": 2,
+     "path": ".claude/skills/review/SKILL.md",
+     "level": "W",
+     "quote": "Before triaging observations, check whether the system has drifted"
+    },
+    {
+     "rank": 3,
+     "path": "ops/skills-archive/next-2026-03-06-pre-upgrade.md",
+     "level": "W",
+     "quote": "Surface the most valuable next action"
+    },
+    {
+     "rank": 4,
+     "path": ".claude/skills/next/SKILL.md",
+     "level": "W",
+     "quote": "Surface the most valuable next action"
+    },
+    {
+     "rank": 5,
+     "path": "f/patterns/pattern-memory-anchored-to-code-symbols.md",
+     "level": "W",
+     "quote": "Memory anchored to code symbols"
+    }
+   ]
+  },
+  {
+   "id": "MT",
+   "source": "mine",
+   "query": "Как настроить max_connections в Postgres для 2brain?",
+   "class": "absent-ru",
+   "expect": "none",
+   "args": {},
+   "total": 794,
+   "target_rank": null,
+   "top1": "W",
+   "levels": "W W W W W",
+   "group": "no_abstention",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "inbox/paradedb-pg-search-postgres.md",
+     "level": "W",
+     "quote": "Just use Postgres"
+    },
+    {
+     "rank": 2,
+     "path": "inbox/two-paths-out-of-the-embedding-pipeline-one-index-versus-one-swiss-army-knife.md",
+     "level": "W",
+     "quote": "два пути уйти от embedding-пайплайна в Postgres"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/2brain-serving-state-lags-the-repository.md",
+     "level": "W",
+     "quote": "Обслуживаемый бинарь 2brain отстаёт от репозитория"
+    },
+    {
+     "rank": 4,
+     "path": "inbox/pgx-vs-sqlite-vs-turso-for-prime-agent.md",
+     "level": "W",
+     "quote": "Сравнение PGX"
+    },
+    {
+     "rank": 5,
+     "path": "inbox/geer-hypermedia-rust-tutorial.md",
+     "level": "W",
+     "quote": "Writing a hypermedia app in Rust"
+    }
+   ]
+  },
+  {
+   "id": "MU",
+   "source": "mine",
+   "query": "Which database does Notion use for its search index?",
+   "class": "absent",
+   "expect": "none",
+   "args": {},
+   "total": 344,
+   "target_rank": null,
+   "top1": "W",
+   "levels": "W W W W W",
+   "group": "no_abstention",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/ruvector-architecture.md",
+     "level": "W",
+     "quote": "the most ambitious open-source Rust vector database"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/claude-flow-hybrid-memory-combines-sqlite-acid-with-agentdb-hnsw-for-150x-to-12500x-search-speedup.md",
+     "level": "W",
+     "quote": "SQLite for ACID/FTS plus AgentDB HNSW for vector search"
+    },
+    {
+     "rank": 3,
+     "path": "ops/skills-archive/connect-2026-03-06-pre-upgrade.md",
+     "level": "W",
+     "quote": "Run semantic search for conceptually related"
+    },
+    {
+     "rank": 4,
+     "path": ".claude/skills/connect/SKILL.md",
+     "level": "W",
+     "quote": "Run semantic search for conceptually related"
+    },
+    {
+     "rank": 5,
+     "path": ".claude/skills/check/SKILL.md",
+     "level": "W",
+     "quote": "Combined verification"
+    }
+   ]
+  },
+  {
+   "id": "MV",
+   "source": "mine",
+   "query": "What is ZeroClaw's weekly npm download count?",
+   "class": "absent",
+   "expect": "none",
+   "args": {},
+   "total": 347,
+   "target_rank": null,
+   "top1": "W",
+   "levels": "W W W W W",
+   "group": "no_abstention",
+   "hits": [
+    {
+     "rank": 1,
+     "path": ".claude/skills/next/SKILL.md",
+     "level": "W",
+     "quote": "count incoming [[links]]"
+    },
+    {
+     "rank": 2,
+     "path": "ops/skills-archive/next-2026-03-06-pre-upgrade.md",
+     "level": "W",
+     "quote": "count incoming [[links]]"
+    },
+    {
+     "rank": 3,
+     "path": "knowledge/miroflow-orchestrator-loop-uses-turn-based-execution.md",
+     "level": "W",
+     "quote": "while turn_count < max_turns"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/zeroclaw-memory-trait-extends-without-breaking-backward-compatibility.md",
+     "level": "W",
+     "quote": "ZeroClaw's Memory trait extension principle"
+    },
+    {
+     "rank": 5,
+     "path": ".claude/skills/tasks/SKILL.md",
+     "level": "W",
+     "quote": "View and manage the task stack"
+    }
+   ]
+  },
+  {
+   "id": "MW",
+   "source": "mine",
+   "query": "Which cloud region hosts the 2brain API?",
+   "class": "absent",
+   "expect": "none",
+   "args": {},
+   "total": 200,
+   "target_rank": null,
+   "top1": "W",
+   "levels": "W W W W W",
+   "group": "no_abstention",
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/rlvr-optimization.md",
+     "level": "W",
+     "quote": "trust region optimization"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/2brain-serving-state-lags-the-repository.md",
+     "level": "W",
+     "quote": "Обслуживаемый бинарь 2brain отстаёт от репозитория"
+    },
+    {
+     "rank": 3,
+     "path": "inbox/pingcap-tidb-breach-claim.md",
+     "level": "W",
+     "quote": "Заявление FulcrumSec"
+    },
+    {
+     "rank": 4,
+     "path": "knowledge/every-ruvnet-project-runs-background-workers-as-the-operational-form-of-self-evolving-intelligence.md",
+     "level": "W",
+     "quote": "Background workers are the universal operational pattern"
+    },
+    {
+     "rank": 5,
+     "path": "knowledge/agentdb-auto-selects-backend-from-ruvector-rust-down-to-wasm-sqlite-for-universal-runtime.md",
+     "level": "W",
+     "quote": "same API on Node, browser, edge, MCP"
+    }
+   ]
+  },
+  {
+   "id": "MX",
+   "source": "mine",
+   "query": "What fraction of every API call is fixed overhead?",
+   "class": "number",
+   "expect": "hit",
+   "args": {},
+   "total": 449,
+   "target_rank": 1,
+   "top1": "A",
+   "levels": "A W M W W",
+   "group": null,
+   "hits": [
+    {
+     "rank": 1,
+     "path": "knowledge/seventy-three-percent-of-every-api-call-is-fixed-overhead.md",
+     "level": "A",
+     "quote": "73% of every API call is fixed overhead"
+    },
+    {
+     "rank": 2,
+     "path": "knowledge/agentic-flow-agent-booster-handles-trivial-edits-via-wasm-plus-ast-at-zero-cost-and-sub-millisecond-latency.md",
+     "level": "W",
+     "quote": "WASM + AST analysis handles var->const"
+    },
+    {
+     "rank": 3,
+     "path": "inbox/allspark-opencode-issues-compaction-loops-cache-busting-756-byte-prompt.md",
+     "level": "M",
+     "quote": "fixed part (system prompt + tools) > usable window"
+    },
+    {
+     "rank": 4,
+     "path": "ops/skills-archive/extract-2026-03-06-pre-upgrade.md",
+     "level": "W",
+     "quote": "Extract structured knowledge from source material"
+    },
+    {
+     "rank": 5,
+     "path": ".claude/skills/extract/SKILL.md",
+     "level": "W",
+     "quote": "Extract structured knowledge from source material"
+    }
+   ]
+  }
+ ]
+}
