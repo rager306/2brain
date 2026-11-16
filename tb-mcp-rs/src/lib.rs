@@ -1,6 +1,7 @@
 mod bounded_stdio;
 mod capability;
 pub mod cli;
+mod describe;
 mod gate;
 mod ledger;
 mod policy;
@@ -2030,7 +2031,7 @@ impl Server {
             .map(|tool| match args.detail {
                 SearchDetail::Name => json!({"name": tool.name}),
                 SearchDetail::Summary => {
-                    json!({"name": tool.name, "description": first_sentence(tool.description.as_deref())})
+                    json!({"name": tool.name, "description": crate::describe::first_sentence(tool.description.as_deref())})
                 }
                 SearchDetail::Schema => serde_json::to_value(&tool).unwrap_or(Value::Null),
             })
@@ -3375,7 +3376,8 @@ impl ServerHandler for Server {
             // One line per tool and no output schema: everything deeper comes
             // back from tb_describe_tool, so discovery stays cheap.
             for tool in &mut tools {
-                tool.description = Some(first_sentence(tool.description.as_deref()).into());
+                tool.description =
+                    Some(crate::describe::first_sentence(tool.description.as_deref()).into());
                 tool.output_schema = None;
                 // Parameter descriptions are the largest remaining cost; the
                 // parameter names, types, enums, and required set stay.
@@ -4297,16 +4299,6 @@ fn window_content(result: CallToolResult, max: usize, mode: PayloadMode) -> Call
     let mut response = success_payload(payload, mode);
     response.meta = result.meta;
     response
-}
-
-/// The first sentence of a description, so a concise profile costs one line.
-fn first_sentence(description: Option<&str>) -> String {
-    let text = description.unwrap_or("").trim();
-    let end = text.find(". ").filter(|cut| *cut < 140).map_or_else(
-        || text.chars().take(140).collect::<String>(),
-        |cut| text[..=cut].to_owned(),
-    );
-    end.trim().to_owned()
 }
 
 /// Reject a member-relative path that could escape the member root.

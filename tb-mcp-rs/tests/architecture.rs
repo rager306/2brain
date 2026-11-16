@@ -23,11 +23,12 @@ const LEAVES: [&str; 4] = ["bounded_stdio", "capability", "policy", "schemas"];
 
 /// Every module dependency that is allowed today. Adding one is a decision, so it needs a
 /// line here and a reason in the message.
-const ALLOWED: [(&str, &str); 12] = [
+const ALLOWED: [(&str, &str); 13] = [
     ("cli", "transport"),
     ("gate", "policy"),
     ("lib", "bounded_stdio"),
     ("lib", "capability"),
+    ("lib", "describe"), // one-line descriptions: the cut every default surface carries
     ("lib", "gate"),
     ("lib", "ledger"),
     ("lib", "policy"),
@@ -60,7 +61,9 @@ const ALLOWED: [(&str, &str); 12] = [
 // offending member; the engine read, the `affected` parsing and the refusal text live in `wire.rs` and
 // `policy.rs`. The alternative — keeping the check out of lib.rs — would mean the mutation tool no longer
 // decides what it may write, which is the defect this closes.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4564;
+// 4564 before the one-line description cut moved out to `describe.rs`; the port took 9 lines with it and
+// the ceiling follows DOWN, which is the only direction the ratchet is allowed to move on a refactor.
+const LIB_RS_PRODUCTION_BUDGET: usize = 4556;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
