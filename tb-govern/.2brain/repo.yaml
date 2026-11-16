@@ -1,5 +1,5 @@
 # Package identity and intrinsic vocabulary dependencies.
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine
 name: au-govern
 description: Maintain workspace meaning through audits, findings, repairs and reusable feedback.
 deps:

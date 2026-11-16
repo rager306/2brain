@@ -1,5 +1,5 @@
 ---
-type: au.engine.readme::au-engine
+type: tb.engine.readme::tb-engine
 tldr: Check graph meaning through audits and findings, and capture reusable feedback about agent behavior.
 ---
 
