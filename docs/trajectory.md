@@ -266,6 +266,38 @@ external users:
 - **Let the base answer its own questions.** The transient query class the search section needs can be harvested
   from this vault's own inbox — questions written down and not yet answered are the most honest query set there is.
 
+### The plan, as stages with exit criteria
+
+Ordered by what unblocks the next decision, not by what is interesting.
+
+**Stage 1 — the shared-memory contract is actually a contract.** Concurrent create refuses instead of overwriting;
+`expected_hash` is documented as a fragment token or replaced by a whole-file compare-and-set; a rename that reaches
+an ungranted member is refused; promoting a draft into accepted knowledge is a mode with checks that can fail.
+*Exit:* four tests, each running the two-process case they describe, plus WIRE.md and the tool descriptions saying
+what the engine guarantees.
+
+**Stage 2 — release hygiene.** Green CI on the release SHA; versioned binaries for Linux and macOS with a
+reproducible build command; the single-user trust boundary and the Sustainable Use license stated where a new user
+reads them first.
+*Exit:* a clean machine installs from the published SHA, runs `doctor`, and completes one read and one write.
+
+**Stage 3 — task-level evidence for search.** The labelled task set described above, at least 40 questions with
+minimally sufficient evidence; candidate-generation recall measured separately from final ranking; the numbers kept
+next to the synthetic ones rather than replacing them.
+*Exit:* a stated threshold per query class, written down before the next ranking change.
+
+**Stage 4 — the project-memory template.** `decision`, `constraint`, `evidence`, `experiment`, `handoff`,
+`error_fix`; a `supersedes` relation with a status that survives retrieval; a handoff note the next agent can read
+in one call.
+*Exit:* the two-agent scenario passes on the live vault, with the transcript kept as evidence.
+
+**Stage 5 — knowledge-base intake.** Deliberate intake (every note sourced and linked at write time), the weekly
+census as a card, proposal-based maintenance with a human-checkable diff.
+*Exit:* the isolated share and the unsourced share fall while the note count stays flat.
+
+Stage 1 is running now; stages 2 and 4 in this same cycle. Stage 3 needs the task set written by hand before any
+code moves, and stage 5 begins with the census that now exists.
+
 ## What runs in parallel, and why it is safe
 
 These tracks touch different files and different gates, so they can run at the same time:
