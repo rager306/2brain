@@ -10,6 +10,30 @@ path.
 ~/.2brain/bin/au daemon status /root/vault                   # the engine daemon
 ```
 
+## State
+
+[![CI](https://github.com/rager306/2brain/actions/workflows/ci.yml/badge.svg)](https://github.com/rager306/2brain/actions/workflows/ci.yml)
+
+The cards below are drawn from `tools/cards/metrics.json`, which records the command each number came from and
+the date it was taken. `tools/cards/render.py --check` runs in CI, so a card cannot drift from its number.
+
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/cards/surface-dark.svg">
+  <img src="assets/cards/surface-light.svg" width="410" alt="The MCP surface: 52 tools, wire schema 29, one binary">
+</picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/cards/gates-dark.svg">
+  <img src="assets/cards/gates-light.svg" width="410" alt="Tests, counted">
+</picture>
+</p>
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/cards/ranking-dark.svg">
+  <img src="assets/cards/ranking-light.svg" width="410" alt="Ranking, measured">
+</picture>
+</p>
+
 ## Lineage
 
 2brain is a fork of the **arsumbris** project — a typed knowledge-graph engine over markdown workspaces

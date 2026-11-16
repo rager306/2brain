@@ -1,0 +1,30 @@
+name: Render cards
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/cards/metrics.json"
+      - "tools/cards/render.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 tools/cards/render.py
+      - name: Commit the rendered cards when they changed
+        run: |
+          if git diff --quiet -- assets/cards; then echo "cards already current"; exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add assets/cards
+          git commit -m 'chore(cards): render from tools/cards/metrics.json'
+          git push

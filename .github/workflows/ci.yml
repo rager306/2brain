@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  adapter:
+    name: MCP adapter
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tb-mcp-rs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tb-mcp-rs
+      # The adapter links the engine crates, so the engine's target dir is shared.
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+
+  engine:
+    name: Engine
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tb-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.0"
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tb-engine
+      - run: cargo fmt --check
+      - run: cargo test -p tb-engine --lib
+      - run: cargo test -p tb-engine --test it
+
+  cards:
+    name: Cards match their numbers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The SVGs are committed and drawn from tools/cards/metrics.json; a hand-edited card, or a
+      # metrics file changed without re-rendering, fails here.
+      - run: python3 tools/cards/render.py --check

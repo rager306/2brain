@@ -1,0 +1,54 @@
+{
+  "generated_for": "2brain",
+  "gates": {
+    "adapter_tests": {
+      "value": 217,
+      "command": "cd tb-mcp-rs && cargo +1.99.0 test --offline",
+      "date": "2026-11-16"
+    },
+    "engine_lib_tests": {
+      "value": 704,
+      "known_environment_failures": 1,
+      "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --lib",
+      "date": "2026-11-16"
+    },
+    "engine_it_tests": {
+      "value": 720,
+      "known_environment_failures": 3,
+      "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --test it",
+      "date": "2026-11-16"
+    }
+  },
+  "surface": {
+    "tools": 52,
+    "read": 33,
+    "mutate": 16,
+    "discover": 2,
+    "watch": 1,
+    "wire_schema": 29,
+    "binaries": 1,
+    "languages_on_request_path": 1
+  },
+  "ranking": {
+    "literal": {
+      "queries": 7,
+      "hit_at_1": 0.714,
+      "hit_at_5": 1.0
+    },
+    "topical": {
+      "queries": 53,
+      "hit_at_1": 0.66,
+      "hit_at_5": 0.868
+    },
+    "durable": {
+      "pairs": 26,
+      "hit_at_1": 0.538,
+      "hit_at_5": 1.0
+    },
+    "index_bytes_per_document": 3359,
+    "budget_bytes_per_document": 6144,
+    "search_p50_us": 139,
+    "search_p95_us": 689,
+    "source": "tools/ranking/eval.py, tools/ranking/durable_probe.py; date 2026-11-16"
+  }
+}
