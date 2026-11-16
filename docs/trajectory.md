@@ -106,8 +106,9 @@ daemon), and writes nothing — including not creating `.2brain` to "check". Run
 The writer is deliberately absent: without `--dry-run` it prints the plan and refuses, because half a migration
 is worse than none.
 
-Next: the writer (exact-byte splicing, one commit per repo, clean-tree check), then migrate a leaf member, then
-the monorepo, then the vault, then release 2 flips `DEFS` and `BUILTIN_ENGINE_REPO`.
+Step 5, the writer, is in flight: `--apply` performs the rename with `git mv`, splices the claim lines with the
+existing rewriter, and commits once per repository. The order after it: one leaf member, then the monorepo, then
+the vault, then release 2 flips `DEFS` and `BUILTIN_ENGINE_REPO`.
 
 - **Gate**: a migrated repository opens with 0 diagnostics and the unmigrated tree still opens.
 - **Cost**: the largest single change left, and the only one that touches files on disk.
@@ -131,6 +132,23 @@ lifecycle.
 52 names, 618 occurrences in 81 files, 34 fixtures named after them, 91 vault mentions. The safe form is
 `tb_*` with `au_*` accepted as a deprecated alias for one release. Nothing moves until the prefix is
 chosen; `docs/naming.md` records the open state.
+
+## The repository is public now, and it shows its own numbers
+
+The repo went public on 2026-11-16. Two consequences are now part of the plan rather than an afterthought:
+
+- **operations left the public docs.** Eight host-specific documents moved to `docs/internal/` with a stated
+  rule (`docs/internal/README.md`, and the same rule in `AGENTS.md`): a document that names `/root/vault`, a
+  systemd unit, a socket path, a client config or one evening's run log is operations, not design.
+- **the README carries cards drawn from a measured file.** `tools/cards/metrics.json` records every number with
+  the command it came from and the date; `tools/cards/render.py` draws it in light and dark and refuses to
+  invent a value; `render.py --check` runs in CI, so a card cannot drift from its number. Three cards today —
+  the MCP surface, the test gates, the ranking quality — and the numbers are the ones this trajectory measured.
+
+CI itself exists for the first time (`ci.yml`: adapter fmt/clippy/tests, engine fmt/unit/end-to-end; `cards.yml`
+re-renders on a metrics change). Its first run found a real portability defect: `.cargo/config.toml` pinned the
+shared target directory to `/root/2brain/.cargo-target`, so any checkout that was not this one could not build.
+The path is relative now.
 
 ## What runs in parallel, and why it is safe
 

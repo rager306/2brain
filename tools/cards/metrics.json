@@ -50,5 +50,12 @@
     "search_p50_us": 139,
     "search_p95_us": 689,
     "source": "tools/ranking/eval.py, tools/ranking/durable_probe.py; date 2026-11-16"
+  },
+  "memory": {
+    "vault_notes": 1038,
+    "vault_bytes": 4250000,
+    "daemon_rss_mib": 72.6,
+    "index_bytes_per_document": 3359,
+    "source": "ps -o rss= -p $(systemctl show 2brain-engine -p MainPID --value); find /root/vault -name '*.md' | wc -l; date 2026-11-16"
   }
 }

@@ -32,6 +32,10 @@ the date it was taken. `tools/cards/render.py --check` runs in CI, so a card can
   <source media="(prefers-color-scheme: dark)" srcset="assets/cards/ranking-dark.svg">
   <img src="assets/cards/ranking-light.svg" width="410" alt="Ranking, measured">
 </picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/cards/memory-dark.svg">
+  <img src="assets/cards/memory-light.svg" width="410" alt="One vault, held in memory">
+</picture>
 </p>
 
 ## Lineage
