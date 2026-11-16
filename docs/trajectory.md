@@ -370,6 +370,27 @@ Three consequences, in order of how much they change the plan:
 - **The release binaries** are older than today's changes, so a deploy needs a rebuild rather than a rebuild plus a
   window. Doing it now makes the window short when it opens.
 
+### The intake lane, measured, and what it says about the metric
+
+Thirty-four notes were linked inside their families, one link each, none crossing a family boundary, each as its own
+engine commit. What moved:
+
+| measure | before | after |
+|---|---:|---:|
+| `f/patterns` notes with zero inbound | 35 of 36 | 19 of 36 |
+| inbound edges into `f/patterns` | 1 | 21 |
+| zero inbound over the original 76 | 48 | 32 |
+| edges in the graph | 4 655 | 4 689 |
+| «no outbound link» by the census regex | 76 | **75** |
+
+The last row is the sentence to keep: **the regex moved by one, the graph by thirty-four.** A metric computed over
+text describes the text's shape; the same question asked of the engine describes the graph. Both are now printed side
+by side, and the engine's number is the one the plan tracks.
+
+Equally part of the result is what was refused: 28 notes whose family has exactly one member (a link would have
+crossed families), 8 with no frontmatter, 2 belonging to another session's uncommitted work where the write gate said
+no. A link pass that reports only what it added is not a measurement.
+
 ### What that changes in the stages
 
 - **Stage 1** is done except the deploy window; #4 is the one remaining piece of design debt it created.
