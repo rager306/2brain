@@ -305,6 +305,34 @@ census as a card, proposal-based maintenance with a human-checkable diff.
 Stage 1 is running now; stages 2 and 4 in this same cycle. Stage 3 needs the task set written by hand before any
 code moves, and stage 5 begins with the census that now exists.
 
+### The issue register, and what it changes
+
+Observations made while working are now issues rather than paragraphs, because a paragraph in a trajectory is a
+memory and an issue is a queue. Eleven exist:
+
+| repository | issue | what it closes |
+|---|---|---|
+| 2brain | #1 `docs/tools.md` has no drift check | the tool table becomes a contract, like `READ_VERBS` ↔ WIRE |
+| 2brain | #2 the engine has no clippy gate | a gate on one half teaches contributors to ignore the tool |
+| 2brain | #3 `2brain mcp` without the daemon's `HOME` | the first failure must name the state root it resolved |
+| 2brain | #4 three representations of `scope` | the defaults become data instead of prose |
+| allspark | #19–#22 | `graph`'s cycle, coverage, hotspot and staleness reports each mislead in a measurable way |
+| allspark | #23–#25 | `bash` handle semantics, polling turns, and a child's report visibility |
+
+The rule this makes explicit: **an observation becomes an issue only with a reproduction and a suggestion.** Three of
+the seven harness issues came with numbers (`fan_in=1449`, `229/2247`, seventeen `sleep` processes), and those are
+the ones a maintainer can act on without re-deriving the session.
+
+### What that changes in the stages
+
+- **Stage 1** is done except the deploy window; #4 is the one remaining piece of design debt it created.
+- **Stage 2** (release hygiene) absorbs #1–#3: they are each smaller than a release check and they are what a new
+  user hits first.
+- **Stage 3** keeps its shape, with one addition: the context pack measurement needs a client that builds the pack,
+  so the measurement and the composition are the same artefact.
+- **Stage 5** gains the maintenance shape the issues imply: a weekly pass that files findings as issues instead of
+  amending a document.
+
 ## What runs in parallel, and why it is safe
 
 These tracks touch different files and different gates, so they can run at the same time:
