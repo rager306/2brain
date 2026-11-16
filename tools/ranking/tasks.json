@@ -1,6 +1,6 @@
 {
   "vault": "/root/vault",
-  "note": "Task-level set: real questions a person asks of this base, labelled with the minimally sufficient evidence. Unlike labelled-queries.json (built from filenames), these are written by hand and the expected path is checked by reading the note. A class of `absent` means the base should NOT answer; `ambiguous` accepts any of several.",
+  "note": "Task-level set: real questions a person asks of this base, labelled with the minimally sufficient evidence. Unlike labelled-queries.json (built from filenames), these are written by hand and the expected path is checked by reading the note. A class of `absent` means the base should NOT answer; `ambiguous` accepts any of several; a task carrying `args` measures a documented flag, and `min_total` pins the width of the candidate set that flag implies.",
   "rows": [
     {
       "query": "ReasoningBank",
@@ -94,6 +94,68 @@
       "class": "absent",
       "evidence": [],
       "expect": "none"
+    },
+    {
+      "query": "capsules",
+      "class": "word-form",
+      "evidence": [
+        "inbox/statcraft-safe-rust-spss-alternative.md",
+        "inbox/evolver-gene-experience-framework.md"
+      ],
+      "expect": "any",
+      "why": "The corpus holds only the singular `capsule`, in two notes: Evolver's Capsule (a gene plus one concrete case) and StatCraft's CapsuleCraft knowledge base. A plural query is therefore a pure word-form lookup, and the engine must retry the absent term as the form the index holds (c3c7ee4); `capsule` returns these same two notes, so a pass here means the plural costs nothing."
+    },
+    {
+      "query": "as of",
+      "class": "exact-and",
+      "args": {
+        "exact": true
+      },
+      "evidence": [
+        "knowledge/bitemporal-valid-transaction-time.md"
+      ],
+      "expect": "hit",
+      "min_total": 100,
+      "why": "`exact` is documented as an AND of terms, not a phrase: every note holding both words matches, adjacent or not. The bitemporal note is the note about AS OF queries, so it is the right first hit; `min_total` pins the documented breadth, because a change to adjacency would still leave this note first while collapsing the 218 hits to the 7 that hold the literal pair. A phrase belongs to tb_grep, and this row is the line that says so."
+    },
+    {
+      "query": "oracle matrix tests",
+      "class": "mixed-language",
+      "evidence": [
+        "f/patterns/pattern-oracle-drift-ci.md"
+      ],
+      "expect": "any",
+      "why": "This is the vault's answer for the oracle half of the oracle-matrix theme: run one test corpus against a live oracle in CI and diff the two outputs (the matrix half is absent from the corpus). Its body is Russian (korpus testov), so English `tests` cannot match there and `matrix` is absent; only `oracle` matches, which is below the default floor of two for a three-word query. The row states the expectation with no workaround, so it stays a probe of the floor."
+    },
+    {
+      "query": "oracle matrix tests",
+      "class": "mixed-language",
+      "args": {
+        "min_should_match": 1
+      },
+      "evidence": [
+        "f/patterns/pattern-oracle-drift-ci.md"
+      ],
+      "expect": "any",
+      "why": "The same note and query with the floor lowered to one: the note ranks third of 83, so the ranking does reach it once the floor stops excluding it. A pass here beside a miss on the default row locates the failure in the floor rather than in the index or the vocabulary."
+    },
+    {
+      "query": "event log as source of truth",
+      "class": "hub-vs-atomic",
+      "evidence": [
+        "knowledge/event-log-as-source-of-truth-agent-memory.md"
+      ],
+      "expect": "hit",
+      "why": "The query is this note's own title and the note states the rule asked for: the append-only log is primary, the graph and memory are deterministic projections. knowledge/kutha-temporal-graphs.md is the topic map that lists the note and repeats the phrase; it is a legitimate second hit, but a map is not the answer to what the event-log rule is."
+    },
+    {
+      "query": "битемпоральная модель ребра отслеживает валидность и время загрузки отдельно",
+      "class": "bilingual",
+      "evidence": [
+        "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md"
+      ],
+      "expect": "any",
+      "why": "The English note says what the Russian question asks: every edge carries four timestamps, so validity in the world is tracked separately from ingestion time. There is no shared token, so the row measures the bilingual gap; the Russian sibling knowledge/bitemporal-valid-transaction-time.md ranks third and is a different note (the general model, not the edge model)."
     }
   ],
   "counts": {
@@ -102,6 +164,11 @@
     "ru-cross": 1,
     "multi-hop": 2,
     "ambiguous": 1,
-    "absent": 3
+    "absent": 3,
+    "word-form": 1,
+    "exact-and": 1,
+    "mixed-language": 2,
+    "hub-vs-atomic": 1,
+    "bilingual": 1
   }
 }

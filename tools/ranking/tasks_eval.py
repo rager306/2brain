@@ -11,6 +11,9 @@ English material, multi-note questions, an ambiguous query, and three the base s
 The `absent` class has no clean automatic judge: the only honest signal the wire carries is `matched_terms`, so a
 question counts as correctly unanswered when the top hit matched at most one query term. That is a weak test, and
 it is labelled weak rather than dressed up.
+
+A task may carry `args` (the tool arguments its class measures — `exact`, `min_should_match`) and `min_total`
+(the candidate count the documented behaviour implies), so a class can pin a flag's semantics and not only a rank.
 """
 
 from __future__ import annotations
@@ -41,21 +44,26 @@ def real_terms(query: str) -> list[str]:
     return [word for word in query.lower().split() if word and word not in STOPWORDS]
 
 
-def search(client: StdioMcp, query: str, limit: int = 10, min_should_match: int | None = None) -> list[dict]:
-    args = {"query": query, "limit": limit}
-    if min_should_match:
-        args["min_should_match"] = min_should_match
+def search(client: StdioMcp, query: str, limit: int = 10,
+           extra: dict | None = None) -> tuple[list[dict], int | None]:
+    """One page of matches, plus the engine's total for the query.
+
+    `extra` is the task's own arguments (`exact`, `min_should_match`, `scope`): the set has to measure
+    the flags the tool documents, so a task can pin the behaviour of a non-default parameter.
+    """
+    args = {"query": query, "limit": limit, **(extra or {})}
     reply = client.call("tb_search", args)
     result = reply.get("result", reply)
     if result.get("isError"):
-        return []
+        return [], None
     block = (result.get("structuredContent") or {}).get("search") or {}
     root = PREFIX
-    return [
+    hits = [
         {"path": match["path"].removeprefix(root), "terms": match.get("matched_terms", 0),
          "score": round(match.get("score", 0.0), 2), "weak": bool(match.get("weak"))}
         for match in block.get("matches", [])
     ]
+    return hits, block.get("total")
 
 
 def main() -> int:
@@ -84,10 +92,10 @@ def main() -> int:
     target = args.socket or str(VAULT)
     with StdioMcp([ADAPTER, "mcp", target], name="tasks-eval", env=env) as client:
         for task in tasks:
-            wanted_min = None
-            if args.require_real_terms:
-                wanted_min = max(1, len(real_terms(task["query"])))
-            hits = search(client, task["query"], args.limit, wanted_min)
+            extra = dict(task.get("args") or {})
+            if args.require_real_terms and "min_should_match" not in extra:
+                extra["min_should_match"] = max(1, len(real_terms(task["query"])))
+            hits, total = search(client, task["query"], args.limit, extra)
             paths = [hit["path"] for hit in hits]
             if task["expect"] == "none":
                 # The engine never refuses to answer; it reports `weak` when every matched term is common in the
@@ -98,8 +106,13 @@ def main() -> int:
                 wanted = task.get("accept") or task["evidence"]
                 rank = next((position for position, path in enumerate(paths, 1) if path in wanted), None)
                 passed = rank is not None and (task["expect"] == "any" or rank == 1)
+            # A page's width is not a property of the question; a task that pins what a flag does to the
+            # candidate SET states the count it expects, and a collapsed answer fails even when the right
+            # note still ranks first (the `exact` AND is the case that needs this).
+            if task.get("min_total") is not None:
+                passed = passed and (total or 0) >= task["min_total"]
             rows.append({"query": task["query"], "class": task["class"], "passed": passed, "rank": rank,
-                         "top": paths[:3], "top_terms": hits[0]["terms"] if hits else 0,
+                         "total": total, "top": paths[:3], "top_terms": hits[0]["terms"] if hits else 0,
                          "top_weak": hits[0]["weak"] if hits else None})
 
     if args.json:
@@ -112,7 +125,8 @@ def main() -> int:
         where = f"rank {row['rank']}" if row["rank"] else f"terms {row['top_terms']}"
         if row.get("top_weak"):
             where += " weak"
-        print(f"{mark} {row['class']:<{width}}  {where:<10} {row['query'][:60]}")
+        where += f" of {row['total']}"
+        print(f"{mark} {row['class']:<{width}}  {where:<16} {row['query'][:60]}")
         if not row["passed"]:
             print(f"        top: {', '.join(row['top'])}")
 
