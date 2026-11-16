@@ -136,3 +136,29 @@ non-destructive, `tb_diagnostics > 0`). Order: install release 1, then migrate; 
    (`engine.rs:366`) match the component `.arsumbris`, so a `.2brain/repo.yaml` edit classifies as content and a member
    add or scope change never re-walks, silently. Test: `classify_dirty` on `.2brain/repo.yaml` → `NeedsFull`, plus an
    end-to-end `set_ignores` on a migrated fixture.
+
+## Measured on the monorepo, 2026-11-16
+
+`au migrate identity --dry-run --all` against the real registry, with the writer built from the tree:
+
+```
+au: migrate identity: plan for 20 repositories
+…
+au: migrate identity: 16 to migrate, 0 already migrated, 1 refused, 3 skipped
+au: migrate identity: dry run, nothing was written
+```
+
+| outcome | count | who | why |
+|---|---:|---|---|
+| to migrate | 16 | the twelve `tb-*` content and contract repositories, plus `tb-defaults/{blank,host-bundle,mcp-bundle,minimal}` | each carries `.arsumbris/repo.yaml` and, where it has one, `.arsumbris/workspace.yaml`; `tb-mcp-sdk` also carries four `extends: au.engine.meta::au-engine` lines in its `type/` directory |
+| skipped | 3 | `au-defaults`, `au-engine`, `au-mcp-rs` (registry names) | no identity directory holding a `repo.yaml` — the engine synthesises the builtin, and the adapter and the defaults bundle are not repositories |
+| refused | 1 | `vault` at `/root/vault` | `dirty working tree` — the live vault has uncommitted notes, which is the refusal working rather than the migration failing |
+
+Three things this run settles that the plan could only assert:
+
+- the plan is **derivable from the real tree**: 2 147 claim lines is the earlier estimate, and the walk agrees with
+  it line by line (every `repo.yaml` and `README.md` claim, four `extends:` lines in `tb-mcp-sdk`, one
+  `workspace.yaml` per bundle that has one);
+- the refusals fire on real input, not only on fixtures — the vault is the one repository in scope that cannot be
+  migrated while someone is writing to it;
+- `--dry-run` wrote nothing: the working tree hash of every repository was unchanged after the run.
