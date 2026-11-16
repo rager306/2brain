@@ -459,6 +459,41 @@ already carry an outgoing `topics:` pointing outside their own family. Any futur
 `family` as a grouping would be trusting a field with two meanings. The next step there is a decision about the field,
 not another pass over the notes.
 
+### The ruvector lanes and the measurement that changed a decision
+
+`/root/vendor-source/ruvector` (322 ADRs, 178 crates, 4 492 Rust files, indexed in the code graph at 100 930 nodes)
+produced three documents: `ruvector-adr-2026-11-16.md` (20 mechanisms from 40 ADRs read end to end),
+`ruvector-crates-2026-11-16.md` (12 implemented mechanisms, every one with `path:line`), and
+`ruvector-agent-2026-11-16.md` (12 from the agent layer).
+
+Two findings matter more than the lists:
+
+- **We rank the whole corpus and filter by scope afterwards.** Our own `search.rs` says so, and ruvector measured the
+  same ordering at 7.9x for identical answers. That is now a lane with a measured before/after, not a principle.
+- **`crates/ruvector-agent-memory` is a memory product with our shape**, and its own stated limit is our most likely
+  failure: N notes repeating one source count as N observations. It implements lineage arbitration for the case where
+  the notes cite the source, and admits it cannot catch twenty agents re-asserting a rumor. That is why a corpus lane now
+  measures how many echoes the vault already holds.
+
+The measurement discipline they contributed is worth as much as the mechanisms: a sold benchmark is a liability
+(their hybrid header cannot come from their own runner), and "a mechanism is real when a symbol exists AND a caller
+other than its own test uses it" separated five implemented mechanisms from five recommendations in their agent layer.
+
+### The bootstrap, and what it says about today's own change
+
+`tools/ranking/bootstrap.py` compares two task-set runs over the same tasks and answers BETTER / WORSE / INCONCLUSIVE,
+with exact McNemar beside the interval. Validated on pairs whose answer is known — a self-pair is inconclusive, a
+reversed-page ranker is WORSE — and then applied to the change this trajectory just recorded as accepted:
+
+**10/18 -> 11/18 is INCONCLUSIVE**, interval [0, +3] tasks. At n = 18 a resample misses one flipped task with
+probability (17/18)^18 = 0.357, so the interval must contain zero; the tool's resolution here is four net flips. The
+gate therefore stays the pre-registered task-level criterion, the bootstrap is published beside it, and a bootstrap
+WORSE is a veto. For the bootstrap to gate, the metric has to be graded (nDCG/MRR) rather than pass/fail — a bigger
+binary set would need about a hundred tasks to detect four points.
+
+That is the honest form of "we improved it": the change was accepted on a criterion that could see it, and the
+statistical instrument says plainly what it could not.
+
 ### What that changes in the stages
 
 - **Stage 1** is done except the deploy window; #4 is the one remaining piece of design debt it created. The window
