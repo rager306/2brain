@@ -7,10 +7,9 @@ The MCP stdio server for the 2brain engine, and **the only serving path**: insta
 server, and `2brain mcp --help|--info|--version` answers with the server's own contract, which is why
 those flags pass through the dispatcher unchanged.
 
-The package and crate are `tb-mcp-rs` / `tb_mcp_rs` since 2026-11-16 (`2b_` is not a legal Rust
-prefix; see `../docs/naming.md`). The **directory** keeps the name `au-mcp-rs`, because paths that
-scripts and docs carry are a migration, not a rename. It reads a workspace through the engine's Unix socket,
-and can write only when the launch grants it.
+The package, crate and directory are `tb-mcp-rs` / `tb_mcp_rs` since 2026-11-16 (`2b_` is not a legal Rust
+prefix; see `../docs/naming.md`), and the binary is `2brain`. It reads a workspace through the engine's Unix
+socket, and can write only when the launch grants it.
 
 - **33 reads** (29 engine, 4 derived and observability), **2 discovery** tools, **1 watch**, and **16
   mutating** tools that appear only with an explicit grant (three grants in total). 52 with every
@@ -34,15 +33,14 @@ Connecting a client, including the socket probe and per-client commands, is in
 
 ## Build and inspect
 
-Two binaries are built from this package:
+One binary is built from this package:
 
 | binary | role | size |
 |---|---|---|
-| `2brain` | **one binary for both halves**: `daemon`, `open`, `members` (the engine) and `mcp`, `info` (this server) | 23 MB |
-| `au-mcp-rs` | the MCP server alone, for an existing configuration that names it | 6 MB |
+| `2brain` | **one binary for both halves**: `daemon`, `open`, `members` (the engine), `mcp`, `info` (this server), and `init`, `doctor` (first run) | 23 MB |
 
 `2brain` delegates the engine subcommands to `au_cli` and the MCP subcommand
-to this crate, so the two halves cannot drift from their standalone binaries.
+to this crate, so the two halves cannot drift.
 
 ```sh
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
@@ -53,6 +51,8 @@ RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
 ./target/release/2brain mcp --info         # MCP surface, no engine needed
 ./target/release/2brain mcp /root/vault    # serve (a socket path works too)
 ./target/release/2brain info /root/vault   # surface + a probe of the live engine
+./target/release/2brain init ./my-workspace  # a workspace the engine opens, and the next command
+./target/release/2brain doctor ./my-workspace # ok/warn/fail per check; exit 0 only when nothing failed
 ```
 
 `--info` is the self-description: server name and version, both protocol
@@ -72,7 +72,7 @@ from, as semver build metadata:
 
 ```
 2brain 0.1.0+74e88f7e3688
-au-mcp-rs 0.1.0+74e88f7e3688.dirty   # `.dirty` = uncommitted changes in this crate
+2brain 0.1.0+<sha>                  # `.dirty` = uncommitted changes in this crate
 ```
 
 `--info` adds the target triple and profile, and the same string is reported to
@@ -90,9 +90,9 @@ commit for reproducible packaging.
 ## Launch policy
 
 ```sh
-au-mcp-rs <socket>                                     # read-only
-au-mcp-rs <socket> --allow-mutations                    # explicit grant
-au-mcp-rs <socket> --policy /etc/au-policy.json \
+2brain mcp <socket>                                 # read-only
+2brain mcp <socket> --allow-mutations               # explicit grant
+2brain mcp <socket> --policy /etc/au-policy.json \
           --principal "allspark"                        # scoped grant + audit
 ```
 
@@ -201,7 +201,7 @@ substitute for process isolation with untrusted clients.
 ## Tests
 
 ```sh
-RUSTUP_HOME=/root/.rustup cargo +1.99.0 test --offline          # 203 tests, 2 ignored
+RUSTUP_HOME=/root/.rustup cargo +1.99.0 test --offline          # 225 tests, 2 ignored
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 clippy --offline --locked --all-targets --all-features -- -D warnings
 ```
 
