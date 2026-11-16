@@ -22,7 +22,7 @@ use serde_json::Value;
 const CAPTURES: &[(&str, &str, bool)] = &[
     ("au_overview.json", "overview", false),
     ("au_hubs.json", "hubs", true),
-    ("tb_diagnostics.json", "diagnostics", true),
+    ("au_diagnostics.json", "diagnostics", true),
     ("au_graph_health.json", "graph_health", false),
     ("au_search.json", "search", false),
 ];

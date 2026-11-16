@@ -6723,7 +6723,7 @@ async fn composition_write(
         Ok(r) => r,
         Err(frame) => return frame,
     };
-    let path = member_root.join(".arsumbris").join(file);
+    let path = crate::repo::identity_dir_for_write(&member_root).join(file);
     let plan = saga_plan_off_thread(handle, vec![path.clone()]).await;
     let marker_dir = saga_marker_dir(handle.root());
     let write_path = path.clone();
@@ -7285,11 +7285,14 @@ async fn set_config_repo(handle: &EngineHandle, ctx: SetConfigCtx) -> serde_json
         Some(Ok(Some(root))) => root,
     };
 
-    let path =
-        match crate::repo::config_path(&member_root.join(".arsumbris"), &ctx.consumer, &ctx.file) {
-            Ok(p) => p,
-            Err(e) => return mutation_reject_frame(crate::mutate::MutationReject::new(e)),
-        };
+    let path = match crate::repo::config_path(
+        &crate::repo::identity_dir_for_write(&member_root),
+        &ctx.consumer,
+        &ctx.file,
+    ) {
+        Ok(p) => p,
+        Err(e) => return mutation_reject_frame(crate::mutate::MutationReject::new(e)),
+    };
 
     let plan = saga_plan_off_thread(handle, vec![path.clone()]).await;
     let marker_dir = saga_marker_dir(handle.root());
@@ -7390,7 +7393,7 @@ async fn set_ignores(handle: &EngineHandle, args: SetIgnoresArgs) -> serde_json:
         )));
     }
 
-    let auignore = member_root.join(".arsumbris").join(".auignore");
+    let auignore = crate::repo::identity_dir_for_write(&member_root).join(".auignore");
     let remove = args.patterns.is_empty();
     let plan = saga_plan_off_thread(handle, vec![auignore.clone()]).await;
     let marker_dir = saga_marker_dir(handle.root());
@@ -7433,7 +7436,7 @@ async fn set_ignores(handle: &EngineHandle, args: SetIgnoresArgs) -> serde_json:
         // lag", and the re-scope ran synchronously in the blocking task before
         // this response, so the held version already reflects the new scope.
         Ok(commits) => {
-            let response_path = member_root.join(".arsumbris").join(".auignore");
+            let response_path = crate::repo::identity_dir_for_write(&member_root).join(".auignore");
             mutation_response(handle, &response_path, None, commits)
         }
     }
@@ -11798,9 +11801,10 @@ async fn config_response(handle: &EngineHandle, args: ConfigArgs) -> Response {
                 None => v.repos.entry(),
             };
             match member {
-                Some(r) => {
-                    Scope::Ready(Some(r.root.join(".arsumbris")), r.name.as_str().to_string())
-                }
+                Some(r) => Scope::Ready(
+                    Some(crate::repo::identity_dir(&r.root)),
+                    r.name.as_str().to_string(),
+                ),
                 None => Scope::BadRoot(format!(
                     "repo scope needs a declared member root; `{}` names none",
                     want_root

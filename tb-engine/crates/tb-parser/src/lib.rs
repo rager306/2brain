@@ -33,8 +33,8 @@ pub use fs::{
     audit_subtree,
 };
 pub use identity::{
-    IDENTITY_DIR, IDENTITY_MARKER, LEGACY_IDENTITY_DIR, identity_dir_with, identity_marker_with,
-    is_identity_dir_name,
+    CREATE_IDENTITY_DIR, IDENTITY_DIR, IDENTITY_MARKER, LEGACY_IDENTITY_DIR,
+    identity_dir_for_write_with, identity_dir_with, identity_marker_with, is_identity_dir_name,
 };
 pub use scope::{DEFAULT_EXCLUDE_DIR_NAMES, FLOOR_DIR_NAMES, WalkFilter};
 pub use yaml::{

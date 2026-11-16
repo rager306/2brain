@@ -1,13 +1,13 @@
 //! Repo discovery and membership.
 //!
-//! A repo is a directory holding a committed `.arsumbris/repo.yaml`
-//! that declares its `name:`. Identity is declared, not derived from the
-//! directory.
+//! A repo is a directory holding a committed identity manifest, `repo.yaml` under
+//! `.2brain/` (or under `.arsumbris/` before the repository is migrated), that
+//! declares its `name:`. Identity is declared, not derived from the directory.
 //! A file's repo is its nearest ancestor repo root. A root that declares no
 //! registry degrades to one implicit repo, so every walked file has a repo.
 //!
-//! The registry is probed directly through `read_file`: the walker ignores
-//! `.arsumbris/`, so the registry never appears in the walked file list.
+//! The registry is probed directly through `read_file`: the walker ignores the
+//! identity directory, so the registry never appears in the walked file list.
 //!
 //! Membership is load-bearing: each repo resolves against its own type graph
 //! and reference index, and the cross-repo composition runs over the per-repo
@@ -22,8 +22,51 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use tb_diagnostics::{ByteRange, Diagnostic, DiagnosticCode, Severity, Span, SuggestedFix};
-use tb_parser::FileSystem;
 use tb_parser::yaml::{MarkedYaml, Scalar, YamlData, parse, span_to_byte_range};
+use tb_parser::{
+    FileSystem, IDENTITY_MARKER, identity_dir_for_write_with, identity_dir_with,
+    identity_marker_with, is_identity_dir_name,
+};
+
+/// The identity directory `root` holds on disk, the new spelling winning when both are present.
+///
+/// Every engine read of a repository's identity starts here, so no call site joins a spelling of
+/// its own. A root holding neither spelling yields `<root>/.2brain`, a path that does not answer.
+pub fn identity_dir(root: &Path) -> PathBuf {
+    identity_dir_with(root, |p| p.is_dir())
+}
+
+/// The identity directory a WRITE targets: the one `root` already holds, else the name this
+/// release creates.
+///
+/// A repository keeps one identity directory for its whole life; only a root holding neither
+/// spelling is new, and [`tb_parser::CREATE_IDENTITY_DIR`] decides what a new one is called (the
+/// legacy name in release 1, so a previous-release binary still reads what this one writes).
+pub fn identity_dir_for_write(root: &Path) -> PathBuf {
+    identity_dir_for_write_with(root, |p| p.is_dir())
+}
+
+/// The `<identity>/repo.yaml` marker of `root`, resolved by the same per-root rule.
+pub fn identity_marker(root: &Path) -> PathBuf {
+    identity_marker_with(root, |p| p.is_dir())
+}
+
+/// The identity directory `root` holds, asked of a [`FileSystem`] port rather than the real disk.
+///
+/// The probe is the port's own directory answer, so a memory filesystem is as good as a real one
+/// and the decision is made once per root, never per file. Both spellings present still yields
+/// exactly one, the new name.
+pub(crate) fn identity_dir_in(root: &Path, fs: &impl FileSystem) -> PathBuf {
+    identity_dir_with(root, |dir| fs.is_dir(dir))
+}
+
+/// The `<identity>/repo.yaml` marker of `root`, asked of a [`FileSystem`] port.
+pub(crate) fn registry_path_in(root: &Path, fs: &impl FileSystem) -> PathBuf {
+    identity_marker_with(root, |dir| fs.is_dir(dir))
+}
+
+/// The dependency lockfile's name inside a repository's identity directory.
+const REPO_LOCK_FILE: &str = "repo.lock";
 
 /// `.arsumbris/repo.yaml` is not valid UTF-8 or YAML. `Error`: the repo produces
 /// no type graph and every `::repo` fold into it is blocked.
@@ -198,8 +241,7 @@ pub const DEPENDENCY_PATH_ESCAPES_SNAPSHOT: DiagnosticCode =
 pub const DEPENDENCY_CACHE_MISS: DiagnosticCode =
     DiagnosticCode::from_static("dependency-cache-miss");
 
-pub(crate) const REGISTRY_REL: &str = ".arsumbris/repo.yaml";
-pub(crate) const REPO_LOCK_REL: &str = ".arsumbris/repo.lock";
+pub(crate) const REGISTRY_FILE: &str = IDENTITY_MARKER;
 
 /// A repo's declared identity.
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -569,13 +611,15 @@ pub struct LockedPackage {
     pub path: Option<String>,
 }
 
-/// The path of a repo's dependency lockfile, `<root>/.arsumbris/repo.lock`,
-/// beside its `repo.yaml`.
+/// The path of a repo's dependency lockfile, `repo.lock` inside its identity
+/// directory, beside its `repo.yaml`.
 ///
 /// Per-repo, because deps are declared per-repo in `repo.yaml`, so the solve that
 /// pins them belongs to the repo, not the workspace. Committed and
 /// machine-independent. Each repo's lock pins its OWN transitive fetched closure,
-/// so the repo is reproducible standalone.
+/// so the repo is reproducible standalone. A WRITE path: it follows the identity
+/// directory the repo already holds and creates the release's own name when it
+/// holds none, so a lock never lands beside the identity directory.
 /// A member root in the ONE spelling the engine holds it under.
 ///
 /// Every path identity in the knowledge base derives from a member root: the
@@ -600,18 +644,27 @@ pub(crate) fn canonical_root(root: &Path) -> PathBuf {
 }
 
 pub fn repo_lock_path(repo_root: &Path) -> PathBuf {
-    repo_root.join(".arsumbris").join("repo.lock")
+    identity_dir_for_write(repo_root).join(REPO_LOCK_FILE)
 }
 
-/// The `.arsumbris/workspace.lock` path for a folder-repo entry, beside its
-/// `workspace.yaml`. Per entry-repo, engine-written, it pins the workspace's
+/// The repo lockfile of `repo_root`, read through a [`FileSystem`] port.
+///
+/// The read dual of [`repo_lock_path`]: a member that already holds an identity directory is read
+/// from THAT directory, under either spelling, so a migrated repository's lock is found where its
+/// marker is.
+pub(crate) fn repo_lock_path_in(repo_root: &Path, fs: &impl FileSystem) -> PathBuf {
+    identity_dir_in(repo_root, fs).join(REPO_LOCK_FILE)
+}
+
+/// The `workspace.lock` path for a folder-repo entry, beside its
+/// `workspace.yaml` inside the same identity directory. Per entry-repo, engine-written, it pins the workspace's
 /// `discover` closure (the discover members plus their transitive deps) so those
 /// members mount reproducibly and offline. Parallel to [`repo_lock_path`] and the
 /// same `au.engine.repo-lock` `packages` shape; an `edit` member stays live and
 /// is never locked here. See
 /// [[spec - workspace as a folder-repo - an optional workspace.yaml composes edit and discover members]].
 pub fn workspace_lock_path(entry_root: &Path) -> PathBuf {
-    entry_root.join(".arsumbris").join("workspace.lock")
+    identity_dir_for_write(entry_root).join("workspace.lock")
 }
 
 /// Parse a workspace's package lockfile into per-dependency pins.
@@ -913,7 +966,7 @@ pub enum ConfigSource {
     User,
     /// An explicit device-root directory, standing in for `~/.arsumbris`. A test
     /// injects a tempdir when it exercises the registry itself, reads or `register`
-    /// writes; the same `tb-engine/config/` interior is joined onto it.
+    /// writes; the same `au-engine/config/` interior is joined onto it.
     Dir(PathBuf),
     /// No per-user config at all: the registry is empty, resolution falls to
     /// co-present siblings and the cache. The hermetic default for a test that
@@ -978,7 +1031,7 @@ pub(crate) fn config_path(state_dir: &Path, consumer: &str, file: &str) -> Resul
 /// genuinely reserved everywhere, so the check is uniform rather than
 /// scope-conditional. The compare is CASE-INSENSITIVE: on a case-insensitive
 /// filesystem (macOS APFS default) `Au-Engine/config/repos.yaml` and
-/// `tb-engine/config/repos.yaml` are the same inode, so a case-variant `consumer`
+/// `au-engine/config/repos.yaml` are the same inode, so a case-variant `consumer`
 /// would otherwise slip past the reserve and clobber the registry.
 pub(crate) fn check_config_segments(consumer: &str, file: &str) -> Result<(), String> {
     reject_config_segment("consumer", consumer)?;
@@ -1249,7 +1302,7 @@ pub fn register_entry(
     // path must be an existing checkout that declares the name, else the registry
     // would record a locator resolution can never validate (a non-mount later, not
     // an error at the write). Register-before-clone is deliberately not supported.
-    let target = path.join(REGISTRY_REL);
+    let target = identity_marker(path);
     match std::fs::read(&target) {
         Ok(bytes) => match parse_registry(&target, &bytes) {
             Ok(reg) if reg.self_entry.name != *name => {
@@ -1261,16 +1314,18 @@ pub fn register_entry(
             Ok(_) => {}
             Err(_) => {
                 return Ok(RegisterOutcome::Conflict(format!(
-                    "path '{}' has an unparseable {REGISTRY_REL}; register a checkout that declares '{}'",
+                    "path '{}' has an unparseable {}; register a checkout that declares '{}'",
                     path.display(),
+                    target.display(),
                     name.0
                 )));
             }
         },
         Err(_) => {
             return Ok(RegisterOutcome::Conflict(format!(
-                "path '{}' has no readable {REGISTRY_REL}; register an existing checkout that declares '{}'",
+                "path '{}' has no readable {}; register an existing checkout that declares '{}'",
                 path.display(),
+                target.display(),
                 name.0
             )));
         }
@@ -1541,7 +1596,7 @@ impl SiblingIndex {
     /// `peer-unmounted`.
     pub fn malformed_candidate(&self, name: &RepoName, fs: &impl FileSystem) -> Option<Diagnostic> {
         for parent in &self.parents {
-            let marker = parent.join(&name.0).join(REGISTRY_REL);
+            let marker = registry_path_in(&parent.join(&name.0), fs);
             if let Some(d) = validate_registry_marker(&marker, fs) {
                 return Some(d);
             }
@@ -1713,7 +1768,7 @@ pub fn resolve_repo_name(
 
     // Tier 2: a registry `path:`, verified against the target's declared name.
     if let Some(loc) = registry.get(name) {
-        let registry_file = loc.path.join(REGISTRY_REL);
+        let registry_file = registry_path_in(&loc.path, fs);
         let declared = match fs.read_file(&registry_file) {
             Ok(b) => match parse_registry(&registry_file, &b) {
                 Ok(r) => Some(r.self_entry.name),
@@ -1884,7 +1939,7 @@ pub fn assemble_members(
             roots.push(root.to_path_buf());
             siblings.insert_root(root, fs);
         }
-        if let Ok(bytes) = fs.read_file(&root.join(REGISTRY_REL)) {
+        if let Ok(bytes) = fs.read_file(&registry_path_in(root, fs)) {
             for dep in parse_repo_deps(&bytes) {
                 frontier.push((dep, MemberRole::Dep));
             }
@@ -1963,7 +2018,7 @@ pub fn assemble_members(
             // deps. A dep already resolved is still pushed, so its role can be
             // raised to `dep`; the frontier stays bounded (each deps edge is pushed
             // once per member, and each member resolves once).
-            if let Ok(bytes) = fs.read_file(&root.join(REGISTRY_REL)) {
+            if let Ok(bytes) = fs.read_file(&registry_path_in(&root, fs)) {
                 for dep in parse_repo_deps(&bytes) {
                     frontier.push((dep, MemberRole::Dep));
                 }
@@ -2000,7 +2055,8 @@ pub fn marker_roots(markers: &[PathBuf]) -> Vec<PathBuf> {
 
 /// Find the repo-registry files under a set of roots and read their bytes.
 ///
-/// A repo root is a directory with a readable `.arsumbris/repo.yaml`.
+/// A repo root is a directory with a readable identity manifest (`repo.yaml` under `.2brain/`,
+/// or under `.arsumbris/` before migration).
 /// Candidate directories are the roots, the walker-surfaced `markers`
 /// ([`marker_roots`]), plus the ancestors of the walked files, bounded to stay
 /// within some root. The markers discover a repo content-free; the ancestor scan
@@ -2017,7 +2073,7 @@ pub fn registry_files(
 ) -> Vec<(PathBuf, Vec<u8>)> {
     let mut out = Vec::new();
     for dir in candidate_repo_dirs(roots, files, markers) {
-        let registry = dir.join(REGISTRY_REL);
+        let registry = registry_path_in(&dir, fs);
         if let Ok(bytes) = fs.read_file(&registry) {
             out.push((registry, bytes));
         }
@@ -2076,7 +2132,7 @@ pub fn lock_files(
 ) -> Vec<(PathBuf, Vec<u8>)> {
     let mut out = Vec::new();
     for dir in candidate_repo_dirs(roots, files, markers) {
-        let lock = dir.join(REPO_LOCK_REL);
+        let lock = identity_dir_in(&dir, fs).join(REPO_LOCK_FILE);
         if let Ok(bytes) = fs.read_file(&lock) {
             out.push((lock, bytes));
         }
@@ -2113,6 +2169,9 @@ pub fn discover_repos(
     let mut diagnostics = Vec::new();
     let mut repos: Vec<Repo> = Vec::new();
     let mut name_to_root: BTreeMap<String, PathBuf> = BTreeMap::new();
+    // The exact marker path each declared name came from, so a duplicate can point at the file that
+    // was read instead of re-resolving a join.
+    let mut name_to_registry: BTreeMap<String, PathBuf> = BTreeMap::new();
 
     for (registry, bytes) in registries {
         let Some(root) = repo_root_of_registry(registry) else {
@@ -2121,17 +2180,21 @@ pub fn discover_repos(
         match parse_registry(registry, bytes) {
             Ok(reg) => {
                 let name = reg.self_entry.name.0.clone();
-                if let Some(first) = name_to_root.get(&name) {
+                if name_to_root.contains_key(&name) {
                     diagnostics.push(diag(
                         DUPLICATE_REPO_NAME,
                         registry,
                         ByteRange::new(0, 0),
                         format!("repo name '{name}' is declared by more than one repo; this registry is ignored and its directory is mounted as an implicit repo so it stays isolated"),
-                        vec![Span::for_file(first.join(REGISTRY_REL))],
+                        name_to_registry
+                            .get(&name)
+                            .map(|first| vec![Span::for_file(first.clone())])
+                            .unwrap_or_default(),
                     ));
                     continue;
                 }
                 name_to_root.insert(name.clone(), root.clone());
+                name_to_registry.insert(name.clone(), registry.clone());
                 // Folder-name convention: a declared repo should sit in a folder
                 // matching its name. A mismatch is soft drift, the declared name
                 // wins. Implicit repos (no repo.yaml) are exempt, handled below.
@@ -2357,7 +2420,7 @@ fn unquoted_colon_hint(text: &str) -> Option<SuggestedFix> {
 /// walk; an incomplete closure surfaces downstream as an unresolved `::repo`
 /// reference, not here.
 pub(crate) fn parse_repo_deps(bytes: &[u8]) -> Vec<RepoEntry> {
-    parse_registry(Path::new(REGISTRY_REL), bytes)
+    parse_registry(Path::new(REGISTRY_FILE), bytes)
         .map(|reg| reg.deps)
         .unwrap_or_default()
 }
@@ -2478,7 +2541,7 @@ pub fn load_workspace(
 /// when absent, unreadable, or nameless. The declared name wins over the folder
 /// name, so a caller uses this rather than the basename.
 pub(crate) fn declared_name_at(root: &Path, fs: &impl FileSystem) -> Option<RepoName> {
-    let repo_yaml = root.join(REGISTRY_REL);
+    let repo_yaml = registry_path_in(root, fs);
     let bytes = fs.read_file(&repo_yaml).ok()?;
     parse_registry(&repo_yaml, &bytes)
         .ok()
@@ -2493,7 +2556,7 @@ pub(crate) fn declared_name_at(root: &Path, fs: &impl FileSystem) -> Option<Repo
 /// diagnostic so the refusal can name the cause. Distinct from `declared_name_at`,
 /// which collapses all three failures into `None`.
 pub(crate) fn entry_repo_load(root: &Path, fs: &impl FileSystem) -> Result<(), Option<Diagnostic>> {
-    let repo_yaml = root.join(REGISTRY_REL);
+    let repo_yaml = registry_path_in(root, fs);
     let bytes = match fs.read_file(&repo_yaml) {
         Ok(b) => b,
         Err(_) => return Err(None),
@@ -2524,7 +2587,11 @@ fn folder_repo_entry(manifest_path: &Path, fs: &impl FileSystem) -> Option<(Repo
         return None;
     }
     let state_dir = manifest_path.parent()?;
-    if state_dir.file_name()? != ".arsumbris" {
+    if !state_dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(is_identity_dir_name)
+    {
         return None;
     }
     let root = state_dir.parent()?;

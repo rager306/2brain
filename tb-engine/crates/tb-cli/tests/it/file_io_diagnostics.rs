@@ -61,6 +61,12 @@ impl FileSystem for FakeFs {
         self.files.contains_key(path)
     }
 
+    fn is_dir(&self, path: &Path) -> bool {
+        self.files
+            .keys()
+            .any(|key| key != path && key.starts_with(path))
+    }
+
     fn walk_files(&self, root: &Path, filter: &WalkFilter) -> io::Result<tb_parser::Walk> {
         let files: Vec<PathBuf> = self
             .files
@@ -157,6 +163,10 @@ impl FileSystem for CountingFs {
 
     fn is_file(&self, path: &Path) -> bool {
         self.inner.is_file(path)
+    }
+
+    fn is_dir(&self, path: &Path) -> bool {
+        self.inner.is_dir(path)
     }
 
     fn walk_files(&self, root: &Path, filter: &WalkFilter) -> io::Result<tb_parser::Walk> {

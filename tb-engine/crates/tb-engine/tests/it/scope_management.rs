@@ -89,7 +89,7 @@ fn ignores_returns_patterns_defaults_and_floor() {
     assert_eq!(m["root"], h.root.display().to_string());
     assert_eq!(m["patterns"], json!(["docs/"]));
     assert_eq!(m["default_excludes"], json!(["node_modules", "target"]));
-    assert_eq!(m["floor"], json!([".git", ".arsumbris"]));
+    assert_eq!(m["floor"], json!([".git", ".2brain", ".arsumbris"]));
     // No `resolve`, no boundary effect on the wire.
     assert!(m.get("resolved").is_none() || m["resolved"].is_null());
 }

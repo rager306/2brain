@@ -92,6 +92,7 @@ pub fn resolve_members(
         &dep_notes,
         registry,
         cache_root,
+        fs,
     ));
 
     // Every declared member: the resolved set plus any disabled declaration,

@@ -342,7 +342,7 @@ fn updated_fingerprint(
 
 /// Drop dirty paths the current scope excludes, so an edit to a scoped-out file
 /// (or a floored `.git` path) does not re-enter the graph via the incremental
-/// fast path. Engine-schema (`.arsumbris/...`) paths are always kept: a
+/// fast path. Engine-schema paths, under either identity spelling, are always kept: a
 /// `.auignore` or registry change must still reach `classify_dirty` and force
 /// the full re-walk. The member root of each path comes from the held knowledge base's
 /// repos, so this reads only the small `.auignore` files, it never re-walks.
@@ -363,7 +363,10 @@ fn scope_filter_dirty(
         .filter(|path| {
             // Engine-schema survives, so a `.auignore` / registry change forces
             // the full re-walk downstream.
-            if path.components().any(|c| c.as_os_str() == ".arsumbris") {
+            if path
+                .components()
+                .any(|c| tb_parser::is_identity_dir_name(&c.as_os_str().to_string_lossy()))
+            {
                 return true;
             }
             // `.git` is floored; the filter's matcher does not cover the floor.
@@ -516,9 +519,9 @@ struct Inner {
     /// injects a local fixture registry so the verb stays hermetic. The
     /// designed workspace-level override plugs in here.
     registry_remote: String,
-    /// The device root holding `tb-engine/config/{repos,workspaces}.yaml`.
+    /// The device root holding `au-engine/config/{repos,workspaces}.yaml`.
     /// `User` resolves the device root (`$HOME/.arsumbris`, then
-    /// `tb-engine/config/`); a test injects a tempdir so the
+    /// `au-engine/config/`); a test injects a tempdir so the
     /// `register` write and every registry read stay hermetic, off the
     /// developer's real `~/.arsumbris/au-engine/config`. The build, the resolve verb, and
     /// the `register` mutation read the same value, so they never disagree.
@@ -2145,6 +2148,9 @@ mod tests {
         }
         fn is_file(&self, path: &Path) -> bool {
             RealFileSystem.is_file(path)
+        }
+        fn is_dir(&self, path: &Path) -> bool {
+            RealFileSystem.is_dir(path)
         }
         fn walk_files(
             &self,

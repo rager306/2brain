@@ -26,7 +26,7 @@ use tb_diagnostics::{ByteRange, Diagnostic, DiagnosticCode, Severity, Span, Sugg
 
 use crate::ir::{FileEntry, OrdMap};
 use crate::parse::FileParse;
-use crate::repo::{REGISTRY_REL, RepoMap, RepoName};
+use crate::repo::{RepoMap, RepoName};
 
 /// The hardwired type a repo README self-declares.
 pub(crate) const README_TYPE_NAME: &str = "au.engine.readme";
@@ -124,7 +124,7 @@ fn missing_readme_diag(name: &RepoName, root: &Path) -> Diagnostic {
     Diagnostic {
         code: REPO_MISSING_README,
         severity: Severity::Warning,
-        span: Span::new(root.join(REGISTRY_REL), ByteRange::new(0, 0)),
+        span: Span::new(crate::repo::identity_marker(root), ByteRange::new(0, 0)),
         message: format!(
             "repo '{}' has no README.md at its root; a repo self-describes through a root README.md",
             name.as_str()

@@ -138,15 +138,15 @@ pub(crate) fn expand_removed_directories(
     out
 }
 
-/// Whether a path lives under an `.arsumbris/` directory, the engine-schema
-/// home: the `repo.yaml` registry, the `repo.lock`, or the `.auignore`. A change
-/// to any of them can re-route membership or scope, so
-/// it forces a full rebuild. Engine-schema files are floored out of the walk, so
-/// they never enter the catalog fingerprint — a rebuild's no-op gate must treat
-/// them as always-changed rather than compare a hash that is always absent (else
-/// a removal, whose new hash is also absent, reads as no change).
+/// Whether a path lives under a repository identity directory, the engine-schema home: the
+/// `repo.yaml` registry, the `repo.lock`, or the `.auignore`, under either spelling. A change to any
+/// of them can re-route membership or scope, so it forces a full rebuild. Engine-schema files are
+/// floored out of the walk, so they never enter the catalog fingerprint — a rebuild's no-op gate
+/// must treat them as always-changed rather than compare a hash that is always absent (else a
+/// removal, whose new hash is also absent, reads as no change).
 pub(crate) fn is_engine_schema_path(path: &Path) -> bool {
-    path.components().any(|c| c.as_os_str() == ".arsumbris")
+    path.components()
+        .any(|c| tb_parser::is_identity_dir_name(&c.as_os_str().to_string_lossy()))
 }
 
 /// The effective type closure of an instance: the union of every claim's
@@ -1617,6 +1617,9 @@ mod tests {
         fn is_file(&self, path: &Path) -> bool {
             // Presence, not readability: the walk still lists the file.
             self.inner.is_file(path)
+        }
+        fn is_dir(&self, path: &Path) -> bool {
+            self.inner.is_dir(path)
         }
         fn walk_files(
             &self,

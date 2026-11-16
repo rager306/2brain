@@ -2956,7 +2956,8 @@ pub struct MemberIgnoresView {
     pub patterns: Vec<String>,
     /// The seeded, overridable default excludes (`node_modules`, `target`).
     pub default_excludes: Vec<String>,
-    /// The unconditional, NOT-editable floor (`.git`, `.arsumbris`).
+    /// The unconditional, NOT-editable floor (`.git`, and both identity spellings,
+    /// `.2brain` and `.arsumbris`).
     pub floor: Vec<String>,
     /// The boundary-level effect, present only when the read requested `resolve`.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3007,7 +3008,7 @@ fn member_ignores(
     root: std::path::PathBuf,
     resolve: bool,
 ) -> MemberIgnoresView {
-    let auignore = root.join(".arsumbris").join(".auignore");
+    let auignore = crate::repo::identity_dir_in(&root, fs).join(".auignore");
     // Present: the raw lines drive `patterns`; the same bytes build the filter
     // for `resolve`. Absent: no patterns, the default excludes are the filter.
     let contents = match fs.read_file(&auignore) {

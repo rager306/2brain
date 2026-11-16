@@ -84,7 +84,7 @@ pub fn walk_error_diag(err: &WalkError) -> Diagnostic {
     }
 }
 
-/// Diagnostic for an `.arsumbris/.auignore` that exists but could not be
+/// Diagnostic for the identity directory's `.auignore` that exists but could not be
 /// applied (read failed, or a pattern is malformed). The member falls back to
 /// the default excludes; scoping degrades loudly, never silently.
 pub fn auignore_load_error_diag(file: &Path, reason: &str) -> Diagnostic {
@@ -100,15 +100,16 @@ pub fn auignore_load_error_diag(file: &Path, reason: &str) -> Diagnostic {
     }
 }
 
-/// Diagnostic for an `.arsumbris/.auignore` that applied cleanly but excluded
-/// every file under its member, so the member contributes nothing. Almost
-/// always an over-broad pattern; surfaced so an accidental empty scope is loud.
-/// `root` is the member root; the span points at the `.auignore` itself.
+/// Diagnostic for an `.auignore` that applied cleanly but excluded every file
+/// under its member, so the member contributes nothing. Almost always an
+/// over-broad pattern; surfaced so an accidental empty scope is loud. `root` is
+/// the member root; the span points at the `.auignore` itself, in the identity
+/// directory that root holds.
 pub fn auignore_empty_scope_diag(root: &Path) -> Diagnostic {
     Diagnostic {
         code: AUIGNORE_EMPTY_SCOPE,
         severity: Severity::Warning,
-        span: Span::for_file(root.join(".arsumbris").join(".auignore")),
+        span: Span::for_file(crate::repo::identity_dir(root).join(".auignore")),
         message: format!(
             "`.auignore` excluded every file under {}; the member contributes nothing",
             root.display()

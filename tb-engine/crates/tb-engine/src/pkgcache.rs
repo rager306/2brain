@@ -528,7 +528,7 @@ fn resolve_source(
 /// contributes its repo's whole peer set, an over-approximation; the per-member
 /// axis is a later refinement.
 fn read_repo_peers(snapshot: &Path) -> Vec<crate::repo::RepoEntry> {
-    let registry = snapshot.join(crate::repo::REGISTRY_REL);
+    let registry = crate::repo::identity_marker(snapshot);
     match std::fs::read(&registry) {
         Ok(bytes) => crate::repo::parse_repo_deps(&bytes),
         Err(_) => Vec::new(),
@@ -1055,7 +1055,7 @@ pub(crate) fn locate_locked_dependencies(
     // nothing; a fetched dep shared across two locks at one sha dedups below.
     let mut all_entries: Vec<(RepoName, LockedPackage)> = Vec::new();
     for root in &editable_roots {
-        let lock_path = crate::repo::repo_lock_path(root);
+        let lock_path = crate::repo::repo_lock_path_in(root, fs);
         if let Ok(bytes) = fs.read_file(&lock_path) {
             all_entries.extend(crate::repo::parse_package_lock(&bytes));
         }

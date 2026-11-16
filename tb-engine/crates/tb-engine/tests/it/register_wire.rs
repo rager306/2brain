@@ -109,7 +109,7 @@ fn register_writes_the_entry_and_mounts_the_scattered_member() {
     assert_eq!(resp["name"], "lib");
 
     // The entry landed in the INJECTED registry, not the real `~/.arsumbris/au-engine/config`.
-    let registry = h.config_dir.join("tb-engine/config/repos.yaml");
+    let registry = h.config_dir.join("au-engine/config/repos.yaml");
     let written = fs::read_to_string(&registry).expect("repos.yaml written");
     assert!(
         written.contains("lib") && written.contains(&*h.lib.to_string_lossy()),
@@ -148,7 +148,7 @@ fn register_refuses_a_path_whose_repo_declares_another_name() {
         resp["error"].as_str().unwrap().contains("other"),
         "the reject names the declared-vs-key mismatch: {resp}"
     );
-    let registry = h.config_dir.join("tb-engine/config/repos.yaml");
+    let registry = h.config_dir.join("au-engine/config/repos.yaml");
     let written = fs::read_to_string(&registry).unwrap_or_default();
     assert!(
         !written.contains("other-dir"),

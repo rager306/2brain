@@ -73,8 +73,9 @@ impl std::fmt::Display for BuildError {
             BuildError::EntryNotARepo { path, reason } => {
                 write!(
                     f,
-                    "entry '{}' is not a folder-repo: a directory carrying a valid \
-                     .arsumbris/repo.yaml is required",
+                    "entry '{}' is not a folder-repo: a directory carrying a valid, named \
+                     identity manifest is required (repo.yaml under .2brain/, or .arsumbris/ \
+                     before the repository is migrated)",
                     path.display()
                 )?;
                 if let Some(reason) = reason {
@@ -973,6 +974,7 @@ pub fn build_reusing(
             &dep_notes,
             registry,
             cache_root,
+            fs,
         ),
     );
 
@@ -1423,10 +1425,11 @@ pub(crate) fn compose(
 /// Resolve the entry into a folder-repo workspace directory and its optional
 /// composition, or refuse a non-repo entry.
 ///
-/// The entry MUST be a directory carrying a valid, named `.arsumbris/repo.yaml`;
+/// The entry MUST be a directory carrying a valid, named identity manifest
+/// (`repo.yaml` under `.2brain/`, or under `.arsumbris/` before migration);
 /// anything else, a bare directory, a plain file, a nameless or unreadable
 /// `repo.yaml`, is [`BuildError::EntryNotARepo`]. When the entry also
-/// carries a `.arsumbris/workspace.yaml`, that composition is returned; otherwise
+/// carries a `workspace.yaml` in its identity directory, that composition is returned; otherwise
 /// the workspace is the entry repo plus its own `deps` (an entry-only workspace).
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub(crate) fn resolve_entry(
@@ -1456,7 +1459,7 @@ pub(crate) fn resolve_entry(
             reason,
         });
     }
-    let ws = entry.join(".arsumbris").join("workspace.yaml");
+    let ws = crate::repo::identity_dir_in(entry, fs).join("workspace.yaml");
     // Distinguish an ABSENT manifest from a present-but-unreadable one, never
     // conflate them. Absent is an entry-only workspace (`None`). Present but
     // unreadable is carried through as `Some`, so the content read in
@@ -1481,14 +1484,15 @@ pub fn verify_entry(entry: &std::path::Path) -> Result<(), BuildError> {
     resolve_entry(entry, &tb_parser::RealFileSystem).map(|_| ())
 }
 
-/// Whether a manifest path is a folder-repo `.arsumbris/workspace.yaml`. Its
-/// containing repo is the grandparent directory.
+/// Whether a manifest path is a folder-repo workspace manifest: `workspace.yaml` directly inside
+/// an identity directory. Its containing repo is the grandparent directory.
 pub(crate) fn is_folder_repo_manifest(manifest: &std::path::Path) -> bool {
     manifest.file_name().is_some_and(|n| n == "workspace.yaml")
         && manifest
             .parent()
             .and_then(|p| p.file_name())
-            .is_some_and(|n| n == ".arsumbris")
+            .and_then(|n| n.to_str())
+            .is_some_and(tb_parser::is_identity_dir_name)
 }
 
 /// The walk / watch / fingerprint roots for an engine pointed at `entry`, plus
@@ -1533,8 +1537,9 @@ pub(crate) fn assembly_roots(
     (roots, manifest)
 }
 
-/// The walk filter for a member (or tree-mode knowledge base) root. Reads
-/// `<root>/.arsumbris/.auignore` out-of-band, the same pattern as the registry.
+/// The walk filter for a member (or tree-mode knowledge base) root. Reads the
+/// root's `.auignore` out-of-band, from the identity directory the root holds, the
+/// same pattern as the registry.
 /// Absent → the default excludes. Present and valid → the default excludes
 /// layered under the user file. Present but unreadable or malformed → an
 /// `auignore-load-error` diagnostic and a fall back to the default excludes, so
@@ -1548,7 +1553,7 @@ pub(crate) fn member_walk_filter(
     fs: &impl FileSystem,
     diags: &mut Vec<Diagnostic>,
 ) -> (tb_parser::WalkFilter, bool) {
-    let auignore = root.join(".arsumbris").join(".auignore");
+    let auignore = crate::repo::identity_dir_in(root, fs).join(".auignore");
     match fs.read_file(&auignore) {
         Ok(bytes) => {
             let contents = String::from_utf8_lossy(&bytes);
@@ -1734,6 +1739,12 @@ impl<F: FileSystem> FileSystem for AssemblyReadCache<'_, F> {
         self.inner.is_file(path)
     }
 
+    /// Delegated, uncached, for the same reason as [`FileSystem::is_file`]: a cached
+    /// directory answer could outlive the directory it recorded.
+    fn is_dir(&self, path: &Path) -> bool {
+        self.inner.is_dir(path)
+    }
+
     /// Delegated to the inner filesystem, NOT the read-based default: the read
     /// cap must stay a cheap stat, and a caching wrapper measuring size by
     /// reading would defeat the very allocation the cap avoids.
@@ -1907,7 +1918,7 @@ fn report_undeclared_nested_repos(
     nested
         .iter()
         .map(|root| {
-            let marker = root.join(".arsumbris").join("repo.yaml");
+            let marker = crate::repo::registry_path_in(root, fs);
             let name = crate::repo::declared_name_at(root, fs)
                 .map(|n| n.as_str().to_string())
                 .unwrap_or_else(|| {
@@ -1983,6 +1994,7 @@ pub(crate) fn consistency_diagnostics(
     dep_notes: &[(crate::repo::RepoName, crate::repo::ResolveNote)],
     registry: &crate::repo::UserRegistry,
     cache_root: Option<&std::path::Path>,
+    fs: &impl FileSystem,
 ) -> Vec<Diagnostic> {
     use tb_diagnostics::{ByteRange, FixAction, Severity, Span, SuggestedFix};
 
@@ -2016,7 +2028,7 @@ pub(crate) fn consistency_diagnostics(
             .by_name(repo_name.as_str())
             .map(|r| {
                 Span::new(
-                    r.root.join(".arsumbris").join("repo.yaml"),
+                    crate::repo::registry_path_in(&r.root, fs),
                     ByteRange::new(0, 0),
                 )
             })
@@ -2083,7 +2095,7 @@ pub(crate) fn consistency_diagnostics(
                 diags.push(err(
                     crate::repo::DEPENDENCY_IDENTITY_CONFLICT,
                     Span::new(
-                        repo.root.join(".arsumbris").join("repo.yaml"),
+                        crate::repo::registry_path_in(&repo.root, fs),
                         ByteRange::new(0, 0),
                     ),
                     format!(
@@ -2107,7 +2119,7 @@ pub(crate) fn consistency_diagnostics(
             diags.push(err(
                 crate::repo::DEPENDENCY_IDENTITY_CONFLICT,
                 Span::new(
-                    owner.root.join(".arsumbris").join("repo.yaml"),
+                    crate::repo::registry_path_in(&owner.root, fs),
                     ByteRange::new(0, 0),
                 ),
                 format!(
@@ -2129,7 +2141,7 @@ pub(crate) fn consistency_diagnostics(
             {
                 continue;
             }
-            let registry = repo.root.join(".arsumbris").join("repo.yaml");
+            let registry = crate::repo::registry_path_in(&repo.root, fs);
             diags.push(warn(
                 crate::repo::PEER_UNMOUNTED,
                 Span::new(registry, ByteRange::new(0, 0)),
@@ -3126,6 +3138,9 @@ mod tests {
         fn is_file(&self, path: &Path) -> bool {
             self.inner.is_file(path)
         }
+        fn is_dir(&self, path: &Path) -> bool {
+            self.inner.is_dir(path)
+        }
         fn walk_files(
             &self,
             root: &Path,
@@ -3171,6 +3186,9 @@ mod tests {
         fn is_file(&self, path: &Path) -> bool {
             // Presence, not readability: the walk still lists the file.
             self.inner.is_file(path)
+        }
+        fn is_dir(&self, path: &Path) -> bool {
+            self.inner.is_dir(path)
         }
         fn walk_files(
             &self,
@@ -3235,6 +3253,9 @@ mod tests {
         }
         fn is_file(&self, path: &Path) -> bool {
             self.inner.is_file(path)
+        }
+        fn is_dir(&self, path: &Path) -> bool {
+            self.inner.is_dir(path)
         }
         fn file_len(&self, path: &Path) -> std::io::Result<u64> {
             if path == self.big {
@@ -4540,6 +4561,9 @@ mod reuse_tests {
             // Deliberately NOT counted as a read: it decodes nothing, and this
             // double exists to assert which files the build actually reads.
             self.inner.is_file(path)
+        }
+        fn is_dir(&self, path: &Path) -> bool {
+            self.inner.is_dir(path)
         }
         fn file_len(&self, path: &Path) -> std::io::Result<u64> {
             // A stat, NOT a read: delegate to the inner (in-memory) size so the

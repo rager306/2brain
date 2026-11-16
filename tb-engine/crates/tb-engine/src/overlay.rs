@@ -84,6 +84,12 @@ impl<F: FileSystem> FileSystem for OverlayFileSystem<'_, F> {
         self.inner.is_file(path)
     }
 
+    /// Delegated whole: an override never lands inside an identity directory, because the write
+    /// guard rejects such a path before a preview is staged, so no override can add or remove one.
+    fn is_dir(&self, path: &Path) -> bool {
+        self.inner.is_dir(path)
+    }
+
     /// The overridden path reports its override's size (a `Replace`'s content
     /// length, a `Moved`'s source size, or absent for a `Remove`); every other path delegates to the
     /// inner filesystem's cheap stat rather than the read-based default, so a

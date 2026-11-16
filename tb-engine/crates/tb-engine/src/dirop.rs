@@ -616,7 +616,7 @@ pub(crate) fn check_destination_ancestors(repo_root: &Path, to: &Path) -> Result
                     rel(repo_root, &at)
                 ));
             }
-            Ok(m) if m.is_dir() && at.join(".arsumbris/repo.yaml").is_file() => {
+            Ok(m) if m.is_dir() && crate::repo::identity_marker(&at).is_file() => {
                 return Err(format!(
                     "destination is inside a nested repo, whose content the graph does not hold: {} (nested repo)",
                     rel(repo_root, &at)

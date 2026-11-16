@@ -131,6 +131,14 @@ pub trait FileSystem: Send + Sync {
     /// so this is the predicate that agrees with it.
     fn is_file(&self, path: &Path) -> bool;
 
+    /// Whether `path` is present AS A DIRECTORY, without listing it.
+    ///
+    /// The directory twin of [`FileSystem::is_file`]. The identity seam asks whether a root holds
+    /// `.2brain/` or `.arsumbris/` before deciding which one to read, and it must ask the port — a
+    /// memory filesystem answers from its key map — rather than `std::fs`, which knows nothing
+    /// about a fixture. A wrapper should delegate this to its inner filesystem.
+    fn is_dir(&self, path: &Path) -> bool;
+
     /// The byte length of `path` as a regular file, WITHOUT reading it.
     ///
     /// The size probe the engine's read-cap consults so an over-cap file is
@@ -198,6 +206,10 @@ impl FileSystem for RealFileSystem {
 
     fn is_file(&self, path: &Path) -> bool {
         path.is_file()
+    }
+
+    fn is_dir(&self, path: &Path) -> bool {
+        path.is_dir()
     }
 
     /// A `metadata` stat, one syscall, so an over-cap file is measured without
@@ -585,6 +597,14 @@ impl FileSystem for MemoryFileSystem {
     /// Every key is a regular file; the map holds no directories.
     fn is_file(&self, path: &Path) -> bool {
         self.files.contains_key(path)
+    }
+
+    /// A directory is present when some stored key lies below it: the flat map holds files only, so
+    /// the directory is exactly the prefix its files share.
+    fn is_dir(&self, path: &Path) -> bool {
+        self.files
+            .keys()
+            .any(|key| key != path && key.starts_with(path))
     }
 
     /// The stored bytes' length, no clone, the in-memory parity of a stat.

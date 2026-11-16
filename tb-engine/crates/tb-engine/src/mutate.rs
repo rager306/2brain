@@ -45,7 +45,8 @@ pub(crate) fn hash_hex(hash: ContentHash) -> String {
 /// Resolve a mutation's path argument to a normalized absolute path and enforce
 /// the channel's path rules PER MEMBER: a write may reach any declared workspace
 /// member (the same reach reads have, scattered or subdir), but not escape every
-/// member, and not write under a member's `.arsumbris/` (the cache is the engine's).
+/// member, and not write under a member's identity directory (the cache is the
+/// engine's), under either spelling.
 ///
 /// An absolute arg resolves against its owning member directly; a relative arg joins
 /// `fallback_root` (the workspace root) first, preserving single-repo behaviour. The
@@ -91,9 +92,17 @@ pub(crate) fn resolve_repo_path(
     if relative.as_os_str().is_empty() {
         return Err(MutationReject::new("path names a member root, not a file"));
     }
-    if relative.components().next() == Some(Component::Normal(std::ffi::OsStr::new(".arsumbris"))) {
+    if relative
+        .components()
+        .next()
+        .and_then(|c| match c {
+            Component::Normal(name) => name.to_str().map(tb_parser::is_identity_dir_name),
+            _ => None,
+        })
+        .unwrap_or(false)
+    {
         return Err(MutationReject::new(
-            "writes under .arsumbris/ are rejected — the cache is the engine's",
+            "writes under the repository identity directory (.arsumbris/ or .2brain/) are rejected — the cache is the engine's",
         ));
     }
     Ok(normalized)
