@@ -1,5 +1,5 @@
 # Discipline rules are plain notes. Rule profiles supply session injection.
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine
 name: au-rules
 description: Reusable discipline rules and selectable rule profiles for agent sessions.
 deps:

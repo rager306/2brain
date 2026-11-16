@@ -1,5 +1,5 @@
 ---
-type: au.engine.readme::au-engine
+type: tb.engine.readme::tb-engine
 tldr: Centralized agent rules, selected through profiles and loaded at session start.
 ---
 
