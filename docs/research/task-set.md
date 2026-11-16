@@ -459,3 +459,149 @@ python3 tools/ranking/bootstrap.py a.json reversed.json     # worse, [−0.611, 
 python3 tools/ranking/bootstrap.py before.json after.json   # the pair above
 python3 tools/ranking/bootstrap.py --selftest               # the arithmetic, on known shapes
 ```
+
+## A graded view of the same eighteen tasks
+
+`tools/ranking/graded.py` scores the runs `tasks_eval.py` already produces, but by how far evidence moved
+instead of whether a task crossed its threshold. It reads `tools/ranking/tasks.json` for the labels and one or
+two `tasks_eval.py --json` records for the pages. The record now carries the whole page (`page`), because a note
+at rank 4 is not a miss and the first three paths could not say so. It is deterministic and uses only the
+standard library; `--selftest` checks the arithmetic on shapes whose answer is known by hand (8/8).
+
+Three numbers per task, over the first acceptable path (`accept` when the label lists equivalents, else the
+minimal `evidence`):
+
+| metric | value | rank 1 → 2 | rank 1 → 10 |
+|---|---|---|---|
+| MRR | 1/rank, 0 when the path is absent from the page | 1.000 → 0.500 | 1.000 → 0.100 |
+| nDCG@10 | 1/log₂(rank+1), 0 outside the first ten | 1.000 → 0.631 | 1.000 → 0.289 |
+| rank distance | rank − 1 | 0 → 1 | 0 → 9 |
+
+Gains are binary because the labels are: a path is evidence for the question or it is not, and there are no
+grades of relevance to place on a 0–3 scale. That has a consequence worth stating — with binary set labels all
+three numbers are functions of one observation, the rank of the first acceptable hit, and they differ only in
+the penalty curve (MRR is harshest at the top, nDCG gentler, distance linear). The ideal ranking is the accepted
+path at rank 1, so IDCG = 1. For an `any` task the alternatives are equivalent by the label's own words;
+counting all of them as required would penalise the ranker for a choice the label calls a pass. The count of
+expected paths a page holds is kept per task in `--json` (`found`), not folded into the score.
+
+The aggregate is over the classes that carry an expected path: **15 of the 18 tasks**. The three `absent` rows
+are excluded because there is no path to rank — the base should answer nothing, which is a different
+measurement, kept in `tasks_eval.py`. A `min_total` is not a rank either: it pins the width of a flagged
+candidate set, and a page can keep its first hit while collapsing from 218 notes to 7.
+
+### The current candidate build
+
+Measured 2026-11-16 on the candidate engine: debug `tb-cli` built from this working tree at `8f87a37`, the
+adapter built from `tb-mcp-rs`, a `cp -a` copy of `/root/vault` served by its own daemon with its own `HOME`
+(`tools/ranking/candidate_engine.py`). n = 18, 15 scored, **2 tasks with zero expected hits**.
+
+| class | n | MRR | nDCG@10 | first at rank 1 | zero hits | mean distance |
+|---|---:|---:|---:|---:|---:|---:|
+| exact | 2 | 0.750 | 0.815 | 1 | 0 | 0.5 |
+| paraphrase | 3 | 0.667 | 0.667 | 2 | 1 | 0.0 |
+| ru-cross | 1 | 1.000 | 1.000 | 1 | 0 | 0.0 |
+| multi-hop | 2 | 1.000 | 1.000 | 2 | 0 | 0.0 |
+| ambiguous | 1 | 0.111 | 0.301 | 0 | 0 | 8.0 |
+| word-form | 1 | 1.000 | 1.000 | 1 | 0 | 0.0 |
+| exact-and | 1 | 1.000 | 1.000 | 1 | 0 | 0.0 |
+| mixed-language | 2 | 0.333 | 0.500 | 0 | 0 | 2.0 |
+| hub-vs-atomic | 1 | 0.125 | 0.315 | 0 | 0 | 7.0 |
+| bilingual | 1 | 0.000 | 0.000 | 0 | 1 | — |
+| **all scored** | **15** | **0.627** | **0.683** | **8** | **2** | **1.538** |
+
+The macro averages (each class once, so a class with three rows does not count three times) are MRR 0.599 and
+nDCG@10 0.660. The pass count from the same run is 11/18 — the coarser view, for comparison.
+
+### The validation pair
+
+Both controls ran on that build and that corpus, with `tasks_eval.py` unmodified.
+
+| control | MRR | nDCG@10 | passes | first at rank 1 | zero hits | verdict |
+|---|---|---|---:|---:|---:|---|
+| self-pair, two processes | 0.627 → 0.627 | 0.683 → 0.683 | 11 → 11 | 8 → 8 | 2 → 2 | **identical** |
+| page order reversed | 0.627 → **0.193** | 0.683 → **0.339** | 11 → 5 | 8 → 1 | 2 → 2 | **worse** |
+
+The self-pair is the check that matters most: identical input must give identical scores, and it does — equal
+numbers and equal pages, printed as `identical scores yes, identical pages yes`.
+
+The degraded ranker (`tools/ranking/degraded_ranker.py`, which reverses every `tb_search` page) moves MRR down
+**0.434 (−69.2%)** and nDCG@10 down **0.344 (−50.4%)**. The two zero hits do not change, which is the right
+reading: the notes are still in the page, only lower. The drop is not carried by one number either — 12 rows
+moved their evidence and the seven rows that had been first fell to rank 10, where nDCG gives 0.289.
+
+The control also shows where the graded view is not a pass count in disguise. Six net tasks flipped, but **five
+rows kept their verdict and moved**: `ambiguous` 9 → 2 (passing in both arms, and better), the two
+`mixed-language` rows 3 → 8 (passing in both arms, nDCG 0.500 → 0.315), `hub-vs-atomic` 8 → 3 and
+`ReasoningBank` 2 → 9 (failing in both). A pass count calls all five unchanged, and one of them improved while
+the others fell.
+
+### Application 1: today's change, `006ac0b`
+
+The same corpus and the same adapter, with the engine build as the only difference: the pre-change binary is
+`tb-cli` from `006ac0b^` (`8454735`), built in a scratch worktree with its own target directory, served over a
+copy of the same vault copy.
+
+| run | MRR | nDCG@10 | passes | first at rank 1 | zero hits |
+|---|---|---:|---:|---:|---:|
+| before `006ac0b` | 0.605 | 0.650 | 10/18 | 8/15 | 3/15 |
+| after (HEAD `8f87a37`) | 0.627 | 0.683 | 11/18 | 8/15 | 2/15 |
+| delta | **+0.022 (+3.7%)** | **+0.033 (+5.1%)** | +1 | 0 | −1 |
+
+The whole change is one row: `oracle matrix tests` at the default floor went from absent (a page of 5, none of
+them about oracle testing) to rank 3 of 83. nDCG records that as 0.000 → 0.500 on that row; the other 14 tasks
+are untouched. The distance mean rises (1.500 → 1.538) for a compositional reason and not a loss: it averages
+over tasks that have evidence, and the change adds one hit at rank 3 to that set. The zero-hit count beside it
+(3 → 2) is the companion number.
+
+The page data also corrects the earlier paragraph by measurement: of the "eleven more rows" the bootstrap
+counted as moved, **nine pages differ and twelve candidate counts differ, but one evidence position moved**.
+The other eight pages changed only below their first acceptable hit — the floor's escape widened the tail and
+no task's answer changed. A rank metric can say that; a candidate count cannot.
+
+So the graded metric would have caught the change in the only sense available at this size: it reports the
+direction and the size of the one move (+0.033 nDCG, **better**) where the bootstrap reported "inconclusive,
+no more than three tasks". It does not turn one task into statistical evidence, and does not claim to.
+
+### Application 2: the reverse, with the floor forced high
+
+`tasks_eval.py --require-real-terms` sets `min_should_match` to the number of non-stopword query terms — the
+direction the stopword experiment took before it was rejected. Run against both builds:
+
+| build | MRR | nDCG@10 | passes | first at rank 1 | zero hits | verdict |
+|---|---|---:|---:|---:|---:|---|
+| before `006ac0b` | 0.605 | 0.650 | 10/18 | 8/15 | 3/15 | — |
+| … floor forced high | 0.406 | 0.451 | 8/18 | 5/15 | 6/15 | **worse** |
+| delta | **−0.199 (−32.9%)** | **−0.199 (−30.6%)** | −2 | −3 | +3 | |
+| current build | 0.627 | 0.683 | 11/18 | 8/15 | 2/15 | — |
+| … floor forced high | 0.627 | 0.683 | 11/18 | 8/15 | 2/15 | **identical** |
+| delta | 0.000 | 0.000 | 0 | 0 | 0 | |
+
+On the pre-change build the forced floor is visibly destructive: three tasks lose their top hit entirely
+(Zettelkasten, the 3:00 job, 2FA) and the zero-hit count doubles, while the pass count falls by only two —
+`ambiguous` (rank 9) and `exact-and` (rank 1) keep passing, and the damage lands elsewhere.
+
+On the current build the same lever moves **nothing**: no task's first acceptable path changes rank, and nDCG
+is identical to three decimals. What changes is the candidate set — 9 rows change `total`, their sum over the
+eighteen tasks falls from 4 609 to 2 308, and two pages are rearranged only at positions 8–10, below their
+evidence. That is `006ac0b` doing what it claimed: after the rare-term escape the floor no longer cuts a head
+off a page, it narrows the set the page was drawn from.
+
+### What the metric still cannot see
+
+It cannot see a good note the task set never listed: an unlabelled but correct answer scores exactly like a
+wrong one, so the metric rewards finding the note a human wrote down rather than the best answer the base
+holds. The same exclusion costs it the `absent` class, so a ranker that loses six ranking tasks while gaining
+an `absent` pass reads as six losses here — right about the ranking, silent about abstention.
+
+### Reproduction
+
+```sh
+tools/ranking/candidate_engine.py --start                                  # vault copy, its own socket
+BRAIN_BIN=<adapter> python3 tools/ranking/tasks_eval.py --json --socket <socket> --vault <copy> > a.json
+python3 tools/ranking/graded.py a.json                     # the per-class table above
+python3 tools/ranking/graded.py a.json a.json              # self-pair: identical
+python3 tools/ranking/graded.py a.json reversed.json       # page reversed: worse, −0.434 MRR
+python3 tools/ranking/graded.py before.json after.json     # two builds, or two flags
+python3 tools/ranking/graded.py --selftest                 # the arithmetic, on known shapes
+```

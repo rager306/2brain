@@ -6,7 +6,10 @@ rank stability. This scores `tasks.json`, written by hand: exact identifiers, pa
 English material, multi-note questions, an ambiguous query, and three the base should NOT answer.
 
   python3 tools/ranking/tasks_eval.py            # per-class report
-  python3 tools/ranking/tasks_eval.py --json     # for a before/after diff
+  python3 tools/ranking/tasks_eval.py --json     # for a before/after diff, and for graded.py
+
+The `--json` record carries the whole page (`page`), not just its first three paths, because `graded.py`
+scores ranks inside the page and a truncated page would score a note at rank 4 the same as a missing one.
 
 The `absent` class has no clean automatic judge: the only honest signal the wire carries is `matched_terms`, so a
 question counts as correctly unanswered when the top hit matched at most one query term. That is a weak test, and
@@ -112,7 +115,8 @@ def main() -> int:
             if task.get("min_total") is not None:
                 passed = passed and (total or 0) >= task["min_total"]
             rows.append({"query": task["query"], "class": task["class"], "passed": passed, "rank": rank,
-                         "total": total, "top": paths[:3], "top_terms": hits[0]["terms"] if hits else 0,
+                         "total": total, "page": paths, "top": paths[:3],
+                         "top_terms": hits[0]["terms"] if hits else 0,
                          "top_weak": hits[0]["weak"] if hits else None})
 
     if args.json:
