@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Does a model plan a revert before doing it?
 #
-# `saga-and-rollback.sh` proves `au_rollback_preview` answers correctly when a Python
+# `saga-and-rollback.sh` proves `tb_rollback_preview` answers correctly when a Python
 # client calls it with a commit id. This asks the harder question: a model has no git
-# tool here, so it must learn the commit from `au_content`, pass it to the preview, and
+# tool here, so it must learn the commit from `tb_content`, pass it to the preview, and
 # read the plan — the exact chain a careful operator follows before undoing a write.
 #
 # Costs one model turn on YOUR credentials.
@@ -54,9 +54,9 @@ rpc(1, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
                       "clientInfo": {"name": "rollback-setup", "version": "1"}})
 proc.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n")
 proc.stdin.flush()
-read = call(2, "au_content", {"repo": "fixture", "path": "notes/a.md"})
+read = call(2, "tb_content", {"repo": "fixture", "path": "notes/a.md"})
 body = read["content"]["text"] + "\nprepare the revert\n"
-call(3, "au_write_file", {"repo": "fixture", "path": "notes/a.md",
+call(3, "tb_write_file", {"repo": "fixture", "path": "notes/a.md",
                           "content": body, "expected_hash": read["content"]["hash"]})
 proc.terminate()
 PY
@@ -65,8 +65,8 @@ before=$(git -C "$repo" rev-list --count HEAD)
 echo "prompt:  plan a revert of the last write"
 
 transcript=$(cd "$repo" && HOME="$TURN_HOME" claude -p \
-'Using the 2brain MCP server only: read notes/a.md with au_content and note the
-`commit` it reports. Then call au_rollback_preview for that commit. Do not change
+'Using the 2brain MCP server only: read notes/a.md with tb_content and note the
+`commit` it reports. Then call tb_rollback_preview for that commit. Do not change
 anything else. Finish with one line: the files the revert would touch, and whether the
 preview says it is safe.' \
   --mcp-config "$config" \
@@ -81,15 +81,15 @@ calls=$(grep -o '"name":"mcp__2brain__[a-z_]*"' <<<"$transcript" | sed 's/.*__//
 echo "tool calls: ${calls:-none}"
 
 grep -q '"name":"mcp__2brain__au_content"' <<<"$transcript" \
-  && pass "the model read the file" || fail "no au_content call"
+  && pass "the model read the file" || fail "no tb_content call"
 grep -q '"name":"mcp__2brain__au_rollback_preview"' <<<"$transcript" \
-  && pass "the model asked for a rollback preview" || fail "no au_rollback_preview call"
-# The commit must be the one au_content reported, not something invented: the answer
+  && pass "the model asked for a rollback preview" || fail "no tb_rollback_preview call"
+# The commit must be the one tb_content reported, not something invented: the answer
 # is only meaningful if the model took the id from the engine.
 read_commit=$(grep -oE '"commit":"[0-9a-f]{40}"' <<<"$transcript" | head -1 | cut -d'"' -f4 || true)
 preview_arg=$(grep -oE '"name":"mcp__2brain__au_rollback_preview","input":\{"repo":"[^"]*","commit":"[0-9a-f]+"' <<<"$transcript" | grep -oE '[0-9a-f]{40}' | head -1 || true)
 if [[ -n $read_commit && $preview_arg == "$read_commit" ]]; then
-  pass "the preview used the commit au_content reported"
+  pass "the preview used the commit tb_content reported"
 else
   fail "the preview argument (${preview_arg:-none}) is not the commit the read reported (${read_commit:-none})"
 fi

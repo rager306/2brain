@@ -34,4 +34,4 @@ leaks no absolute temporary path.
 
 These fixtures were captured on a synthetic repository, not the production vault;
 the production payloads in `tb-engine/tests-golden` remain the contract for
-`au_overview`, `au_hubs`, and `au_diagnostics`.
+`tb_overview`, `tb_hubs`, and `tb_diagnostics`.

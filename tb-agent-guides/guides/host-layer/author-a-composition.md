@@ -14,7 +14,7 @@ Read the definitions you need:
 - [[window::au-host-sdk]]
 - The projections or containers you will use
 
-Find saved entries with `au_instances_of {ofType: "composition::au-host-sdk", origins: ["file"]}`.
+Find saved entries with `tb_instances_of {ofType: "composition::au-host-sdk", origins: ["file"]}`.
 A container query does not list openable compositions.
 
 **Give each owned record a stable address**

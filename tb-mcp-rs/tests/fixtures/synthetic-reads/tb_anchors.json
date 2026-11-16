@@ -1,0 +1,29 @@
+{
+  "arguments": {
+    "path": "notes/a.md",
+    "repo": "fixture"
+  },
+  "payload": {
+    "anchors": [
+      {
+        "level": 2,
+        "span": {
+          "end": 45,
+          "line_col": {
+            "end": {
+              "col": 1,
+              "line": 7
+            },
+            "start": {
+              "col": 1,
+              "line": 6
+            }
+          },
+          "start": 34
+        },
+        "text": "Details"
+      }
+    ]
+  },
+  "tool": "tb_anchors"
+}

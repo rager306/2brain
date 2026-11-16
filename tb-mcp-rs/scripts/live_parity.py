@@ -40,12 +40,12 @@ INSTALLED = os.environ.get("AU_2BRAIN_BIN", "/usr/local/bin/2brain")
 # match. The two processes run the same code, so a difference here means the installed binary is
 # older (or newer) than the tree — which is exactly the failure this script caught in practice.
 FACTS = [
-    ("members", "au_members", {}, "repo"),
-    ("top_level_dirs", "au_top_level_dirs", {}, "repo:name"),
-    ("types", "au_types", {"limit": 500}, "name:repo:hash"),
-    ("hubs", "au_hubs", {"limit": 20}, "path:refs_total"),
-    ("diagnostics", "au_diagnostics", {"limit": 200}, "path:code:severity"),
-    ("search", "au_search", {"query": "wikilink", "limit": 10}, "path"),
+    ("members", "tb_members", {}, "repo"),
+    ("top_level_dirs", "tb_top_level_dirs", {}, "repo:name"),
+    ("types", "tb_types", {"limit": 500}, "name:repo:hash"),
+    ("hubs", "tb_hubs", {"limit": 20}, "path:refs_total"),
+    ("diagnostics", "tb_diagnostics", {"limit": 200}, "path:code:severity"),
+    ("search", "tb_search", {"query": "wikilink", "limit": 10}, "path"),
 ]
 
 
@@ -115,8 +115,8 @@ def main() -> int:
 
     results = []
     status = 0
-    mutations = {"au_write_file", "au_edit_file", "au_delete_file", "au_batch",
-                 "au_create_file", "au_rename", "au_rename_type"}
+    mutations = {"tb_write_file", "tb_edit_file", "tb_delete_file", "tb_batch",
+                 "tb_create_file", "tb_rename", "tb_rename_type"}
     try:
         with StdioMcp([INSTALLED, "mcp", str(socket)], name="installed") as left, \
              StdioMcp([BUILT, "mcp", str(socket)], name="built") as right:

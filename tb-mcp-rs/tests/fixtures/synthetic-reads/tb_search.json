@@ -1,0 +1,29 @@
+{
+  "arguments": {
+    "limit": 10,
+    "offset": 0,
+    "query": "addressability",
+    "repo": "fixture"
+  },
+  "payload": {
+    "search": {
+      "exact": false,
+      "matches": [
+        {
+          "matched_terms": 1,
+          "path": "$FIXTURE/fixture/notes/a.md",
+          "score": 1.875
+        },
+        {
+          "matched_terms": 1,
+          "path": "$FIXTURE/fixture/notes/b.md",
+          "score": 0.912
+        }
+      ],
+      "next_offset": null,
+      "offset": 0,
+      "total": 2
+    }
+  },
+  "tool": "tb_search"
+}

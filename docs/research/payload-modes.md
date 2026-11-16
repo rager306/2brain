@@ -30,18 +30,18 @@ byte-identical, on two builds of the same source.
 
 | call (size of the answer) | `both` | `text` | `structured` |
 |---|---:|---:|---:|
-| `au_content` `ops/tasks.md` (383 B answer) | 934 | 528 | **498** |
-| `au_files` `limit=500` (75 803 B answer) | 159 746 | 83 922 | **75 916** |
-| `au_search` `limit=50` (5 660 B answer) | 11 870 | 6 189 | **5 773** |
+| `tb_content` `ops/tasks.md` (383 B answer) | 934 | 528 | **498** |
+| `tb_files` `limit=500` (75 803 B answer) | 159 746 | 83 922 | **75 916** |
+| `tb_search` `limit=50` (5 660 B answer) | 11 870 | 6 189 | **5 773** |
 | 36 read calls (every read tool, one session) | 22 023 267 | 11 640 203 | **10 386 147** |
 | `initialize` / `tools/list`, mode-independent | 937 / 54 661 | 937 / 54 661 | 937 / 54 661 |
 
 `both` is exactly the `text` frame plus the `structured` frame minus 92 B of envelope
 shared between the two: one frame, two copies. The text copy is a second encoding, so
-its quotes are escaped — for `au_files` it is 8 006 B larger than the structured copy of
-the same payload. `au_files` therefore costs **2.10×** in `both` what it costs in
-`structured`. The 36-call total is dominated by two unbounded reads (`au_instances`
-18.9 MB, `au_candidates` 3.1 MB in `both`): it says what a chatty session pays.
+its quotes are escaped — for `tb_files` it is 8 006 B larger than the structured copy of
+the same payload. `tb_files` therefore costs **2.10×** in `both` what it costs in
+`structured`. The 36-call total is dominated by two unbounded reads (`tb_instances`
+18.9 MB, `tb_candidates` 3.1 MB in `both`): it says what a chatty session pays.
 
 `--tools concise` (orthogonal) cuts `tools/list` from 54 661 B to 17 923 B.
 
@@ -60,7 +60,7 @@ success path.
 ## Where text is still the only copy
 
 - **Errors.** `isError: true` results carry a text block and no `structuredContent`, in
-  *every* mode — verified in `structured` mode too: `au_content {repo:"vault"}` misses
+  *every* mode — verified in `structured` mode too: `tb_content {repo:"vault"}` misses
   `path` and answers with the deserialization message as text, `isError: true`, no
   structured content. A structured default therefore does not lose error text (the
   block is still there), but a client reading only `structuredContent` sees no message,
@@ -70,7 +70,7 @@ success path.
 ## Conclusion
 
 A `structured` default would cut response bytes **52.8%** on the read suite (46.7% on the
-short read, 52.5% on `au_files`) — and 9.5% even against `text`, because the text copy
+short read, 52.5% on `tb_files`) — and 9.5% even against `text`, because the text copy
 pays JSON escaping. It breaks nothing on the success path measured here; it only breaks
 clients that read `content[0].text` and ignore `structuredContent`, which would then get
 an empty `content` array on success. Errors are unaffected: they are text-only today and
@@ -84,9 +84,9 @@ stay text-only. If that compatibility risk is too high, `text` is the half-measu
 /usr/local/bin/2brain mcp /root/.arsumbris/au-engine/run/adcfe8680a485529.sock \
     [--payload both|text|structured]
 #   initialize (2025-06-18) -> tools/list -> tools/call
-#     au_content {repo:"vault", path:"ops/tasks.md"}
-#     au_files   {repo:"vault", limit:500}
-#     au_search  {query:"arsumbris", limit:50}
+#     tb_content {repo:"vault", path:"ops/tasks.md"}
+#     tb_files   {repo:"vault", limit:500}
+#     tb_search  {query:"arsumbris", limit:50}
 # then the same 36 read-tool calls in every mode
 
 # Read-only launch used for all measurements (never --allow-mutations):
@@ -128,7 +128,7 @@ This section's original claim — "Hermes reads `content[0].text`, so text-only 
 the logs prove it. With `--payload text` in the Hermes entry, six tool calls failed in 46 seconds:
 
 ```
-Tool au_overview has an output schema but did not return structured content
+Tool tb_overview has an output schema but did not return structured content
 ```
 
 The check is not in Hermes' own code, which is why searching Hermes' source found nothing; it is in the MCP

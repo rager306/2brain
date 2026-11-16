@@ -16,7 +16,7 @@ binary, one language on the request path, files as the source of truth.
 - **An MCP server.** `2brain` exposes that graph to agents: 52 tools, engine results in their own shape,
   resources per file, a discovery ladder. Mutation tools exist only when the operator grants them.
 - **A fail-closed write path.** Every write is checked against a gate that names the stage it failed at
-  (`policy/prior_read: read this file with au_content before writing it`), and a lost reply is
+  (`policy/prior_read: read this file with tb_content before writing it`), and a lost reply is
   `outcome_unknown` — never retried, reconciled instead.
 
 ## What it is not
@@ -104,9 +104,9 @@ Drop `--allow-mutations` for a read-only launch: the 16 mutating tools are then 
 not merely refused. `--allow-composition` and `--allow-workspace-shape` add the tools that change a
 workspace's structure.
 
-**First calls**, from an agent or a person using an MCP client: `au_overview` (what is here),
-`au_members` (which member is editable), `au_types` (the vocabulary), `au_search` (find by meaning),
-`au_content` (read a file and get the hash a write will need).
+**First calls**, from an agent or a person using an MCP client: `tb_overview` (what is here),
+`tb_members` (which member is editable), `tb_types` (the vocabulary), `tb_search` (find by meaning),
+`tb_content` (read a file and get the hash a write will need).
 
 ## Concepts
 
@@ -126,10 +126,10 @@ workspace's structure.
 |---|---:|---|
 | read | 33 | engine reads plus derived ones (ranked search, follow, typed resolution) |
 | mutate | 16 | behind `--allow-mutations`; each needs a prior read of the same path and the hash it returned |
-| discover | 2 | `au_search_tools`, `au_describe_tool` — answer without touching the engine |
-| watch | 1 | `au_watch` reports the engine's change events; there are no subscriptions |
+| discover | 2 | `tb_search_tools`, `tb_describe_tool` — answer without touching the engine |
+| watch | 1 | `tb_watch` reports the engine's change events; there are no subscriptions |
 
-Every result is the engine's own object under the read's key (`au_search` → `{"search": …}`), carried both
+Every result is the engine's own object under the read's key (`tb_search` → `{"search": …}`), carried both
 as text and as `structuredContent` that validates against the declared `outputSchema`. Reads are paged
 where the answer can grow; a page that ends a sequence reports `next_offset: null`.
 

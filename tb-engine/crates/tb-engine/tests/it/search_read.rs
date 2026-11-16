@@ -292,7 +292,7 @@ fn the_search_capture_matches_the_engine() {
     let actual = normalize(&resp["result"], root.to_str().expect("a UTF-8 temp path"));
 
     let path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests-golden/engine/au_search.json");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests-golden/engine/tb_search.json");
     if std::env::var_os("AU_BLESS_SEARCH_CAPTURE").is_some() {
         fs::write(&path, serde_json::to_string_pretty(&actual).unwrap() + "\n").unwrap();
         return;

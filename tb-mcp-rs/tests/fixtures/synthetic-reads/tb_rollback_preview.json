@@ -1,0 +1,83 @@
+{
+  "arguments": {
+    "commit": "HEAD",
+    "repo": "fixture"
+  },
+  "payload": {
+    "rollback_preview": {
+      "commit": "HEAD",
+      "parent": null,
+      "paths": [
+        {
+          "action": "delete",
+          "path": ".arsumbris/repo.yaml",
+          "state": "clean"
+        },
+        {
+          "action": "delete",
+          "path": "notes/a.md",
+          "state": "clean"
+        },
+        {
+          "action": "delete",
+          "path": "notes/b.md",
+          "state": "clean"
+        },
+        {
+          "action": "delete",
+          "path": "notes/c.md",
+          "state": "clean"
+        },
+        {
+          "action": "delete",
+          "path": "notes/d.md",
+          "state": "clean"
+        },
+        {
+          "action": "delete",
+          "path": "notes/invalid.md",
+          "state": "clean"
+        },
+        {
+          "action": "delete",
+          "path": "notes/order z.md",
+          "state": "clean"
+        },
+        {
+          "action": "delete",
+          "path": "notes/order/inner.md",
+          "state": "clean"
+        },
+        {
+          "action": "delete",
+          "path": "type/alpha.child.type.yaml",
+          "state": "clean"
+        },
+        {
+          "action": "delete",
+          "path": "type/alpha.type.yaml",
+          "state": "clean"
+        },
+        {
+          "action": "delete",
+          "path": "type/note.type.yaml",
+          "state": "clean"
+        },
+        {
+          "action": "delete",
+          "path": "type/peer-child.type.yaml",
+          "state": "clean"
+        },
+        {
+          "action": "delete",
+          "path": "type/zeta.type.yaml",
+          "state": "clean"
+        }
+      ],
+      "repo": "$FIXTURE/fixture",
+      "safe": true,
+      "subject": "fixture"
+    }
+  },
+  "tool": "tb_rollback_preview"
+}

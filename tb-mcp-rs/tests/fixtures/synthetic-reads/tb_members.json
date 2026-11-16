@@ -1,0 +1,36 @@
+{
+  "arguments": {},
+  "payload": {
+    "members": [
+      {
+        "disabled": false,
+        "editable": false,
+        "git": {
+          "root": "$FIXTURE/base",
+          "tracked": true
+        },
+        "local": true,
+        "repo": "base",
+        "role": "dep",
+        "root": "$FIXTURE/base",
+        "scattered": true,
+        "tier": "sibling"
+      },
+      {
+        "disabled": false,
+        "editable": true,
+        "git": {
+          "root": "$FIXTURE/fixture",
+          "tracked": true
+        },
+        "local": true,
+        "repo": "fixture",
+        "role": "entry",
+        "root": "$FIXTURE/fixture",
+        "scattered": false,
+        "tier": "entry"
+      }
+    ]
+  },
+  "tool": "tb_members"
+}

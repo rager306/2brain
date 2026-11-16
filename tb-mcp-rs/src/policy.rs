@@ -20,22 +20,22 @@ use serde::Deserialize;
 
 /// Tools that change state. Everything else is a read.
 pub const MUTATION_TOOLS: [&str; 16] = [
-    "au_write_file",
-    "au_edit_file",
-    "au_delete_file",
-    "au_batch",
-    "au_assign_block_id",
-    "au_rename_block_id",
-    "au_rename",
-    "au_rename_type",
-    "au_add_dep",
-    "au_remove_dep",
-    "au_inline",
-    "au_promote",
-    "au_create_file",
-    "au_add_workspace_member",
-    "au_remove_workspace_member",
-    "au_set_workspace_member_role",
+    "tb_write_file",
+    "tb_edit_file",
+    "tb_delete_file",
+    "tb_batch",
+    "tb_assign_block_id",
+    "tb_rename_block_id",
+    "tb_rename",
+    "tb_rename_type",
+    "tb_add_dep",
+    "tb_remove_dep",
+    "tb_inline",
+    "tb_promote",
+    "tb_create_file",
+    "tb_add_workspace_member",
+    "tb_remove_workspace_member",
+    "tb_set_workspace_member_role",
 ];
 
 /// Tools that change what the workspace contains, not just a file in it.
@@ -43,15 +43,15 @@ pub const MUTATION_TOOLS: [&str; 16] = [
 /// They author `.arsumbris/repo.yaml`, so they are a second grant on top of
 /// `allow_mutations`: a launch may trust writes to notes and still refuse to
 /// reshape the workspace's dependency graph.
-pub const COMPOSITION_TOOLS: [&str; 2] = ["au_add_dep", "au_remove_dep"];
+pub const COMPOSITION_TOOLS: [&str; 2] = ["tb_add_dep", "tb_remove_dep"];
 
 /// Tools that change which members the workspace serves. A third grant on top of
 /// mutations: reshaping the workspace is a different trust decision from editing
 /// a note, and a mistake here changes what every later read sees.
 pub const WORKSPACE_TOOLS: [&str; 3] = [
-    "au_add_workspace_member",
-    "au_remove_workspace_member",
-    "au_set_workspace_member_role",
+    "tb_add_workspace_member",
+    "tb_remove_workspace_member",
+    "tb_set_workspace_member_role",
 ];
 
 /// Where mutation decisions are written.
@@ -84,12 +84,12 @@ pub struct Policy {
     /// Whether the mutating tools exist at all. Absent means denied.
     #[serde(default)]
     pub allow_mutations: bool,
-    /// Whether composition tools (`au_add_dep`, `au_remove_dep`) exist. They
+    /// Whether composition tools (`tb_add_dep`, `tb_remove_dep`) exist. They
     /// change the workspace's dependency graph, so they are a separate grant.
     #[serde(default)]
     pub allow_composition: bool,
-    /// Whether workspace-shape tools exist (`au_add_workspace_member`,
-    /// `au_remove_workspace_member`, `au_set_workspace_member_role`). They change
+    /// Whether workspace-shape tools exist (`tb_add_workspace_member`,
+    /// `tb_remove_workspace_member`, `tb_set_workspace_member_role`). They change
     /// which members are served, so they are a third grant.
     #[serde(default)]
     pub allow_workspace_shape: bool,
@@ -161,7 +161,7 @@ pub enum Stage {
     PathScope,
     /// The launch policy allows mutations in this member.
     MemberGrant,
-    /// This exact path was read through `au_content`.
+    /// This exact path was read through `tb_content`.
     PriorRead,
     /// The recorded hash still matches the caller's expectation.
     Freshness,
@@ -442,8 +442,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("audit.jsonl");
         let audit = Audit::new(&AuditTarget::File(path.clone()));
-        audit.record("me", "au_write_file", "fixture", "denied:prior_read");
-        audit.record("me", "au_create_file", "fixture", "applied");
+        audit.record("me", "tb_write_file", "fixture", "denied:prior_read");
+        audit.record("me", "tb_create_file", "fixture", "applied");
         let text = std::fs::read_to_string(&path).unwrap();
         let lines: Vec<serde_json::Value> = text
             .lines()

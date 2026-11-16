@@ -15,9 +15,9 @@ daemon is being retired and its projections (`summary`, a severity-filtered
 
 | file | shape | note |
 |---|---|---|
-| `au_overview.json` | daemon projection | graph shape, members, hubs, type counts |
-| `au_hubs.json` | daemon projection | a bare array of 20 hub objects |
-| `au_diagnostics.json` | daemon projection | `summary` + one severity, clean at capture (total 0) |
+| `tb_overview.json` | daemon projection | graph shape, members, hubs, type counts |
+| `tb_hubs.json` | daemon projection | a bare array of 20 hub objects |
+| `tb_diagnostics.json` | daemon projection | `summary` + one severity, clean at capture (total 0) |
 
 They stay as the historical record of what the vault looked like before the fork
 touched the engine. They are not a contract anything can be re-captured against.
@@ -35,17 +35,17 @@ tb-engine/scripts/engine_probe.py \
 
 | file | verb | what it pins |
 |---|---|---|
-| `au_overview.json` | `overview` | members, dependency topology, type and diagnostic counts |
-| `au_hubs.json` | `hubs {limit: 20}` | the navigational crossroads, ranked |
-| `au_diagnostics.json` | `diagnostics {limit: 50}` | the workspace's problem list |
-| `au_graph_health.json` | `graph_health {limit: 20}` | cycles, dead ends, sources, broken links, centrality |
-| `au_search.json` | `search {query: "zarquon"}` | ranked notes, the paging totals, and the `next_offset` nullability — **fixture-derived**, see below |
+| `tb_overview.json` | `overview` | members, dependency topology, type and diagnostic counts |
+| `tb_hubs.json` | `hubs {limit: 20}` | the navigational crossroads, ranked |
+| `tb_diagnostics.json` | `diagnostics {limit: 50}` | the workspace's problem list |
+| `tb_graph_health.json` | `graph_health {limit: 20}` | cycles, dead ends, sources, broken links, centrality |
+| `tb_search.json` | `search {query: "zarquon"}` | ranked notes, the paging totals, and the `next_offset` nullability — **fixture-derived**, see below |
 
 The probe normalizes what would otherwise differ on every run: the workspace root
 becomes `$VAULT`, the observed `version` is dropped (it counts rebuilds), and keys
 are sorted. Two consecutive captures are byte-identical — verified.
 
-**`au_search.json` is captured from a fixture, not the vault.** A BM25 score is a
+**`tb_search.json` is captured from a fixture, not the vault.** A BM25 score is a
 property of corpus statistics (document frequency, average field length), so a
 capture of it can only be compared against the corpus it came from; the living
 vault cannot serve that. This capture therefore comes from the fixture in

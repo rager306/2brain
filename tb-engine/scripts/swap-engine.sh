@@ -28,7 +28,7 @@ CAND=$BACKUPS/au-$DATE-candidate
 BASELINE=$BACKUPS/au-$DATE-pre-live
 POST=$BACKUPS/au-$DATE-post-live
 EVIDENCE=$BACKUPS/au-$DATE-evidence.txt
-READS=(au_overview au_hubs au_diagnostics au_graph_health)
+READS=(tb_overview tb_hubs tb_diagnostics tb_graph_health)
 
 mode=swap
 case ${1:-} in
@@ -63,14 +63,14 @@ preconditions() {
   [[ -z $newer ]] || problem "the candidate is older than $newer (rebuild it)"
 
   # Idempotence: if the served engine already answers `search`, there is nothing to swap.
-  if "$PROBE" --socket "$SOCKET" --out /tmp/au-swap-pre --verb au_search >/dev/null 2>&1; then
-    problem "the served engine already answers au_search — already swapped"
+  if "$PROBE" --socket "$SOCKET" --out /tmp/au-swap-pre --verb tb_search >/dev/null 2>&1; then
+    problem "the served engine already answers tb_search — already swapped"
   fi
 
   if ! "$PROBE" --socket "$SOCKET" --out /tmp/au-swap-probe >/dev/null 2>&1; then
     # The probe exits non-zero when one requested read is refused, which is the normal state before
-    # the swap (`au_search` is in the default set) — so acceptance is "the socket answered at all".
-    [[ -f /tmp/au-swap-probe/au_overview.json ]] || problem "the engine does not answer a probe"
+    # the swap (`tb_search` is in the default set) — so acceptance is "the socket answered at all".
+    [[ -f /tmp/au-swap-probe/tb_overview.json ]] || problem "the engine does not answer a probe"
   fi
 }
 
@@ -80,7 +80,7 @@ recapture() {
   # `search` is excluded: the served binary refuses it before the swap and answers after, so it is
   # compared separately rather than dragged into the four-read diff.
   "$PROBE" --socket "$SOCKET" --out "$out" \
-    --verb au_overview --verb au_hubs --verb au_diagnostics --verb au_graph_health >/dev/null 2>&1
+    --verb tb_overview --verb tb_hubs --verb tb_diagnostics --verb tb_graph_health >/dev/null 2>&1
 }
 
 diff_reads() {
@@ -182,10 +182,10 @@ else
 fi
 
 # 5. The verb the swap exists for.
-if "$PROBE" --socket "$SOCKET" --out /tmp/au-swap-search --verb au_search >/dev/null 2>&1; then
-  say "  au_search: answered"
+if "$PROBE" --socket "$SOCKET" --out /tmp/au-swap-search --verb tb_search >/dev/null 2>&1; then
+  say "  tb_search: answered"
 else
-  say "  au_search: still refused — the swap did not take, restoring"
+  say "  tb_search: still refused — the swap did not take, restoring"
   restore; exit 1
 fi
 

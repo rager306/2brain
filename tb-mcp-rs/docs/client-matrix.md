@@ -133,7 +133,7 @@ except this one, so a correct answer cannot be a lucky guess:
 ```text
 engine:  /tmp/au-fixture-DSYaVF/home/.arsumbris/au-engine/run/123e4ed907267994.sock
 adapter: /root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs
-prompt:  find unique-marker-7f3a with au_grep
+prompt:  find unique-marker-7f3a with tb_grep
 PASS: the model called mcp__arsumbris-rs__au_grep
 PASS: the marker travelled through the engine (tool result and/or answer)
 PASS: the answer names the file that holds the marker
@@ -171,21 +171,21 @@ the write must land as one engine commit.
 ```text
 === scenario 1: granted
 PASS: the model read before writing
-PASS: the model called au_write_file
+PASS: the model called tb_write_file
 PASS: the file on disk carries the new line
 PASS: the write is an engine commit (1 new)
 PASS: no permission denial
 
 === scenario 2: read-only, the same request
-PASS: au_write_file was never callable in a read-only launch
+PASS: tb_write_file was never callable in a read-only launch
 PASS: notes/b.md is untouched
 ```
 
 Two details worth keeping. The first run FAILED on "a permission denial appeared",
-and the denial was `au_overview`: the model oriented itself before editing, and the
-allow-list named only `au_content` and `au_write_file`. The server was right and the
+and the denial was `tb_overview`: the model oriented itself before editing, and the
+allow-list named only `tb_content` and `tb_write_file`. The server was right and the
 script was wrong — a check that forbids orientation tests the allow-list, not the
-gate. `au_overview` is now in the list, and scenario 2 confirms the opposite
+gate. `tb_overview` is now in the list, and scenario 2 confirms the opposite
 property: without `--allow-mutations` the write tool is absent from `tools/list`, so
 a model cannot call what the server never advertised.
 
@@ -197,7 +197,7 @@ marker task through `codex exec` (0.169.0) with its own `CODEX_HOME`, so the use
 `config.toml` is untouched and only `auth.json` is copied in.
 
 ```text
-PASS: the model used au_grep
+PASS: the model used tb_grep
 PASS: the marker travelled through the engine
 PASS: the answer names the file that holds the marker
 PASS: one Codex model turn completed through the adapter
@@ -209,7 +209,7 @@ as the tool result:
 
 ```json
 {"type":"item.completed","item":{"type":"mcp_tool_call","server":"arsumbris-rs",
- "tool":"au_grep","arguments":{"query":"unique-marker-7f3a"},
+ "tool":"tb_grep","arguments":{"query":"unique-marker-7f3a"},
  "result":{"content":[{"type":"text","text":"{\"grep\":{\"matches\":[{...\
   "\"path\":\".../notes/a.md\",\"text\":\"find me: unique-marker-7f3a\"...}"}]}"}]}}}
 ```
@@ -231,9 +231,9 @@ mechanically: the write goes through, the reply is dropped, and the tool answer 
 the outcome is unknown.
 
 ```text
-tool calls: au_members au_content au_write_file au_reconcile au_content
+tool calls: tb_members tb_content tb_write_file tb_reconcile tb_content
 PASS: the model sent a write
-PASS: the model asked au_reconcile what happened
+PASS: the model asked tb_reconcile what happened
 PASS: the model did not retry the write
 PASS: exactly one engine commit exists
 PASS: the file carries the appended line
@@ -254,17 +254,17 @@ so it sent the string `"null"`. The server compared strings, found no match, and
 answered **`not_applied` with full confidence, about a write that had landed**. The
 model only recovered because its next move was to re-read the file.
 
-That is a design flaw, not a model mistake: `au_reconcile` accepted any non-empty
+That is a design flaw, not a model mistake: `tb_reconcile` accepted any non-empty
 string as a digest, and a wrong expectation produces a confident wrong answer. Fixed
-in `src/lib.rs`: `expected_hash` must now be the 16-hex-character digest `au_content`
+in `src/lib.rs`: `expected_hash` must now be the 16-hex-character digest `tb_content`
 returns, and anything else is refused before the engine is contacted, with a message
-naming the two real options (`expect_absent: true` for a delete, or `au_content` to
+naming the two real options (`expect_absent: true` for a delete, or `tb_content` to
 compare the text). `tests/reconcile.rs` pins six malformed values, including the
 literal `"null"`.
 
 A second run, after the fix, took a different wrong turn and got a useful answer for
-it: the model called `au_reconcile` with **no** digest at all, was told that it must
-give one, and then did the right thing — `au_content`, compare the text. That refusal
+it: the model called `tb_reconcile` with **no** digest at all, was told that it must
+give one, and then did the right thing — `tb_content`, compare the text. That refusal
 used to end at "give exactly one of a nonempty 'expected_hash' or 'expect_absent'",
 which names the rule but not the way out, so it now says the rest: if the digest is
 unknown, read the file and compare the text, because reconcile can only compare
@@ -300,17 +300,17 @@ response: connection closed` — which looks like a server bug and is a path bug
 
 Two files that must change together, and `batch-turn.sh` asks for exactly that. The
 failure this guards against is not a wrong answer but a *reachable wrong shape*: two
-separate `au_write_file` calls, which leave half a change behind if the second fails.
+separate `tb_write_file` calls, which leave half a change behind if the second fails.
 
 ```text
-tool calls: au_overview au_content au_content au_batch au_content au_content
-PASS: the model used au_batch
+tool calls: tb_overview tb_content tb_content tb_batch tb_content tb_content
+PASS: the model used tb_batch
 PASS: the model did not fall back to two single writes
 PASS: both files carry the line
 PASS: the batch made exactly one engine commit
 ```
 
-It read both files first (two `au_content` calls, one per path — the gate demands it),
+It read both files first (two `tb_content` calls, one per path — the gate demands it),
 then sent one batch carrying each file's own digest:
 
 ```json
@@ -326,14 +326,14 @@ in practice.
 ## 2026-11-15 (eighth): a model plans a revert from the engine's own history
 
 `rollback-turn.sh` gives the model no git: the only way to name a commit is the one
-`au_content` reports, and the only way to see what a revert would do is
-`au_rollback_preview`.
+`tb_content` reports, and the only way to see what a revert would do is
+`tb_rollback_preview`.
 
 ```text
-tool calls: au_content au_rollback_preview
+tool calls: tb_content tb_rollback_preview
 PASS: the model read the file
 PASS: the model asked for a rollback preview
-PASS: the preview used the commit au_content reported
+PASS: the preview used the commit tb_content reported
 PASS: the engine's plan names a restore
 PASS: the engine reports the revert as safe
 PASS: the preview made no commit

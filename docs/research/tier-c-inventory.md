@@ -50,7 +50,7 @@ Release 2 (drop the old spelling) with a diagnostic that names the migration.
 
 ## Gate
 
-`au_diagnostics == 0` and `graph_health.broken_links == 0` on the live vault after migration, and the
+`tb_diagnostics == 0` and `graph_health.broken_links == 0` on the live vault after migration, and the
 pre-migration tree still opens with the same diagnostics using the release-1 binary. Rollback is
 `git revert` in each repository (the vault is a git repo; identity files are committed).
 

@@ -25,7 +25,7 @@ If the title needs an "and", split it into two rules.
 
 ### 2. Read the craft and an example
 
-Read the `writing-rule` docstring with `au_type {name: "writing-rule", repo: "au-writing-style"}`.
+Read the `writing-rule` docstring with `tb_type {name: "writing-rule", repo: "au-writing-style"}`.
 
 Read [[say it plain::au-writing-style]] as the example.
 Use its shape to write your own content.
@@ -43,13 +43,13 @@ The example's local type claim belongs to its own repo.
 Read the new file's diagnostics.
 Expect zero.
 
-Check that the rule appears in `au_instances_of {ofType: "writing-rule::au-writing-style"}`.
+Check that the rule appears in `tb_instances_of {ofType: "writing-rule::au-writing-style"}`.
 
 ### 5. Bundle the rule
 
 **Choose the profile**
 
-Find profiles with `au_instances_of {ofType: "writing-profile::au-writing-style", resolve: true}`.
+Find profiles with `tb_instances_of {ofType: "writing-profile::au-writing-style", resolve: true}`.
 Choose the intended profile.
 
 Read the profile and its outgoing references before editing it.

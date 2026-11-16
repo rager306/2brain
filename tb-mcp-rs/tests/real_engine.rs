@@ -237,74 +237,74 @@ fn build_fixture(temp: &Path) -> (PathBuf, PathBuf) {
 /// fixture root as `$FIXTURE`, so the corpus does not carry machine paths.
 fn fixture_cases() -> [(&'static str, Value); 32] {
     [
-        ("au_overview", json!({})),
-        ("au_top_level_dirs", json!({})),
-        ("au_type", json!({"name":"note"})),
-        ("au_type_tree", json!({})),
-        ("au_types", json!({})),
-        ("au_hubs", json!({"limit":20})),
-        ("au_diagnostics", json!({"limit":50})),
-        ("au_subtypes", json!({"base":"alpha"})),
-        ("au_members", json!({})),
-        ("au_imports", json!({"scope":"all"})),
-        ("au_files", json!({"repo":"fixture","limit":50})),
-        ("au_content", json!({"repo":"fixture","path":"notes/a.md"})),
-        ("au_instances_of", json!({"type_name":"note"})),
+        ("tb_overview", json!({})),
+        ("tb_top_level_dirs", json!({})),
+        ("tb_type", json!({"name":"note"})),
+        ("tb_type_tree", json!({})),
+        ("tb_types", json!({})),
+        ("tb_hubs", json!({"limit":20})),
+        ("tb_diagnostics", json!({"limit":50})),
+        ("tb_subtypes", json!({"base":"alpha"})),
+        ("tb_members", json!({})),
+        ("tb_imports", json!({"scope":"all"})),
+        ("tb_files", json!({"repo":"fixture","limit":50})),
+        ("tb_content", json!({"repo":"fixture","path":"notes/a.md"})),
+        ("tb_instances_of", json!({"type_name":"note"})),
         (
-            "au_validate_value",
+            "tb_validate_value",
             json!({"type_name":"note","value":{"link":"[[b]]"}}),
         ),
         (
-            "au_preview_mutation",
+            "tb_preview_mutation",
             json!({"repo":"fixture","path":"notes/a.md","op":"write_file","content":"---\ntype: note\n---\n"}),
         ),
         (
-            "au_reconcile",
+            "tb_reconcile",
             json!({"repo":"fixture","path":"notes/ghost.md","expect_absent":true}),
         ),
         (
-            "au_frontmatter",
+            "tb_frontmatter",
             json!({"repo":"fixture","path":"notes/a.md"}),
         ),
-        ("au_anchors", json!({"repo":"fixture","path":"notes/a.md"})),
-        ("au_graph_health", json!({"repo":"fixture","limit":10})),
+        ("tb_anchors", json!({"repo":"fixture","path":"notes/a.md"})),
+        ("tb_graph_health", json!({"repo":"fixture","limit":10})),
         (
-            "au_rollback_preview",
+            "tb_rollback_preview",
             json!({"repo":"fixture","commit":"HEAD"}),
         ),
         (
-            "au_grep",
+            "tb_grep",
             json!({"repo":"fixture","query":"addressability","limit":10,"offset":0}),
         ),
         (
-            "au_block_ids",
+            "tb_block_ids",
             json!({"repo":"fixture","path":"notes/a.md"}),
         ),
         (
-            "au_references",
+            "tb_references",
             json!({"repo":"fixture","path":"notes/a.md"}),
         ),
         (
-            "au_neighborhood",
+            "tb_neighborhood",
             json!({"repo":"fixture","path":"notes/a.md","depth":2,"kinds":["navigational"]}),
         ),
-        ("au_instances", json!({"limit":3,"offset":0})),
-        ("au_candidates", json!({"summary":true,"limit":5})),
+        ("tb_instances", json!({"limit":3,"offset":0})),
+        ("tb_candidates", json!({"summary":true,"limit":5})),
         (
-            "au_semantic_tokens",
+            "tb_semantic_tokens",
             json!({"repo":"fixture","path":"notes/a.md"}),
         ),
         (
-            "au_resolve_member",
+            "tb_resolve_member",
             json!({"repo":"fixture","path":"notes/a.md"}),
         ),
         (
-            "au_follow",
+            "tb_follow",
             json!({"repo":"fixture","origin_path":"notes/a.md","target":"a#Details"}),
         ),
-        ("au_children", json!({"repo":"fixture","path":"notes"})),
-        ("au_typed", json!({"repo":"fixture","path":"notes/a.md"})),
-        ("au_resolved", json!({"repo":"fixture","path":"notes/a.md"})),
+        ("tb_children", json!({"repo":"fixture","path":"notes"})),
+        ("tb_typed", json!({"repo":"fixture","path":"notes/a.md"})),
+        ("tb_resolved", json!({"repo":"fixture","path":"notes/a.md"})),
     ]
 }
 
@@ -562,7 +562,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         assert_eq!(direct["ready"], true, "{direct}");
         send(
             &mut input,
-            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_type","arguments":arguments}}),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"tb_type","arguments":arguments}}),
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -586,7 +586,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         assert_eq!(direct["ready"], true, "{direct}");
         send(
             &mut input,
-            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_types","arguments":arguments}}),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"tb_types","arguments":arguments}}),
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -664,7 +664,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         assert_eq!(direct["ready"], true, "{direct}");
         send(
             &mut input,
-            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_hubs","arguments":arguments}}),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"tb_hubs","arguments":arguments}}),
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -733,7 +733,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     ] {
         send(
             &mut input,
-            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_hubs","arguments":arguments}}),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"tb_hubs","arguments":arguments}}),
         );
         let reply = receive(&rx);
         assert!(
@@ -750,7 +750,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         assert_eq!(direct["ready"], true, "{direct}");
         send(
             &mut input,
-            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_content","arguments":{"repo":"fixture","path":relative}}}),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"tb_content","arguments":{"repo":"fixture","path":relative}}}),
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -771,7 +771,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     }
     send(
         &mut input,
-        json!({"jsonrpc":"2.0","id":92,"method":"tools/call","params":{"name":"au_content","arguments":{"repo":"fixture","path":"../base/asset.pdf"}}}),
+        json!({"jsonrpc":"2.0","id":92,"method":"tools/call","params":{"name":"tb_content","arguments":{"repo":"fixture","path":"../base/asset.pdf"}}}),
     );
     let denied = receive(&rx);
     assert_eq!(denied["result"]["isError"], true, "{denied}");
@@ -779,7 +779,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     // Mutation round trip against the real engine: read, guarded write, re-read.
     send(
         &mut input,
-        json!({"jsonrpc":"2.0","id":93,"method":"tools/call","params":{"name":"au_content","arguments":{"repo":"fixture","path":"notes/a.md"}}}),
+        json!({"jsonrpc":"2.0","id":93,"method":"tools/call","params":{"name":"tb_content","arguments":{"repo":"fixture","path":"notes/a.md"}}}),
     );
     let read = receive(&rx);
     assert_ne!(read["result"]["isError"], true, "{read}");
@@ -793,7 +793,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     // Preview first: it must report a product and change nothing.
     send(
         &mut input,
-        json!({"jsonrpc":"2.0","id":96,"method":"tools/call","params":{"name":"au_preview_mutation","arguments":{"repo":"fixture","path":"notes/a.md","op":"write_file","content":new_text}}}),
+        json!({"jsonrpc":"2.0","id":96,"method":"tools/call","params":{"name":"tb_preview_mutation","arguments":{"repo":"fixture","path":"notes/a.md","op":"write_file","content":new_text}}}),
     );
     let preview = receive(&rx);
     assert_ne!(preview["result"]["isError"], true, "{preview}");
@@ -817,7 +817,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     );
     send(
         &mut input,
-        json!({"jsonrpc":"2.0","id":94,"method":"tools/call","params":{"name":"au_write_file","arguments":{"repo":"fixture","path":"notes/a.md","content":new_text,"expected_hash":hash}}}),
+        json!({"jsonrpc":"2.0","id":94,"method":"tools/call","params":{"name":"tb_write_file","arguments":{"repo":"fixture","path":"notes/a.md","content":new_text,"expected_hash":hash}}}),
     );
     let written = receive(&rx);
     assert_ne!(written["result"]["isError"], true, "{written}");
@@ -846,7 +846,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     // The recorded read was discarded, so the same write cannot be replayed.
     send(
         &mut input,
-        json!({"jsonrpc":"2.0","id":95,"method":"tools/call","params":{"name":"au_write_file","arguments":{"repo":"fixture","path":"notes/a.md","content":new_text,"expected_hash":hash}}}),
+        json!({"jsonrpc":"2.0","id":95,"method":"tools/call","params":{"name":"tb_write_file","arguments":{"repo":"fixture","path":"notes/a.md","content":new_text,"expected_hash":hash}}}),
     );
     let replay = receive(&rx);
     assert_eq!(replay["result"]["isError"], true, "{replay}");
@@ -854,7 +854,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         replay["result"]["content"][0]["text"]
             .as_str()
             .unwrap()
-            .contains("au_content"),
+            .contains("tb_content"),
         "{replay}"
     );
     // The write advanced the engine version; let the rebuild settle so later
@@ -868,7 +868,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     let read_hash = |input: &mut std::process::ChildStdin, id: u32| -> String {
         send(
             input,
-            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_content","arguments":{"repo":"fixture","path":"notes/a.md"}}}),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"tb_content","arguments":{"repo":"fixture","path":"notes/a.md"}}}),
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -881,7 +881,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     let after_write = read_hash(&mut input, 97);
     send(
         &mut input,
-        json!({"jsonrpc":"2.0","id":98,"method":"tools/call","params":{"name":"au_edit_file","arguments":{"repo":"fixture","path":"notes/a.md","old_string":"rewritten by the MCP test","new_string":"edited by the MCP test","expected_hash":after_write}}}),
+        json!({"jsonrpc":"2.0","id":98,"method":"tools/call","params":{"name":"tb_edit_file","arguments":{"repo":"fixture","path":"notes/a.md","old_string":"rewritten by the MCP test","new_string":"edited by the MCP test","expected_hash":after_write}}}),
     );
     let edited = receive(&rx);
     assert_ne!(edited["result"]["isError"], true, "{edited}");
@@ -899,7 +899,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     let before_delete = read_hash(&mut input, 99);
     send(
         &mut input,
-        json!({"jsonrpc":"2.0","id":103,"method":"tools/call","params":{"name":"au_reconcile","arguments":{"repo":"fixture","path":"notes/a.md","expected_hash":before_delete}}}),
+        json!({"jsonrpc":"2.0","id":103,"method":"tools/call","params":{"name":"tb_reconcile","arguments":{"repo":"fixture","path":"notes/a.md","expected_hash":before_delete}}}),
     );
     let reconciled = receive(&rx);
     assert_ne!(reconciled["result"]["isError"], true, "{reconciled}");
@@ -910,7 +910,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     // mutation needs a fresh read rather than silently reusing a stale hash.
     send(
         &mut input,
-        json!({"jsonrpc":"2.0","id":104,"method":"tools/call","params":{"name":"au_delete_file","arguments":{"repo":"fixture","path":"notes/a.md","expected_hash":before_delete}}}),
+        json!({"jsonrpc":"2.0","id":104,"method":"tools/call","params":{"name":"tb_delete_file","arguments":{"repo":"fixture","path":"notes/a.md","expected_hash":before_delete}}}),
     );
     let stale = receive(&rx);
     assert_eq!(stale["result"]["isError"], true, "{stale}");
@@ -925,7 +925,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     let before_delete = read_hash(&mut input, 106);
     send(
         &mut input,
-        json!({"jsonrpc":"2.0","id":104,"method":"tools/call","params":{"name":"au_delete_file","arguments":{"repo":"fixture","path":"notes/a.md","expected_hash":before_delete}}}),
+        json!({"jsonrpc":"2.0","id":104,"method":"tools/call","params":{"name":"tb_delete_file","arguments":{"repo":"fixture","path":"notes/a.md","expected_hash":before_delete}}}),
     );
     let deleted = receive(&rx);
     assert_ne!(deleted["result"]["isError"], true, "{deleted}");
@@ -940,7 +940,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     // An absent file is what an interrupted delete was meant to produce.
     send(
         &mut input,
-        json!({"jsonrpc":"2.0","id":105,"method":"tools/call","params":{"name":"au_reconcile","arguments":{"repo":"fixture","path":"notes/a.md","expect_absent":true}}}),
+        json!({"jsonrpc":"2.0","id":105,"method":"tools/call","params":{"name":"tb_reconcile","arguments":{"repo":"fixture","path":"notes/a.md","expect_absent":true}}}),
     );
     let absent = receive(&rx);
     assert_ne!(absent["result"]["isError"], true, "{absent}");
@@ -963,7 +963,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         assert_eq!(direct["ready"], true, "{direct}");
         send(
             &mut input,
-            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_instances_of","arguments":arguments}}),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"tb_instances_of","arguments":arguments}}),
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -990,7 +990,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
     assert_eq!(direct["ready"], true, "{direct}");
     send(
         &mut input,
-        json!({"jsonrpc":"2.0","id":102,"method":"tools/call","params":{"name":"au_validate_value","arguments":validate_arguments}}),
+        json!({"jsonrpc":"2.0","id":102,"method":"tools/call","params":{"name":"tb_validate_value","arguments":validate_arguments}}),
     );
     let reply = receive(&rx);
     assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -1031,7 +1031,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         assert_eq!(direct["ready"], true, "{direct}");
         send(
             &mut input,
-            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_files","arguments":arguments}}),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"tb_files","arguments":arguments}}),
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -1087,7 +1087,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         assert_eq!(direct["ready"], true, "{direct}");
         send(
             &mut input,
-            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_imports","arguments":arguments}}),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"tb_imports","arguments":arguments}}),
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -1121,7 +1121,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         assert_eq!(direct["ready"], true, "{direct}");
         send(
             &mut input,
-            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_members","arguments":args}}),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"tb_members","arguments":args}}),
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -1153,7 +1153,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         .expect("read subtypes from private engine");
         send(
             &mut input,
-            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_subtypes","arguments":{"base":base,"scope":scope}}}),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"tb_subtypes","arguments":{"base":base,"scope":scope}}}),
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -1177,7 +1177,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         assert_eq!(direct["ready"], true, "{direct}");
         send(
             &mut input,
-            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_diagnostics","arguments":arguments}}),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"tb_diagnostics","arguments":arguments}}),
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");

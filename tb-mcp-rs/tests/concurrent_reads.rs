@@ -104,11 +104,11 @@ fn exercise_concurrent_reads(first_fails: bool) {
         respond(&mut recovery, success(303, "recovered"));
     });
     let mut client = Client::start(&socket);
-    client.send_call(11, "au_types", json!({"limit":1,"offset":10}));
+    client.send_call(11, "tb_types", json!({"limit":1,"offset":10}));
     first_seen_rx
         .recv_timeout(TIMEOUT)
         .expect("first request timeout");
-    client.send_call(22, "au_types", json!({"limit":1,"offset":20}));
+    client.send_call(22, "tb_types", json!({"limit":1,"offset":20}));
     // The first response is withheld until the second MCP response has arrived.
     assert_success(&client.receive(), 22, 202, "second");
     release_tx.send(()).unwrap();
@@ -133,7 +133,7 @@ fn exercise_concurrent_reads(first_fails: bool) {
     } else {
         assert_success(&first, 11, 101, "first");
     }
-    client.send_call(33, "au_types", json!({"limit":1,"offset":30}));
+    client.send_call(33, "tb_types", json!({"limit":1,"offset":30}));
     assert_success(&client.receive(), 33, 303, "recovered");
     daemon.join().unwrap();
 }

@@ -15,7 +15,7 @@ Keep the repair evidence and disposition on each finding.
 
 Use the finding's subject and breaks to judge the defect against its evidence.
 Reuse current reads until relevant state changes or freshness is uncertain.
-When the worklist is unknown or stale, query au_instances_of with ofType: finding.open::au-govern.
+When the worklist is unknown or stale, query tb_instances_of with ofType: finding.open::au-govern.
 Follow every page before claiming the worklist is complete.
 
 Prioritize repairs by their effect on the affected work.

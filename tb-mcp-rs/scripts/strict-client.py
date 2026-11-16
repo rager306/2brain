@@ -70,13 +70,13 @@ async def main() -> int:
         async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
             await session.initialize()
             read_answer = await session.call_tool(
-                "au_content", {"repo": "fixture", "path": "notes/a.md"})
+                "tb_content", {"repo": "fixture", "path": "notes/a.md"})
             body = json.loads(read_answer.content[0].text)["content"]
             write_args = {"repo": "fixture", "path": "notes/a.md",
                           "content": body["text"] + "changed\n",
                           "expected_hash": body["hash"]}
             try:
-                answer = await session.call_tool("au_write_file", write_args)
+                answer = await session.call_tool("tb_write_file", write_args)
             except Exception as error:  # noqa: BLE001 - the failure IS the result
                 print(f"FAIL: the client rejected the mutation answer: {type(error).__name__}: {error}")
                 return 1
@@ -100,11 +100,11 @@ async def main() -> int:
             # path was fixed. The write invalidated the read, so delete needs a fresh
             # one — that is the guard working, not an obstacle to route around.
             fresh = await session.call_tool(
-                "au_content", {"repo": "fixture", "path": "notes/a.md"})
+                "tb_content", {"repo": "fixture", "path": "notes/a.md"})
             fresh_hash = json.loads(fresh.content[0].text)["content"]["hash"]
             try:
                 delete_answer = await session.call_tool(
-                    "au_delete_file",
+                    "tb_delete_file",
                     {"repo": "fixture", "path": "notes/a.md", "expected_hash": fresh_hash})
             except Exception as error:  # noqa: BLE001 - the failure IS the result
                 print(f"FAIL: the client rejected the delete answer: {type(error).__name__}: {error}")

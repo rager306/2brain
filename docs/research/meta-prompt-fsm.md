@@ -16,15 +16,15 @@ Non-negotiables, inherited from the system as built:
 
 | state | entry | exit (machine-checkable) | judge may decide | tools |
 |---|---|---|---|---|
-| **ORIENT** | a task arrives | `au_overview` answered and a member named | which topic family this looks like (optional) | `au_overview`, `au_members`, `au_types`, `au_search` |
-| **LOCATE** | orient done | a non-empty candidate set with ids | "is this candidate the same subject?" | `au_search`, `au_grep`, `au_neighborhood` |
-| **READ** | candidates chosen | every candidate read with a hash | — | `au_content`, `au_frontmatter` |
-| **PROPOSE** | read done | a typed proposal object (what, where, why) | duplicate / contradiction / relevance among candidates | `au_validate_value` |
-| **VALIDATE** | proposal exists | `au_validate_value` returns valid; diagnostics unchanged | nothing — this is deterministic | `au_validate_value`, `au_diagnostics`, `au_graph_health` |
-| **APPLY** | validation green | engine answers `applied` with a commit, or `outcome_unknown` | — | `au_write_file`, `au_edit_file`, `au_rename`, `au_batch` |
-| **RECOVER** | `outcome_unknown` | `au_reconcile` returns a settled hash | — | `au_reconcile` |
-| **VERIFY** | apply settled | `au_diagnostics == 0` and the written text reads back | — | `au_content`, `au_diagnostics` |
-| **CONSOLIDATE** | verify done, or a scheduled pass | proposal set emitted as notes, not edits | pairwise duplicate / contradiction | `au_search`, `au_batch`, judge batch |
+| **ORIENT** | a task arrives | `tb_overview` answered and a member named | which topic family this looks like (optional) | `tb_overview`, `tb_members`, `tb_types`, `tb_search` |
+| **LOCATE** | orient done | a non-empty candidate set with ids | "is this candidate the same subject?" | `tb_search`, `tb_grep`, `tb_neighborhood` |
+| **READ** | candidates chosen | every candidate read with a hash | — | `tb_content`, `tb_frontmatter` |
+| **PROPOSE** | read done | a typed proposal object (what, where, why) | duplicate / contradiction / relevance among candidates | `tb_validate_value` |
+| **VALIDATE** | proposal exists | `tb_validate_value` returns valid; diagnostics unchanged | nothing — this is deterministic | `tb_validate_value`, `tb_diagnostics`, `tb_graph_health` |
+| **APPLY** | validation green | engine answers `applied` with a commit, or `outcome_unknown` | — | `tb_write_file`, `tb_edit_file`, `tb_rename`, `tb_batch` |
+| **RECOVER** | `outcome_unknown` | `tb_reconcile` returns a settled hash | — | `tb_reconcile` |
+| **VERIFY** | apply settled | `tb_diagnostics == 0` and the written text reads back | — | `tb_content`, `tb_diagnostics` |
+| **CONSOLIDATE** | verify done, or a scheduled pass | proposal set emitted as notes, not edits | pairwise duplicate / contradiction | `tb_search`, `tb_batch`, judge batch |
 
 Nine states, one linear spine plus two loops (`RECOVER` back to `APPLY`'s aftermath, `CONSOLIDATE` back to
 `PROPOSE` for each merged pair).
@@ -33,11 +33,11 @@ Nine states, one linear spine plus two loops (`RECOVER` back to `APPLY`'s afterm
 
 Deterministic (no model may override):
 
-- `diagnostics_zero`: `au_diagnostics {severity: "warning"}` returns `[]`.
+- `diagnostics_zero`: `tb_diagnostics {severity: "warning"}` returns `[]`.
 - `hash_fresh`: the `expected_hash` came from a read in this session (the gate enforces it; the FSM must
   not paper over a `policy/freshness`).
-- `settled`: `au_reconcile` reports a hash, not `unknown`.
-- `dry_run_safe`: `au_rollback_preview` reports `safe: true` before any revert.
+- `settled`: `tb_reconcile` reports a hash, not `unknown`.
+- `dry_run_safe`: `tb_rollback_preview` reports `safe: true` before any revert.
 - `budget`: at most K mutation attempts per run (default 3). Exceeding it is a **hard stop**, not a retry.
 
 Judged (a probability with a threshold, recorded with the run):
@@ -75,20 +75,20 @@ guard evidence.
 |---|---|---|
 | judge low confidence | `confidence < 0.6` on a guard | do not transition; gather one more deterministic fact (another read, a grep) |
 | judged guards disagree with each other | two guards on the same pair conflict | stop, emit a "needs human" proposal — do not break the tie with a third model call |
-| `outcome_unknown` | the tool result says so | RECOVER state; **never** re-apply; `au_reconcile` |
+| `outcome_unknown` | the tool result says so | RECOVER state; **never** re-apply; `tb_reconcile` |
 | oscillation | the same state entered 3× without progress | hard stop with the run log; this is a bug in the guards, not in the task |
-| diagnostics nonzero after APPLY | VERIFY gate | propose a revert via `au_rollback_preview`; never silently continue |
+| diagnostics nonzero after APPLY | VERIFY gate | propose a revert via `tb_rollback_preview`; never silently continue |
 
 ## Three traces
 
 **1. Capture a decision from a session.**
-ORIENT (`au_overview`) → LOCATE (`au_search` "decision we took about X") → READ 2–3 notes → PROPOSE one
-`decision` note → VALIDATE (`au_validate_value`, diagnostics) → APPLY (`au_write_file`) → VERIFY.
+ORIENT (`tb_overview`) → LOCATE (`tb_search` "decision we took about X") → READ 2–3 notes → PROPOSE one
+`decision` note → VALIDATE (`tb_validate_value`, diagnostics) → APPLY (`tb_write_file`) → VERIFY.
 Cost: 1 model turn, 0 judge calls, 5 tool calls.
 
 **2. Consolidate duplicates (nightly).**
-CONSOLIDATE: `au_search` per topic → shingle prefilter → **one judge batch of ≤100 pairs** (`duplicate p`)
-→ for each p ≥ 0.9, PROPOSE a merged note and a delete → VALIDATE → APPLY as `au_batch` → VERIFY.
+CONSOLIDATE: `tb_search` per topic → shingle prefilter → **one judge batch of ≤100 pairs** (`duplicate p`)
+→ for each p ≥ 0.9, PROPOSE a merged note and a delete → VALIDATE → APPLY as `tb_batch` → VERIFY.
 Cost: 1 judge call (100 pairs, 0.76 s), 0 model turns until a human accepts. This is the whole reason the
 batch measurement matters: 1 036 notes would otherwise be 1 036 judge calls.
 

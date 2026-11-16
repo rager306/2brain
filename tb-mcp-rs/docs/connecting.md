@@ -144,7 +144,7 @@ is the OS user that owns the engine socket.
 
 | flag | effect |
 |---|---|
-| `--tools concise` | one line per tool, no parameter descriptions or output schemas; full definitions via `au_search_tools` / `au_describe_tool` |
+| `--tools concise` | one line per tool, no parameter descriptions or output schemas; full definitions via `tb_search_tools` / `tb_describe_tool` |
 | `--tools full` (default) | every definition up front |
 | `--payload both` (default) | text block and `structuredContent`, as the specification recommends |
 | `--payload structured` | no text block, for clients that read `structuredContent` and would otherwise pay twice |
@@ -161,10 +161,10 @@ advertises 36 tools at 57 620 and 19 356 chars (see
 |---|---|
 | `-32600 mutations are disabled by this server's launch policy` | the launch has no grant; restart the server with `--allow-mutations` or a policy file |
 | `-32602 tool not found` | the name is misspelled or hidden by policy; call `tools/list` |
-| `policy/prior_read: read this file with au_content before writing it` | mutations need a fresh read of the same path in the same process |
-| `outcome_unknown: ...` | the reply was lost; the write may have landed — call `au_reconcile`, never retry blindly |
+| `policy/prior_read: read this file with tb_content before writing it` | mutations need a fresh read of the same path in the same process |
+| `outcome_unknown: ...` | the reply was lost; the write may have landed — call `tb_reconcile`, never retry blindly |
 | `initialize required` (JSON-RPC error) | a legacy session must complete `initialize`; a request declaring `2026-07-28` in `_meta` does not |
 | every read fails with `connecting to engine` | wrong socket path, or the daemon is down; check with the probe above |
 | `unsupported or missing engine schema_version (expected 29)` | the engine and this build disagree on the wire; rebuild against the served schema |
 | the server is listed but a client shows no tools | for the Node daemon that means no `mcp.tool` plugin is mounted in the workspace; for this adapter, check `tools/list` directly |
-| `engine error: malformed read: unknown variant <verb>` | the daemon is older than this build: it does not serve that read yet. Version skew is visible in the answer instead of a silent empty result. `au_grep` in particular needs an engine built at or after `5625aff`; run a current daemon, or keep using the reads the running engine serves |
+| `engine error: malformed read: unknown variant <verb>` | the daemon is older than this build: it does not serve that read yet. Version skew is visible in the answer instead of a silent empty result. `tb_grep` in particular needs an engine built at or after `5625aff`; run a current daemon, or keep using the reads the running engine serves |

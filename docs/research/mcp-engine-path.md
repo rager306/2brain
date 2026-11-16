@@ -8,7 +8,7 @@ Measured 2026-11-16 against the live daemon and the installed `/usr/local/bin/2b
 |---|---:|---|
 | raw engine frame, persistent connection | 1.24 ms | 500 calls, one socket |
 | raw engine frame, connect per call | 1.14 ms | 500 calls, a socket each |
-| through the adapter (`au_content`) | 2.80 ms | 200 calls, includes the Python MCP client |
+| through the adapter (`tb_content`) | 2.80 ms | 200 calls, includes the Python MCP client |
 
 Two conclusions that constrain the design:
 
@@ -31,7 +31,7 @@ policy, audit) plus the client's own stdio round trip.
 | `src/wire.rs`'s `match verb { "overview" => payload.is_object(), … }` (20 arms) | the TS bridge needed a shape check per verb; the check was hand-maintained | it is a **bug class**, not a guard: when `search` landed the arm was missing and every call failed with "invalid read result payload" while every test stayed green. A typed deserialize per verb, or a fixture-driven check derived from `tests/fixtures/synthetic-reads/`, removes the hand-written list |
 | `ReadResult { version, payload: Value }` | the payload was forwarded between two languages | with one language the contract can be per-verb Rust structs; the compiler then enforces the shape the fixtures already pin |
 | `preview_mutation` / `reconcile` as separate tools | the bridge could not express the read-then-write CAS | **keep** — they are the recovery path for `outcome_unknown`, and the gate depends on them |
-| `au_search_tools` / `au_describe_tool` | discovery over 52 tools | **keep** — they save a model round trip |
+| `tb_search_tools` / `tb_describe_tool` | discovery over 52 tools | **keep** — they save a model round trip |
 | per-tool Rust arms in `lib.rs` (52 tools, ~1 700 lines) | each tool has a schema and a description | not removable without losing the typed contract; but the *bodies* are 3–8 lines each and already thin |
 
 ## The three refactors that are actually worth doing
@@ -46,7 +46,7 @@ policy, audit) plus the client's own stdio round trip.
    (name, capability, payload struct) would let the compiler check all four, instead of four tests
    noticing drift.
 3. **`--payload structured` as the default**: the adapter currently ships each answer twice (text and
-   `structuredContent`). Measured payload for `au_files` (500 rows) is large; a client that validates
+   `structuredContent`). Measured payload for `tb_files` (500 rows) is large; a client that validates
    `structuredContent` (Hermes does) reads one copy and the text copy is dead weight. This is a config
    change with a client-compat question — measure the byte reduction first.
 
@@ -63,5 +63,5 @@ policy, audit) plus the client's own stdio round trip.
 
 `tools/ranking/eval.py` for anything touching search; `scripts/live_parity.py` for the adapter's shape;
 `scripts/strict-client.py` for the schema contract; and the fixture replay tests, which are the reason the
-`search` bug was caught late rather than never — they need a `au_search` case that actually calls the tool,
+`search` bug was caught late rather than never — they need a `tb_search` case that actually calls the tool,
 which is now added.

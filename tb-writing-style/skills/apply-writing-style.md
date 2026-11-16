@@ -23,7 +23,7 @@ Use the first available profile:
 2. The active injected profile identified by the launch context
 3. [[core-profile::au-writing-style]]
 
-Find profiles with `au_instances_of {ofType: "writing-profile::au-writing-style", resolve: true}`.
+Find profiles with `tb_instances_of {ofType: "writing-profile::au-writing-style", resolve: true}`.
 
 Read the chosen profile and only its effective `rules`, in order.
 Read any missing rule bodies in full.

@@ -32,16 +32,20 @@ leaves a type system that cannot open its own content, which is why the shape is
 `identity_dir()` and `schema_type_matches()` first (accept both), then `au migrate identity --dry-run`,
 then the data move, then dropping the legacy spelling. Inventory: `docs/research/tier-c-inventory.md`.
 
-**Tool names — a client contract, not a brand.** `au_content` reads as the old product name, and it is the
-one visible surface that still does. Renaming it is a contract change, not a sweep: 52 names, 618 string
-occurrences in 81 files (101 in `src`, 448 in tests, 7 in docs, 5 in the engine), 34 fixture files named
-after them, plus 91 mentions in vault content. The safe form is `tb_*` with `au_*` accepted as a deprecated
-alias for one release. Until that decision is made the old names stay, and this row is the honest record of
-it.
+**Tool names moved: `au_*` → `tb_*` (2026-11-16).** 52 names, 2 147 occurrences in 163 files, 49 fixture
+files, and the engine's golden captures, renamed in one pass. `tb_` rather than `2b_` because a tool name is a
+string several clients constrain to start with a letter, and a Rust identifier cannot start with a digit either
+— `tb` is the spelling both accept, and it matches the crate names.
+
+This was a **breaking change for `tools/list`**: a client that calls `au_content` now gets `tool not found`, and
+there is no alias. Taken deliberately — the only consumer is under our control, the catalogue is regenerated
+from the binary and a test fails on drift, and an alias would keep two names alive in `tools/list`, in
+`tb_describe_tool`, in the skill and in every stored prompt for the sake of one release. Vault content that
+still says `au_content` (91 mentions) is data, not code: it moves with a vault edit, not with this commit.
 
 **Content.** 2 274 occurrences of the word `arsumbris` remain in the tree, almost all inside member content
 (`tb-weave`, `tb-tree-research`, engine scenarios, `.gitignore` entries naming `.arsumbris/` paths). That is
-data, not code: it moves with `au_rename` and a vault decision, not with a `sed`.
+data, not code: it moves with `tb_rename` and a vault decision, not with a `sed`.
 
 ## Why the identifiers that moved, moved this way
 

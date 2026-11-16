@@ -3,13 +3,13 @@
 #
 # The engine applies the mutation and the adapter never hears the answer. Retrying
 # would apply it twice; doing nothing leaves the operator unsure whether a note was
-# written. The contract is `outcome_unknown` plus `au_reconcile`, and this script
+# written. The contract is `outcome_unknown` plus `tb_reconcile`, and this script
 # proves it against a REAL engine rather than a fake socket:
 #
 #   1. start a disposable engine and a proxy in front of it that forwards the write
 #      to the engine and then drops the reply
 #   2. read the file, then write it through the proxy  -> outcome_unknown?
-#   3. ask `au_reconcile` for the same path            -> applied, with the commit
+#   3. ask `tb_reconcile` for the same path            -> applied, with the commit
 #   4. check the engine's own git log and the file on disk, and that exactly one
 #      commit was made: a retry would show two
 #
@@ -55,20 +55,20 @@ before = subprocess.run(["git", "-C", repo, "rev-list", "--count", "HEAD"],
 
 client = StdioMcp([adapter, proxy, "--allow-mutations"], name="lost-reply").start()
 
-read = client.call("au_content", {"repo": "fixture", "path": "notes/a.md"})
+read = client.call("tb_content", {"repo": "fixture", "path": "notes/a.md"})
 payload = tool_payload(read)
 content, hash_ = payload["content"]["text"], payload["content"]["hash"]
 
-write = client.call("au_write_file",
+write = client.call("tb_write_file",
                     {"repo": "fixture", "path": "notes/a.md",
                      "content": content.replace("unique-marker-7f3a", "unique-marker-7f3a once"),
                      "expected_hash": hash_})
 text = tool_text(write)
 print("write reply:", text[:200])
 
-after_read = client.call("au_content", {"repo": "fixture", "path": "notes/a.md"})
+after_read = client.call("tb_content", {"repo": "fixture", "path": "notes/a.md"})
 current_hash = tool_payload(after_read)["content"]["hash"]
-reconcile = client.call("au_reconcile", {"repo": "fixture", "path": "notes/a.md",
+reconcile = client.call("tb_reconcile", {"repo": "fixture", "path": "notes/a.md",
                                          "expected_hash": current_hash})
 report = tool_payload(reconcile)
 print("reconcile:  ", json.dumps(report)[:300])

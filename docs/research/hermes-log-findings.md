@@ -8,10 +8,10 @@ those files, not a hypothesis.
 ## 1. Six failures in 46 seconds: `--payload text` breaks a schema-validating client
 
 ```
-01:52:21 ERROR tools.mcp_tool: MCP tool 2brain/au_overview call failed:
-         Tool au_overview has an output schema but did not return structured content
-01:52:42 … au_top_level_dirs …
-01:53:07 … au_grep …  then: MCP server '2brain' is unreachable after 3 consecutive failures
+01:52:21 ERROR tools.mcp_tool: MCP tool 2brain/tb_overview call failed:
+         Tool tb_overview has an output schema but did not return structured content
+01:52:42 … tb_top_level_dirs …
+01:53:07 … tb_grep …  then: MCP server '2brain' is unreachable after 3 consecutive failures
 ```
 
 Six calls failed between 01:52:21 and 01:53:07, and the third failure tripped the client's circuit breaker,
@@ -35,22 +35,22 @@ literal. An audit record that says `mutation` cannot answer "which of the six mu
 which is the one question it exists for.
 
 Fixed: `guarded_mutation` takes the tool name, all six call sites pass it, and `tests/policy.rs` now asserts
-the ledger names `au_write_file` and `au_delete_file` rather than a placeholder. `lib.rs` pays 25 lines on the
+the ledger names `tb_write_file` and `tb_delete_file` rather than a placeholder. `lib.rs` pays 25 lines on the
 ratchet with the reason recorded next to the constant.
 
 ## 3. Policy refusals are frequent but correct
 
 Four `policy/prior_read` refusals and two `policy/absence` refusals in the same window, each naming the stage
-and the fix ("read this file with au_content before writing it", "file already exists; use au_write_file").
+and the fix ("read this file with tb_content before writing it", "file already exists; use tb_write_file").
 These are the gate working as designed. They cost a turn each, and the message is what makes that turn cheap,
 so no change is warranted — but they are worth counting over a longer window before calling the gate tuned.
 
 ## 4. Two argument-shape refusals, both the model guessing
 
-- `au_content` refused `limit` (`additionalProperties`): the tool takes `max_chars`, and the server's own
-  instructions say `au_content` is unpaged. The refusal named the accepted fields, which is the contract
+- `tb_content` refused `limit` (`additionalProperties`): the tool takes `max_chars`, and the server's own
+  instructions say `tb_content` is unpaged. The refusal named the accepted fields, which is the contract
   working.
-- `au_edit_file` was called without `path` and `expected_hash`; the refusal named both.
+- `tb_edit_file` was called without `path` and `expected_hash`; the refusal named both.
 
 Neither is a server defect. The second is a reminder that `expected_hash` is the one argument a model drops
 most often, because it is not something the model can invent.

@@ -1,0 +1,89 @@
+{
+  "arguments": {
+    "path": "notes/a.md",
+    "repo": "fixture"
+  },
+  "payload": {
+    "semantic_tokens": [
+      {
+        "kind": "type-claim",
+        "name": "note",
+        "range": {
+          "end": 14,
+          "line_col": {
+            "end": {
+              "col": 11,
+              "line": 2
+            },
+            "start": {
+              "col": 7,
+              "line": 2
+            }
+          },
+          "start": 10
+        },
+        "resolved": {
+          "hash": "488157cb2f9ed3aa",
+          "name": "note",
+          "repo": "fixture"
+        }
+      },
+      {
+        "kind": "wikilink-resolved",
+        "range": {
+          "end": 28,
+          "line_col": {
+            "end": {
+              "col": 14,
+              "line": 3
+            },
+            "start": {
+              "col": 7,
+              "line": 3
+            }
+          },
+          "start": 21
+        },
+        "resolved": "$FIXTURE/fixture/notes/b.md",
+        "target": "b"
+      },
+      {
+        "kind": "anchor",
+        "range": {
+          "end": 45,
+          "line_col": {
+            "end": {
+              "col": 1,
+              "line": 7
+            },
+            "start": {
+              "col": 1,
+              "line": 6
+            }
+          },
+          "start": 34
+        },
+        "text": "Details"
+      },
+      {
+        "id": "detail",
+        "kind": "block-id",
+        "range": {
+          "end": 92,
+          "line_col": {
+            "end": {
+              "col": 47,
+              "line": 8
+            },
+            "start": {
+              "col": 40,
+              "line": 8
+            }
+          },
+          "start": 85
+        }
+      }
+    ]
+  },
+  "tool": "tb_semantic_tokens"
+}

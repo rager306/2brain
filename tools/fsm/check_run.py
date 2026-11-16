@@ -6,7 +6,7 @@ log nobody writes is worth nothing:
 
     {"run": "<id>", "state": "ORIENT", "event": "enter", "at": "<iso>"}
     {"run": "<id>", "state": "ORIENT", "event": "guard", "guard": "overview_answered",
-     "source": "tool", "call": "au_overview", "ok": true}
+     "source": "tool", "call": "tb_overview", "ok": true}
     {"run": "<id>", "state": "ORIENT", "event": "exit", "to": "LOCATE", "at": "<iso>"}
 
 Rules checked here:

@@ -40,7 +40,7 @@ proposed; this document authorizes no live deployment or vault migration.
    without retry, and a non-mutating `preview_mutation` are in place. Identity is
    a label only: a stdio client controls its own process, so `--principal` and
    the client's `initialize` name are not authentication. Recovery has a first
-   concrete step: `au_reconcile` reports whether an interrupted mutation landed
+   concrete step: `tb_reconcile` reports whether an interrupted mutation landed
    and, when a different file is present, re-arms the read-before-write guard
    with the current hash.
 5. **Cutover decision.** Complete the expanded golden and differential contracts,
@@ -92,7 +92,7 @@ proposed; this document authorizes no live deployment or vault migration.
   are reported accurately; a passing mock is not a production release gate.
 - The MCP layer replays the captured production payloads in
   `tb-engine/tests-golden` unchanged, so a silent normalisation fails a test.
-  That covers `au_overview`, `au_hubs`, and `au_diagnostics` only. The remaining
+  That covers `tb_overview`, `tb_hubs`, and `tb_diagnostics` only. The remaining
   reads are covered by a second, separately labelled corpus: payloads captured
   through the MCP layer from a real engine on a disposable repository
   (`tb-mcp-rs/tests/fixtures/synthetic-reads/`), with paths normalized to

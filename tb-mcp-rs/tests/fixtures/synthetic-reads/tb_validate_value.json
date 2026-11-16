@@ -1,0 +1,22 @@
+{
+  "arguments": {
+    "type_name": "note",
+    "value": {
+      "link": "[[b]]"
+    }
+  },
+  "payload": {
+    "validate_value": [
+      {
+        "diagnostics": [],
+        "identity": {
+          "hash": "488157cb2f9ed3aa",
+          "name": "note",
+          "repo": "fixture"
+        },
+        "undeclared_fields": []
+      }
+    ]
+  },
+  "tool": "tb_validate_value"
+}

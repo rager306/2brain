@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Does a model choose `au_batch` when the task spans files, and does it tell the truth
+# Does a model choose `tb_batch` when the task spans files, and does it tell the truth
 # about the result?
 #
 # `saga-and-rollback.sh` proves the engine's all-or-nothing behaviour mechanically.
@@ -36,7 +36,7 @@ echo "prompt:  one change across notes/a.md and notes/b.md"
 transcript=$(cd "$repo" && HOME="$TURN_HOME" claude -p \
 'Both notes/a.md and notes/b.md must gain the line `batched` at the end, and the two
 changes must land together or not at all. Use the 2brain MCP server: read each
-file with au_content to get its hash, then apply both changes with a single au_batch
+file with tb_content to get its hash, then apply both changes with a single tb_batch
 call (one write_file operation per file, each with its own hash). Finish with one line
 saying whether the batch applied.' \
   --mcp-config "$config" \
@@ -52,7 +52,7 @@ echo "tool calls: ${calls:-none}"
 
 batches=$(grep -o '"name":"mcp__2brain__au_batch"' <<<"$transcript" | wc -l)
 writes=$(grep -o '"name":"mcp__2brain__au_write_file"' <<<"$transcript" | wc -l)
-[[ $batches -ge 1 ]] && pass "the model used au_batch" || fail "no au_batch call"
+[[ $batches -ge 1 ]] && pass "the model used tb_batch" || fail "no tb_batch call"
 [[ $writes -eq 0 ]] && pass "the model did not fall back to two single writes" \
   || fail "the model issued $writes single writes instead of one batch"
 

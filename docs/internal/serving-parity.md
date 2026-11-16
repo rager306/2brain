@@ -81,9 +81,9 @@ Resource URI scheme: **none**. The Rust adapter has `arsumbris://<member>/<path>
 
 | class | gaps | would an agent notice? |
 |---|---|---|
-| read | the 4 host relays (dead: no socket), `~glob`, `~grep_files`, `au_type_system` | reads: `au_grep` is literal text over *catalogued* files, so regex/mtime ordering is lost — noticeable only for files outside the vault; the composition is rebuildable from `au_instances_of` + `au_content` |
+| read | the 4 host relays (dead: no socket), `~glob`, `~grep_files`, `au_type_system` | reads: `tb_grep` is literal text over *catalogued* files, so regex/mtime ordering is lost — noticeable only for files outside the vault; the composition is rebuildable from `tb_instances_of` + `tb_content` |
 | hook | all 6 | no: they are invisible on the bridge path too, so Hermes never had them. The Rust write gate is **stricter** (`policy.rs` PriorRead/Freshness) while the Node path via the bridge has no read-guard at all |
-| subscription | one held `changes` subscription maintaining per-session read-views (`broker.ts:160-180`, `freshness.ts:41-60`) | no: unusable by Hermes (no read-view on the bridge path); `au_watch` is a ≤30 s long-poll and not equivalent, and not needed |
+| subscription | one held `changes` subscription maintaining per-session read-views (`broker.ts:160-180`, `freshness.ts:41-60`) | no: unusable by Hermes (no read-view on the bridge path); `tb_watch` is a ≤30 s long-poll and not equivalent, and not needed |
 | lifecycle | sessions, dormancy, retention, mediation, trace, turn-end, bindings, profile allowlists, gate-side input validation, stamp injection, served-files contract, crash recovery, skill/inject materialization (`~/.arsumbris/au-mcp/gen/`, 3 skills present), macOS approval dialog (inert on Linux), dynamic TS plugin loading (`discovery.ts`) | no: invisible to Hermes. Dynamic plugin loading is the genuinely unportable piece, and it is measured unused (`docs/phase-d.md`: the vault declares no plugins) |
 | stub | `bash` | no: it never executed |
 
@@ -96,8 +96,8 @@ of which 4 are dead relays and 1 is an inert stub.
 |---|---|---|
 | 4 host relays (`au_host_*`) | **drop** | they relay to an `au-host` socket that does not exist on this host; `au-host` is a launcher this repository does not ship (`docs/repo-inventory.md`) |
 | `bash` | **drop** | it never executed: it returned guidance text (`file-tools.ts:76-86`) |
-| `glob`, `grep_files` | **drop** | they are a second filesystem access path around the engine; an agent has its own file tools. If a real need appears, the shape is a `mode: regex` on `au_grep`, not two new tools that bypass the catalogue |
-| `au_type_system` | **drop for now** | it is `au_instances_of` + `au_content` composed server-side; rebuild it when a client asks, not before |
+| `glob`, `grep_files` | **drop** | they are a second filesystem access path around the engine; an agent has its own file tools. If a real need appears, the shape is a `mode: regex` on `tb_grep`, not two new tools that bypass the catalogue |
+| `au_type_system` | **drop for now** | it is `tb_instances_of` + `tb_content` composed server-side; rebuild it when a client asks, not before |
 | `--allow-composition`, `--allow-workspace-shape` | **keep off by default** | Node exposed the five tools ungated, which is a defect rather than a feature: changing dependencies or workspace membership is a shape change, and `policy.rs` asks for an explicit grant. Enabling is one flag on a session that needs it, and it is documented rather than assumed |
 
 None of these decisions removes a capability an agent had through Hermes: the bridge never surfaced
@@ -111,17 +111,17 @@ hooks, subscriptions or lifecycle, and the relays were already dead on this host
    `/root/hermes-runs/2026-11-15/transcript.txt`). The source now declares an object
    (`schemas.rs:382-395`); a fixture mutation turn against the rebuilt binary is the proof.
 2. ~~**Decide the 8 Node-only tools**~~ — decided in §2b.
-3. ~~**Grants.**~~ Decided in §2b: keep them off, enable per session. Original note: The config passes only `--allow-mutations`; `au_add_dep`/`au_remove_dep` need
+3. ~~**Grants.**~~ Decided in §2b: keep them off, enable per session. Original note: The config passes only `--allow-mutations`; `tb_add_dep`/`tb_remove_dep` need
    `--allow-composition` and the three `*_workspace_member*` tools need `--allow-workspace-shape`
    (`policy.rs`). Node exposed all five ungated, so this must be decided *before* the bridge goes.
 4. ~~**Update Hermes text that pins Node tool names**~~ — **done 2026-11-16**: the vault skill carries a
-   CURRENT banner (tool prefix `2brain__`, `au_validate_value {type_name, value}`, `{repo, path}` file
+   CURRENT banner (tool prefix `2brain__`, `tb_validate_value {type_name, value}`, `{repo, path}` file
    args, the new liveness oracle), `skills/arsumbris/SKILL.md` was rewritten to the current stack, and
    `skills/research/jev/SKILL.md` names `2brain__au_write_file`. Original note:: `~/.hermes/skills/knowledge-graphs/arsumbris-vault/SKILL.md`,
    `.../scripts/bridge_probe.py`, `~/.hermes/skills/research/jev/SKILL.md:94`,
    `~/.hermes/skills/arsumbris/SKILL.md`. Signature deltas to state there:
-   `au_validate{typeName,value}` → `au_validate_value{type_name,value}`; absolute `file_path` →
-   `{member, path}`; `au_grep` literal, not regex.
+   `au_validate{typeName,value}` → `tb_validate_value{type_name,value}`; absolute `file_path` →
+   `{member, path}`; `tb_grep` literal, not regex.
 5. ~~**Remove `mcp_servers.arsumbris`**~~ — **done 2026-11-16**: both stanzas replaced by one `2brain`
    entry (`docs/internal/hermes-2brain.md`); backup at `/root/backups/hermes-config-20261116.yaml`. A session
    proves it; the adapter's own read and write turns were already measured here.

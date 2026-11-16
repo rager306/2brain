@@ -4,9 +4,9 @@
   "vault": "/root/vault",
   "sampling": {
     "rule": "Stratified deliberately, not randomly. Pool: 1,018 live notes under /root/vault (archive/, .claude/ and templates/ excluded), of which 981 declare one of the nine types in frontmatter, carry a non-empty description and have a body of at least 450 characters. Every note is one of those 981.",
-    "type_strata": "All nine declared types are represented: the four most frequent types (extract, pattern, insight, moc) and the two mid-frequency types (decision, error) get at least five each, the three rare types (claim, principle, manual) at least one each, and the five top hubs by au_hubs (index, zeroclaw-decisions, agentic-architecture, memory-systems, jev) are always included.",
+    "type_strata": "All nine declared types are represented: the four most frequent types (extract, pattern, insight, moc) and the two mid-frequency types (decision, error) get at least five each, the three rare types (claim, principle, manual) at least one each, and the five top hubs by tb_hubs (index, zeroclaw-decisions, agentic-architecture, memory-systems, jev) are always included.",
     "staleness_screen": "Oversampled descriptions that looked stale before reading: description shorter than 90 characters, a generic 'Topic map for ... / Current ... / Complete reference ...' description, or a description naming an entity, count or status that does not occur in the body. At least ten screen hits are included; each is labelled on its own evidence, and a screen hit that turns out accurate is labelled not stale (the screen is a sampler, not a label).",
-    "duplicate_search": "Title-token Jaccard over the 981-note pool (every pair at 0.50 and above that involves a sampled note is read), then au_grep for a distinctive phrase and au_content on both sides of each candidate pair. A note names a same-claim partner only when both bodies assert the same proposition; otherwise it records the closest rejected title match. duplicate_candidate is the note the duplicate noul compares against: the named partner when one exists, otherwise a deterministic different-type probe, so the gold answer to that pair is 'no'.",
+    "duplicate_search": "Title-token Jaccard over the 981-note pool (every pair at 0.50 and above that involves a sampled note is read), then tb_grep for a distinctive phrase and tb_content on both sides of each candidate pair. A note names a same-claim partner only when both bodies assert the same proposition; otherwise it records the closest rejected title match. duplicate_candidate is the note the duplicate noul compares against: the named partner when one exists, otherwise a deterministic different-type probe, so the gold answer to that pair is 'no'.",
     "reproduction_note": "Roles and languages follow the vault (Russian descriptions occur next to English bodies); no note text was rewritten."
   },
   "notes": [
@@ -26,7 +26,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/lance-csr-cypher-over-lance-csr-index.md (Jaccard 0.25) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/agent-beacon-cross-harness-memory.md (declared type extract), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/lance-csr-cypher-over-lance-csr-index.md (Jaccard 0.25) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/agent-beacon-cross-harness-memory.md (declared type extract), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -51,7 +51,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-retrieval.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/geometry-of-agent-memory-null-result.md (declared type extract), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-retrieval.md (Jaccard 0.33) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/geometry-of-agent-memory-null-result.md (declared type extract), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -76,7 +76,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/rust-ai-systems.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-defense-in-depth-six-independent-security-layers.md (declared type pattern), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/rust-ai-systems.md (Jaccard 0.33) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-defense-in-depth-six-independent-security-layers.md (declared type pattern), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -151,7 +151,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/evorag-feedback-backpropagation-kg-rag.md (Jaccard 0.20) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe f/patterns/pattern-budgets-as-trades.md (declared type pattern), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/evorag-feedback-backpropagation-kg-rag.md (Jaccard 0.20) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe f/patterns/pattern-budgets-as-trades.md (declared type pattern), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -176,7 +176,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is f/patterns/pattern-preregistered-training-runs.md (Jaccard 0.20) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md (declared type pattern), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is f/patterns/pattern-preregistered-training-runs.md (Jaccard 0.20) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md (declared type pattern), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -201,7 +201,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/kutha-artifacts-extraction.md (Jaccard 0.20) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/entity-resolution-accuracy-below-90-percent-corrupts-knowledge-graph-reasoning-chains.md (declared type insight), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/kutha-artifacts-extraction.md (Jaccard 0.20) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/entity-resolution-accuracy-below-90-percent-corrupts-knowledge-graph-reasoning-chains.md (declared type insight), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -226,7 +226,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is None (Jaccard 0.00) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-stack-hnsw-rs-plus-tantivy-plus-petgraph-plus-fastembed.md (declared type decision), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is None (Jaccard 0.00) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-stack-hnsw-rs-plus-tantivy-plus-petgraph-plus-fastembed.md (declared type decision), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -251,7 +251,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-decisions.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-defense-in-depth-six-layers.md (declared type decision), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-decisions.md (Jaccard 0.33) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-defense-in-depth-six-layers.md (declared type decision), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -276,7 +276,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/rrsi-regularized-harness-self-improvement.md (Jaccard 0.40) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/tkg-bi-temporal-edge-model-tracks-four-timestamps-for-non-lossy-history.md (declared type pattern), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/rrsi-regularized-harness-self-improvement.md (Jaccard 0.40) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/tkg-bi-temporal-edge-model-tracks-four-timestamps-for-non-lossy-history.md (declared type pattern), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -301,7 +301,7 @@
         },
         "duplicate_of": {
           "value": "inbox/raw-rag-beats-agentic-memory.md",
-          "justification": "Same paper (arXiv:2610.30755) and the same results; au_grep on '2610.30755' returns both files and au_content on both shows the same six-of-seven claim; this note is the later of the two (2026-10-26 vs 2026-10-23)."
+          "justification": "Same paper (arXiv:2610.30755) and the same results; tb_grep on '2610.30755' returns both files and tb_content on both shows the same six-of-seven claim; this note is the later of the two (2026-10-26 vs 2026-10-23)."
         }
       },
       "duplicate_candidate": {
@@ -326,7 +326,7 @@
         },
         "duplicate_of": {
           "value": "inbox/rust-release-wave-2025-2026-maps-fifteen-versions-by-usefulness.md",
-          "justification": "Same 15 releases and the same feature notes; au_grep for '1.85.0' and '15 мажоров + 8 патчей' returns both files; the MOC is the category view and this note the version view."
+          "justification": "Same 15 releases and the same feature notes; tb_grep for '1.85.0' and '15 мажоров + 8 патчей' returns both files; the MOC is the category view and this note the version view."
         }
       },
       "duplicate_candidate": {
@@ -351,7 +351,7 @@
         },
         "duplicate_of": {
           "value": "inbox/beacon-cross-harness-session-memory.md",
-          "justification": "Same project (Asymptote-Labs/agent-beacon) and same capture -> review -> reuse cycle; au_grep on 'Asymptote-Labs' returns both and au_content confirms the same event model; only the star count differs (2,590 vs 1,961)."
+          "justification": "Same project (Asymptote-Labs/agent-beacon) and same capture -> review -> reuse cycle; tb_grep on 'Asymptote-Labs' returns both and tb_content confirms the same event model; only the star count differs (2,590 vs 1,961)."
         }
       },
       "duplicate_candidate": {
@@ -376,7 +376,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/mirror-harness-vs-allspark.md (Jaccard 0.22) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/no-forgetting-mechanism-anti-pattern.md (declared type error), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/mirror-harness-vs-allspark.md (Jaccard 0.22) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/no-forgetting-mechanism-anti-pattern.md (declared type error), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -401,7 +401,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pattern-corpus-parity-replacement.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-v1-shipped-18-phases-in-13-days-with-38-plans.md (declared type insight), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pattern-corpus-parity-replacement.md (Jaccard 0.33) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-v1-shipped-18-phases-in-13-days-with-38-plans.md (declared type insight), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -426,7 +426,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/skill-audit-compile-gate-pattern.md (Jaccard 0.29) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md (declared type decision), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/skill-audit-compile-gate-pattern.md (Jaccard 0.29) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md (declared type decision), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -451,7 +451,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/code-execution.md (Jaccard 0.20) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/agents-of-chaos-silent-censorship.md (declared type error), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/code-execution.md (Jaccard 0.20) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/agents-of-chaos-silent-censorship.md (declared type error), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -476,7 +476,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/surrealdb-agent-memory-vs-kutha.md (Jaccard 0.29) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/premature-graphrag-builds-graph-before-validating-need.md (declared type error), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/surrealdb-agent-memory-vs-kutha.md (Jaccard 0.29) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/premature-graphrag-builds-graph-before-validating-need.md (declared type error), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -501,7 +501,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/jev-context-curation-pattern.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe ops/queue/codeactinstruct-004.md (declared type claim), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/jev-context-curation-pattern.md (Jaccard 0.33) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe ops/queue/codeactinstruct-004.md (declared type claim), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -526,7 +526,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pattern-top-p-budgets.md (Jaccard 0.50) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-phase-ordering-fact-extraction-before-semantic-before-entity-before-graph.md (declared type decision), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pattern-top-p-budgets.md (Jaccard 0.50) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-phase-ordering-fact-extraction-before-semantic-before-entity-before-graph.md (declared type decision), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -551,7 +551,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pattern-tool-uptake-eval.md (Jaccard 0.29) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/entity-resolution-accuracy-below-85-percent-corrupts-graph.md (declared type error), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pattern-tool-uptake-eval.md (Jaccard 0.29) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/entity-resolution-accuracy-below-85-percent-corrupts-graph.md (declared type error), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -576,7 +576,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/entity-resolution-accuracy-below-85-percent-corrupts-graph.md (Jaccard 0.50) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe ops/queue/codeactinstruct-001.md (declared type claim), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/entity-resolution-accuracy-below-85-percent-corrupts-graph.md (Jaccard 0.50) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe ops/queue/codeactinstruct-001.md (declared type claim), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -601,7 +601,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-defense-in-depth-six-layers.md (Jaccard 0.71) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/jev-atomic-questions-beat-composite-reasoning.md (declared type principle), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-defense-in-depth-six-layers.md (Jaccard 0.71) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/jev-atomic-questions-beat-composite-reasoning.md (declared type principle), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -626,7 +626,7 @@
         },
         "duplicate_of": {
           "value": "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md",
-          "justification": "Same four timestamps (created_at/expired_at/valid_from/valid_until) and the same never-delete-only-invalidate claim; au_grep on 'four timestamps' returns both files and au_content confirms both bodies carry the same table."
+          "justification": "Same four timestamps (created_at/expired_at/valid_from/valid_until) and the same never-delete-only-invalidate claim; tb_grep on 'four timestamps' returns both files and tb_content confirms both bodies carry the same table."
         }
       },
       "duplicate_candidate": {
@@ -676,7 +676,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/codelens-hybrid-code-search.md (Jaccard 0.29) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe ops/queue/codeactinstruct-003.md (declared type claim), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/codelens-hybrid-code-search.md (Jaccard 0.29) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe ops/queue/codeactinstruct-003.md (declared type claim), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -701,7 +701,7 @@
         },
         "duplicate_of": {
           "value": "knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md",
-          "justification": "Same ER-corruption claim (Dr. Smith example, compounding errors, Senzing quote); au_grep on 'Senzing' returns this note and the 85% error note, and au_content on this note and knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md shows the shared claim, with this note carrying the stale 90% title."
+          "justification": "Same ER-corruption claim (Dr. Smith example, compounding errors, Senzing quote); tb_grep on 'Senzing' returns this note and the 85% error note, and tb_content on this note and knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md shows the shared claim, with this note carrying the stale 90% title."
         }
       },
       "duplicate_candidate": {
@@ -726,7 +726,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-uses-inserted-phases-for-tech-debt-and-integration-fixes.md (Jaccard 0.18) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-decisions.md (declared type moc), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-uses-inserted-phases-for-tech-debt-and-integration-fixes.md (Jaccard 0.18) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-decisions.md (declared type moc), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -751,7 +751,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/ruvector-agentdb-claude-flow-implement-all-three-agentic-reasoning-layers-in-production.md (Jaccard 0.27) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/rl-training-methods.md (declared type moc), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/ruvector-agentdb-claude-flow-implement-all-three-agentic-reasoning-layers-in-production.md (Jaccard 0.27) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/rl-training-methods.md (declared type moc), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -776,7 +776,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/jev.md (Jaccard 0.25) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe ops/queue/codeactinstruct-002.md (declared type claim), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/jev.md (Jaccard 0.25) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe ops/queue/codeactinstruct-002.md (declared type claim), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -801,7 +801,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pgx-patterns-for-kutha-graph.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/qa-capability-vs-regression-suites-principle.md (declared type principle), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pgx-patterns-for-kutha-graph.md (Jaccard 0.33) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/qa-capability-vs-regression-suites-principle.md (declared type principle), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -826,7 +826,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md (Jaccard 0.67) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/agentic-architecture.md (declared type moc), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md (Jaccard 0.67) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/agentic-architecture.md (declared type moc), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -851,7 +851,7 @@
         },
         "duplicate_of": {
           "value": "knowledge/zeroclaw-stack-hnsw-rs-plus-tantivy-plus-petgraph-plus-fastembed.md",
-          "justification": "Same stack choice and same RuVector rejection; au_grep on 'hnsw_rs + tantivy + petgraph + fastembed' returns both files and au_content confirms the shared verdict; this note is the later restatement (2026-02-27 vs 2026-02-22)."
+          "justification": "Same stack choice and same RuVector rejection; tb_grep on 'hnsw_rs + tantivy + petgraph + fastembed' returns both files and tb_content confirms the shared verdict; this note is the later restatement (2026-02-27 vs 2026-02-22)."
         }
       },
       "duplicate_candidate": {
@@ -876,7 +876,7 @@
         },
         "duplicate_of": {
           "value": "knowledge/zeroclaw-defense-in-depth-six-independent-security-layers.md",
-          "justification": "Same six layers in the same order; au_grep on 'Six Independent Security Layers' returns both and au_content confirms the same layer list; this note is the later restatement (2026-02-27 vs 2026-02-22)."
+          "justification": "Same six layers in the same order; tb_grep on 'Six Independent Security Layers' returns both and tb_content confirms the same layer list; this note is the later restatement (2026-02-27 vs 2026-02-22)."
         }
       },
       "duplicate_candidate": {
@@ -901,7 +901,7 @@
         },
         "duplicate_of": {
           "value": "knowledge/fact-extraction-must-precede-graph-construction-intelligence-before-infrastructure.md",
-          "justification": "Same phase-ordering claim; au_grep on 'Dependency Chain' returns the earlier note (2026-02-21) whose description states the identical ordering."
+          "justification": "Same phase-ordering claim; tb_grep on 'Dependency Chain' returns the earlier note (2026-02-21) whose description states the identical ordering."
         }
       },
       "duplicate_candidate": {
@@ -926,7 +926,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-semantic-memory.md (Jaccard 0.20) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/memory-systems.md (declared type moc), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/zeroclaw-semantic-memory.md (Jaccard 0.20) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/memory-systems.md (declared type moc), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -951,7 +951,7 @@
         },
         "duplicate_of": {
           "value": "knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md",
-          "justification": "Same ER-corruption failure with the same threshold and example; au_grep on 'Entity resolution (ER) is the single hardest problem' returns this note and the 90% note, and au_content on this note and knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md confirms the shared claim."
+          "justification": "Same ER-corruption failure with the same threshold and example; tb_grep on 'Entity resolution (ER) is the single hardest problem' returns this note and the 90% note, and tb_content on this note and knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md confirms the shared claim."
         }
       },
       "duplicate_candidate": {
@@ -976,7 +976,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/agents-of-chaos-circular-verification.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/rust-2025-2026-release-wave.md (declared type extract), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/agents-of-chaos-circular-verification.md (Jaccard 0.33) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/rust-2025-2026-release-wave.md (declared type extract), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -1001,7 +1001,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/agents-of-chaos-silent-censorship.md (Jaccard 0.29) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/allspark-research-harness2-meta-harness-improves-other-harnesses-contrastively.md (declared type insight), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/agents-of-chaos-silent-censorship.md (Jaccard 0.29) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/allspark-research-harness2-meta-harness-improves-other-harnesses-contrastively.md (declared type insight), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -1026,7 +1026,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/premature-graphrag-is-the-number-one-risk-benchmark-before-building-graph-infrastructure.md (Jaccard 0.25) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/jev.md (declared type moc), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/premature-graphrag-is-the-number-one-risk-benchmark-before-building-graph-infrastructure.md (Jaccard 0.25) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/jev.md (declared type moc), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -1051,7 +1051,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pattern-union-coverage-anti-eviction.md (Jaccard 0.29) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-roadmap.md (declared type moc), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/pattern-union-coverage-anti-eviction.md (Jaccard 0.29) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe knowledge/zeroclaw-roadmap.md (declared type moc), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -1076,7 +1076,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/codeactinstruct-003.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/raw-rag-beats-agentic-memory-baseline.md (declared type extract), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/codeactinstruct-003.md (Jaccard 0.33) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/raw-rag-beats-agentic-memory-baseline.md (declared type extract), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -1101,7 +1101,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/codeactinstruct-003.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/cloudflare-security-audit-skill.md (declared type extract), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/codeactinstruct-003.md (Jaccard 0.33) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/cloudflare-security-audit-skill.md (declared type extract), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -1126,7 +1126,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/codeactinstruct-004.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe f/patterns/pattern-piped-reranker-over-primary-tool.md (declared type pattern), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/codeactinstruct-004.md (Jaccard 0.33) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe f/patterns/pattern-piped-reranker-over-primary-tool.md (declared type pattern), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -1151,7 +1151,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/codeactinstruct-003.md (Jaccard 0.33) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe self/goals.md (declared type moc), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is ops/queue/codeactinstruct-003.md (Jaccard 0.33) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe self/goals.md (declared type moc), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -1176,7 +1176,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/llm-bridges-semantic-gap-between-ontology-and-code.md (Jaccard 0.18) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/agent-beacon-cross-harness-memory.md (declared type extract), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/llm-bridges-semantic-gap-between-ontology-and-code.md (Jaccard 0.18) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/agent-beacon-cross-harness-memory.md (declared type extract), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -1201,7 +1201,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/jev-composite-scoring-pattern.md (Jaccard 0.25) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/geometry-of-agent-memory-null-result.md (declared type extract), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is knowledge/jev-composite-scoring-pattern.md (Jaccard 0.25) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe inbox/geometry-of-agent-memory-null-result.md (declared type extract), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {
@@ -1226,7 +1226,7 @@
         },
         "duplicate_of": {
           "value": null,
-          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/quality-inheritance-principle.md (Jaccard 0.17) and an au_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe f/patterns/pattern-budgets-as-trades.md (declared type pattern), so the gold answer to that pair is no."
+          "justification": "No same claim named: closest title-token match over the 981-note pool is inbox/quality-inheritance-principle.md (Jaccard 0.17) and an tb_grep of the description phrase returns only this file. The duplicate noul compares against the known-different probe f/patterns/pattern-budgets-as-trades.md (declared type pattern), so the gold answer to that pair is no."
         }
       },
       "duplicate_candidate": {

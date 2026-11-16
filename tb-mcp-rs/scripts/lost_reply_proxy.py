@@ -3,7 +3,7 @@
 
 The dangerous engine state is not "the write failed" but "the write landed and we do
 not know it": the adapter reports `outcome_unknown`, and the operator's only correct
-move is `au_reconcile`, never a retry. Reproducing that needs a real engine — a fake
+move is `tb_reconcile`, never a retry. Reproducing that needs a real engine — a fake
 one proves the adapter's state machine, not the engine's durability.
 
 This proxy sits between the adapter and the engine:
@@ -13,7 +13,7 @@ This proxy sits between the adapter and the engine:
 Every frame is forwarded to the engine, so the engine really applies the mutation.
 The reply to the request that matches `--drop-tool` is then dropped and the
 connection closed, so the adapter sees EOF exactly where a crashed engine would leave
-it. Every other request, including the `initialize` and the later `au_reconcile`, is
+it. Every other request, including the `initialize` and the later `tb_reconcile`, is
 a plain pass-through.
 
     ./scripts/lost_reply_proxy.py --engine <engine.sock> --listen <proxy.sock> \

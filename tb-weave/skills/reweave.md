@@ -14,9 +14,9 @@ Nodes, maps and extraction flags are shared.
 
 Use new nodes' incoming and outgoing links to find older nodes worth revisiting.
 
-List `extraction::au-weave` instances with `au_instances_of`.
+List `extraction::au-weave` instances with `tb_instances_of`.
 Page through the full roster and select this graph's files.
-Read candidate lists with `au_resolved`.
+Read candidate lists with `tb_resolved`.
 
 Pending enrichments have:
 
@@ -55,7 +55,7 @@ Hold risky changes for human review with evidence, following [[the-precision-asy
 
 ## Check source passages
 
-Read unfamiliar `passages` guidance on [[candidate]] with `au_type`.
+Read unfamiliar `passages` guidance on [[candidate]] with `tb_type`.
 Check source blocks against the facet, even when it is already present in the target.
 Recheck retained passages when the candidate's meaning or target changed.
 

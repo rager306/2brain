@@ -60,12 +60,12 @@ answer cheap.
 |---|---|---:|---|---|
 | duplicate detection | `noul` "same claim?" | 100 pairs | deterministic prefilter (shingle Jaccard ≥ 0.5) keeps the pair set small | 1.000/0.889 measured on 50 labelled notes; string similarity cannot see paraphrase |
 | contradiction between two notes | `noul` "can both be true?" | 100 pairs | only between notes sharing a topic or a type | graph gives the candidate pairs, the judge decides |
-| type assignment for new notes | `choice` over 9 types | 100 | `au_validate_value` must accept the result | a wrong type is caught by the contract, so the judge only proposes |
+| type assignment for new notes | `choice` over 9 types | 100 | `tb_validate_value` must accept the result | a wrong type is caught by the contract, so the judge only proposes |
 | staleness of a description | `noul` inverted | 100 | per-claim extraction first | measured 0.884 accuracy, recall 0.333 per note — usable as triage, not as truth |
-| link suggestion | `choice` over candidate targets | 50 | candidates from `au_neighborhood`/BM25 | only the judge can tell "related" from "referenced" |
+| link suggestion | `choice` over candidate targets | 50 | candidates from `tb_neighborhood`/BM25 | only the judge can tell "related" from "referenced" |
 | tag/keyword extraction | `choice` per facet, or `noul` per candidate tag | 100 | vocabulary is the type system's | keeps the vocabulary closed |
-| answer selection ("which of these k notes answers this") | `choice` over k | 50 | k comes from `au_search` | reranker on top of BM25, not a replacement |
-| rename/migration safety ("does any note depend on this name?") | **not a judge question** | — | `au_grep` + `au_references` | determinism wins: a missed dependency is a broken vault |
+| answer selection ("which of these k notes answers this") | `choice` over k | 50 | k comes from `tb_search` | reranker on top of BM25, not a replacement |
+| rename/migration safety ("does any note depend on this name?") | **not a judge question** | — | `tb_grep` + `tb_references` | determinism wins: a missed dependency is a broken vault |
 | diagnostics triage | `noul` "is this a real defect?" | 100 | the diagnostic code | cheaper than reading 300 findings |
 
 ## Where the judge must not be used
@@ -73,9 +73,9 @@ answer cheap.
 - **Anything a graph or string operation answers**: who links here, what type is this, does this path
   exist, is this hash current. A model is a sampler; the engine is a function.
 - **The write path.** The judge may decide *whether to propose*, never *what lands*: content goes through
-  `au_validate_value` and the engine's gate. A judge answer is a predicate, not an author.
+  `tb_validate_value` and the engine's gate. A judge answer is a predicate, not an author.
 - **Renames, migrations, deletions.** A probabilistic "seems safe" is the wrong instrument for an
-  irreversible act; the gates for those are `au_grep`, `au_references` and a dirty-tree check.
+  irreversible act; the gates for those are `tb_grep`, `tb_references` and a dirty-tree check.
 - **Per-note claim questions on multi-claim notes** until an extractor exists (rule 3).
 
 ## Open measurements

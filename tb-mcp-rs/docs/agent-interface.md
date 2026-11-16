@@ -28,12 +28,12 @@ takes 66 ms.
 
 | what | measurement |
 |---|---|
-| `au_overview`, first answer | 7 466 chars (~1.9k tokens), 17–29 ms |
+| `tb_overview`, first answer | 7 466 chars (~1.9k tokens), 17–29 ms |
 | `structuredContent` | present on every result, equal to the text payload |
 | engine version metadata | `_meta["io.arsumbris/engineVersion"]` on every result |
-| `au_files` limit 500 | 65 806 chars (~16.5k tokens), 16 ms |
-| `au_type_tree` | 13 467 chars (~3.4k tokens), 14 ms |
-| `au_types` limit 500 | 15 228 chars (~3.8k tokens), 6 ms |
+| `tb_files` limit 500 | 65 806 chars (~16.5k tokens), 16 ms |
+| `tb_type_tree` | 13 467 chars (~3.4k tokens), 14 ms |
+| `tb_types` limit 500 | 15 228 chars (~3.8k tokens), 6 ms |
 
 Errors, by case:
 
@@ -44,7 +44,7 @@ Errors, by case:
 | absolute path | tool error: `'path' must be relative to the member root` |
 | `..` in path | tool error: `'path' must not contain '..'` |
 | unknown member | tool error: `unknown workspace member: <name>` |
-| stale hash, no read | tool error: `policy/prior_read: read this file with au_content before writing it` |
+| stale hash, no read | tool error: `policy/prior_read: read this file with tb_content before writing it` |
 | lost mutation reply | tool error: `outcome_unknown: … read the file again before retrying` |
 
 ## Where it stands against agent-friendly practice
@@ -61,7 +61,7 @@ Met:
 - **safe defaults**: reads only unless the operator grants mutations; mutating
   tools are absent from `tools/list` and refused before the engine is contacted;
 - **retry safety**: the read-before-write hash guard, `outcome_unknown` instead of
-  a blind retry, and `au_reconcile` to settle the outcome;
+  a blind retry, and `tb_reconcile` to settle the outcome;
 - **caching signals**: `_meta` engine version on every result;
 - **deterministic order and no timestamps** in payloads.
 
@@ -72,12 +72,12 @@ declared in every envelope schema for that reason.
 
 Not met, in priority order:
 
-1. **Large unpaged answers.** `au_content` and `au_instances_of` now take
+1. **Large unpaged answers.** `tb_content` and `tb_instances_of` now take
    explicit budgets, and every windowed answer says what was withheld.
-   `au_type_tree` and `au_validate_value` remain unbounded; a caller can only
+   `tb_type_tree` and `tb_validate_value` remain unbounded; a caller can only
    avoid them or accept the size.
 2. **Argument errors** now name the tool, list its required fields, and point at
-   `au_describe_tool`; the underlying text still comes from the SDK.
+   `tb_describe_tool`; the underlying text still comes from the SDK.
 3. **Tool errors carry no machine-readable code.** The text embeds
    `policy/<stage>:` and `outcome_unknown:`, which is parseable but not a field.
 4. **No progress notifications** for reads that approach the 30 s deadline.

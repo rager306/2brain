@@ -71,7 +71,7 @@ is not a memory diet (1.2% of RSS); it is the payment for proximity.
   `durable_probe.py --socket … --vault …` both accept it. The copy reproduces production exactly today
   (literal 0.571 / topical 0.642 / durable 0.500, 13 of 26), which is what makes it a valid stand-in.
 - **Gate**: proximity lifts literal hit@1 above 0.571 with topical hit@1 not below 0.642 and durable not
-  below 0.500, measured on the candidate copy; accepted changes are blessed in the golden `au_search` capture
+  below 0.500, measured on the candidate copy; accepted changes are blessed in the golden `tb_search` capture
   and swapped in with the same rollback artifacts as the sixth swap.
 - **Landed and served** (`1ee2463`, seventh swap): literal hit@1 0.571 → **0.714** with hit@5 **1.000**, topical
   0.642 → 0.660, durable 0.500 → 0.538; production reproduces the candidate's numbers exactly. Cost: 3 359 B/doc
@@ -115,7 +115,7 @@ the vault, then release 2 flips `DEFS` and `BUILTIN_ENGINE_REPO`.
 
 ### 4. Counters, then whatever they justify
 
-The engine has no per-verb counters, so "is `au_grep` slow or is the vault big" is answered with a
+The engine has no per-verb counters, so "is `tb_grep` slow or is the vault big" is answered with a
 stopwatch. One histogram per verb, aggregated per version, is ~80 lines and makes the next protocol or
 ranking experiment answerable without one. Nothing else in this queue should be sized before that data
 exists.

@@ -144,8 +144,8 @@ fn every_captured_payload_fits_the_schema_its_tool_declares() {
             let key = first.as_str().unwrap();
             if let Some(inner) = object.get(key)
                 && inner.is_null()
-                && tool != "au_content"
-                && tool != "au_frontmatter"
+                && tool != "tb_content"
+                && tool != "tb_frontmatter"
             {
                 problems.push(format!("{tool}: `{key}` is null in a captured answer"));
             }
@@ -162,7 +162,7 @@ fn every_captured_payload_fits_the_schema_its_tool_declares() {
 
 /// The tools an agent discovers with, which have no captured fixture: they answer
 /// from the adapter's own inventory, so the only way to check their declared schema
-/// is to call them. `au_describe_tool` used to return a bare tool definition under a
+/// is to call them. `tb_describe_tool` used to return a bare tool definition under a
 /// closed schema that declared `{tool, total, offset, next_offset}` — every real
 /// client rejected the answer, and nothing caught it because no fixture covers it.
 #[test]
@@ -180,8 +180,8 @@ fn derived_tools_answers_fit_their_schemas() {
     }
 
     let cases = [
-        ("au_search_tools", json!({"query": "content", "limit": 3})),
-        ("au_describe_tool", json!({"name": "au_content"})),
+        ("tb_search_tools", json!({"query": "content", "limit": 3})),
+        ("tb_describe_tool", json!({"name": "tb_content"})),
     ];
     let mut problems = Vec::new();
     for (id, (tool, arguments)) in cases.into_iter().enumerate() {

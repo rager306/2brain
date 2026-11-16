@@ -9,7 +9,7 @@ Ask only about unresolved choices that would change what earns a node.
 
 ## Find the premise
 
-Query `weave-premise::au-weave` with `au_instances_of`.
+Query `weave-premise::au-weave` with `tb_instances_of`.
 Select the destination graph's premises.
 Reuse or refine a match.
 

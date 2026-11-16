@@ -15,7 +15,7 @@ Use the caller's selected profile or the premise's `profile`.
 Resolve a missing or ambiguous selection before mining.
 Do not infer candidate kinds from the subject.
 
-Read the profile and candidate types with `au_type`, qualified by their owning repos.
+Read the profile and candidate types with `tb_type`, qualified by their owning repos.
 Follow parent types for inherited fields and guidance.
 
 The profile is a concrete `extraction` subtype.

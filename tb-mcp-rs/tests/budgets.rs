@@ -1,7 +1,7 @@
 #![cfg(unix)]
 
-//! Response budgets: a text window for `au_content`, paging for
-//! `au_instances_of`, the payload modes, and the argument-error hint.
+//! Response budgets: a text window for `tb_content`, paging for
+//! `tb_instances_of`, the payload modes, and the argument-error hint.
 
 use std::{os::unix::net::UnixListener, thread, time::Duration};
 
@@ -63,7 +63,7 @@ fn content_returns_an_explicit_window_and_keeps_the_hash() {
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_content",
+        "tb_content",
         json!({"repo":"fixture","path":"a.md","max_chars":10}),
     );
     assert_ne!(result["isError"], true, "{result}");
@@ -97,7 +97,7 @@ fn content_returns_an_explicit_window_and_keeps_the_hash() {
         2,
     );
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
-    let result = client.call_result(2, "au_content", json!({"repo":"fixture","path":"a.md"}));
+    let result = client.call_result(2, "tb_content", json!({"repo":"fixture","path":"a.md"}));
     let payload: Value =
         serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(payload["content"]["text"], LONG);
@@ -124,7 +124,7 @@ fn instances_of_pages_and_reports_the_total_and_continuation() {
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_instances_of",
+        "tb_instances_of",
         json!({"type_name":"note","limit":2,"offset":0}),
     );
     let payload: Value =
@@ -152,7 +152,7 @@ fn instances_of_pages_and_reports_the_total_and_continuation() {
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_instances_of",
+        "tb_instances_of",
         json!({"type_name":"note","limit":2,"offset":2}),
     );
     let payload: Value =
@@ -170,7 +170,7 @@ fn payload_modes_select_which_representation_is_returned() {
     let handle = daemon(listener, vec![("overview", json!({"overview":{}}))], 1);
 
     let mut structured = Client::start_with_timeout(&socket, &["--payload", "structured"], TIMEOUT);
-    let result = structured.call_result(2, "au_overview", json!({}));
+    let result = structured.call_result(2, "tb_overview", json!({}));
     assert!(
         result["content"]
             .as_array()
@@ -185,7 +185,7 @@ fn payload_modes_select_which_representation_is_returned() {
     let listener = UnixListener::bind(&socket).unwrap();
     let handle = daemon(listener, vec![("overview", json!({"overview":{}}))], 1);
     let mut text = Client::start_with_timeout(&socket, &["--payload", "text"], TIMEOUT);
-    let result = text.call_result(2, "au_overview", json!({}));
+    let result = text.call_result(2, "tb_overview", json!({}));
     assert!(result.get("structuredContent").is_none(), "{result}");
     assert_eq!(
         result["content"][0]["text"],
@@ -200,10 +200,10 @@ fn an_argument_error_names_the_tool_and_the_required_fields() {
     let socket = temp.path().join("engine.sock");
     UnixListener::bind(&socket).unwrap();
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
-    let result = client.call_result(2, "au_type", json!({}));
+    let result = client.call_result(2, "tb_type", json!({}));
     assert_eq!(result["isError"], true, "{result}");
     let text = result["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("missing field `name`"), "{text}");
-    assert!(text.contains("Tool 'au_type' requires: name"), "{text}");
-    assert!(text.contains("au_describe_tool"), "{text}");
+    assert!(text.contains("Tool 'tb_type' requires: name"), "{text}");
+    assert!(text.contains("tb_describe_tool"), "{text}");
 }

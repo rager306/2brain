@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-//! `au_batch`: several file ops armed one by one, sent as one engine saga.
+//! `tb_batch`: several file ops armed one by one, sent as one engine saga.
 
 use std::{os::unix::net::UnixListener, thread};
 
@@ -24,7 +24,7 @@ fn batch_sends_one_saga_with_absolute_paths_and_every_hash() {
     let root_string = root.to_str().unwrap().to_owned();
     let expected = root_string.clone();
     let daemon = thread::spawn(move || {
-        // Two au_content reads: members then content, apiece.
+        // Two tb_content reads: members then content, apiece.
         for hash in ["hash-a", "hash-b"] {
             let (mut members, _) = listener.accept().unwrap();
             assert_eq!(
@@ -36,7 +36,7 @@ fn batch_sends_one_saga_with_absolute_paths_and_every_hash() {
             let _ = read_request(&mut content);
             write_frame(&mut content, content_frame(hash));
         }
-        // au_batch arms each path: one editability read per op.
+        // tb_batch arms each path: one editability read per op.
         for _ in 0..2 {
             let (mut members, _) = listener.accept().unwrap();
             assert_eq!(
@@ -65,17 +65,17 @@ fn batch_sends_one_saga_with_absolute_paths_and_every_hash() {
     let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     let _ = client.call(
         2,
-        "au_content",
+        "tb_content",
         json!({"repo":"fixture","path":"notes/a.md"}),
     );
     let _ = client.call(
         3,
-        "au_content",
+        "tb_content",
         json!({"repo":"fixture","path":"notes/b.md"}),
     );
     let reply = client.call(
         4,
-        "au_batch",
+        "tb_batch",
         json!({"repo":"fixture","ops":[
             {"op":"write_file","path":"notes/a.md","content":"A","expected_hash":"hash-a"},
             {"op":"delete_file","path":"notes/b.md","expected_hash":"hash-b"}
@@ -98,12 +98,12 @@ fn batch_refuses_when_one_op_was_never_read() {
     let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     let text = error_text(&client.call(
         2,
-        "au_batch",
+        "tb_batch",
         json!({"repo":"fixture","ops":[
             {"op":"write_file","path":"notes/a.md","content":"A","expected_hash":"hash-a"}
         ]}),
     ));
-    assert!(text.contains("au_content"), "{text}");
+    assert!(text.contains("tb_content"), "{text}");
     assert_eq!(
         listener.accept().unwrap_err().kind(),
         std::io::ErrorKind::WouldBlock,
@@ -118,7 +118,7 @@ fn batch_refuses_an_empty_list_before_the_engine() {
     let listener = UnixListener::bind(&socket).unwrap();
     listener.set_nonblocking(true).unwrap();
     let mut client = Client::start_with(&socket, &["--allow-mutations"]);
-    let text = error_text(&client.call(2, "au_batch", json!({"repo":"fixture","ops":[]})));
+    let text = error_text(&client.call(2, "tb_batch", json!({"repo":"fixture","ops":[]})));
     assert!(text.contains("'ops' must not be empty"), "{text}");
     assert_eq!(
         listener.accept().unwrap_err().kind(),

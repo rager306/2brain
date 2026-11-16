@@ -1,7 +1,7 @@
 ---
 type: mcp.skill::au-mcp-sdk
 name: check
-description: Checks the meaning of a changed graph cluster against applicable audits and doctrine, using an independent reader. Records verified findings and the checks actually run. Use when graph work converges or the human asks to verify its meaning. Writing-style audits use check-writing-style, skill and guide reviews use review-a-skill, and structural validation uses au_diagnostics. Repairs stay with fix.
+description: Checks the meaning of a changed graph cluster against applicable audits and doctrine, using an independent reader. Records verified findings and the checks actually run. Use when graph work converges or the human asks to verify its meaning. Writing-style audits use check-writing-style, skill and guide reviews use review-a-skill, and structural validation uses tb_diagnostics. Repairs stay with fix.
 ---
 
 # check
@@ -23,12 +23,12 @@ An author check does not establish an independent pass.
 
 Start with the changed notes and the doctrine they must satisfy.
 Include referring notes whose meaning may be affected.
-Use au_references when the affected set is unknown or stale.
+Use tb_references when the affected set is unknown or stale.
 Reuse current evidence and tool results until relevant state changes or freshness is uncertain.
 
 Select audits whose scope reaches those subjects.
 An absent scope gives an audit graph-wide applicability.
-Discover the roster with au_instances_of using ofType: audit::au-govern when needed.
+Discover the roster with tb_instances_of using ofType: audit::au-govern when needed.
 Follow every page before claiming complete audit coverage.
 
 Run the applicable audit recipes against their doctrine.

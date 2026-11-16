@@ -1,0 +1,131 @@
+{
+  "arguments": {},
+  "payload": {
+    "overview": {
+      "diagnostic_counts": {
+        "by_code": {
+          "engine-schema-type-unwritten": 1,
+          "reference-target-missing": 1,
+          "repo-missing-readme": 1
+        },
+        "by_severity": {
+          "drift": 1,
+          "warning": 2
+        },
+        "total": 3
+      },
+      "graph_shape": {
+        "components": 9,
+        "degree": {
+          "in": [
+            {
+              "count": 10,
+              "degree": 0
+            },
+            {
+              "count": 1,
+              "degree": 1
+            },
+            {
+              "count": 1,
+              "degree": 2
+            }
+          ],
+          "out": [
+            {
+              "count": 9,
+              "degree": 0
+            },
+            {
+              "count": 3,
+              "degree": 1
+            }
+          ]
+        },
+        "density": 0.25,
+        "edge_count": 3,
+        "edges_navigational": 0,
+        "edges_structural": 3,
+        "largest_component": 4,
+        "node_count": 12,
+        "orphans": {
+          "isolated": 8,
+          "no_inbound": 10
+        },
+        "repo": null,
+        "scope": "own"
+      },
+      "hubs": [
+        {
+          "kind": "instance",
+          "path": "$FIXTURE/fixture/notes/b.md",
+          "refs_navigational": 0,
+          "refs_structural": 2,
+          "refs_total": 2,
+          "repo": "fixture"
+        },
+        {
+          "kind": "instance",
+          "path": "$FIXTURE/fixture/notes/a.md",
+          "refs_navigational": 0,
+          "refs_structural": 1,
+          "refs_total": 1,
+          "repo": "fixture"
+        }
+      ],
+      "members": [
+        {
+          "disabled": false,
+          "editable": false,
+          "git": {
+            "root": "$FIXTURE/base",
+            "tracked": true
+          },
+          "local": true,
+          "repo": "base",
+          "role": "dep",
+          "root": "$FIXTURE/base",
+          "scattered": true,
+          "tier": "sibling"
+        },
+        {
+          "disabled": false,
+          "editable": true,
+          "git": {
+            "root": "$FIXTURE/fixture",
+            "tracked": true
+          },
+          "local": true,
+          "repo": "fixture",
+          "role": "entry",
+          "root": "$FIXTURE/fixture",
+          "scattered": false,
+          "tier": "entry"
+        }
+      ],
+      "repo": null,
+      "scope": "own",
+      "top_level_dirs": [
+        {
+          "member": null,
+          "name": "notes",
+          "path": "$FIXTURE/fixture/notes",
+          "repo": "fixture"
+        },
+        {
+          "member": null,
+          "name": "type",
+          "path": "$FIXTURE/fixture/type",
+          "repo": "fixture"
+        }
+      ],
+      "type_counts": {
+        "by_repo": {
+          "fixture": 5
+        },
+        "total": 5
+      }
+    }
+  },
+  "tool": "tb_overview"
+}

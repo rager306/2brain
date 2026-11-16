@@ -1,8 +1,8 @@
 #![cfg(unix)]
 
 //! Progressive disclosure: the server advertises one line per tool in the
-//! concise profile, and full definitions come from `au_search_tools` and
-//! `au_describe_tool` when a caller asks for them.
+//! concise profile, and full definitions come from `tb_search_tools` and
+//! `tb_describe_tool` when a caller asks for them.
 
 use std::{path::Path, time::Duration};
 
@@ -71,14 +71,14 @@ fn search_finds_a_tool_by_task_words_and_detail_selects_the_depth() {
     let mut client = connect(&[]);
 
     let found =
-        payload(&client.call_result(3, "au_search_tools", json!({"query":"read file content"})));
+        payload(&client.call_result(3, "tb_search_tools", json!({"query":"read file content"})));
     let names: Vec<&str> = found["tools"]
         .as_array()
         .unwrap()
         .iter()
         .map(|tool| tool["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names.first(), Some(&"au_content"), "{names:?}");
+    assert_eq!(names.first(), Some(&"tb_content"), "{names:?}");
     assert!(
         found["tools"][0].get("inputSchema").is_none(),
         "summary depth"
@@ -86,7 +86,7 @@ fn search_finds_a_tool_by_task_words_and_detail_selects_the_depth() {
 
     let names_only = payload(&client.call_result(
         4,
-        "au_search_tools",
+        "tb_search_tools",
         json!({"query":"types","detail":"name","limit":3}),
     ));
     assert!(names_only["tools"].as_array().unwrap().len() <= 3);
@@ -94,7 +94,7 @@ fn search_finds_a_tool_by_task_words_and_detail_selects_the_depth() {
 
     let schema = payload(&client.call_result(
         5,
-        "au_search_tools",
+        "tb_search_tools",
         json!({"query":"content","detail":"schema","limit":1}),
     ));
     assert!(
@@ -102,7 +102,7 @@ fn search_finds_a_tool_by_task_words_and_detail_selects_the_depth() {
         "{schema}"
     );
 
-    let empty = client.call_result(6, "au_search_tools", json!({"query":""}));
+    let empty = client.call_result(6, "tb_search_tools", json!({"query":""}));
     assert_eq!(empty["isError"], true, "{empty}");
 }
 
@@ -110,7 +110,7 @@ fn search_finds_a_tool_by_task_words_and_detail_selects_the_depth() {
 fn describe_returns_the_full_definition_and_refuses_what_is_not_visible() {
     let mut client = connect(&[]);
     let described =
-        payload(&client.call_result(3, "au_describe_tool", json!({"name":"au_content"})));
+        payload(&client.call_result(3, "tb_describe_tool", json!({"name":"tb_content"})));
     // The definition sits under `tool`, the one key the declared `outputSchema`
     // allows. A bare definition is rejected by any client that validates
     // `structuredContent`, which is how this shape was found.
@@ -119,33 +119,33 @@ fn describe_returns_the_full_definition_and_refuses_what_is_not_visible() {
         vec!["tool"]
     );
     let definition = &described["tool"];
-    assert_eq!(definition["name"], "au_content");
+    assert_eq!(definition["name"], "tb_content");
     assert_eq!(
         definition["inputSchema"]["required"],
         json!(["repo", "path"])
     );
     assert!(definition.get("outputSchema").is_some());
 
-    let unknown = client.call_result(4, "au_describe_tool", json!({"name":"au_nope"}));
+    let unknown = client.call_result(4, "tb_describe_tool", json!({"name":"au_nope"}));
     assert_eq!(unknown["isError"], true, "{unknown}");
     assert!(
         unknown["content"][0]["text"]
             .as_str()
             .unwrap()
-            .contains("au_search_tools"),
+            .contains("tb_search_tools"),
         "{unknown}"
     );
 
     // A read-only launch must not leak a mutation definition through discovery.
-    let hidden = client.call_result(5, "au_describe_tool", json!({"name":"au_write_file"}));
+    let hidden = client.call_result(5, "tb_describe_tool", json!({"name":"tb_write_file"}));
     assert_eq!(hidden["isError"], true, "{hidden}");
-    let found = payload(&client.call_result(6, "au_search_tools", json!({"query":"write file"})));
+    let found = payload(&client.call_result(6, "tb_search_tools", json!({"query":"write file"})));
     assert!(
         !found["tools"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|tool| tool["name"] == "au_write_file"),
+            .any(|tool| tool["name"] == "tb_write_file"),
         "{found}"
     );
 }

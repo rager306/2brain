@@ -62,12 +62,12 @@ fn a_mutation_whose_reply_never_arrives_is_unknown_and_cannot_be_replayed_blindl
     });
 
     let mut client = Client::start_with_timeout(&socket, &["--allow-mutations"], TIMEOUT);
-    let read = client.call(2, "au_content", json!({"repo":"fixture","path":"a.md"}));
+    let read = client.call(2, "tb_content", json!({"repo":"fixture","path":"a.md"}));
     assert_ne!(read["result"]["isError"], true, "{read}");
 
     let write = client.call(
         3,
-        "au_write_file",
+        "tb_write_file",
         json!({"repo":"fixture","path":"a.md","content":"x","expected_hash":"hash-one"}),
     );
     assert_eq!(write["result"]["isError"], true, "{write}");
@@ -79,13 +79,13 @@ fn a_mutation_whose_reply_never_arrives_is_unknown_and_cannot_be_replayed_blindl
     // of reaching the engine a second time.
     let replay = client.call(
         4,
-        "au_write_file",
+        "tb_write_file",
         json!({"repo":"fixture","path":"a.md","content":"x","expected_hash":"hash-one"}),
     );
     assert_eq!(replay["result"]["isError"], true, "{replay}");
     assert_eq!(
         text(&replay),
-        "policy/prior_read: read this file with au_content before writing it"
+        "policy/prior_read: read this file with tb_content before writing it"
     );
 
     daemon.join().unwrap();
@@ -110,13 +110,13 @@ fn an_engine_that_dies_during_a_read_is_an_error_and_the_server_recovers() {
     });
 
     let mut client = Client::start_with_timeout(&socket, &["--allow-mutations"], TIMEOUT);
-    let first = client.call(2, "au_overview", json!({}));
+    let first = client.call(2, "tb_overview", json!({}));
     assert_eq!(first["result"]["isError"], true, "{first}");
     let error = text(&first);
     assert!(!error.is_empty(), "{first}");
     assert!(!error.contains("outcome_unknown"), "{error}");
 
-    let second = client.call(3, "au_overview", json!({}));
+    let second = client.call(3, "tb_overview", json!({}));
     assert_ne!(second["result"]["isError"], true, "{second}");
     assert_eq!(second["result"]["_meta"]["io.arsumbris/engineVersion"], "7");
     daemon.join().unwrap();
@@ -137,7 +137,7 @@ fn a_truncated_length_header_is_an_error_not_a_hang() {
     });
 
     let mut client = Client::start_with_timeout(&socket, &["--allow-mutations"], TIMEOUT);
-    let reply = client.call(2, "au_types", json!({}));
+    let reply = client.call(2, "tb_types", json!({}));
     assert_eq!(reply["result"]["isError"], true, "{reply}");
     let error = text(&reply);
     assert!(

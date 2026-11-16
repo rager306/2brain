@@ -60,7 +60,7 @@ fn frontmatter_sends_the_absolute_path_and_passes_the_map() {
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_frontmatter",
+        "tb_frontmatter",
         json!({"repo":"fixture","path":"notes/a.md"}),
     );
     assert_ne!(result["isError"], true, "{result}");
@@ -74,12 +74,12 @@ fn frontmatter_sends_the_absolute_path_and_passes_the_map() {
 fn anchors_and_block_ids_address_the_target() {
     for (tool, verb, answer) in [
         (
-            "au_anchors",
+            "tb_anchors",
             "anchors",
             json!({"anchors":[{"text":"Head","level":1,"span":{"start":0,"end":6}}]}),
         ),
         (
-            "au_block_ids",
+            "tb_block_ids",
             "block_ids",
             json!({"block_ids":[{"id":"intro","kind":"marker","type_claim":"","span":{"start":9,"end":15}}]}),
         ),
@@ -132,7 +132,7 @@ fn references_reads_both_directions_and_keeps_the_two_keys() {
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_references",
+        "tb_references",
         json!({"repo":"fixture","path":"notes/a.md"}),
     );
     assert_ne!(result["isError"], true, "{result}");
@@ -155,7 +155,7 @@ fn references_direction_out_reads_once() {
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_references",
+        "tb_references",
         json!({"repo":"fixture","path":"notes/a.md","direction":"out"}),
     );
     assert_eq!(payload(&result), json!({"references_out": []}));
@@ -174,7 +174,7 @@ fn neighborhood_forwards_the_walk_arguments() {
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_neighborhood",
+        "tb_neighborhood",
         json!({"repo":"fixture","path":"notes/a.md","direction":"both","depth":2,
                "kinds":["navigational"],"scope":"own","max_nodes":50}),
     );
@@ -194,11 +194,11 @@ fn the_new_reads_reject_paths_before_connecting() {
     listener.set_nonblocking(true).unwrap();
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     for (index, tool) in [
-        "au_frontmatter",
-        "au_anchors",
-        "au_block_ids",
-        "au_references",
-        "au_neighborhood",
+        "tb_frontmatter",
+        "tb_anchors",
+        "tb_block_ids",
+        "tb_references",
+        "tb_neighborhood",
     ]
     .into_iter()
     .enumerate()

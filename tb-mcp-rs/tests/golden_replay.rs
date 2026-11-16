@@ -64,17 +64,17 @@ fn run_case(tool: &str, request: Value, result_payload: Value, expected: Value) 
 
 #[test]
 fn the_adapter_passes_captured_production_payloads_through_unchanged() {
-    let overview = golden("au_overview.json");
+    let overview = golden("tb_overview.json");
     run_case(
-        "au_overview",
+        "tb_overview",
         json!({"read":"overview","id":1}),
         json!({"overview": overview.clone()}),
         json!({"overview": overview}),
     );
 
-    let hubs = golden("au_hubs.json");
+    let hubs = golden("tb_hubs.json");
     run_case(
-        "au_hubs",
+        "tb_hubs",
         json!({"read":"hubs","id":1,"limit":20,"offset":0}),
         json!({"hubs": hubs.clone()}),
         json!({"hubs": hubs}),
@@ -82,11 +82,11 @@ fn the_adapter_passes_captured_production_payloads_through_unchanged() {
 
     // The diagnostics fixture is the bridge's envelope; the engine serves the
     // same array under the read's own key.
-    let diagnostics = golden("au_diagnostics.json");
+    let diagnostics = golden("tb_diagnostics.json");
     let array = diagnostics["diagnostics"].clone();
     assert!(array.is_array(), "{diagnostics}");
     run_case(
-        "au_diagnostics",
+        "tb_diagnostics",
         json!({"read":"diagnostics","id":1,"limit":50,"offset":0}),
         json!({"diagnostics": array.clone()}),
         json!({"diagnostics": array}),

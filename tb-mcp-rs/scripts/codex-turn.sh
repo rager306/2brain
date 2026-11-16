@@ -9,7 +9,7 @@
 # with one client is a server with an accidental contract.
 #
 # The fixture carries `unique-marker-7f3a` in one note; the model must find it with
-# `au_grep` and name the file. Codex runs with its own CODEX_HOME so the user's
+# `tb_grep` and name the file. Codex runs with its own CODEX_HOME so the user's
 # config.toml is untouched; only `auth.json` is copied in, because a fresh home has
 # no credentials.
 #
@@ -58,7 +58,7 @@ echo "client:  codex $(codex --version 2>/dev/null | awk '{print $2}')"
 
 transcript=$(cd "$repo" && HOME="$TURN_HOME" CODEX_HOME=$codex_home codex exec \
   --json --skip-git-repo-check -C "$repo" \
-  'Use the 2brain MCP server: call au_grep to search the workspace for
+  'Use the 2brain MCP server: call tb_grep to search the workspace for
 unique-marker-7f3a. Then answer with one line: the path of the file that contains it
 and the text of that line.' 2>&1 || true)
 
@@ -66,10 +66,10 @@ status=0
 fail() { printf 'FAIL: %s\n' "$1" >&2; status=1; }
 pass() { printf 'PASS: %s\n' "$1"; }
 
-# Exact tool name, not a bare substring: "au_grep" also appears in prose and in error
+# Exact tool name, not a bare substring: "tb_grep" also appears in prose and in error
 # text, and the two turn scripts used to disagree about what "used the tool" means.
-grep -q '"type":"mcp_tool_call"' <<<"$transcript" && grep -q '"tool":"au_grep"' <<<"$transcript" \
-  && pass "the model called au_grep" || fail "no au_grep tool call"
+grep -q '"type":"mcp_tool_call"' <<<"$transcript" && grep -q '"tool":"tb_grep"' <<<"$transcript" \
+  && pass "the model called tb_grep" || fail "no tb_grep tool call"
 
 # The marker must come back inside the tool RESULT: the model's own arguments carry
 # it before any result exists, so a whole-transcript grep proves nothing.

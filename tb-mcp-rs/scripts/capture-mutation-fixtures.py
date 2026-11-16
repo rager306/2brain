@@ -9,23 +9,23 @@ found live (`commits` declared as an array while the engine sends `{repo: sha}`,
 `hash` declared a string while a delete answers null), so the corpus covers every
 mutating tool, not three of them:
 
-    au_write_file au_edit_file au_delete_file au_create_file au_batch
-    au_assign_block_id au_rename_block_id au_rename au_rename_type
-    au_inline au_promote au_add_dep au_remove_dep
-    au_add_workspace_member au_remove_workspace_member au_set_workspace_member_role
+    tb_write_file tb_edit_file tb_delete_file tb_create_file tb_batch
+    tb_assign_block_id tb_rename_block_id tb_rename tb_rename_type
+    tb_inline tb_promote tb_add_dep tb_remove_dep
+    tb_add_workspace_member tb_remove_workspace_member tb_set_workspace_member_role
 
 The fixture is disposable and never the served vault: a tempdir HOME, a temp repo, one
 `au daemon start` on it, and the adapter launched with --allow-mutations
 --allow-composition --allow-workspace-shape. Every tool is put in a state where it
 SUCCEEDS, which is the state the schema describes: a guarded mutation reads first
-(`au_content` for the content hash, `au_type` for a type hash), and each capture owns its
+(`tb_content` for the content hash, `tb_type` for a type hash), and each capture owns its
 own file, so one capture cannot change another's answer.
 
 Normalization is the corpus's existing one: the fixture repo root becomes `$FIXTURE`, a
 40-character lowercase commit sha becomes `$COMMIT`, keys are sorted and the file is
-indented by one space. Two captures also avoid the engine's clock: `au_assign_block_id`
+indented by one space. Two captures also avoid the engine's clock: `tb_assign_block_id`
 runs on a block that already carries a `^id` (the idempotent success path, same answer
-shape), and `au_inline`'s host hash — the one answer field a freshly minted `^: b-<millis>`
+shape), and `tb_inline`'s host hash — the one answer field a freshly minted `^: b-<millis>`
 id reaches — is frozen to `$HASH`. Everything else survives a re-capture unchanged, so a
 second run over a fresh tempdir writes byte-identical files.
 
@@ -142,17 +142,17 @@ def call(rpc: StdioMcp, tool: str, arguments: dict | None = None) -> dict:
 
 
 def content(rpc: StdioMcp, path: str) -> dict:
-    """The au_content read a guarded mutation needs: its text and its hash."""
-    payload = call(rpc, "au_content", {"repo": REPO, "path": path})
+    """The tb_content read a guarded mutation needs: its text and its hash."""
+    payload = call(rpc, "tb_content", {"repo": REPO, "path": path})
     entry = payload.get("content")
     if not isinstance(entry, dict) or not entry.get("hash"):
-        raise CaptureError(f"au_content returned no content for {path}: {payload}")
+        raise CaptureError(f"tb_content returned no content for {path}: {payload}")
     return entry
 
 
 def capture_write_file(rpc: StdioMcp) -> dict:
     read = content(rpc, "notes/a.md")
-    return call(rpc, "au_write_file", {
+    return call(rpc, "tb_write_file", {
         "repo": REPO, "path": "notes/a.md",
         "content": "---\ntype: note\ntitle: a\n---\n\nalpha changed\n",
         "expected_hash": read["hash"]})
@@ -160,7 +160,7 @@ def capture_write_file(rpc: StdioMcp) -> dict:
 
 def capture_edit_file(rpc: StdioMcp) -> dict:
     read = content(rpc, "notes/edit.md")
-    return call(rpc, "au_edit_file", {
+    return call(rpc, "tb_edit_file", {
         "repo": REPO, "path": "notes/edit.md",
         "old_string": "replace me", "new_string": "replaced", "replace_all": False,
         "expected_hash": read["hash"]})
@@ -168,12 +168,12 @@ def capture_edit_file(rpc: StdioMcp) -> dict:
 
 def capture_delete_file(rpc: StdioMcp) -> dict:
     read = content(rpc, "notes/delete.md")
-    return call(rpc, "au_delete_file", {
+    return call(rpc, "tb_delete_file", {
         "repo": REPO, "path": "notes/delete.md", "expected_hash": read["hash"]})
 
 
 def capture_create_file(rpc: StdioMcp) -> dict:
-    return call(rpc, "au_create_file", {
+    return call(rpc, "tb_create_file", {
         "repo": REPO, "path": "notes/created.md",
         "content": "---\ntype: note\ntitle: created\n---\n\nnew\n"})
 
@@ -181,7 +181,7 @@ def capture_create_file(rpc: StdioMcp) -> dict:
 def capture_batch(rpc: StdioMcp) -> dict:
     written = content(rpc, "notes/batch-write.md")
     edited = content(rpc, "notes/batch-edit.md")
-    return call(rpc, "au_batch", {"repo": REPO, "ops": [
+    return call(rpc, "tb_batch", {"repo": REPO, "ops": [
         {"op": "write_file", "path": "notes/batch-write.md",
          "content": "---\ntype: note\ntitle: batch write\n---\n\nafter\n",
          "expected_hash": written["hash"]},
@@ -195,21 +195,21 @@ def capture_assign_block_id(rpc: StdioMcp) -> dict:
     read = content(rpc, "notes/marker.md")
     # The offset lands inside the paragraph whose last token is `^seedid`, the
     # already-addressable case: the engine answers with that id and writes nothing.
-    return call(rpc, "au_assign_block_id", {
+    return call(rpc, "tb_assign_block_id", {
         "repo": REPO, "path": "notes/marker.md",
         "at": read["text"].index("unique-marker"), "expected_hash": read["hash"]})
 
 
 def capture_rename_block_id(rpc: StdioMcp) -> dict:
     read = content(rpc, "notes/host.md")
-    return call(rpc, "au_rename_block_id", {
+    return call(rpc, "tb_rename_block_id", {
         "repo": REPO, "path": "notes/host.md",
         "block_id": "rec1", "to_block_id": "rec2", "expected_hash": read["hash"]})
 
 
 def capture_rename(rpc: StdioMcp) -> dict:
     read = content(rpc, "notes/rename.md")
-    return call(rpc, "au_rename", {
+    return call(rpc, "tb_rename", {
         "repo": REPO, "path": "notes/rename.md", "to": "notes/renamed.md",
         "expected_hash": read["hash"]})
 
@@ -217,7 +217,7 @@ def capture_rename(rpc: StdioMcp) -> dict:
 def capture_inline(rpc: StdioMcp) -> dict:
     folded = content(rpc, "fold.md")
     host = content(rpc, "into.md")
-    payload = call(rpc, "au_inline", {
+    payload = call(rpc, "tb_inline", {
         "repo": REPO, "path": "fold.md", "into": "into.md",
         "expected_hash": folded["hash"], "into_expected_hash": host["hash"]})
     # The folded record lands in the host under a clock-minted `^: b-<millis>` id, so the
@@ -230,58 +230,58 @@ def capture_inline(rpc: StdioMcp) -> dict:
 
 def capture_promote(rpc: StdioMcp) -> dict:
     read = content(rpc, "notes/canvas.md")
-    return call(rpc, "au_promote", {
+    return call(rpc, "tb_promote", {
         "repo": REPO, "path": "notes/canvas.md", "to": "notes/promoted.md",
         "at": read["text"].index("content: x"), "expected_hash": read["hash"]})
 
 
 def capture_add_dep(rpc: StdioMcp) -> dict:
-    return call(rpc, "au_add_dep", {"repo": REPO, "dep": "peer"})
+    return call(rpc, "tb_add_dep", {"repo": REPO, "dep": "peer"})
 
 
 def capture_remove_dep(rpc: StdioMcp) -> dict:
-    return call(rpc, "au_remove_dep", {"repo": REPO, "dep": "peer"})
+    return call(rpc, "tb_remove_dep", {"repo": REPO, "dep": "peer"})
 
 
 def capture_add_workspace_member(rpc: StdioMcp) -> dict:
-    return call(rpc, "au_add_workspace_member", {"repo": REPO, "name": "aux", "role": "edit"})
+    return call(rpc, "tb_add_workspace_member", {"repo": REPO, "name": "aux", "role": "edit"})
 
 
 def capture_set_workspace_member_role(rpc: StdioMcp) -> dict:
-    return call(rpc, "au_set_workspace_member_role",
+    return call(rpc, "tb_set_workspace_member_role",
                 {"repo": REPO, "name": "aux", "role": "discover"})
 
 
 def capture_remove_workspace_member(rpc: StdioMcp) -> dict:
-    return call(rpc, "au_remove_workspace_member", {"repo": REPO, "name": "aux"})
+    return call(rpc, "tb_remove_workspace_member", {"repo": REPO, "name": "aux"})
 
 
 def capture_rename_type(rpc: StdioMcp) -> dict:
-    definition = call(rpc, "au_type", {"name": "note"}).get("type")
+    definition = call(rpc, "tb_type", {"name": "note"}).get("type")
     if not isinstance(definition, dict) or not definition.get("hash"):
-        raise CaptureError(f"au_type returned no hash for note: {definition}")
-    return call(rpc, "au_rename_type", {
+        raise CaptureError(f"tb_type returned no hash for note: {definition}")
+    return call(rpc, "tb_rename_type", {
         "old_name": "note", "new_name": "memo", "expected_hash": definition["hash"]})
 
 
 # Ordered: rename_type rewrites every `type: note` claim, so it runs last.
 CAPTURES = [
-    ("au_write_file", capture_write_file),
-    ("au_edit_file", capture_edit_file),
-    ("au_delete_file", capture_delete_file),
-    ("au_create_file", capture_create_file),
-    ("au_batch", capture_batch),
-    ("au_assign_block_id", capture_assign_block_id),
-    ("au_rename_block_id", capture_rename_block_id),
-    ("au_rename", capture_rename),
-    ("au_inline", capture_inline),
-    ("au_promote", capture_promote),
-    ("au_add_dep", capture_add_dep),
-    ("au_remove_dep", capture_remove_dep),
-    ("au_add_workspace_member", capture_add_workspace_member),
-    ("au_set_workspace_member_role", capture_set_workspace_member_role),
-    ("au_remove_workspace_member", capture_remove_workspace_member),
-    ("au_rename_type", capture_rename_type),
+    ("tb_write_file", capture_write_file),
+    ("tb_edit_file", capture_edit_file),
+    ("tb_delete_file", capture_delete_file),
+    ("tb_create_file", capture_create_file),
+    ("tb_batch", capture_batch),
+    ("tb_assign_block_id", capture_assign_block_id),
+    ("tb_rename_block_id", capture_rename_block_id),
+    ("tb_rename", capture_rename),
+    ("tb_inline", capture_inline),
+    ("tb_promote", capture_promote),
+    ("tb_add_dep", capture_add_dep),
+    ("tb_remove_dep", capture_remove_dep),
+    ("tb_add_workspace_member", capture_add_workspace_member),
+    ("tb_set_workspace_member_role", capture_set_workspace_member_role),
+    ("tb_remove_workspace_member", capture_remove_workspace_member),
+    ("tb_rename_type", capture_rename_type),
 ]
 
 

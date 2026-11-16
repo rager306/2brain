@@ -44,7 +44,7 @@ def git(*args):
     return subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True).stdout.strip()
 
 def read(path):
-    payload, _ = call("au_content", {"repo": "fixture", "path": path})
+    payload, _ = call("tb_content", {"repo": "fixture", "path": path})
     return json.loads(payload)["content"]
 
 a, b, c = read("notes/a.md"), read("notes/b.md"), read("notes/c.md")
@@ -62,7 +62,7 @@ ops = [
     {"op": "edit_file", "path": "notes/c.md", "old_string": "text-that-is-not-there",
      "new_string": "x", "expected_hash": c["hash"]},
 ]
-payload, _ = call("au_batch", {"repo": "fixture", "ops": ops})
+payload, _ = call("tb_batch", {"repo": "fixture", "ops": ops})
 print("batch reply:", payload[:220])
 
 after_commit = git("rev-parse", "HEAD")
@@ -80,11 +80,11 @@ checks = [
 ]
 
 # Scenario 2: a real write, then a preview of reverting THAT commit.
-payload, _ = call("au_write_file", {"repo": "fixture", "path": "notes/a.md",
+payload, _ = call("tb_write_file", {"repo": "fixture", "path": "notes/a.md",
                                     "content": a["text"] + "\nwritten\n",
                                     "expected_hash": a["hash"]})
 written = git("rev-parse", "HEAD")
-plan_payload, _ = call("au_rollback_preview", {"repo": "fixture", "commit": written})
+plan_payload, _ = call("tb_rollback_preview", {"repo": "fixture", "commit": written})
 plan = json.loads(plan_payload)
 plan = plan.get("rollback_preview", plan)
 print("rollback plan:", json.dumps(plan)[:260])

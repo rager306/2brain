@@ -28,7 +28,7 @@ TIMEOUT = 60.0
 # The daemon tool that states the same fact as a Rust tool, and how to project
 # each onto the comparable fact set.
 SHARED = {
-    "mcp__au_diagnostics": ("au_diagnostics", "diagnostics"),
+    "mcp__au_diagnostics": ("tb_diagnostics", "diagnostics"),
 }
 
 

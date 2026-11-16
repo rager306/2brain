@@ -43,7 +43,7 @@ fn rename_type_verifies_the_type_hash_then_mutates() {
     let mut client = Client::start_with_timeout(&socket, &["--allow-mutations"], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_rename_type",
+        "tb_rename_type",
         json!({"old_name":"note","new_name":"memo","expected_hash":"type-hash"}),
     );
     assert_ne!(result["isError"], true, "{result}");
@@ -76,7 +76,7 @@ fn rename_type_refuses_a_stale_hash_without_mutating() {
     let mut client = Client::start_with_timeout(&socket, &["--allow-mutations"], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_rename_type",
+        "tb_rename_type",
         json!({"old_name":"note","new_name":"memo","expected_hash":"older"}),
     );
     assert_eq!(result["isError"], true, "{result}");
@@ -123,7 +123,7 @@ fn add_dep_resolves_the_root_and_sends_the_entry() {
     );
     let result = client.call_result(
         2,
-        "au_add_dep",
+        "tb_add_dep",
         json!({"repo":"fixture","dep":"peer","expected_hash":"h1"}),
     );
     assert_ne!(result["isError"], true, "{result}");
@@ -142,7 +142,7 @@ fn composition_needs_its_own_grant() {
         client.request(json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}))["result"]
             ["tools"]
             .clone();
-    for name in ["au_add_dep", "au_remove_dep"] {
+    for name in ["tb_add_dep", "tb_remove_dep"] {
         assert!(
             !tools
                 .as_array()
@@ -166,7 +166,7 @@ fn composition_needs_its_own_grant() {
             .as_array()
             .unwrap()
             .iter()
-            .any(|tool| tool["name"] == "au_write_file")
+            .any(|tool| tool["name"] == "tb_write_file")
     );
 }
 
@@ -186,9 +186,9 @@ fn workspace_shape_needs_its_own_grant() {
             ["tools"]
             .clone();
     for name in [
-        "au_add_workspace_member",
-        "au_remove_workspace_member",
-        "au_set_workspace_member_role",
+        "tb_add_workspace_member",
+        "tb_remove_workspace_member",
+        "tb_set_workspace_member_role",
     ] {
         assert!(
             !tools
@@ -213,7 +213,7 @@ fn workspace_shape_needs_its_own_grant() {
             .as_array()
             .unwrap()
             .iter()
-            .any(|tool| tool["name"] == "au_add_dep")
+            .any(|tool| tool["name"] == "tb_add_dep")
     );
 }
 
@@ -248,7 +248,7 @@ fn add_workspace_member_sends_the_role_and_root() {
     );
     let result = client.call_result(
         2,
-        "au_add_workspace_member",
+        "tb_add_workspace_member",
         json!({"repo":"fixture","name":"peer","role":"discover"}),
     );
     assert_ne!(result["isError"], true, "{result}");

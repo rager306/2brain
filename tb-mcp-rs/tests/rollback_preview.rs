@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-//! `au_rollback_preview`: the engine's plan passed through, nothing written.
+//! `tb_rollback_preview`: the engine's plan passed through, nothing written.
 
 use std::{os::unix::net::UnixListener, thread};
 
@@ -36,7 +36,7 @@ fn rollback_preview_resolves_the_member_and_passes_the_plan_through() {
     let mut client = Client::start(&socket);
     let reply = client.call(
         2,
-        "au_rollback_preview",
+        "tb_rollback_preview",
         json!({"repo":"fixture","commit":"abc123"}),
     );
     assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -63,7 +63,7 @@ fn rollback_preview_refuses_empty_arguments_before_the_engine() {
     .into_iter()
     .enumerate()
     {
-        let reply = client.call(index as u32 + 2, "au_rollback_preview", arguments.clone());
+        let reply = client.call(index as u32 + 2, "tb_rollback_preview", arguments.clone());
         assert_eq!(reply["result"]["isError"], true, "{arguments}: {reply}");
     }
     assert_eq!(

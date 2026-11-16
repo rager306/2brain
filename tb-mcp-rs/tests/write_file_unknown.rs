@@ -35,7 +35,7 @@ fn serve_members(listener: &UnixListener, root: &str, editable: bool, version: u
 /// The request is sent first: the fake engine answers connections the adapter
 /// opens only after it has the request.
 fn prime(client: &mut Client, listener: &UnixListener, root: &str) {
-    client.send_call(2, "au_content", json!({"repo":"fixture","path":"a.md"}));
+    client.send_call(2, "tb_content", json!({"repo":"fixture","path":"a.md"}));
     serve_members(listener, root, true, 5);
     let mut content = accept(listener);
     assert_eq!(
@@ -69,7 +69,7 @@ fn a_lost_mutation_reply_is_reported_as_outcome_unknown_and_not_retried() {
         prime(&mut client, &listener, &root_string);
         client.send_call(
             3,
-            "au_write_file",
+            "tb_write_file",
             json!({"repo":"fixture","path":"a.md","content":"new","expected_hash":"h1"}),
         );
         serve_members(&listener, &root_string, true, 8);
@@ -85,10 +85,10 @@ fn a_lost_mutation_reply_is_reported_as_outcome_unknown_and_not_retried() {
         assert!(error_text(&reply).starts_with("outcome_unknown"), "{reply}");
         let again = client.call(
             4,
-            "au_write_file",
+            "tb_write_file",
             json!({"repo":"fixture","path":"a.md","content":"new","expected_hash":"h1"}),
         );
-        assert!(error_text(&again).contains("au_content"), "{again}");
+        assert!(error_text(&again).contains("tb_content"), "{again}");
     });
     driver.join().unwrap();
 }
@@ -105,7 +105,7 @@ fn an_engine_rejection_is_not_reported_as_unknown() {
         prime(&mut client, &listener, &root_string);
         client.send_call(
             3,
-            "au_write_file",
+            "tb_write_file",
             json!({"repo":"fixture","path":"a.md","content":"new","expected_hash":"h1"}),
         );
         serve_members(&listener, &root_string, true, 8);
@@ -136,7 +136,7 @@ fn a_consumed_member_is_refused_before_the_mutation() {
         prime(&mut client, &listener, &root_string);
         client.send_call(
             3,
-            "au_write_file",
+            "tb_write_file",
             json!({"repo":"fixture","path":"a.md","content":"new","expected_hash":"h1"}),
         );
         serve_members(&listener, &root_string, false, 9);

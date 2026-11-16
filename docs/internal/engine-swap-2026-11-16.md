@@ -1,4 +1,4 @@
-# Fifth engine swap: `au_search` into the served daemon
+# Fifth engine swap: `tb_search` into the served daemon
 
 **The procedure is scripted: `tb-engine/scripts/swap-engine.sh`.** This document is the reasoning and
 the rehearsal record; the script is the execution, because the risky part is the ordering, not the
@@ -28,7 +28,7 @@ The served binary is `b7e48c82…` from the fourth swap (`015aeda`). Engine HEAD
 `44c6967` is that build plus one additive read: `search` (verb landed in `d888abe`,
 dead code removed in `44c6967`). `SCHEMA_VERSION` stays 29
 (`crates/tb-engine/src/serve.rs:132`), no key changes shape, and nothing in
-`tests-golden` needs regenerating. `tb-engine/tests-golden/engine/au_search.json`
+`tests-golden` needs regenerating. `tb-engine/tests-golden/engine/tb_search.json`
 is fixture-derived, not vault-derived, and is checked on every `--test it` run.
 
 ## Before (measured read-only, 2026-11-16)
@@ -123,12 +123,12 @@ verb the served build rejects).
 | `graph_health` | `{"read":"graph_health","limit":20}` | byte-identical (13 937 B) | same keys; counts drift: cycles 17→21, nodes_in_cycles 664→673, sources 185→197, components 212→213; dead ends 20, isolated 202, broken_links 0 unchanged; cycle *membership* differs accordingly | **identical**; content drift only |
 | `grep` (text) | `{"read":"grep","query":"wikilink","scope":"own","limit":20}` | byte-identical, 11 vault matches (the default `all` scope also scans member sources: 107 matches, identical too) | no fixture | **identical** |
 | `grep` (literal) | `{"read":"grep","query":"bm25 ranking","scope":"own"}` | byte-identical, 0 matches | — | **identical**; and it shows the dual — `search` finds 3 documents for the same words |
-| `search` | `{"read":"search","query":"wikilink","limit":20}` | served **refuses** (`unknown variant`); candidate answers, 6 documents; a second independent daemon start returned the same bytes | `engine/au_search.json` is fixture-derived and not comparable to a vault capture; validated by `--test it search_read` 6/6 | **new verb works and is deterministic** |
+| `search` | `{"read":"search","query":"wikilink","limit":20}` | served **refuses** (`unknown variant`); candidate answers, 6 documents; a second independent daemon start returned the same bytes | `engine/tb_search.json` is fixture-derived and not comparable to a vault capture; validated by `--test it search_read` 6/6 | **new verb works and is deterministic** |
 | `search` paging | `{"read":"search","query":"pattern","limit":5}` | served refuses; candidate: `total 273`, 5 rows, `next_offset: 5`, `next_offset: null` on the last page | — | **paging and null-offset behave** |
 | `search` exact | `{"read":"search","query":"error->fix","exact":true,"limit":5}` | served refuses; candidate: `exact: true`, `total 13`, first document `$VAULT/inbox/arsumbris-fork-backlog.md` | — | **matches the T1 acceptance record** |
-| daemon-shaped `au_diagnostics` | projection of the above | — | **identical**: `summary` 0/0/0, `severity: error` list empty, same `offset/limit/truncated` | **identical** |
-| daemon-shaped `au_overview` | same engine read | — | same 8 keys, 7 members (same roots), 9 dirs; counter drift, `diagnostic_counts` 1 warning → 0; `members[].git.root` is now `/root/2brain` because the bundle became one monorepo | **same shape; named drift** |
-| daemon-shaped `au_hubs` | same engine read | — | 20 rows, 19 paths shared; `inbox/pattern-oracle-problem.md` left the top 20, `inbox/jevact-ibm-runtime-decision-gate.md` entered; 6 ref counts moved | **same shape; named drift** |
+| daemon-shaped `tb_diagnostics` | projection of the above | — | **identical**: `summary` 0/0/0, `severity: error` list empty, same `offset/limit/truncated` | **identical** |
+| daemon-shaped `tb_overview` | same engine read | — | same 8 keys, 7 members (same roots), 9 dirs; counter drift, `diagnostic_counts` 1 warning → 0; `members[].git.root` is now `/root/2brain` because the bundle became one monorepo | **same shape; named drift** |
+| daemon-shaped `tb_hubs` | same engine read | — | 20 rows, 19 paths shared; `inbox/pattern-oracle-problem.md` left the top 20, `inbox/jevact-ibm-runtime-decision-gate.md` entered; 6 ref counts moved | **same shape; named drift** |
 
 What the copy cannot prove: the live socket, the live index's BM25 statistics
 (the copy is a snapshot plus a re-pointed registry, not the served state), client
@@ -144,7 +144,7 @@ reconnection, and quiescence. Those are the steps marked IN THE WINDOW.
   disable the watchdog: a failed swap with the watchdog off leaves the vault unserved.
 - **No agent turn is in flight.** A restart drops in-flight reads (they see a closed
   socket) and a lost mutation reply becomes `outcome_unknown`, which only the caller's
-  `au_reconcile` path repairs. A Hermes gateway is running on this host as normal
+  `tb_reconcile` path repairs. A Hermes gateway is running on this host as normal
   background; the precondition is no *active turn*, and the operator, not a probe,
   confirms it.
 - **The vault is quiet for the whole window.** The comparison is meaningful only if
@@ -168,11 +168,11 @@ cd /root/vault && git rev-parse HEAD && git status --porcelain | wc -l   # 4bcc4
 /root/backups/au-20261116-pre-search   sha256 b7e48c82c7ffe891272a9c32822354e065333ca48e21c0ff5344c94f491d5991
                                        (= /root/.arsumbris/bin/au, verified identical)
 /root/backups/au-20261116-candidate    sha256 761e0eed11d5ff4e2f5496078e071925959325d0e7e8ce2cfc4aba6d57e2ee93
-/root/backups/au-20261116-pre-live/    au_overview.json, au_hubs.json, au_diagnostics.json, au_graph_health.json
+/root/backups/au-20261116-pre-live/    tb_overview.json, tb_hubs.json, tb_diagnostics.json, tb_graph_health.json
                                        captured from the LIVE socket through scripts/engine_probe.py
 ```
 
-The probe reported `au_search: engine answered 'error', not a ready response` — that is the served
+The probe reported `tb_search: engine answered 'error', not a ready response` — that is the served
 binary refusing the new verb, which is the expected state before the swap and the reason `search` is
 captured after, not before. Creating these three artifacts touched nothing live: two copies and four
 read requests.
@@ -197,14 +197,14 @@ SOCK=/root/.arsumbris/au-engine/run/adcfe8680a485529.sock
 OUT=/root/backups/au-20261116-pre-live
 /root/2brain/tb-engine/scripts/engine_probe.py --socket "$SOCK" \
   --root /root/vault --out "$OUT" \
-  --verb au_overview --verb au_hubs --verb au_diagnostics --verb au_graph_health
+  --verb tb_overview --verb tb_hubs --verb tb_diagnostics --verb tb_graph_health
 # `search` is excluded on purpose: the served binary refuses it and the probe exits.
 python3 - "$SOCK" "$OUT" <<'PY'
 import importlib.util, json, pathlib, sys
 spec = importlib.util.spec_from_file_location("p", "/root/2brain/tb-engine/scripts/engine_probe.py")
 p = importlib.util.module_from_spec(spec); spec.loader.exec_module(p)
 sock, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
-for name, q in {"au_grep": "wikilink", "au_grep_bm25": "bm25 ranking"}.items():
+for name, q in {"tb_grep": "wikilink", "au_grep_bm25": "bm25 ranking"}.items():
     r = p.exchange(sock, {"read": "grep", "id": 1, "query": q, "scope": "own", "limit": 20, "offset": 0})
     assert r.get("type") == "response" and r.get("ready"), r
     (out / f"{name}.json").write_text(json.dumps(p.normalize(r["result"], "/root/vault"), indent=1, sort_keys=True) + "\n")
@@ -251,14 +251,14 @@ OUT=/root/backups/au-20261116-post-live
 install -d "$OUT"
 /root/2brain/tb-engine/scripts/engine_probe.py --socket "$SOCK" \
   --root /root/vault --out "$OUT" \
-  --verb au_overview --verb au_hubs --verb au_diagnostics --verb au_graph_health
+  --verb tb_overview --verb tb_hubs --verb tb_diagnostics --verb tb_graph_health
 python3 - "$SOCK" "$OUT" <<'PY'
 import importlib.util, json, pathlib, sys
 spec = importlib.util.spec_from_file_location("p", "/root/2brain/tb-engine/scripts/engine_probe.py")
 p = importlib.util.module_from_spec(spec); spec.loader.exec_module(p)
 sock, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 reqs = {
-    "au_grep": {"read": "grep", "query": "wikilink", "scope": "own", "limit": 20},
+    "tb_grep": {"read": "grep", "query": "wikilink", "scope": "own", "limit": 20},
     "au_grep_bm25": {"read": "grep", "query": "bm25 ranking", "scope": "own", "limit": 20},
     "au_search_wikilink": {"read": "search", "query": "wikilink", "limit": 20},
     "au_search_page": {"read": "search", "query": "pattern", "limit": 5},

@@ -48,7 +48,7 @@ QUESTION = {
 def engine_reads(socket_hint: str | None) -> dict:
     target = socket_hint or VAULT
     with StdioMcp([ADAPTER, "mcp", target], name="hygiene") as client:
-        reply = client.call("au_graph_health", {"limit": JUDGE_LIMIT})
+        reply = client.call("tb_graph_health", {"limit": JUDGE_LIMIT})
         if is_error(reply):
             raise SystemExit(
                 f"graph_health refused: {tool_text(reply)}\n"
@@ -65,14 +65,14 @@ def engine_reads(socket_hint: str | None) -> dict:
         for note in candidates:
             # graph_health reports absolute paths; the file tools take a path relative to the member.
             relative = note["path"][len(prefix):] if note["path"].startswith(prefix) else note["path"]
-            front = client.call("au_frontmatter", {"repo": "vault", "path": relative})
+            front = client.call("tb_frontmatter", {"repo": "vault", "path": relative})
             if is_error(front):
                 continue
             payload = tool_payload(front)
             value = payload.get("frontmatter") or {}
             if isinstance(value, dict) and value.get("type"):
                 excerpt = ""
-                body = client.call("au_content", {"repo": "vault", "path": relative})
+                body = client.call("tb_content", {"repo": "vault", "path": relative})
                 if not is_error(body):
                     text = tool_payload(body).get("content", {}).get("text", "")
                     excerpt = text[:600]
@@ -151,7 +151,7 @@ def render(health: dict, judged: dict[str, float], batch_id: str) -> str:
         "",
         f"# Hygiene pass — {today}",
         "",
-        "Deterministic, from `au_graph_health`:",
+        "Deterministic, from `tb_graph_health`:",
         "",
         "| metric | value |",
         "|---|---:|",
@@ -203,24 +203,24 @@ def main(argv: list[str]) -> int:
 
     path = f"inbox/hygiene-{dt.date.today().isoformat()}.md"
     with StdioMcp([ADAPTER, "mcp", VAULT, "--allow-mutations"], name="hygiene-write") as client:
-        check = client.call("au_validate_value", {"type_name": "moc", "value": {
+        check = client.call("tb_validate_value", {"type_name": "moc", "value": {
             "description": "hygiene pass", "topics": []}})
         if is_error(check):
             print(f"the moc type rejected a minimal value: {tool_text(check)}", file=sys.stderr)
             return 2
         try:
-            current = client.call("au_content", {"repo": "vault", "path": path})
+            current = client.call("tb_content", {"repo": "vault", "path": path})
             expected = tool_payload(current).get("content", {}).get("hash") if not is_error(current) else None
         except Exception:  # noqa: BLE001 - absent file is the normal first run
             expected = None
-        # A new file is `au_create_file` (no hash exists); an existing one is `au_write_file` and
+        # A new file is `tb_create_file` (no hash exists); an existing one is `tb_write_file` and
         # must carry the hash from its own read — the gate refuses a write without it.
         if expected:
-            reply = client.call("au_write_file", {
+            reply = client.call("tb_write_file", {
                 "repo": "vault", "path": path, "content": note, "expected_hash": expected,
             })
         else:
-            reply = client.call("au_create_file", {"repo": "vault", "path": path, "content": note})
+            reply = client.call("tb_create_file", {"repo": "vault", "path": path, "content": note})
         if is_error(reply):
             print(f"write refused: {tool_text(reply)}", file=sys.stderr)
             return 1

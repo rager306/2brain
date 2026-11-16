@@ -11,7 +11,7 @@ Each link trusts what it says today.
 
 So a change to a note can quietly break its backlinks.
 Use current incoming references to identify affected notes before changing the meaning.
-Call `au_references` when that set is unknown or may have changed.
+Call `tb_references` when that set is unknown or may have changed.
 After the edit, judge whether the referring notes still read correctly.
 Reuse the reference set if no relevant links, identities or scope changed and freshness is certain.
 Fix any link that now misreads the note.

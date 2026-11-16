@@ -123,7 +123,7 @@ def check_history_carries_the_target(context: dict) -> str | None:
 MUTATION_TURN = Procedure(
     name="mutation_turn",
     states=[
-        State("read", "au_content returned the file and its hash", lambda c: None),
+        State("read", "tb_content returned the file and its hash", lambda c: None),
         State("propose", "the model chose an edit", lambda c: None),
         State("apply", "the adapter committed exactly once", check_one_commit),
         State("write-visible", "the file carries the intended text", check_target_written),
@@ -158,7 +158,7 @@ def check_no_retry(context: dict) -> str | None:
 
 def check_reconcile_called(context: dict) -> str | None:
     if not context["reconcile_called"]:
-        return "au_reconcile was never called: the model guessed instead of asking"
+        return "tb_reconcile was never called: the model guessed instead of asking"
     return None
 
 
@@ -176,11 +176,11 @@ def check_settled(context: dict) -> str | None:
 RECOVERY_TURN = Procedure(
     name="recovery_turn",
     states=[
-        State("read", "au_content returned the file and its hash", lambda c: None),
+        State("read", "tb_content returned the file and its hash", lambda c: None),
         State("propose", "the model chose an edit", lambda c: None),
         State("unknown", "the reply was lost and reported as outcome_unknown", check_outcome_unknown),
         State("no-retry", "the model did not write again", check_no_retry),
-        State("reconcile", "the model asked au_reconcile", check_reconcile_called),
+        State("reconcile", "the model asked tb_reconcile", check_reconcile_called),
         State("settled", "the answer matches the filesystem", check_settled),
     ],
     notes="The lost reply is injected by scripts/lost_reply_proxy.py.",

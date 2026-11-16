@@ -49,7 +49,7 @@ depth), **complete** (nothing hidden by the ladder itself), and **cheap at the
 top** (the search tool must be the smallest definition in the list).
 
 Algorithm used here: tokenize the query and each tool into lowercase
-alphanumeric words (underscores and dots split, so `au_content` matches
+alphanumeric words (underscores and dots split, so `tb_content` matches
 "content"); score a term 3 in the name, 2 in a parameter name, 1 in the
 description, plus 1 for a prefix match; keep positive scores, sort by score then
 name for determinism, take `limit` (default 5, max 20). BM25 is unnecessary at
@@ -72,8 +72,8 @@ by making that decision possible: stable names, descriptions that discriminate
 
 ### 4. Pagination and budgets (server-side)
 
-Implemented here: `au_instances_of` pages records with `limit`/`offset` and
-reports `total`/`next_offset`; `au_content` windows text with `max_chars` and
+Implemented here: `tb_instances_of` pages records with `limit`/`offset` and
+reports `total`/`next_offset`; `tb_content` windows text with `max_chars` and
 reports `truncated`/`total_chars`/`next_offset`, while its hash keeps covering
 the whole file so a write guard stays valid.
 
@@ -124,8 +124,8 @@ tool" loops.
 
 | technique | state |
 |---|---|
-| ladder of detail | `au_search_tools` with `detail: name \| summary \| schema` |
-| full definition on demand | `au_describe_tool` |
+| ladder of detail | `tb_search_tools` with `detail: name \| summary \| schema` |
+| full definition on demand | `tb_describe_tool` |
 | concise profile | `--tools concise`: one-line descriptions, no `outputSchema`, no parameter descriptions or presentation keys |
 | typed results | `outputSchema` + `structuredContent` on every tool (full profile) |
 | annotations | `readOnlyHint` / `destructiveHint` / `idempotentHint` on every tool |
@@ -134,13 +134,13 @@ tool" loops.
 | `tools/list` cursor pagination | not used: 52 tools fit one page |
 | `listChanged` | not used: the catalogue is fixed at launch |
 | task-augmented execution | not used: reads finish in milliseconds to seconds |
-| result budgets | `au_content` (`max_chars`, explicit truncation fields) and `au_instances_of` (`limit`/`offset`, `total`, `next_offset`) |
+| result budgets | `tb_content` (`max_chars`, explicit truncation fields) and `tb_instances_of` (`limit`/`offset`, `total`, `next_offset`) |
 
 ## Measured effect of the concise profile
 
 Live workspace, release build, raw stdio:
 
-| profile | tools | tools/list | tokens (chars/4) | `au_search_tools` (query "write") | `au_describe_tool au_batch` |
+| profile | tools | tools/list | tokens (chars/4) | `tb_search_tools` (query "write") | `tb_describe_tool tb_batch` |
 |---|---|---|---|---|---|
 | `full` | 52 | 91 189 chars | ≈22 797 | 741 chars | 3 064 chars |
 | `concise` | 52 | 29 564 chars | ≈7 391 | 741 chars | 3 064 chars |

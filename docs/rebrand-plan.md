@@ -48,7 +48,7 @@ doing them as one find-and-replace breaks the live vault.
    including `BUILTIN_ENGINE_REPO = "tb-engine"`. These are the on-disk contract: every repository's
    identity file, the vault, and the type names that content cites (`au.engine.repo::tb-engine`). The
    engine must accept both spellings in one release, the migration must rewrite every `repo.yaml`, and the
-   gate is `au_diagnostics == 0` on the live vault afterwards. This is the only tier that changes files
+   gate is `tb_diagnostics == 0` on the live vault afterwards. This is the only tier that changes files
    users have on disk, so it gets its own ADR.
 
 ### Tier D — wire contract (alias period)
@@ -68,7 +68,7 @@ doing them as one find-and-replace breaks the live vault.
 | dirs `au-*` | `cargo check --workspace`; `au members`; diagnostics 0 | `git revert` |
 | prose | `git grep -i arsumbris` lists only dated records + README attribution | `git revert` |
 | state dir | engine restarts, socket answers, one read + one write | symlink back |
-| format | `au_diagnostics == 0` on the vault after migration | restore the vault from git |
+| format | `tb_diagnostics == 0` on the vault after migration | restore the vault from git |
 | scheme | both schemes answer; fixtures blessed | revert the commit |
 
 ## What stays spelled `arsumbris`, and why
@@ -124,7 +124,7 @@ four reads in `verification.md` and one write, because the write path reads the 
    `au.engine.*` and `tb.engine.*` for the schema types; `BUILTIN_ENGINE_REPO` matches either name.
 2. A migration command (`au migrate identity`) that rewrites every `repo.yaml` this registry knows,
    committing per repository, and refuses when the tree is dirty.
-3. Run it over the monorepo and the vault; gate on `au_diagnostics == 0` and `graph_health.broken_links == 0`.
+3. Run it over the monorepo and the vault; gate on `tb_diagnostics == 0` and `graph_health.broken_links == 0`.
 4. Release 2 drops the old spelling, with a diagnostic that names the migration.
 
 Content that cites `type: mcp.skill::au-mcp-sdk` moves in step 2, in the same commit as the member

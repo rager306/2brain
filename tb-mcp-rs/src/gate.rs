@@ -66,7 +66,7 @@ pub(crate) fn reduce(stages: &[Stage], input: &Input<'_>) -> Result<Progress, De
                 let Some(recorded) = input.recorded.clone() else {
                     return Err(Denial::new(
                         Stage::PriorRead,
-                        "read this file with au_content before writing it",
+                        "read this file with tb_content before writing it",
                     ));
                 };
                 progress.recorded = Some(recorded);
@@ -75,7 +75,7 @@ pub(crate) fn reduce(stages: &[Stage], input: &Input<'_>) -> Result<Progress, De
                 if progress.recorded.as_deref() != Some(input.expected_hash) {
                     return Err(Denial::new(
                         Stage::Freshness,
-                        "'expected_hash' does not match the hash returned by the last au_content read",
+                        "'expected_hash' does not match the hash returned by the last tb_content read",
                     ));
                 }
             }

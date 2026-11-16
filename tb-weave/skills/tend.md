@@ -21,9 +21,9 @@ Read graph diagnostics, including warning details.
 Read the full `map::au-base-types` roster, including subtypes.
 Reuse it while current.
 
-List `extraction::au-weave` instances with `au_instances_of`.
+List `extraction::au-weave` instances with `tb_instances_of`.
 Page through the full roster and select this graph's files.
-Read candidate lists with `au_resolved`.
+Read candidate lists with `tb_resolved`.
 
 **Weave candidates**
 

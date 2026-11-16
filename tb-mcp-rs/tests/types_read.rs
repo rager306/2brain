@@ -61,7 +61,7 @@ fn invalid_arguments_never_contact_engine() {
     .into_iter()
     .enumerate()
     {
-        assert_error(&client.call(index as u32 + 2, "au_types", args));
+        assert_error(&client.call(index as u32 + 2, "tb_types", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -112,12 +112,12 @@ fn defaults_pagination_repo_and_results_are_preserved() {
     let mut client = Client::start(&socket);
     for (index, (args, _, payload)) in cases.into_iter().enumerate() {
         assert_eq!(
-            result_payload(&client.call(index as u32 + 2, "au_types", args)),
+            result_payload(&client.call(index as u32 + 2, "tb_types", args)),
             payload
         );
     }
     let omitted = client.request(
-        json!({"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"au_types"}}),
+        json!({"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"tb_types"}}),
     );
     assert_eq!(omitted["id"], 8);
     assert_eq!(result_payload(&omitted), json!({"types":[]}));
@@ -147,10 +147,10 @@ fn malformed_results_engine_error_and_not_ready_recover() {
     );
     let mut client = Client::start(&socket);
     for id in 2..8 {
-        assert_error(&client.call(id, "au_types", json!({})));
+        assert_error(&client.call(id, "tb_types", json!({})));
     }
     assert_eq!(
-        result_payload(&client.call(8, "au_types", json!({}))),
+        result_payload(&client.call(8, "tb_types", json!({}))),
         json!({"types":[{"name":"task"}]})
     );
     daemon.join().unwrap();

@@ -8,7 +8,7 @@
 # passes".
 #
 # The fixture carries `unique-marker-7f3a` in one note. The model is asked to find
-# it with `au_grep` and name the file. Nothing but this engine knows that string, so
+# it with `tb_grep` and name the file. Nothing but this engine knows that string, so
 # a correct answer proves the round trip rather than a lucky guess.
 #
 # Costs one small model turn on YOUR credentials, which is why it is a separate
@@ -43,13 +43,13 @@ printf '{"mcpServers":{"2brain":{"command":"%s","args":["%s"]}}}\n' \
 
 echo "engine:  $socket"
 echo "adapter: $ADAPTER"
-echo "prompt:  find unique-marker-7f3a with au_grep"
+echo "prompt:  find unique-marker-7f3a with tb_grep"
 
 # The daemon's HOME is the throwaway one; the model's turn needs the real one for
 # its credentials. `--mcp-config` keeps the registration out of any config file the
 # user owns.
 transcript=$(cd "$repo" && HOME="$TURN_HOME" claude -p \
-  'Use the 2brain MCP server: call au_grep to search the workspace for
+  'Use the 2brain MCP server: call tb_grep to search the workspace for
 unique-marker-7f3a. Then answer with one line: the path of the file that contains it
 and the text of that line.' \
   --mcp-config "$config" \
@@ -64,11 +64,11 @@ fail() { printf 'FAIL: %s\n' "$1" >&2; status=1; }
 if grep -q '"name":"mcp__2brain__au_grep"' <<<"$transcript"; then
   echo "PASS: the model called mcp__2brain__au_grep"
 else
-  fail "no au_grep tool call in the transcript"
+  fail "no tb_grep tool call in the transcript"
 fi
 
 # The engine's own answer must come back in a TOOL RESULT. Grepping the whole
-# transcript for the marker would pass on the model's own `au_grep` arguments, before
+# transcript for the marker would pass on the model's own `tb_grep` arguments, before
 # any result exists: the first occurrence in a real transcript is
 # `"input":{"query":"unique-marker-7f3a"}`. Only the tool_result lines count.
 if grep -E '"type":"tool_result"' <<<"$transcript" | grep -q 'unique-marker-7f3a'; then

@@ -1,0 +1,26 @@
+{
+  "arguments": {
+    "limit": 20
+  },
+  "payload": {
+    "hubs": [
+      {
+        "kind": "instance",
+        "path": "$FIXTURE/fixture/notes/b.md",
+        "refs_navigational": 0,
+        "refs_structural": 2,
+        "refs_total": 2,
+        "repo": "fixture"
+      },
+      {
+        "kind": "instance",
+        "path": "$FIXTURE/fixture/notes/a.md",
+        "refs_navigational": 0,
+        "refs_structural": 1,
+        "refs_total": 1,
+        "repo": "fixture"
+      }
+    ]
+  },
+  "tool": "tb_hubs"
+}

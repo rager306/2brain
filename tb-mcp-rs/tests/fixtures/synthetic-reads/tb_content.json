@@ -1,0 +1,14 @@
+{
+  "arguments": {
+    "path": "notes/a.md",
+    "repo": "fixture"
+  },
+  "payload": {
+    "content": {
+      "commit": "$COMMIT",
+      "hash": "d5d1ace9c60cafca",
+      "text": "---\ntype: note\nlink: \"[[b]]\"\n---\n\n## Details\n\nA marker for the addressability reads. ^detail\n"
+    }
+  },
+  "tool": "tb_content"
+}

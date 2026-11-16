@@ -30,9 +30,9 @@ Python-мост и Node-демон удалены 2026-11-16: второго п�
 
 ## 2. Правила, которые нельзя нарушать
 
-1. **Перед любой записью — чтение того же пути.** `au_write_file`, `au_edit_file`,
-   `au_delete_file` требуют `expected_hash` — ровно ту 16-символьную hex-строку, которую
-   вернул `au_content` для этого файла. Выдуманный или устаревший хеш отклоняется без
+1. **Перед любой записью — чтение того же пути.** `tb_write_file`, `tb_edit_file`,
+   `tb_delete_file` требуют `expected_hash` — ровно ту 16-символьную hex-строку, которую
+   вернул `tb_content` для этого файла. Выдуманный или устаревший хеш отклоняется без
    записи.
 2. **Хеш живёт до первой записи.** После успешной записи чтение аннулируется: чтобы
    писать снова, нужно снова прочитать файл. Исключение — запись байт-в-байт того же
@@ -42,17 +42,17 @@ Python-мост и Node-демон удалены 2026-11-16: второго п�
    устарел (файл изменился после чтения). В обоих случаях файл не тронут.
 4. **`outcome_unknown` — не ошибка и не повод повторять.** Если ответ на запись потерян,
    инструмент отвечает `outcome_unknown` и предупреждает, что мутация могла примениться.
-   Повтор применит её дважды. Правильный ход — `au_reconcile` с тем же путём и
+   Повтор применит её дважды. Правильный ход — `tb_reconcile` с тем же путём и
    `expected_hash`, который должна была дать запись.
-5. **`au_reconcile` принимает только настоящий дайджест** (16 hex-символов) либо
+5. **`tb_reconcile` принимает только настоящий дайджест** (16 hex-символов) либо
    `expect_absent: true` для удаления. Если дайджеста нет — читайте файл через
-   `au_content` и сравнивайте текст; отправлять строку `"null"` нельзя.
-6. **Несколько файлов меняются одним `au_batch`**, а не серией одиночных записей: батч
+   `tb_content` и сравнивайте текст; отправлять строку `"null"` нельзя.
+6. **Несколько файлов меняются одним `tb_batch`**, а не серией одиночных записей: батч
    применяется целиком или не применяется вовсе. У каждой операции свой `expected_hash`
    и своё предварительное чтение.
-7. **Перед откатом коммита — `au_rollback_preview`.** Он ничего не меняет: показывает
+7. **Перед откатом коммита — `tb_rollback_preview`.** Он ничего не меняет: показывает
    затронутые пути (`restore` или `delete`), их состояние и флаг `safe`.
-8. **Не поллить.** `au_files` в цикле — неправильно; `au_watch {timeout_ms}` ждёт
+8. **Не поллить.** `tb_files` в цикле — неправильно; `tb_watch {timeout_ms}` ждёт
    изменения и возвращает дельту; таймаут — нормальный ответ, а не ошибка.
 9. **Пути — относительно участника.** У инструментов есть `repo` (имя участника) и
    `path` (путь внутри него, без `..`). Абсолютный путь отклоняется.
@@ -60,25 +60,25 @@ Python-мост и Node-демон удалены 2026-11-16: второго п�
 
 ## 3. Карта инструментов: 36 без грантов, 52 со всеми
 
-**Чтение (33).** `au_overview` (участники, топология, счётчики) · `au_members` (корни
-участников) · `au_types`, `au_type` (словарь типов, один тип с полями) · `au_type_tree` ·
-`au_subtypes` · `au_instances`, `au_instances_of` (что относится к типу) · `au_candidates`,
-`au_resolved`, `au_typed` · `au_hubs` (самые связанные заметки) · `au_neighborhood`,
-`au_follow`, `au_references` (граф) · `au_diagnostics` (проблемы волта) · `au_graph_health`
-(циклы, тупики, битые ссылки) · `au_files`, `au_children` · `au_content` (текст + `hash` +
-`commit`) · `au_frontmatter`, `au_anchors`, `au_block_ids` · `au_semantic_tokens` ·
-`au_imports` · `au_resolve_member` · `au_grep` (литеральный поиск) · **`au_search`**
-(BM25-ранжирование, `exact` для точных термов) · `au_validate_value` ·
-`au_preview_mutation`, `au_reconcile` · `au_rollback_preview`.
+**Чтение (33).** `tb_overview` (участники, топология, счётчики) · `tb_members` (корни
+участников) · `tb_types`, `tb_type` (словарь типов, один тип с полями) · `tb_type_tree` ·
+`tb_subtypes` · `tb_instances`, `tb_instances_of` (что относится к типу) · `tb_candidates`,
+`tb_resolved`, `tb_typed` · `tb_hubs` (самые связанные заметки) · `tb_neighborhood`,
+`tb_follow`, `tb_references` (граф) · `tb_diagnostics` (проблемы волта) · `tb_graph_health`
+(циклы, тупики, битые ссылки) · `tb_files`, `tb_children` · `tb_content` (текст + `hash` +
+`commit`) · `tb_frontmatter`, `tb_anchors`, `tb_block_ids` · `tb_semantic_tokens` ·
+`tb_imports` · `tb_resolve_member` · `tb_grep` (литеральный поиск) · **`tb_search`**
+(BM25-ранжирование, `exact` для точных термов) · `tb_validate_value` ·
+`tb_preview_mutation`, `tb_reconcile` · `tb_rollback_preview`.
 
-**Обнаружение (2):** `au_search_tools`, `au_describe_tool` — найти инструмент по описанию.
+**Обнаружение (2):** `tb_search_tools`, `tb_describe_tool` — найти инструмент по описанию.
 
-**Подписка (1):** `au_watch {timeout_ms}` — дельта изменений или таймаут.
+**Подписка (1):** `tb_watch {timeout_ms}` — дельта изменений или таймаут.
 
-**Запись (16, только с грантом):** `au_write_file`, `au_edit_file`, `au_delete_file`,
-`au_create_file`, `au_batch`, `au_assign_block_id`, `au_rename_block_id`, `au_rename`,
-`au_rename_type`, `au_inline`, `au_promote`, `au_add_dep`, `au_remove_dep`,
-`au_add_workspace_member`, `au_remove_workspace_member`, `au_set_workspace_member_role`.
+**Запись (16, только с грантом):** `tb_write_file`, `tb_edit_file`, `tb_delete_file`,
+`tb_create_file`, `tb_batch`, `tb_assign_block_id`, `tb_rename_block_id`, `tb_rename`,
+`tb_rename_type`, `tb_inline`, `tb_promote`, `tb_add_dep`, `tb_remove_dep`,
+`tb_add_workspace_member`, `tb_remove_workspace_member`, `tb_set_workspace_member_role`.
 
 Пять последних требуют второго гранта: `add_dep`/`remove_dep` — `--allow-composition`, три
 `*_workspace_member*` — `--allow-workspace-shape`.
@@ -116,11 +116,11 @@ Python-мост и Node-демон удалены 2026-11-16: второго п�
     ## Что не получилось и почему
     ## Замечания о поверхности инструментов
 
-`topics` — ссылки на заметки, которые **существуют**; проверить можно `au_content`
+`topics` — ссылки на заметки, которые **существуют**; проверить можно `tb_content`
 перед записью. Форма ссылки в этом волте — короткий слаг без каталога и расширения:
 `[[tool-use]]` разрешается в `knowledge/tool-use.md`, а `[[knowledge/tool-use]]` —
 уже нет. Ссылка на несуществующую заметку не error, но даёт
-`navigational-target-not-found` в `au_diagnostics`; заведомо существующие цели:
+`navigational-target-not-found` в `tb_diagnostics`; заведомо существующие цели:
 `[[tool-use]]`, `[[index]]`, `[[agentic-architecture]]`.
 
 Последний раздел — самый ценный: там пишется, какого инструмента не хватило, какой
@@ -151,10 +151,10 @@ Python-мост и Node-демон удалены 2026-11-16: второго п�
     3) у самой связанной из них — её frontmatter и список заголовков;
     4) есть ли в волте диагностики.
 
-Чеклист оператора: первый вызов — `au_overview` или `au_members`, а не догадка;
-в ответе `au_content` присутствуют `hash` и `commit` (признак Rust-адаптера — мост
+Чеклист оператора: первый вызов — `tb_overview` или `tb_members`, а не догадка;
+в ответе `tb_content` присутствуют `hash` и `commit` (признак Rust-адаптера — мост
 отдаёт текст без хеша); нет ни одного `unknown tool`, ни одного `policy/…`; вызов
-`au_search_tools` — штатное поведение, если Hermes сомневался в выборе инструмента.
+`tb_search_tools` — штатное поведение, если Hermes сомневался в выборе инструмента.
 
 ## 6. Задача 2: две записи в волт (нужен грант)
 
@@ -189,14 +189,14 @@ Python-мост и Node-демон удалены 2026-11-16: второго п�
 1. Каждая запись — **один** коммит движка: `git -C /root/vault log -1 --stat` показывает
    ровно один файл на запись.
 2. Обратное чтение возвращает тот же текст, а `hash` совпадает с тем, что вернул
-   `au_content` после записи.
+   `tb_content` после записи.
 3. **Повторная запись без свежего чтения отклоняется** сообщением, начинающимся на
    `policy/freshness` (или `policy/prior_read`, если чтения не было вовсе). Попросите
    Hermes «попробуй записать ещё раз тем же хешем» —
    ожидаемый ответ: отказ, а не вторая запись.
-4. Если Hermes увидел `outcome_unknown`, он обязан был вызвать `au_reconcile`, а не
+4. Если Hermes увидел `outcome_unknown`, он обязан был вызвать `tb_reconcile`, а не
    повторять запись (видно по транскрипту).
-5. Отчёт прошёл проверку типов: `au_typed` или `au_diagnostics` не добавляют новых
+5. Отчёт прошёл проверку типов: `tb_typed` или `tb_diagnostics` не добавляют новых
    ошибок по этому файлу.
 
 Уборка выбрасываемого файла:

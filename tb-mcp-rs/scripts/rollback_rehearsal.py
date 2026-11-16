@@ -110,11 +110,11 @@ def main() -> int:
 
         # 1. A granted adapter writes through the engine.
         writer = adapter(socket_path, "--allow-mutations", name="rollback-writer")
-        read = tool_payload(writer.call("au_content", {"repo": "fixture", "path": "notes/a.md"}))
+        read = tool_payload(writer.call("tb_content", {"repo": "fixture", "path": "notes/a.md"}))
         assert read["content"]["hash"], read
         written = "---\ntype: note\ntitle: after\n---\n"
         result = writer.call(
-            "au_write_file",
+            "tb_write_file",
             {
                 "repo": "fixture",
                 "path": "notes/a.md",
@@ -146,12 +146,12 @@ def main() -> int:
 
         # 4. A fresh read-only process still reads the write and refuses to write.
         reader = adapter(socket_path, name="rollback-reader")
-        again = tool_payload(reader.call("au_content", {"repo": "fixture", "path": "notes/a.md"}))
+        again = tool_payload(reader.call("tb_content", {"repo": "fixture", "path": "notes/a.md"}))
         if again["content"]["text"] != written:
             fail(f"a fresh adapter read {again['content']['text']!r}")
         step("a fresh process reads the written file")
         refused = reader.call(
-            "au_write_file",
+            "tb_write_file",
             {
                 "repo": "fixture",
                 "path": "notes/a.md",

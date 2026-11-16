@@ -35,6 +35,13 @@ source.
 
 ### Changed
 
+- **BREAKING: tool names are `tb_*`, not `au_*`.** All 52 names in `tools/list`, in `tb_describe_tool`, in the
+  skill and in the generated tool map. There is no alias: a client calling `au_content` gets `tool not found`.
+  The reason for the break rather than a compatibility window is in `docs/naming.md`; the short of it is one
+  consumer under our control and a catalogue that is regenerated and drift-checked, against an alias that would
+  keep two names alive everywhere for one release. Vault notes that still say `au_content` are data and move
+  separately.
+
 - **Identity is read per root through one seam** (tier C step 2): 38 sites in 12 engine files resolve
   `.2brain/` or `.arsumbris/` through `identity_dir`/`identity_marker`, with the read rule and the write rule
   separated. `FileSystem` gained a required `is_dir`; `consistency_diagnostics` takes a filesystem.
@@ -52,13 +59,13 @@ source.
 ### Fixed
 
 - **The audit ledger names the tool that ran.** 17 of 28 records in a production log said `"tool":"mutation"`;
-  the shared mutation helper now takes the tool name, and a test asserts the ledger carries `au_write_file`
-  and `au_delete_file` rather than a placeholder.
+  the shared mutation helper now takes the tool name, and a test asserts the ledger carries `tb_write_file`
+  and `tb_delete_file` rather than a placeholder.
 - **`--payload text` is not safe for a schema-validating client.** It broke six tool calls in 46 seconds —
   "has an output schema but did not return structured content" — before the client's circuit breaker reported
   the server as unreachable. The default stays `both`.
 - Two leftovers of the crate rename: `golden_captures` expected `tb_diagnostics.json` (the fixture is
-  `au_diagnostics.json`) and `register_wire` expected `tb-engine/config/repos.yaml` (the engine writes the
+  `tb_diagnostics.json`) and `register_wire` expected `tb-engine/config/repos.yaml` (the engine writes the
   builtin repository's own directory).
 
 ### Removed

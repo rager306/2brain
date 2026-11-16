@@ -52,27 +52,27 @@ fn without_a_grant_the_server_is_read_only() {
     let mut client = Client::start_capturing_stderr(&socket, &[]);
     let names = tool_names(&mut client);
     for tool in [
-        "au_write_file",
-        "au_edit_file",
-        "au_delete_file",
-        "au_assign_block_id",
-        "au_rename_block_id",
-        "au_rename",
-        "au_inline",
-        "au_promote",
-        "au_create_file",
-        "au_batch",
+        "tb_write_file",
+        "tb_edit_file",
+        "tb_delete_file",
+        "tb_assign_block_id",
+        "tb_rename_block_id",
+        "tb_rename",
+        "tb_inline",
+        "tb_promote",
+        "tb_create_file",
+        "tb_batch",
     ] {
         assert!(
             !names.contains(&tool.to_owned()),
             "{tool} must be hidden: {names:?}"
         );
     }
-    assert!(names.contains(&"au_content".to_owned()), "{names:?}");
+    assert!(names.contains(&"tb_content".to_owned()), "{names:?}");
 
     let denied = client.call(
         3,
-        "au_write_file",
+        "tb_write_file",
         json!({"repo":"fixture","path":"a.md","content":"x","expected_hash":"h"}),
     );
     assert!(denied.get("error").is_some(), "{denied}");
@@ -100,16 +100,16 @@ fn an_explicit_grant_exposes_the_mutating_tools() {
     let mut client = Client::start_capturing_stderr(&socket, &["--allow-mutations"]);
     let names = tool_names(&mut client);
     for tool in [
-        "au_write_file",
-        "au_edit_file",
-        "au_delete_file",
-        "au_assign_block_id",
-        "au_rename_block_id",
-        "au_rename",
-        "au_inline",
-        "au_promote",
-        "au_create_file",
-        "au_batch",
+        "tb_write_file",
+        "tb_edit_file",
+        "tb_delete_file",
+        "tb_assign_block_id",
+        "tb_rename_block_id",
+        "tb_rename",
+        "tb_inline",
+        "tb_promote",
+        "tb_create_file",
+        "tb_batch",
     ] {
         assert!(
             names.contains(&tool.to_owned()),
@@ -140,12 +140,12 @@ fn a_member_allowlist_refuses_other_members_before_any_write() {
         ],
     );
     // Reads still work.
-    assert!(tool_names(&mut client).contains(&"au_content".to_owned()));
+    assert!(tool_names(&mut client).contains(&"tb_content".to_owned()));
     // A mutation in a member that was never read first is refused by the
     // read-before-write guard, which runs before the member check.
     let unread = client.call(
         3,
-        "au_write_file",
+        "tb_write_file",
         json!({"repo":"other","path":"a.md","content":"x","expected_hash":"h"}),
     );
     assert_eq!(unread["result"]["isError"], true, "{unread}");
@@ -219,7 +219,7 @@ fn the_gate_order_is_observable_in_errors_and_audit() {
     // path_scope beats prior_read: the path escapes before any read is required.
     let escape = client.call(
         3,
-        "au_write_file",
+        "tb_write_file",
         json!({"repo":"allowed","path":"../x.md","content":"x","expected_hash":"h"}),
     );
     let text = escape["result"]["content"][0]["text"].as_str().unwrap();
@@ -228,7 +228,7 @@ fn the_gate_order_is_observable_in_errors_and_audit() {
     // member_grant beats prior_read: the member is refused before the read check.
     let member = client.call(
         4,
-        "au_write_file",
+        "tb_write_file",
         json!({"repo":"other","path":"a.md","content":"x","expected_hash":"h"}),
     );
     let text = member["result"]["content"][0]["text"].as_str().unwrap();
@@ -237,7 +237,7 @@ fn the_gate_order_is_observable_in_errors_and_audit() {
     // prior_read is the remaining gate for an allowed member.
     let unread = client.call(
         5,
-        "au_write_file",
+        "tb_write_file",
         json!({"repo":"allowed","path":"a.md","content":"x","expected_hash":"h"}),
     );
     let text = unread["result"]["content"][0]["text"].as_str().unwrap();
@@ -246,7 +246,7 @@ fn the_gate_order_is_observable_in_errors_and_audit() {
     // A second mutating tool, refused at the same gate, so the ledger has two tools to tell apart.
     let escaped_delete = client.call(
         6,
-        "au_delete_file",
+        "tb_delete_file",
         json!({"repo":"allowed","path":"../y.md","expected_hash":"h"}),
     );
     let text = escaped_delete["result"]["content"][0]["text"]
@@ -265,10 +265,10 @@ fn the_gate_order_is_observable_in_errors_and_audit() {
     assert!(
         tools
             .iter()
-            .all(|tool| tool == "au_write_file" || tool == "au_delete_file"),
+            .all(|tool| tool == "tb_write_file" || tool == "tb_delete_file"),
         "{tools:?}"
     );
-    assert!(tools.contains(&"au_delete_file".to_owned()), "{tools:?}");
+    assert!(tools.contains(&"tb_delete_file".to_owned()), "{tools:?}");
     let stages: Vec<String> = audit
         .iter()
         .map(|line| line["outcome"].as_str().unwrap().to_owned())

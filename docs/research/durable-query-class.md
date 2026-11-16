@@ -45,7 +45,7 @@ measurement had the prior cost 1.9 points of topical hit@1 on the 60-query set. 
 answerable is whether it buys more than that on preference — and whether a gentler curve (a multiplier per
 declared class, not a binary durable/not) keeps the topical cost near zero.
 
-Pick the coefficient from that comparison, not from taste, and bless the golden `au_search` capture in the same
+Pick the coefficient from that comparison, not from taste, and bless the golden `tb_search` capture in the same
 commit.
 
 ## The swap that would answer this, written before it is run
@@ -65,7 +65,7 @@ The decision rule is stated now, so the measurement cannot be read backwards int
    labelled set loses less than 1.0 point of topical hit@1 (the earlier binary prior cost 1.9, which is why
    the curve is gentler). If only one holds, the coefficient moves once and the test repeats; if the second
    attempt fails, the prior is rejected again and this document records the number.
-4. **Bless on the same commit** if accepted: the golden `au_search` capture, plus a note in `docs/verification.md`
+4. **Bless on the same commit** if accepted: the golden `tb_search` capture, plus a note in `docs/verification.md`
    with both probe results and the coefficient. A rejected prior leaves `search.rs` untouched and the document
    gains the measurement instead of the code.
 

@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-//! `au_graph_health`: the engine's report passed through untouched.
+//! `tb_graph_health`: the engine's report passed through untouched.
 
 use std::{os::unix::net::UnixListener, thread};
 
@@ -38,7 +38,7 @@ fn graph_health_sends_the_scope_and_passes_the_report_through() {
     let mut client = Client::start(&socket);
     let reply = client.call(
         2,
-        "au_graph_health",
+        "tb_graph_health",
         json!({"repo":"fixture","scope":"own","limit":5}),
     );
     assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -65,7 +65,7 @@ fn graph_health_refuses_a_bad_limit_before_the_engine() {
     .into_iter()
     .enumerate()
     {
-        let reply = client.call(index as u32 + 2, "au_graph_health", arguments.clone());
+        let reply = client.call(index as u32 + 2, "tb_graph_health", arguments.clone());
         assert_eq!(reply["result"]["isError"], true, "{arguments}: {reply}");
     }
     assert_eq!(

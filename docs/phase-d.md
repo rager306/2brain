@@ -25,8 +25,8 @@ both worlds; what changes is the door in front of it.
 | every daemon tool the vault's agents actually use has a Rust counterpart, or a deliberate decision not to | **done for reads and mutations**; 8 daemon tools have no counterpart and 6 of them are host tools by decision | `docs/runtime-map.md` sections A, B, C |
 | a real client completes a model turn on reads | **done**: Claude Code and Codex | `scripts/model-turn.sh`, `scripts/codex-turn.sh` |
 | a real client completes a model turn on the mutation path, including the read-only refusal | **done**: Claude Code | `scripts/mutation-turn.sh` |
-| a client recovers from a lost mutation reply | **done**: model calls `au_reconcile` and does not retry | `scripts/recovery-turn.sh` |
-| a client chooses the transactional path when a change spans files | **done**: one `au_batch`, not two writes | `scripts/batch-turn.sh` |
+| a client recovers from a lost mutation reply | **done**: model calls `tb_reconcile` and does not retry | `scripts/recovery-turn.sh` |
+| a client chooses the transactional path when a change spans files | **done**: one `tb_batch`, not two writes | `scripts/batch-turn.sh` |
 | a client plans a revert before doing it | **done** | `scripts/rollback-turn.sh` |
 | the shared facts agree between the two stacks | **done on one comparable read** | `scripts/bridge_parity.py` |
 | the vault's own tool surface (49 daemon tools) is what agents were trained on | **open question**: the daemon advertises 49, the adapter 51, and the extra 10 are new verbs. A client asking for a daemon tool by name would get "unknown tool" | `docs/bridge-parity.md` |

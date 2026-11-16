@@ -29,12 +29,12 @@ exported one.
 
 | # | query | HelixDB | current engine | note |
 |---|---|---|---:|---|
-| Q1 | top-20 in-degree nodes | **103.5 ms** (min 88.4) | **9.8 ms** (`au_hubs`) | the engine ranks from an in-memory `backlinks` map; HelixDB scans relationships |
+| Q1 | top-20 in-degree nodes | **103.5 ms** (min 88.4) | **9.8 ms** (`tb_hubs`) | the engine ranks from an in-memory `backlinks` map; HelixDB scans relationships |
 | Q2a | 2-hop, undirected, explicit two `MATCH`es, type filter, **count** | **54.7 ms** (min 47.3), 160 nodes | — | returns a count, not a subgraph |
 | Q2b | 2-hop, directed out, type filter, **count** | **30.4 ms** (min 20.9), 70 nodes | — | |
-| Q2c | 2-hop, both directions, `au_neighborhood` **materialising 253 nodes** | — | **102.2 ms** (min 89.2), 238 KiB payload | not the same output as Q2a/b |
+| Q2c | 2-hop, both directions, `tb_neighborhood` **materialising 253 nodes** | — | **102.2 ms** (min 89.2), 238 KiB payload | not the same output as Q2a/b |
 | Q2v | 2-hop as a variable-length pattern `*1..2` | **unsupported** | n/a | `unsupported_feature: variable_length_pattern`, phase `compile` |
-| Q3a | BM25 over bodies, k = 10 | **24.2 ms** (min 20.2), ranked | 132.8 ms (`au_grep`, literal scan, **unranked**) | 5.5× faster and ranked |
+| Q3a | BM25 over bodies, k = 10 | **24.2 ms** (min 20.2), ranked | 132.8 ms (`tb_grep`, literal scan, **unranked**) | 5.5× faster and ranked |
 | Q3b | BM25 **within** a type prefilter (`type == "pattern"`, k = 5) | **28.2 ms** (min 25.5), membership correct | no equivalent | this is the genuine capability gap |
 
 Two numbers matter and two do not. **The text half is a real win** (24 ms ranked versus 133 ms
@@ -89,7 +89,7 @@ git-tag dependency and a second data model.
 
 1. **Filter before ranking, and make membership exact** — their order is traversal → candidate
    membership → ranking → top `k`, with an explicit warning that filtering after search silently
-   under-returns. Our `au_search`-style retrieval should copy that order, not the other one.
+   under-returns. Our `tb_search`-style retrieval should copy that order, not the other one.
 2. **One index, two columns of truth** — the capability table from `docs/architecture-plan.md`
    P0.1 and the schema table from P1.4 are the same table; a text index belongs to that table, not
    to a new engine.

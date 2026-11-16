@@ -10,7 +10,7 @@ An accepted write can leave a broken graph.
 A success message does not establish clean diagnostics.
 
 Read any diagnostics returned with the write.
-If they are absent, call `au_diagnostics` for the changed file or affected scope.
+If they are absent, call `tb_diagnostics` for the changed file or affected scope.
 Inspect the summary.
 Request relevant warning or drift entries when the summary reports them.
 A complete zero summary needs no further severity query.

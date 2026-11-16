@@ -64,13 +64,13 @@ fn assign_block_id_sends_at_and_returns_the_ref() {
     let mut client = Client::start_with_timeout(&socket, &["--allow-mutations"], TIMEOUT);
     let read = client.call_result(
         2,
-        "au_content",
+        "tb_content",
         json!({"repo":"fixture","path":"notes/a.md"}),
     );
     assert_ne!(read["isError"], true, "{read}");
     let result = client.call_result(
         3,
-        "au_assign_block_id",
+        "tb_assign_block_id",
         json!({"repo":"fixture","path":"notes/a.md","at":84,"expected_hash":"hash-one"}),
     );
     assert_ne!(result["isError"], true, "{result}");
@@ -90,12 +90,12 @@ fn rename_block_id_sends_both_ids() {
     let mut client = Client::start_with_timeout(&socket, &["--allow-mutations"], TIMEOUT);
     let _ = client.call_result(
         2,
-        "au_content",
+        "tb_content",
         json!({"repo":"fixture","path":"notes/a.md"}),
     );
     let result = client.call_result(
         3,
-        "au_rename_block_id",
+        "tb_rename_block_id",
         json!({"repo":"fixture","path":"notes/a.md","block_id":"old","to_block_id":"new","expected_hash":"hash-one"}),
     );
     assert_ne!(result["isError"], true, "{result}");
@@ -143,12 +143,12 @@ fn rename_sends_the_target_as_an_absolute_path_in_the_same_member() {
     let mut client = Client::start_with_timeout(&socket, &["--allow-mutations"], TIMEOUT);
     let _ = client.call_result(
         2,
-        "au_content",
+        "tb_content",
         json!({"repo":"fixture","path":"notes/a.md"}),
     );
     let result = client.call_result(
         3,
-        "au_rename",
+        "tb_rename",
         json!({"repo":"fixture","path":"notes/a.md","to":"notes/b.md","expected_hash":"hash-one"}),
     );
     assert_ne!(result["isError"], true, "{result}");
@@ -167,7 +167,7 @@ fn a_read_only_launch_hides_and_refuses_the_structural_mutations() {
         client.request(json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}))["result"]
             ["tools"]
             .clone();
-    for name in ["au_assign_block_id", "au_rename_block_id", "au_rename"] {
+    for name in ["tb_assign_block_id", "tb_rename_block_id", "tb_rename"] {
         assert!(
             !tools
                 .as_array()
@@ -187,7 +187,7 @@ fn inline_arms_both_files_then_sends_one_saga() {
     let socket = temp.path().join("engine.sock");
     let listener = UnixListener::bind(&socket).unwrap();
     let handle = thread::spawn(move || {
-        // au_content(path), au_content(into), then one editability read per file.
+        // tb_content(path), tb_content(into), then one editability read per file.
         for _ in 0..6 {
             let (mut stream, _) = listener.accept().unwrap();
             let request = read_request(&mut stream);
@@ -218,17 +218,17 @@ fn inline_arms_both_files_then_sends_one_saga() {
     let mut client = Client::start_with_timeout(&socket, &["--allow-mutations"], TIMEOUT);
     let _ = client.call_result(
         2,
-        "au_content",
+        "tb_content",
         json!({"repo":"fixture","path":"notes/b.md"}),
     );
     let _ = client.call_result(
         3,
-        "au_content",
+        "tb_content",
         json!({"repo":"fixture","path":"notes/a.md"}),
     );
     let result = client.call_result(
         4,
-        "au_inline",
+        "tb_inline",
         json!({"repo":"fixture","path":"notes/b.md","into":"notes/a.md",
                "expected_hash":"hash-one","into_expected_hash":"hash-one"}),
     );
@@ -249,7 +249,7 @@ fn promote_needs_exactly_one_record_locator() {
         json!({"repo":"fixture","path":"notes/a.md","to":"notes/x.md","expected_hash":"hash-one"}),
         json!({"repo":"fixture","path":"notes/a.md","to":"notes/x.md","at":10,"block_id":"b","expected_hash":"hash-one"}),
     ] {
-        let result = client.call_result(3, "au_promote", arguments.clone());
+        let result = client.call_result(3, "tb_promote", arguments.clone());
         assert_eq!(result["isError"], true, "{arguments}: {result}");
         assert!(
             result["content"][0]["text"]

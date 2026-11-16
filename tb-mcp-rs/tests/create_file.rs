@@ -61,7 +61,7 @@ fn create_writes_a_new_file_without_a_hash_precondition() {
     let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     let created = client.call(
         2,
-        "au_create_file",
+        "tb_create_file",
         json!({"repo":"fixture","path":"inbox/new.md","content":"# new\n"}),
     );
     assert_ne!(created["result"]["isError"], true, "{created}");
@@ -106,11 +106,11 @@ fn create_refuses_an_existing_path_and_writes_nothing() {
     let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     let text = error_text(&client.call(
         2,
-        "au_create_file",
+        "tb_create_file",
         json!({"repo":"fixture","path":"inbox/new.md","content":"# new\n"}),
     ));
     assert!(text.starts_with("policy/absence:"), "{text}");
-    assert!(text.contains("au_write_file"), "{text}");
+    assert!(text.contains("tb_write_file"), "{text}");
     daemon.join().unwrap();
 }
 
@@ -127,10 +127,10 @@ fn create_needs_the_mutation_grant() {
             .as_array()
             .unwrap()
             .iter()
-            .any(|tool| tool["name"] == "au_create_file"),
-        "a read-only launch must not advertise au_create_file"
+            .any(|tool| tool["name"] == "tb_create_file"),
+        "a read-only launch must not advertise tb_create_file"
     );
-    let refused = client.request(json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"au_create_file","arguments":{"repo":"fixture","path":"inbox/new.md","content":"x"}}}));
+    let refused = client.request(json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"tb_create_file","arguments":{"repo":"fixture","path":"inbox/new.md","content":"x"}}}));
     assert!(refused["error"]["message"].is_string(), "{refused}");
     assert_eq!(
         listener.accept().unwrap_err().kind(),

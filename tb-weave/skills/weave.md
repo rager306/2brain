@@ -40,7 +40,7 @@ Correct a wrong kind while retaining distinct roles.
 
 ## Check source passages
 
-Read unfamiliar `passages` guidance on [[candidate]] with `au_type`.
+Read unfamiliar `passages` guidance on [[candidate]] with `tb_type`.
 Check the source blocks supporting each candidate's interpretation.
 Do this for reuse and re-attestation too.
 Keep every passage needed to preserve the source's qualifications.
@@ -61,7 +61,7 @@ If an anchor cannot be created or checked, leave the candidate pending and repor
 
 ## Write the node
 
-Read unfamiliar node guidance with `au_type`, qualified by its owning repo.
+Read unfamiliar node guidance with `tb_type`, qualified by its owning repo.
 Apply the node kind and consumer guidance to its fields and prose.
 
 Ground the content in sources and serve the premise.

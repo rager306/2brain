@@ -33,7 +33,7 @@ query plan. Two random candidates and a "prefer expired, else older" rule is ~20
 bookkeeping. *Not* for the IR: the IR is authoritative and evicting a node would be losing data.
 
 **ADAPT — counters as first-class data.** The engine has no per-verb latency or cache-hit counters, so
-"is `au_grep` slow or is the vault big" is answered with `time`. Pogocache keeps cheap per-shard counters
+"is `tb_grep` slow or is the vault big" is answered with `time`. Pogocache keeps cheap per-shard counters
 and aggregates on read. One histogram per verb, aggregated per version, would make the next ranking or
 protocol experiment answerable without a stopwatch.
 
@@ -81,7 +81,7 @@ item this project deletes on measurement. Revisit when something needs it — no
    the measured ~11 bytes saved per term, the transfer is **0.22 KB/doc — below the 0.5 KB/doc kill
    criterion** this entry set for itself. Reverted rather than kept as a curiosity; the estimate in §2 was
    wrong about the division of weight inside the index, and the measurement is the correction.
-2. **Per-verb histograms in the engine** (~80 lines). Measure: the distribution of `au_grep` vs `au_search`
+2. **Per-verb histograms in the engine** (~80 lines). Measure: the distribution of `tb_grep` vs `tb_search`
    on the live vault, which today is two stopwatch numbers. Kill criterion: no verb shows a tail worth
    acting on.
 3. **2-random eviction for a bounded runtime cache** — only once such a cache exists. Building it before

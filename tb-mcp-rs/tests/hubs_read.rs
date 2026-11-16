@@ -83,7 +83,7 @@ fn invalid_arguments_never_contact_engine() {
     .into_iter()
     .enumerate()
     {
-        assert_error(&client.call(index as u32 + 2, "au_hubs", args));
+        assert_error(&client.call(index as u32 + 2, "tb_hubs", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -142,7 +142,7 @@ fn default_and_scoped_paged_requests_preserve_payload_and_version() {
     let mut client = Client::start(&socket);
     for (index, (args, _, version, payload)) in cases.into_iter().enumerate() {
         assert_success(
-            &client.call(index as u32 + 2, "au_hubs", args),
+            &client.call(index as u32 + 2, "tb_hubs", args),
             version,
             &payload,
         );
@@ -175,7 +175,7 @@ fn diagnostics_reject_invalid_arguments_before_connecting() {
     .into_iter()
     .enumerate()
     {
-        assert_error(&client.call(index as u32 + 2, "au_diagnostics", args));
+        assert_error(&client.call(index as u32 + 2, "tb_diagnostics", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -237,7 +237,7 @@ fn diagnostics_requests_preserve_filters_pages_and_failures() {
     });
     let mut client = Client::start(&socket);
     for (index, (args, _, reply, success)) in cases.into_iter().enumerate() {
-        let result = client.call(index as u32 + 2, "au_diagnostics", args);
+        let result = client.call(index as u32 + 2, "tb_diagnostics", args);
         if success {
             assert_success(
                 &result,
@@ -293,12 +293,12 @@ fn engine_failures_and_invalid_frames_are_tool_errors_then_recover() {
     });
     let mut client = Client::start(&socket);
     for id in 2..9 {
-        let reply = client.call(id, "au_hubs", json!({}));
+        let reply = client.call(id, "tb_hubs", json!({}));
         assert_eq!(reply["result"]["isError"], true, "{reply}");
         assert_error(&reply);
     }
     assert_success(
-        &client.call(9, "au_hubs", json!({})),
+        &client.call(9, "tb_hubs", json!({})),
         13,
         &json!({"hubs":[{"path":"recovered.md"}]}),
     );

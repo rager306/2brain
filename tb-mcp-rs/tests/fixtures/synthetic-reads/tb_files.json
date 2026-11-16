@@ -1,0 +1,89 @@
+{
+  "arguments": {
+    "limit": 50,
+    "repo": "fixture"
+  },
+  "payload": {
+    "files": [
+      {
+        "kind": "instance",
+        "path": "$FIXTURE/fixture/.arsumbris/repo.yaml",
+        "repo": "fixture",
+        "stem": "repo"
+      },
+      {
+        "kind": "instance",
+        "path": "$FIXTURE/fixture/notes/a.md",
+        "repo": "fixture",
+        "stem": "a"
+      },
+      {
+        "kind": "instance",
+        "path": "$FIXTURE/fixture/notes/b.md",
+        "repo": "fixture",
+        "stem": "b"
+      },
+      {
+        "kind": "instance",
+        "path": "$FIXTURE/fixture/notes/c.md",
+        "repo": "fixture",
+        "stem": "c"
+      },
+      {
+        "kind": "instance",
+        "path": "$FIXTURE/fixture/notes/d.md",
+        "repo": "fixture",
+        "stem": "d"
+      },
+      {
+        "kind": "instance",
+        "path": "$FIXTURE/fixture/notes/invalid.md",
+        "repo": "fixture",
+        "stem": "invalid"
+      },
+      {
+        "kind": "note",
+        "path": "$FIXTURE/fixture/notes/order/inner.md",
+        "repo": "fixture",
+        "stem": "inner"
+      },
+      {
+        "kind": "note",
+        "path": "$FIXTURE/fixture/notes/order z.md",
+        "repo": "fixture",
+        "stem": "order z"
+      },
+      {
+        "kind": "type-def",
+        "path": "$FIXTURE/fixture/type/alpha.child.type.yaml",
+        "repo": "fixture",
+        "stem": "alpha.child.type"
+      },
+      {
+        "kind": "type-def",
+        "path": "$FIXTURE/fixture/type/alpha.type.yaml",
+        "repo": "fixture",
+        "stem": "alpha.type"
+      },
+      {
+        "kind": "type-def",
+        "path": "$FIXTURE/fixture/type/note.type.yaml",
+        "repo": "fixture",
+        "stem": "note.type"
+      },
+      {
+        "kind": "type-def",
+        "path": "$FIXTURE/fixture/type/peer-child.type.yaml",
+        "repo": "fixture",
+        "stem": "peer-child.type"
+      },
+      {
+        "kind": "type-def",
+        "path": "$FIXTURE/fixture/type/zeta.type.yaml",
+        "repo": "fixture",
+        "stem": "zeta.type"
+      }
+    ]
+  },
+  "tool": "tb_files"
+}

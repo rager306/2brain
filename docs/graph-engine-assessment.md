@@ -29,7 +29,7 @@ persists is the working tree, `.arsumbris/repo.yaml` and friends (typed by built
 `rpds::RedBlackTreeMapSync` (`ir.rs:52-53`).
 
 That is not an accident of immaturity; it is what makes "one commit = one logical mutation"
-true, and it is why `au_reconcile` can read a git HEAD.
+true, and it is why `tb_reconcile` can read a git HEAD.
 
 So the question is not "swap SQLite for a graph DB". It is: **should the graph stop being a
 derived in-memory index and become a database in its own right?** Everything below turns on
@@ -44,7 +44,7 @@ that, and the answer is no — with measured reasons.
 | markdown files | 1 036 | `find /root/vault -name '*.md' -not -path '*/.git/*'` |
 | markdown text | 5.37 MiB | sum of `.md` sizes, `.git` excluded (the 49 MB working tree is mostly history) |
 | wikilinks | 5 046 | `grep -ro '\[\[[^]]*\]\]' --include=*.md` |
-| graph nodes | 1 184 | `au_overview.graph_shape.degree` row counts |
+| graph nodes | 1 184 | `tb_overview.graph_shape.degree` row counts |
 | out-degree | median 3, p95 11, max 66 | same |
 | strongest hub (in-degree) | 140 | same |
 | components | 213 | same |
@@ -73,11 +73,11 @@ Release binary, live socket, 5 calls each, median:
 
 | verb | median | payload | what it does |
 |---|---:|---:|---|
-| `au_hubs` | 9.8 ms | 3.3 KiB | in-degree ranking over the catalogue |
-| `au_graph_health` | 20.5 ms | 2.7 KiB | builds adjacency for the scope, iterative Tarjan SCC (`serve.rs:14369`), union-find, centrality (`serve.rs:14202`) |
-| `au_diagnostics` | 4.1 ms | 0.0 KiB | cached diagnostic set |
-| `au_overview` | 16.7 ms | 8.1 KiB | counts, degree histograms, components |
-| `au_grep` | **132.8 ms** | 11.1 KiB | literal full scan: reads every file, lowercases every line (`serve.rs:13522`) |
+| `tb_hubs` | 9.8 ms | 3.3 KiB | in-degree ranking over the catalogue |
+| `tb_graph_health` | 20.5 ms | 2.7 KiB | builds adjacency for the scope, iterative Tarjan SCC (`serve.rs:14369`), union-find, centrality (`serve.rs:14202`) |
+| `tb_diagnostics` | 4.1 ms | 0.0 KiB | cached diagnostic set |
+| `tb_overview` | 16.7 ms | 8.1 KiB | counts, degree histograms, components |
+| `tb_grep` | **132.8 ms** | 11.1 KiB | literal full scan: reads every file, lowercases every line (`serve.rs:13522`) |
 
 The pattern is unambiguous: **whole-graph analytics already cost 20 ms at 1k nodes, and the one
 slow verb is a text scan.** A graph database improves neither at this size, and does nothing at
@@ -202,7 +202,7 @@ Read through `arsumbris-rs` while preparing this:
 1. **A second source of truth.** Files and git are authority. A graph DB makes the graph
    authoritative too, so every mutation becomes a two-phase write (git + RocksDB) with a crash
    window that does not exist today: now a mutation either commits or it does not, and
-   `au_reconcile` reads the git HEAD. A DB also needs an idempotent replay keyed by
+   `tb_reconcile` reads the git HEAD. A DB also needs an idempotent replay keyed by
    `Mutation-Id` to close that window — new machinery to protect the guarantee we already have.
 2. **Wire and contract churn.** 47 of 82 engine verbs re-expressed; `wire.rs` (5 758 lines),
    `WIRE.md`, 4 golden captures, 32 read fixtures, 16 mutation fixtures, 51 adapter tools, the
@@ -241,7 +241,7 @@ bottleneck exactly where it is.
 ## 7. What to do instead, in order
 
 1. **Text index — fixes the measured bottleneck.** SQLite FTS5 `bm25()` (one file, one writer,
-   WAL) or `tantivy`; kept as a derived artefact, rebuilt from files. `au_grep` stays as the
+   WAL) or `tantivy`; kept as a derived artefact, rebuilt from files. `tb_grep` stays as the
    literal escape hatch with its current contract. Target: single-digit ms for ranked search,
    backlog P1 delivered. This step is **independent of the spike below**: FTS alone is worth
    having whether or not a bundle ever replaces it.
@@ -260,7 +260,7 @@ bottleneck exactly where it is.
      1 036 notes / 5 046 links;
    - three queries with numbers attached: hub ranking, 2-hop neighbourhood with a type filter,
      and "notes similar to X inside topic Y" (BM25 + ANN with graph prefilter);
-   - compare against today (`au_hubs` 9.8 ms, `au_graph_health` 20.5 ms, `au_grep` 132.8 ms) and
+   - compare against today (`tb_hubs` 9.8 ms, `tb_graph_health` 20.5 ms, `tb_grep` 132.8 ms) and
      against a tantivy-only baseline;
    - **go rule:** it must beat tantivy-plus-manual-traversal by enough to justify a git-tag
      dependency and a second data model. Otherwise take tantivy now and revisit HelixDB when

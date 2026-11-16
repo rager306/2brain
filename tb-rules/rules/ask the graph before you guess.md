@@ -13,9 +13,9 @@ Refresh it when affected files, contracts or relations change, or freshness is u
 Each call should answer a missing question needed for the next decision.
 
 Ask it for what you need:
-- what a note links to and from, with `au_references`
-- every instance of a type across every mounted repo, with `au_instances_of`
-- what is mounted and what you may edit, with `au_members`
+- what a note links to and from, with `tb_references`
+- every instance of a type across every mounted repo, with `tb_instances_of`
+- what is mounted and what you may edit, with `tb_members`
 - and the rest of the reads for anything else
 
 Its answer is exact where a guess is not.

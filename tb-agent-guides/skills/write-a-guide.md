@@ -17,7 +17,7 @@ Improve the guide that already owns the question.
 If the owner is unknown, find related guidance with au_agent_guide.
 [[a-guide-earns-its-slot::au-agent-guides]] helps judge whether advice needs its own guide.
 
-If the service is unavailable, use au_instances_of.
+If the service is unavailable, use tb_instances_of.
 Set ofType to guide::au-agent-guides.
 Limit origins to files.
 

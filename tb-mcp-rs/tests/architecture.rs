@@ -39,11 +39,11 @@ const ALLOWED: [(&str, &str); 11] = [
 
 /// Production lines of `src/lib.rs`, excluding the inline test module. A ratchet: lower it
 /// when a port moves out, never raise it to make room.
-// 4424 after the gate moved out of lib.rs, plus 81 for one new tool (`au_search`,
+// 4424 after the gate moved out of lib.rs, plus 81 for one new tool (`tb_search`,
 // 2026-11-15) — the ratchet guards a refactor from re-growing the file; a feature pays
 // its own lines once and the number is recorded here with its reason.
-// 4505 after `au_search`, plus 25 on 2026-11-16: `guarded_mutation` now takes the tool name so the audit
-// ledger records `au_write_file` instead of the literal `mutation` — provenance the ledger existed for.
+// 4505 after `tb_search`, plus 25 on 2026-11-16: `guarded_mutation` now takes the tool name so the audit
+// ledger records `tb_write_file` instead of the literal `mutation` — provenance the ledger existed for.
 // 4501 on 2026-11-16: the read tools' engine verbs moved into `wire.rs`'s `READ_VERBS`, so a read
 // call site names a tool instead of also repeating the verb, and `file_read` lost an unused key.
 const LIB_RS_PRODUCTION_BUDGET: usize = 4501;

@@ -40,8 +40,8 @@ Grants, and what each adds to the tool list:
 | args | tools |
 |---|---:|
 | `--allow-mutations` | 47 |
-| `--allow-mutations --allow-composition` | 49 (`au_add_dep`, `au_remove_dep`) |
-| `--allow-mutations --allow-composition --allow-workspace-shape` | 52 (`au_add_workspace_member`, `au_remove_workspace_member`, `au_set_workspace_member_role`) |
+| `--allow-mutations --allow-composition` | 49 (`tb_add_dep`, `tb_remove_dep`) |
+| `--allow-mutations --allow-composition --allow-workspace-shape` | 52 (`tb_add_workspace_member`, `tb_remove_workspace_member`, `tb_set_workspace_member_role`) |
 
 Composition and workspace shape stay **off** in this configuration: changing dependencies or
 workspace membership changes the shape of the knowledge base, and `policy.rs` asks for an explicit
@@ -52,7 +52,7 @@ grant. The Node path exposed those five tools ungated, which was a defect, not a
 
 - server name `2brain`, version `0.1.0+<commit>` — the commit is in the version string, so a client
   log identifies the build;
-- 47 tools with `--allow-mutations`; `au_search` included;
+- 47 tools with `--allow-mutations`; `tb_search` included;
 - resources under `arsumbris://<member>/<path>` — unchanged: the URI scheme is a contract and moves
   only with a versioned alias (`docs/naming.md`, phase N4).
 
@@ -67,7 +67,7 @@ cd /root/2brain/tb-mcp-rs && HOME=/root python3 scripts/live_parity.py
 ```
 
 `live_parity.py` compares the installed binary with the one this tree builds; it exits 2 when it could
-not compare, which is not a pass. On 2026-11-16 it reported five facts identical and `au_search` refused
+not compare, which is not a pass. On 2026-11-16 it reported five facts identical and `tb_search` refused
 **identically by both** — the live engine predates the verb, because the fifth swap has not happened
 yet (`docs/internal/engine-swap-2026-11-16.md`).
 

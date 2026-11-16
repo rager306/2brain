@@ -64,7 +64,7 @@ def main(argv: list[str]) -> int:
     details = []
     with StdioMcp([ADAPTER, "mcp", args.socket or args.vault], name="eval") as client:
         for row in rows:
-            reply = client.call("au_search", {"query": row["query"], "limit": args.limit})
+            reply = client.call("tb_search", {"query": row["query"], "limit": args.limit})
             if is_error(reply):
                 print(f"search refused for {row['query']!r}: {tool_text(reply)}", file=sys.stderr)
                 return 1

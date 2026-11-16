@@ -48,7 +48,7 @@ fn instances_pages_the_scan_and_keeps_the_count() {
         json!({"instances": records, "count": 5, "aborted_at_load": false}),
     )]);
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
-    let result = client.call_result(2, "au_instances", json!({"limit":2,"offset":0}));
+    let result = client.call_result(2, "tb_instances", json!({"limit":2,"offset":0}));
     assert_ne!(result["isError"], true, "{result}");
     let payload = payload(&result);
     assert_eq!(payload["instances"].as_array().unwrap().len(), 2);
@@ -71,7 +71,7 @@ fn candidates_forwards_summary_and_paging() {
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_candidates",
+        "tb_candidates",
         json!({"summary":true,"limit":10,"offset":5}),
     );
     assert_ne!(result["isError"], true, "{result}");
@@ -85,13 +85,13 @@ fn candidates_forwards_summary_and_paging() {
 fn semantic_tokens_and_resolve_member_resolve_the_member_root() {
     for (tool, verb, key, answer) in [
         (
-            "au_semantic_tokens",
+            "tb_semantic_tokens",
             "semantic_tokens",
             "semantic_tokens",
             json!({"semantic_tokens":[{"kind":"anchor","text":"Details"}]}),
         ),
         (
-            "au_resolve_member",
+            "tb_resolve_member",
             "resolve_member",
             "resolve_member",
             json!({"resolve_member":{"repo":"fixture","root":ROOT,"editable":true,"local":true,"role":"entry"}}),
@@ -132,7 +132,7 @@ fn typed_classifies_an_instance_and_falls_back_to_resolve_target() {
         ),
     ]);
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
-    let result = client.call_result(2, "au_typed", json!({"repo":"fixture","path":"notes/a.md"}));
+    let result = client.call_result(2, "tb_typed", json!({"repo":"fixture","path":"notes/a.md"}));
     assert_ne!(result["isError"], true, "{result}");
     let classified = payload(&result);
     assert_eq!(classified["typed"], true);
@@ -160,7 +160,7 @@ fn typed_classifies_an_instance_and_falls_back_to_resolve_target() {
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_typed",
+        "tb_typed",
         json!({"repo":"fixture","path":"notes/plain.md"}),
     );
     assert_ne!(result["isError"], true, "{result}");
@@ -185,7 +185,7 @@ fn resolved_and_children_read_their_own_verbs() {
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_resolved",
+        "tb_resolved",
         json!({"repo":"fixture","path":"notes/a.md"}),
     );
     assert_ne!(result["isError"], true, "{result}");
@@ -203,7 +203,7 @@ fn resolved_and_children_read_their_own_verbs() {
         ),
     ]);
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
-    let result = client.call_result(2, "au_children", json!({"repo":"fixture","path":"notes"}));
+    let result = client.call_result(2, "tb_children", json!({"repo":"fixture","path":"notes"}));
     assert_ne!(result["isError"], true, "{result}");
     assert_eq!(payload(&result)["dir_entries"].as_array().unwrap().len(), 1);
     guard(handle, temp);
@@ -226,7 +226,7 @@ fn follow_resolves_a_target_and_peeks_the_line() {
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_follow",
+        "tb_follow",
         json!({"repo":"fixture","origin_path":"notes/a.md","target":"notes/b"}),
     );
     assert_ne!(result["isError"], true, "{result}");
@@ -271,7 +271,7 @@ fn follow_asks_the_fragment_verb_for_a_fragment() {
         let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
         let result = client.call_result(
             2,
-            "au_follow",
+            "tb_follow",
             json!({"repo":"fixture","origin_path":"notes/a.md","target":target}),
         );
         assert_ne!(result["isError"], true, "{target}: {result}");
@@ -299,7 +299,7 @@ fn follow_skips_the_peek_when_disabled() {
     let mut client = Client::start_with_timeout(&socket, &[], TIMEOUT);
     let result = client.call_result(
         2,
-        "au_follow",
+        "tb_follow",
         json!({"repo":"fixture","origin_path":"notes/a.md","target":"notes/b","peek":false}),
     );
     let payload = payload(&result)["follow"].clone();

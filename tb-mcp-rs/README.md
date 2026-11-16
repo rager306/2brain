@@ -15,12 +15,12 @@ and can write only when the launch grants it.
 - **33 reads** (29 engine, 4 derived and observability), **2 discovery** tools, **1 watch**, and **16
   mutating** tools that appear only with an explicit grant (three grants in total). 52 with every
   grant, 36 with none.
-- **Results are the engine's own object**, under the read's key: `au_overview`
+- **Results are the engine's own object**, under the read's key: `tb_overview`
   answers `{"overview": ...}`. Nothing is re-shaped on the way out.
 - **Two surfaces**: the tools above, and MCP **resources** at `arsumbris://<repo>/<path>`
   for files a client wants to hold and re-read (`resources/list` pages the
   catalogue, `resources/read` returns the engine's text). No resource
-  subscriptions: `au_watch` carries change notification.
+  subscriptions: `tb_watch` carries change notification.
 - **Read-only by default.** Without a grant the mutating tools are absent from
   `tools/list` and refused before the engine is contacted.
 - **Typed answers**: every tool declares an `outputSchema`, every result carries
@@ -106,12 +106,12 @@ au-mcp-rs <socket> --policy /etc/au-policy.json \
 
 - `allow_mutations` (default `false`) — whether the mutating tools exist at all.
 - `allow_composition` (default `false`) — a second grant for the two dependency
-  verbs (`au_add_dep`, `au_remove_dep`). They author `.arsumbris/repo.yaml`, so a
+  verbs (`tb_add_dep`, `tb_remove_dep`). They author `.arsumbris/repo.yaml`, so a
   launch may trust writes to notes and still refuse to reshape the workspace.
   `--allow-composition` on the command line implies `--allow-mutations`.
 - `allow_workspace_shape` (default `false`) — a third grant for the three
-  member verbs (`au_add_workspace_member`, `au_remove_workspace_member`,
-  `au_set_workspace_member_role`). They change *which* members are served, so a
+  member verbs (`tb_add_workspace_member`, `tb_remove_workspace_member`,
+  `tb_set_workspace_member_role`). They change *which* members are served, so a
   mistake here alters every later read, not one note. `--allow-workspace-shape`
   implies `--allow-mutations`; the grants are independent of one another, so a
   launch can reshape members without touching dependencies or vice versa.
@@ -145,17 +145,17 @@ An ordered chain; a refusal names its stage in the tool error
 | `arguments` | `repo`, `path`, or `expected_hash` is empty |
 | `path_scope` | the path is absolute, contains `..` or NUL |
 | `member_grant` | the member is not in the policy allowlist |
-| `prior_read` | no `au_content` read of this exact path is recorded |
+| `prior_read` | no `tb_content` read of this exact path is recorded |
 | `freshness` | the recorded hash differs from `expected_hash` |
 | `editability` | the engine reports the member as consumed |
 | `capacity` | another mutation holds the single slot |
 
 The slot is taken last, so a permit is never held while an engine read settles a
-file. `au_create_file` runs the same chain with `absence` in place of
+file. `tb_create_file` runs the same chain with `absence` in place of
 `prior_read` + `freshness`: a create has no text to compare against, so its
 promise is that the path is free.
 
-A lost reply is `outcome_unknown`, never a retry: `au_reconcile` says whether the
+A lost reply is `outcome_unknown`, never a retry: `tb_reconcile` says whether the
 mutation landed and re-arms the guard. See [`docs/tools.md`](docs/tools.md).
 
 ## Agent-facing cost
@@ -170,7 +170,7 @@ Two profiles and three payload modes, measured on the live workspace:
 | `--tools concise`, 36 tools in a read-only launch | 19 356 chars | ≈4 839 |
 | `--payload structured` | halves the payload a client reads when it uses `structuredContent` | |
 
-`au_search_tools` and `au_describe_tool` serve the detail a concise profile
+`tb_search_tools` and `tb_describe_tool` serve the detail a concise profile
 withholds. The reasoning, sources, and break-even rule are in
 [`docs/progressive-disclosure.md`](docs/progressive-disclosure.md).
 
@@ -236,13 +236,13 @@ This suite does not establish full MCP conformance or production readiness.
 | `scripts/client-matrix.sh` | which installed MCP clients accept and connect the server ([result](docs/client-matrix.md)) |
 | `scripts/model-turn.sh` | that a model, given the tool list, chooses a tool and gets the engine's answer back — costs one model turn on your credentials ([result](docs/client-matrix.md#2026-11-14-third-a-real-model-turn-and-it-found-the-marker)) |
 | `scripts/mutation-turn.sh` | that a model edits a file through the gate (read → hash → write → one engine commit) and that a read-only launch cannot write at all — two model turns |
-| `scripts/lost-reply.sh` | that a write whose reply was dropped becomes `outcome_unknown`, not a retry, and that `au_reconcile` resolves it against the engine's real history — no model, no fake socket |
-| `scripts/saga-and-rollback.sh` | that a refused `au_batch` leaves no trace, and that `au_rollback_preview` reports a plan without touching the tree |
+| `scripts/lost-reply.sh` | that a write whose reply was dropped becomes `outcome_unknown`, not a retry, and that `tb_reconcile` resolves it against the engine's real history — no model, no fake socket |
+| `scripts/saga-and-rollback.sh` | that a refused `tb_batch` leaves no trace, and that `tb_rollback_preview` reports a plan without touching the tree |
 | `scripts/codex-turn.sh` | the same read round trip as `model-turn.sh` through a second client implementation, Codex — one model turn |
 | `scripts/live_parity.py` | that a live front end and this adapter answer the same facts on the served vault, read-only and re-runnable (its original bridge half is gone; it now compares two adapters) |
 | `scripts/strict-client.py` | that a client which validates `structuredContent` against `outputSchema` accepts a mutation answer — the check a live session failed on 2026-11-15 |
-| `scripts/batch-turn.sh` | that a model reaches for `au_batch` instead of two single writes when the task spans files — one model turn |
-| `scripts/rollback-turn.sh` | that a model plans a revert from the commit `au_content` reports, and reads the plan — one model turn |
+| `scripts/batch-turn.sh` | that a model reaches for `tb_batch` instead of two single writes when the task spans files — one model turn |
+| `scripts/rollback-turn.sh` | that a model plans a revert from the commit `tb_content` reports, and reads the plan — one model turn |
 | `scripts/bridge_parity.py` | shared facts between the retired Python bridge and this adapter — historical, kept as the record behind [docs/bridge-parity.md](docs/bridge-parity.md) |
 | `scripts/rollback_rehearsal.py` | that reverting to read-only loses nothing ([result](docs/rollback-rehearsal.md)) |
 

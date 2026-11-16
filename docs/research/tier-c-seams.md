@@ -114,13 +114,13 @@ second run derives an empty plan, writes nothing, commits nothing. Test: run twi
 | 3 | add `schema_type_matches`, `canonical_schema_claim`, `is_builtin_repo`; canonical stays legacy; no `DEFS`/writer change | step 5's output is unreadable by the same binary: `unknown-type-claim` per member |
 | 4 | add `au migrate identity`, tested on a tempdir git fixture and with `--dry-run` twice | the move becomes a hand `mv` + `sed`, with no clean-tree refusal and no per-repo commit |
 | 5 | migrate one leaf member (`tb-type-system`), then the monorepo one commit per repo, then the vault | — the one step the *previous* binary cannot read |
-| 6 | gate `au_diagnostics == 0`, `graph_health.broken_links == 0`, golden reads unchanged | a partial migration ships "green" because each repo alone is consistent |
+| 6 | gate `tb_diagnostics == 0`, `graph_health.broken_links == 0`, golden reads unchanged | a partial migration ships "green" because each repo alone is consistent |
 | 7 | release 2: flip `CREATE_IDENTITY_DIR`, rename `DEFS`, `BUILTIN_ENGINE_REPO = "tb-engine"`, writers emit new, canonicalizer maps legacy → new; re-bless snapshots | writers keep emitting a dead spelling and the format never converges |
 | 8 | release 3: drop the legacy spelling, with a diagnostic naming `au migrate identity` | a hard failure with no pointer to the fix |
 
 **Compatibility.** Steps 1-4 change no file, so the previous binary reads them. Step 5 is the format change: the previous
 binary refuses a migrated tree (it looks for `.arsumbris/repo.yaml`, and would ingest `.2brain/repo.yaml` as a note — loud,
-non-destructive, `au_diagnostics > 0`). Order: install release 1, then migrate; rollback = `git revert` the migration commit
+non-destructive, `tb_diagnostics > 0`). Order: install release 1, then migrate; rollback = `git revert` the migration commit
 **and** reinstall the old binary. The tier-B `symlink .arsumbris -> .2brain` does **not** transfer: the walk floors by
 *name*, so the old binary walks the new name as content.
 

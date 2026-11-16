@@ -207,7 +207,7 @@ struct FilesArguments {
     offset: usize,
 }
 
-/// One operation inside `au_batch`. Each carries its own freshness hash: the
+/// One operation inside `tb_batch`. Each carries its own freshness hash: the
 /// batch is one engine saga, but every file in it still passed the same gate it
 /// would pass alone.
 // The variant names ARE the wire tags (`write_file`, `edit_file`, `delete_file`),
@@ -222,7 +222,7 @@ enum BatchOperation {
         path: String,
         /// Full file text.
         content: String,
-        /// Hash of `path` from its au_content read.
+        /// Hash of `path` from its tb_content read.
         #[schemars(length(min = 1))]
         expected_hash: String,
     },
@@ -235,7 +235,7 @@ enum BatchOperation {
         /// Replace every occurrence instead of requiring a unique match.
         #[serde(default)]
         replace_all: bool,
-        /// Hash of `path` from its au_content read.
+        /// Hash of `path` from its tb_content read.
         #[schemars(length(min = 1))]
         expected_hash: String,
     },
@@ -243,7 +243,7 @@ enum BatchOperation {
         /// Path relative to the member root.
         #[schemars(length(min = 1))]
         path: String,
-        /// Hash of `path` from its au_content read.
+        /// Hash of `path` from its tb_content read.
         #[schemars(length(min = 1))]
         expected_hash: String,
     },
@@ -581,7 +581,7 @@ enum PayloadMode {
 enum ToolProfile {
     /// Full descriptions, schemas, and output schemas for every tool.
     Full,
-    /// One line per tool, no output schema; `au_describe_tool` serves the rest.
+    /// One line per tool, no output schema; `tb_describe_tool` serves the rest.
     Concise,
 }
 
@@ -653,12 +653,12 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("overview"),
     )]
-    async fn au_overview(
+    async fn tb_overview(
         &self,
         _arguments: Parameters<EmptyArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.read(json!({"id": 1}), "au_overview", ctx).await
+        self.read(json!({"id": 1}), "tb_overview", ctx).await
     }
 
     #[tool(
@@ -670,12 +670,12 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("top_level_dirs"),
     )]
-    async fn au_top_level_dirs(
+    async fn tb_top_level_dirs(
         &self,
         _arguments: Parameters<EmptyArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.read(json!({"id": 1}), "au_top_level_dirs", ctx).await
+        self.read(json!({"id": 1}), "tb_top_level_dirs", ctx).await
     }
 
     #[tool(
@@ -687,12 +687,12 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("type_tree"),
     )]
-    async fn au_type_tree(
+    async fn tb_type_tree(
         &self,
         _arguments: Parameters<EmptyArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.read(json!({"id": 1}), "au_type_tree", ctx).await
+        self.read(json!({"id": 1}), "tb_type_tree", ctx).await
     }
 
     #[tool(
@@ -704,7 +704,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("type"),
     )]
-    async fn au_type(
+    async fn tb_type(
         &self,
         Parameters(args): Parameters<TypeArguments>,
         ctx: RequestContext<RoleServer>,
@@ -719,7 +719,7 @@ impl Server {
             Some(repo) if !args.name.contains("::") => format!("{}::{repo}", args.name),
             _ => args.name,
         };
-        self.read(json!({"id": 1, "name": name}), "au_type", ctx)
+        self.read(json!({"id": 1, "name": name}), "tb_type", ctx)
             .await
     }
 
@@ -732,7 +732,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("types"),
     )]
-    async fn au_types(
+    async fn tb_types(
         &self,
         Parameters(args): Parameters<TypesArguments>,
         ctx: RequestContext<RoleServer>,
@@ -747,7 +747,7 @@ impl Server {
         if let Some(repo) = args.repo {
             request["repo"] = json!(repo);
         }
-        self.read(request, "au_types", ctx).await
+        self.read(request, "tb_types", ctx).await
     }
 
     #[tool(
@@ -759,7 +759,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("hubs"),
     )]
-    async fn au_hubs(
+    async fn tb_hubs(
         &self,
         Parameters(args): Parameters<HubsArguments>,
         ctx: RequestContext<RoleServer>,
@@ -782,7 +782,7 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "au_hubs", ctx).await
+        self.read(request, "tb_hubs", ctx).await
     }
 
     #[tool(
@@ -794,7 +794,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("diagnostics"),
     )]
-    async fn au_diagnostics(
+    async fn tb_diagnostics(
         &self,
         Parameters(args): Parameters<DiagnosticsArguments>,
         ctx: RequestContext<RoleServer>,
@@ -826,7 +826,7 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "au_diagnostics", ctx).await
+        self.read(request, "tb_diagnostics", ctx).await
     }
 
     #[tool(
@@ -838,7 +838,7 @@ impl Server {
         ),
         output_schema = crate::schemas::subtypes_schema(),
     )]
-    async fn au_subtypes(
+    async fn tb_subtypes(
         &self,
         Parameters(args): Parameters<SubtypesArguments>,
         ctx: RequestContext<RoleServer>,
@@ -853,7 +853,7 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "au_subtypes", ctx).await
+        self.read(request, "tb_subtypes", ctx).await
     }
 
     #[tool(
@@ -865,7 +865,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("members"),
     )]
-    async fn au_members(
+    async fn tb_members(
         &self,
         Parameters(args): Parameters<MembersArguments>,
         ctx: RequestContext<RoleServer>,
@@ -877,7 +877,7 @@ impl Server {
         if let Some(repo) = args.repo {
             request["repo"] = json!(repo);
         }
-        self.read(request, "au_members", ctx).await
+        self.read(request, "tb_members", ctx).await
     }
 
     #[tool(
@@ -889,7 +889,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("imports"),
     )]
-    async fn au_imports(
+    async fn tb_imports(
         &self,
         Parameters(args): Parameters<ImportsArguments>,
         ctx: RequestContext<RoleServer>,
@@ -901,7 +901,7 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "au_imports", ctx).await
+        self.read(request, "tb_imports", ctx).await
     }
 
     #[tool(
@@ -913,7 +913,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("files"),
     )]
-    async fn au_files(
+    async fn tb_files(
         &self,
         Parameters(args): Parameters<FilesArguments>,
         ctx: RequestContext<RoleServer>,
@@ -936,11 +936,11 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "au_files", ctx).await
+        self.read(request, "tb_files", ctx).await
     }
 
     #[tool(
-        description = "Wait for the next change to the workspace, up to timeout_ms (default 10000, max 30000). Returns the net file delta the engine reports for the first rebuild after the call: added, removed, and modified paths, plus the version. A timeout is an ordinary answer (timed_out true), not an error — call it again to keep watching. It holds the tool call for that long, so keep the timeout short; a client that cannot wait at all should poll au_files and diff on its side.",
+        description = "Wait for the next change to the workspace, up to timeout_ms (default 10000, max 30000). Returns the net file delta the engine reports for the first rebuild after the call: added, removed, and modified paths, plus the version. A timeout is an ordinary answer (timed_out true), not an error — call it again to keep watching. It holds the tool call for that long, so keep the timeout short; a client that cannot wait at all should poll tb_files and diff on its side.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -948,7 +948,7 @@ impl Server {
         ),
         output_schema = crate::schemas::watch_schema(),
     )]
-    async fn au_watch(
+    async fn tb_watch(
         &self,
         Parameters(args): Parameters<WatchArguments>,
         ctx: RequestContext<RoleServer>,
@@ -976,7 +976,7 @@ impl Server {
         ),
         output_schema = crate::schemas::rollback_preview_schema(),
     )]
-    async fn au_rollback_preview(
+    async fn tb_rollback_preview(
         &self,
         Parameters(args): Parameters<RollbackPreviewArguments>,
         ctx: RequestContext<RoleServer>,
@@ -992,7 +992,7 @@ impl Server {
             "repo": args.repo,
             "commit": args.commit,
         });
-        self.read(request, "au_rollback_preview", ctx).await
+        self.read(request, "tb_rollback_preview", ctx).await
     }
 
     #[tool(
@@ -1004,7 +1004,7 @@ impl Server {
         ),
         output_schema = crate::schemas::graph_health_schema(),
     )]
-    async fn au_graph_health(
+    async fn tb_graph_health(
         &self,
         Parameters(args): Parameters<GraphHealthArguments>,
         ctx: RequestContext<RoleServer>,
@@ -1027,7 +1027,7 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "au_graph_health", ctx).await
+        self.read(request, "tb_graph_health", ctx).await
     }
 
     #[tool(
@@ -1039,7 +1039,7 @@ impl Server {
         ),
         output_schema = crate::schemas::grep_schema(),
     )]
-    async fn au_grep(
+    async fn tb_grep(
         &self,
         Parameters(args): Parameters<GrepArguments>,
         ctx: RequestContext<RoleServer>,
@@ -1073,11 +1073,11 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "au_grep", ctx).await
+        self.read(request, "tb_grep", ctx).await
     }
 
     #[tool(
-        description = "Rank notes by relevance to a query instead of scanning them. BM25 over each note's body and its frontmatter description, with the description weighted higher; the answer carries matches (path, score, matched_terms), the total, and paging. exact requires every term and is the way to find a punctuation token or a two-word phrase exactly. min_should_match defaults to all terms for one or two terms and to two above that, so a three-word query is not an OR over a third of the vault. Use au_grep when you need the literal line, and this when you need the right notes.",
+        description = "Rank notes by relevance to a query instead of scanning them. BM25 over each note's body and its frontmatter description, with the description weighted higher; the answer carries matches (path, score, matched_terms), the total, and paging. exact requires every term and is the way to find a punctuation token or a two-word phrase exactly. min_should_match defaults to all terms for one or two terms and to two above that, so a three-word query is not an OR over a third of the vault. Use tb_grep when you need the literal line, and this when you need the right notes.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -1085,7 +1085,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("search"),
     )]
-    async fn au_search(
+    async fn tb_search(
         &self,
         Parameters(args): Parameters<SearchArguments>,
         ctx: RequestContext<RoleServer>,
@@ -1122,7 +1122,7 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "au_search", ctx).await
+        self.read(request, "tb_search", ctx).await
     }
 
     #[tool(
@@ -1134,7 +1134,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("content"),
     )]
-    async fn au_content(
+    async fn tb_content(
         &self,
         Parameters(args): Parameters<ContentArguments>,
         ctx: RequestContext<RoleServer>,
@@ -1174,7 +1174,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Write one member's file text after a successful au_content read of the same path. expected_hash is required and must equal the hash returned by that read; a stale or missing read is rejected without writing. The member must be editable. A transport failure after the request is sent is reported as outcome_unknown and must not be retried blindly; an engine rejection means nothing was written. Writing invalidates the recorded read, so read again before another write.",
+        description = "Write one member's file text after a successful tb_content read of the same path. expected_hash is required and must equal the hash returned by that read; a stale or missing read is rejected without writing. The member must be editable. A transport failure after the request is sent is reported as outcome_unknown and must not be retried blindly; an engine rejection means nothing was written. Writing invalidates the recorded read, so read again before another write.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1182,14 +1182,14 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_write_file(
+    async fn tb_write_file(
         &self,
         Parameters(args): Parameters<WriteArguments>,
         _ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
         let expected_hash = args.expected_hash.clone();
         self.guarded_mutation(
-            "au_write_file",
+            "tb_write_file",
             args.repo,
             args.path,
             args.expected_hash,
@@ -1207,7 +1207,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Replace one exact string in a member's file after a successful au_content read of the same path. expected_hash must equal the hash that read returned. old_string must match exactly and uniquely unless replace_all is true; the engine rejects a miss or a non-unique match without writing. Unknown outcomes are reported as outcome_unknown and must not be retried blindly.",
+        description = "Replace one exact string in a member's file after a successful tb_content read of the same path. expected_hash must equal the hash that read returned. old_string must match exactly and uniquely unless replace_all is true; the engine rejects a miss or a non-unique match without writing. Unknown outcomes are reported as outcome_unknown and must not be retried blindly.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1215,13 +1215,13 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_edit_file(
+    async fn tb_edit_file(
         &self,
         Parameters(args): Parameters<EditArguments>,
         _ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
         self.guarded_mutation(
-            "au_edit_file",
+            "tb_edit_file",
             args.repo,
             args.path,
             args.expected_hash,
@@ -1240,7 +1240,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Delete one member's file after a successful au_content read of the same path. expected_hash must equal the hash that read returned. The engine rejects an absent file and refuses to delete a path with uncommitted changes. Unknown outcomes are reported as outcome_unknown and must not be retried blindly.",
+        description = "Delete one member's file after a successful tb_content read of the same path. expected_hash must equal the hash that read returned. The engine rejects an absent file and refuses to delete a path with uncommitted changes. Unknown outcomes are reported as outcome_unknown and must not be retried blindly.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1248,14 +1248,14 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_delete_file(
+    async fn tb_delete_file(
         &self,
         Parameters(args): Parameters<DeleteArguments>,
         _ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
         let expected_hash = args.expected_hash.clone();
         self.guarded_mutation(
-            "au_delete_file",
+            "tb_delete_file",
             args.repo,
             args.path,
             args.expected_hash,
@@ -1272,7 +1272,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Apply 1 to 50 file operations (write_file, edit_file, delete_file) as one all-or-nothing saga: every op passed the same gate it would pass alone (prior au_content read of that path, matching expected_hash, editable member), the engine commits the whole set once per touched member, and any rejection leaves every file as it was. Use it when a change spans files and half of it landing would be worse than none. A lost reply is outcome_unknown and must not be retried blindly.",
+        description = "Apply 1 to 50 file operations (write_file, edit_file, delete_file) as one all-or-nothing saga: every op passed the same gate it would pass alone (prior tb_content read of that path, matching expected_hash, editable member), the engine commits the whole set once per touched member, and any rejection leaves every file as it was. Use it when a change spans files and half of it landing would be worse than none. A lost reply is outcome_unknown and must not be retried blindly.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1280,7 +1280,7 @@ impl Server {
         ),
         output_schema = crate::schemas::batch_schema(),
     )]
-    async fn au_batch(
+    async fn tb_batch(
         &self,
         Parameters(args): Parameters<BatchArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -1304,7 +1304,7 @@ impl Server {
                 Err(denial) => {
                     self.audit.record(
                         &self.principal,
-                        "au_batch",
+                        "tb_batch",
                         &repo,
                         &format!("denied:{}", denial.stage.name()),
                     );
@@ -1354,11 +1354,11 @@ impl Server {
             })
             .collect();
         let request = json!({"mutate": "batch", "id": 1, "ops": ops});
-        self.finish_mutation("au_batch", &repo, request, keys).await
+        self.finish_mutation("tb_batch", &repo, request, keys).await
     }
 
     #[tool(
-        description = "Create a new file in a member. The path must not exist: the server reads it first and refuses with 'already exists' rather than overwriting, so changing an existing file goes through au_write_file. Writes commit like any other mutation; a lost reply is outcome_unknown and must not be retried blindly.",
+        description = "Create a new file in a member. The path must not exist: the server reads it first and refuses with 'already exists' rather than overwriting, so changing an existing file goes through tb_write_file. Writes commit like any other mutation; a lost reply is outcome_unknown and must not be retried blindly.",
         annotations(
             read_only_hint = false,
             destructive_hint = false,
@@ -1366,7 +1366,7 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_create_file(
+    async fn tb_create_file(
         &self,
         Parameters(args): Parameters<CreateArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -1377,7 +1377,7 @@ impl Server {
             Err(denial) => {
                 self.audit.record(
                     &self.principal,
-                    "au_create_file",
+                    "tb_create_file",
                     &repo,
                     &format!("denied:{}", denial.stage.name()),
                 );
@@ -1390,7 +1390,7 @@ impl Server {
             "path": prepared.target,
             "content": args.content,
         });
-        self.finish_mutation("au_create_file", &repo, request, [prepared.key])
+        self.finish_mutation("tb_create_file", &repo, request, [prepared.key])
             .await
     }
 
@@ -1403,7 +1403,7 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_add_workspace_member(
+    async fn tb_add_workspace_member(
         &self,
         Parameters(args): Parameters<AddWorkspaceMemberArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -1420,7 +1420,7 @@ impl Server {
         if let Some(hash) = args.expected_hash {
             request["expected_hash"] = json!(hash);
         }
-        self.workspace_mutation("au_add_workspace_member", args.repo, request)
+        self.workspace_mutation("tb_add_workspace_member", args.repo, request)
             .await
     }
 
@@ -1433,7 +1433,7 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_remove_workspace_member(
+    async fn tb_remove_workspace_member(
         &self,
         Parameters(args): Parameters<RemoveWorkspaceMemberArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -1449,7 +1449,7 @@ impl Server {
         if let Some(hash) = args.expected_hash {
             request["expected_hash"] = json!(hash);
         }
-        self.workspace_mutation("au_remove_workspace_member", args.repo, request)
+        self.workspace_mutation("tb_remove_workspace_member", args.repo, request)
             .await
     }
 
@@ -1462,7 +1462,7 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_set_workspace_member_role(
+    async fn tb_set_workspace_member_role(
         &self,
         Parameters(args): Parameters<SetWorkspaceMemberRoleArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -1479,12 +1479,12 @@ impl Server {
         if let Some(hash) = args.expected_hash {
             request["expected_hash"] = json!(hash);
         }
-        self.workspace_mutation("au_set_workspace_member_role", args.repo, request)
+        self.workspace_mutation("tb_set_workspace_member_role", args.repo, request)
             .await
     }
 
     #[tool(
-        description = "Fold one file into a referrer as an inline record and delete it, as one saga: the chosen [[path]] becomes the record, other whole-file links become local or host refs, and nested ids travel. Needs a prior au_content read of both files and their hashes; a multi-reference host needs `at`.",
+        description = "Fold one file into a referrer as an inline record and delete it, as one saga: the chosen [[path]] becomes the record, other whole-file links become local or host refs, and nested ids travel. Needs a prior tb_content read of both files and their hashes; a multi-reference host needs `at`.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1492,7 +1492,7 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_inline(
+    async fn tb_inline(
         &self,
         Parameters(args): Parameters<InlineArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -1517,7 +1517,7 @@ impl Server {
             Err(denial) => {
                 self.audit.record(
                     &self.principal,
-                    "au_inline",
+                    "tb_inline",
                     &repo,
                     &format!("denied:{}", denial.stage.name()),
                 );
@@ -1534,7 +1534,7 @@ impl Server {
             request["at"] = json!(at);
         }
         self.finish_mutation(
-            "au_inline",
+            "tb_inline",
             &repo,
             request,
             [prepared_path.key, prepared_into.key],
@@ -1543,7 +1543,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Lift an inline record into its own file and leave a reference where it sat, as one saga: every [[host^id]] referrer follows to the new file, nested ids travel, and the format follows the extension (.md fences the YAML, .yaml does not). Locate the record with `at` or `block_id`, not both. Needs a prior au_content read of the host.",
+        description = "Lift an inline record into its own file and leave a reference where it sat, as one saga: every [[host^id]] referrer follows to the new file, nested ids travel, and the format follows the extension (.md fences the YAML, .yaml does not). Locate the record with `at` or `block_id`, not both. Needs a prior tb_content read of the host.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1551,7 +1551,7 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_promote(
+    async fn tb_promote(
         &self,
         Parameters(args): Parameters<PromoteArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -1581,7 +1581,7 @@ impl Server {
             Err(denial) => {
                 self.audit.record(
                     &self.principal,
-                    "au_promote",
+                    "tb_promote",
                     &repo,
                     &format!("denied:{}", denial.stage.name()),
                 );
@@ -1606,12 +1606,12 @@ impl Server {
         if let Some(block_id) = args.block_id {
             request["block_id"] = json!(block_id);
         }
-        self.finish_mutation("au_promote", &repo, request, [prepared.key])
+        self.finish_mutation("tb_promote", &repo, request, [prepared.key])
             .await
     }
 
     #[tool(
-        description = "Rename a type-def and carry every reference with it, as one saga: the def file moves and claims, slot shapes, meta, and wikilinks follow. expected_hash is the type's hash from au_type, so a stale read cannot rename. The owning member must be allowed by policy.",
+        description = "Rename a type-def and carry every reference with it, as one saga: the def file moves and claims, slot shapes, meta, and wikilinks follow. expected_hash is the type's hash from tb_type, so a stale read cannot rename. The owning member must be allowed by policy.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1619,7 +1619,7 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_rename_type(
+    async fn tb_rename_type(
         &self,
         Parameters(args): Parameters<RenameTypeArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -1657,7 +1657,7 @@ impl Server {
             .unwrap_or_default();
         if current != args.expected_hash {
             return return_error(
-                "'expected_hash' does not match the hash returned by the last au_type read",
+                "'expected_hash' does not match the hash returned by the last tb_type read",
             );
         }
         let owner = definition
@@ -1668,7 +1668,7 @@ impl Server {
         if !self.policy.permits_member(&owner) {
             self.audit.record(
                 &self.principal,
-                "au_rename_type",
+                "tb_rename_type",
                 &owner,
                 "denied:member_grant",
             );
@@ -1687,17 +1687,17 @@ impl Server {
         {
             Ok(result) => {
                 self.audit
-                    .record(&self.principal, "au_rename_type", &owner, "applied");
+                    .record(&self.principal, "tb_rename_type", &owner, "applied");
                 success_result(result, self.payload)
             }
             Err(MutationFailure::Rejected(error)) => {
                 self.audit
-                    .record(&self.principal, "au_rename_type", &owner, "rejected");
+                    .record(&self.principal, "tb_rename_type", &owner, "rejected");
                 return_error(error)
             }
             Err(MutationFailure::Unknown(error)) => {
                 self.audit
-                    .record(&self.principal, "au_rename_type", &owner, "outcome_unknown");
+                    .record(&self.principal, "tb_rename_type", &owner, "outcome_unknown");
                 return_error(format!(
                     "outcome_unknown: {error}. The rename may have landed; read the type again before retrying."
                 ))
@@ -1714,7 +1714,7 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_add_dep(
+    async fn tb_add_dep(
         &self,
         Parameters(args): Parameters<AddDepArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -1736,7 +1736,7 @@ impl Server {
         if let Some(hash) = args.expected_hash {
             request["expected_hash"] = json!(hash);
         }
-        self.composition_mutation("au_add_dep", args.repo, request)
+        self.composition_mutation("tb_add_dep", args.repo, request)
             .await
     }
 
@@ -1749,7 +1749,7 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_remove_dep(
+    async fn tb_remove_dep(
         &self,
         Parameters(args): Parameters<RemoveDepArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -1765,12 +1765,12 @@ impl Server {
         if let Some(hash) = args.expected_hash {
             request["expected_hash"] = json!(hash);
         }
-        self.composition_mutation("au_remove_dep", args.repo, request)
+        self.composition_mutation("tb_remove_dep", args.repo, request)
             .await
     }
 
     #[tool(
-        description = "Mint a block id for the entity at a byte offset and return the id and its [[target^id]] ref. Inline records gain a ^: key, markdown blocks a trailing ^marker. Assigning to an entity that already has one returns the existing id and writes nothing. Requires a prior au_content read and its hash; one mutation at a time.",
+        description = "Mint a block id for the entity at a byte offset and return the id and its [[target^id]] ref. Inline records gain a ^: key, markdown blocks a trailing ^marker. Assigning to an entity that already has one returns the existing id and writes nothing. Requires a prior tb_content read and its hash; one mutation at a time.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1778,14 +1778,14 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_assign_block_id(
+    async fn tb_assign_block_id(
         &self,
         Parameters(args): Parameters<AssignBlockIdArguments>,
         _ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
         let at = args.at;
         self.guarded_mutation(
-            "au_assign_block_id",
+            "tb_assign_block_id",
             args.repo,
             args.path,
             args.expected_hash,
@@ -1795,7 +1795,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Rename an inline record's block id and carry every referrer with it: the ^: declaration and each [[host^id]] / [[^id]] rewrite as one mutation. Only inline records are renamed; a body marker is refused. Requires a prior au_content read of the host and its hash.",
+        description = "Rename an inline record's block id and carry every referrer with it: the ^: declaration and each [[host^id]] / [[^id]] rewrite as one mutation. Only inline records are renamed; a body marker is refused. Requires a prior tb_content read of the host and its hash.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1803,7 +1803,7 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_rename_block_id(
+    async fn tb_rename_block_id(
         &self,
         Parameters(args): Parameters<RenameBlockIdArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -1811,7 +1811,7 @@ impl Server {
         let block_id = args.block_id;
         let to_block_id = args.to_block_id;
         self.guarded_mutation(
-            "au_rename_block_id",
+            "tb_rename_block_id",
             args.repo,
             args.path,
             args.expected_hash,
@@ -1829,7 +1829,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Move a file inside its member and rewrite every inbound reference to the new name, preserving each referrer's spelling, fragments, and ::repo qualifier, all as one mutation. A commit-pinned referrer stays untouched. Refuses a type-def file (use au_rename_type), a name that already exists, and a cross-member target. Requires a prior au_content read and its hash.",
+        description = "Move a file inside its member and rewrite every inbound reference to the new name, preserving each referrer's spelling, fragments, and ::repo qualifier, all as one mutation. A commit-pinned referrer stays untouched. Refuses a type-def file (use tb_rename_type), a name that already exists, and a cross-member target. Requires a prior tb_content read and its hash.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1837,7 +1837,7 @@ impl Server {
         ),
         output_schema = crate::schemas::mutation_schema(),
     )]
-    async fn au_rename(
+    async fn tb_rename(
         &self,
         Parameters(args): Parameters<RenameArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -1855,7 +1855,7 @@ impl Server {
             Err(error) => return return_error(error),
         };
         self.guarded_mutation(
-            "au_rename",
+            "tb_rename",
             repo,
             args.path,
             args.expected_hash,
@@ -1873,7 +1873,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("preview_mutation"),
     )]
-    async fn au_preview_mutation(
+    async fn tb_preview_mutation(
         &self,
         Parameters(args): Parameters<PreviewArguments>,
         ctx: RequestContext<RoleServer>,
@@ -1955,7 +1955,7 @@ impl Server {
         tokio::select! {
             biased;
             _ = ctx.ct.cancelled() => CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]),
-            result = self.read_with_timeout(request, "au_preview_mutation", ENGINE_READ_TIMEOUT) => result,
+            result = self.read_with_timeout(request, "tb_preview_mutation", ENGINE_READ_TIMEOUT) => result,
         }
     }
 
@@ -1968,7 +1968,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("tools"),
     )]
-    async fn au_search_tools(
+    async fn tb_search_tools(
         &self,
         Parameters(args): Parameters<SearchToolsArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -1992,7 +1992,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Get one tool's full definition: description, input and output schemas, and annotations. Use it after au_search_tools, or when a tool's one-line description is not enough.",
+        description = "Get one tool's full definition: description, input and output schemas, and annotations. Use it after tb_search_tools, or when a tool's one-line description is not enough.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -2000,7 +2000,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("tool"),
     )]
-    async fn au_describe_tool(
+    async fn tb_describe_tool(
         &self,
         Parameters(args): Parameters<DescribeToolArguments>,
         _ctx: RequestContext<RoleServer>,
@@ -2014,7 +2014,7 @@ impl Server {
             .find(|tool| tool.name.as_ref() == args.name)
         else {
             return CallToolResult::error(vec![ContentBlock::text(format!(
-                "unknown tool '{}'; call au_search_tools or tools/list to see what this launch exposes",
+                "unknown tool '{}'; call tb_search_tools or tools/list to see what this launch exposes",
                 args.name
             ))]);
         };
@@ -2038,7 +2038,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("instances_of"),
     )]
-    async fn au_instances_of(
+    async fn tb_instances_of(
         &self,
         Parameters(args): Parameters<InstancesOfArguments>,
         ctx: RequestContext<RoleServer>,
@@ -2065,7 +2065,7 @@ impl Server {
                 .collect();
             request["origins"] = json!(origins);
         }
-        let result = self.read(request, "au_instances_of", ctx).await;
+        let result = self.read(request, "tb_instances_of", ctx).await;
         match (args.limit, args.offset) {
             (None, None) => result,
             (limit, offset) => page_instances(result, limit, offset.unwrap_or(0), self.payload),
@@ -2081,7 +2081,7 @@ impl Server {
         ),
         output_schema = crate::schemas::follow_schema(),
     )]
-    async fn au_follow(
+    async fn tb_follow(
         &self,
         Parameters(args): Parameters<FollowArguments>,
         ctx: RequestContext<RoleServer>,
@@ -2180,7 +2180,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Classify a path: a typed instance (with its claim, whether it resolves, and its closure), a type-def, or a plain note. Use it before au_resolved or au_references, which return null or [] on a non-instance.",
+        description = "Classify a path: a typed instance (with its claim, whether it resolves, and its closure), a type-def, or a plain note. Use it before tb_resolved or tb_references, which return null or [] on a non-instance.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -2188,7 +2188,7 @@ impl Server {
         ),
         output_schema = crate::schemas::typed_schema(),
     )]
-    async fn au_typed(
+    async fn tb_typed(
         &self,
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
@@ -2262,12 +2262,12 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("instance"),
     )]
-    async fn au_resolved(
+    async fn tb_resolved(
         &self,
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.file_read(args, "au_resolved", ctx).await
+        self.file_read(args, "tb_resolved", ctx).await
     }
 
     #[tool(
@@ -2279,7 +2279,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("dir_entries"),
     )]
-    async fn au_children(
+    async fn tb_children(
         &self,
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
@@ -2303,7 +2303,7 @@ impl Server {
             let dir = absolute_member_path(self.transport.as_ref(), &args.repo, &args.path).await?;
             read_for(
                 self.transport.as_ref(),
-                "au_children",
+                "tb_children",
                 json!({"id": 1, "dir": dir}),
             )
             .await
@@ -2328,12 +2328,12 @@ impl Server {
         ),
         output_schema = crate::schemas::instances_schema(),
     )]
-    async fn au_instances(
+    async fn tb_instances(
         &self,
         Parameters(args): Parameters<PageArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        let result = self.read(json!({"id": 1}), "au_instances", ctx).await;
+        let result = self.read(json!({"id": 1}), "tb_instances", ctx).await;
         match (args.limit, args.offset) {
             (None, None) => result,
             (limit, offset) => page_array(
@@ -2355,7 +2355,7 @@ impl Server {
         ),
         output_schema = crate::schemas::candidates_schema(),
     )]
-    async fn au_candidates(
+    async fn tb_candidates(
         &self,
         Parameters(args): Parameters<CandidatesArguments>,
         ctx: RequestContext<RoleServer>,
@@ -2370,7 +2370,7 @@ impl Server {
         if let Some(offset) = args.offset {
             request["offset"] = json!(offset);
         }
-        self.read(request, "au_candidates", ctx).await
+        self.read(request, "tb_candidates", ctx).await
     }
 
     #[tool(
@@ -2382,12 +2382,12 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("semantic_tokens"),
     )]
-    async fn au_semantic_tokens(
+    async fn tb_semantic_tokens(
         &self,
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.file_read(args, "au_semantic_tokens", ctx).await
+        self.file_read(args, "tb_semantic_tokens", ctx).await
     }
 
     #[tool(
@@ -2399,12 +2399,12 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("resolve_member"),
     )]
-    async fn au_resolve_member(
+    async fn tb_resolve_member(
         &self,
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.file_read(args, "au_resolve_member", ctx).await
+        self.file_read(args, "tb_resolve_member", ctx).await
     }
 
     #[tool(
@@ -2416,12 +2416,12 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("frontmatter"),
     )]
-    async fn au_frontmatter(
+    async fn tb_frontmatter(
         &self,
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.file_read(args, "au_frontmatter", ctx).await
+        self.file_read(args, "tb_frontmatter", ctx).await
     }
 
     #[tool(
@@ -2433,12 +2433,12 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("anchors"),
     )]
-    async fn au_anchors(
+    async fn tb_anchors(
         &self,
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.target_read(args, "au_anchors", ctx).await
+        self.target_read(args, "tb_anchors", ctx).await
     }
 
     #[tool(
@@ -2450,12 +2450,12 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("block_ids"),
     )]
-    async fn au_block_ids(
+    async fn tb_block_ids(
         &self,
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.target_read(args, "au_block_ids", ctx).await
+        self.target_read(args, "tb_block_ids", ctx).await
     }
 
     #[tool(
@@ -2467,7 +2467,7 @@ impl Server {
         ),
         output_schema = crate::schemas::references_schema(),
     )]
-    async fn au_references(
+    async fn tb_references(
         &self,
         Parameters(args): Parameters<ReferencesArguments>,
         ctx: RequestContext<RoleServer>,
@@ -2540,7 +2540,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("neighborhood"),
     )]
-    async fn au_neighborhood(
+    async fn tb_neighborhood(
         &self,
         Parameters(args): Parameters<NeighborhoodArguments>,
         ctx: RequestContext<RoleServer>,
@@ -2599,7 +2599,7 @@ impl Server {
         if let Some(max_nodes) = args.max_nodes {
             request["max_nodes"] = json!(max_nodes);
         }
-        self.read(request, "au_neighborhood", ctx).await
+        self.read(request, "tb_neighborhood", ctx).await
     }
 
     #[tool(
@@ -2611,7 +2611,7 @@ impl Server {
         ),
         output_schema = crate::schemas::envelope_schema("validate_value"),
     )]
-    async fn au_validate_value(
+    async fn tb_validate_value(
         &self,
         Parameters(args): Parameters<ValidateValueArguments>,
         ctx: RequestContext<RoleServer>,
@@ -2632,11 +2632,11 @@ impl Server {
         if let Some(repo) = args.repo {
             request["repo"] = json!(repo);
         }
-        self.read(request, "au_validate_value", ctx).await
+        self.read(request, "tb_validate_value", ctx).await
     }
 
     #[tool(
-        description = "Check what actually happened after an outcome_unknown mutation. Give the 16-hex-character hash the interrupted write should have produced, or expect_absent for a delete; a value that is not a digest is refused rather than compared. Returns outcome applied or not_applied with the file's current hash and commit; a not_applied answer re-arms the read-before-write guard with the current hash, so the caller can decide whether to retry. If you do not know the expected digest, read the file with au_content and compare the text instead. This is a read: it never writes.",
+        description = "Check what actually happened after an outcome_unknown mutation. Give the 16-hex-character hash the interrupted write should have produced, or expect_absent for a delete; a value that is not a digest is refused rather than compared. Returns outcome applied or not_applied with the file's current hash and commit; a not_applied answer re-arms the read-before-write guard with the current hash, so the caller can decide whether to retry. If you do not know the expected digest, read the file with tb_content and compare the text instead. This is a read: it never writes.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -2644,7 +2644,7 @@ impl Server {
         ),
         output_schema = crate::schemas::reconcile_schema(),
     )]
-    async fn au_reconcile(
+    async fn tb_reconcile(
         &self,
         Parameters(args): Parameters<ReconcileArguments>,
         ctx: RequestContext<RoleServer>,
@@ -2665,14 +2665,14 @@ impl Server {
             // sends the string "null" would be told the write did not land when it did.
             (Some(hash), false) => {
                 return CallToolResult::error(vec![ContentBlock::text(format!(
-                    "'expected_hash' must be the 16-hex-character digest au_content returns, got {hash:?};                      for a delete pass 'expect_absent': true, and if the digest is unknown read the                      file with au_content and compare the text instead"
+                    "'expected_hash' must be the 16-hex-character digest tb_content returns, got {hash:?};                      for a delete pass 'expect_absent': true, and if the digest is unknown read the                      file with tb_content and compare the text instead"
                 ))]);
             }
             (None, true) => None,
             _ => {
                 return CallToolResult::error(vec![ContentBlock::text(
                     "give exactly one of a nonempty 'expected_hash' or 'expect_absent': true; \
-                     if you do not know the digest, read the file with au_content and compare \
+                     if you do not know the digest, read the file with tb_content and compare \
                      the text instead, because reconcile can only compare against an expectation",
                 )]);
             }
@@ -2877,7 +2877,7 @@ impl Server {
         if read.payload.get("content").is_some_and(|c| !c.is_null()) {
             return Err(Denial::new(
                 policy::Stage::Absence,
-                "file already exists; use au_write_file to change it",
+                "file already exists; use tb_write_file to change it",
             ));
         }
         let target = resolve_editable(self.transport.as_ref(), repo, path)
@@ -2963,7 +2963,7 @@ impl Server {
             false => format!(" Tool '{name}' requires: {required}."),
         };
         result.content = vec![ContentBlock::text(format!(
-            "{text}.{hint} Call au_describe_tool {{\"name\":\"{name}\"}} for the full schema."
+            "{text}.{hint} Call tb_describe_tool {{\"name\":\"{name}\"}} for the full schema."
         ))];
         CallToolResponse::Complete(result)
     }
@@ -3311,7 +3311,7 @@ impl ServerHandler for Server {
         let mut tools = self.visible_tools();
         if self.profile == ToolProfile::Concise {
             // One line per tool and no output schema: everything deeper comes
-            // back from au_describe_tool, so discovery stays cheap.
+            // back from tb_describe_tool, so discovery stays cheap.
             for tool in &mut tools {
                 tool.description = Some(first_sentence(tool.description.as_deref()).into());
                 tool.output_schema = None;
@@ -3481,7 +3481,7 @@ struct WriteArguments {
     path: String,
     /// Full replacement text.
     content: String,
-    /// Hash returned by the au_content read that this write is based on.
+    /// Hash returned by the tb_content read that this write is based on.
     #[schemars(length(min = 1))]
     expected_hash: String,
 }
@@ -3502,7 +3502,7 @@ struct EditArguments {
     /// Replace every exact occurrence.
     #[serde(default)]
     replace_all: bool,
-    /// Hash returned by the au_content read that this edit is based on.
+    /// Hash returned by the tb_content read that this edit is based on.
     #[schemars(length(min = 1))]
     expected_hash: String,
 }
@@ -3518,7 +3518,7 @@ struct AssignBlockIdArguments {
     path: String,
     /// Byte offset inside the file, from a span the server reported.
     at: u64,
-    /// Hash returned by the au_content read that this change is based on.
+    /// Hash returned by the tb_content read that this change is based on.
     #[schemars(length(min = 1))]
     expected_hash: String,
 }
@@ -3538,7 +3538,7 @@ struct RenameBlockIdArguments {
     /// The new id; must match the block-id grammar and be free in that file.
     #[schemars(length(min = 1))]
     to_block_id: String,
-    /// Hash returned by the au_content read that this change is based on.
+    /// Hash returned by the tb_content read that this change is based on.
     #[schemars(length(min = 1))]
     expected_hash: String,
 }
@@ -3552,10 +3552,10 @@ struct RenameArguments {
     /// Current path, relative to the member root.
     #[schemars(length(min = 1))]
     path: String,
-    /// New path in the same member; a type-def file must use au_rename_type.
+    /// New path in the same member; a type-def file must use tb_rename_type.
     #[schemars(length(min = 1))]
     to: String,
-    /// Hash returned by the au_content read that this change is based on.
+    /// Hash returned by the tb_content read that this change is based on.
     #[schemars(length(min = 1))]
     expected_hash: String,
 }
@@ -3638,10 +3638,10 @@ struct InlineArguments {
     /// Byte offset in `into` landing on the chosen [[path]] reference, required
     /// when `into` references it more than once.
     at: Option<u64>,
-    /// Hash of `path` from its au_content read.
+    /// Hash of `path` from its tb_content read.
     #[schemars(length(min = 1))]
     expected_hash: String,
-    /// Hash of `into` from its au_content read.
+    /// Hash of `into` from its tb_content read.
     #[schemars(length(min = 1))]
     into_expected_hash: String,
 }
@@ -3663,7 +3663,7 @@ struct PromoteArguments {
     at: Option<u64>,
     /// The record's block id; use this or `at`, not both.
     block_id: Option<String>,
-    /// Hash of `path` from its au_content read.
+    /// Hash of `path` from its tb_content read.
     #[schemars(length(min = 1))]
     expected_hash: String,
 }
@@ -3677,7 +3677,7 @@ struct RenameTypeArguments {
     /// The owner's new bare name; must not already name a type there.
     #[schemars(length(min = 1))]
     new_name: String,
-    /// The type's `hash` from au_type, so a stale read cannot rename.
+    /// The type's `hash` from tb_type, so a stale read cannot rename.
     #[schemars(length(min = 1))]
     expected_hash: String,
 }
@@ -3722,7 +3722,7 @@ struct DeleteArguments {
     /// Path relative to that member's root; absolute paths and `..` are rejected.
     #[schemars(length(min = 1))]
     path: String,
-    /// Hash returned by the au_content read that this delete is based on.
+    /// Hash returned by the tb_content read that this delete is based on.
     #[schemars(length(min = 1))]
     expected_hash: String,
 }
@@ -3835,7 +3835,7 @@ struct PreparedMutation {
 use policy::Denial;
 
 /// What a client should know before choosing a tool.
-const INSTRUCTIONS: &str = "Read-only access to an 2brain workspace, plus gated mutations. Every result is the engine's own result object under the read's key: au_overview answers {\"overview\": ...}, au_type answers {\"type\": ...}. Start with au_overview, then au_members for member roots, au_types and au_type for vocabulary, and au_files or au_content to locate text. Paged tools take limit and offset; au_type_tree, au_content, au_instances_of, and au_validate_value are unpaged and can return large answers. Mutations are disabled unless the operator granted them at launch; when enabled they need a prior au_content read of the same path and the hash it returned. A lost reply is outcome_unknown and must not be retried blindly; au_reconcile reports whether it landed.";
+const INSTRUCTIONS: &str = "Read-only access to an 2brain workspace, plus gated mutations. Every result is the engine's own result object under the read's key: tb_overview answers {\"overview\": ...}, tb_type answers {\"type\": ...}. Start with tb_overview, then tb_members for member roots, tb_types and tb_type for vocabulary, and tb_files or tb_content to locate text. Paged tools take limit and offset; tb_type_tree, tb_content, tb_instances_of, and tb_validate_value are unpaged and can return large answers. Mutations are disabled unless the operator granted them at launch; when enabled they need a prior tb_content read of the same path and the hash it returned. A lost reply is outcome_unknown and must not be retried blindly; tb_reconcile reports whether it landed.";
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -3941,7 +3941,7 @@ fn search_tools(
         .collect()
 }
 
-/// Lowercase word tokens; underscores and dots split so `au_content` matches
+/// Lowercase word tokens; underscores and dots split so `tb_content` matches
 /// "content" and `io.arsumbris` matches "2brain".
 fn tokenize(text: &str) -> Vec<String> {
     text.to_lowercase()
@@ -4009,7 +4009,7 @@ fn serves_request(context: &RequestContext<RoleServer>) -> bool {
             .is_some_and(|version| version.as_str() >= ProtocolVersion::V_2026_07_28.as_str())
 }
 
-/// The content hash reported by a successful `au_content` result.
+/// The content hash reported by a successful `tb_content` result.
 fn served_hash(result: &CallToolResult) -> Option<String> {
     let text = result.content.first()?.as_text()?.text.clone();
     let payload: Value = serde_json::from_str(&text).ok()?;
@@ -4246,7 +4246,7 @@ fn first_sentence(description: Option<&str>) -> String {
 }
 
 /// Reject a member-relative path that could escape the member root.
-/// An engine content hash: 16 lowercase hex characters. `au_content` returns it, and
+/// An engine content hash: 16 lowercase hex characters. `tb_content` returns it, and
 /// a mutation carries it back as `expected_hash`; anything else is not a digest and
 /// must not be compared as one.
 fn is_engine_hash(value: &str) -> bool {
@@ -4330,7 +4330,7 @@ OPTIONS
     -V, --version            Print the version, then exit
 
 SURFACE
-    Engine reads, two discovery helpers (au_search_tools, au_describe_tool), and
+    Engine reads, two discovery helpers (tb_search_tools, tb_describe_tool), and
     three mutating tools that exist only with a grant. Run --info for the live
     counts.
 
@@ -4563,15 +4563,15 @@ mod tests {
             );
         }
         assert_eq!(
-            capability::of("au_search_tools"),
+            capability::of("tb_search_tools"),
             Some(capability::Capability::Discover)
         );
         assert_eq!(
-            capability::of("au_describe_tool"),
+            capability::of("tb_describe_tool"),
             Some(capability::Capability::Discover)
         );
         assert_eq!(
-            capability::of("au_watch"),
+            capability::of("tb_watch"),
             Some(capability::Capability::Watch)
         );
         assert_eq!(capability::of("no_such_tool"), None);
@@ -4655,7 +4655,7 @@ mod tests {
         assert!(serde_json::from_value::<EmptyArguments>(json!({})).is_ok());
         assert!(serde_json::from_value::<EmptyArguments>(json!({"scope": "other"})).is_err());
         let router = Server::tool_router();
-        for name in ["au_overview", "au_top_level_dirs", "au_type_tree"] {
+        for name in ["tb_overview", "tb_top_level_dirs", "tb_type_tree"] {
             let tool = router.get(name).unwrap();
             assert_eq!(
                 tool.input_schema.get("additionalProperties"),
@@ -4667,7 +4667,7 @@ mod tests {
     #[test]
     fn type_schema_requires_nonempty_name_and_repo_when_present() {
         let router = Server::tool_router();
-        let schema = &router.get("au_type").unwrap().input_schema;
+        let schema = &router.get("tb_type").unwrap().input_schema;
         assert_eq!(schema["properties"]["name"]["minLength"], 1);
         let repo = &schema["properties"]["repo"];
         assert_eq!(repo["minLength"], 1);
@@ -4684,7 +4684,7 @@ mod tests {
             ("Type::member", Some(""), "'repo' must not be empty"),
         ] {
             let result = server
-                .au_type(
+                .tb_type(
                     Parameters(TypeArguments {
                         name: name.into(),
                         repo: repo.map(str::to_owned),
@@ -4726,7 +4726,7 @@ mod tests {
             let args: TypeArguments =
                 serde_json::from_value(json!({"name":name,"repo":repo})).unwrap();
             let result = test_server(path)
-                .au_type(Parameters(args), request_context())
+                .tb_type(Parameters(args), request_context())
                 .await;
             let result = serde_json::to_value(result).unwrap();
             assert_ne!(result["isError"], true);
@@ -4758,7 +4758,7 @@ mod tests {
         let router = Server::tool_router();
         assert_eq!(
             router
-                .get("au_types")
+                .get("tb_types")
                 .unwrap()
                 .input_schema
                 .get("additionalProperties"),
@@ -4923,7 +4923,7 @@ mod tests {
                 socket.write_all(&body).await.unwrap();
             });
             let result = test_server(path)
-                .au_types(
+                .tb_types(
                     Parameters(TypesArguments {
                         repo: None,
                         summary: true,
@@ -4959,7 +4959,7 @@ mod tests {
         let ctx = request_context();
         ctx.ct.cancel();
         let result = test_server(path)
-            .au_overview(Parameters(EmptyArguments {}), ctx)
+            .tb_overview(Parameters(EmptyArguments {}), ctx)
             .await;
         assert_eq!(serde_json::to_value(result).unwrap()["isError"], true);
         assert!(
@@ -4978,7 +4978,7 @@ mod tests {
         let cancel = ctx.ct.clone();
         let task = tokio::spawn(async move {
             test_server(path)
-                .au_overview(Parameters(EmptyArguments {}), ctx)
+                .tb_overview(Parameters(EmptyArguments {}), ctx)
                 .await
         });
         let (mut socket, _) = tokio::time::timeout(Duration::from_secs(1), listener.accept())
@@ -5033,7 +5033,7 @@ mod tests {
         });
         let server = test_server(path);
         let result = server
-            .read_with_timeout(json!({"id": 1}), "au_overview", Duration::from_millis(50))
+            .read_with_timeout(json!({"id": 1}), "tb_overview", Duration::from_millis(50))
             .await;
         let result = serde_json::to_value(result).unwrap();
         assert_eq!(result["isError"], true);
@@ -5188,7 +5188,7 @@ mod tests {
             }))
         });
         let result = server
-            .au_overview(Parameters(EmptyArguments {}), request_context())
+            .tb_overview(Parameters(EmptyArguments {}), request_context())
             .await;
         let result = serde_json::to_value(result).unwrap();
         assert_ne!(result["isError"], true, "{result}");
@@ -5226,7 +5226,7 @@ mod tests {
                 Ok(answer.clone())
             });
             let result = server
-                .au_overview(Parameters(EmptyArguments {}), request_context())
+                .tb_overview(Parameters(EmptyArguments {}), request_context())
                 .await;
             let result = serde_json::to_value(result).unwrap();
             assert_eq!(result["isError"], true, "{frame}: {result}");

@@ -43,37 +43,37 @@ Proposed **port**: these definitions describe the core graph, type, navigation,
 and validation surface. Preserve argument, paging, scope, error and response
 semantics, rather than assuming a same-named engine operation is equivalent.
 `au_type_system` depends on a separately mounted knowledge package; preserve
-that dependency explicitly. `au_semantic_tokens` is editor-oriented, so it is
+that dependency explicitly. `tb_semantic_tokens` is editor-oriented, so it is
 proposed for later delivery instead of the initial port.
 
 | Name | Category | Proposed status |
 | --- | --- | --- |
-| `au_anchors` | Link navigation | port |
-| `au_block_ids` | Link navigation | port |
-| `au_candidates` | Type induction | port |
-| `au_children` | File catalog | port |
-| `au_diagnostics` | Diagnostics | port |
-| `au_files` | File catalog | port |
-| `au_follow` | Link navigation | port |
-| `au_frontmatter` | File metadata | port |
-| `au_hubs` | Graph orientation | port |
-| `au_instances` | Instance discovery | port |
-| `au_instances_of` | Instance discovery | port |
+| `tb_anchors` | Link navigation | port |
+| `tb_block_ids` | Link navigation | port |
+| `tb_candidates` | Type induction | port |
+| `tb_children` | File catalog | port |
+| `tb_diagnostics` | Diagnostics | port |
+| `tb_files` | File catalog | port |
+| `tb_follow` | Link navigation | port |
+| `tb_frontmatter` | File metadata | port |
+| `tb_hubs` | Graph orientation | port |
+| `tb_instances` | Instance discovery | port |
+| `tb_instances_of` | Instance discovery | port |
 | `au_list_imports` | Workspace discovery | port |
-| `au_members` | Workspace discovery | port |
-| `au_neighborhood` | Graph navigation | port |
-| `au_overview` | Graph orientation | port |
-| `au_references` | Graph navigation | port |
-| `au_resolve_member` | Workspace discovery | port |
-| `au_resolved` | Instance inspection | port |
-| `au_semantic_tokens` | Editor integration | defer |
-| `au_subtypes` | Type discovery | port |
-| `au_top_level_dirs` | Graph orientation | port |
-| `au_type` | Type inspection | port |
+| `tb_members` | Workspace discovery | port |
+| `tb_neighborhood` | Graph navigation | port |
+| `tb_overview` | Graph orientation | port |
+| `tb_references` | Graph navigation | port |
+| `tb_resolve_member` | Workspace discovery | port |
+| `tb_resolved` | Instance inspection | port |
+| `tb_semantic_tokens` | Editor integration | defer |
+| `tb_subtypes` | Type discovery | port |
+| `tb_top_level_dirs` | Graph orientation | port |
+| `tb_type` | Type inspection | port |
 | `au_type_system` | Type-system reference | port |
-| `au_type_tree` | Type discovery | port |
-| `au_typed` | Instance inspection | port |
-| `au_types` | Type discovery | port |
+| `tb_type_tree` | Type discovery | port |
+| `tb_typed` | Instance inspection | port |
+| `tb_types` | Type discovery | port |
 | `au_validate` | Candidate validation | port |
 
 Source: corresponding `au-mcp-core/type/mcp.tool.<name>.type.yaml` and

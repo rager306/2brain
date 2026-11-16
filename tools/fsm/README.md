@@ -13,7 +13,7 @@ python3 tools/fsm/check_run.py run.jsonl       # 0 clean, 1 violation, 2 unreada
 
 ```json
 {"run":"r1","state":"ORIENT","event":"enter","at":"2026-11-16T10:00:00Z"}
-{"run":"r1","state":"ORIENT","event":"guard","guard":"overview_answered","source":"tool","call":"au_overview","ok":true}
+{"run":"r1","state":"ORIENT","event":"guard","guard":"overview_answered","source":"tool","call":"tb_overview","ok":true}
 {"run":"r1","state":"ORIENT","event":"exit","to":"LOCATE","at":"2026-11-16T10:00:02Z"}
 {"run":"r1","state":"LOCATE","event":"guard","guard":"same_subject","source":"judge","question":"same_subject","probability":0.91,"threshold":0.8,"model":"subq-snap-1.2","batch_id":"b7","ok":true}
 {"run":"r1","state":"APPLY","event":"exit","to":"RECOVER","outcome":"outcome_unknown","at":"…"}

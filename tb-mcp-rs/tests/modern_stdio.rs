@@ -97,14 +97,14 @@ fn modern_discovery_and_direct_requests_without_initialize() {
     let list = exchange(&mut client, request(2, "tools/list", json!({})));
     assert_eq!(list["result"]["resultType"], "complete");
     let tools = list["result"]["tools"].as_array().unwrap();
-    for name in ["au_overview", "au_top_level_dirs"] {
+    for name in ["tb_overview", "tb_top_level_dirs"] {
         let tool = tools.iter().find(|tool| tool["name"] == name).unwrap();
         assert_eq!(tool["inputSchema"]["additionalProperties"], false);
         assert_eq!(tool["annotations"]["readOnlyHint"], true);
     }
     for (id, name, payload) in [
-        (3, "au_overview", json!({"overview":{"members":[]}})),
-        (4, "au_top_level_dirs", json!({"top_level_dirs":[]})),
+        (3, "tb_overview", json!({"overview":{"members":[]}})),
+        (4, "tb_top_level_dirs", json!({"top_level_dirs":[]})),
     ] {
         let response = exchange(
             &mut client,
@@ -130,7 +130,7 @@ fn modern_discovery_and_direct_requests_without_initialize() {
         request(
             6,
             "tools/call",
-            json!({"name":"au_overview","arguments":{"extra":true}}),
+            json!({"name":"tb_overview","arguments":{"extra":true}}),
         ),
     );
     assert!(invalid.get("error").is_some() || invalid["result"]["isError"] == true);

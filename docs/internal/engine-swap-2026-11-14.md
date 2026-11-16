@@ -52,7 +52,7 @@ the new verb.
 
 - the twelve reads re-run against the live socket: still zero differences from
   the pre-swap baseline;
-- `au_grep` answers on the live vault through the engine socket and through the
+- `tb_grep` answers on the live vault through the engine socket and through the
   MCP adapter;
 - the legacy path works end to end: Python bridge → Node daemon → new engine
   answered `mcp__au_overview` with `diagnostic_counts.total = 0`;
@@ -79,7 +79,7 @@ version stayed 29 on both sides, so no client had to be reconfigured.
 
 ## Second swap, same day — the `batch` verb
 
-`grep` was live at 13:07; `batch` (engine verb + `au_batch`) landed at `59e94db`
+`grep` was live at 13:07; `batch` (engine verb + `tb_batch`) landed at `59e94db`
 afterwards, so the served binary was one feature behind again. Same protocol, with
 one correction learned from the first round.
 

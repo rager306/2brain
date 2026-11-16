@@ -12,7 +12,7 @@ AU_ENGINE_BIN=../tb-engine/target/debug/au python3 scripts/rollback_rehearsal.py
 ## What it proves
 
 1. **A granted adapter writes through the engine.** The rehearsal reads the file
-   with `au_content`, then writes it with the hash that read returned.
+   with `tb_content`, then writes it with the hash that read returned.
 2. **The write is an engine commit, not adapter state.** The fixture gains
    exactly one commit and `git status --porcelain` is empty afterwards.
 3. **The adapter leaves no files behind.** The file list, excluding `.git` and
@@ -28,7 +28,7 @@ AU_ENGINE_BIN=../tb-engine/target/debug/au python3 scripts/rollback_rehearsal.py
 - It does not exercise the existing Python bridge or the Node `au-mcp` daemon,
   which speak to a different socket. Parity with them is separate work.
 - It does not rehearse a rollback of a negative outcome: a mutation whose reply
-  was lost is covered by `tests/faults.rs`, and recovery by `au_reconcile` plus
+  was lost is covered by `tests/faults.rs`, and recovery by `tb_reconcile` plus
   `tests/reconcile.rs`.
 - It writes to a disposable repository only. No production socket, daemon, or
   vault is touched, and no maintenance window is implied.
@@ -59,7 +59,7 @@ The quoted lines are its own:
 3. **Rolling back to read-only is a launch flag, not a migration.** **PASS.**
    `ok: rolling back to read-only is a launch flag: the write is refused`. The
    same binary started without `--allow-mutations` read the file and refused
-   `au_write_file` at the protocol layer.
+   `tb_write_file` at the protocol layer.
 
 Its closing line was
 `PASS: rollback to read-only loses nothing and needs no migration`, followed by

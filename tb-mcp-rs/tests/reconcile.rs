@@ -60,7 +60,7 @@ fn reconcile_requires_exactly_one_expectation() {
     .into_iter()
     .enumerate()
     {
-        assert!(!error_text(&client.call(i as u32 + 2, "au_reconcile", args)).is_empty());
+        assert!(!error_text(&client.call(i as u32 + 2, "tb_reconcile", args)).is_empty());
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -85,7 +85,7 @@ fn reconcile_reports_applied_when_the_hash_matches() {
     let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     let reply = client.call(
         2,
-        "au_reconcile",
+        "tb_reconcile",
         json!({"repo":"fixture","path":"a.md","expected_hash":"0123456789abcdef"}),
     );
     assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -137,7 +137,7 @@ fn a_differing_file_reports_not_applied_and_rearms_the_guard() {
     let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     let reply = client.call(
         2,
-        "au_reconcile",
+        "tb_reconcile",
         json!({"repo":"fixture","path":"a.md","expected_hash":"1111111111111111"}),
     );
     assert_ne!(reply["result"]["isError"], true, "{reply}");
@@ -147,7 +147,7 @@ fn a_differing_file_reports_not_applied_and_rearms_the_guard() {
     assert_eq!(payload["current_hash"], "fedcba9876543210");
     let write = client.call(
         3,
-        "au_write_file",
+        "tb_write_file",
         json!({"repo":"fixture","path":"a.md","content":"new","expected_hash":"fedcba9876543210"}),
     );
     assert_ne!(write["result"]["isError"], true, "{write}");
@@ -167,7 +167,7 @@ fn reconcile_handles_a_delete_two_ways() {
     let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     let gone = client.call(
         2,
-        "au_reconcile",
+        "tb_reconcile",
         json!({"repo":"fixture","path":"a.md","expect_absent":true}),
     );
     let payload: Value =
@@ -191,7 +191,7 @@ fn reconcile_handles_a_delete_two_ways() {
     let mut client2 = Client::start_with(&socket2, &["--allow-mutations"]);
     let present = client2.call(
         2,
-        "au_reconcile",
+        "tb_reconcile",
         json!({"repo":"fixture","path":"a.md","expect_absent":true}),
     );
     let payload: Value =
@@ -221,7 +221,7 @@ fn reconcile_refuses_a_value_that_is_not_a_digest() {
     {
         let reply = client.call(
             i as u32 + 2,
-            "au_reconcile",
+            "tb_reconcile",
             json!({"repo":"fixture","path":"a.md","expected_hash":value}),
         );
         let text = error_text(&reply);
@@ -230,7 +230,7 @@ fn reconcile_refuses_a_value_that_is_not_a_digest() {
             "{value:?} was not refused as a digest: {text}"
         );
         assert!(
-            text.contains("au_content"),
+            text.contains("tb_content"),
             "{value:?}: the refusal should name the alternative: {text}"
         );
         // Refused before the engine: nothing to connect to, so nothing was read.

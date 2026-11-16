@@ -2,8 +2,8 @@
 
 Scale measured 2026-11-16 on the live vault: **1 036 markdown notes**, 1 185 graph *nodes*, ~4 606 edges,
 5 046 wikilinks, 0 diagnostics. The engine already ships BM25 (`tb-engine/src/search.rs`) over the
-catalogue and a typed graph (`au_references`, `au_neighborhood`, `au_follow`, `au_hubs`,
-`au_graph_health`). Everything below is judged by: does it answer a question someone in this system
+catalogue and a typed graph (`tb_references`, `tb_neighborhood`, `tb_follow`, `tb_hubs`,
+`tb_graph_health`). Everything below is judged by: does it answer a question someone in this system
 actually asks, and can it run without a model.
 
 ## Ranking
@@ -49,8 +49,8 @@ Ordered by cost, each stage only seeing what the previous one kept:
 
 ## Temporal and topological analysis
 
-- **Link decay / hub rot**: for each hub (`au_hubs`), the age of its outbound targets. A hub whose targets
-  are mostly `stale` is itself suspect. Pure arithmetic over `au_hubs` + frontmatter — a cheap background
+- **Link decay / hub rot**: for each hub (`tb_hubs`), the age of its outbound targets. A hub whose targets
+  are mostly `stale` is itself suspect. Pure arithmetic over `tb_hubs` + frontmatter — a cheap background
   diagnostic.
 - **Cycles**: already reported (`graph_health.cycles`, 17→21 observed during the corpus drift). Their
   *value* is as a consolidation signal: a cycle inside one type family is a merge candidate.

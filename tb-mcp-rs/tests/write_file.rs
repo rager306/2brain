@@ -24,10 +24,10 @@ fn write_requires_a_prior_read_of_the_same_path() {
     let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     let text = error_text(&client.call(
         2,
-        "au_write_file",
+        "tb_write_file",
         json!({"repo":"fixture","path":"notes/a.md","content":"x","expected_hash":"abc"}),
     ));
-    assert!(text.contains("au_content"), "{text}");
+    assert!(text.contains("tb_content"), "{text}");
     assert_not_connected(&listener);
 }
 
@@ -51,7 +51,7 @@ fn write_rejects_a_stale_or_invalid_request_without_connecting() {
     .into_iter()
     .enumerate()
     {
-        assert!(!error_text(&client.call(i as u32 + 2, "au_write_file", args)).is_empty());
+        assert!(!error_text(&client.call(i as u32 + 2, "tb_write_file", args)).is_empty());
         assert_not_connected(&listener);
     }
 }
@@ -64,7 +64,7 @@ fn write_sends_the_guarded_mutation_and_invalidates_the_read() {
     let listener = UnixListener::bind(&socket).unwrap();
     let root_string = root.to_str().unwrap().to_owned();
     let daemon = thread::spawn(move || {
-        // au_content: members, then content.
+        // tb_content: members, then content.
         let (mut members, _) = listener.accept().unwrap();
         assert_eq!(
             read_request(&mut members),
@@ -81,7 +81,7 @@ fn write_sends_the_guarded_mutation_and_invalidates_the_read() {
             json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":6,
                 "result":{"content":{"text":"old","hash":"hash-1","commit":null}}}),
         );
-        // au_write_file: members, then the mutation.
+        // tb_write_file: members, then the mutation.
         let (mut members2, _) = listener.accept().unwrap();
         assert_eq!(
             read_request(&mut members2),
@@ -104,13 +104,13 @@ fn write_sends_the_guarded_mutation_and_invalidates_the_read() {
     let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     let read = client.call(
         2,
-        "au_content",
+        "tb_content",
         json!({"repo":"fixture","path":"notes/a.md"}),
     );
     assert_ne!(read["result"]["isError"], true, "{read}");
     let write = client.call(
         3,
-        "au_write_file",
+        "tb_write_file",
         json!({"repo":"fixture","path":"notes/a.md","content":"new text","expected_hash":"hash-1"}),
     );
     assert_ne!(write["result"]["isError"], true, "{write}");
@@ -121,10 +121,10 @@ fn write_sends_the_guarded_mutation_and_invalidates_the_read() {
     // The recorded read is gone: the same write must not be replayed.
     let replay = error_text(&client.call(
         4,
-        "au_write_file",
+        "tb_write_file",
         json!({"repo":"fixture","path":"notes/a.md","content":"new text","expected_hash":"hash-1"}),
     ));
-    assert!(replay.contains("au_content"), "{replay}");
+    assert!(replay.contains("tb_content"), "{replay}");
     daemon.join().unwrap();
 }
 
@@ -141,10 +141,10 @@ fn edit_requires_a_prior_read_and_sends_the_exact_edit() {
     listener.set_nonblocking(true).unwrap();
     let unread = error_text(&client.call(
         2,
-        "au_edit_file",
+        "tb_edit_file",
         json!({"repo":"fixture","path":"notes/a.md","old_string":"old","new_string":"new","expected_hash":"hash-1"}),
     ));
-    assert!(unread.contains("au_content"), "{unread}");
+    assert!(unread.contains("tb_content"), "{unread}");
     assert_not_connected(&listener);
     listener.set_nonblocking(false).unwrap();
 
@@ -187,13 +187,13 @@ fn edit_requires_a_prior_read_and_sends_the_exact_edit() {
     });
     let read = client.call(
         3,
-        "au_content",
+        "tb_content",
         json!({"repo":"fixture","path":"notes/a.md"}),
     );
     assert_ne!(read["result"]["isError"], true, "{read}");
     let edit = client.call(
         4,
-        "au_edit_file",
+        "tb_edit_file",
         json!({"repo":"fixture","path":"notes/a.md","old_string":"old","new_string":"new","expected_hash":"hash-1"}),
     );
     assert_ne!(edit["result"]["isError"], true, "{edit}");
@@ -215,10 +215,10 @@ fn delete_requires_a_prior_read_and_sends_the_guarded_delete() {
     listener.set_nonblocking(true).unwrap();
     let unread = error_text(&client.call(
         2,
-        "au_delete_file",
+        "tb_delete_file",
         json!({"repo":"fixture","path":"notes/a.md","expected_hash":"hash-1"}),
     ));
-    assert!(unread.contains("au_content"), "{unread}");
+    assert!(unread.contains("tb_content"), "{unread}");
     assert_not_connected(&listener);
     listener.set_nonblocking(false).unwrap();
 
@@ -261,13 +261,13 @@ fn delete_requires_a_prior_read_and_sends_the_guarded_delete() {
     });
     let read = client.call(
         3,
-        "au_content",
+        "tb_content",
         json!({"repo":"fixture","path":"notes/a.md"}),
     );
     assert_ne!(read["result"]["isError"], true, "{read}");
     let deleted = client.call(
         4,
-        "au_delete_file",
+        "tb_delete_file",
         json!({"repo":"fixture","path":"notes/a.md","expected_hash":"hash-1"}),
     );
     assert_ne!(deleted["result"]["isError"], true, "{deleted}");
@@ -299,7 +299,7 @@ fn preview_rejects_incomplete_requests_without_connecting() {
     .into_iter()
     .enumerate()
     {
-        let text = error_text(&client.call(i as u32 + 2, "au_preview_mutation", args));
+        let text = error_text(&client.call(i as u32 + 2, "tb_preview_mutation", args));
         assert!(!text.is_empty());
         assert_not_connected(&listener);
     }
@@ -346,7 +346,7 @@ fn preview_sends_the_op_and_returns_the_engine_product() {
     });
     let mut client = Client::start_with(&socket, &["--allow-mutations"]);
     for (i, (args, _)) in cases.into_iter().enumerate() {
-        let response = client.call(i as u32 + 2, "au_preview_mutation", args);
+        let response = client.call(i as u32 + 2, "tb_preview_mutation", args);
         assert_ne!(response["result"]["isError"], true, "{response}");
         let payload: Value =
             serde_json::from_str(response["result"]["content"][0]["text"].as_str().unwrap())

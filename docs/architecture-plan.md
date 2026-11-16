@@ -39,7 +39,7 @@ A step's own acceptance criteria come on top; they never replace these.
 **P0.1 Capability axis (direction D, the cheap half).**
 `src/capability.rs`: `enum Capability { Read, Mutate, Discover, Watch, Serve, Compose }`,
 `fn of(tool: &str) -> Capability` as a 51-row static table, `fn advertised(cap, granted)`.
-`au_search_tools` gains an optional `capability` filter (additive). No new tool.
+`tb_search_tools` gains an optional `capability` filter (additive). No new tool.
 Acceptance: table is total and disjoint over the advertised catalogue; `{"capability":"read"}`
 returns 35, `{"capability":"mutate"}` returns 16 with grants and 0 without; a tool added
 without a row fails the test.
@@ -55,7 +55,7 @@ has an `output_schema`; (e) every catalogue entry has exactly one capability row
 Acceptance: green, and each of (a)–(e) fails when deliberately violated (5/5 checked by hand).
 Merge after P0.1 so the ratchet starts from the post-P0.1 number.
 
-**P0.3 Dogfood defect: `au_instances_of` on its last page.**
+**P0.3 Dogfood defect: `tb_instances_of` on its last page.**
 `next_offset` is `null` there while the declared schema says `integer`; a strict client rejects
 the answer. Fix the declaration (union with `null`) and add a *general* test: every paged read
 tool is called with a page size that lands on the last page, and the answer is validated against
@@ -66,8 +66,8 @@ Acceptance: the repro passes; the new test covers every tool that emits `next_of
 **P0.4 Capture the decision in the vault (dogfood).**
 Append the defect to `inbox/arsumbris-fork-backlog.md` (P0) and write
 `inbox/decision-tool-surface-trajectory.md` (`type: decision`, `status: current`) that points at
-this plan. Written through our own mutation tools, read back through `au_content`.
-Acceptance: vault `au_diagnostics` unchanged (0), `graph_health.broken_links` unchanged (0),
+this plan. Written through our own mutation tools, read back through `tb_content`.
+Acceptance: vault `tb_diagnostics` unchanged (0), `graph_health.broken_links` unchanged (0),
 one commit per note, no other vault file touched.
 
 ### P1 — Thin hexagonal (direction A): invert the five cheap seams
@@ -98,7 +98,7 @@ arm and removes no knowledge — the "one table, two columns" win was about *add
 place*, and the invariant that actually matters (every advertised tool declares an output
 schema) is already asserted by `tests/architecture.rs`. So the step is dropped as churn.
 
-What replaces it: when T1 adds `au_search`, the new tool's declaration must be written once, in
+What replaces it: when T1 adds `tb_search`, the new tool's declaration must be written once, in
 the same file as its capability row's neighbour, and `tests/architecture.rs` must still pass
 without touching its ALLOWED list or the 51-row count (the count becomes 52 — that is the one
 number T1 is allowed to change).
@@ -170,7 +170,7 @@ edited by hand.
 | P2 first slice | done `ac91a9d` | `Denial` beside `Stage`; P2.3 remedy table measured out |
 | P2 core | done `2f00339` | `gate.rs`: pure `reduce` + 7 tests; `lib.rs` 4521 → 4424 |
 | T1 engine half | done `d888abe` | index on `KnowledgeBase` + `search` parity fact; `Request::Search` from held state; 6 integration tests |
-| T1 adapter half | done `c3472e5` | `au_search` is the 52nd tool; counts moved together; suite 203 |
+| T1 adapter half | done `c3472e5` | `tb_search` is the 52nd tool; counts moved together; suite 203 |
 | T1 dead code | done `44c6967` | `Bm25Index::is_empty` removed with the crate-wide allow |
 | W4.1 phase 1 | done `6b8f0f0` | `tools/judgement/`: 50-note labelled sample + gated client |
 | W4.2 roles | done `3c16fc7` | `docs/agent-roles.md` |
@@ -193,26 +193,26 @@ functions carry distinct shapes).
 
 **Why these three in parallel:** A and B are different crates with no shared file; C writes only a
 new directory and touches no code that either A or B compiles. The one rule that still holds: T1's
-**adapter** half (`au_search`, the 52nd tool) waits until B lands, because it needs the verb.
+**adapter** half (`tb_search`, the 52nd tool) waits until B lands, because it needs the verb.
 
 **Acceptance.**
 - A: `lib.rs` production lines fall again; `MUTATION_STAGES`/`CREATE_STAGES` order unchanged; the
   31 gate tests untouched and green; a denial still names its stage; a mutation can be described
   as a `Prepared` value in a test.
 - B: the eight probe queries answer ≤ 15 ms median on the live vault; a write changes the ranking
-  of the changed note on the next read; `au_grep` unchanged; golden capture added; WIRE.md
+  of the changed note on the next read; `tb_grep` unchanged; golden capture added; WIRE.md
   annotated; no schema-version bump.
 - C: 50 notes labelled with the source they came from; the runner exits non-zero without a key
   rather than silently passing; the report names question, probability, threshold and verdict.
 
 **Re-baselined estimate:** A ≈ 1 day, B ≈ 1–1.5 days, C ≈ 0.5 day, running together → about
-1.5–2 days wall, then the adapter `au_search` (0.5 day) after B.
+1.5–2 days wall, then the adapter `tb_search` (0.5 day) after B.
 
 ## 2d. Second revision (2026-11-16)
 
 Three things changed since 2c, and each one changes what to do next.
 
-1. **The ratchet gained one explicit exception.** Adding `au_search` cost 81 lines in `lib.rs`, so the
+1. **The ratchet gained one explicit exception.** Adding `tb_search` cost 81 lines in `lib.rs`, so the
    budget moved 4 424 → 4 505 with the reason written into the constant. The rule now reads: the
    ratchet guards a refactor from re-growing the file; a feature pays its own lines once, and the
    number and its reason are recorded in the same edit.
@@ -222,7 +222,7 @@ Three things changed since 2c, and each one changes what to do next.
    `deps/` (16 `mio`, 14 `syn`, 12 `au_mcp_rs`) are the **feature matrix** — `clippy
    --all-features` versus `test` versus release — not a misconfiguration, and not worth chasing.
 3. **T1 is closed but unmeasured on the real thing.** The engine tests prove behaviour; the
-   acceptance in 2b (≤ 15 ms median on the eight probe queries, ≥ 5× faster than `au_grep`) has
+   acceptance in 2b (≤ 15 ms median on the eight probe queries, ≥ 5× faster than `tb_grep`) has
    never been run against the new verb on a vault-shaped corpus, because the live daemon still runs
    the previous engine binary.
 
@@ -267,7 +267,7 @@ deliverable:
 |---|---|---|
 | `lib.rs` production lines | 4 636 | **4 524** (ratchet lowered five times, raised once for a feature with the reason recorded) |
 | module dependency edges | one cycle (`wire ↔ lib`) | **no cycle**, 11 declared edges, a test that rejects an undeclared one |
-| tools | 51 | **52** (+`au_search`), capability axis total and disjoint |
+| tools | 51 | **52** (+`tb_search`), capability axis total and disjoint |
 | adapter tests | 173 | **205** registered, 203 running |
 | text search | literal scan, 132.8 ms | `search` 0.16–1.03 ms on a vault copy — **105×–698×**, worst p95 3.47 ms |
 | refusals | a stage name | a stage name *and* one formatter in `policy.rs`, with the two codes kept distinct by test |
@@ -333,7 +333,7 @@ independent they look.
 | **A** guardrails | `tests/architecture.rs` | that one file | written in parallel, **merged after B** (its line ratchet must start from B's number) | 3rd |
 
 Checks after wave 1: A's five failure modes demonstrated; 173+ tests; `--info` unchanged;
-vault `au_diagnostics` still 0.
+vault `tb_diagnostics` still 0.
 
 ### Wave 2 (P1, two passes)
 
@@ -368,7 +368,7 @@ for a spike; this is its place in the plan. It ships evidence, not features.
 
 ### Wave 2b — text index (T1), the one measured product gap
 
-`docs/retrieval-spike.md` measured it: `au_grep` is a literal byte scan at **132.8 ms**, and a
+`docs/retrieval-spike.md` measured it: `tb_grep` is a literal byte scan at **132.8 ms**, and a
 BM25 index over the same 5.4 MiB answers in the low tens of milliseconds while ranking. The
 backlog already wants this (P1: bm25 with type-aware freshness). It is a product feature, not an
 architecture step, so it is scheduled on its own terms and does not block the ports.
@@ -376,7 +376,7 @@ architecture step, so it is scheduled on its own terms and does not block the po
 **Where it lives: the engine.** `grep` is an engine read; every client — this adapter, Hermes
 through the bridge — goes through it. An index in the adapter would be a second source of truth
 inside a single client. So the engine gains a new read verb `search` and the adapter gains one
-read tool `au_search`. `au_grep` keeps its exact contract as the literal escape hatch.
+read tool `tb_search`. `tb_grep` keeps its exact contract as the literal escape hatch.
 
 **Ripple checklist (all mechanical, all must be in the same change):**
 
@@ -386,7 +386,7 @@ read tool `au_search`. `au_grep` keeps its exact contract as the literal escape 
 | WIRE.md | annotate the new verb; `SCHEMA_VERSION` does not move (additive) |
 | engine index | in-memory per repo, built during the existing build and patched on the incremental path; rebuilt from files on start, never persisted |
 | ranking | BM25 over `body`, with `description` weighted; type-aware freshness multiplier as a **second** step, measured separately |
-| adapter | one tool `au_search` (capability `read`), schema with declared `score`, fixtures |
+| adapter | one tool `tb_search` (capability `read`), schema with declared `score`, fixtures |
 | counts | 51 → 52 tools, 35 → 36 advertised without grants; `tests/architecture.rs`, `tests/capability.rs`, the capability table, `--info`, `docs/verification.md`, roadmap |
 | golden | a capture for `search` in `tb-engine/tests-golden/engine/`, and the adapter's read fixture |
 | tests | an engine test that a mutation changes the ranking; an adapter test that the declared schema holds a float score |
@@ -408,7 +408,7 @@ postings for a clearly better top-5 on two of three spot checks.
    files live in `inbox/`, and hub notes (`knowledge/index.md`) rank on link text alone.
 
 **Acceptance:** median ≤ 15 ms for the eight probe queries on the live vault; ≥ 5× faster than
-`au_grep` on the same query; top-5 stable across runs; no existing verb changes shape; the
+`tb_grep` on the same query; top-5 stable across runs; no existing verb changes shape; the
 literal escape hatch unchanged; and — now that the prototype exists — a labelled check on three
 queries where the ranked top-3 must contain the document the literal scan finds for the same
 token.
@@ -441,7 +441,7 @@ Reading the engine to place it, rather than guessing:
 
 **Acceptance for phase 2:** the eight probe queries from `docs/retrieval-spike.md` answer in ≤ 15 ms
 median on the live vault (measured p95 is 2.45 ms on 1 000 synthetic documents); a mutation changes
-the ranking of the changed note in the next read; `au_grep` unchanged; a golden capture added for
+the ranking of the changed note in the next read; `tb_grep` unchanged; a golden capture added for
 `search`; WIRE.md annotated; no schema-version bump (additive verb).
 
 ### Wave 3 in detail — P2, the gate becomes legible data
@@ -460,7 +460,7 @@ cannot be tested without a socket.
 **P2.2 the armed mutation is a value — measured out, 2026-11-16.** The plan wanted
 `Prepared { stage, repo, path, expected_hash, recorded }` so a mutation in flight could be
 "described, logged and resumed as data". Reading the consumers before building it: the only place a
-description could go is the `outcome_unknown` message, and there it would mislead — `au_reconcile`
+description could go is the `outcome_unknown` message, and there it would mislead — `tb_reconcile`
 wants the digest the write *should have produced*, not the pre-write hash the gate holds, so naming
 the held hash next to "reconcile" would invite exactly the wrong call. The path and repo are already
 the caller's own arguments. So the value would be a struct nothing reads, which is the same finding
@@ -489,8 +489,8 @@ land from P2's first slice: `Denial` moved beside `Stage` in `policy.rs`, one `t
 The original wording is kept below for the record.
 
 **P2.3 a refusal says what unblocks it.** `Next { stage: &'static str, tool: Option<&'static str> }`
-— for example `{"stage":"prior_read","tool":"au_content"}` or
-`{"stage":"freshness","tool":"au_content"}`. An agent that was refused at `editability` learns it
+— for example `{"stage":"prior_read","tool":"tb_content"}` or
+`{"stage":"freshness","tool":"tb_content"}`. An agent that was refused at `editability` learns it
 must satisfy `prior_read` first, instead of trying mutations until one lands. Additive wire field;
 annotate `WIRE.md`; no existing refusal text changes.
 
@@ -527,7 +527,7 @@ dogfood defects fixed on day 1.
 | capability table becomes a new drift source | a tool with two classes or none | total/disjoint test (P0.1) + generated docs test (P4.1) |
 | `MemoryTransport` quietly weakens tests | suites that stop asserting frames | keep at least one suite on the real codec end-to-end |
 | gate refactor breaks the slot order | a mutation succeeding without capacity | the 31 existing gate tests are the contract; do not edit them |
-| vault capture pollutes the live vault | `au_diagnostics` > 0 or a stray file | one note per commit, read back, stop on any diagnostic |
+| vault capture pollutes the live vault | `tb_diagnostics` > 0 or a stray file | one note per commit, read back, stop on any diagnostic |
 | parallel tracks collide in `lib.rs` | merge conflicts in the same hunks | the wave rule: one owner per region, second rebases and re-runs golden |
 
 Stop rules: any invariant in §1 broken twice in one step means the step is wrong, not the
@@ -563,7 +563,7 @@ pairs); W4.2 is documentation and runs in parallel with anything.
   production while this plan runs.
 - **Node-stack retirement** (`docs/phase-d.md`): a decision and a window, not a task.
 - **Text index (FTS5 `bm25()` or `tantivy`)** and the storage question around it: a product
-  feature, not an architecture step. It is the cheapest fix for the measured 133 ms `au_grep`
+  feature, not an architecture step. It is the cheapest fix for the measured 133 ms `tb_grep`
   and belongs to backlog P1; the storage argument is settled in `docs/graph-engine-assessment.md`
   (do not migrate; a graph store does not touch the text scan). Schedule it before any storage
   discussion, not as part of the port work.
@@ -577,14 +577,14 @@ pairs); W4.2 is documentation and runs in parallel with anything.
 | P0.1 capability axis | **done** (`298960c`) | 51 rows: 32 read / 16 mutate / 2 discover / 1 watch; inline test equals the router set and agrees with `policy::MUTATION_TOOLS`; `tests/capability.rs` 4/4; suite 40 suites, 180 passed | 2026-11-15 |
 | P0.2 architecture tests | **done** (`e74dde7`) | `tests/architecture.rs` 4/4; each rule proved to bite (leaf reference, undeclared edge, one line over the ratchet, a removed `output_schema`), files restored by sha256; no cycle beyond the 7 declared edges | 2026-11-15 |
 | P0.3 last-page defect | **done** (`c34879c`) | `next_offset` declared `["integer","null"]`; both new tests failed before the fix with `declared [integer] but holds null`, and the revert-proof was re-run on the final tree | 2026-11-15 |
-| P0.4 vault capture | **done** | vault commit `f26cc54` (`inbox/decision-tool-surface-trajectory.md`, type decision, status current) and `4bcc4f2` (backlog P0 item 4, closed defect with its fix commit); both written and read back through `arsumbris-rs`; `au_diagnostics` 0, `graph_health.broken_links` 0 | 2026-11-15 |
+| P0.4 vault capture | **done** | vault commit `f26cc54` (`inbox/decision-tool-surface-trajectory.md`, type decision, status current) and `4bcc4f2` (backlog P0 item 4, closed defect with its fix commit); both written and read back through `arsumbris-rs`; `tb_diagnostics` 0, `graph_health.broken_links` 0 | 2026-11-15 |
 | P1.1 transport port | **done** (`4b66625`) | `transport.rs` 241 lines with `UnixTransport` + `MemoryTransport`; the `wire ↔ lib` cycle is gone (no `crate::SCHEMA_VERSION` in `wire.rs`); ALLOWED is 9 edges; `lib.rs` 4612 → 4561 and the ratchet tightened; `--info` unchanged; 2 new tests (one exchange, no retry) | 2026-11-15 |
 | P1.2 bounded_stdio | **done** (`328baa3`) | `Bounds` parameter + `over(input, output, …)`; two tests on a 16-byte duplex prove the queue blocks a third send and releases it on drain, and that a closed transport refuses; suite 190 passed | 2026-11-15 |
 | P1.3 resources | **done** (`a4228c0`) | `member_roots(payload)` and the new `resource_page` are pure; the `resources -> wire` edge is gone (ALLOWED 7 → 6); `lib.rs` 4659 → 4631 production lines and the ratchet tightened to 4631; 4 inline tests without a socket | 2026-11-15 |
 | P1.4 schemas table | **dropped as written** (2026-11-15) | the 15 functions carry distinct shapes; the invariant that matters is already a test (P0.2d). T1's new tool is the only place this had to be paid for, and it is paid there | 2026-11-15 |
 | P1.5 read ledger | **done** (`3e402e8`) | `ledger::ReadLedger` with 3 tests (forget, member in the key, clone shares); `lib.rs` 4631 → 4612 and the ratchet tightened; the two refusal codes unchanged | 2026-11-15 |
 | T1 text index (engine half, phase 2) | **done** (`d888abe`) | index on `KnowledgeBase` with a `search` parity fact; `Request::Search` from held state; 6 integration tests including "a body rewrite changes the ranking on the next read"; golden capture from the fixture | 2026-11-15 |
-| T1 text index (adapter half) | **done** (`c3472e5`) | `au_search` is the 52nd tool; capability 33 read / 16 mutate / 2 discover / 1 watch; counts in architecture, capability, stdio, fixture_schema and wire_catalog all moved together; suite 203 passed | 2026-11-15 |
+| T1 text index (adapter half) | **done** (`c3472e5`) | `tb_search` is the 52nd tool; capability 33 read / 16 mutate / 2 discover / 1 watch; counts in architecture, capability, stdio, fixture_schema and wire_catalog all moved together; suite 203 passed | 2026-11-15 |
 | T1 acceptance | **measured 2026-11-16** | release engine from `fec77bd` over a vault copy: `search` 0.16–1.03 ms vs `grep` 101–112 ms (105×–698×), worst p95 3.47 ms, identical top-5 across two daemon starts; `exact` 0.26 ms; `bm25 ranking` answerable only by the ranked verb | 2026-11-16 |
 | T1 text index (engine half) | **phase 1 done** (`3d4bc40`) | `search.rs` 982 lines; 7 tests + ignored measurement; build 1.07 s / 1 000 docs, 4.7 KiB/doc, OR p50 1.65 ms p95 2.45 ms, exact p50 73 µs; engine `--lib` 685 passed / 1 known root-only failure; **no verb yet** | 2026-11-15 |
 
@@ -594,4 +594,4 @@ pairs); W4.2 is documentation and runs in parallel with anything.
 | W4.2 role definitions | not started | assessment §1.1 | — |
 | P3.1–P3.2 agent layer | **P3.1 done** (`2f8d29f`) | `procedure.py` + `--selftest` (12 cases, all bite) + cross-check wired into `mutation-turn.sh`; P3.2 (the vault pattern note) not written | 2026-11-16 |
 | P4.1 generated manual | not started | — | — |
-| R1 retrieval probe | **measured 2026-11-15** — not adopted | `docs/retrieval-spike.md`: HelixDB 0.0.16 on 1 036 nodes / 2 730 edges — hubs 103.5 ms vs 9.8 ms, 2-hop count 54.7 ms vs `au_neighborhood` 102.2 ms for 253 materialised nodes, BM25 24.2 ms vs `au_grep` 132.8 ms, variable-length patterns unsupported; decision: tantivy plus our own traversal | 2026-11-15 |
+| R1 retrieval probe | **measured 2026-11-15** — not adopted | `docs/retrieval-spike.md`: HelixDB 0.0.16 on 1 036 nodes / 2 730 edges — hubs 103.5 ms vs 9.8 ms, 2-hop count 54.7 ms vs `tb_neighborhood` 102.2 ms for 253 materialised nodes, BM25 24.2 ms vs `tb_grep` 132.8 ms, variable-length patterns unsupported; decision: tantivy plus our own traversal | 2026-11-15 |

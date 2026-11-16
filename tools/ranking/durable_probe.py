@@ -128,7 +128,7 @@ def main() -> int:
     rival_first = 0
     with StdioMcp(launch, name="durable-probe") as client:
         for row in rows:
-            reply = client.call("au_search", {"query": row["query"], "limit": 10})
+            reply = client.call("tb_search", {"query": row["query"], "limit": 10})
             if is_error(reply):
                 print("search failed:", reply["result"]["content"][0]["text"][:200])
                 return 2

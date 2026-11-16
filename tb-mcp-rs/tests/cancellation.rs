@@ -62,7 +62,7 @@ fn cancelled_read_closes_engine_socket_without_reply_and_server_recovers() {
     listener.set_nonblocking(true).unwrap();
     let mut client = connect(&socket);
 
-    client.send_call(2, "au_overview", json!({}));
+    client.send_call(2, "tb_overview", json!({}));
     let mut cancelled = accept_read(&listener);
     client.send(json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":2,"reason":"client cancelled"}}));
     let mut byte = [0; 1];
@@ -73,7 +73,7 @@ fn cancelled_read_closes_engine_socket_without_reply_and_server_recovers() {
         0
     );
 
-    client.send_call(3, "au_overview", json!({}));
+    client.send_call(3, "tb_overview", json!({}));
     let mut recovery = accept_read(&listener);
     let body = serde_json::to_vec(&json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":202,"result":{"overview":{"members":[]}}})).unwrap();
     recovery
@@ -106,12 +106,12 @@ fn read_capacity_fails_fast_and_cancellation_releases_a_slot() {
     let mut client = connect(&socket);
     let mut streams = Vec::new();
     for id in 10..18 {
-        client.send_call(id, "au_overview", json!({}));
+        client.send_call(id, "tb_overview", json!({}));
         streams.push(accept_read(&listener));
     }
     client.send(json!({"jsonrpc":"2.0","id":30,"method":"ping"}));
     assert_eq!(client.receive()["id"], 30);
-    client.send_call(18, "au_overview", json!({}));
+    client.send_call(18, "tb_overview", json!({}));
     let busy = client.receive();
     assert_eq!(busy["id"], 18, "{busy}");
     assert_eq!(busy["result"]["isError"], true, "{busy}");
@@ -124,7 +124,7 @@ fn read_capacity_fails_fast_and_cancellation_releases_a_slot() {
     );
     let mut byte = [0];
     assert_eq!(streams[0].read(&mut byte).unwrap(), 0);
-    client.send_call(19, "au_overview", json!({}));
+    client.send_call(19, "tb_overview", json!({}));
     let mut replacement = accept_read(&listener);
     let body = serde_json::to_vec(&json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":9,"result":{"overview":{"members":[]}}})).unwrap();
     replacement
@@ -143,11 +143,11 @@ fn read_capacity_fails_fast_and_cancellation_releases_a_slot() {
     assert_eq!(reply["id"], 11, "{reply}");
     assert_ne!(reply["result"]["isError"], true, "{reply}");
 
-    client.send_call(20, "au_overview", json!({}));
+    client.send_call(20, "tb_overview", json!({}));
     let _extra1 = accept_read(&listener);
-    client.send_call(21, "au_overview", json!({}));
+    client.send_call(21, "tb_overview", json!({}));
     let _extra2 = accept_read(&listener);
-    client.send_call(22, "au_overview", json!({}));
+    client.send_call(22, "tb_overview", json!({}));
     let busy = client.receive();
     assert_eq!(busy["id"], 22, "{busy}");
     assert_eq!(busy["result"]["isError"], true, "{busy}");
@@ -162,7 +162,7 @@ fn read_capacity_fails_fast_and_cancellation_releases_a_slot() {
     let failed = client.receive();
     assert_eq!(failed["id"], 12, "{failed}");
     assert_eq!(failed["result"]["isError"], true, "{failed}");
-    client.send_call(23, "au_overview", json!({}));
+    client.send_call(23, "tb_overview", json!({}));
     let _recovered = accept_read(&listener);
     assert!(client.quiet_for(QUIET_PERIOD));
 }
@@ -176,7 +176,7 @@ fn cancellation_is_isolated_from_another_in_flight_read() {
     let mut client = connect(&socket);
 
     let call = |client: &mut Client, id, offset| {
-        client.send(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"au_types","arguments":{"limit":1,"offset":offset}}}));
+        client.send(json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":"tb_types","arguments":{"limit":1,"offset":offset}}}));
     };
     let accept_types = |offset| {
         let (stream, request) = accept_request(&listener);

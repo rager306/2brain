@@ -111,7 +111,7 @@ fn successive_pages_expose_each_response_version_without_changing_text() {
         assert_success(
             &client.call(
                 offset as u32 + 2,
-                "au_types",
+                "tb_types",
                 json!({"limit":1,"offset":offset}),
             ),
             *version,
@@ -141,15 +141,15 @@ fn failed_responses_do_not_invent_version_metadata_and_success_recovers() {
     );
     let mut client = Client::start(&socket);
     assert_success(
-        &client.call(2, "au_types", json!({"limit":1,"offset":0})),
+        &client.call(2, "tb_types", json!({"limit":1,"offset":0})),
         123,
         &json!({"types":[]}),
     );
     for id in 3..7 {
-        assert_error_without_version(&client.call(id, "au_types", json!({"limit":1,"offset":0})));
+        assert_error_without_version(&client.call(id, "tb_types", json!({"limit":1,"offset":0})));
     }
     assert_success(
-        &client.call(7, "au_types", json!({"limit":1,"offset":0})),
+        &client.call(7, "tb_types", json!({"limit":1,"offset":0})),
         0,
         &payload,
     );

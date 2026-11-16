@@ -248,14 +248,14 @@ fn every_captured_payload_matches_its_declared_types() {
 
 /// The page that ends a sequence answers `next_offset: null`, which a strict client
 /// rejects unless the declaration says so. Found on the live server on 2026-11-15:
-/// `au_instances_of {"type_name":"moc","limit":200}` came back to a client as
+/// `tb_instances_of {"type_name":"moc","limit":200}` came back to a client as
 /// "None is not of type 'integer'" — the read itself had succeeded.
 #[test]
 fn a_page_that_ends_the_sequence_declares_its_null_offset() {
-    let records = captured("au_instances_of")["instances_of"].clone();
+    let records = captured("tb_instances_of")["instances_of"].clone();
     let total = records.as_array().unwrap().len();
     let (answer, schemas) = call_against_engine(
-        "au_instances_of",
+        "tb_instances_of",
         "instances_of",
         // Exactly the whole set: one page that is also the last page.
         json!({"type_name": "note", "limit": total}),
@@ -268,7 +268,7 @@ fn a_page_that_ends_the_sequence_declares_its_null_offset() {
         Value::Null,
         "this page must end the sequence: {answer}"
     );
-    assert_declares("au_instances_of", &answer, &schemas);
+    assert_declares("tb_instances_of", &answer, &schemas);
 }
 
 /// Every read the adapter pages itself (`page_array` in `src/lib.rs`) must satisfy its
@@ -280,12 +280,12 @@ fn every_adapter_paged_read_validates_on_its_last_page() {
     // (tool, wire verb, key the records sit under, the arguments that select the read)
     let paged = [
         (
-            "au_instances_of",
+            "tb_instances_of",
             "instances_of",
             "instances_of",
             json!({"type_name": "note"}),
         ),
-        ("au_instances", "instances", "instances", json!({})),
+        ("tb_instances", "instances", "instances", json!({})),
     ];
     for (tool, verb, key, base) in paged {
         let records = captured(tool)[key].clone();

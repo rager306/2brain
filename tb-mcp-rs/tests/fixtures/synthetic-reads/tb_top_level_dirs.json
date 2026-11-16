@@ -1,0 +1,20 @@
+{
+  "arguments": {},
+  "payload": {
+    "top_level_dirs": [
+      {
+        "member": null,
+        "name": "notes",
+        "path": "$FIXTURE/fixture/notes",
+        "repo": "fixture"
+      },
+      {
+        "member": null,
+        "name": "type",
+        "path": "$FIXTURE/fixture/type",
+        "repo": "fixture"
+      }
+    ]
+  },
+  "tool": "tb_top_level_dirs"
+}

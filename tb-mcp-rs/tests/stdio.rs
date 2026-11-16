@@ -132,58 +132,58 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
     assert_eq!(
         names,
         [
-            "au_add_dep",
-            "au_add_workspace_member",
-            "au_anchors",
-            "au_assign_block_id",
-            "au_batch",
-            "au_block_ids",
-            "au_candidates",
-            "au_children",
-            "au_content",
-            "au_create_file",
-            "au_delete_file",
-            "au_describe_tool",
-            "au_diagnostics",
-            "au_edit_file",
-            "au_files",
-            "au_follow",
-            "au_frontmatter",
-            "au_graph_health",
-            "au_grep",
-            "au_hubs",
-            "au_imports",
-            "au_inline",
-            "au_instances",
-            "au_instances_of",
-            "au_members",
-            "au_neighborhood",
-            "au_overview",
-            "au_preview_mutation",
-            "au_promote",
-            "au_reconcile",
-            "au_references",
-            "au_remove_dep",
-            "au_remove_workspace_member",
-            "au_rename",
-            "au_rename_block_id",
-            "au_rename_type",
-            "au_resolve_member",
-            "au_resolved",
-            "au_rollback_preview",
-            "au_search",
-            "au_search_tools",
-            "au_semantic_tokens",
-            "au_set_workspace_member_role",
-            "au_subtypes",
-            "au_top_level_dirs",
-            "au_type",
-            "au_type_tree",
-            "au_typed",
-            "au_types",
-            "au_validate_value",
-            "au_watch",
-            "au_write_file"
+            "tb_add_dep",
+            "tb_add_workspace_member",
+            "tb_anchors",
+            "tb_assign_block_id",
+            "tb_batch",
+            "tb_block_ids",
+            "tb_candidates",
+            "tb_children",
+            "tb_content",
+            "tb_create_file",
+            "tb_delete_file",
+            "tb_describe_tool",
+            "tb_diagnostics",
+            "tb_edit_file",
+            "tb_files",
+            "tb_follow",
+            "tb_frontmatter",
+            "tb_graph_health",
+            "tb_grep",
+            "tb_hubs",
+            "tb_imports",
+            "tb_inline",
+            "tb_instances",
+            "tb_instances_of",
+            "tb_members",
+            "tb_neighborhood",
+            "tb_overview",
+            "tb_preview_mutation",
+            "tb_promote",
+            "tb_reconcile",
+            "tb_references",
+            "tb_remove_dep",
+            "tb_remove_workspace_member",
+            "tb_rename",
+            "tb_rename_block_id",
+            "tb_rename_type",
+            "tb_resolve_member",
+            "tb_resolved",
+            "tb_rollback_preview",
+            "tb_search",
+            "tb_search_tools",
+            "tb_semantic_tokens",
+            "tb_set_workspace_member_role",
+            "tb_subtypes",
+            "tb_top_level_dirs",
+            "tb_type",
+            "tb_type_tree",
+            "tb_typed",
+            "tb_types",
+            "tb_validate_value",
+            "tb_watch",
+            "tb_write_file"
         ]
     );
     // An agent needs to know what the server is for before choosing a tool.
@@ -191,7 +191,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
         .as_str()
         .expect("initialize must carry server instructions");
     assert!(
-        instructions.contains("au_overview") && instructions.contains("outcome_unknown"),
+        instructions.contains("tb_overview") && instructions.contains("outcome_unknown"),
         "{instructions}"
     );
     // Every tool states its output shape, so a client can parse the answer
@@ -202,7 +202,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             .get("outputSchema")
             .unwrap_or_else(|| panic!("{name} declares no outputSchema"));
         assert_eq!(schema["type"], "object", "{name}");
-        // Most reads require exactly their own envelope key; `au_references`
+        // Most reads require exactly their own envelope key; `tb_references`
         // returns either or both directions, so it declares no required key.
         if let Some(required) = schema["required"].as_array() {
             for key in required {
@@ -217,7 +217,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
 
     let diagnostics = tools
         .iter()
-        .find(|tool| tool["name"] == "au_diagnostics")
+        .find(|tool| tool["name"] == "tb_diagnostics")
         .unwrap();
     let schema = &diagnostics["inputSchema"]["properties"];
     assert_eq!(schema["repo"]["minLength"], 1);
@@ -228,12 +228,12 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
     assert!(schema.get("path_prefix").is_none());
     let content = tools
         .iter()
-        .find(|tool| tool["name"] == "au_content")
+        .find(|tool| tool["name"] == "tb_content")
         .unwrap();
     assert_eq!(content["inputSchema"]["required"], json!(["repo", "path"]));
     let files = tools
         .iter()
-        .find(|tool| tool["name"] == "au_files")
+        .find(|tool| tool["name"] == "tb_files")
         .unwrap();
     let files_schema = &files["inputSchema"]["properties"];
     assert_eq!(files_schema["repo"]["minLength"], 1);
@@ -242,20 +242,20 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
     assert!(files_schema.get("path").is_none());
     let imports = tools
         .iter()
-        .find(|tool| tool["name"] == "au_imports")
+        .find(|tool| tool["name"] == "tb_imports")
         .unwrap();
     let properties = imports["inputSchema"]["properties"].as_object().unwrap();
     assert_eq!(properties.len(), 1);
     assert!(properties.contains_key("scope"));
     let members = tools
         .iter()
-        .find(|tool| tool["name"] == "au_members")
+        .find(|tool| tool["name"] == "tb_members")
         .unwrap();
     assert_eq!(members["inputSchema"]["properties"]["repo"]["minLength"], 1);
     assert!(members["inputSchema"]["properties"].get("scope").is_none());
     let subtypes = tools
         .iter()
-        .find(|tool| tool["name"] == "au_subtypes")
+        .find(|tool| tool["name"] == "tb_subtypes")
         .unwrap();
     assert_eq!(subtypes["inputSchema"]["required"], json!(["base"]));
     assert_eq!(
@@ -264,7 +264,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
     );
     let tree_tool = tools
         .iter()
-        .find(|tool| tool["name"] == "au_type_tree")
+        .find(|tool| tool["name"] == "tb_type_tree")
         .unwrap();
     let description = tree_tool["description"].as_str().unwrap();
     assert!(description.contains("whole workspace"));
@@ -272,7 +272,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
     assert!(description.contains("unpaged"));
     assert_eq!(tree_tool["annotations"]["destructiveHint"], false);
     assert_eq!(tree_tool["annotations"]["idempotentHint"], true);
-    let type_schema = &tools.iter().find(|tool| tool["name"] == "au_type").unwrap()["inputSchema"];
+    let type_schema = &tools.iter().find(|tool| tool["name"] == "tb_type").unwrap()["inputSchema"];
     assert_eq!(type_schema["required"], json!(["name"]));
     assert_eq!(type_schema["properties"]["name"]["type"], "string");
     assert!(type_schema["properties"].get("repo").is_some());
@@ -280,27 +280,27 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
         let read_only = tool["annotations"]["readOnlyHint"] == true;
         if matches!(
             tool["name"].as_str().unwrap(),
-            "au_write_file"
-                | "au_edit_file"
-                | "au_delete_file"
-                | "au_assign_block_id"
-                | "au_rename_block_id"
-                | "au_rename"
-                | "au_rename_type"
-                | "au_add_dep"
-                | "au_remove_dep"
-                | "au_inline"
-                | "au_promote"
-                | "au_batch"
-                | "au_create_file"
-                | "au_add_workspace_member"
-                | "au_remove_workspace_member"
-                | "au_set_workspace_member_role"
+            "tb_write_file"
+                | "tb_edit_file"
+                | "tb_delete_file"
+                | "tb_assign_block_id"
+                | "tb_rename_block_id"
+                | "tb_rename"
+                | "tb_rename_type"
+                | "tb_add_dep"
+                | "tb_remove_dep"
+                | "tb_inline"
+                | "tb_promote"
+                | "tb_batch"
+                | "tb_create_file"
+                | "tb_add_workspace_member"
+                | "tb_remove_workspace_member"
+                | "tb_set_workspace_member_role"
         ) {
             assert!(!read_only, "the write tool must not claim to be read-only");
             // Creating a file replaces nothing, so its hint must say so; every
             // other write can destroy what was there.
-            let destructive = tool["name"] != "au_create_file";
+            let destructive = tool["name"] != "tb_create_file";
             assert_eq!(tool["annotations"]["destructiveHint"], destructive);
         } else {
             assert!(read_only, "{} must stay read-only", tool["name"]);
@@ -312,9 +312,9 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             .all(|tool| tool["inputSchema"]["additionalProperties"] == false)
     );
     for (id, name) in [
-        (5, "au_overview"),
-        (6, "au_top_level_dirs"),
-        (9, "au_type_tree"),
+        (5, "tb_overview"),
+        (6, "tb_top_level_dirs"),
+        (9, "tb_type_tree"),
     ] {
         send(
             &mut input,
@@ -325,7 +325,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
         assert_eq!(result["result"]["isError"], true);
     }
     for (id, name, arguments, code) in [
-        (7, "au_overview", json!("invalid"), -32601),
+        (7, "tb_overview", json!("invalid"), -32601),
         (8, "unknown_tool", json!({}), -32602),
     ] {
         send(
@@ -338,7 +338,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
     }
     send(
         &mut input,
-        json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"au_overview","arguments":{}}}),
+        json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"tb_overview","arguments":{}}}),
     );
     let result = receive(&mut output);
     assert_eq!(
@@ -348,7 +348,7 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
     );
     send(
         &mut input,
-        json!({"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"au_type_tree","arguments":{}}}),
+        json!({"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"tb_type_tree","arguments":{}}}),
     );
     let tree = receive(&mut output);
     assert_eq!(

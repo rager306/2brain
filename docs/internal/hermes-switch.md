@@ -69,8 +69,8 @@ then start a NEW Hermes session (config is read at session start; an existing se
 will not pick it up).
 
 Success looks like: the tool list contains `mcp__arsumbris-rs__au_overview`,
-`au_search_tools`, `au_content` — 35 tools, and **no** `au_write_file`,
-`au_batch`, `au_create_file`. A read-only launch cannot advertise what it cannot do.
+`tb_search_tools`, `tb_content` — 35 tools, and **no** `tb_write_file`,
+`tb_batch`, `tb_create_file`. A read-only launch cannot advertise what it cannot do.
 
 ## Step 2 — give it a real read task
 
@@ -80,10 +80,10 @@ Success looks like: the tool list contains `mcp__arsumbris-rs__au_overview`,
 
 What to watch for:
 
-- it starts with `au_overview`, not with a guess;
-- `au_search_tools` appears if it is unsure which tool fits — that is the discovery
+- it starts with `tb_overview`, not with a guess;
+- `tb_search_tools` appears if it is unsure which tool fits — that is the discovery
   path working, not a detour;
-- `au_content` answers with a `hash` and a `commit` (the bridge answers with a text
+- `tb_content` answers with a `hash` and a `commit` (the bridge answers with a text
   blob; if you see the hash, you are on the Rust adapter);
 - no tool call fails with `unknown tool` or `policy/…`.
 
@@ -103,15 +103,15 @@ Checks, in order of importance:
 
 1. the write is one engine commit (`git -C /root/vault log -1 --stat` shows exactly
    one file);
-2. `au_files` or `au_content` reads it back;
+2. `tb_files` or `tb_content` reads it back;
 3. **a second write to the same path without a fresh read is refused** with
    `policy/prior_read` — that refusal is the gate working, and it is the thing the
    Node stack does not do;
 4. if the reply is lost (it should not be), the answer is `outcome_unknown` and the
-   tool to use is `au_reconcile`, never a retry.
+   tool to use is `tb_reconcile`, never a retry.
 
 Clean up with `git -C /root/vault rm inbox/adapter-write-test.md` and commit, or ask
-the adapter: `au_delete_file` needs a fresh `au_content` read of that path first.
+the adapter: `tb_delete_file` needs a fresh `tb_content` read of that path first.
 
 ## Step 4 — what to send me
 
@@ -133,5 +133,5 @@ removing the block restores exactly the previous state.
   facts `live_parity.py` compares (members, top-level dirs, the full type list, the top
   20 hubs, and the diagnostics list). It exits 2 rather than 0 when a fact could not be
   compared, so "could not check" never reads as a pass.
-- It does not exercise resource subscriptions (there are none; `au_watch` is the change
+- It does not exercise resource subscriptions (there are none; `tb_watch` is the change
   signal) or the plugin loader (this vault declares no plugins).

@@ -29,9 +29,9 @@ skills, injects, allowed tools).
 
 | agent | state it lives in | tools it may use | exit check (code) |
 |---|---|---|---|
-| **librarian** | ingest a new note | `au_grep`, `au_content`, `au_frontmatter`, `au_create_file` | type is one of the nine, `source_url` present, links resolve, `au_diagnostics` unchanged |
-| **editor** | change one note | `au_content` → `au_write_file` with the returned hash | one commit, hash carried, no second write on `outcome_unknown` |
-| **auditor** | after a mutation | `au_content`, `au_graph_health`, `au_reconcile` | the file reads back with the intended text; `broken_links` did not grow |
+| **librarian** | ingest a new note | `tb_grep`, `tb_content`, `tb_frontmatter`, `tb_create_file` | type is one of the nine, `source_url` present, links resolve, `tb_diagnostics` unchanged |
+| **editor** | change one note | `tb_content` → `tb_write_file` with the returned hash | one commit, hash carried, no second write on `outcome_unknown` |
+| **auditor** | after a mutation | `tb_content`, `tb_graph_health`, `tb_reconcile` | the file reads back with the intended text; `broken_links` did not grow |
 | **scout** | answer a question | the read surface only | the answer cites note paths that exist |
 
 None of them owns ordering. The FSM runs them: `read → propose → apply → verify → done`, with

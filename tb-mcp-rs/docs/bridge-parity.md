@@ -17,14 +17,14 @@ Python bridge, and the Rust adapter, then compares what each surface states.
 | Rust adapter tools | 35 | read-side tools a launch without grants advertises |
 
 Byte-for-byte parity is the wrong target: the daemon **projects** engine data.
-Its `au_diagnostics` tool returns a summary, paging, and a severity filter on top
+Its `tb_diagnostics` tool returns a summary, paging, and a severity filter on top
 of the read, while the adapter passes the engine payload through unchanged.
 
 ## What was compared, and the result
 
 | bridge tool | adapter tool | result |
 |---|---|---|
-| `mcp__au_diagnostics` | `au_diagnostics` | **match**: 3 identical findings (code, severity, file, line), collected by the daemon across its severity filter and identical to the engine read |
+| `mcp__au_diagnostics` | `tb_diagnostics` | **match**: 3 identical findings (code, severity, file, line), collected by the daemon across its severity filter and identical to the engine read |
 
 The daemon's diagnostics tool defaults to one severity and offers no "all"
 value, so the script calls it once per severity (`error`, `drift`, `warning`,
@@ -39,14 +39,14 @@ exactly.
   `add_workspace_member`, `remove_workspace_member`, `set_workspace_member_role`,
   `rename_type`. Several are host actions or workspace mutation, not engine
   reads. The adapter deliberately does not forward them.
-- **Adapter-only** (34): `au_overview`, `au_type`, `au_types`, `au_type_tree`,
-  `au_subtypes`, `au_hubs`, `au_imports`, `au_files`, `au_content`, `au_members`,
-  `au_top_level_dirs`, `au_instances_of`, `au_validate_value`,
-  `au_preview_mutation`, `au_reconcile`, `au_anchors`, `au_block_ids`,
-  `au_candidates`, `au_children`, `au_follow`, `au_frontmatter`, `au_graph_health`,
-  `au_grep`, `au_instances`, `au_neighborhood`, `au_references`,
-  `au_resolve_member`, `au_resolved`, `au_rollback_preview`, `au_semantic_tokens`,
-  `au_search_tools`, `au_describe_tool`, `au_typed`, `au_watch`.
+- **Adapter-only** (34): `tb_overview`, `tb_type`, `tb_types`, `tb_type_tree`,
+  `tb_subtypes`, `tb_hubs`, `tb_imports`, `tb_files`, `tb_content`, `tb_members`,
+  `tb_top_level_dirs`, `tb_instances_of`, `tb_validate_value`,
+  `tb_preview_mutation`, `tb_reconcile`, `tb_anchors`, `tb_block_ids`,
+  `tb_candidates`, `tb_children`, `tb_follow`, `tb_frontmatter`, `tb_graph_health`,
+  `tb_grep`, `tb_instances`, `tb_neighborhood`, `tb_references`,
+  `tb_resolve_member`, `tb_resolved`, `tb_rollback_preview`, `tb_semantic_tokens`,
+  `tb_search_tools`, `tb_describe_tool`, `tb_typed`, `tb_watch`.
 - The daemon compiles in **no tools**: without `au-mcp-core` mounted as a
   workspace dependency it serves an empty tool list. That is a deployment fact a
   cutover has to carry over, not an adapter gap.
@@ -70,7 +70,7 @@ The same script against the release binaries of the fork (`au-engine` at
 bridge tools: 19
 rust tools:   35
 comparable pairs: ['mcp__au_diagnostics']
-MATCH mcp__au_diagnostics <-> au_diagnostics: 3 identical findings (code, severity, file, line), daemon unioned over its severity filter
+MATCH mcp__au_diagnostics <-> tb_diagnostics: 3 identical findings (code, severity, file, line), daemon unioned over its severity filter
 PASS: the compared facts agree across the bridge, the adapter, and the engine
 ```
 
@@ -82,7 +82,7 @@ cutover evidence by itself:
   serves 49 (measured through the bridge on 2026-11-14, `tools/list`); the adapter
   advertises 35 read-side of its 51.
 - **One comparable pair** is a design fact, not a coverage failure: the daemon
-  exposes exactly one engine READ in this fixture (`au_diagnostics`). Everything
+  exposes exactly one engine READ in this fixture (`tb_diagnostics`). Everything
   else the daemon-only list names is a host action or a mutation, and the adapter
   serves those through its own gate rather than forwarding the daemon's shape.
 

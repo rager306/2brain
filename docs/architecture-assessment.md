@@ -168,7 +168,7 @@ instances, and the code does not read them.
 
 ### 3.4 Dogfood findings (evidence that the surface needs a naming/capability discipline)
 
-1. **`au_instances_of` fails on the last page.** `next_offset` is `null` there while the
+1. **`tb_instances_of` fails on the last page.** `next_offset` is `null` there while the
    schema declares `integer` → a real client rejects the answer
    (`None is not of type 'integer'`). Reproduced with `{type_name:"moc", limit:200}` and
    `{type_name:"manual", limit:100}`; `limit:10` is fine. Same nullable-union class as the
@@ -178,8 +178,8 @@ instances, and the code does not read them.
    still documents 44 tools, the `mcp__arsumbris__` prefix, the `au-mcp` socket and
    `active/outdated/superseded` statuses — a stale instruction file of exactly the kind the
    vault's own rule about instruction drift describes.
-3. **Path shape is inconsistent by verb:** absolute paths in `au_hubs`/`au_diagnostics`,
-   member-relative in `au_content`/`au_frontmatter`.
+3. **Path shape is inconsistent by verb:** absolute paths in `tb_hubs`/`tb_diagnostics`,
+   member-relative in `tb_content`/`tb_frontmatter`.
 
 ## 4. What external practice says
 
@@ -206,7 +206,7 @@ Condensed to the claims that decide something here; attribution in §8.
 5. **Durable execution is the industrial version of the same idea:** checkpoint each
    non-idempotent step, replay on resume, get exactly-once for the parts that are not
    naturally idempotent (Temporal/Restate/Hatchet comparison, 2026). Our
-   `outcome_unknown → au_reconcile` is a hand-built instance of this: the write is
+   `outcome_unknown → tb_reconcile` is a hand-built instance of this: the write is
    checkpointed by the engine's git history, and reconciliation reads it back instead of
    replaying.
 6. **Ontologies only pay when they are compiled into something executable:** with tool
@@ -301,16 +301,16 @@ no code behind it is prose, not a state machine.
 ### D. Ontology of the tool surface — small, and it has a real consumer
 
 Already present: typed `mcp.tool` / `mcp.inject` / `agent-profile` definitions (§3.2),
-`au_search_tools` + `au_describe_tool` as discovery, `output_schema` on all 51 tools, and
+`tb_search_tools` + `tb_describe_tool` as discovery, `output_schema` on all 51 tools, and
 three tests that check declared types against actual payloads.
 
 Missing, and cheap: **one capability axis** — every tool is exactly one of
 `read | mutate | discover | watch | serve | compose`, declared in one place in the adapter and
 checked by a test. What it buys, concretely:
 
-1. `au_search_tools` can filter by capability, so a read-only session never sees a mutate
+1. `tb_search_tools` can filter by capability, so a read-only session never sees a mutate
    name (today that is achieved by *absence*, which is correct but unexplainable);
-2. documentation and the `au_describe_tool` answer can be generated from the same table
+2. documentation and the `tb_describe_tool` answer can be generated from the same table
    instead of drifting (the `manual/mcp-access.md` drift in §3.4 is the current cost of
    drift);
 3. a schema test can assert the invariant "a capability class is total and disjoint", which
@@ -344,7 +344,7 @@ Ordered by evidence-per-cost, with a stop rule at each step:
    adapter is actually scheduled; the seams from step 2 make that rewrite cheap later, which
    is the entire point of doing A first.
 6. **Fix the dogfood bugs**, because they are cheap and they are the honest measure of D:
-   `au_instances_of` `next_offset: null`, argument names (`type_name`, `origin_path`), and
+   `tb_instances_of` `next_offset: null`, argument names (`type_name`, `origin_path`), and
    the absolute/member-relative path inconsistency.
 
 ### What would make me reverse a recommendation

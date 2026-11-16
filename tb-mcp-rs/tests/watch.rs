@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-//! `au_watch`: one bounded wait on the engine's `changes` subscription.
+//! `tb_watch`: one bounded wait on the engine's `changes` subscription.
 
 use std::{os::unix::net::UnixListener, thread, time::Duration};
 
@@ -34,7 +34,7 @@ fn watch_subscribes_skips_the_ack_and_returns_the_delta() {
         );
     });
     let mut client = Client::start_with_timeout(&socket, &[], Duration::from_secs(10));
-    let reply = client.call(2, "au_watch", json!({}));
+    let reply = client.call(2, "tb_watch", json!({}));
     assert_ne!(reply["result"]["isError"], true, "{reply}");
     let payload: Value =
         serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
@@ -61,7 +61,7 @@ fn a_timeout_is_an_answer_not_an_error() {
         thread::sleep(Duration::from_millis(600));
     });
     let mut client = Client::start_with_timeout(&socket, &[], Duration::from_secs(10));
-    let reply = client.call(2, "au_watch", json!({"timeout_ms": 200}));
+    let reply = client.call(2, "tb_watch", json!({"timeout_ms": 200}));
     assert_ne!(reply["result"]["isError"], true, "{reply}");
     let payload: Value =
         serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
@@ -81,7 +81,7 @@ fn watch_refuses_an_out_of_range_timeout_before_connecting() {
         .into_iter()
         .enumerate()
     {
-        let reply = client.call(index as u32 + 2, "au_watch", arguments.clone());
+        let reply = client.call(index as u32 + 2, "tb_watch", arguments.clone());
         assert_eq!(reply["result"]["isError"], true, "{arguments}: {reply}");
     }
     assert_eq!(

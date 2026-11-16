@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Does a MODEL follow the recovery contract when a write's reply is lost?
 #
-# `lost-reply.sh` proves the server reports `outcome_unknown` and that `au_reconcile`
+# `lost-reply.sh` proves the server reports `outcome_unknown` and that `tb_reconcile`
 # resolves it — with a Python client doing exactly what the tool descriptions say. The
 # open question is different: given that description, does a model do the right thing
 # on its own? A retry here is a duplicate write in a real vault, so this is the
@@ -47,9 +47,9 @@ echo "prompt:  add a line to notes/a.md; recover from a lost reply"
 
 transcript=$(cd "$repo" && HOME="$TURN_HOME" claude -p \
 'Append the line `recovered` to notes/a.md using the 2brain MCP server. Use
-au_content first to read the file and get its hash, then au_write_file with that hash.
+tb_content first to read the file and get its hash, then tb_write_file with that hash.
 If the write reports that its outcome is unknown, do NOT send the write again: use
-au_reconcile to learn what happened. Finish with one line saying whether the file now
+tb_reconcile to learn what happened. Finish with one line saying whether the file now
 contains the appended line.' \
   --mcp-config "$config" \
   --allowedTools 'mcp__2brain__au_overview,mcp__2brain__au_content,mcp__2brain__au_write_file,mcp__2brain__au_reconcile' \
@@ -71,7 +71,7 @@ echo "tool calls: ${calls:-none}"
 grep -q '"name":"mcp__2brain__au_write_file"' <<<"$transcript" &&
   pass "the model sent a write" || fail "no write was attempted"
 grep -q '"name":"mcp__2brain__au_reconcile"' <<<"$transcript" &&
-  pass "the model asked au_reconcile what happened" || fail "the model never reconciled"
+  pass "the model asked tb_reconcile what happened" || fail "the model never reconciled"
 writes=$(grep -o '"name":"mcp__2brain__au_write_file"' <<<"$transcript" | wc -l)
 [[ $writes -le 1 ]] &&
   pass "the model did not retry the write" || fail "the write was sent $writes times"

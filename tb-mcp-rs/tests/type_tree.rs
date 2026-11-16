@@ -52,7 +52,7 @@ fn invalid_arguments_never_contact_engine() {
     .into_iter()
     .enumerate()
     {
-        assert_error(&client.call(index as u32 + 2, "au_type_tree", args));
+        assert_error(&client.call(index as u32 + 2, "tb_type_tree", args));
         assert_eq!(
             listener.accept().unwrap_err().kind(),
             std::io::ErrorKind::WouldBlock
@@ -72,11 +72,11 @@ fn null_and_omitted_arguments_are_accepted() {
     );
     let mut client = Client::start(&socket);
     assert_eq!(
-        result_payload(&client.call(2, "au_type_tree", json!(null))),
+        result_payload(&client.call(2, "tb_type_tree", json!(null))),
         good
     );
     let omitted = client.request(
-        json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"au_type_tree"}}),
+        json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"tb_type_tree"}}),
     );
     assert_eq!(omitted["id"], 3);
     assert_eq!(result_payload(&omitted), good);
@@ -106,7 +106,7 @@ fn type_tree_preserves_roots_nodes_empty_and_extra_fields() {
     let mut client = Client::start(&socket);
     for (index, tree) in trees.into_iter().enumerate() {
         assert_eq!(
-            result_payload(&client.call(index as u32 + 2, "au_type_tree", json!({}))),
+            result_payload(&client.call(index as u32 + 2, "tb_type_tree", json!({}))),
             json!({"type_tree":tree})
         );
     }
@@ -139,10 +139,10 @@ fn malformed_tree_payloads_are_errors_and_not_ready_recovers() {
     let daemon = fake_daemon(listener, replies);
     let mut client = Client::start(&socket);
     for id in 2..(bad.len() as u32 + 3) {
-        assert_error(&client.call(id, "au_type_tree", json!({})));
+        assert_error(&client.call(id, "tb_type_tree", json!({})));
     }
     assert_eq!(
-        result_payload(&client.call(bad.len() as u32 + 3, "au_type_tree", json!({}))),
+        result_payload(&client.call(bad.len() as u32 + 3, "tb_type_tree", json!({}))),
         good
     );
     daemon.join().unwrap();

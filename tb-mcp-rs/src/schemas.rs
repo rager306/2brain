@@ -46,7 +46,7 @@ pub(crate) fn envelope_schema(verb: &'static str) -> Arc<serde_json::Map<String,
     )
 }
 
-/// The output schema of `au_watch`: the delta the engine reported, or a timeout.
+/// The output schema of `tb_watch`: the delta the engine reported, or a timeout.
 pub(crate) fn watch_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
         json!({
@@ -74,7 +74,7 @@ pub(crate) fn watch_schema() -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_rollback_preview`/// The output schema of `au_rollback_preview`: a plan, path by path.
+/// The output schema of `tb_rollback_preview`/// The output schema of `tb_rollback_preview`: a plan, path by path.
 pub(crate) fn rollback_preview_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
         json!({
@@ -115,7 +115,7 @@ pub(crate) fn rollback_preview_schema() -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_graph_health`/// The output schema of `au_graph_health`: the report and its bounded lists.
+/// The output schema of `tb_graph_health`/// The output schema of `tb_graph_health`: the report and its bounded lists.
 pub(crate) fn graph_health_schema() -> Arc<serde_json::Map<String, Value>> {
     let node = json!({
         "type": "object",
@@ -182,7 +182,7 @@ pub(crate) fn graph_health_schema() -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_batch`: the per-op results and the saga's commit./// The output schema of `au_batch`: the per-op results and the saga's commit.
+/// The output schema of `tb_batch`: the per-op results and the saga's commit./// The output schema of `tb_batch`: the per-op results and the saga's commit.
 pub(crate) fn batch_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
         json!({
@@ -217,7 +217,7 @@ pub(crate) fn batch_schema() -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_subtypes`: the base it was asked about plus the
+/// The output schema of `tb_subtypes`: the base it was asked about plus the
 /// resolved list, which the engine returns as two keys rather than one envelope.
 pub(crate) fn subtypes_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
@@ -236,7 +236,7 @@ pub(crate) fn subtypes_schema() -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_reconcile`: a flat verdict, not an envelope. The
+/// The output schema of `tb_reconcile`: a flat verdict, not an envelope. The
 /// engine answers `outcome` with the current hash and commit beside it.
 pub(crate) fn reconcile_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
@@ -266,7 +266,7 @@ pub(crate) fn reconcile_schema() -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_grep`: one page of matches plus the totals that make
+/// The output schema of `tb_grep`: one page of matches plus the totals that make
 /// the page interpretable.
 pub(crate) fn grep_schema() -> Arc<serde_json::Map<String, Value>> {
     let hit = json!({
@@ -307,7 +307,7 @@ pub(crate) fn grep_schema() -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_instances`: the engine's envelope plus paging.
+/// The output schema of `tb_instances`: the engine's envelope plus paging.
 pub(crate) fn instances_schema() -> Arc<serde_json::Map<String, Value>> {
     let mut properties = serde_json::Map::new();
     properties.insert(
@@ -341,7 +341,7 @@ pub(crate) fn instances_schema() -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_candidates`: the scan's envelope.
+/// The output schema of `tb_candidates`: the scan's envelope.
 pub(crate) fn candidates_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
         json!({
@@ -359,7 +359,7 @@ pub(crate) fn candidates_schema() -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_references`: either or both directions.
+/// The output schema of `tb_references`: either or both directions.
 pub(crate) fn references_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
         json!({
@@ -409,16 +409,16 @@ pub(crate) fn mutation_schema() -> Arc<serde_json::Map<String, Value>> {
                     "type": ["string", "null"],
                     "description": "the commit the deleted file last existed in, null for writes",
                 },
-                // `au_assign_block_id` answers with the block it named and the reference
+                // `tb_assign_block_id` answers with the block it named and the reference
                 // that addresses it; every other mutation omits both. Declared because
                 // the schema is the client's contract, not a hint.
                 "id": {
                     "type": ["string", "null"],
-                    "description": "the block id, for au_assign_block_id",
+                    "description": "the block id, for tb_assign_block_id",
                 },
                 "ref": {
                     "type": ["string", "null"],
-                    "description": "the reference that addresses the block, for au_assign_block_id",
+                    "description": "the reference that addresses the block, for tb_assign_block_id",
                 },
                 "reflected": {"type": "boolean"},
                 "commit": {},
@@ -435,7 +435,7 @@ pub(crate) fn mutation_schema() -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_follow`.
+/// The output schema of `tb_follow`.
 pub(crate) fn follow_schema() -> Arc<serde_json::Map<String, Value>> {
     let mut properties = serde_json::Map::new();
     properties.insert(
@@ -466,7 +466,7 @@ pub(crate) fn follow_schema() -> Arc<serde_json::Map<String, Value>> {
     )
 }
 
-/// The output schema of `au_typed`.
+/// The output schema of `tb_typed`.
 pub(crate) fn typed_schema() -> Arc<serde_json::Map<String, Value>> {
     Arc::new(
         json!({

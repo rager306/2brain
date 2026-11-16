@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-//! The `au_grep` read: a literal text search over the catalogued files.
+//! The `tb_grep` read: a literal text search over the catalogued files.
 
 use std::{os::unix::net::UnixListener, thread};
 
@@ -45,7 +45,7 @@ fn grep_sends_the_literal_search_and_passes_the_answer_through() {
     let mut client = Client::start(&socket);
     let reply = client.call(
         2,
-        "au_grep",
+        "tb_grep",
         json!({"query":"retry policy","case_sensitive":true,"repo":"fixture","scope":"own"}),
     );
     let payload = payload_of(&reply);
@@ -74,7 +74,7 @@ fn grep_refuses_bad_arguments_before_the_engine() {
     .into_iter()
     .enumerate()
     {
-        let reply = client.call(index as u32 + 2, "au_grep", arguments.clone());
+        let reply = client.call(index as u32 + 2, "tb_grep", arguments.clone());
         assert_eq!(reply["result"]["isError"], true, "{arguments}: {reply}");
     }
     assert_eq!(

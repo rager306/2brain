@@ -38,7 +38,7 @@ fn inline_metadata_cannot_bypass_legacy_initialize_for_tools() {
     listener.set_nonblocking(true).unwrap();
     let mut client = Client::spawn(&path);
     let meta = json!({"io.modelcontextprotocol/protocolVersion":"2025-06-18","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"probe","version":"1"}});
-    let denied = client.request(json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"au_overview","arguments":{},"_meta":meta}}));
+    let denied = client.request(json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"tb_overview","arguments":{},"_meta":meta}}));
     assert_eq!(denied["id"], 2, "{denied}");
     assert!(denied.get("error").is_some(), "{denied}");
     assert_eq!(
@@ -53,7 +53,7 @@ fn inline_metadata_cannot_bypass_legacy_initialize_for_tools() {
         listener.accept().unwrap_err().kind(),
         std::io::ErrorKind::WouldBlock
     );
-    let second = client.call(4, "au_overview", json!({}));
+    let second = client.call(4, "tb_overview", json!({}));
     assert!(second.get("error").is_some(), "{second}");
     assert_eq!(
         listener.accept().unwrap_err().kind(),
@@ -81,7 +81,7 @@ fn initialized_legacy_session_accepts_call_before_initialized_notification() {
     let mut client = Client::spawn(&path);
     let initialized = client.request(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"early-call-test","version":"1"}}}));
     assert!(initialized.get("result").is_some(), "{initialized}");
-    let response = client.call(2, "au_overview", json!({}));
+    let response = client.call(2, "tb_overview", json!({}));
     assert_ne!(response["result"]["isError"], true, "{response}");
     assert!(response.get("error").is_none(), "{response}");
     daemon.join().unwrap();
@@ -246,14 +246,14 @@ fn unknown_tools_and_invalid_arguments_do_not_contact_engine() {
 
     for (id, name, args) in [
         (2, "shutdown", json!({})),
-        (3, "au_overview", json!(["write", "delete"])),
-        (4, "au_top_level_dirs", json!("write")),
+        (3, "tb_overview", json!(["write", "delete"])),
+        (4, "tb_top_level_dirs", json!("write")),
         (
             5,
-            "au_overview",
+            "tb_overview",
             json!({"write":"delete", "path":"/root/vault", "id":99, "read":"shutdown", "nested":{"request":{"delete":"all"}}}),
         ),
-        (6, "au_top_level_dirs", json!({"path":"/root/vault"})),
+        (6, "tb_top_level_dirs", json!({"path":"/root/vault"})),
     ] {
         let response = client.call(id, name, args);
         assert!(
@@ -292,7 +292,7 @@ fn empty_arguments_produce_exact_read_requests() {
         }
     });
     let mut client = Client::start(&path);
-    for (id, name) in [(2, "au_overview"), (3, "au_top_level_dirs")] {
+    for (id, name) in [(2, "tb_overview"), (3, "tb_top_level_dirs")] {
         let response = client.call(id, name, json!({}));
         assert_ne!(response["result"]["isError"], true, "{response}");
     }
@@ -339,7 +339,7 @@ fn engine_errors_and_partial_frames_are_tool_errors_and_server_recovers() {
     });
     let mut client = Client::start(&path);
     for id in 2..6 {
-        let response = client.call(id, "au_overview", json!({}));
+        let response = client.call(id, "tb_overview", json!({}));
         assert_tool_error(&response);
         if id == 2 {
             assert!(
@@ -350,7 +350,7 @@ fn engine_errors_and_partial_frames_are_tool_errors_and_server_recovers() {
             );
         }
     }
-    let response = client.call(6, "au_overview", json!({}));
+    let response = client.call(6, "tb_overview", json!({}));
     assert_ne!(response["result"]["isError"], true, "{response}");
     assert_eq!(
         serde_json::from_str::<Value>(response["result"]["content"][0]["text"].as_str().unwrap())

@@ -34,10 +34,10 @@ The consequences worth knowing:
 
 33 read, 16 mutate, 2 discover, 1 watch — the split is `src/capability.rs`, and
 `docs/verification.md` records how it is checked against the router. The daemon's 49 tools are not a
-reference any more: 41 were ported (three under clearer names — `au_list_imports` → `au_imports`,
-`au_validate` → `au_validate_value`, `grep_files` → `au_grep`), 8 were dropped with reasons, and the
-Rust surface added what the daemon never had (`au_batch`, `au_search`, `au_graph_health`,
-`au_rollback_preview`, `au_watch`, `au_reconcile`, `au_preview_mutation`, `au_content`, and the two
+reference any more: 41 were ported (three under clearer names — `au_list_imports` → `tb_imports`,
+`au_validate` → `tb_validate_value`, `grep_files` → `tb_grep`), 8 were dropped with reasons, and the
+Rust surface added what the daemon never had (`tb_batch`, `tb_search`, `tb_graph_health`,
+`tb_rollback_preview`, `tb_watch`, `tb_reconcile`, `tb_preview_mutation`, `tb_content`, and the two
 discovery tools).
 
 `references/tool-map.md` in `skills/arsumbris/` carries the full generated list.

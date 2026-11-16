@@ -21,9 +21,9 @@ struct Tool {
 /// Tools that send no engine request of their own.
 #[rustfmt::skip]
 const ADAPTER_ONLY: [(&str, &str); 3] = [
-    ("au_search_tools",   "reads the adapter's own tool inventory"),
-    ("au_describe_tool",  "reads the adapter's own tool inventory"),
-    ("au_watch",          "waits on the `changes` subscription, not a read"),
+    ("tb_search_tools",   "reads the adapter's own tool inventory"),
+    ("tb_describe_tool",  "reads the adapter's own tool inventory"),
+    ("tb_watch",          "waits on the `changes` subscription, not a read"),
 ];
 
 /// Reads `WIRE.md` documents that no adapter tool exposes: pinned decisions, not
@@ -31,23 +31,23 @@ const ADAPTER_ONLY: [(&str, &str); 3] = [
 /// and an entry that starts being exposed fails it too.
 #[rustfmt::skip]
 const NOT_EXPOSED: [(&str, &str); 17] = [
-    ("candidate_counts",  "count companion; `au_candidates` pages instead"),
-    ("commit_meta",       "git trailers; the git surface is `au_rollback_preview`"),
+    ("candidate_counts",  "count companion; `tb_candidates` pages instead"),
+    ("commit_meta",       "git trailers; the git surface is `tb_rollback_preview`"),
     ("config",            "one consumer config file outside the knowledge base"),
     ("device_config",     "device-global files under `$HOME`: host state"),
-    ("diagnostic_counts", "count companion; `au_diagnostics` pages instead"),
+    ("diagnostic_counts", "count companion; `tb_diagnostics` pages instead"),
     ("file_history",      "git history of one path: host `git`, no consumer"),
-    ("graph_shape",       "scalar summary; `au_overview` mirrors it for the entry"),
+    ("graph_shape",       "scalar summary; `tb_overview` mirrors it for the entry"),
     ("ignores",           "`.auignore` rules: host configuration, like its writer"),
-    ("instance_counts",   "count companion; `au_instances` counts every site"),
+    ("instance_counts",   "count companion; `tb_instances` counts every site"),
     ("lifecycle",         "daemon state, host-only; the frame's `ready` probes it"),
-    ("link_graph",        "unbounded visualizer payload; walks are `au_neighborhood`"),
+    ("link_graph",        "unbounded visualizer payload; walks are `tb_neighborhood`"),
     ("pins",              "`@commit` pin inventory; no adapter consumer"),
     ("recent_commits",    "workspace git log, like `file_history`"),
-    ("type_batch",        "batch detail; `au_types` plus `au_type` browse and drill"),
+    ("type_batch",        "batch detail; `tb_types` plus `tb_type` browse and drill"),
     ("type_closure",      "closure walk; the `type` def carries `effective_fields`"),
-    ("type_counts",       "count companion; `au_types` pages instead"),
-    ("type_graph",        "unbounded schema graph; `au_type_tree` serves the tree"),
+    ("type_counts",       "count companion; `tb_types` pages instead"),
+    ("type_graph",        "unbounded schema graph; `tb_type_tree` serves the tree"),
 ];
 
 fn manifest_dir() -> PathBuf {

@@ -19,7 +19,7 @@ fn connect(extra: &[&str]) -> Client {
 }
 
 fn search(client: &mut Client, arguments: Value) -> Vec<String> {
-    let result = client.call_result(2, "au_search_tools", arguments);
+    let result = client.call_result(2, "tb_search_tools", arguments);
     assert_ne!(result["isError"], true, "{result}");
     result["structuredContent"]["tools"]
         .as_array()
@@ -45,7 +45,7 @@ fn advertised(client: &mut Client) -> Vec<String> {
 fn a_read_only_launch_never_returns_a_mutating_tool() {
     let mut client = connect(&[]);
     let names = advertised(&mut client);
-    assert!(!names.contains(&"au_write_file".to_owned()), "{names:?}");
+    assert!(!names.contains(&"tb_write_file".to_owned()), "{names:?}");
 
     for query in ["write", "file", "mutation", "batch", "rename", "workspace"] {
         let found = search(
@@ -66,7 +66,7 @@ fn the_mutation_filter_returns_exactly_the_advertised_mutations() {
     let advertised = advertised(&mut client);
     let found = search(
         &mut client,
-        json!({"query": "au", "capability": "mutate", "limit": 20}),
+        json!({"query": "tb", "capability": "mutate", "limit": 20}),
     );
     assert_eq!(found.len(), 16, "{found:?}");
     for name in &found {
@@ -95,7 +95,7 @@ fn the_classes_partition_the_advertised_catalogue() {
     for (capability, expected) in [("mutate", 16), ("discover", 2), ("watch", 1)] {
         let found = search(
             &mut client,
-            json!({"query": "au", "capability": capability, "limit": 20}),
+            json!({"query": "tb", "capability": capability, "limit": 20}),
         );
         assert_eq!(found.len(), expected, "{capability}: {found:?}");
         classified.extend(found);
@@ -115,7 +115,7 @@ fn the_classes_partition_the_advertised_catalogue() {
 
     let page = search(
         &mut client,
-        json!({"query": "au", "capability": "read", "limit": 20}),
+        json!({"query": "tb", "capability": "read", "limit": 20}),
     );
     assert_eq!(page.len(), 20, "{page:?}");
     for name in &page {
@@ -130,7 +130,7 @@ fn an_unknown_capability_is_named_in_the_error() {
     let mut client = connect(&[]);
     let result = client.call_result(
         2,
-        "au_search_tools",
+        "tb_search_tools",
         json!({"query": "instances", "capability": "reading"}),
     );
     let text = result["error"]["message"]

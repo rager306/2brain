@@ -4,7 +4,7 @@
 Track 3 of `docs/trajectory.md` changes how results are ordered, and "it looks better" is not a result.
 This builds two classes of queries with a known expected note:
 
-  `literal`  — a phrase that occurs in exactly one note (verified with `au_grep`), so any correct
+  `literal`  — a phrase that occurs in exactly one note (verified with `tb_grep`), so any correct
                ranker must put that note first; a ranker that fails here is broken, not different.
   `topical`  — a few content words from the note's own title, which many notes may match; this is where
                ranking actually decides something.
@@ -72,13 +72,13 @@ def main(argv: list[str]) -> int:
         paths: list[str] = []
         offset = 0
         while True:
-            reply = client.call("au_files", {"repo": "vault", "limit": 500, "offset": offset})
+            reply = client.call("tb_files", {"repo": "vault", "limit": 500, "offset": offset})
             if is_error(reply):
-                print(f"au_files refused: {tool_text(reply)}", file=sys.stderr)
+                print(f"tb_files refused: {tool_text(reply)}", file=sys.stderr)
                 return 1
             payload = tool_payload(reply)
             page = payload.get("files", [])
-            # au_files reports absolute paths; every file tool takes a path relative to the member.
+            # tb_files reports absolute paths; every file tool takes a path relative to the member.
             paths.extend(
                 row["path"][len(PREFIX):]
                 for row in page
@@ -96,13 +96,13 @@ def main(argv: list[str]) -> int:
             if len(rows) >= args.notes * 2 or checked >= args.notes * 6:
                 break
             checked += 1
-            front = client.call("au_frontmatter", {"repo": "vault", "path": relative})
+            front = client.call("tb_frontmatter", {"repo": "vault", "path": relative})
             if is_error(front):
                 continue
             meta = tool_payload(front).get("frontmatter") or {}
             if not isinstance(meta, dict) or not meta.get("type"):
                 continue
-            content = client.call("au_content", {"repo": "vault", "path": relative})
+            content = client.call("tb_content", {"repo": "vault", "path": relative})
             if is_error(content):
                 continue
             text = tool_payload(content).get("content", {}).get("text", "")
@@ -110,7 +110,7 @@ def main(argv: list[str]) -> int:
 
             # literal class: a phrase that occurs in exactly one note
             for phrase in phrases(body)[:6]:
-                count = client.call("au_grep", {"query": phrase, "limit": 5})
+                count = client.call("tb_grep", {"query": phrase, "limit": 5})
                 if is_error(count):
                     continue
                 grep = tool_payload(count).get("grep", {})

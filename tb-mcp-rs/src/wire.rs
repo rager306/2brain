@@ -20,7 +20,7 @@ use crate::transport::{EngineTransport, MutationFailure, ReadResult, WireError};
 /// A watch is a SUBSCRIPTION, not a read: the transport opens its own
 /// connection, skips the `ack`, and ends at the first `change_event`. The
 /// engine's `changes` channel delivers net file deltas per rebuild, so a caller
-/// learns what moved without polling `au_files` and diffing by hand. Never waits
+/// learns what moved without polling `tb_files` and diffing by hand. Never waits
 /// past `timeout`.
 pub(crate) async fn watch_engine(
     transport: &dyn EngineTransport,
@@ -56,7 +56,7 @@ pub(crate) async fn watch_engine(
     }
 }
 
-/// A timeout is an ordinary `au_watch` answer, not an error.
+/// A timeout is an ordinary `tb_watch` answer, not an error.
 fn watch_timeout() -> Value {
     json!({
         "added": [],
@@ -142,20 +142,20 @@ pub(crate) fn shape_of(verb: &str) -> Option<Shape> {
 /// A tool whose answer is one engine read names exactly one verb here, and the router fills
 /// that verb into the request (`read_for`). A tool the adapter composes from several reads
 /// lists every verb it builds its answer from, so the table stays the whole statement of what
-/// the read surface asks the engine and no declared shape is left unreachable: `au_follow`
+/// the read surface asks the engine and no declared shape is left unreachable: `tb_follow`
 /// picks a resolve verb by the link's grammar and peeks the addressed line with `content`,
-/// `au_typed` classifies with `instance` then `resolve_target`, and `au_references` reads both
+/// `tb_typed` classifies with `instance` then `resolve_target`, and `tb_references` reads both
 /// directions.
 pub(crate) const READ_VERBS: &[(&str, &[&str])] = &[
-    ("au_anchors", &["anchors"]),
-    ("au_block_ids", &["block_ids"]),
-    ("au_candidates", &["candidates"]),
-    ("au_children", &["dir_entries"]),
-    ("au_content", &["content"]),
-    ("au_diagnostics", &["diagnostics"]),
-    ("au_files", &["files"]),
+    ("tb_anchors", &["anchors"]),
+    ("tb_block_ids", &["block_ids"]),
+    ("tb_candidates", &["candidates"]),
+    ("tb_children", &["dir_entries"]),
+    ("tb_content", &["content"]),
+    ("tb_diagnostics", &["diagnostics"]),
+    ("tb_files", &["files"]),
     (
-        "au_follow",
+        "tb_follow",
         &[
             "resolve_block_id",
             "resolve_anchor",
@@ -163,31 +163,31 @@ pub(crate) const READ_VERBS: &[(&str, &[&str])] = &[
             "content",
         ],
     ),
-    ("au_frontmatter", &["frontmatter"]),
-    ("au_graph_health", &["graph_health"]),
-    ("au_grep", &["grep"]),
-    ("au_hubs", &["hubs"]),
-    ("au_imports", &["imports"]),
-    ("au_instances", &["instances"]),
-    ("au_instances_of", &["instances_of"]),
-    ("au_members", &["members"]),
-    ("au_neighborhood", &["neighborhood"]),
-    ("au_overview", &["overview"]),
-    ("au_preview_mutation", &["preview_mutation"]),
-    ("au_reconcile", &["content"]),
-    ("au_references", &["references_out", "references_in"]),
-    ("au_resolve_member", &["resolve_member"]),
-    ("au_resolved", &["instance"]),
-    ("au_rollback_preview", &["rollback_preview"]),
-    ("au_search", &["search"]),
-    ("au_semantic_tokens", &["semantic_tokens"]),
-    ("au_subtypes", &["subtypes"]),
-    ("au_top_level_dirs", &["top_level_dirs"]),
-    ("au_type", &["type"]),
-    ("au_type_tree", &["type_tree"]),
-    ("au_typed", &["instance", "resolve_target"]),
-    ("au_types", &["types"]),
-    ("au_validate_value", &["validate_value"]),
+    ("tb_frontmatter", &["frontmatter"]),
+    ("tb_graph_health", &["graph_health"]),
+    ("tb_grep", &["grep"]),
+    ("tb_hubs", &["hubs"]),
+    ("tb_imports", &["imports"]),
+    ("tb_instances", &["instances"]),
+    ("tb_instances_of", &["instances_of"]),
+    ("tb_members", &["members"]),
+    ("tb_neighborhood", &["neighborhood"]),
+    ("tb_overview", &["overview"]),
+    ("tb_preview_mutation", &["preview_mutation"]),
+    ("tb_reconcile", &["content"]),
+    ("tb_references", &["references_out", "references_in"]),
+    ("tb_resolve_member", &["resolve_member"]),
+    ("tb_resolved", &["instance"]),
+    ("tb_rollback_preview", &["rollback_preview"]),
+    ("tb_search", &["search"]),
+    ("tb_semantic_tokens", &["semantic_tokens"]),
+    ("tb_subtypes", &["subtypes"]),
+    ("tb_top_level_dirs", &["top_level_dirs"]),
+    ("tb_type", &["type"]),
+    ("tb_type_tree", &["type_tree"]),
+    ("tb_typed", &["instance", "resolve_target"]),
+    ("tb_types", &["types"]),
+    ("tb_validate_value", &["validate_value"]),
 ];
 
 /// The verbs the table names for `tool`, or `None` when it has no row.
@@ -548,7 +548,7 @@ pub(crate) async fn read_engine(
         .await
         .map_err(WireError::message)?;
     // Owned from here on: the result is moved out of the frame instead of being deep-cloned, which for
-    // a paged read (`au_files` at 500 rows) used to copy the whole array on every call.
+    // a paged read (`tb_files` at 500 rows) used to copy the whole array on every call.
     let mut frame = response;
     let version = frame["version"]
         .as_u64()
@@ -771,7 +771,7 @@ mod tests {
             let fixture: Value = serde_json::from_str(&text).expect("fixture json");
             // A composed tool builds its answer in the adapter and never crosses the engine boundary,
             // so its payload has no engine verb to declare. Adding one here is a deliberate act.
-            const COMPOSED: &[&str] = &["au_follow"];
+            const COMPOSED: &[&str] = &["tb_follow"];
             if fixture
                 .get("tool")
                 .and_then(Value::as_str)
@@ -783,7 +783,7 @@ mod tests {
                 .get("payload")
                 .and_then(Value::as_object)
                 .unwrap_or_else(|| panic!("{}: no payload object", path.display()));
-            // A verb-keyed read answers `{<verb>: …}`; a few tools (`au_typed`, `au_resolved`) flatten
+            // A verb-keyed read answers `{<verb>: …}`; a few tools (`tb_typed`, `tb_resolved`) flatten
             // their answer into several fields instead, and those have no verb to check.
             let keys: Vec<&String> = payload.keys().filter(|key| *key != "base").collect();
             if keys.len() != 1 {
@@ -884,7 +884,7 @@ mod tests {
 
     #[tokio::test]
     async fn the_overview_payload_is_typed() {
-        let payload = captured("au_overview")["overview"].clone();
+        let payload = captured("tb_overview")["overview"].clone();
         let read = read_with("overview", payload.clone())
             .await
             .expect("the captured overview payload deserializes");
@@ -897,7 +897,7 @@ mod tests {
 
     #[tokio::test]
     async fn the_content_payload_is_typed() {
-        let payload = captured("au_content")["content"].clone();
+        let payload = captured("tb_content")["content"].clone();
         let read = read_with("content", payload.clone())
             .await
             .expect("the captured content payload deserializes");
@@ -915,7 +915,7 @@ mod tests {
 
     #[tokio::test]
     async fn the_files_payload_is_typed() {
-        let payload = captured("au_files")["files"].clone();
+        let payload = captured("tb_files")["files"].clone();
         let read = read_with("files", payload.clone())
             .await
             .expect("the captured files payload deserializes");
@@ -928,7 +928,7 @@ mod tests {
 
     #[tokio::test]
     async fn the_search_payload_is_typed() {
-        let payload = captured("au_search")["search"].clone();
+        let payload = captured("tb_search")["search"].clone();
         let read = read_with("search", payload.clone())
             .await
             .expect("the captured search payload deserializes");
@@ -941,7 +941,7 @@ mod tests {
 
     #[tokio::test]
     async fn the_diagnostics_payload_is_typed() {
-        let payload = captured("au_diagnostics")["diagnostics"].clone();
+        let payload = captured("tb_diagnostics")["diagnostics"].clone();
         let read = read_with("diagnostics", payload.clone())
             .await
             .expect("the captured diagnostics payload deserializes");
@@ -954,7 +954,7 @@ mod tests {
 
     #[tokio::test]
     async fn the_hubs_payload_is_typed() {
-        let payload = captured("au_hubs")["hubs"].clone();
+        let payload = captured("tb_hubs")["hubs"].clone();
         let read = read_with("hubs", payload.clone())
             .await
             .expect("the captured hubs payload deserializes");
@@ -967,7 +967,7 @@ mod tests {
 
     #[tokio::test]
     async fn the_graph_health_payload_is_typed() {
-        let payload = captured("au_graph_health")["graph_health"].clone();
+        let payload = captured("tb_graph_health")["graph_health"].clone();
         let read = read_with("graph_health", payload.clone())
             .await
             .expect("the captured graph_health payload deserializes");
@@ -984,13 +984,13 @@ mod tests {
     #[tokio::test]
     async fn an_added_or_a_dropped_field_does_not_break_a_typed_read() {
         for (tool, verb, dropped) in [
-            ("au_overview", "overview", "members"),
-            ("au_content", "content", "hash"),
-            ("au_files", "files", "path"),
-            ("au_search", "search", "matches"),
-            ("au_diagnostics", "diagnostics", "severity"),
-            ("au_hubs", "hubs", "refs_total"),
-            ("au_graph_health", "graph_health", "counts"),
+            ("tb_overview", "overview", "members"),
+            ("tb_content", "content", "hash"),
+            ("tb_files", "files", "path"),
+            ("tb_search", "search", "matches"),
+            ("tb_diagnostics", "diagnostics", "severity"),
+            ("tb_hubs", "hubs", "refs_total"),
+            ("tb_graph_health", "graph_health", "counts"),
         ] {
             let mut added = captured(tool)[verb].clone();
             edited_element(&mut added, |element| {

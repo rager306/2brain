@@ -32,7 +32,7 @@ Choose checks for the change:
 - For a delivery change, inspect discovery and the intended launch artifact through [[author-a-skill]].
 
 Reuse evidence while its task, model and environment remain applicable.
-Inspect current diagnostics; request `au_diagnostics` when they are absent or stale.
+Inspect current diagnostics; request `tb_diagnostics` when they are absent or stale.
 Fix introduced errors and assess warnings.
 
 For substantial new guidance or a requested independent review, use [[review-a-skill]] and [[the-independent-checker]].
