@@ -4,7 +4,7 @@
 #
 # MAINTENANCE (monorepo mode): adding/removing a first-party UI projection or vocabulary package MUST
 # be mirrored here.
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine
 name: host-bundle
 description: aggregator for the host's UI composition closure (projections + first-party vocabulary)
 deps:
