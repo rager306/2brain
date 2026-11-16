@@ -221,23 +221,26 @@ Sibling keys beside the payload are envelope-level metadata ABOUT it, never part
 
 ### Scope defaults
 
-Several reads take `scope: own | all`. The default is NOT uniform, and the split is one distinction, applied consistently.
+Every read that scopes takes one argument, `scope: "own" | "all"`. An absent `scope` and an explicit `null` are the same thing — the read's default — so a client that has no opinion sends nothing. The VALUE means the same thing everywhere: `all` is every mounted member, `own` is the user's own editable repos only, hiding every dependency and the compiled-in `au.engine.*` builtin. The DEFAULT is per read, because the question differs. One table in the engine states every read's default with its reason, and a test binds each read's own declaration to it, so a read cannot take `scope` and be missing from the table.
 
-**Actionability reads default to `own`**: `overview`, `top_level_dirs`, `hubs`, `diagnostics`, `diagnostic_counts`.
+**`own`, unless a location pin is present**: `overview`, `top_level_dirs`, `hubs`, `diagnostics`, `diagnostic_counts`, `graph_shape`, `graph_health`, `link_graph`, `type_graph`.
 - they answer about content the user can ACT on, so a read-only dependency's contribution is noise in the default answer.
 - a validation error inside a mounted dependency is not something the caller can fix; the workspace-health codes (`peer-unmounted`, `edit-member-unmounted`, `dependency-cache-miss`) anchor at the DECLARING repo's manifest, so they stay visible under `own` — nothing actionable is hidden.
-
-**Vocabulary reads default to `all`**: `types`, `type_counts`, `subtypes`, `imports`.
-- they answer what EXISTS to author against, which includes every peer type you can name.
-- you write `book::library`, so hiding peer types by default would hide the thing you are using and make completion, hover, and the type tree look broken.
-
-So `overview.type_counts` (own-scoped) and `type_counts({})` (all-scoped) deliberately disagree. That is the one gap, and it is why `overview` ECHOES its resolved `repo` / `scope`: a consumer drilling into a field passes the echoed args rather than assuming its own default matches.
-
-**A LOCATION PIN changes the DEFAULT, never an explicit `scope`.**
-- no pin: `scope` defaults to `own`.
 - a pin — a named `repo`, or on `diagnostics` / `diagnostic_counts` a `path` or `path_prefix` — defaults `scope` to `all`, because the caller already narrowed to what they want. Defaulting to `own` there would answer an explicit request with an EMPTY list whenever the pinned member or file is a dependency (an editor consumer asking for the open file's diagnostics, when that file lives in a read-only dependency, must not silently see "no problems").
 - naming a single file is at least as explicit a narrowing as naming a repo, so it carries the same guard.
 - an explicit `scope` always wins and always composes (AND) as written, so `{repo: "base", scope: "own"}` or `{path: "<dep file>", scope: "own"}` legitimately yields nothing — the caller stated both filters.
+
+**`all`**: `types`, `type_counts`, `type_tree`, `subtypes`, `imports`, `instance_counts`, `files`, `neighborhood`.
+- they answer what EXISTS to author against, which includes every peer type you can name.
+- you write `book::library`, so hiding peer types by default would hide the thing you are using and make completion, hover, and the type tree look broken.
+- `files` is in this group for a reason of its own: a wikilink into a dependency is legal (only a TYPE crossing gates on a declared dep), so the resolvable target set is what exists to link against. `neighborhood` is here because `path` is already a location pin: the walk starts where the caller pointed.
+- a `repo` does NOT move any of these: the caller is narrowing an enumeration of what exists, not naming a location to act on.
+
+**`own`, a fixed default**: `search`, `grep`.
+- a search is a question about the caller's OWN knowledge, and a dependency repository's README answering it is the "searched the wrong base" failure.
+- the pin rule above does NOT apply: a `repo` narrows WHICH member to search, not whether to search outside the caller's own content, so `{repo: "base"}` stays `own` and answers only if `base` is one of the caller's own members. `all` is something a caller asks for rather than receives.
+
+So `overview.type_counts` (own-scoped) and `type_counts({})` (all-scoped) deliberately disagree. That is the one gap, and it is why `overview` ECHOES its resolved `repo` / `scope`: a consumer drilling into a field passes the echoed args rather than assuming its own default matches.
 
 Where a payload record would carry a field named after its own read, the FIELD is renamed, never the key.
 - `content` serves `{ "content": { "text": "...", "hash": "...", "commit": "..." } }`, not `content.content`.
@@ -710,7 +713,7 @@ The `shape_ast` value, a tagged union on `kind` mirroring the engine's parsed sl
 - additive: a NEW read verb, no `schema_version` bump.
 
 **graph_health.**
-- args: optional `repo`, optional `scope` (`all` default / `own`), optional `limit` (per list, default 20, range 1..=200), optional `verbs` (default false).
+- args: optional `repo`, optional `scope` (`own` default / `all`, the actionability rule above: `all` when a `repo` is supplied), optional `limit` (per list, default 20, range 1..=200), optional `verbs` (default false).
 - result: `{ graph_health: { repo, scope, counts, cycles, isolated, dead_ends, sources, broken_links, central, truncated } }`.
   - `counts`: `nodes`, `edges`, `components` (weak), `isolated` (no inbound and no outbound), `dead_ends` (no outbound, some inbound), `sources` (no inbound, some outbound), `cycles` (components), `nodes_in_cycles`, `broken_links`. Counts cover the WHOLE in-scope graph; the lists are what `limit` caps.
   - `cycles`: one entry per strongly connected component with two or more nodes, or a single node with a self-loop: `{length, nodes}` with `nodes` SORTED — the component is the fact, its traversal order is incidental. Shortest cycles first, because a two-node loop is the one to break first.
@@ -756,7 +759,7 @@ The `shape_ast` value, a tagged union on `kind` mirroring the engine's parsed sl
 
 **grep.**
 - args: `query` (required, non-empty), optional `repo`, optional `scope` (`own` default / `all`), optional `case_sensitive` (default false), optional `limit` / `offset`.
-- `scope` defaults to `own` for the same reason `search` does: a literal scan answers a question about the caller's own workspace, and a dependency repository mounted beside it is not part of the answer. `all` widens to every mounted member and is asked for, not defaulted.
+- `scope` defaults to `own` for the same reason `search` does: a literal scan answers a question about the caller's own workspace, and a dependency repository mounted beside it is not part of the answer. `all` widens to every mounted member and is asked for, not defaulted. A `repo` narrows which member is scanned and does NOT move the default.
 - result: `{ grep: { matches, total, truncated, skipped_files } }`.
   - `matches`: one entry per matching LINE in catalogue order, then file order: `path`, `repo` (nullable), `line` (1-based), `column` (1-based character column of the match), `text` (the line, trailing `\r` stripped), `text_truncated` (whether `text` was cut at 400 characters).
   - `total`: matches over the whole scanned set, not just the page. `truncated`: the page ends before the last match. Page size defaults to 20 and is capped at 200 — a search result is a page, not a dump.
@@ -769,7 +772,7 @@ The `shape_ast` value, a tagged union on `kind` mirroring the engine's parsed sl
 
 **search.**
 - args: `query` (required, non-empty), optional `repo`, optional `scope` (`own` default / `all`), optional `exact` (default false), optional `min_should_match`, optional `limit` / `offset`. An unknown arg is an `error` frame.
-- `scope` on THIS read defaults to `own`, deliberately unlike the workspace-wide type reads: a search is a question about the caller's own knowledge, so the default set is the workspace's own editable members, not the dependency repositories mounted beside them. `all` widens to every mounted member and is something a caller asks for. Before this, a question the served vault could not answer was answered by a dependency repository's README — the "searched the wrong base" failure, measured in `docs/research/task-set.md`.
+- `scope` on THIS read defaults to `own`, deliberately unlike the workspace-wide type reads: a search is a question about the caller's own knowledge, so the default set is the workspace's own editable members, not the dependency repositories mounted beside them. `all` widens to every mounted member and is something a caller asks for. A `repo` narrows which member is searched and does NOT move the default. Before this, a question the served vault could not answer was answered by a dependency repository's README — the "searched the wrong base" failure, measured in `docs/research/task-set.md`.
 - result: `{ search: { matches, total, offset, next_offset, exact } }`.
   - `matches`: one entry per matching DOCUMENT (not line), best score first: `path`, `score`, `matched_terms`, `weak`. `score` is the BM25 sum over the document's two fields, comparable only within one query over one corpus.
   - `weak`: TRUE when every query term this document matched is COMMON in the corpus — its rarest matched term has an idf below `RARE_IDF` (2.0, roughly a term in 13% of a 1 000-note corpus). The hit says "these words occur here" rather than pointing at something the base knows, so a weak page is a reason to sharpen the question. It is NOT a relevance verdict, and the measurement says why: a rare-but-unrelated term raises a hit above the line (so an unanswerable question is not flagged), while a broad question like `agent memory` is legitimately weak. Reported rather than filtered, because a note that genuinely uses only common words must still be retrievable.

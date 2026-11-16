@@ -411,11 +411,8 @@ enum Request {
     TypeCounts(TypeCountsArgs),
     /// The cross-repo type tree: the workspace's owner-deduped type-defs as a
     /// parent/child adjacency forest, owner-annotated per node. `scope: own`
-    /// keeps only the user's own repos' types (see [`Scope`]).
-    TypeTree {
-        #[serde(default)]
-        scope: Scope,
-    },
+    /// keeps only the user's own repos' types (see [`TypeTreeArgs`]).
+    TypeTree(TypeTreeArgs),
     /// One type-def by `name`, annotated with its `repo` and identity `hash`;
     /// null when absent. Named by the authored form — bare (`foo`, the owner
     /// across the workspace) or `::repo`-qualified (`foo::repo`, the identity
@@ -437,11 +434,9 @@ enum Request {
     /// The workspace's discovered cross-repo import set: one record per
     /// (importing repo, imported type identity), the fold-axis `::repo` types
     /// each repo authors. `scope: own` keeps only imports made by the user's own
-    /// repos and drops the automatic `au.engine.*` builtin fold (see [`Scope`]).
-    Imports {
-        #[serde(default)]
-        scope: Scope,
-    },
+    /// repos and drops the automatic `au.engine.*` builtin fold (see
+    /// [`ImportsArgs`]).
+    Imports(ImportsArgs),
     /// Literal text search over the catalogued files, optionally scoped by repo
     /// or to the user's own repos. Answers one match per line, with a 1-based
     /// line and character column, paged by `limit` / `offset`. Additive, no
@@ -456,12 +451,8 @@ enum Request {
     /// Every type-def across the workspace whose closure includes `base`, each
     /// as its owning repo's def with the owner repo. The type-level
     /// dual of `instances_of`. The base itself is excluded. `scope: own` keeps
-    /// only subtypes owned by the user's own repos (see [`Scope`]).
-    Subtypes {
-        base: String,
-        #[serde(default)]
-        scope: Scope,
-    },
+    /// only subtypes owned by the user's own repos (see [`SubtypesArgs`]).
+    Subtypes(SubtypesArgs),
     /// Knowledge-base-wide per-instance introspection: every resolved instance's
     /// closure, effective shape, collisions, and full value layer.
     Instances,
@@ -744,6 +735,251 @@ enum Request {
     /// process unblocks and exits, removing the socket.
     Shutdown,
 }
+
+/// The `scope` value on the wire: `all` (every mounted member) or `own` (the
+/// user's own primary, editable repos only — every dependency and the
+/// `au.engine.*` builtin hidden). This is the value a caller STATES. What a read
+/// answers when the caller states nothing is that read's [`ScopeDefault`],
+/// declared per read in [`ScopedArgs::DEFAULT`] and documented, with its reason,
+/// in `SCOPE_TABLE` below.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Scope {
+    All,
+    Own,
+}
+
+/// The one `scope` argument type on the serving surface. Every read that takes
+/// `scope` takes this one.
+///
+/// Only ABSENCE is interpretable: a stated value always means what it says, and
+/// [`ScopeArg::resolve`] is the single place it becomes the concrete
+/// [`wire::TypeScope`] the views apply. So there is one spelling of "the user's
+/// own repos", one resolver, and one table that says what each read does when the
+/// caller is silent — rather than a read's default living in its handler, its
+/// args struct, and its documentation.
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+struct ScopeArg(Option<Scope>);
+
+impl<'de> Deserialize<'de> for ScopeArg {
+    /// The two wire values, or none. The absent state is not a third spelling a
+    /// caller can send, so it has no name on the wire.
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(ScopeArg(Option::<Scope>::deserialize(deserializer)?))
+    }
+}
+
+impl ScopeArg {
+    /// THE resolver: the concrete filter a read runs at, from the caller's
+    /// `scope` (or nothing), the read's [`ScopeDefault`], and whether that
+    /// default moves on a location pin.
+    ///
+    /// An explicit value always wins and always means what it says, so a pin
+    /// never overrides it. The pin is consulted only by
+    /// [`ScopeDefault::OwnUnlessPinned`].
+    fn resolve(self, default: ScopeDefault, pinned: bool) -> wire::TypeScope {
+        let own_only = match (self.0, default) {
+            (Some(Scope::All), _) => false,
+            (Some(Scope::Own), _) => true,
+            (None, ScopeDefault::All) => false,
+            (None, ScopeDefault::Own) => true,
+            (None, ScopeDefault::OwnUnlessPinned) => !pinned,
+        };
+        wire::TypeScope::new(own_only)
+    }
+}
+
+/// What a read answers when the caller states no `scope`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ScopeDefault {
+    /// `all`: every mounted member, pin or no pin. A VOCABULARY read.
+    All,
+    /// `own`: the caller's own editable members, pin or no pin. A
+    /// QUESTION-ANSWERING read.
+    Own,
+    /// `own` when unpinned, `all` once a location pin names what is wanted. An
+    /// ACTIONABILITY read.
+    OwnUnlessPinned,
+}
+
+/// One `scope` argument together with its read's declaration: the absent
+/// meaning, and whether a location pin moves it.
+///
+/// [`Self::scope`] is the one call site of [`ScopeArg::resolve`], so no handler
+/// restates the rule; the declaration here is what the scope table below
+/// documents, and a test holds the two together.
+trait ScopedArgs {
+    /// What this read answers when the caller states no `scope`. MUST agree with
+    /// the scope table below: `scope_defaults_are_the_table` asserts it for
+    /// every request.
+    const DEFAULT: ScopeDefault;
+
+    /// The `scope` the caller sent.
+    fn scope_arg(&self) -> ScopeArg;
+
+    /// Whether a LOCATION PIN — a named `repo`, or on `diagnostics` /
+    /// `diagnostic_counts` a `path` / `path_prefix` — moves this read's default.
+    ///
+    /// Only [`ScopeDefault::OwnUnlessPinned`] has such an axis, so only those
+    /// args structs implement it. A fixed default leaves the `false` default
+    /// even when a `repo` is named: the pin narrows WHICH member, which is not
+    /// the same thing as moving the scope.
+    fn pin_moves_default(&self) -> bool {
+        false
+    }
+
+    /// The concrete filter this read runs at.
+    fn scope(&self) -> wire::TypeScope {
+        self.scope_arg()
+            .resolve(Self::DEFAULT, self.pin_moves_default())
+    }
+}
+
+/// One row of the scope table: a read, what its `scope` defaults to, and why.
+#[cfg(test)]
+#[derive(Debug)]
+struct ScopeRow {
+    /// The wire verb, as [`Request::verb`] returns it and `WIRE.md` spells it.
+    verb: &'static str,
+    /// What the read answers when the caller states no `scope`.
+    default: ScopeDefault,
+    /// The reason, in one sentence.
+    reason: &'static str,
+}
+
+/// THE scope-default table: every read that carries a `scope` argument, the
+/// meaning of its absence, and the reason. Compiled with the tests, which is
+/// where its consumers are: `scope_defaults_are_the_table` fails if a read's own
+/// declaration ([`ScopedArgs::DEFAULT`]) and this table ever disagree.
+///
+/// The default follows the KIND of question the read answers, not its shape:
+///
+/// - ACTIONABILITY (`OwnUnlessPinned`): "what should I act on". A read-only
+///   dependency's contribution is noise; a pinned location is the caller
+///   already naming what they mean, so answering that with an empty list because
+///   of an invisible default is the failure this guards against.
+/// - VOCABULARY (`All`): "what exists to author against". You write
+///   `book::library`, so hiding peer types by default would make completion,
+///   hover, and the type tree look broken.
+/// - QUESTION (`Own`): "what does MY knowledge say". A dependency repository's
+///   README answering a search is the "searched the wrong base" failure. A
+///   `repo` narrows WHICH member to search, not whether to search outside the
+///   caller's own content, so it does not move this default.
+#[cfg(test)]
+const SCOPE_TABLE: &[ScopeRow] = &[
+    ScopeRow {
+        verb: "diagnostics",
+        default: ScopeDefault::OwnUnlessPinned,
+        reason: "a WORKLIST, not an inventory: an error inside a read-only dependency is not \
+                 actionable, and a pinned repo/file/subtree is the caller naming what they want.",
+    },
+    ScopeRow {
+        verb: "diagnostic_counts",
+        default: ScopeDefault::OwnUnlessPinned,
+        reason: "the same worklist as `diagnostics`, counted: same default, same pins.",
+    },
+    ScopeRow {
+        verb: "types",
+        default: ScopeDefault::All,
+        reason: "vocabulary to author AGAINST: `book::library` names a peer type, so hiding peers \
+                 would make completion and hover look broken.",
+    },
+    ScopeRow {
+        verb: "type_counts",
+        default: ScopeDefault::All,
+        reason: "the count dual of `types`, so it spans the same vocabulary.",
+    },
+    ScopeRow {
+        verb: "type_tree",
+        default: ScopeDefault::All,
+        reason: "the vocabulary as a parent/child forest; a hidden peer is a missing branch.",
+    },
+    ScopeRow {
+        verb: "imports",
+        default: ScopeDefault::All,
+        reason: "the workspace's import set; `own` drops the builtin fold, so `all` is the \
+                 complete picture.",
+    },
+    ScopeRow {
+        verb: "grep",
+        default: ScopeDefault::Own,
+        reason: "a literal scan answers where the caller's own text says something; a dependency \
+                 mounted beside it is not part of the answer. `repo` narrows WHICH member, so it \
+                 does not move this default.",
+    },
+    ScopeRow {
+        verb: "search",
+        default: ScopeDefault::Own,
+        reason: "a search is a question about the caller's own knowledge; a dependency README \
+                 answering it is the 'searched the wrong base' failure. `repo` narrows WHICH \
+                 member, so it does not move this default.",
+    },
+    ScopeRow {
+        verb: "subtypes",
+        default: ScopeDefault::All,
+        reason: "the subtype tree of one base: a peer's subtype is still something to author \
+                 against.",
+    },
+    ScopeRow {
+        verb: "instance_counts",
+        default: ScopeDefault::All,
+        reason: "instance SITES per identity across the workspace, the dual of `instances_of`, \
+                 which is workspace-wide.",
+    },
+    ScopeRow {
+        verb: "neighborhood",
+        default: ScopeDefault::All,
+        reason: "`path` is a location pin, so the walk starts where the caller pointed; a \
+                 dependency target is reported at the boundary rather than expanded.",
+    },
+    ScopeRow {
+        verb: "files",
+        default: ScopeDefault::All,
+        reason: "a wikilink into a dependency is legal, so the resolvable target set is what \
+                 exists to link against.",
+    },
+    ScopeRow {
+        verb: "top_level_dirs",
+        default: ScopeDefault::OwnUnlessPinned,
+        reason: "orientation: the directories the caller can act in, and `all` once a `repo` \
+                 names the member.",
+    },
+    ScopeRow {
+        verb: "overview",
+        default: ScopeDefault::OwnUnlessPinned,
+        reason: "orientation is first-person ('where am I'), and `all` once a `repo` names the \
+                 member; its echoed `repo` / `scope` let a consumer drill down without \
+                 re-deriving the default.",
+    },
+    ScopeRow {
+        verb: "hubs",
+        default: ScopeDefault::OwnUnlessPinned,
+        reason: "ranked by inbound references, which are other notes to work FROM, so the own \
+                 workspace is the answer and a `repo` pin is explicit.",
+    },
+    ScopeRow {
+        verb: "graph_shape",
+        default: ScopeDefault::OwnUnlessPinned,
+        reason: "the shape of the graph being worked in, `all` once a `repo` names it.",
+    },
+    ScopeRow {
+        verb: "graph_health",
+        default: ScopeDefault::OwnUnlessPinned,
+        reason: "the same in-scope node set as `graph_shape`, so the same default and pins.",
+    },
+    ScopeRow {
+        verb: "link_graph",
+        default: ScopeDefault::OwnUnlessPinned,
+        reason: "the graph to LAY OUT beside the content being edited; `all` once a `repo` \
+                 names the member.",
+    },
+    ScopeRow {
+        verb: "type_graph",
+        default: ScopeDefault::OwnUnlessPinned,
+        reason: "the schema drawn beside `link_graph` over the same scope axis, so the same \
+                 default and pins.",
+    },
+];
 
 impl Request {
     /// The wire verb this request names: the `read` tag's value, exactly as
@@ -1692,48 +1928,19 @@ struct OverviewArgs {
     /// Absent spans every mounted member; present selects that one.
     #[serde(default)]
     repo: Option<String>,
-    /// `own` by default, `all` when a `repo` is named. See [`resolved_scope`].
+    /// The `scope` argument; absent takes this read's default, stated in the
+    /// scope table beside [`Request`].
     #[serde(default)]
-    scope: Option<Scope>,
+    scope: ScopeArg,
 }
 
-/// WHY the actionability reads (`overview`, `top_level_dirs`, `hubs`,
-/// `diagnostics`, `diagnostic_counts`) default to `own` while the vocabulary
-/// reads default to `all`.
-///
-/// The axis is "what should I act on" versus "what exists":
-/// - an ACTIONABILITY read answers about content the user can change, so a
-///   read-only dependency's contribution is noise. These default to `own`.
-/// - a VOCABULARY read (`types`, `subtypes`, `imports`, `type_counts`) answers
-///   what exists to author AGAINST. You write `book::library`, so hiding peer
-///   types by default would hide the thing you are using and make completion,
-///   hover, and the type tree look broken. These stay `all`.
-///
-/// That leaves ONE deliberate gap: `overview.type_counts` is own-scoped while
-/// `type_counts({})` is all-scoped. `overview` echoes its resolved `repo` /
-/// `scope` precisely so a consumer drilling down passes them verbatim instead
-/// of re-deriving a default it cannot see.
-/// The `scope` an actionability read runs at, given what the caller said.
-///
-/// An explicit `scope` always wins and always means what it says, so the two
-/// args compose (AND) exactly as written. Only the DEFAULT is contextual:
-///
-/// - no `repo`: default `own`, the actionable answer.
-/// - a `repo`: default `all`, because the caller already named the member they
-///   want. Defaulting to `own` there would silently return NOTHING whenever the
-///   named member is a dependency — an explicit request answered with an empty
-///   list because of an invisible default, which is the exact failure class the
-///   scoped reads exist to avoid.
-///
-/// `repo: "base", scope: "own"` still legitimately yields nothing: that is the
-/// caller stating both filters, and an empty intersection they asked for.
-fn resolved_scope(scope: Option<Scope>, repo: &Option<String>) -> Scope {
-    match scope {
-        Some(explicit) => explicit,
-        None if repo.is_some() => Scope::All,
-        None => Scope::Own,
-    }
-}
+/// The ONE deliberate gap the defaults leave: `overview.type_counts` is
+/// own-scoped while `type_counts({})` is all-scoped, because `overview` is the
+/// first-person map. `overview` therefore echoes its resolved `repo` / `scope`,
+/// so a consumer drilling down passes them verbatim instead of re-deriving a
+/// default it cannot see. Every other default is the read's own row in the scope
+/// table beside [`Request`], and `repo: "base", scope: "own"` legitimately
+/// yields nothing: the caller stated both filters.
 
 /// Args for the `members` read. Optional `repo` narrows to one member, so
 /// `overview({repo}).members` is reproducible by one `members` call — the mirror
@@ -1778,9 +1985,10 @@ struct TrailerInput {
 struct TopLevelDirsArgs {
     #[serde(default)]
     repo: Option<String>,
-    /// `own` by default, `all` when a `repo` is named. See [`resolved_scope`].
+    /// The `scope` argument; absent takes this read's default, stated in the
+    /// scope table beside [`Request`].
     #[serde(default)]
-    scope: Option<Scope>,
+    scope: ScopeArg,
 }
 
 /// Args for the `instances_of` read. A dedicated strict struct so an unknown
@@ -1827,9 +2035,10 @@ struct TypeClosureArgs {
 struct HubsArgs {
     #[serde(default)]
     repo: Option<String>,
-    /// `own` by default, `all` when a `repo` is named. See [`resolved_scope`].
+    /// The `scope` argument; absent takes this read's default, stated in the
+    /// scope table beside [`Request`].
     #[serde(default)]
-    scope: Option<Scope>,
+    scope: ScopeArg,
     /// Page size. Absent is the engine's `HUB_LIMIT`, the same bound
     /// `overview.hubs` carries, so the field mirrors an argless call.
     #[serde(default)]
@@ -1848,9 +2057,10 @@ struct HubsArgs {
 struct GraphShapeArgs {
     #[serde(default)]
     repo: Option<String>,
-    /// `own` by default, `all` when a `repo` is named. See [`resolved_scope`].
+    /// The `scope` argument; absent takes this read's default, stated in the
+    /// scope table beside [`Request`].
     #[serde(default)]
-    scope: Option<Scope>,
+    scope: ScopeArg,
     /// Include the orphan file paths, each tagged `no_inbound` or `isolated`.
     /// Default false is counts only.
     #[serde(default)]
@@ -1866,9 +2076,10 @@ struct GraphShapeArgs {
 struct LinkGraphArgs {
     #[serde(default)]
     repo: Option<String>,
-    /// `own` by default, `all` when a `repo` is named. See [`resolved_scope`].
+    /// The `scope` argument; absent takes this read's default, stated in the
+    /// scope table beside [`Request`].
     #[serde(default)]
-    scope: Option<Scope>,
+    scope: ScopeArg,
 }
 
 /// Args for the `type_graph` read: the same `repo` / `scope` pair as
@@ -1880,9 +2091,10 @@ struct LinkGraphArgs {
 struct TypeGraphArgs {
     #[serde(default)]
     repo: Option<String>,
-    /// `own` by default, `all` when a `repo` is named. See [`resolved_scope`].
+    /// The `scope` argument; absent takes this read's default, stated in the
+    /// scope table beside [`Request`].
     #[serde(default)]
-    scope: Option<Scope>,
+    scope: ScopeArg,
     /// The edge classes to include; absent is `subtype` + `field-type`.
     #[serde(default)]
     edges: Option<Vec<EdgeClass>>,
@@ -1928,10 +2140,12 @@ struct NeighborhoodArgs {
     /// `field`. Absent means all kinds at depth 1; REQUIRED past depth 1.
     #[serde(default)]
     kinds: Option<Vec<String>>,
-    /// `all` (default; a `path` is a location pin) or `own` (prune at the repo
-    /// boundary, a dependency target reported but not expanded).
+    /// The `scope` argument; absent takes this read's default (`all`, because a
+    /// `path` is already a location pin). `own` prunes at the repo boundary: a
+    /// dependency target is reported but not expanded. See the scope table
+    /// beside [`Request`].
     #[serde(default)]
-    scope: Scope,
+    scope: ScopeArg,
     /// The node cap; absent is the engine's [`NEIGHBORHOOD_MAX_NODES`]. The seed
     /// counts, so `max_nodes` 1 returns the seed alone.
     #[serde(default)]
@@ -1953,22 +2167,29 @@ fn default_depth() -> usize {
     1
 }
 
-/// The `scope` arg on the workspace-wide type reads. `all` (default) surfaces
-/// every mounted repo's vocabulary as before; `own` keeps only the user's own
-/// primary, editable repos, hiding every dependency and the `au.engine.*`
-/// builtin. See [`wire::TypeScope`].
-#[derive(Debug, Default, Clone, Copy, PartialEq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum Scope {
-    #[default]
-    All,
-    Own,
+/// Args for the `type_tree` read. Accepts only `scope`, which is absent by
+/// default: unlike the dedicated strict structs below, this keeps the leniency
+/// its inline variant had, so an unknown key is still ignored.
+#[derive(Debug, Default, Deserialize)]
+struct TypeTreeArgs {
+    #[serde(default)]
+    scope: ScopeArg,
 }
 
-impl Scope {
-    fn own_only(self) -> bool {
-        self == Scope::Own
-    }
+/// Args for the `imports` read: `scope`, absent by default.
+#[derive(Debug, Default, Deserialize)]
+struct ImportsArgs {
+    #[serde(default)]
+    scope: ScopeArg,
+}
+
+/// Args for the `subtypes` read: `base`, bare (`foo`) or `::repo`-qualified
+/// (`foo::repo`), plus `scope`, absent by default.
+#[derive(Debug, Deserialize)]
+struct SubtypesArgs {
+    base: String,
+    #[serde(default)]
+    scope: ScopeArg,
 }
 
 /// Args for the `types` read. All optional. Unknown args are rejected loudly
@@ -1986,9 +2207,10 @@ struct TypesArgs {
     /// Default false = full detail. Detail-on-demand is the single `type` read.
     #[serde(default)]
     summary: bool,
-    /// `all` (default) or `own` (only the user's own primary/editable repos).
+    /// The `scope` argument; absent takes this read's default, stated in the
+    /// scope table beside [`Request`].
     #[serde(default)]
-    scope: Scope,
+    scope: ScopeArg,
     /// Page size: at most this many entries after `offset`, over the name-sorted
     /// set. Absent returns the whole set.
     limit: Option<usize>,
@@ -2008,9 +2230,10 @@ struct FilesArgs {
     /// Absent = every mounted member. Present = only this member's files.
     #[serde(default)]
     repo: Option<String>,
-    /// `all` (default) or `own` (only the user's own editable repos).
+    /// The `scope` argument; absent takes this read's default (`all`), stated in
+    /// the scope table beside [`Request`].
     #[serde(default)]
-    scope: Scope,
+    scope: ScopeArg,
     /// Page size: at most this many entries after `offset`, over the
     /// path-sorted set. Absent returns the whole catalogue.
     limit: Option<usize>,
@@ -2045,10 +2268,10 @@ struct RollbackPreviewArgs {
 struct GraphHealthArgs {
     #[serde(default)]
     repo: Option<String>,
-    /// `all` (default) or `own`; a location pin may supply the default, as it
-    /// does for `graph_shape`.
+    /// The `scope` argument; absent takes this read's default, stated in the
+    /// scope table beside [`Request`] (the same row shape as `graph_shape`).
     #[serde(default)]
-    scope: Option<Scope>,
+    scope: ScopeArg,
     /// Cap per list (cycles, isolated, dead ends, sources, broken links,
     /// central). Default 20, range 1..=200. `counts` always covers the whole
     /// in-scope graph.
@@ -2080,11 +2303,12 @@ struct GrepArgs {
     /// Absent = every mounted member. Present = only this member's files.
     #[serde(default)]
     repo: Option<String>,
-    /// Absent = `own`, the same default as `search`: a literal scan answers a question about the caller's own
-    /// workspace, and a dependency repository mounted beside it is not part of the answer. `all` widens to every
-    /// mounted member.
+    /// The `scope` argument; absent takes this read's default (`own`), stated
+    /// with its reason in the scope table beside [`Request`]. A `repo` narrows
+    /// WHICH member to scan, not whether to scan outside the caller's own
+    /// content, so it does not move the default.
     #[serde(default)]
-    scope: Option<Scope>,
+    scope: ScopeArg,
     /// Case-sensitive matching. Default false: prose search is case-insensitive
     /// far more often than not, and the exact-case caller can ask.
     #[serde(default)]
@@ -2112,15 +2336,13 @@ struct SearchArgs {
     /// Absent = every mounted member. Present = only this member's documents.
     #[serde(default)]
     repo: Option<String>,
-    /// Absent = `own`, only the workspace the caller is asking about: its own
-    /// editable members, not the dependency repositories mounted beside them.
-    /// `all` widens to every mounted member, including dependencies, and is
-    /// something a caller asks for rather than receives. This read defaults to
-    /// `own` deliberately, unlike the workspace-wide type reads: a search is a
-    /// question about the caller's own knowledge, and a dependency repository's
-    /// README answering it is the "searched the wrong base" failure.
+    /// The `scope` argument; absent takes this read's default (`own`), stated
+    /// with its reason in the scope table beside [`Request`]. `all` widens to
+    /// every mounted member, including dependencies, and is something a caller
+    /// asks for rather than receives. A `repo` narrows WHICH member to search,
+    /// so it does not move the default either.
     #[serde(default)]
-    scope: Option<Scope>,
+    scope: ScopeArg,
     /// Require every distinct query term instead of the `min_should_match`
     /// default. A conjunction, not a phrase: the index stores no positions.
     #[serde(default)]
@@ -2145,9 +2367,10 @@ struct SearchArgs {
 struct TypeCountsArgs {
     #[serde(default)]
     repo: Option<String>,
-    /// `all` (default) or `own` (only the user's own primary/editable repos).
+    /// The `scope` argument; absent takes this read's default, stated in the
+    /// scope table beside [`Request`].
     #[serde(default)]
-    scope: Scope,
+    scope: ScopeArg,
 }
 
 /// Args for the `instance_counts` read: the same `repo` / `scope` pair as
@@ -2163,9 +2386,10 @@ struct TypeCountsArgs {
 struct InstanceCountsArgs {
     #[serde(default)]
     repo: Option<String>,
-    /// `all` (default) or `own` (only the user's own editable repos).
+    /// The `scope` argument; absent takes this read's default, stated in the
+    /// scope table beside [`Request`].
     #[serde(default)]
-    scope: Scope,
+    scope: ScopeArg,
     /// `file` / `nested` / `meta`, same semantics as `instances_of`. Absent =
     /// all three.
     #[serde(default)]
@@ -2257,9 +2481,10 @@ struct DiagnosticsFilterArgs {
     /// so they stay visible under `own` — nothing actionable is hidden.
     ///
     /// Defaults to `all` when ANY location pin is present — `repo`, `path`, or
-    /// `path_prefix`. See [`Self::resolve`].
+    /// `path_prefix` — because the caller already named what they are looking
+    /// at. See [`Self::resolve`] and the scope table beside [`Request`].
     #[serde(default)]
-    scope: Option<Scope>,
+    scope: ScopeArg,
 }
 
 impl DiagnosticsFilterArgs {
@@ -2267,25 +2492,177 @@ impl DiagnosticsFilterArgs {
     /// other read's path arg does.
     fn resolve(self, root: &Path) -> DiagnosticsScope {
         // A LOCATION PIN — a named repo, file, or subtree — is an explicit
-        // narrowing, so it defaults `scope` to `all`, the same guard `repo`
-        // gets in `resolved_scope`. A `path` naming one file is at least as
-        // explicit as a `repo`: asking for the file the user is looking at must
-        // not empty out just because that file lives in a read-only dependency
-        // (own-scoped, `owner_matches` would drop it). Only the UNPINNED
-        // "give me my problems" case keeps the `own` worklist default.
-        let pinned = self.repo.is_some() || self.path.is_some() || self.path_prefix.is_some();
-        let own_only = match self.scope {
-            Some(explicit) => explicit.own_only(),
-            None => !pinned,
-        };
+        // narrowing, so it defaults `scope` to `all`. A `path` naming one file
+        // is at least as explicit as a `repo`: asking for the file the user is
+        // looking at must not empty out just because that file lives in a
+        // read-only dependency (own-scoped, `owner_matches` would drop it). Only
+        // the UNPINNED "give me my problems" case keeps the `own` worklist
+        // default. The rule itself lives in `ScopedArgs::scope`.
+        let scope = self.scope();
         DiagnosticsScope {
             path: self.path.map(|p| abs_arg(root, &p)),
             path_prefix: self.path_prefix.map(|p| abs_arg(root, &p)),
             severity: self.severity,
             code: self.code,
-            scope: wire::TypeScope::new(own_only),
+            scope,
             repo: self.repo,
         }
+    }
+}
+
+/// The `scope` declarations, one per args struct that carries the argument. Each
+/// `DEFAULT` is the read's row in the scope table beside [`Request`]; the table
+/// test holds the two together, and [`ScopedArgs::scope`] is what the handlers
+/// call, so a default is stated once and resolved once.
+impl ScopedArgs for DiagnosticsFilterArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::OwnUnlessPinned;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+    /// A file or subtree names what the caller is looking at as explicitly as a
+    /// `repo` does, so all three pins default the worklist to `all`.
+    fn pin_moves_default(&self) -> bool {
+        self.repo.is_some() || self.path.is_some() || self.path_prefix.is_some()
+    }
+}
+
+impl ScopedArgs for TypesArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::All;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+}
+
+impl ScopedArgs for TypeCountsArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::All;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+}
+
+impl ScopedArgs for TypeTreeArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::All;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+}
+
+impl ScopedArgs for ImportsArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::All;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+}
+
+impl ScopedArgs for SubtypesArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::All;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+}
+
+impl ScopedArgs for InstanceCountsArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::All;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+}
+
+impl ScopedArgs for FilesArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::All;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+}
+
+impl ScopedArgs for NeighborhoodArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::All;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+}
+
+impl ScopedArgs for OverviewArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::OwnUnlessPinned;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+    fn pin_moves_default(&self) -> bool {
+        self.repo.is_some()
+    }
+}
+
+impl ScopedArgs for TopLevelDirsArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::OwnUnlessPinned;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+    fn pin_moves_default(&self) -> bool {
+        self.repo.is_some()
+    }
+}
+
+impl ScopedArgs for HubsArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::OwnUnlessPinned;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+    fn pin_moves_default(&self) -> bool {
+        self.repo.is_some()
+    }
+}
+
+impl ScopedArgs for GraphShapeArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::OwnUnlessPinned;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+    fn pin_moves_default(&self) -> bool {
+        self.repo.is_some()
+    }
+}
+
+impl ScopedArgs for GraphHealthArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::OwnUnlessPinned;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+    fn pin_moves_default(&self) -> bool {
+        self.repo.is_some()
+    }
+}
+
+impl ScopedArgs for LinkGraphArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::OwnUnlessPinned;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+    fn pin_moves_default(&self) -> bool {
+        self.repo.is_some()
+    }
+}
+
+impl ScopedArgs for TypeGraphArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::OwnUnlessPinned;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+    fn pin_moves_default(&self) -> bool {
+        self.repo.is_some()
+    }
+}
+
+impl ScopedArgs for GrepArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::Own;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
+    }
+}
+
+impl ScopedArgs for SearchArgs {
+    const DEFAULT: ScopeDefault = ScopeDefault::Own;
+    fn scope_arg(&self) -> ScopeArg {
+        self.scope
     }
 }
 
@@ -10832,13 +11209,13 @@ async fn run_subscription(
             run_diagnostics(handle, frame_tx, id, scope, rx).await
         }
         Subscription::LinkGraph(args) => {
+            let scope = args.scope();
             let repo = args.repo;
-            let scope = wire::TypeScope::new(resolved_scope(args.scope, &repo).own_only());
             run_link_graph(handle, frame_tx, id, rx, repo, scope).await
         }
         Subscription::TypeGraph(args) => {
+            let scope = args.scope();
             let repo = args.repo;
-            let scope = wire::TypeScope::new(resolved_scope(args.scope, &repo).own_only());
             let classes = EdgeClasses::from_arg(args.edges);
             run_type_graph(handle, frame_tx, id, rx, repo, scope, classes).await
         }
@@ -11753,39 +12130,33 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             let offset = args.offset.unwrap_or(0);
             let limit = args.limit;
             let summary = args.summary;
+            let scope = args.scope();
             let repo = args.repo;
-            let own = args.scope.own_only();
             enveloped(
                 "types",
-                handle.read(move |v| {
-                    let scope = wire::TypeScope::new(own);
-                    match repo.as_deref() {
-                        None => Some(wire::introspect_workspace_types_paged(
-                            v, offset, limit, summary, scope,
-                        )),
-                        Some(name) => wire::introspect_repo_types_paged(
-                            v, name, offset, limit, summary, scope,
-                        ),
+                handle.read(move |v| match repo.as_deref() {
+                    None => Some(wire::introspect_workspace_types_paged(
+                        v, offset, limit, summary, scope,
+                    )),
+                    Some(name) => {
+                        wire::introspect_repo_types_paged(v, name, offset, limit, summary, scope)
                     }
                 }),
             )
         }
         Request::TypeCounts(args) => {
+            let scope = args.scope();
             let repo = args.repo;
-            let own = args.scope.own_only();
             enveloped(
                 "type_counts",
-                handle.read(move |v| {
-                    let scope = wire::TypeScope::new(own);
-                    wire::introspect_type_counts(v, repo.as_deref(), scope)
-                }),
+                handle.read(move |v| wire::introspect_type_counts(v, repo.as_deref(), scope)),
             )
         }
-        Request::TypeTree { scope } => {
-            let own = scope.own_only();
+        Request::TypeTree(args) => {
+            let scope = args.scope();
             enveloped(
                 "type_tree",
-                handle.read(move |v| wire::introspect_type_tree(v, wire::TypeScope::new(own))),
+                handle.read(move |v| wire::introspect_type_tree(v, scope)),
             )
         }
         Request::Type(TypeArgs { name }) => enveloped(
@@ -11802,19 +12173,17 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             instance,
             body,
         }) => instances_of_response(handle, type_name, origins, instance, body).await,
-        Request::Imports { scope } => {
-            let own = scope.own_only();
+        Request::Imports(args) => {
+            let scope = args.scope();
             enveloped(
                 "imports",
-                handle.read(move |v| wire::introspect_list_imports(v, wire::TypeScope::new(own))),
+                handle.read(move |v| wire::introspect_list_imports(v, scope)),
             )
         }
-        Request::Subtypes { base, scope } => {
-            let own = scope.own_only();
-            to_response(
-                handle
-                    .read(move |v| wire::introspect_subtypes(v, &base, wire::TypeScope::new(own))),
-            )
+        Request::Subtypes(args) => {
+            let scope = args.scope();
+            let base = args.base;
+            to_response(handle.read(move |v| wire::introspect_subtypes(v, &base, scope)))
         }
         Request::Instances => to_response(handle.read(|v| InstancesView {
             count: v.instances.size(),
@@ -11835,13 +12204,12 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             handle.read(|v| wire::introspect_candidate_counts(v)),
         ),
         Request::InstanceCounts(args) => {
+            let scope = args.scope();
             let repo = args.repo;
-            let own = args.scope.own_only();
             let origins = args.origins;
             enveloped(
                 "instance_counts",
                 handle.read(move |v| {
-                    let scope = wire::TypeScope::new(own);
                     wire::introspect_instance_counts(v, repo.as_deref(), scope, origins.as_deref())
                 }),
             )
@@ -11946,8 +12314,8 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             )
         }
         Request::Files(args) => {
+            let scope = args.scope();
             let repo = args.repo.clone();
-            let scope = wire::TypeScope::new(args.scope.own_only());
             let limit = args.limit.unwrap_or(usize::MAX);
             let offset = args.offset.unwrap_or(0);
             enveloped(
@@ -11959,8 +12327,8 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             if args.query.is_empty() {
                 return Response::invalid("`query` must not be empty: it would match every line");
             }
+            let scope = args.scope();
             let repo = args.repo.clone();
-            let scope = wire::TypeScope::new(args.scope.unwrap_or(Scope::Own).own_only());
             let limit = args.limit.unwrap_or(GREP_DEFAULT_LIMIT).min(GREP_MAX_LIMIT);
             let offset = args.offset.unwrap_or(0);
             // The paths come from the held state; the bytes come from disk, the
@@ -11984,8 +12352,8 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             if args.query.is_empty() {
                 return Response::invalid("`query` must not be empty: it carries no term to rank");
             }
+            let scope = args.scope();
             let repo = args.repo.clone();
-            let scope = wire::TypeScope::new(args.scope.unwrap_or(Scope::Own).own_only());
             let limit = args
                 .limit
                 .unwrap_or(SEARCH_DEFAULT_LIMIT)
@@ -12076,13 +12444,12 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
                 )
             }),
         ),
-        Request::TopLevelDirs(TopLevelDirsArgs { repo, scope }) => {
-            let own = resolved_scope(scope, &repo).own_only();
+        Request::TopLevelDirs(args) => {
+            let scope = args.scope();
+            let repo = args.repo;
             enveloped(
                 "top_level_dirs",
-                handle.read(move |v| {
-                    top_level_dirs_view(v, repo.as_deref(), wire::TypeScope::new(own))
-                }),
+                handle.read(move |v| top_level_dirs_view(v, repo.as_deref(), scope)),
             )
         }
         Request::Members(MembersArgs { repo }) => {
@@ -12110,10 +12477,9 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             // all and that `hubs` had no read whatsoever.
             let root = handle.root().to_path_buf();
             let cache_root = handle.package_cache_root().map(Path::to_path_buf);
+            let scope = args.scope();
+            let scope_str = scope.as_str();
             let repo = args.repo;
-            let resolved = resolved_scope(args.scope, &repo);
-            let scope = wire::TypeScope::new(resolved.own_only());
-            let scope_str = if resolved.own_only() { "own" } else { "all" };
             let echo_repo = repo.clone();
             let diag_scope = DiagnosticsScope {
                 repo: repo.clone(),
@@ -12152,8 +12518,8 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             )
         }
         Request::Hubs(args) => {
+            let scope = args.scope();
             let repo = args.repo;
-            let scope = wire::TypeScope::new(resolved_scope(args.scope, &repo).own_only());
             let limit = args.limit.unwrap_or(HUB_LIMIT);
             let offset = args.offset.unwrap_or(0);
             enveloped(
@@ -12162,8 +12528,8 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             )
         }
         Request::GraphShape(args) => {
+            let scope = args.scope();
             let repo = args.repo;
-            let scope = wire::TypeScope::new(resolved_scope(args.scope, &repo).own_only());
             let orphan_paths = args.orphan_paths;
             enveloped(
                 "graph_shape",
@@ -12171,8 +12537,8 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             )
         }
         Request::GraphHealth(args) => {
+            let scope = args.scope();
             let repo = args.repo;
-            let scope = wire::TypeScope::new(resolved_scope(args.scope, &repo).own_only());
             let limit = args
                 .limit
                 .unwrap_or(GRAPH_HEALTH_DEFAULT_LIMIT)
@@ -12199,16 +12565,16 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             response
         }
         Request::LinkGraph(args) => {
+            let scope = args.scope();
             let repo = args.repo;
-            let scope = wire::TypeScope::new(resolved_scope(args.scope, &repo).own_only());
             enveloped(
                 "link_graph",
                 handle.read(move |v| link_graph_view(v, repo.as_deref(), scope)),
             )
         }
         Request::TypeGraph(args) => {
+            let scope = args.scope();
             let repo = args.repo;
-            let scope = wire::TypeScope::new(resolved_scope(args.scope, &repo).own_only());
             let classes = EdgeClasses::from_arg(args.edges);
             enveloped(
                 "type_graph",
@@ -12416,11 +12782,11 @@ async fn neighborhood_response(
     let want_content = args.content;
     let want_body = args.body;
     let want_instance = args.instance;
+    let scope_own = args.scope().own_only();
     let kinds: Option<std::collections::BTreeSet<String>> =
         args.kinds.map(|ks| ks.into_iter().collect());
     let direction = args.direction.into();
     let depth = args.depth;
-    let scope_own = args.scope.own_only();
     let max_nodes = args.max_nodes.unwrap_or(NEIGHBORHOOD_MAX_NODES);
 
     // Phase 1: the held read. The walk, the DTO serialized to a mutable value,
@@ -14819,7 +15185,7 @@ fn graph_shape_view(
 
     GraphShapeView {
         repo: repo.map(|s| s.to_string()),
-        scope: if scope.own_only() { "own" } else { "all" },
+        scope: scope.as_str(),
         node_count: n,
         edge_count,
         edges_structural,
@@ -15038,7 +15404,7 @@ fn graph_health_view(
 
     GraphHealthView {
         repo: repo.map(str::to_owned),
-        scope: if scope.own_only() { "own" } else { "all" },
+        scope: scope.as_str(),
         counts: GraphHealthCounts {
             nodes: n,
             edges,
@@ -15202,7 +15568,7 @@ fn link_graph_view(
 
     LinkGraphView {
         repo: repo.map(|s| s.to_string()),
-        scope: if scope.own_only() { "own" } else { "all" },
+        scope: scope.as_str(),
         nodes,
         edges,
     }
@@ -15443,7 +15809,7 @@ fn type_graph_view(
 
     TypeGraphView {
         repo: repo.map(|s| s.to_string()),
-        scope: if scope.own_only() { "own" } else { "all" },
+        scope: scope.as_str(),
         nodes,
         edges,
     }
@@ -17534,7 +17900,7 @@ mod verb_tests {
             Request::DiagnosticCounts(DiagnosticsFilterArgs::default()),
             Request::Types(TypesArgs::default()),
             Request::TypeCounts(TypeCountsArgs::default()),
-            Request::TypeTree { scope: Scope::All },
+            Request::TypeTree(TypeTreeArgs::default()),
             Request::Type(TypeArgs {
                 name: String::new(),
             }),
@@ -17545,13 +17911,13 @@ mod verb_tests {
                 instance: false,
                 body: false,
             }),
-            Request::Imports { scope: Scope::All },
+            Request::Imports(ImportsArgs::default()),
             Request::Grep(GrepArgs::default()),
             Request::Search(SearchArgs::default()),
-            Request::Subtypes {
+            Request::Subtypes(SubtypesArgs {
                 base: String::new(),
-                scope: Scope::All,
-            },
+                scope: ScopeArg::default(),
+            }),
             Request::Instances,
             Request::Candidates(CandidatesArgs::default()),
             Request::CandidateCounts(CandidateCountsArgs::default()),
@@ -17586,7 +17952,7 @@ mod verb_tests {
                 direction: WireDirection::default(),
                 depth: 1,
                 kinds: None,
-                scope: Scope::All,
+                scope: ScopeArg::default(),
                 max_nodes: None,
                 content: false,
                 body: false,
@@ -17649,7 +18015,7 @@ mod verb_tests {
             Request::TopLevelDirs(TopLevelDirsArgs::default()),
             Request::Overview(OverviewArgs {
                 repo: None,
-                scope: None,
+                scope: ScopeArg::default(),
             }),
             Request::TypeClosure(TypeClosureArgs {
                 name: String::new(),
@@ -17670,6 +18036,74 @@ mod verb_tests {
             Request::Lifecycle,
             Request::Shutdown,
         ]
+    }
+
+    /// The `scope` a request's own argument declares: its absent meaning
+    /// ([`ScopedArgs::DEFAULT`]) and whether a location pin is present. `None`
+    /// means the read takes no `scope` argument.
+    ///
+    /// Written out per variant with NO wildcard, for the same reason `verb()` is:
+    /// totality is the point. A new read either says `None` or hands its
+    /// declaration over, so it cannot carry a `scope` and stay out of the table
+    /// the test below checks.
+    fn declared_scope(req: &Request) -> Option<(ScopeDefault, bool)> {
+        match req {
+            Request::Diagnostics(a) | Request::DiagnosticCounts(a) => {
+                Some((DiagnosticsFilterArgs::DEFAULT, a.pin_moves_default()))
+            }
+            Request::Types(a) => Some((TypesArgs::DEFAULT, a.pin_moves_default())),
+            Request::TypeCounts(a) => Some((TypeCountsArgs::DEFAULT, a.pin_moves_default())),
+            Request::TypeTree(a) => Some((TypeTreeArgs::DEFAULT, a.pin_moves_default())),
+            Request::Imports(a) => Some((ImportsArgs::DEFAULT, a.pin_moves_default())),
+            Request::Subtypes(a) => Some((SubtypesArgs::DEFAULT, a.pin_moves_default())),
+            Request::InstanceCounts(a) => {
+                Some((InstanceCountsArgs::DEFAULT, a.pin_moves_default()))
+            }
+            Request::Neighborhood(a) => Some((NeighborhoodArgs::DEFAULT, a.pin_moves_default())),
+            Request::Files(a) => Some((FilesArgs::DEFAULT, a.pin_moves_default())),
+            Request::Grep(a) => Some((GrepArgs::DEFAULT, a.pin_moves_default())),
+            Request::Search(a) => Some((SearchArgs::DEFAULT, a.pin_moves_default())),
+            Request::Overview(a) => Some((OverviewArgs::DEFAULT, a.pin_moves_default())),
+            Request::TopLevelDirs(a) => Some((TopLevelDirsArgs::DEFAULT, a.pin_moves_default())),
+            Request::Hubs(a) => Some((HubsArgs::DEFAULT, a.pin_moves_default())),
+            Request::GraphShape(a) => Some((GraphShapeArgs::DEFAULT, a.pin_moves_default())),
+            Request::GraphHealth(a) => Some((GraphHealthArgs::DEFAULT, a.pin_moves_default())),
+            Request::LinkGraph(a) => Some((LinkGraphArgs::DEFAULT, a.pin_moves_default())),
+            Request::TypeGraph(a) => Some((TypeGraphArgs::DEFAULT, a.pin_moves_default())),
+            Request::Type(_)
+            | Request::TypeBatch(_)
+            | Request::InstancesOf(_)
+            | Request::Instances
+            | Request::Candidates(_)
+            | Request::CandidateCounts(_)
+            | Request::Instance { .. }
+            | Request::ReferencesIn { .. }
+            | Request::ReferencesOut { .. }
+            | Request::Pins { .. }
+            | Request::CommitMeta { .. }
+            | Request::FileHistory { .. }
+            | Request::RecentCommits { .. }
+            | Request::ResolveTarget { .. }
+            | Request::ResolveBlockId { .. }
+            | Request::ResolveAnchor { .. }
+            | Request::Anchors { .. }
+            | Request::BlockIds { .. }
+            | Request::DirEntries { .. }
+            | Request::Frontmatter { .. }
+            | Request::Content { .. }
+            | Request::SemanticTokens { .. }
+            | Request::ValidateValue { .. }
+            | Request::Members(_)
+            | Request::Ignores { .. }
+            | Request::ResolveMember { .. }
+            | Request::DeviceConfig
+            | Request::Config(_)
+            | Request::TypeClosure(_)
+            | Request::RollbackPreview(_)
+            | Request::PreviewMutation(_)
+            | Request::Lifecycle
+            | Request::Shutdown => None,
+        }
     }
 
     /// THE census invariant: the map is total (the compiler enforces an arm per
@@ -17715,6 +18149,152 @@ mod verb_tests {
         // The counters INDEX this table, so it is the same census, sorted.
         let table: Vec<String> = VERBS.iter().map(|v| v.to_string()).collect();
         assert_eq!(table, expected, "the counter table is not the census");
+    }
+
+    /// THE scope-default invariant: the table beside [`Request`] states every
+    /// scope-bearing read's absent meaning, and each read's own argument declares
+    /// the same thing. Both directions are checked, so a read that gains `scope`
+    /// without a row and a row without a read both fail.
+    #[test]
+    fn scope_defaults_are_the_table() {
+        let mut declared: BTreeMap<&'static str, ScopeDefault> = BTreeMap::new();
+        for req in every_request() {
+            let verb = req.verb();
+            match declared_scope(&req) {
+                Some((default, _)) => {
+                    assert!(
+                        declared.insert(verb, default).is_none(),
+                        "{verb} declares a scope default twice"
+                    );
+                }
+                None => assert!(
+                    !SCOPE_TABLE.iter().any(|row| row.verb == verb),
+                    "{verb} takes no `scope` but the table gives it a default"
+                ),
+            }
+        }
+        for row in SCOPE_TABLE {
+            assert!(
+                !row.reason.is_empty(),
+                "{} has a default and no reason; the table IS the reason",
+                row.verb
+            );
+        }
+        let tabled: BTreeMap<&'static str, ScopeDefault> = SCOPE_TABLE
+            .iter()
+            .map(|row| (row.verb, row.default))
+            .collect();
+        assert_eq!(
+            tabled.len(),
+            SCOPE_TABLE.len(),
+            "a verb is tabled twice: {SCOPE_TABLE:?}"
+        );
+        assert_eq!(
+            declared, tabled,
+            "the declared scope defaults and the table disagree"
+        );
+    }
+
+    /// The resolver, in isolation: absence takes the read's declared default, a
+    /// stated value always wins, and a location pin moves only the default that
+    /// declares it can.
+    #[test]
+    fn a_stated_scope_wins_and_absence_takes_the_default() {
+        let absent = ScopeArg::default();
+        for (default, pinned, own) in [
+            (ScopeDefault::All, false, false),
+            (ScopeDefault::All, true, false),
+            (ScopeDefault::Own, false, true),
+            (ScopeDefault::Own, true, true),
+            (ScopeDefault::OwnUnlessPinned, false, true),
+            (ScopeDefault::OwnUnlessPinned, true, false),
+        ] {
+            assert_eq!(
+                absent.resolve(default, pinned).own_only(),
+                own,
+                "absent scope under {default:?}, pinned {pinned}"
+            );
+        }
+        for (arg, own) in [
+            (ScopeArg(Some(Scope::All)), false),
+            (ScopeArg(Some(Scope::Own)), true),
+        ] {
+            for default in [
+                ScopeDefault::All,
+                ScopeDefault::Own,
+                ScopeDefault::OwnUnlessPinned,
+            ] {
+                for pinned in [false, true] {
+                    assert_eq!(
+                        arg.resolve(default, pinned).own_only(),
+                        own,
+                        "a stated {arg:?} must beat {default:?}, pinned {pinned}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// A location pin comes from the args, and only the reads whose default
+    /// depends on one let it move: `search` / `grep` accept a `repo` but their
+    /// default stays `own` when it is named.
+    #[test]
+    fn only_the_reads_that_declare_it_move_on_a_pin() {
+        let named = || Some("base".to_owned());
+
+        assert!(!HubsArgs::default().pin_moves_default());
+        assert!(
+            HubsArgs {
+                repo: named(),
+                ..Default::default()
+            }
+            .pin_moves_default()
+        );
+        assert!(
+            !HubsArgs {
+                repo: named(),
+                ..Default::default()
+            }
+            .scope()
+            .own_only(),
+            "a named member answers `all`"
+        );
+
+        assert!(!DiagnosticsFilterArgs::default().pin_moves_default());
+        for pinned in [
+            DiagnosticsFilterArgs {
+                repo: named(),
+                ..Default::default()
+            },
+            DiagnosticsFilterArgs {
+                path: Some("app/a.md".to_owned()),
+                ..Default::default()
+            },
+            DiagnosticsFilterArgs {
+                path_prefix: Some("app/".to_owned()),
+                ..Default::default()
+            },
+        ] {
+            assert!(pinned.pin_moves_default());
+            assert!(!pinned.scope().own_only(), "a pin answers `all`");
+        }
+
+        // `search` / `grep` accept a `repo`, but their default has no pin axis:
+        // naming the member narrows WHICH one is searched, not the scope, so the
+        // resolved scope is still `own`.
+        let searched = SearchArgs {
+            repo: named(),
+            ..Default::default()
+        };
+        assert!(
+            searched.scope().own_only(),
+            "a fixed default does not move on a pin"
+        );
+        let grepped = GrepArgs {
+            repo: named(),
+            ..Default::default()
+        };
+        assert!(grepped.scope().own_only());
     }
 
     /// A process-wide lock: these tests share the process-global counters and a

@@ -495,3 +495,25 @@ fn files_rejects_an_unknown_arg() {
         "an unknown arg is an error frame: {resp}"
     );
 }
+
+/// `graph_health` shares `graph_shape`'s scope row: `own` when unpinned, `all`
+/// once a `repo` names the member, and it echoes the resolved pair. This read
+/// had no default assertion at all, which is how its WIRE entry and its code
+/// drifted apart (`all` was documented, `own` was served); the echo is what makes
+/// the answer checkable from the outside.
+#[test]
+fn graph_health_defaults_to_own_and_answers_all_for_a_named_member() {
+    let (_dir, root) = multi_member_kb();
+    let mut h = harness(&root);
+
+    let default = h.payload("graph_health", json!({}));
+    assert_eq!(default["scope"], "own", "{default}");
+    assert!(default["repo"].is_null(), "{default}");
+
+    let named = h.payload("graph_health", json!({ "repo": "base" }));
+    assert_eq!(
+        named["scope"], "all",
+        "a named member answers all, like graph_shape: {named}"
+    );
+    assert_eq!(named["repo"], "base");
+}

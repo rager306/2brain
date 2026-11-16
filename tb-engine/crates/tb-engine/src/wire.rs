@@ -2459,10 +2459,14 @@ pub(crate) fn member_role(kb: &KnowledgeBase, name: &RepoName) -> MemberRole {
         .unwrap_or(MemberRole::Entry)
 }
 
-/// The `scope` filter for the workspace-wide type reads (`types`, `type_tree`,
-/// `type_counts`, `subtypes`, `list_imports`, and the repo-scoped variants).
+/// The CONCRETE `scope` filter every scoped view applies — the one shape the
+/// reads converge on (`types`, `type_tree`, `type_counts`, `subtypes`,
+/// `list_imports`, `files`, `search`, `grep`, the graph reads, `diagnostics`,
+/// and the repo-scoped variants).
 ///
-/// `all` (the default) surfaces every mounted repo's vocabulary, unchanged.
+/// It is built by the serving path's one resolver (`serve::ScopeArg::resolve`)
+/// from the caller's `scope` and the read's declared default; a view never reads
+/// a raw argument. `all` surfaces every mounted repo's vocabulary, unchanged.
 /// `own` keeps only the user's OWN repos, a repo that is an editable authoring
 /// surface ([`member_role`] editable, the entry or an `edit` member). That hides
 /// every dependency, a consumed `dep` or `discover` member, and the compiled-in
@@ -2474,7 +2478,7 @@ pub struct TypeScope {
 }
 
 impl TypeScope {
-    /// The default, everything in scope.
+    /// Everything in scope.
     pub fn all() -> Self {
         Self { own_only: false }
     }
@@ -2482,6 +2486,12 @@ impl TypeScope {
     /// `own_only` gates to the user's own (editable) repos.
     pub fn new(own_only: bool) -> Self {
         Self { own_only }
+    }
+
+    /// The wire spelling of this filter, `all` / `own`, for a payload that
+    /// ECHOES the resolved scope back to the caller.
+    pub fn as_str(&self) -> &'static str {
+        if self.own_only { "own" } else { "all" }
     }
 
     /// Whether this scope narrows to the user's own repos. Lets a caller skip
