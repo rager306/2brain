@@ -1,5 +1,5 @@
 ---
-type: au.engine.readme::au-engine
+type: tb.engine.readme::tb-engine
 tldr: The Ars Umbris type-system specification, standalone and implementation-free — the ~60 one-concept atoms that define the engine's type language. Read what the type system IS without cloning the Rust. The engine behaviour specs stay in au-engine.
 ---
 
