@@ -518,6 +518,29 @@ The missing list, ordered by cost of continued absence: a graded ranking metric,
 (`absent` 0/3 is a base asserting on questions it cannot answer), lineage, a deploy that lands, and a concurrency
 number.
 
+### The measurement lane, after a day of measuring the measurers
+
+Four artifacts now decide what a ranking claim means, and each one changed a plan:
+
+- **`graded.py` with grades and a true IDCG@5**, after a review of the field found that our first version was
+  `1/log2(rank+1)` — a monotone function of MRR that could not disagree with it. The repair is visible in the control:
+  the reversed page moves nDCG by −0.568 against MRR's −0.434.
+- **The MDE, stated plainly**: at n = 18 the smallest nDCG@5 change the set can certify is about **0.23**, a quarter of
+  the metric's range; 160 questions bring it to 0.077. Today's shipped change (+0.033) is below every row of that table.
+  So the eighteen-task set can name a mechanism, show the row it moved and veto a regression — and cannot certify a small
+  gain. Any future claim of "this improved ranking" must name its σ and the n that σ requires.
+- **160 questions in nine classes with nine axes each** (`tools/ranking/questions.json`), each row carrying a *measured*
+  share of query terms absent from its expected note, so a question cannot be answered by quoting itself. Ten pairs differ
+  in exactly one axis, which is what makes a miss attributable.
+- **The first baseline over them** (`2194e28`): MRR 0.637 at HEAD, 0.619 on the served binary — the deployment lag costs
+  4 rows at hit@5. And the axes say what the classes cannot: a keyword string hits rank 1 in 31 of 35 rows, the same
+  questions phrased naturally in 31 of 78; a pasted path in 15 of 15, a concept in 58 of 126; structural questions in
+  0 of 12, because they are not search questions at all.
+
+- **A semantic reading of 42 questions** (`3b28be5`): the top hit answers 38 %, `weak` fires on none of the eight
+  unanswerable tops, and `matched_terms` does not discriminate (4.75 against 5.32). Those two measurements killed the two
+  obvious candidates for a confidence signal before anyone built them.
+
 ### What that changes in the stages
 
 - **Stage 1** is done except the deploy window; #4 is the one remaining piece of design debt it created. The window
