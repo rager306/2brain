@@ -129,6 +129,18 @@ source.
 
 ### Fixed
 
+- **A rare matched term satisfies `min_should_match` on its own** (engine). The floor was a count applied after
+  scoring, so it dropped notes the ranking had already placed. `oracle matrix tests` returned five notes that
+  mention the words and not `f/patterns/pattern-oracle-drift-ci.md`, which is about the thing asked; the same
+  ranking with `min_should_match: 1` puts that note **third of 83**. A document is now kept when it matches the
+  floor's count **or** when its rarest matched term has an idf of at least `RARE_IDF` (2.0, the constant the
+  `weak` flag already uses), which is the rule `docs/research/task-set.md` registered before the change.
+  Measured on a candidate engine over a copy of the live vault, before and after on the same copy: the
+  `mixed-language` class **1/2 → 2/2**, the note at rank 3 of 83 at the default floor (the page is identical to
+  the `min_should_match: 1` page), `absent` stays **0/3**, and no other class moves. `exact` is untouched — it
+  takes the conjunction path, so it still requires every term. What it does not fix: rarity cannot tell a
+  rare-and-unrelated word from a rare-and-central one, so the three `absent` questions still return confident
+  answers.
 - **The audit ledger names the tool that ran.** 17 of 28 records in a production log said `"tool":"mutation"`;
   the shared mutation helper now takes the tool name, and a test asserts the ledger carries `tb_write_file`
   and `tb_delete_file` rather than a placeholder.

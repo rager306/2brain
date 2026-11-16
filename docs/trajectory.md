@@ -379,7 +379,10 @@ Two defects now have a task each, so they are queue entries with a pre-registere
 - **the `min_should_match` floor hides what the ranker found** — `oracle matrix tests` admits five notes and the right
   one is not among them, while the same ranking at `min_should_match: 1` puts it third of 83. Proposed rule:
   `matched >= msm || best_idf >= RARE_IDF`, i.e. a rare term that matched is enough even when the AND floor is not
-  met. Accepted only if `absent` stays 0/3 and no other class moves.
+  met. Accepted only if `absent` stays 0/3 and no other class moves. **Landed 2026-11-16**: `mixed-language`
+  1/2 → 2/2, `oracle matrix tests` at the default floor now rank 3 of 83 — the same page the
+  `min_should_match: 1` row already returned — `absent` **0/3**, and no other class moved; the rule, the
+  before/after table and what it does not fix are in `docs/research/task-set.md` §3.
 - **the title is not a scored field** — a note titled after the question ranks 8th behind a survey, with 6 of 6 terms.
   A title field with its own weight is the obvious mechanism; the risk is that a title match flatters a shallow note,
   so the rule is that `hub-vs-atomic` must reach rank 1 and `absent` must not gain a hit.

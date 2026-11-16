@@ -250,6 +250,48 @@ sense, and `tests`, which the note has only as `тестов`. A count-only floo
 this a defect is the direction of the miss: the engine ranks the right note well and then drops it on a count, while
 returning notes that only mention the words.
 
+#### The rare-term override, measured (2026-11-16)
+
+The rule registered above is now the behaviour: `matched >= msm || best_idf >= RARE_IDF`, with `RARE_IDF = 2.0`
+the constant the `weak` flag already uses. The floor stayed a count, and one matched term at or above that line
+satisfies it alone. `exact` is untouched — it takes the conjunction path (`exact()`), so it still requires every
+term; the escape widens only `min_should_match`.
+
+Measured on a candidate engine (debug build of `tb-cli` from the working tree, `tools/ranking/candidate_engine.py`)
+over a `cp -a` copy of the live vault, the before and the after runs served from the **same copy**, with the
+eighteen tasks in `tools/ranking/tasks.json`:
+
+| class | before | after | what the after column holds |
+|---|---|---|---|
+| exact | 1/2 | 1/2 | `ReasoningBank` still rank 2 |
+| paraphrase | 2/3 | 2/3 | the skills question still outside the top ten |
+| ru-cross | 1/1 | 1/1 | rank 1 |
+| multi-hop | 2/2 | 2/2 | rank 1 on both rows |
+| ambiguous | 1/1 | 1/1 | rank 9, `weak` — unchanged |
+| absent | 0/3 | **0/3** | unchanged; the pages widened, the answers did not |
+| word-form | 1/1 | 1/1 | rank 1, two candidates |
+| exact-and | 1/1 | 1/1 | 218 candidates, unchanged |
+| **mixed-language** | **1/2** | **2/2** | the defect this measures |
+| hub-vs-atomic | 0/1 | 0/1 | rank 8 |
+| bilingual | 0/1 | 0/1 | still outside the page |
+
+`oracle matrix tests` at the default floor: **5 hits → 83**, and `f/patterns/pattern-oracle-drift-ci.md` at
+**rank 3**, score 25.62, one matched term, `weak: false` — the position the `min_should_match: 1` row already held
+before the change, which is the whole point: the ranking knew, and the count hid it. The default row and the
+`min_should_match: 1` row now return an identical page (83 candidates, same order, same scores), so the default
+floor costs nothing on this query that the OR would have found.
+
+The absent class moved only in the way the rule allows: its candidate counts grew (46 → 85, 121 → 122, 433 → 457)
+because notes matching a single rare term are no longer dropped, while all three top hits are the same notes with
+the same matched-term counts (5, 2, 5) and none is `weak`. **0/3 is unchanged.** Every other class keeps its rank;
+where a candidate count widened it widened only outside the page (`NVDA translation addon blind user` 8 → 148,
+`event log as source of truth` 329 → 369, `перехват аргументов tool-call до исполнения` 166 → 193), which is the
+same escape at work on a two-term default and answers no task differently.
+
+**What the rule does not fix:** it repairs a page that was filtered, not an answer that is wrong — rarity still
+cannot tell a rare-and-unrelated word from a rare-and-central one, so the three `absent` questions keep returning
+confident multi-term pages, which stays the reporting target §2 names rather than another threshold.
+
 ### 4. hub-vs-atomic — **defect**, the title is not a ranking field
 
 Query `event log as source of truth`, which is the atomic note's own title and the rule it states (append-only log
@@ -287,7 +329,8 @@ In the shape the earlier experiments used, written down before the change:
 
 - the rare-term override (for `mixed-language`) must take that class to 2/2, must not raise `absent` (its hits
   already clear the floor on two terms, so the override cannot add one there), and must leave `word-form`,
-  `exact-and`, `hub-vs-atomic` and `bilingual` where they are;
+  `exact-and`, `hub-vs-atomic` and `bilingual` where they are — **met 2026-11-16**: 1/2 → 2/2, `absent` 0/3,
+  and every other class unchanged (§3, the rare-term override);
 - the title boost and MOC down-weight (for `hub-vs-atomic`) must not move any `exact` or `paraphrase` task down;
 - the description convention (for `bilingual`) is a vault edit, so it is measured on a fresh copy and cannot be
   checked by the engine's tests at all.

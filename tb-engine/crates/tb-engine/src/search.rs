@@ -56,9 +56,11 @@
 //! are summed with their weights.
 //!
 //! A plain OR query over two or three common terms matched 335–343 documents in
-//! the prototype, so [`Bm25Index::search`] takes a minimum should match and the
-//! caller chooses between OR (`0` or `1`) and AND (the distinct query-term
-//! count).
+//! the prototype, so [`Bm25Index::search`] takes a minimum should match: the
+//! caller chooses a floor between an OR (`0` or `1`) and the distinct query-term
+//! count. The floor is not the whole rule — a document holding one term at or
+//! above [`RARE_IDF`] is admitted regardless, because a rare word is evidence and a
+//! majority is a guess. [`Bm25Index::exact`] is the conjunction.
 //!
 //! Two query terms stated near each other lift the document further: see
 //! [`PROXIMITY`]. That is the only part of the ranking that reads positions, and
@@ -882,11 +884,14 @@ impl<const N: usize> Bm25Index<N> {
     /// Rank the documents matching `query`, best first.
     ///
     /// A document is a candidate when it holds at least `min_should_match`
-    /// distinct query terms, so `0` is an OR and the distinct term count is an
-    /// AND. The bound is clamped to the number of distinct query terms, so
-    /// `usize::MAX` also means AND. A query term the index has never seen
-    /// counts as a distinct term that no document matches: an AND query that
-    /// includes it returns nothing, which is what AND means.
+    /// distinct query terms, so `0` is an OR and the distinct term count is the
+    /// strictest floor. The bound is clamped to the number of distinct query
+    /// terms, so `usize::MAX` means "every term OR one rare one": a term at or
+    /// above [`RARE_IDF`] is admitted on its own, because a rare word is evidence and a
+    /// majority rule the caller never asked for should not discard it. `exact()`
+    /// is the only true conjunction. A query term the index has never seen counts
+    /// as a distinct term no document matches, so it can only be satisfied by the
+    /// rarity escape, never by the floor.
     ///
     /// Ties in score are broken by ascending [`Hit::doc_id`], so the order is
     /// total and identical across builds of the same corpus. `limit == 0`
@@ -965,9 +970,16 @@ impl<const N: usize> Bm25Index<N> {
             }
         }
 
+        // The floor is a majority rule, and a rare term is evidence of its own: a
+        // three-word question whose one rare word lands in one note should not lose
+        // that note for failing a majority it never asked for. `exact` is a separate
+        // path (`exact()` intersects postings), so an AND the caller demanded still
+        // means every term — this escape only widens `min_should_match`, a floor.
         let mut hits: Vec<Hit> = accumulator
             .into_iter()
-            .filter(|(_, accumulator)| accumulator.matched >= required)
+            .filter(|(_, accumulator)| {
+                accumulator.matched >= required || accumulator.best_idf >= RARE_IDF
+            })
             .map(|(doc, accumulator)| Hit {
                 doc_id: doc as usize,
                 score: accumulator.score
@@ -1555,6 +1567,11 @@ fn term_matches(token: &str, term: &str) -> bool {
 /// a long natural-language query answers nothing. Two is the middle: one stray
 /// word cannot flood the page, and a caller need not phrase a query like a search
 /// engine.
+///
+/// This is the FLOOR, not the whole rule: [`Bm25Index::search`] also admits a
+/// document holding one term at or above [`RARE_IDF`], so "require all of them" means
+/// "unless the one it holds is rare". The default is a guess about flooding; the
+/// escape is a fact about the corpus, and the fact wins.
 pub(crate) fn default_min_should_match(query: &str) -> usize {
     let mut terms = tokenize(query);
     terms.sort();
@@ -2018,6 +2035,55 @@ mod tests {
         );
         // Cyrillic is two bytes per character: "Привет, " is 14 bytes.
         assert_eq!(first_term("Привет, мир", &distinct_terms("МИР")), Some(14));
+    }
+
+    /// A rare term is evidence on its own: a document that matched one rare word and missed the rest is admitted even
+    /// though it is below the majority floor, because the floor is a heuristic the caller did not ask for.
+    #[test]
+    fn a_rare_matched_term_escapes_the_majority_floor() {
+        let mut docs = Vec::new();
+        for doc in 0..60 {
+            docs.push((
+                doc,
+                [format!("common filler note number {doc}"), String::new()],
+            ));
+        }
+        // One document holds the rare word and one common word; none holds both rare and two commons.
+        docs.push((60, ["acme filler".to_owned(), String::new()]));
+        let index = index_of(default_weights(), &docs);
+
+        // Three distinct terms, floor of two: without the escape this document is dropped.
+        let hits = index.search("common note acme", 2, 10);
+        assert!(
+            sorted_ids(hits).contains(&60),
+            "a rare term should admit the document that holds it"
+        );
+    }
+
+    /// The escape widens the floor, so it also applies when the caller asked for every term through
+    /// `min_should_match`; `exact` is a different path (`exact()`) and keeps intersecting postings. This test names the
+    /// asymmetry so a later change cannot make it silently the other way round.
+    #[test]
+    fn a_rare_term_escapes_even_a_full_floor_but_exact_stays_an_intersection() {
+        let mut docs = Vec::new();
+        for doc in 0..60 {
+            docs.push((
+                doc,
+                [format!("common filler note number {doc}"), String::new()],
+            ));
+        }
+        docs.push((60, ["acme alone".to_owned(), String::new()]));
+        let index = index_of(default_weights(), &docs);
+
+        assert_eq!(
+            sorted_ids(index.search("common note acme", usize::MAX, 10)),
+            vec![60]
+        );
+        // The conjunction path is untouched: `acme` alone does not satisfy `common note acme`.
+        assert_eq!(
+            sorted_ids(index.exact("common note acme", 10)),
+            Vec::<usize>::new()
+        );
     }
 
     /// A plural in the query finds a note written in the singular and the reverse, because a corpus of
