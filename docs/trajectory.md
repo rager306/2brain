@@ -14,7 +14,7 @@ cost, and the evidence it would produce.
 | read contract | one `VERB_SHAPES` table plus typed payloads for the eight hot reads; both checked by the captured fixtures, not by memory |
 | audit | hash-chained `mcp_policy` records on stderr; the tool name is recorded (fixed from the literal `mutation`), the principal comes from `--principal` and Hermes now passes `hermes` |
 | judge | batched: 100 questions per call, 0.76 s, 7.6 ms/question (`docs/research/judge-capabilities.md`) |
-| rebrand | tiers A, B, **D done**; tier C steps 1–2 done (parser + engine halves, 38 sites), step 3 (schema seams) open |
+| rebrand | tiers A, B, **D done**; tier C steps 1–3 done (38 identity sites, schema seams, canonicaliser), step 4 is the migration command |
 | tool names | `au_*` — a client contract; the rename is a decision, not a sweep (`docs/naming.md`) |
 | FSM run log | done — `tools/fsm/check_run.py`, seven rules, `--selftest` proves each bites |
 | hygiene pass | done and applied — `tools/hygiene/pass.py`, `inbox/hygiene-2026-11-16.md` |
@@ -61,15 +61,18 @@ The term map is where that room is: `term_ids: HashMap<String, u32>` over the va
 **0.84 KB per document, 14% of the budget** (`docs/research/pogocache-patterns.md` §2). So the compact map
 is not a memory diet (1.2% of RSS); it is the payment for proximity.
 
-- **Compact map: built, measured, reverted.** 4 703 → 4 695 bytes per document on the budget-test corpus
-  (8 bytes, against ~840 predicted); the vault's vocabulary transfers to ~0.22 KB/doc, below the 0.5 KB/doc
-  criterion set in advance. The arithmetic was wrong about what dominates the index — postings do, not the
-  term keys. Recorded in `docs/research/pogocache-patterns.md` §3.
-- **So proximity must pay for itself differently**: either a tighter posting encoding (delta + varint
-  document ids and positions) or a budget raised with the reason written next to it. Deciding that needs the
-  budget measured on the real vault, not on the generated corpus.
-- **Gate**: proximity lifts literal hit@1 above 0.571 with topical hit@1 not below 0.642, golden `au_search`
-  blessed in the same commit, and `memory_bytes()/doc` stays inside the budget after the change.
+- **Compact term map: built, measured, reverted.** 4 703 → 4 695 bytes per document (8 bytes, against ~840
+  predicted); the arithmetic was wrong about what dominates the index — postings do, not the term keys.
+- **The room came from the postings instead** (`3304c22`): delta-encoded varint blocks, 4 703 → 2 604 bytes
+  per document, plus 20 for the description positions proximity needs. −44%, and the budget (6 144) did not
+  move, so proximity has ~3.5 KB per document to spend.
+- **Measuring a ranking change no longer needs a swap**: `tools/ranking/candidate_engine.py` starts a second
+  engine over a copy of the vault with its own HOME and socket; `eval.py --socket … --vault …` and
+  `durable_probe.py --socket … --vault …` both accept it. The copy reproduces production exactly today
+  (literal 0.571 / topical 0.642 / durable 0.500, 13 of 26), which is what makes it a valid stand-in.
+- **Gate**: proximity lifts literal hit@1 above 0.571 with topical hit@1 not below 0.642 and durable not
+  below 0.500, measured on the candidate copy; accepted changes are blessed in the golden `au_search` capture
+  and swapped in with the same rollback artifacts as the sixth swap.
 - **Risk**: the index's per-document footprint doubles with positions; the budget is the constraint, not
   the code.
 

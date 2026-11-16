@@ -112,6 +112,7 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--socket", default=None, help="engine socket, instead of the vault")
+    parser.add_argument("--vault", default=VAULT, help="root the served engine answers from")
     args = parser.parse_args()
 
     rows = pairs(args.min_shared)[: args.limit]
@@ -119,9 +120,9 @@ def main() -> int:
         print("no pairs: the vault has no two notes with different freshness sharing a subject")
         return 1
 
-    target = args.socket or VAULT
+    target = args.socket or args.vault
     launch = [ADAPTER, "mcp", target]
-    prefix = VAULT.rstrip("/") + "/"
+    prefix = args.vault.rstrip("/") + "/"
     hits_at_1 = hits_at_5 = 0
     reciprocal = 0.0
     rival_first = 0
@@ -133,8 +134,10 @@ def main() -> int:
                 return 2
             matches = tool_payload(reply)["search"]["matches"]
             paths = [match["path"].replace(prefix, "") for match in matches]
-            expected = row["expected"].replace(prefix, "")
-            rival = row["rival"].replace(prefix, "")
+            # The pair was built from the vault this script reads on disk; the engine may serve a copy of
+            # it, so both sides are reduced to the path relative to their own root.
+            expected = row["expected"].replace(VAULT.rstrip("/") + "/", "")
+            rival = row["rival"].replace(VAULT.rstrip("/") + "/", "")
             rank = paths.index(expected) + 1 if expected in paths else None
             rival_rank = paths.index(rival) + 1 if rival in paths else None
             if rank:

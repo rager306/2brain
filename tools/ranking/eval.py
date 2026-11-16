@@ -27,7 +27,7 @@ from mcp_stdio import StdioMcp, is_error, tool_payload, tool_text  # noqa: E402
 
 ADAPTER = os.environ.get("BRAIN_BIN", "/usr/local/bin/2brain")
 VAULT = os.environ.get("BRAIN_VAULT", "/root/vault")
-PREFIX = VAULT.rstrip("/") + "/"
+PREFIX = None  # set from the vault being served, in main()
 
 
 def rank_of(payload: dict, expected: str) -> int | None:
@@ -44,13 +44,25 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--set", type=Path, default=REPO / "tools/ranking/labelled-queries.json")
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--socket",
+        default=None,
+        help="engine socket to serve instead of the live vault (tools/ranking/candidate_engine.py)",
+    )
+    parser.add_argument(
+        "--vault",
+        default=VAULT,
+        help="root the served engine answers from; the set's expected paths are relative to it",
+    )
     args = parser.parse_args(argv[1:])
+    global PREFIX
+    PREFIX = args.vault.rstrip("/") + "/"
 
     data = json.loads(args.set.read_text())
     rows = data["rows"]
     totals = {}
     details = []
-    with StdioMcp([ADAPTER, "mcp", VAULT], name="eval") as client:
+    with StdioMcp([ADAPTER, "mcp", args.socket or args.vault], name="eval") as client:
         for row in rows:
             reply = client.call("au_search", {"query": row["query"], "limit": args.limit})
             if is_error(reply):
