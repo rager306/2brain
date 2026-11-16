@@ -34,6 +34,7 @@ STOPWORDS = {
     "what", "which", "who", "when", "where", "why", "do", "does", "did", "can", "could", "should",
 }
 VAULT = Path(os.environ.get("BRAIN_VAULT", "/root/vault"))
+PREFIX = str(VAULT) + "/"  # the served root; `--vault` re-points it for a candidate engine
 
 
 def real_terms(query: str) -> list[str]:
@@ -49,7 +50,7 @@ def search(client: StdioMcp, query: str, limit: int = 10, min_should_match: int 
     if result.get("isError"):
         return []
     block = (result.get("structuredContent") or {}).get("search") or {}
-    root = str(VAULT) + "/"
+    root = PREFIX
     return [
         {"path": match["path"].removeprefix(root), "terms": match.get("matched_terms", 0),
          "score": round(match.get("score", 0.0), 2), "weak": bool(match.get("weak"))}
@@ -62,6 +63,10 @@ def main() -> int:
     parser.add_argument("--set", type=Path, default=REPO / "tools/ranking/tasks.json")
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--vault", default=None, help="the served root the socket answers for, so paths can be "
+                                                     "made workspace-relative")
+    parser.add_argument("--socket", default=None, help="serve that engine socket instead of the live vault "
+                                                      "(tools/ranking/candidate_engine.py)")
     parser.add_argument(
         "--require-real-terms",
         action="store_true",
@@ -70,10 +75,14 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    global PREFIX
+    if args.vault:
+        PREFIX = str(Path(args.vault)) + "/"
     tasks = json.loads(args.set.read_text())["rows"]
     env = dict(os.environ, HOME=os.environ.get("BRAIN_HOME", "/root"))
     rows = []
-    with StdioMcp([ADAPTER, "mcp", str(VAULT)], name="tasks-eval", env=env) as client:
+    target = args.socket or str(VAULT)
+    with StdioMcp([ADAPTER, "mcp", target], name="tasks-eval", env=env) as client:
         for task in tasks:
             wanted_min = None
             if args.require_real_terms:

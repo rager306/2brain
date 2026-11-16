@@ -32,7 +32,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 VAULT = Path("/root/vault")
 RUN_DIR = Path("/tmp/candidate-engine")
-CANDIDATE = ROOT / "tb-engine/target/release/au"
+CANDIDATE = Path(os.environ.get("BRAIN_ENGINE_BINARY", ROOT / "tb-engine/target/release/au"))
 INSTALLED = Path("/root/.2brain/bin/au")
 STATE = Path("/root/.2brain/au-engine")
 

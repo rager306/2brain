@@ -98,3 +98,41 @@ Pre-registered acceptance, all of it:
 - the rule is measured on the candidate engine, never on the served vault.
 
 If it misses any one of those, it is rejected and published here, like the freshness prior and this one.
+
+## Experiment 2: the `weak` flag — half a result
+
+The pre-registered rule was: drop or flag matches whose best term is common. The flag shipped as `weak` (best
+matched term's idf < `RARE_IDF` = 2.0), measured on a candidate engine (debug build, copy of the vault, own socket):
+
+| class | baseline | with `weak` | verdict |
+|---|---|---|---|
+| absent | 0/3 | **0/3** | fails the rule |
+| exact | 1/2 | 1/2 | unchanged |
+| paraphrase | 2/3 | 2/3 | unchanged |
+| multi-hop | 2/2 | 2/2 | unchanged |
+| ru-cross | 1/1 | 1/1 | unchanged |
+| ambiguous | 1/1 | 1/1, top hit **weak** | flagged |
+
+So the flag does not make an unanswerable question look unanswerable, and the pre-registered acceptance fails. It is
+kept as a **signal** because the ambiguous case shows it is true and useful in the other direction: `agent memory`
+is a legitimate question whose top hit really does rest on two corpus-wide words, and telling the caller that is
+worth a boolean.
+
+Why the absent class still fails is the finding worth keeping:
+
+- `какая лицензия у Apache Kafka` matched three terms, one of them (`apache`) rare in this corpus — and `apache`
+  is rare **and unrelated**, which the idf cannot distinguish from rare and central.
+- `the exact number of stars on the 2brain repository` matched five, including `repository` and `2brain`.
+- `сколько стоит подписка Netflix в Таиланде` matched two, including `netflix`.
+
+Rarity answers "is this word unusual here", not "is this note about the thing asked". A lexical engine cannot
+close that gap with a threshold: the next candidate needs corroboration — a rare term that also matches the note's
+**description** (the field the author wrote to say what the note is about) — or a semantic signal, which this
+engine deliberately does not have.
+
+### Consequence for the plan
+
+The `absent` class is not a ranking target; it is a **reporting** target. What an agent needs from this base is not
+"no results" but "these are the closest notes and here is what none of them establishes" — which is the `context`
+contract in the trajectory, not another scoring term. The flag stays, documented as a signal rather than a verdict,
+and the next ranking attempt has to name which of those two shapes it is improving.
