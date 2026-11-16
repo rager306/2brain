@@ -318,6 +318,16 @@ memory and an issue is a queue. Eleven exist:
 | 2brain | #4 three representations of `scope` | the defaults become data instead of prose |
 | allspark | #19–#22 | `graph`'s cycle, coverage, hotspot and staleness reports each mislead in a measurable way |
 | allspark | #23–#25 | `bash` handle semantics, polling turns, and a child's report visibility |
+| 2brain | #5, #6 | CI runs no `tb-core`/`tb-cli` tests; the known-environment file still claims 85 clippy warnings |
+
+The first four are closed, each with a commit and a measurement: the tool table is now checked against `tools/list`
+in both directions, a failed launch names its state root and socket, `scope` is one argument with one table of
+defaults bound by a test, and clippy is a gate on **both** halves — the engine went from 85 findings to 0 in two
+commits, and the CI step runs the same command the commit proves.
+
+What the four have in common is worth keeping: **each fix made a previously implicit rule explicit and testable.** A
+table becomes a test, a default becomes data, a gate becomes a step. The register's next two rows are the same kind of
+thing — a suite that exists but is never run, and a document that states a number nobody re-measured.
 
 The rule this makes explicit: **an observation becomes an issue only with a reproduction and a suggestion.** Three of
 the seven harness issues came with numbers (`fan_in=1449`, `229/2247`, seventeen `sleep` processes), and those are
