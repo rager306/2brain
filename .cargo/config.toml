@@ -1,10 +1,12 @@
 # One target directory for the whole monorepo.
 #
-# Every crate here shares the engine's dependency graph: `au-mcp-rs` depends on
-# `au-cli`, which depends on `au-engine`. With a per-crate `target/`, that graph
-# was compiled twice (3.5 GiB + 7.1 GiB on 2026-11-14), and each crate paid its
-# own full dependency build. The absolute path is deliberate: `target-dir` is
-# resolved against this file, and an absolute path cannot drift when a crate is
-# built from a different working directory.
+# Every crate here shares the engine's dependency graph: the MCP adapter depends on
+# the engine crates, so with a per-crate `target/` that graph is compiled twice (3.5 GiB +
+# 7.1 GiB on 2026-11-14), and each crate pays its own full dependency build.
+#
+# The path is relative on purpose. Cargo resolves it against the directory holding
+# `.cargo/`, so a local build and a CI checkout both land in `<repo>/.cargo-target` — an
+# absolute path here would have pinned the directory to one machine and broken every other
+# one (it broke the first CI run: `failed to create directory /root/2brain`).
 [build]
-target-dir = "/root/2brain/.cargo-target"
+target-dir = ".cargo-target"
