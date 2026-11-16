@@ -37,15 +37,15 @@
 //! punctuation case wants. Underscored identifiers split too, and the exact
 //! path still finds them as a conjunction; a caller that needs order needs
 //! positions, which this module stores in a delta-encoded posting block (see
-//! [`PostingBlock`]) but not yet in a form the ranking reads.
+//! [`PostingBlock`]).
 //!
 //! # Postings
 //!
 //! A term's postings are one byte block, not a `Vec` of structs: the document ids
 //! ascend as varint deltas, each posting's per-field frequencies follow as
-//! varints, and the description's term positions follow those. Scoring decodes
-//! the block on the fly, one [`Posting`] at a time, and pays nothing for the
-//! positions it does not read.
+//! varints, and then each field's term positions. Scoring decodes the block on
+//! the fly, one [`Posting`] at a time, and the adjacency pass reads two postings'
+//! position runs in step, so neither allocates.
 //!
 //! # Ranking
 //!
@@ -59,6 +59,10 @@
 //! the prototype, so [`Bm25Index::search`] takes a minimum should match and the
 //! caller chooses between OR (`0` or `1`) and AND (the distinct query-term
 //! count).
+//!
+//! Two query terms stated near each other lift the document further: see
+//! [`PROXIMITY`]. That is the only part of the ranking that reads positions, and
+//! [`PROXIMITY`] is the switch that turns it off.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -83,14 +87,48 @@ const B: f64 = 0.75;
 /// The value is chosen against that set, not by taste; see `docs/trajectory.md`, track 3.
 const COVERAGE: f64 = 0.6;
 
+/// How much two query terms stated near each other lift a document's score.
+///
+/// BM25 sums per-term contributions, so a note that states `error` and `fix` in one sentence and a note
+/// that mentions both a page apart score the same. Multiplying a document by
+/// `1 + PROXIMITY * closeness` rewards the one that states them together, where `closeness` is the best
+/// pair of query terms in the body and falls linearly from 1 at adjacent to just above 0 at
+/// [`PROXIMITY_WINDOW`]. The factor is bounded by `1 + PROXIMITY`, so adjacency reorders near neighbours
+/// and cannot outvote a term BM25 does not see.
+///
+/// This is the switch: `0.0` turns the pass off, and a search then reads no positions and pays nothing.
+///
+/// The value is measured on the candidate copy, not chosen by taste (`docs/trajectory.md`, track 2):
+/// literal hit@1 0.571 → 0.714, topical 0.642 → 0.660, durable 0.500 → 0.538. Two neighbours belong to
+/// the same tuning sweep; 0.2 and 0.4 also cleared the gate, so the plateau is real rather than a point.
+const PROXIMITY: f64 = 0.3;
+
+/// The greatest token distance between two query terms that still counts as near.
+///
+/// Adjacent terms score full closeness; the last distance inside the window scores
+/// `1 / PROXIMITY_WINDOW`. Five tokens keeps a short phrase and its immediate modifiers together without
+/// reaching across a sentence. Three and eight were measured: three lost literal hit@5 for one document
+/// and eight changed nothing, so five is the middle of the plateau.
+const PROXIMITY_WINDOW: u32 = 5;
+
+/// The field whose positions the adjacency pass reads: the body.
+///
+/// The description's positions are stored too, because the layout has one shape for every field, but the
+/// pass does not score them. Measured on the candidate copy: a pass that scored the description as well
+/// left literal at 0.571 and cost durable hit@1 (0.500 → 0.385), because the durable query class is built
+/// from words the two notes share *in their descriptions*, so adjacency there ranks the pair by an
+/// accident of wording. The body is where a phrase is evidence.
+const PROXIMITY_FIELD: usize = 0;
+
 /// Default weight of field 0, the note body.
 const BODY_WEIGHT: f64 = 1.0;
 
 /// Default weight of field 1, the note description.
 const DESCRIPTION_WEIGHT: f64 = 3.0;
 
-/// The field whose term positions a posting carries: the description, which a
-/// note writes by hand and which the proximity step ranks on first.
+/// The field a note's frontmatter description occupies. The position tests name
+/// it; the ranking weights through [`default_weights`] and reads every field.
+#[cfg(test)]
 const DESCRIPTION_FIELD: usize = 1;
 
 /// One ranked document returned by [`Bm25Index::search`] or
@@ -131,15 +169,16 @@ struct Posting<const N: usize> {
 ///
 /// A posting entry is the document id as a varint delta from the previous
 /// posting's id (the first from zero), one varint per field holding that field's
-/// term frequency, then the description positions: one varint per occurrence of
-/// the term in field 1, each a delta from the previous position. A document id
-/// therefore costs its gap rather than its value, which is most of what the
-/// layout buys, and a phrase walk reads a document's positions in order without
-/// a second table.
+/// term frequency, then the term's positions: for each field in order, one varint
+/// per occurrence in that field, each a delta from the previous position. A
+/// document id therefore costs its gap rather than its value, which is most of
+/// what the layout buys, and a phrase walk reads a document's positions in order
+/// without a second table.
 ///
-/// Positions cover the description only. The body is where a byte-cost decision
-/// has to wait for a consumer: the proximity step ranks on the hand-written
-/// description first, and a one-field index stores no positions at all.
+/// Positions cover every field, and the adjacency pass scores the body's (see
+/// [`PROXIMITY_FIELD`]). The description's positions cost little — it is a short
+/// field — and one layout for every field is simpler than a special case; they are
+/// what an ordered phrase query would read next.
 ///
 /// The block is rebuilt whole on an insert below its last id or on a remove —
 /// one linear pass over the term's list, the same cost the vector's own
@@ -190,16 +229,13 @@ impl<const N: usize> PostingBlock<N> {
     }
 
     /// The description positions of `doc`, ascending, empty when it holds none.
-    ///
-    /// The proximity step's input. Ranking does not read it yet, which is why
-    /// only the tests call it today.
     #[cfg(test)]
-    fn positions(&self, doc: u32) -> Vec<u32> {
-        let mut decoded = Vec::new();
+    fn positions(&self, doc: u32, field: usize) -> Vec<u32> {
+        let mut decoded: [Vec<u32>; N] = std::array::from_fn(|_| Vec::new());
         let mut walk: PostingWalk<'_, N> = PostingWalk::new(&self.bytes);
         while let Some(posting) = walk.next_posting(Some(&mut decoded)) {
             if posting.doc == doc {
-                return decoded;
+                return std::mem::take(&mut decoded[field]);
             }
             if posting.doc > doc {
                 break;
@@ -208,12 +244,50 @@ impl<const N: usize> PostingBlock<N> {
         Vec::new()
     }
 
+    /// Call `visit` for every document both blocks hold, with each posting's term
+    /// frequencies and a cursor over its positions.
+    ///
+    /// A merge walk over two ascending posting lists, so the adjacency pass costs
+    /// the pair's shared documents rather than either list.
+    fn for_each_shared(
+        &self,
+        other: &Self,
+        mut visit: impl FnMut(u32, [u16; N], PositionCursor<'_>, [u16; N], PositionCursor<'_>),
+    ) {
+        let mut left = PostingWalk::<N>::new(&self.bytes);
+        let mut right = PostingWalk::<N>::new(&other.bytes);
+        let mut left_entry = left.next_entry();
+        let mut right_entry = right.next_entry();
+        loop {
+            let (Some((left_doc, left_tf, left_at)), Some((right_doc, right_tf, right_at))) =
+                (left_entry, right_entry)
+            else {
+                break;
+            };
+            match left_doc.cmp(&right_doc) {
+                std::cmp::Ordering::Less => left_entry = left.next_entry(),
+                std::cmp::Ordering::Greater => right_entry = right.next_entry(),
+                std::cmp::Ordering::Equal => {
+                    visit(
+                        left_doc,
+                        left_tf,
+                        PositionCursor::new(&self.bytes, left_at),
+                        right_tf,
+                        PositionCursor::new(&other.bytes, right_at),
+                    );
+                    left_entry = left.next_entry();
+                    right_entry = right.next_entry();
+                }
+            }
+        }
+    }
+
     /// Insert a posting, keeping the block ascending by document id.
     ///
     /// A document id above the block's last one — the build case, where ids
     /// arrive in order — rewrites the header and appends the entry. Anything
     /// else re-encodes the block in one pass.
-    fn insert(&mut self, doc: u32, tf: [u16; N], positions: &[u32]) {
+    fn insert(&mut self, doc: u32, tf: [u16; N], positions: &[Vec<u32>; N]) {
         let (count, last) = self.header();
         if count == 0 || doc > last {
             self.append(doc, tf, positions);
@@ -223,7 +297,7 @@ impl<const N: usize> PostingBlock<N> {
     }
 
     /// Append a posting whose document id is above every id in the block.
-    fn append(&mut self, doc: u32, tf: [u16; N], positions: &[u32]) {
+    fn append(&mut self, doc: u32, tf: [u16; N], positions: &[Vec<u32>; N]) {
         let (count, last) = self.header();
         let header_len = self.header_len();
         let mut header = Vec::with_capacity(8);
@@ -243,14 +317,14 @@ impl<const N: usize> PostingBlock<N> {
     }
 
     /// Insert a posting in the middle of the block, re-encoding it.
-    fn rebuild_insert(&mut self, doc: u32, tf: [u16; N], positions: &[u32]) {
+    fn rebuild_insert(&mut self, doc: u32, tf: [u16; N], positions: &[Vec<u32>; N]) {
         let (count, last) = self.header();
         let mut bytes = Vec::with_capacity(self.bytes.len() + 8);
         put_varint(&mut bytes, count as u32 + 1);
         put_varint(&mut bytes, last.max(doc));
         let mut prev = 0;
         let mut placed = false;
-        let mut decoded = Vec::new();
+        let mut decoded: [Vec<u32>; N] = std::array::from_fn(|_| Vec::new());
         let mut walk: PostingWalk<'_, N> = PostingWalk::new(&self.bytes);
         while let Some(posting) = walk.next_posting(Some(&mut decoded)) {
             debug_assert!(
@@ -282,7 +356,7 @@ impl<const N: usize> PostingBlock<N> {
         let mut prev = 0;
         let mut last = 0;
         let mut kept = 0u32;
-        let mut decoded = Vec::new();
+        let mut decoded: [Vec<u32>; N] = std::array::from_fn(|_| Vec::new());
         let mut walk: PostingWalk<'_, N> = PostingWalk::new(&self.bytes);
         while let Some(posting) = walk.next_posting(Some(&mut decoded)) {
             if posting.doc == doc {
@@ -361,37 +435,151 @@ impl<'a, const N: usize> PostingWalk<'a, N> {
     /// The description positions are collected into `positions` when a buffer is
     /// given and skipped otherwise: scoring reads the frequencies, and a rewrite
     /// has to carry the positions through unchanged.
-    fn next_posting(&mut self, positions: Option<&mut Vec<u32>>) -> Option<Posting<N>> {
+    fn next_posting(&mut self, positions: Option<&mut [Vec<u32>; N]>) -> Option<Posting<N>> {
+        let (doc, tf, position_at) = self.next_entry()?;
+        if let Some(decoded) = positions {
+            let mut at = position_at;
+            for (field, &frequency) in tf.iter().enumerate() {
+                decoded[field].clear();
+                let mut position = 0;
+                for _ in 0..frequency {
+                    position += read_varint(self.bytes, &mut at);
+                    decoded[field].push(position);
+                }
+            }
+        }
+        Some(Posting { doc, tf })
+    }
+
+    /// The next posting's document id and frequencies, plus where its positions
+    /// start, having stepped past them.
+    ///
+    /// This is [`PostingWalk::next_posting`] without the decode: a caller that
+    /// reads positions through a [`PositionCursor`] needs their offset in the
+    /// block's bytes, and one that does not wants them skipped.
+    fn next_entry(&mut self) -> Option<(u32, [u16; N], usize)> {
         if self.remaining == 0 {
             return None;
         }
         self.remaining -= 1;
         self.doc += read_varint(self.bytes, &mut self.at);
         let tf: [u16; N] = std::array::from_fn(|_| read_varint(self.bytes, &mut self.at) as u16);
-        let occurrences = position_count(&tf) as usize;
-        match positions {
-            Some(decoded) => {
-                decoded.clear();
-                let mut position = 0;
-                for _ in 0..occurrences {
-                    position += read_varint(self.bytes, &mut self.at);
-                    decoded.push(position);
-                }
-            }
-            None => {
-                for _ in 0..occurrences {
-                    skip_varint(self.bytes, &mut self.at);
-                }
-            }
+        let position_at = self.at;
+        for _ in 0..position_count(&tf) {
+            skip_varint(self.bytes, &mut self.at);
         }
-        Some(Posting { doc: self.doc, tf })
+        Some((self.doc, tf, position_at))
     }
 }
 
-/// How many description positions a posting carries: one per occurrence of the
-/// term in field 1, zero when the index has no description field.
+/// A cursor over one posting's stored positions, ascending.
+///
+/// It borrows the block's bytes and allocates nothing, so the adjacency pass can
+/// read two postings of the same query step by step. Positions are delta-encoded
+/// from the previous one, and the run restarts at zero for each field, so
+/// [`PositionCursor::begin`] marks where a field's run starts.
+struct PositionCursor<'a> {
+    bytes: &'a [u8],
+    at: usize,
+    remaining: u32,
+    position: u32,
+}
+
+impl<'a> PositionCursor<'a> {
+    fn new(bytes: &'a [u8], at: usize) -> Self {
+        Self {
+            bytes,
+            at,
+            remaining: 0,
+            position: 0,
+        }
+    }
+
+    /// Start the run of a field, whose length is that field's term frequency.
+    fn begin(&mut self, occurrences: u32) {
+        self.remaining = occurrences;
+        self.position = 0;
+    }
+
+    /// The next position of the current run.
+    fn next(&mut self) -> Option<u32> {
+        if self.remaining == 0 {
+            return None;
+        }
+        self.remaining -= 1;
+        self.position += read_varint(self.bytes, &mut self.at);
+        Some(self.position)
+    }
+
+    /// Skip what is left of the current run, so the cursor stands at the next field's.
+    fn skip_run(&mut self) {
+        while self.next().is_some() {}
+    }
+}
+
+/// The smallest distance between two ascending position runs, consuming both.
+///
+/// A merge walk: advance whichever run is behind, which visits each position once
+/// and needs no buffer.
+fn min_gap(left: &mut PositionCursor<'_>, right: &mut PositionCursor<'_>) -> Option<u32> {
+    let mut left_at = left.next()?;
+    let mut right_at = right.next()?;
+    let mut best = u32::MAX;
+    loop {
+        best = best.min(left_at.abs_diff(right_at));
+        if best <= 1 {
+            break;
+        }
+        if left_at <= right_at {
+            match left.next() {
+                Some(position) => left_at = position,
+                None => break,
+            }
+        } else {
+            match right.next() {
+                Some(position) => right_at = position,
+                None => break,
+            }
+        }
+    }
+    left.skip_run();
+    right.skip_run();
+    Some(best)
+}
+
+/// How near two terms come in one document, in `[0, 1]`: 1 when adjacent, 0 when the
+/// body holds no pair inside [`PROXIMITY_WINDOW`].
+///
+/// Only [`PROXIMITY_FIELD`] is scored; see that constant for why the description is
+/// stored but not read.
+fn closeness<const N: usize>(
+    left_tf: &[u16; N],
+    mut left: PositionCursor<'_>,
+    right_tf: &[u16; N],
+    mut right: PositionCursor<'_>,
+) -> f64 {
+    let left_count = u32::from(left_tf.get(PROXIMITY_FIELD).copied().unwrap_or(0));
+    let right_count = u32::from(right_tf.get(PROXIMITY_FIELD).copied().unwrap_or(0));
+    if left_count == 0 || right_count == 0 {
+        return 0.0;
+    }
+    // Positions are stored field by field, so the scored field's run starts where
+    // the cursor does when it is the first field; the cursor is dropped after one
+    // run, so the others are never read.
+    debug_assert_eq!(PROXIMITY_FIELD, 0, "the cursor starts at field 0");
+    left.begin(left_count);
+    right.begin(right_count);
+    min_gap(&mut left, &mut right)
+        .filter(|gap| *gap <= PROXIMITY_WINDOW)
+        .map_or(0.0, |gap| {
+            1.0 - f64::from(gap - 1) / f64::from(PROXIMITY_WINDOW)
+        })
+}
+
+/// How many positions a posting carries: one per occurrence of the term, summed
+/// over the fields.
 fn position_count<const N: usize>(tf: &[u16; N]) -> u32 {
-    u32::from(tf.get(DESCRIPTION_FIELD).copied().unwrap_or(0))
+    tf.iter().map(|&frequency| u32::from(frequency)).sum()
 }
 
 /// Append `value` as a LEB128 varint: seven bits per byte, low group first, a
@@ -446,7 +634,7 @@ fn write_posting<const N: usize>(
     prev_doc: u32,
     doc: u32,
     tf: &[u16; N],
-    positions: &[u32],
+    positions: &[Vec<u32>; N],
 ) {
     put_varint(out, doc - prev_doc);
     for &frequency in tf {
@@ -454,23 +642,32 @@ fn write_posting<const N: usize>(
     }
     // A frequency saturates, so a term repeated past that limit leaves its later
     // positions out rather than writing more than the decoder will read.
-    let mut prev_position = 0;
-    for &position in positions.iter().take(position_count(tf) as usize) {
-        put_varint(out, position - prev_position);
-        prev_position = position;
+    for (field, &frequency) in tf.iter().enumerate() {
+        let mut prev_position = 0;
+        for &position in positions[field].iter().take(frequency as usize) {
+            put_varint(out, position - prev_position);
+            prev_position = position;
+        }
     }
 }
 
 /// How many bytes one posting entry takes, given the entry before it.
-fn posting_len<const N: usize>(prev_doc: u32, doc: u32, tf: &[u16; N], positions: &[u32]) -> usize {
+fn posting_len<const N: usize>(
+    prev_doc: u32,
+    doc: u32,
+    tf: &[u16; N],
+    positions: &[Vec<u32>; N],
+) -> usize {
     let mut len = varint_len(doc - prev_doc);
     for &frequency in tf {
         len += varint_len(u32::from(frequency));
     }
-    let mut prev_position = 0;
-    for &position in positions.iter().take(position_count(tf) as usize) {
-        len += varint_len(position - prev_position);
-        prev_position = position;
+    for (field, &frequency) in tf.iter().enumerate() {
+        let mut prev_position = 0;
+        for &position in positions[field].iter().take(frequency as usize) {
+            len += varint_len(position - prev_position);
+            prev_position = position;
+        }
     }
     len
 }
@@ -499,6 +696,9 @@ impl<const N: usize> DocSlot<N> {
 struct Accumulator {
     score: f64,
     matched: usize,
+    /// How near the document's closest pair of query terms is, in `[0, 1]`; 0 when
+    /// no pair is inside [`PROXIMITY_WINDOW`].
+    closeness: f64,
 }
 
 /// A BM25 inverted index over `N` text fields per document.
@@ -589,26 +789,29 @@ impl<const N: usize> Bm25Index<N> {
         }
 
         // One pass over the fields, counting per-field term frequencies into a
-        // scratch map, and remembering where in the description each term
-        // occurred: the positions the ranking's next step reads.
+        // scratch map, and remembering where in each field every term occurred:
+        // the positions the adjacency pass reads.
         let mut counts: HashMap<u32, [u32; N]> = HashMap::new();
-        let mut positions: HashMap<u32, Vec<u32>> = HashMap::new();
+        let mut positions: HashMap<u32, [Vec<u32>; N]> = HashMap::new();
         let mut lens = [0u32; N];
         for (field, text) in fields.iter().enumerate() {
             for (at, term) in tokenize(text).into_iter().enumerate() {
                 let term_id = self.intern(&term);
                 lens[field] += 1;
                 counts.entry(term_id).or_insert([0; N])[field] += 1;
-                if field == DESCRIPTION_FIELD {
-                    positions.entry(term_id).or_default().push(at as u32);
-                }
+                positions
+                    .entry(term_id)
+                    .or_insert_with(|| std::array::from_fn(|_| Vec::new()))[field]
+                    .push(at as u32);
             }
         }
 
         let doc = doc_id as u32;
         for (term_id, tf) in &counts {
             let tf = std::array::from_fn(|field| u16::try_from(tf[field]).unwrap_or(u16::MAX));
-            let term_positions = positions.get(term_id).map_or(&[][..], Vec::as_slice);
+            let term_positions = positions
+                .get(term_id)
+                .expect("every counted term was also given positions");
             self.postings[*term_id as usize].insert(doc, tf, term_positions);
         }
         self.doc_terms[doc_id] = counts.into_keys().collect();
@@ -700,6 +903,29 @@ impl<const N: usize> Bm25Index<N> {
             }
         }
 
+        // Adjacency: a document that states two query terms near each other is
+        // stronger evidence than one that merely holds both. Walking pairs
+        // costs the query's pair count over the shared documents, so the pass is
+        // skipped whole when the switch is off or the query has one term.
+        if PROXIMITY > 0.0 && term_ids.len() > 1 {
+            for (at, &left) in term_ids.iter().enumerate() {
+                for &right in &term_ids[at + 1..] {
+                    self.postings[left as usize].for_each_shared(
+                        &self.postings[right as usize],
+                        |doc, left_tf, left_positions, right_tf, right_positions| {
+                            let near =
+                                closeness(&left_tf, left_positions, &right_tf, right_positions);
+                            if near > 0.0
+                                && let Some(entry) = accumulator.get_mut(&doc)
+                            {
+                                entry.closeness = entry.closeness.max(near);
+                            }
+                        },
+                    );
+                }
+            }
+        }
+
         let mut hits: Vec<Hit> = accumulator
             .into_iter()
             .filter(|(_, accumulator)| accumulator.matched >= required)
@@ -707,7 +933,8 @@ impl<const N: usize> Bm25Index<N> {
                 doc_id: doc as usize,
                 score: accumulator.score
                     * (1.0
-                        + COVERAGE * (accumulator.matched as f64) / (distinct_terms.max(1) as f64)),
+                        + COVERAGE * (accumulator.matched as f64) / (distinct_terms.max(1) as f64))
+                    * (1.0 + PROXIMITY * accumulator.closeness),
                 matched_terms: accumulator.matched,
             })
             .collect();
@@ -726,10 +953,9 @@ impl<const N: usize> Bm25Index<N> {
     /// its order.
     ///
     /// It is a term conjunction, not an ordered phrase: `fix` before `error`
-    /// matches too. Order would need a position per posting on both fields, and
-    /// the blocks carry them for the description only, so the engine's phrase
-    /// queries stay punctuation-shaped rather than order-sensitive until the
-    /// proximity step reads them.
+    /// matches too. Order would need an ordered walk of the two position runs, and
+    /// the blocks carry the positions but the conjunction is not scored by them —
+    /// [`closeness`] rewards nearness, not sequence.
     pub(crate) fn exact(&self, needle: &str, limit: usize) -> Vec<Hit> {
         if limit == 0 {
             return Vec::new();
@@ -882,14 +1108,19 @@ impl<const N: usize> Bm25Index<N> {
     }
 
     /// The description positions of `term` in `doc_id`, ascending, empty when the
-    /// term is absent there. The proximity step's input; ranking does not read it
-    /// yet, so only the tests do.
+    /// term is absent there.
     #[cfg(test)]
     pub(crate) fn term_positions(&self, term: &str, doc_id: usize) -> Vec<u32> {
+        self.field_positions(term, doc_id, DESCRIPTION_FIELD)
+    }
+
+    /// The positions of `term` in `doc_id` in one field, ascending.
+    #[cfg(test)]
+    pub(crate) fn field_positions(&self, term: &str, doc_id: usize, field: usize) -> Vec<u32> {
         let Some(&term_id) = self.term_ids.get(term) else {
             return Vec::new();
         };
-        self.postings[term_id as usize].positions(doc_id as u32)
+        self.postings[term_id as usize].positions(doc_id as u32, field)
     }
 
     /// One document's parity facts: its per-field token counts and whether the
@@ -1246,6 +1477,7 @@ mod tests {
     struct ReferenceDoc {
         tf: [HashMap<String, u32>; 2],
         lens: [u32; 2],
+        positions: [HashMap<String, Vec<u32>>; 2],
     }
 
     fn reference_docs(corpus: &[(usize, [String; 2])]) -> Vec<ReferenceDoc> {
@@ -1254,15 +1486,57 @@ mod tests {
             .map(|(_, fields)| {
                 let mut tf: [HashMap<String, u32>; 2] = Default::default();
                 let mut lens = [0u32; 2];
+                let mut positions: [HashMap<String, Vec<u32>>; 2] = Default::default();
                 for (field, text) in fields.iter().enumerate() {
-                    for term in tokenize(text) {
-                        *tf[field].entry(term).or_insert(0) += 1;
+                    for (at, term) in tokenize(text).into_iter().enumerate() {
+                        *tf[field].entry(term.clone()).or_insert(0) += 1;
                         lens[field] += 1;
+                        positions[field].entry(term).or_default().push(at as u32);
                     }
                 }
-                ReferenceDoc { tf, lens }
+                ReferenceDoc {
+                    tf,
+                    lens,
+                    positions,
+                }
             })
             .collect()
+    }
+
+    /// The proximity factor over the corpus text: the best pair of query terms in
+    /// the scored field, as [`closeness`] computes it from the encoded blocks.
+    fn reference_closeness(doc: &ReferenceDoc, terms: &[String]) -> f64 {
+        let mut best: f64 = 0.0;
+        for (at, left) in terms.iter().enumerate() {
+            let left_positions = doc.positions[PROXIMITY_FIELD]
+                .get(left)
+                .map_or(&[][..], Vec::as_slice);
+            if left_positions.is_empty() {
+                continue;
+            }
+            for right in &terms[at + 1..] {
+                let right_positions = doc.positions[PROXIMITY_FIELD]
+                    .get(right)
+                    .map_or(&[][..], Vec::as_slice);
+                if right_positions.is_empty() {
+                    continue;
+                }
+                let (mut left_at, mut right_at) = (0, 0);
+                let mut gap = u32::MAX;
+                while left_at < left_positions.len() && right_at < right_positions.len() {
+                    gap = gap.min(left_positions[left_at].abs_diff(right_positions[right_at]));
+                    if left_positions[left_at] <= right_positions[right_at] {
+                        left_at += 1;
+                    } else {
+                        right_at += 1;
+                    }
+                }
+                if gap <= PROXIMITY_WINDOW {
+                    best = best.max(1.0 - f64::from(gap - 1) / f64::from(PROXIMITY_WINDOW));
+                }
+            }
+        }
+        best
     }
 
     /// The distinct query terms, in first-appearance order: the order the index
@@ -1362,7 +1636,9 @@ mod tests {
             }
             scored.push((
                 doc_id,
-                score * (1.0 + COVERAGE * matched as f64 / (terms.len().max(1) as f64)),
+                score
+                    * (1.0 + COVERAGE * matched as f64 / (terms.len().max(1) as f64))
+                    * (1.0 + PROXIMITY * reference_closeness(doc, &terms)),
             ));
         }
         sort_reference(&mut scored);
@@ -1564,7 +1840,7 @@ mod tests {
             );
         }
 
-        // A re-encode carries the description positions through unchanged, so the
+        // A re-encode carries the stored positions through unchanged, so the
         // patched index and the fresh one agree term by term.
         for (doc_id, [body, description]) in &corpus {
             for term in tokenize(body).into_iter().chain(tokenize(description)) {
@@ -1577,33 +1853,70 @@ mod tests {
         }
     }
 
-    /// Description positions are the term's token indices in the description, for
-    /// every term of every document: the shape the proximity step needs and the
-    /// encoding has to keep. A term occurs in the body only when its list here is
-    /// empty.
+    /// Description positions are the term's token indices in the description, and
+    /// body positions its token indices in the body: the shape the adjacency pass
+    /// reads and the encoding has to keep.
     #[test]
-    fn description_positions_are_the_token_indices() {
+    fn positions_are_the_token_indices_in_each_field() {
         let corpus = generated_corpus(40, 40, 200);
         let index = index_of(default_weights(), &corpus);
 
         let mut checked = 0;
-        for (doc_id, [_, description]) in &corpus {
-            let mut expected: HashMap<String, Vec<u32>> = HashMap::new();
-            for (at, term) in tokenize(description).into_iter().enumerate() {
-                expected.entry(term).or_default().push(at as u32);
-            }
-            for (term, positions) in expected {
-                assert_eq!(
-                    index.term_positions(&term, *doc_id),
-                    positions,
-                    "positions of {term} in document {doc_id} differ"
-                );
-                checked += 1;
+        for (doc_id, fields) in &corpus {
+            for (field, text) in fields.iter().enumerate() {
+                let mut expected: HashMap<String, Vec<u32>> = HashMap::new();
+                for (at, term) in tokenize(text).into_iter().enumerate() {
+                    expected.entry(term).or_default().push(at as u32);
+                }
+                for (term, positions) in expected {
+                    assert_eq!(
+                        index.field_positions(&term, *doc_id, field),
+                        positions,
+                        "positions of {term} in document {doc_id} field {field} differ"
+                    );
+                    checked += 1;
+                }
             }
         }
         assert!(
             checked > 0,
-            "the generated corpus holds no description positions"
+            "the generated corpus holds no stored positions"
+        );
+    }
+
+    /// Adjacency lifts a score only when the query terms are actually near: the
+    /// four documents hold the same terms in bodies of the same length, so BM25
+    /// scores them identically and only the distance between `alpha` and `beta`
+    /// differs.
+    #[test]
+    fn adjacency_lifts_a_score_only_when_the_terms_are_near() {
+        let docs: Vec<(usize, [String; 2])> = [
+            "alpha beta aa bb cc dd ee ff",
+            "alpha aa beta bb cc dd ee ff",
+            "alpha aa bb beta cc dd ee ff",
+            "alpha aa bb cc dd ee ff beta",
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(doc_id, body)| (doc_id, [body.to_string(), "same description".to_string()]))
+        .collect();
+        let index = index_of(default_weights(), &docs);
+
+        let hits = index.search("alpha beta", 1, 10);
+        let order: Vec<usize> = hits.iter().map(|hit| hit.doc_id).collect();
+        assert_eq!(order, vec![0, 1, 2, 3], "the nearest pair must rank first");
+
+        // Every document holds both terms in a body of the same length, so their
+        // plain BM25 scores are one number and only closeness differs: distances
+        // 1, 2, 3 and 7 tokens, with a window of five.
+        let base = hits[0].score / (1.0 + PROXIMITY);
+        let lift = |hit: &Hit| hit.score / base;
+        assert!((lift(&hits[0]) - (1.0 + PROXIMITY)).abs() < 1e-12);
+        assert!((lift(&hits[1]) - (1.0 + PROXIMITY * 0.8)).abs() < 1e-12);
+        assert!((lift(&hits[2]) - (1.0 + PROXIMITY * 0.6)).abs() < 1e-12);
+        assert!(
+            (hits[3].score - base).abs() < 1e-12,
+            "terms merely present seven tokens apart must not lift the score"
         );
     }
 
