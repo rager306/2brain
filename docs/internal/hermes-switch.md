@@ -1,6 +1,6 @@
 # Switching a Hermes session to the Rust adapter
 
-> **Superseded 2026-11-16** by `docs/hermes-2brain.md`. This document describes the switch from the
+> **Superseded 2026-11-16** by `docs/internal/hermes-2brain.md`. This document describes the switch from the
 > Python bridge to `arsumbris-rs`; both are gone now — the client spawns `/usr/local/bin/2brain`.
 
 

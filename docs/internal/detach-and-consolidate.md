@@ -46,7 +46,7 @@ else non-Rust is either a client library (TS SDKs), a generator (`au-type-codege
 
 ### Y — one serving language (Rust), in the order that never loses a capability
 The gate for every step is a parity inventory of what the retiring component provides versus what the
-Rust adapter provides (`docs/serving-parity.md`, produced by that investigation). Order:
+Rust adapter provides (`docs/internal/serving-parity.md`, produced by that investigation). Order:
 
 1. **Hermes drops the bridge.** `mcp_servers.arsumbris` (python bridge) is removed once
    `mcp_servers.arsumbris-rs` covers every tool a session actually calls. `arsumbris-rs` is already
@@ -84,7 +84,7 @@ client library with its own published artifact, not a serving dependency.
 |---|---|
 | X detach | **done** (`e511507`): one-branch branch model in `AGENTS.md`, `archive/upstream-0.0.5` pushed |
 | inventory | **done** (`docs/repo-inventory.md`): every directory with its layer and fate, measured from `git ls-files` |
-| parity gate for Y2 | **done** — `docs/serving-parity.md`: the Node daemon's 49 tools and 6 hooks measured, the 8 gaps decided, the checklist executed |
+| parity gate for Y2 | **done** — `docs/internal/serving-parity.md`: the Node daemon's 49 tools and 6 hooks measured, the 8 gaps decided, the checklist executed |
 | Y1, Y2 | **done 2026-11-16** — the bridge is out of Hermes, `arsumbris-mcp.service` is stopped and disabled, the bridge and its generated state are deleted |
 | Z (one build) | **open** — the Node workspace is no longer on the serving path, but the TS packages are still in the tree (`docs/repo-inventory.md`) |
 | fifth engine swap runbook | **in flight** — independent of the retirement, but it is the same "prove it on a copy first" discipline |

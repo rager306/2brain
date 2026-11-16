@@ -20,7 +20,7 @@ waiting for its migration (`docs/rebrand-plan.md`, tier C).
 |---|---|
 | `tb-engine/` | Rust engine Cargo workspace — the authoritative writer, serving `/root/vault` through `arsumbris-engine.service` |
 | `tb-mcp-rs/` | **The serving path**: the Rust MCP adapter behind `/usr/local/bin/2brain` (52 tools, fail-closed gate, `scripts/install.sh` builds and installs it) |
-| ~~`au-mcp-bridge/`~~ | **retired 2026-11-16** — the Python stdio bridge Hermes used to speak; removed with the Node daemon when Hermes moved to `/usr/local/bin/2brain` (`docs/hermes-2brain.md`) |
+| ~~`au-mcp-bridge/`~~ | **retired 2026-11-16** — the Python stdio bridge Hermes used to speak; removed with the Node daemon when Hermes moved to `/usr/local/bin/2brain` (`docs/internal/hermes-2brain.md`) |
 | `tb-type-system/` | the type-system contract. **Do not break**: vault format compatibility depends on it |
 | `tb-mcp-sdk/` | the `mcp.*` vocabulary: 17 type definitions (`mcp.tool`, `mcp.skill`, `mcp.inject`, `agent-profile`) that content notes are written in. Its TypeScript was deleted 2026-11-16 |
 | `tb-ingest/`, `tb-govern/` | ingest pipeline, workspace composition (`workspace.yaml` members) |
@@ -68,7 +68,7 @@ Rust is a design smell; a `python3` invocation inside a shell script is fine.
   path is Rust end to end — `/usr/local/bin/2brain` (adapter) → engine socket. There is no exception left.
 It is legacy scheduled for retirement by `docs/phase-d.md`, not a precedent to copy.
 - **Every model states its evidence:** what it measured, on what corpus, and what it did not
-measure. `docs/w4.1-judgement-run-2026-11-16.md` is the shape to copy.
+measure. `docs/internal/w4.1-judgement-run-2026-11-16.md` is the shape to copy.
 
 Worked examples, so the rule is not abstract:
 
@@ -138,7 +138,7 @@ its current limitations and plan. Do not assume bridge, policy, or client parity
 4. Engine swaps to the live daemon require the golden wire contract to pass
    (below) — no exceptions. A swap is a read comparison on a frozen copy of the
    vault working tree first, then the install, then the same reads against the
-   live socket; `docs/engine-swap-2026-11-14.md` is a worked example, with the
+   live socket; `docs/internal/engine-swap-2026-11-14.md` is a worked example, with the
    rollback artifact named in it. The served engine is now the fork build from
    `5625aff`, not the October bundle binary.
 
@@ -246,6 +246,20 @@ dashboard). Backlog notes cite their source studies.
 - Follow the live-system rules and existing compatibility contracts throughout.
   Proactivity does not authorize production changes, destructive actions, or
   changes outside the user's requested scope.
+
+## Docs: public design vs \`docs/internal/\`
+
+Two kinds of document live in \`docs/\`, and the split is a rule, not a habit:
+
+- **design** — \`docs/*.md\` and \`docs/research/*.md\`. Claims about the system that survive a different
+  machine: architecture, naming, the trajectory, measurements, the evidence index.
+- **operations** — \`docs/internal/\`. Every document that names this host: \`/root/vault\`, a systemd unit, a
+  socket path, the Hermes config, a backup directory, or the run log of one operator's evening.
+
+If a document you are writing names a host path, a unit, or a client configuration, it goes to
+\`docs/internal/\`. \`docs/internal/README.md\` holds the table and the reasoning. Internal documents link to the
+design documents they serve; design documents must not need an internal one to be understood, because the
+repository is public and the internal set is the part a second machine would rewrite first.
 
 ## Discipline
 

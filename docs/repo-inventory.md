@@ -2,7 +2,7 @@
 
 Measured 2026-11-16 from `git ls-files` (tracked files only; `node_modules`, `target`, `.pyc` are not
 counted). This is the map the consolidation works from: every directory has one **layer**
-(`docs/detach-and-consolidate.md` §2, `AGENTS.md`) and one **fate**.
+(`docs/internal/detach-and-consolidate.md` §2, `AGENTS.md`) and one **fate**.
 
 ## Layers, restated in one line each
 

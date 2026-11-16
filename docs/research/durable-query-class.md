@@ -39,7 +39,7 @@ was invented for, and now it is a number.
 ## What it does not settle
 
 The prior itself cannot be measured without a daemon swap: the ranking lives in the engine binary the vault
-is served by, and `swap-engine.sh` plus `docs/engine-swap-2026-11-16.md` is the only procedure that changes it
+is served by, and `swap-engine.sh` plus `docs/internal/engine-swap-2026-11-16.md` is the only procedure that changes it
 without degrading serving. Before that swap, the decision has to be stated as a trade: the earlier
 measurement had the prior cost 1.9 points of topical hit@1 on the 60-query set. The question this class makes
 answerable is whether it buys more than that on preference — and whether a gentler curve (a multiplier per
@@ -58,7 +58,7 @@ The decision rule is stated now, so the measurement cannot be read backwards int
    gentlest curve that can move an ordering.
 2. **Measure offline first.** `tools/ranking/eval.py` and `tools/ranking/durable_probe.py` both read the live
    engine, so neither can score an unbuilt change. Use the swap procedure (`tb-engine/scripts/swap-engine.sh`,
-   `docs/engine-swap-2026-11-16.md`) on a **copied vault** with its own socket and HOME, and run both probes
+   `docs/internal/engine-swap-2026-11-16.md`) on a **copied vault** with its own socket and HOME, and run both probes
    against that socket. Nothing is decided on the production daemon.
 3. **Accept only if both hold.** Durable probe hit@1 rises above 0.50 by more than the noise of 26 pairs
    (one pair is 0.038, so the bar is **≥ 0.58**, i.e. at least two pairs flipping), **and** the 60-query

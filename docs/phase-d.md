@@ -2,7 +2,7 @@
 
 Status: **done 2026-11-16.** Every package this file planned to delete is deleted, and the argument
 below is kept as the record of why it was safe. What actually happened, in order, with measurements:
-`docs/serving-parity.md`; the resulting tree: `docs/repo-inventory.md`.
+`docs/internal/serving-parity.md`; the resulting tree: `docs/repo-inventory.md`.
 
 The text below is the pre-execution state (it says "not started", and describes two stacks side by
 side). It is the justification that was written before the change, not a description of today.
@@ -69,5 +69,5 @@ Each step is independently revertible, and each is a commit that can be reverted
 5. Regenerate `docs/runtime-map.md` for the two-module world.
 
 Rollback for every step: the engine and the vault are untouched, so restoring the
-previous config re-creates the old path; `docs/engine-swap-2026-11-14.md` is the model
+previous config re-creates the old path; `docs/internal/engine-swap-2026-11-14.md` is the model
 for how a swap is rehearsed and reversed.

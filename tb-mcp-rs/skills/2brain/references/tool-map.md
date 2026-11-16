@@ -102,5 +102,5 @@ server is `2brain`.
 ## What is not here
 
 The retired Node daemon's surface (`bash`, `glob`, `grep_files`, the four `au_host_*` relays,
-`au_type_system`) is deliberately absent — the reasons are in `docs/serving-parity.md` §2b. `au_grep`
+`au_type_system`) is deliberately absent — the reasons are in `docs/internal/serving-parity.md` §2b. `au_grep`
 is literal text over catalogued files; it is not a regex or glob tool.

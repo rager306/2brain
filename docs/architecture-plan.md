@@ -2,7 +2,7 @@
 
 **Status 2026-11-16: closed.** Every track is either executed or cancelled by measurement, and the
 adapter this plan describes is now the only serving path (`/usr/local/bin/2brain`). The closeout with
-before/after numbers is in §8; `docs/detach-and-consolidate.md` carries what came after, and
+before/after numbers is in §8; `docs/internal/detach-and-consolidate.md` carries what came after, and
 `docs/repo-inventory.md` describes the tree this plan produced.
 
 Trajectory for the directions ranked in `docs/architecture-assessment.md`. This file is the
@@ -280,9 +280,9 @@ Four things are **open decisions**, not tasks, and each names its price:
 
 1. **Promote `search` to the live daemon** (fifth swap). Parity is proven and nothing must be
    regenerated; what is missing is a window, the install step, the live-socket read comparison and the
-   rollback artifact. `docs/engine-swap-2026-11-16.md` rehearses it on a copy.
+   rollback artifact. `docs/internal/engine-swap-2026-11-16.md` rehearses it on a copy.
 2. ~~**A better staleness question**~~ — **measured 2026-11-16, and the answer is no**
-   (`docs/w4.1-judgement-run-2026-11-16.md`, second experiment). A five-way `choice` moved the
+   (`docs/internal/w4.1-judgement-run-2026-11-16.md`, second experiment). A five-way `choice` moved the
    trade-off without moving the frontier: yes/no is 0.67/0.33 precise/recall, the choice is
    0.36/0.50, and the union adds false positives while the intersection collapses to yes/no. Four of
    its five options went unused — every failure came back as `missing`, which is also what a false
@@ -298,7 +298,7 @@ Everything else on the improvement backlog (FTS5 date filters, ingest validation
 engine or ingest work that this trajectory does not touch.
 
 **The trajectory continues elsewhere.** This plan ends at the architecture; what comes next is the
-detach-and-consolidate plan (`docs/detach-and-consolidate.md`), whose inventory
+detach-and-consolidate plan (`docs/internal/detach-and-consolidate.md`), whose inventory
 (`docs/repo-inventory.md`) assigns every directory a layer and a fate. The two agree on the rule that
 makes both work: a component is judged by whether it is on the serving path, and the serving path is
 Rust.
@@ -589,7 +589,7 @@ pairs); W4.2 is documentation and runs in parallel with anything.
 | T1 text index (engine half) | **phase 1 done** (`3d4bc40`) | `search.rs` 982 lines; 7 tests + ignored measurement; build 1.07 s / 1 000 docs, 4.7 KiB/doc, OR p50 1.65 ms p95 2.45 ms, exact p50 73 µs; engine `--lib` 685 passed / 1 known root-only failure; **no verb yet** | 2026-11-15 |
 
 | P2.1–P2.3 gate | not started | — | — |
-| W4.1 judge run | **measured 2026-11-16** (`docs/w4.1-judgement-run-2026-11-16.md`) | 50 notes, $0.0019/pass: duplicates 1.000/0.889 (adopt), stale recall 0.333 (not usable as a detector), type 0.729 with adjacent confusions; two harness bugs found by running it (vendor wire, inverted polarity) | 2026-11-16 |
+| W4.1 judge run | **measured 2026-11-16** (`docs/internal/w4.1-judgement-run-2026-11-16.md`) | 50 notes, $0.0019/pass: duplicates 1.000/0.889 (adopt), stale recall 0.333 (not usable as a detector), type 0.729 with adjacent confusions; two harness bugs found by running it (vendor wire, inverted polarity) | 2026-11-16 |
 | W4.1 ingest auditor | **phase 1 done** (`6b8f0f0`) | `tools/judgement/`: 50-note stratified sample with hand labels (10 stale / 40 not), a `systemone`-shaped client with `--dry-run` (exit 0, ~$0.0018 per pass) and exit 3 without a key; real path proven against a local fake; vendor response shape unverified (no key) | 2026-11-15 |
 | W4.2 role definitions | not started | assessment §1.1 | — |
 | P3.1–P3.2 agent layer | **P3.1 done** (`2f8d29f`) | `procedure.py` + `--selftest` (12 cases, all bite) + cross-check wired into `mutation-turn.sh`; P3.2 (the vault pattern note) not written | 2026-11-16 |

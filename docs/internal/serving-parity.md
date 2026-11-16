@@ -1,6 +1,6 @@
 # Serving parity: what the Node daemon and the bridge give, and what the Rust adapter does not
 
-Measured 2026-11-16 on the live socket and in the source. This is the gate for `docs/detach-and-consolidate.md` Y1/Y2:
+Measured 2026-11-16 on the live socket and in the source. This is the gate for `docs/internal/detach-and-consolidate.md` Y1/Y2:
 it lists what the retirement would remove, and it leads with the check that fails today.
 
 ## 0. The first check fails, and it is not about parity
@@ -123,7 +123,7 @@ hooks, subscriptions or lifecycle, and the relays were already dead on this host
    `au_validate{typeName,value}` → `au_validate_value{type_name,value}`; absolute `file_path` →
    `{member, path}`; `au_grep` literal, not regex.
 5. ~~**Remove `mcp_servers.arsumbris`**~~ — **done 2026-11-16**: both stanzas replaced by one `2brain`
-   entry (`docs/hermes-2brain.md`); backup at `/root/backups/hermes-config-20261116.yaml`. A session
+   entry (`docs/internal/hermes-2brain.md`); backup at `/root/backups/hermes-config-20261116.yaml`. A session
    proves it; the adapter's own read and write turns were already measured here.
 6. ~~**Only now** stop `arsumbris-mcp.service`~~ — **done 2026-11-16**: stopped and disabled; the bridge,
    its `.bak`, and `~/.arsumbris/au-mcp/` (104 KiB of generated state) removed. `au-health.sh` no longer

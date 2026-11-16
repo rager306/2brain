@@ -1,7 +1,7 @@
 # Pointing Hermes at 2brain
 
 The Rust adapter is the serving path; the Node daemon and the Python bridge are retired
-(`docs/detach-and-consolidate.md`). This is the configuration that replaces them.
+(`docs/internal/detach-and-consolidate.md`). This is the configuration that replaces them.
 
 ## 1. Install the binary
 
@@ -46,7 +46,7 @@ Grants, and what each adds to the tool list:
 Composition and workspace shape stay **off** in this configuration: changing dependencies or
 workspace membership changes the shape of the knowledge base, and `policy.rs` asks for an explicit
 grant. The Node path exposed those five tools ungated, which was a defect, not a feature
-(`docs/serving-parity.md` §2b).
+(`docs/internal/serving-parity.md` §2b).
 
 ## 3. What the client sees
 
@@ -69,7 +69,7 @@ cd /root/2brain/tb-mcp-rs && HOME=/root python3 scripts/live_parity.py
 `live_parity.py` compares the installed binary with the one this tree builds; it exits 2 when it could
 not compare, which is not a pass. On 2026-11-16 it reported five facts identical and `au_search` refused
 **identically by both** — the live engine predates the verb, because the fifth swap has not happened
-yet (`docs/engine-swap-2026-11-16.md`).
+yet (`docs/internal/engine-swap-2026-11-16.md`).
 
 Then one session that does a read and a write. A read proves the socket resolution; the write
 proves the gate and the answer schema, which is where the 2026-11-15 failure lived.
@@ -78,7 +78,7 @@ proves the gate and the answer schema, which is where the 2026-11-15 failure liv
 
 Revert the stanza. Nothing is deleted before the old path is proven unused: the retired Node service
 and the old bridge stay in place until the new stanza has served a session, and
-`mcp_servers.arsumbris` is removed only after that (`docs/serving-parity.md` §3).
+`mcp_servers.arsumbris` is removed only after that (`docs/internal/serving-parity.md` §3).
 
 ## 6. One id, not two
 

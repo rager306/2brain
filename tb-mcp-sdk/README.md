@@ -20,7 +20,7 @@ implementation for the Node MCP daemon.
 
 The serving path is now Rust end to end — `/usr/local/bin/2brain` (the adapter in `au-mcp-rs`) over
 the engine socket — so the TypeScript implementation had no consumer. It was deleted with the tools
-it described (`docs/detach-and-consolidate.md`, and the measurement in `docs/repo-inventory.md`).
+it described (`docs/internal/detach-and-consolidate.md`, and the measurement in `docs/repo-inventory.md`).
 
 The **definitions stayed** because notes are written in them: `au-weave` declares
 `type: mcp.skill::au-mcp-sdk` in six files, `au-rules` mixes in `mcp.inject::au-mcp-sdk`, and the
