@@ -201,7 +201,7 @@ the message. The top-level `tests-golden/*.json` are the 2026-11-12 pre-fork
 captures in the retired daemon's shapes; they are history, not a contract.
 
 Gates: `cargo fmt --check` is clean for both halves and is a real gate; `clippy -D
-warnings` is a gate only for `au-mcp-rs` (the engine workspace carries 85 upstream
+warnings` is a gate only for `au-mcp-rs` (the engine workspace still carries
 style warnings, see `tb-engine/tests-known-environment.txt`).
 
 ## Improvement backlog
