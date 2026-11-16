@@ -36,7 +36,16 @@
 //! `error fix` all tokenize to the same two terms, which is what the
 //! punctuation case wants. Underscored identifiers split too, and the exact
 //! path still finds them as a conjunction; a caller that needs order needs
-//! positions, which this module does not store (see [`Bm25Index::exact`]).
+//! positions, which this module stores in a delta-encoded posting block (see
+//! [`PostingBlock`]) but not yet in a form the ranking reads.
+//!
+//! # Postings
+//!
+//! A term's postings are one byte block, not a `Vec` of structs: the document ids
+//! ascend as varint deltas, each posting's per-field frequencies follow as
+//! varints, and the description's term positions follow those. Scoring decodes
+//! the block on the fly, one [`Posting`] at a time, and pays nothing for the
+//! positions it does not read.
 //!
 //! # Ranking
 //!
@@ -80,6 +89,10 @@ const BODY_WEIGHT: f64 = 1.0;
 /// Default weight of field 1, the note description.
 const DESCRIPTION_WEIGHT: f64 = 3.0;
 
+/// The field whose term positions a posting carries: the description, which a
+/// note writes by hand and which the proximity step ranks on first.
+const DESCRIPTION_FIELD: usize = 1;
+
 /// One ranked document returned by [`Bm25Index::search`] or
 /// [`Bm25Index::exact`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -97,15 +110,368 @@ pub(crate) struct Hit {
 
 /// One term's occurrence count in one document, per field.
 ///
-/// Postings live inside their term's list, sorted by [`Posting::doc`], so a
-/// document is found by binary search and the list can be intersected. A count
-/// saturates at `u16::MAX`: BM25's saturation has flattened long before, so the
-/// narrower field costs no ranking accuracy and saves four bytes per posting on
-/// two fields.
+/// This is the decoder boundary: no posting is stored in this shape, and
+/// [`Postings`] produces one per step through a term's block. The fields are the
+/// same ones the ranking reads, so scoring is written against the posting and
+/// knows nothing about the encoding. A count saturates at `u16::MAX`: BM25's
+/// saturation has flattened long before.
 #[derive(Clone, Copy, Debug)]
 struct Posting<const N: usize> {
     doc: u32,
     tf: [u16; N],
+}
+
+/// One term's postings, encoded as a single byte block.
+///
+/// Layout: the posting count as a varint, the last posting's document id as a
+/// varint, then one entry per posting in ascending document order. The header's
+/// document id is the delta base an append starts from; it costs a byte or two
+/// per term and lets a build, whose ids ascend, extend a block without decoding
+/// it.
+///
+/// A posting entry is the document id as a varint delta from the previous
+/// posting's id (the first from zero), one varint per field holding that field's
+/// term frequency, then the description positions: one varint per occurrence of
+/// the term in field 1, each a delta from the previous position. A document id
+/// therefore costs its gap rather than its value, which is most of what the
+/// layout buys, and a phrase walk reads a document's positions in order without
+/// a second table.
+///
+/// Positions cover the description only. The body is where a byte-cost decision
+/// has to wait for a consumer: the proximity step ranks on the hand-written
+/// description first, and a one-field index stores no positions at all.
+///
+/// The block is rebuilt whole on an insert below its last id or on a remove —
+/// one linear pass over the term's list, the same cost the vector's own
+/// `insert`/`remove` paid — and its capacity is what [`Bm25Index::memory_bytes`]
+/// counts.
+#[derive(Clone, Debug)]
+struct PostingBlock<const N: usize> {
+    bytes: Vec<u8>,
+}
+
+impl<const N: usize> PostingBlock<N> {
+    fn new() -> Self {
+        Self { bytes: Vec::new() }
+    }
+
+    /// The number of postings, read from the block header.
+    fn posting_count(&self) -> usize {
+        self.header().0
+    }
+
+    /// The header's `(posting count, last document id)`; `(0, 0)` when empty.
+    fn header(&self) -> (usize, u32) {
+        if self.bytes.is_empty() {
+            return (0, 0);
+        }
+        let mut at = 0;
+        let count = read_varint(&self.bytes, &mut at) as usize;
+        let last = read_varint(&self.bytes, &mut at);
+        (count, last)
+    }
+
+    /// Where the posting entries start.
+    fn header_len(&self) -> usize {
+        if self.bytes.is_empty() {
+            return 0;
+        }
+        let mut at = 0;
+        read_varint(&self.bytes, &mut at);
+        read_varint(&self.bytes, &mut at);
+        at
+    }
+
+    /// The postings, decoded one at a time, ascending by document id.
+    fn postings(&self) -> Postings<'_, N> {
+        Postings {
+            walk: PostingWalk::new(&self.bytes),
+        }
+    }
+
+    /// The description positions of `doc`, ascending, empty when it holds none.
+    ///
+    /// The proximity step's input. Ranking does not read it yet, which is why
+    /// only the tests call it today.
+    #[cfg(test)]
+    fn positions(&self, doc: u32) -> Vec<u32> {
+        let mut decoded = Vec::new();
+        let mut walk: PostingWalk<'_, N> = PostingWalk::new(&self.bytes);
+        while let Some(posting) = walk.next_posting(Some(&mut decoded)) {
+            if posting.doc == doc {
+                return decoded;
+            }
+            if posting.doc > doc {
+                break;
+            }
+        }
+        Vec::new()
+    }
+
+    /// Insert a posting, keeping the block ascending by document id.
+    ///
+    /// A document id above the block's last one — the build case, where ids
+    /// arrive in order — rewrites the header and appends the entry. Anything
+    /// else re-encodes the block in one pass.
+    fn insert(&mut self, doc: u32, tf: [u16; N], positions: &[u32]) {
+        let (count, last) = self.header();
+        if count == 0 || doc > last {
+            self.append(doc, tf, positions);
+        } else {
+            self.rebuild_insert(doc, tf, positions);
+        }
+    }
+
+    /// Append a posting whose document id is above every id in the block.
+    fn append(&mut self, doc: u32, tf: [u16; N], positions: &[u32]) {
+        let (count, last) = self.header();
+        let header_len = self.header_len();
+        let mut header = Vec::with_capacity(8);
+        put_varint(&mut header, count as u32 + 1);
+        put_varint(&mut header, doc);
+        if header.len() == header_len {
+            self.bytes[..header_len].copy_from_slice(&header);
+        } else {
+            let mut bytes = Vec::with_capacity(header.len() + self.bytes.len() - header_len);
+            bytes.extend_from_slice(&header);
+            bytes.extend_from_slice(&self.bytes[header_len..]);
+            self.bytes = bytes;
+        }
+        self.bytes
+            .reserve_exact(posting_len(last, doc, &tf, positions));
+        write_posting(&mut self.bytes, last, doc, &tf, positions);
+    }
+
+    /// Insert a posting in the middle of the block, re-encoding it.
+    fn rebuild_insert(&mut self, doc: u32, tf: [u16; N], positions: &[u32]) {
+        let (count, last) = self.header();
+        let mut bytes = Vec::with_capacity(self.bytes.len() + 8);
+        put_varint(&mut bytes, count as u32 + 1);
+        put_varint(&mut bytes, last.max(doc));
+        let mut prev = 0;
+        let mut placed = false;
+        let mut decoded = Vec::new();
+        let mut walk: PostingWalk<'_, N> = PostingWalk::new(&self.bytes);
+        while let Some(posting) = walk.next_posting(Some(&mut decoded)) {
+            debug_assert!(
+                posting.doc != doc,
+                "a document is removed before it is added"
+            );
+            if !placed && posting.doc > doc {
+                write_posting(&mut bytes, prev, doc, &tf, positions);
+                prev = doc;
+                placed = true;
+            }
+            write_posting(&mut bytes, prev, posting.doc, &posting.tf, &decoded);
+            prev = posting.doc;
+        }
+        if !placed {
+            write_posting(&mut bytes, prev, doc, &tf, positions);
+        }
+        bytes.shrink_to_fit();
+        self.bytes = bytes;
+    }
+
+    /// Remove a posting, if the document has one.
+    fn remove(&mut self, doc: u32) {
+        let (count, _) = self.header();
+        if count == 0 {
+            return;
+        }
+        let mut body = Vec::new();
+        let mut prev = 0;
+        let mut last = 0;
+        let mut kept = 0u32;
+        let mut decoded = Vec::new();
+        let mut walk: PostingWalk<'_, N> = PostingWalk::new(&self.bytes);
+        while let Some(posting) = walk.next_posting(Some(&mut decoded)) {
+            if posting.doc == doc {
+                continue;
+            }
+            write_posting(&mut body, prev, posting.doc, &posting.tf, &decoded);
+            prev = posting.doc;
+            last = posting.doc;
+            kept += 1;
+        }
+        if kept == 0 {
+            // The term's last document left: drop the block's allocation too, so
+            // an emptied term costs its map entry and nothing else.
+            self.bytes = Vec::new();
+            return;
+        }
+        let mut bytes = Vec::with_capacity(body.len() + 8);
+        put_varint(&mut bytes, kept);
+        put_varint(&mut bytes, last);
+        bytes.extend_from_slice(&body);
+        bytes.shrink_to_fit();
+        self.bytes = bytes;
+    }
+
+    /// The bytes this block's allocation holds.
+    fn memory_bytes(&self) -> usize {
+        self.bytes.capacity()
+    }
+}
+
+/// The decoded postings of one term, as scoring walks them.
+struct Postings<'a, const N: usize> {
+    walk: PostingWalk<'a, N>,
+}
+
+impl<const N: usize> Iterator for Postings<'_, N> {
+    type Item = Posting<N>;
+
+    fn next(&mut self) -> Option<Posting<N>> {
+        self.walk.next_posting(None)
+    }
+}
+
+/// A cursor over one encoded posting block.
+struct PostingWalk<'a, const N: usize> {
+    bytes: &'a [u8],
+    at: usize,
+    remaining: usize,
+    doc: u32,
+}
+
+impl<'a, const N: usize> PostingWalk<'a, N> {
+    fn new(bytes: &'a [u8]) -> Self {
+        if bytes.is_empty() {
+            return Self {
+                bytes,
+                at: 0,
+                remaining: 0,
+                doc: 0,
+            };
+        }
+        let mut at = 0;
+        let count = read_varint(bytes, &mut at) as usize;
+        let _last = read_varint(bytes, &mut at);
+        Self {
+            bytes,
+            at,
+            remaining: count,
+            doc: 0,
+        }
+    }
+
+    /// The next posting, or `None` at the end of the block.
+    ///
+    /// The description positions are collected into `positions` when a buffer is
+    /// given and skipped otherwise: scoring reads the frequencies, and a rewrite
+    /// has to carry the positions through unchanged.
+    fn next_posting(&mut self, positions: Option<&mut Vec<u32>>) -> Option<Posting<N>> {
+        if self.remaining == 0 {
+            return None;
+        }
+        self.remaining -= 1;
+        self.doc += read_varint(self.bytes, &mut self.at);
+        let tf: [u16; N] = std::array::from_fn(|_| read_varint(self.bytes, &mut self.at) as u16);
+        let occurrences = position_count(&tf) as usize;
+        match positions {
+            Some(decoded) => {
+                decoded.clear();
+                let mut position = 0;
+                for _ in 0..occurrences {
+                    position += read_varint(self.bytes, &mut self.at);
+                    decoded.push(position);
+                }
+            }
+            None => {
+                for _ in 0..occurrences {
+                    skip_varint(self.bytes, &mut self.at);
+                }
+            }
+        }
+        Some(Posting { doc: self.doc, tf })
+    }
+}
+
+/// How many description positions a posting carries: one per occurrence of the
+/// term in field 1, zero when the index has no description field.
+fn position_count<const N: usize>(tf: &[u16; N]) -> u32 {
+    u32::from(tf.get(DESCRIPTION_FIELD).copied().unwrap_or(0))
+}
+
+/// Append `value` as a LEB128 varint: seven bits per byte, low group first, a
+/// continuation bit on every byte but the last.
+fn put_varint(out: &mut Vec<u8>, mut value: u32) {
+    while value >= 0x80 {
+        out.push((value as u8) | 0x80);
+        value >>= 7;
+    }
+    out.push(value as u8);
+}
+
+/// Advance `*at` past the varint there, without decoding it.
+fn skip_varint(bytes: &[u8], at: &mut usize) {
+    while bytes[*at] & 0x80 != 0 {
+        *at += 1;
+    }
+    *at += 1;
+}
+
+/// The varint at `*at`, advancing `*at` past it.
+///
+/// The block is written only by this module, so a read past the end is a bug in
+/// the writer, not input to be tolerated.
+fn read_varint(bytes: &[u8], at: &mut usize) -> u32 {
+    let mut value = 0u32;
+    let mut shift = 0;
+    loop {
+        let byte = bytes[*at];
+        *at += 1;
+        value |= u32::from(byte & 0x7f) << shift;
+        if byte & 0x80 == 0 {
+            return value;
+        }
+        shift += 7;
+    }
+}
+
+/// How many bytes `value` takes as a varint.
+fn varint_len(mut value: u32) -> usize {
+    let mut len = 1;
+    while value >= 0x80 {
+        value >>= 7;
+        len += 1;
+    }
+    len
+}
+
+/// Write one posting entry, given the document id of the entry before it.
+fn write_posting<const N: usize>(
+    out: &mut Vec<u8>,
+    prev_doc: u32,
+    doc: u32,
+    tf: &[u16; N],
+    positions: &[u32],
+) {
+    put_varint(out, doc - prev_doc);
+    for &frequency in tf {
+        put_varint(out, u32::from(frequency));
+    }
+    // A frequency saturates, so a term repeated past that limit leaves its later
+    // positions out rather than writing more than the decoder will read.
+    let mut prev_position = 0;
+    for &position in positions.iter().take(position_count(tf) as usize) {
+        put_varint(out, position - prev_position);
+        prev_position = position;
+    }
+}
+
+/// How many bytes one posting entry takes, given the entry before it.
+fn posting_len<const N: usize>(prev_doc: u32, doc: u32, tf: &[u16; N], positions: &[u32]) -> usize {
+    let mut len = varint_len(doc - prev_doc);
+    for &frequency in tf {
+        len += varint_len(u32::from(frequency));
+    }
+    let mut prev_position = 0;
+    for &position in positions.iter().take(position_count(tf) as usize) {
+        len += varint_len(position - prev_position);
+        prev_position = position;
+    }
+    len
 }
 
 /// One document's field lengths, plus whether it is currently in the index.
@@ -151,9 +517,10 @@ pub(crate) struct Bm25Index<const N: usize> {
     /// Term text to term id. The only owner of the term text; the postings and
     /// the per-document term lists refer to it by id.
     term_ids: HashMap<String, u32>,
-    /// Term id to that term's postings, ordered by document id. One slot per
-    /// id ever assigned, so ids stay stable when a term's list empties.
-    postings: Vec<Vec<Posting<N>>>,
+    /// Term id to that term's postings, one encoded block each, ordered by
+    /// document id. One slot per id ever assigned, so ids stay stable when a
+    /// term's list empties.
+    postings: Vec<PostingBlock<N>>,
     /// Per-document field lengths, indexed by document id.
     docs: Vec<DocSlot<N>>,
     /// Term ids of each live document, in no particular order, so removing a
@@ -201,10 +568,10 @@ impl<const N: usize> Bm25Index<N> {
 
     /// Add a document, replacing it if the id is already live.
     ///
-    /// Cost is one pass over the document's terms plus one binary-search
-    /// insert per distinct term into its posting list, and one allocation for
-    /// the document's term-id list. A brand-new term also allocates its posting
-    /// list and its map entry.
+    /// Cost is one pass over the document's terms, an append to each distinct
+    /// term's block (ids ascend during a build, so nothing is re-encoded), and
+    /// one allocation for the document's term-id list. A brand-new term also
+    /// allocates its block and its map entry.
     ///
     /// # Panics
     ///
@@ -221,24 +588,27 @@ impl<const N: usize> Bm25Index<N> {
         }
 
         // One pass over the fields, counting per-field term frequencies into a
-        // scratch map. A term that occurs in several fields gets one entry with
-        // one count per field, which is why the posting is an array.
+        // scratch map, and remembering where in the description each term
+        // occurred: the positions the ranking's next step reads.
         let mut counts: HashMap<u32, [u32; N]> = HashMap::new();
+        let mut positions: HashMap<u32, Vec<u32>> = HashMap::new();
         let mut lens = [0u32; N];
         for (field, text) in fields.iter().enumerate() {
-            for term in tokenize(text) {
+            for (at, term) in tokenize(text).into_iter().enumerate() {
                 let term_id = self.intern(&term);
                 lens[field] += 1;
                 counts.entry(term_id).or_insert([0; N])[field] += 1;
+                if field == DESCRIPTION_FIELD {
+                    positions.entry(term_id).or_default().push(at as u32);
+                }
             }
         }
 
         let doc = doc_id as u32;
         for (term_id, tf) in &counts {
             let tf = std::array::from_fn(|field| u16::try_from(tf[field]).unwrap_or(u16::MAX));
-            let postings = &mut self.postings[*term_id as usize];
-            let at = postings.partition_point(|posting| posting.doc < doc);
-            postings.insert(at, Posting { doc, tf });
+            let term_positions = positions.get(term_id).map_or(&[][..], Vec::as_slice);
+            self.postings[*term_id as usize].insert(doc, tf, term_positions);
         }
         self.doc_terms[doc_id] = counts.into_keys().collect();
         self.docs[doc_id] = DocSlot { lens, alive: true };
@@ -250,12 +620,11 @@ impl<const N: usize> Bm25Index<N> {
 
     /// Remove a document, if it is live.
     ///
-    /// Cost is one binary search per distinct term of the document, plus the
-    /// memmove that closes the hole in each posting list — proportional to how
-    /// common the document's terms are, not to the whole index. The vocabulary
-    /// does not shrink: a term whose last document leaves keeps an empty
-    /// posting list and its map entry until the index is dropped, which is what
-    /// makes re-adding an id cheap.
+    /// Cost is one re-encode per distinct term of the document — a linear pass
+    /// over each posting list, proportional to how common the document's terms
+    /// are, not to the whole index. The vocabulary does not shrink: a term whose
+    /// last document leaves keeps its map entry, and its block drops to no
+    /// allocation, which is what makes re-adding an id cheap.
     pub(crate) fn remove(&mut self, doc_id: usize) {
         let Some(slot) = self.docs.get(doc_id) else {
             return;
@@ -269,11 +638,7 @@ impl<const N: usize> Bm25Index<N> {
 
         let doc = doc_id as u32;
         for term_id in std::mem::take(&mut self.doc_terms[doc_id]) {
-            let postings = &mut self.postings[term_id as usize];
-            let at = postings.partition_point(|posting| posting.doc < doc);
-            if postings.get(at).is_some_and(|posting| posting.doc == doc) {
-                postings.remove(at);
-            }
+            self.postings[term_id as usize].remove(doc);
         }
         for (field, length) in lens.iter().enumerate() {
             self.total_len[field] -= u64::from(*length);
@@ -311,14 +676,14 @@ impl<const N: usize> Bm25Index<N> {
         // rehashing as it fills.
         let bound: usize = term_ids
             .iter()
-            .map(|&term_id| self.postings[term_id as usize].len())
+            .map(|&term_id| self.postings[term_id as usize].posting_count())
             .sum();
         let mut accumulator: HashMap<u32, Accumulator> = HashMap::with_capacity(bound);
         for &term_id in &term_ids {
             let postings = &self.postings[term_id as usize];
-            let idf = self.idf(postings.len());
+            let idf = self.idf(postings.posting_count());
             let weight: [f64; N] = std::array::from_fn(|field| self.weights[field] * idf);
-            for posting in postings {
+            for posting in postings.postings() {
                 let slot = &self.docs[posting.doc as usize];
                 let mut score = 0.0;
                 for (field, &tf) in posting.tf.iter().enumerate() {
@@ -360,9 +725,10 @@ impl<const N: usize> Bm25Index<N> {
     /// its order.
     ///
     /// It is a term conjunction, not an ordered phrase: `fix` before `error`
-    /// matches too. Order would need a position per posting, which this module
-    /// does not store; the engine's phrase queries are punctuation-shaped
-    /// rather than order-sensitive today.
+    /// matches too. Order would need a position per posting on both fields, and
+    /// the blocks carry them for the description only, so the engine's phrase
+    /// queries stay punctuation-shaped rather than order-sensitive until the
+    /// proximity step reads them.
     pub(crate) fn exact(&self, needle: &str, limit: usize) -> Vec<Hit> {
         if limit == 0 {
             return Vec::new();
@@ -375,12 +741,17 @@ impl<const N: usize> Bm25Index<N> {
         }
 
         // Each term's posting list with its idf, so the intersection and the
-        // scoring share one lookup.
-        let terms: Vec<(&[Posting<N>], f64)> = term_ids
+        // scoring share one lookup. Decoding a list once into a local vector is
+        // what buys the binary search back: a conjunctive needle is short, so
+        // the transient lists are a few kilobytes.
+        let terms: Vec<(Vec<Posting<N>>, f64)> = term_ids
             .iter()
             .map(|&term_id| {
                 let postings = &self.postings[term_id as usize];
-                (postings.as_slice(), self.idf(postings.len()))
+                (
+                    postings.postings().collect(),
+                    self.idf(postings.posting_count()),
+                )
             })
             .collect();
 
@@ -451,9 +822,9 @@ impl<const N: usize> Bm25Index<N> {
         for term in self.term_ids.keys() {
             bytes += term.capacity();
         }
-        bytes += self.postings.capacity() * std::mem::size_of::<Vec<Posting<N>>>();
+        bytes += self.postings.capacity() * std::mem::size_of::<PostingBlock<N>>();
         for postings in &self.postings {
-            bytes += postings.capacity() * std::mem::size_of::<Posting<N>>();
+            bytes += postings.memory_bytes();
         }
         bytes += self.docs.capacity() * std::mem::size_of::<DocSlot<N>>();
         bytes += self.doc_terms.capacity() * std::mem::size_of::<Vec<u32>>();
@@ -470,7 +841,7 @@ impl<const N: usize> Bm25Index<N> {
         }
         let term_id = u32::try_from(self.postings.len()).expect("term id space exhausted");
         self.term_ids.insert(term.to_owned(), term_id);
-        self.postings.push(Vec::new());
+        self.postings.push(PostingBlock::new());
         term_id
     }
 
@@ -507,6 +878,17 @@ impl<const N: usize> Bm25Index<N> {
         let documents = self.live_docs as f64;
         let frequency = document_frequency as f64;
         (1.0 + (documents - frequency + 0.5) / (frequency + 0.5)).ln()
+    }
+
+    /// The description positions of `term` in `doc_id`, ascending, empty when the
+    /// term is absent there. The proximity step's input; ranking does not read it
+    /// yet, so only the tests do.
+    #[cfg(test)]
+    pub(crate) fn term_positions(&self, term: &str, doc_id: usize) -> Vec<u32> {
+        let Some(&term_id) = self.term_ids.get(term) else {
+            return Vec::new();
+        };
+        self.postings[term_id as usize].positions(doc_id as u32)
     }
 
     /// One document's parity facts: its per-field token counts and whether the
@@ -754,10 +1136,12 @@ mod tests {
     /// Every test that bounds index size states this ceiling, in bytes per
     /// document, for a generated two-field corpus of ~400-term bodies.
     ///
-    /// Measured at 4.6–4.7 KiB per document on 2026-11-15 in a debug build
-    /// (`measure_build_and_query_latency` prints the figure for 1 000
-    /// documents); the assertion is a tripwire against a structure change that
-    /// doubles the index, not a performance target.
+    /// Measured at 2.6–2.7 KiB per document on 2026-11-16 in a debug build: 4 703
+    /// bytes before the postings became delta-encoded varint blocks and 2 624
+    /// after, for the 1 000-document corpus `measure_build_and_query_latency`
+    /// prints, with the 500-document corpus below at 2 711. The assertion is a
+    /// tripwire against a structure change that doubles the index, not a
+    /// performance target; the headroom is what a proximity pass may spend.
     const MEMORY_BUDGET_PER_DOCUMENT: usize = 6_144;
 
     /// Build with explicit weights from an owned two-field corpus.
@@ -854,6 +1238,168 @@ mod tests {
         let p50 = at(0.5);
         let p95 = at(0.95);
         (samples[0], p50, p95, samples[last])
+    }
+
+    /// A corpus document's term frequencies and field lengths, straight from the
+    /// text: what the encoded blocks are decoded against.
+    struct ReferenceDoc {
+        tf: [HashMap<String, u32>; 2],
+        lens: [u32; 2],
+    }
+
+    fn reference_docs(corpus: &[(usize, [String; 2])]) -> Vec<ReferenceDoc> {
+        corpus
+            .iter()
+            .map(|(_, fields)| {
+                let mut tf: [HashMap<String, u32>; 2] = Default::default();
+                let mut lens = [0u32; 2];
+                for (field, text) in fields.iter().enumerate() {
+                    for term in tokenize(text) {
+                        *tf[field].entry(term).or_insert(0) += 1;
+                        lens[field] += 1;
+                    }
+                }
+                ReferenceDoc { tf, lens }
+            })
+            .collect()
+    }
+
+    /// The distinct query terms, in first-appearance order: the order the index
+    /// sums its contributions in, which floating-point addition is sensitive to.
+    fn reference_terms(query: &str) -> Vec<String> {
+        let mut distinct: Vec<String> = Vec::new();
+        for term in tokenize(query) {
+            if !distinct.contains(&term) {
+                distinct.push(term);
+            }
+        }
+        distinct
+    }
+
+    /// How many documents hold each term in either field, in `terms` order.
+    fn reference_frequencies(docs: &[ReferenceDoc], terms: &[String]) -> Vec<usize> {
+        terms
+            .iter()
+            .map(|term| {
+                docs.iter()
+                    .filter(|doc| doc.tf[0].contains_key(term) || doc.tf[1].contains_key(term))
+                    .count()
+            })
+            .collect()
+    }
+
+    /// The weights, per-field averages and per-term idf both reference paths use.
+    fn reference_setup(
+        docs: &[ReferenceDoc],
+        frequency: &[usize],
+    ) -> ([f64; 2], [f64; 2], Vec<f64>) {
+        let documents = docs.len() as f64;
+        let average: [f64; 2] = std::array::from_fn(|field| {
+            let total: u64 = docs.iter().map(|doc| u64::from(doc.lens[field])).sum();
+            total as f64 / documents
+        });
+        let idf = frequency
+            .iter()
+            .map(|&frequency| {
+                let frequency = frequency as f64;
+                (1.0 + (documents - frequency + 0.5) / (frequency + 0.5)).ln()
+            })
+            .collect();
+        (default_weights::<2>(), average, idf)
+    }
+
+    /// Rank descending by score, then ascending by document id.
+    fn sort_reference(scored: &mut [(usize, f64)]) {
+        scored
+            .sort_unstable_by(|left, right| right.1.total_cmp(&left.1).then(left.0.cmp(&right.0)));
+    }
+
+    /// BM25 over the corpus text: the same formula in the same accumulation
+    /// order, computed without the index, so a document id, a field frequency or
+    /// a length the encoding loses changes the answer.
+    fn reference_search(
+        docs: &[ReferenceDoc],
+        query: &str,
+        min_should_match: usize,
+    ) -> Vec<(usize, f64)> {
+        let terms = reference_terms(query);
+        let frequency = reference_frequencies(docs, &terms);
+        let (weights, average, idf) = reference_setup(docs, &frequency);
+        let mut scored = Vec::new();
+        for (doc_id, doc) in docs.iter().enumerate() {
+            let mut score = 0.0;
+            let mut matched = 0;
+            for (term, (&term_idf, &frequency)) in terms.iter().zip(idf.iter().zip(&frequency)) {
+                // A term the index never saw is not in its posting table, so it
+                // contributes nothing; it still counts towards the requirement.
+                if frequency == 0 {
+                    continue;
+                }
+                // A posting exists exactly for the documents holding the term in
+                // some field, and that is what `matched` counts.
+                if doc.tf[0].get(term).is_none() && doc.tf[1].get(term).is_none() {
+                    continue;
+                }
+                matched += 1;
+                // The index sums one term's field contributions into a local
+                // score and adds that to the document's, so the rounding here
+                // has to group the fields the same way.
+                let mut term_score = 0.0;
+                for field in 0..2 {
+                    let tf = doc.tf[field].get(term).copied().unwrap_or(0);
+                    if tf == 0 || weights[field] == 0.0 {
+                        continue;
+                    }
+                    term_score += weights[field]
+                        * term_idf
+                        * tf_component(tf, doc.lens[field], average[field]);
+                }
+                score += term_score;
+            }
+            if matched < min_should_match.min(terms.len()) {
+                continue;
+            }
+            scored.push((
+                doc_id,
+                score * (1.0 + COVERAGE * matched as f64 / (terms.len().max(1) as f64)),
+            ));
+        }
+        sort_reference(&mut scored);
+        scored
+    }
+
+    /// The conjunction path over the corpus text, in the same order.
+    fn reference_exact(docs: &[ReferenceDoc], needle: &str) -> Vec<(usize, f64)> {
+        let terms = reference_terms(needle);
+        let frequency = reference_frequencies(docs, &terms);
+        if frequency.iter().any(|&frequency| frequency == 0) {
+            return Vec::new();
+        }
+        let (weights, average, idf) = reference_setup(docs, &frequency);
+        let mut scored = Vec::new();
+        for (doc_id, doc) in docs.iter().enumerate() {
+            if terms
+                .iter()
+                .any(|term| !doc.tf[0].contains_key(term) && !doc.tf[1].contains_key(term))
+            {
+                continue;
+            }
+            let mut score = 0.0;
+            for (term, &term_idf) in terms.iter().zip(&idf) {
+                for field in 0..2 {
+                    let tf = doc.tf[field].get(term).copied().unwrap_or(0);
+                    if tf == 0 || weights[field] == 0.0 {
+                        continue;
+                    }
+                    score += weights[field]
+                        * term_idf
+                        * tf_component(tf, doc.lens[field], average[field]);
+                }
+            }
+            scored.push((doc_id, score));
+        }
+        sort_reference(&mut scored);
+        scored
     }
 
     #[test]
@@ -1016,6 +1562,48 @@ mod tests {
                 "ranking after a removal differs for {query}"
             );
         }
+
+        // A re-encode carries the description positions through unchanged, so the
+        // patched index and the fresh one agree term by term.
+        for (doc_id, [body, description]) in &corpus {
+            for term in tokenize(body).into_iter().chain(tokenize(description)) {
+                assert_eq!(
+                    patched.term_positions(&term, *doc_id),
+                    fresh.term_positions(&term, *doc_id),
+                    "positions of {term} in document {doc_id} differ after a patch"
+                );
+            }
+        }
+    }
+
+    /// Description positions are the term's token indices in the description, for
+    /// every term of every document: the shape the proximity step needs and the
+    /// encoding has to keep. A term occurs in the body only when its list here is
+    /// empty.
+    #[test]
+    fn description_positions_are_the_token_indices() {
+        let corpus = generated_corpus(40, 40, 200);
+        let index = index_of(default_weights(), &corpus);
+
+        let mut checked = 0;
+        for (doc_id, [_, description]) in &corpus {
+            let mut expected: HashMap<String, Vec<u32>> = HashMap::new();
+            for (at, term) in tokenize(description).into_iter().enumerate() {
+                expected.entry(term).or_default().push(at as u32);
+            }
+            for (term, positions) in expected {
+                assert_eq!(
+                    index.term_positions(&term, *doc_id),
+                    positions,
+                    "positions of {term} in document {doc_id} differ"
+                );
+                checked += 1;
+            }
+        }
+        assert!(
+            checked > 0,
+            "the generated corpus holds no description positions"
+        );
     }
 
     #[test]
@@ -1056,6 +1644,85 @@ mod tests {
             .map(|hit| hit.doc_id)
             .collect();
         assert_eq!(order, vec![0, 1, 2]);
+    }
+
+    /// The encoded blocks must answer what the corpus text answers: every term's
+    /// decoded postings, and every score the two ranking paths produce, bit for
+    /// bit. A decode that shifts a document id, drops a field frequency or drifts
+    /// a length fails here rather than as a ranking difference nobody reads.
+    #[test]
+    fn encoded_blocks_decode_to_the_corpus_answer() {
+        let corpus = generated_corpus(120, 60, 600);
+        let index = index_of(default_weights(), &corpus);
+        let docs = reference_docs(&corpus);
+
+        // Every term's posting list, rebuilt from the text and compared with the
+        // decoder's.
+        let mut expected: HashMap<String, Vec<(usize, [u16; 2])>> = HashMap::new();
+        for (doc_id, fields) in &corpus {
+            let mut counts: HashMap<String, [u16; 2]> = HashMap::new();
+            for (field, text) in fields.iter().enumerate() {
+                for term in tokenize(text) {
+                    counts.entry(term).or_default()[field] += 1;
+                }
+            }
+            for (term, tf) in counts {
+                expected.entry(term).or_default().push((*doc_id, tf));
+            }
+        }
+        assert_eq!(
+            expected.len(),
+            index.term_ids.len(),
+            "the index's vocabulary differs from the corpus's"
+        );
+        for (term, mut wanted) in expected {
+            wanted.sort_unstable_by_key(|(doc, _)| *doc);
+            let term_id = index.term_ids[&term];
+            let got: Vec<(usize, [u16; 2])> = index.postings[term_id as usize]
+                .postings()
+                .map(|posting| (posting.doc as usize, posting.tf))
+                .collect();
+            assert_eq!(got, wanted, "decoded postings differ for {term}");
+        }
+
+        // Scores and order, over single terms, a conjunction and a query with a
+        // term the corpus does not hold.
+        for query in [
+            "w00001",
+            "w00003 w00004",
+            "w00007 w00021 w00033",
+            "w00001 w00049 absent",
+        ] {
+            for min_should_match in [1, 2, 3] {
+                let wanted = reference_search(&docs, query, min_should_match);
+                let got: Vec<(usize, f64)> = index
+                    .search(query, min_should_match, usize::MAX)
+                    .into_iter()
+                    .map(|hit| (hit.doc_id, hit.score))
+                    .collect();
+                assert_eq!(
+                    got, wanted,
+                    "ranking differs for {query} at {min_should_match}"
+                );
+
+                // The truncated answer is the head of the same order.
+                let top = wanted.len().min(5);
+                let paged: Vec<(usize, f64)> = index
+                    .search(query, min_should_match, top)
+                    .into_iter()
+                    .map(|hit| (hit.doc_id, hit.score))
+                    .collect();
+                assert_eq!(paged, wanted[..top], "top-{top} differs for {query}");
+            }
+
+            let wanted = reference_exact(&docs, query);
+            let got: Vec<(usize, f64)> = index
+                .exact(query, usize::MAX)
+                .into_iter()
+                .map(|hit| (hit.doc_id, hit.score))
+                .collect();
+            assert_eq!(got, wanted, "exact answer differs for {query}");
+        }
     }
 
     #[test]
