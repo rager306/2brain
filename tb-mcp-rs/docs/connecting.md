@@ -142,7 +142,7 @@ advertises 36 tools at 57 620 and 19 356 chars (see
 | `policy/prior_read: read this file with tb_content before writing it` | mutations need a fresh read of the same path in the same process |
 | `outcome_unknown: ...` | the reply was lost; the write may have landed — call `tb_reconcile`, never retry blindly |
 | `initialize required` (JSON-RPC error) | a legacy session must complete `initialize`; a request declaring `2026-07-28` in `_meta` does not |
-| every read fails with `connecting to engine` | wrong socket path, or the daemon is down; check with the probe above |
+| every read fails with `connecting to engine` | wrong socket path, or the daemon is down; check with the probe above. The first such failure also prints, once on stderr, the socket the launch tried, the state root that path came from, and the next step |
 | `unsupported or missing engine schema_version (expected 29)` | the engine and this build disagree on the wire; rebuild against the served schema |
 | the server is listed but a client shows no tools | for the Node daemon that means no `mcp.tool` plugin is mounted in the workspace; for this adapter, check `tools/list` directly |
 | `engine error: malformed read: unknown variant <verb>` | the daemon is older than this build: it does not serve that read yet. Version skew is visible in the answer instead of a silent empty result. `tb_grep` in particular needs an engine built at or after `5625aff`; run a current daemon, or keep using the reads the running engine serves |

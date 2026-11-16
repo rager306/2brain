@@ -4,9 +4,17 @@
 //! `UnixTransport` speaks the real wire over a unix socket, and
 //! `MemoryTransport` answers from a script so a test can assert what the
 //! adapter sent without opening one. Nothing here knows a tool name, a policy,
-//! or the shape of a verb's payload; that is `wire.rs`.
+//! or the shape of a verb's payload; that is `wire.rs`. It does own the one-time
+//! report for a launch whose socket never answered, because this is where that
+//! failure is first seen and the only place that holds the path that was tried.
 
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::{
+        OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use futures::future::BoxFuture;
 use serde_json::Value;
@@ -52,6 +60,46 @@ impl WireError {
             Self::Rejected { message, .. } | Self::Broken(message) => message,
         }
     }
+}
+
+/// What the launch resolved, kept so the FIRST failed connection can name the
+/// socket it tried and where that path came from — the question `2brain doctor`
+/// answers with its own lines. The dispatcher installs it before serving; a
+/// server started some other way has none, and then reports only the error.
+pub(crate) struct Launch {
+    /// Where the socket path came from, for the `state` line.
+    pub(crate) origin: String,
+    /// What to run or pass instead, for the `next` line.
+    pub(crate) next: String,
+}
+
+/// The one launch this process serves.
+static LAUNCH: OnceLock<Launch> = OnceLock::new();
+
+/// Whether the one-time connection diagnosis has been printed.
+static DIAGNOSED: AtomicBool = AtomicBool::new(false);
+
+/// Record what the launch resolved, before the first request.
+pub(crate) fn announce_launch(launch: Launch) {
+    let _ = LAUNCH.set(launch);
+}
+
+/// Name the socket a failed connection tried, where that path came from, and the
+/// next step — once per process. A per-call diagnosis is the noise this replaces:
+/// every call fails the same way, and only the first one has news.
+fn diagnose(socket: &Path, error: &std::io::Error) {
+    let Some(launch) = LAUNCH.get() else {
+        return;
+    };
+    if DIAGNOSED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    eprintln!(
+        "2brain: no engine answers this launch's socket, so every tool call fails until one is running"
+    );
+    eprintln!("2brain:   socket  {} — {error}", socket.display());
+    eprintln!("2brain:   state   {}", launch.origin);
+    eprintln!("2brain:   next    {}", launch.next);
 }
 
 /// One owned, sendable answer per call: the object-safe form of an async
@@ -118,9 +166,13 @@ impl EngineTransport for UnixTransport {
 }
 
 async fn connect(socket: &Path) -> Result<UnixStream, WireError> {
-    UnixStream::connect(socket)
-        .await
-        .map_err(|e| WireError::Broken(format!("connecting to engine: {e}")))
+    match UnixStream::connect(socket).await {
+        Ok(stream) => Ok(stream),
+        Err(error) => {
+            diagnose(socket, &error);
+            Err(WireError::Broken(format!("connecting to engine: {error}")))
+        }
+    }
 }
 
 /// Refuse an answering frame that does not answer this request. The schema

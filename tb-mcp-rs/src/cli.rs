@@ -21,7 +21,7 @@ use std::{
 
 use serde_json::{Value, json};
 
-use crate::transport::{EngineTransport, SCHEMA_VERSION, UnixTransport};
+use crate::transport::{EngineTransport, Launch, SCHEMA_VERSION, UnixTransport, announce_launch};
 
 /// The identity directory a workspace carries, as `tb_parser::IDENTITY_DIR`
 /// spells it. Repeated rather than depended on: this crate's one engine
@@ -39,22 +39,120 @@ const MCP_TIMEOUT: Duration = Duration::from_secs(10);
 
 // ---------------------------------------------------------------- resolve
 
+/// The socket a target names, and where that path came from.
+pub struct Resolved {
+    /// The socket every request is sent to.
+    pub socket: PathBuf,
+    /// What produced it: the command line, or a workspace's state root.
+    pub origin: Origin,
+}
+
+/// Where a resolved socket path came from, kept so the first failed connection
+/// can name the path it tried and the root behind it.
+pub enum Origin {
+    /// A `.sock` path given as an argument: no state root was consulted.
+    Given,
+    /// Derived for a workspace: `<state root>/au-engine/run/<hash>.sock`.
+    Derived {
+        /// The workspace entry the socket was hashed from.
+        target: PathBuf,
+        /// The engine's device area, `$HOME/.2brain` or `$HOME/.arsumbris`.
+        state_root: PathBuf,
+        /// The directory the engine's `.sock` files live in.
+        run_dir: PathBuf,
+        /// The variable the state root came from, spelled with its value.
+        source: String,
+    },
+}
+
 /// The socket a target names: a `.sock` path as given, anything else a workspace
 /// entry whose socket is derived the way `au daemon start` derives it.
 ///
 /// The entry is canonicalized first because the daemon hashes a canonical path
 /// (`tb_engine::serve::socket_path` documents this), and a symlinked or relative
 /// spelling would otherwise hash to a socket nobody bound.
-pub fn resolve_socket(target: &Path) -> Result<PathBuf, String> {
+pub fn resolve(target: &Path) -> Result<Resolved, String> {
     if target
         .extension()
         .is_some_and(|extension| extension == "sock")
     {
-        return Ok(target.to_path_buf());
+        return Ok(Resolved {
+            socket: target.to_path_buf(),
+            origin: Origin::Given,
+        });
     }
-    let canonical =
+    let target =
         fs::canonicalize(target).map_err(|error| format!("{}: {error}", target.display()))?;
-    Ok(tb_cli::socket_path(&canonical))
+    let socket = tb_cli::socket_path(&target);
+    // The socket sits at `<state root>/au-engine/run/<hash>.sock`, so the root is
+    // read back from the path the engine will be asked for rather than derived a
+    // second time from `$HOME`: one derivation, and the report names it.
+    let run_dir = socket
+        .parent()
+        .map_or_else(|| socket.clone(), Path::to_path_buf);
+    let state_root = run_dir
+        .parent()
+        .and_then(Path::parent)
+        .map_or_else(|| run_dir.clone(), Path::to_path_buf);
+    Ok(Resolved {
+        socket,
+        origin: Origin::Derived {
+            target,
+            state_root,
+            run_dir,
+            source: state_source(),
+        },
+    })
+}
+
+/// [`resolve`] for a caller that needs only the path.
+pub fn resolve_socket(target: &Path) -> Result<PathBuf, String> {
+    resolve(target).map(|resolved| resolved.socket)
+}
+
+/// What produced the state root: the variable the engine reads, with its value.
+fn state_source() -> String {
+    match std::env::var_os("2BRAIN_HOME") {
+        Some(value) if !value.is_empty() => {
+            format!("$2BRAIN_HOME={}", PathBuf::from(value).display())
+        }
+        _ => match std::env::var_os("HOME") {
+            Some(value) => format!("$HOME={}", PathBuf::from(value).display()),
+            None => "no $HOME, so the engine fell back to the temp directory".to_owned(),
+        },
+    }
+}
+
+/// Tell the serving transport what this launch resolved, so its first failed
+/// connection says which socket it tried and where that path came from. Nothing
+/// is printed here; the failure is, once.
+pub fn announce(resolved: &Resolved) {
+    let (origin, next) = match &resolved.origin {
+        Origin::Given => (
+            "no state root was consulted: the socket path was given explicitly".to_owned(),
+            "start the daemon that binds that socket, or pass the workspace directory so \
+             2brain derives the socket"
+                .to_owned(),
+        ),
+        Origin::Derived {
+            target,
+            state_root,
+            run_dir,
+            source,
+        } => (
+            format!(
+                "{} — the state root, from {source}; the engine's sockets live in {}/*.sock",
+                state_root.display(),
+                run_dir.display()
+            ),
+            format!(
+                "start it with `2brain daemon start {}`; if the daemon runs under a different \
+                 HOME, pass its .sock path to `2brain mcp` instead",
+                target.display()
+            ),
+        ),
+    };
+    announce_launch(Launch { origin, next });
 }
 
 /// `path` made absolute against the current directory, without requiring it to

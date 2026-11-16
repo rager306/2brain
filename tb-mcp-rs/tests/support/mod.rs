@@ -43,7 +43,7 @@ impl Client {
     /// the conversation, including `initialize`.
     #[track_caller]
     pub fn spawn(socket: &Path) -> Self {
-        Self::spawn_configured(socket, &[], DEFAULT_TIMEOUT, false)
+        Self::spawn_configured(socket, &[], DEFAULT_TIMEOUT, false, None)
     }
 
     /// Spawns the adapter and completes the MCP initialize handshake.
@@ -70,6 +70,14 @@ impl Client {
         Self::start_configured(socket, extra, DEFAULT_TIMEOUT, true)
     }
 
+    /// `start_capturing_stderr` for a *workspace* target launched under `home`:
+    /// the target is not a `.sock`, so the adapter derives one under that home's
+    /// state root — which is how a wrong `$HOME` reaches the connect failure.
+    #[track_caller]
+    pub fn start_capturing_stderr_at_home(home: &Path, target: &Path) -> Self {
+        Self::start_configured_at_home(home, target, &[], true)
+    }
+
     #[track_caller]
     fn start_configured(
         socket: &Path,
@@ -77,7 +85,20 @@ impl Client {
         timeout: Duration,
         capture_stderr: bool,
     ) -> Self {
-        let mut client = Self::spawn_configured(socket, extra, timeout, capture_stderr);
+        let mut client = Self::spawn_configured(socket, extra, timeout, capture_stderr, None);
+        client.initialize();
+        client
+    }
+
+    #[track_caller]
+    fn start_configured_at_home(
+        home: &Path,
+        target: &Path,
+        extra: &[&str],
+        capture_stderr: bool,
+    ) -> Self {
+        let mut client =
+            Self::spawn_configured(target, extra, DEFAULT_TIMEOUT, capture_stderr, Some(home));
         client.initialize();
         client
     }
@@ -88,6 +109,7 @@ impl Client {
         extra: &[&str],
         timeout: Duration,
         capture_stderr: bool,
+        home: Option<&Path>,
     ) -> Self {
         // One binary for the product: `2brain mcp <target> …` (there is no separate server binary).
         let mut command = Command::new(env!("CARGO_BIN_EXE_2brain"));
@@ -97,6 +119,12 @@ impl Client {
             .args(extra)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped());
+        if let Some(home) = home {
+            // The state root is the only thing this changes: the engine reads raw
+            // `$HOME`, and the override that would win over it is cleared so the
+            // launch derives from `home` and nowhere else.
+            command.env("HOME", home).env_remove("2BRAIN_HOME");
+        }
         if capture_stderr {
             command.stderr(Stdio::piped());
         } else {

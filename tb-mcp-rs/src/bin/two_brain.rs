@@ -180,8 +180,13 @@ fn main() -> ExitCode {
                 && !first.starts_with('-')
             {
                 let target = PathBuf::from(rest.next().expect("peeked"));
-                match tb_mcp_rs::cli::resolve_socket(&target) {
-                    Ok(socket) => forwarded.push(socket.into_os_string()),
+                match tb_mcp_rs::cli::resolve(&target) {
+                    Ok(resolved) => {
+                        // The server is this process, so the launch can tell its transport where
+                        // the socket came from: the first failed connection then names it.
+                        tb_mcp_rs::cli::announce(&resolved);
+                        forwarded.push(resolved.socket.into_os_string());
+                    }
                     Err(error) => {
                         eprintln!("2brain: {error}");
                         return ExitCode::FAILURE;

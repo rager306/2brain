@@ -1,6 +1,6 @@
 # Tools
 
-Two surfaces: **tools** (51) for actions and reads, and **resources** for
+Two surfaces: **tools** (52) for actions and reads, and **resources** for
 addressable files. A resource URI is `2brain://<repo>/<path>` (the legacy `arsumbris://` is accepted on parse), where the path is
 member-relative and percent-encoded; `resources/list` pages the catalogue 100 at a
 time and `resources/read` returns the engine's own text with `text/markdown`.
@@ -17,16 +17,14 @@ and carries `_meta["io.2brain/engineVersion"]`.
 
 ## Discovery
 
-`tb_search_tools {query, detail?, limit?}` — rank tools by name, parameter name,
-or description. `detail` is `name`, `summary` (default), or `schema`; `limit` is
-1–20, default 5.
+| tool | arguments | notes |
+|---|---|---|
+| `tb_search_tools` | `query`, `detail?`, `limit?` | rank tools by name, parameter name, or description; `detail` is `name`, `summary` (default), or `schema`, and `limit` is 1–20 (default 5) |
+| `tb_describe_tool` | `name` | one full definition with input and output schemas, as `{"tool": {name, description, inputSchema, outputSchema, annotations}}`; it refuses a name this launch does not expose, so a read-only server cannot leak a mutation's schema |
 
-`tb_describe_tool {name}` — one full definition with input and output schemas,
-returned as `{"tool": {name, description, inputSchema, outputSchema, annotations}}`.
-It refuses a name this launch does not expose, so a read-only server cannot leak
-a mutation's schema. The definition sits under a key because the declared
-`outputSchema` is closed: returning it bare made a strict client reject the answer
-with "additional properties are not allowed".
+The definition sits under a key because the declared `outputSchema` is closed:
+returning it bare made a strict client reject the answer with "additional
+properties are not allowed".
 
 ## Workspace shape
 
@@ -71,7 +69,7 @@ with "additional properties are not allowed".
 | `tb_graph_health` | `repo?`, `scope?`, `limit` | cycles, dead ends, sources, isolated files, broken links, and the most central nodes in one report; counts cover the whole graph, lists are capped (default 20, max 200) |
 | `tb_watch` | `timeout_ms` | waits up to `timeout_ms` (default 10000, max 30000) for the next rebuild and returns its net file delta: `added`, `removed`, `modified`, `version`. A timeout is `timed_out: true`, an ordinary answer. It holds the call, so keep the timeout short |
 | `tb_grep` | `query`, `repo?`, `scope?`, `case_sensitive?`, `limit`, `offset` | literal (not regex) search, one match per line with line and character column; **default scope `own`** — the workspace's own members, not the dependencies mounted beside it (`scope: all` widens); case-insensitive unless asked; `total` covers the whole scanned set and `skipped_files` counts what the bounds left out (above 1 MiB, or binary); default limit 20, max 200 |
-| `tb_search` | `query`, `repo?`, `scope?`, `exact?`, `min_should_match?`, `limit`, `offset` | BM25 over each note's body and its description, description weighted higher; answers `matches` (path, score, matched_terms), `total`, paging; `exact` requires every term; `min_should_match` defaults to all terms for one or two and two above that; **default scope `own`**, the workspace's own members, not the dependencies mounted beside it |
+| `tb_search` | `query`, `repo?`, `scope?`, `exact?`, `min_should_match?`, `limit`, `offset` | BM25 over each note's body and its description, description weighted higher; answers `matches` (path, score, matched_terms), `total`, paging; `exact` requires every term; `min_should_match` defaults to all terms for one or two and two above that; **default scope `own`**, the workspace's own members, not the dependencies mounted beside it (`scope: all` widens to every mounted member) |
 | `tb_hubs` | `repo?`, `scope?`, `limit`, `offset` | default limit 20; counts include edges from outside the scope |
 | `tb_diagnostics` | `repo?`, `severity?`, `code?`, `scope?`, `limit`, `offset` | filters AND; every severity unless one is named |
 | `tb_content` | `repo`, `path`, `max_chars?` | `{content: {text, hash, commit} \| null}`; with `max_chars` the text is windowed and the answer says `truncated`, `total_chars`, `next_offset`; the hash always covers the whole file |
@@ -82,12 +80,23 @@ with "additional properties are not allowed".
 
 ## Mutations
 
-`tb_preview_mutation {repo, path, op, content?, old_string?, new_string?, replace_all?}`
-returns the would-be product and blast radius; it writes nothing, needs no
-grant and no hash, but the member must be editable. It covers the path-addressed
-ops (`write_file`, `edit_file`, `delete_file`). The engine also previews
-`rename_type`, which no path addresses: that op is what `tb_rename_type` calls
-itself, and it answers an `affected` list besides the product.
+Every mutation needs the grant, a prior read of the same path, a matching
+`expected_hash`, an editable member and the one write slot. `tb_reconcile` is the
+read that finishes an interrupted write, so it is listed here too.
+
+| tool | arguments | effect |
+|---|---|---|
+| `tb_preview_mutation` | `repo`, `path`, `op`, `content?`, `old_string?`, `new_string?`, `replace_all?` | the would-be product and blast radius; it writes nothing, needs no grant and no hash, but the member must be editable |
+| `tb_create_file` | `repo`, `path`, `content` | make a file that does not exist yet; absence is the precondition instead of a hash |
+| `tb_write_file` | `repo`, `path`, `content`, `expected_hash` | replace the whole file: the whole-file compare-and-set |
+| `tb_edit_file` | `repo`, `path`, `old_string`, `new_string`, `replace_all?`, `expected_hash` | replace one span, with that span — not the whole file — as the precondition |
+| `tb_delete_file` | `repo`, `path`, `expected_hash` | remove one file |
+| `tb_reconcile` | `repo`, `path`, `expected_hash?` or `expect_absent?` | answers `applied` or `not_applied` with the current hash and commit, and re-arms the guard when the file differs, so a deliberate retry needs no extra read; it never writes |
+
+`tb_preview_mutation` covers the path-addressed ops (`write_file`, `edit_file`,
+`delete_file`). The engine also previews `rename_type`, which no path addresses:
+that op is what `tb_rename_type` calls itself, and it answers an `affected` list
+besides the product.
 
 `tb_rename_type` is the one structural mutation whose reach is not visible from
 its arguments. It names a type; the engine decides which files the rename
@@ -103,14 +112,13 @@ consumed-member guard (`detail.blocking_consumed_referrers`) answers a different
 question — the workspace's edit/consumed topology — so neither check replaces
 the other.
 
-`tb_create_file {repo, path, content}` makes a file that does not exist yet. It
-has no text to compare against, so its gate replaces the read-then-hash pair with
-the opposite promise: the path must be free. The server reads it first and
-refuses with `policy/absence: file already exists; use tb_write_file` instead of
-overwriting, and the engine re-checks absence where the write happens: the
-mutation is `create_file`, one exclusive-create inside the serialized write, so a
-second client creating the same path at the same instant is refused rather than
-silently overwriting the first. Both refusals are the same `policy/absence`
+`tb_create_file` has no text to compare against, so its gate replaces the
+read-then-hash pair with the opposite promise: the path must be free. The server
+reads it first and refuses with `policy/absence: file already exists; use tb_write_file`
+instead of overwriting, and the engine re-checks absence where the write happens:
+the mutation is `create_file`, one exclusive-create inside the serialized write,
+so a second client creating the same path at the same instant is refused rather
+than silently overwriting the first. Both refusals are the same `policy/absence`
 message — the local read is the cheap one, the engine's is the guarantee.
 
 `tb_write_file`, `tb_edit_file`, `tb_delete_file` share one gate: a prior
@@ -152,10 +160,6 @@ engine rebuild is what makes the change observable.
 | `tb_add_workspace_member` | `repo`, `name`, `role` (`edit` \| `discover`), `expected_hash?` | declares a member in the named list; refuses a name already declared in either list |
 | `tb_remove_workspace_member` | `repo`, `name`, `expected_hash?` | drops the name from both lists, and from `disabled:` in the same splice; the containing repo cannot be removed |
 | `tb_set_workspace_member_role` | `repo`, `name`, `role`, `expected_hash?` | moves a declared member between the lists in one commit; refuses an absent member, an unchanged role, and moving the host into `discover` |
-
-`tb_reconcile {repo, path, expected_hash? | expect_absent?}` answers `applied` or
-`not_applied` with the current hash and commit, and re-arms the guard when the
-file differs, so a deliberate retry needs no extra read.
 
 ## Pagination and size
 
