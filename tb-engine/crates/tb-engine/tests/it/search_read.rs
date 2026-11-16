@@ -265,14 +265,41 @@ fn the_last_page_reports_a_null_next_offset() {
 // The default minimum should match. Three distinct terms require two of them, not
 // one: a plain OR answers a third of the vault, which is why the default is not
 // "any term".
+/// Three distinct terms need two of them by default — unless the one a document holds is rare, which is the
+/// escape `006ac0b` added. Both halves are asserted here, because the escape is what makes the second half
+/// non-obvious: `theta` occurs in two of the fixture's thirteen notes, so its idf clears `RARE_IDF` and a
+/// one-term document is admitted; `zeta` sits in the same two notes but the query below pairs it with two
+/// COMMON terms, and there the floor bites.
 #[test]
-fn three_distinct_terms_need_two_of_them_by_default() {
+fn three_distinct_terms_need_two_of_them_unless_the_one_held_is_rare() {
     let (_dir, root) = seeded();
     let mut h = harness(&root);
-    let search = search(&mut h.client, json!({ "query": "zeta eta theta" }));
-    assert_eq!(search["total"], 1, "{search}");
-    assert_eq!(names(&search), vec!["both.md".to_string()], "{search}");
-    assert_eq!(search["matches"][0]["matched_terms"], 2);
+
+    // The escape: `only-theta.md` holds one term of three and is kept anyway.
+    let rare = search(&mut h.client, json!({ "query": "zeta eta theta" }));
+    assert_eq!(rare["total"], 2, "{rare}");
+    assert_eq!(
+        names(&rare),
+        vec!["both.md".to_string(), "only-theta.md".to_string()],
+        "{rare}"
+    );
+    assert_eq!(rare["matches"][0]["matched_terms"], 2);
+
+    // The floor: two of three, with every term common enough that no escape applies.
+    let floored = search(&mut h.client, json!({ "query": "paging record zeta" }));
+    assert_eq!(floored["total"], 5, "{floored}");
+    assert_eq!(
+        names(&floored),
+        vec![
+            "page-a.md".to_string(),
+            "page-b.md".to_string(),
+            "page-c.md".to_string(),
+            "page-d.md".to_string(),
+            "page-e.md".to_string()
+        ],
+        "{floored}"
+    );
+    assert_eq!(floored["matches"][0]["matched_terms"], 2);
 }
 
 // (e) Every match carries a short excerpt of the note's BODY around the queried
