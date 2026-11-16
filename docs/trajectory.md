@@ -37,8 +37,10 @@ ceremony:
    tolerantly (a missing field is not an error; a field of the wrong type is). Completeness stays the
    client's `outputSchema` job, and the first strict attempt was rejected for coupling eight unrelated test
    files to the payload shape.
-2. **one source for the verb list** — `VERB_SHAPES` holds every read verb, but the tool→verb mapping still
-   lives in the router. Gate: a test that every read tool names a verb in the table.
+2. **one source for the verb list — done** (`d14924b`): `READ_VERBS` states each tool's engine read once (33
+   rows, composed tools list what they compose), the router passes a tool name, and `read_engine` validates the
+   verb the request carries. Two tests cover the map in both directions and a third covers shapes against
+   tools; all three were proved to bite. `lib.rs` is 4501 production lines, so the ratchet dropped from 4530.
 3. **result modes — settled, and the first answer was wrong.** Measured: `both` 22.0 MB, `text` 11.6 MB,
    `structured` 10.4 MB over 36 reads. I concluded Hermes reads only text and pinned it to `--payload text`;
    six tool calls then failed in 46 seconds with "has an output schema but did not return structured

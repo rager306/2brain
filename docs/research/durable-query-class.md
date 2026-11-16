@@ -47,3 +47,27 @@ declared class, not a binary durable/not) keeps the topical cost near zero.
 
 Pick the coefficient from that comparison, not from taste, and bless the golden `au_search` capture in the same
 commit.
+
+## The swap that would answer this, written before it is run
+
+The decision rule is stated now, so the measurement cannot be read backwards into a conclusion later.
+
+1. **Branch and build.** Implement the prior on `fork/freshness-prior` as a per-declared-class multiplier on
+   the BM25 score in `search.rs` (not a binary durable/not): `volatile < slow < stable < evergreen`, with
+   `evergreen = 1.0` and the others stepping down by a coefficient `c`. Start at `c = 0.05` per step, the
+   gentlest curve that can move an ordering.
+2. **Measure offline first.** `tools/ranking/eval.py` and `tools/ranking/durable_probe.py` both read the live
+   engine, so neither can score an unbuilt change. Use the swap procedure (`tb-engine/scripts/swap-engine.sh`,
+   `docs/engine-swap-2026-11-16.md`) on a **copied vault** with its own socket and HOME, and run both probes
+   against that socket. Nothing is decided on the production daemon.
+3. **Accept only if both hold.** Durable probe hit@1 rises above 0.50 by more than the noise of 26 pairs
+   (one pair is 0.038, so the bar is **≥ 0.58**, i.e. at least two pairs flipping), **and** the 60-query
+   labelled set loses less than 1.0 point of topical hit@1 (the earlier binary prior cost 1.9, which is why
+   the curve is gentler). If only one holds, the coefficient moves once and the test repeats; if the second
+   attempt fails, the prior is rejected again and this document records the number.
+4. **Bless on the same commit** if accepted: the golden `au_search` capture, plus a note in `docs/verification.md`
+   with both probe results and the coefficient. A rejected prior leaves `search.rs` untouched and the document
+   gains the measurement instead of the code.
+
+What makes this different from the first attempt: the first had no class that could show a gain, so it was
+judged only by what it cost. This one is judged by both sides.
