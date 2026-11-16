@@ -101,3 +101,25 @@ fn doctor_reports_no_failures_when_a_private_daemon_answers() {
     );
     drop(daemon);
 }
+
+#[test]
+fn doctor_refuses_a_directory_that_is_not_a_workspace() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    fs::create_dir_all(&home).unwrap();
+    let plain = temp.path().join("just-a-folder");
+    fs::create_dir_all(&plain).unwrap();
+
+    let report = doctor(&home, &plain);
+    let stdout = String::from_utf8_lossy(&report.stdout);
+    assert!(!report.status.success(), "{stdout}");
+    assert!(stdout.contains("is not a workspace"), "{stdout}");
+    assert!(
+        stdout.contains("2brain init"),
+        "the fix is the command that makes a workspace: {stdout}"
+    );
+    assert!(
+        !stdout.contains("2brain daemon start"),
+        "a daemon cannot serve this directory, so doctor must not suggest starting one: {stdout}"
+    );
+}

@@ -311,6 +311,14 @@ fn existing_identity(root: &Path) -> Option<PathBuf> {
         .find(|identity| identity.is_dir())
 }
 
+/// The identity marker that makes `root` a repository the engine will open.
+fn identity_marker_of(root: &Path) -> Option<PathBuf> {
+    [IDENTITY_DIR, LEGACY_IDENTITY_DIR]
+        .into_iter()
+        .map(|identity| root.join(identity).join(IDENTITY_MARKER))
+        .find(|marker| marker.is_file())
+}
+
 /// Rewrite a copied starter's identity to `name`: the top-level `name:` of its
 /// `repo.yaml`, and its own entry in a `workspace.yaml`'s `edit:` list. Answers
 /// whether the starter declares members this command cannot mount.
@@ -677,10 +685,22 @@ pub fn doctor(target: &Path) -> ExitCode {
         }
     };
     let socket = if target.is_dir() {
-        report.ok(
-            "target",
-            format!("workspace directory {}", target.display()),
-        );
+        if identity_marker_of(&target).is_some() {
+            report.ok("target", format!("workspace {}", target.display()));
+        } else {
+            // Every line after this one would name the wrong fix: a daemon cannot
+            // serve a directory the engine refuses, so the advice would be "start
+            // it" for a start that fails.
+            report.fail(
+                "target",
+                format!(
+                    "{} is not a workspace (no {IDENTITY_DIR}/{IDENTITY_MARKER}) — create one with `2brain init {}`",
+                    target.display(),
+                    target.display()
+                ),
+            );
+            return report.finish();
+        }
         tb_cli::socket_path(&target)
     } else if target
         .extension()
