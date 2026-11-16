@@ -5,14 +5,15 @@
 # had been making every tempfile() fixture look like a git working tree (that
 # single directory produced 40 of the 43 failures a run used to show).
 #
-# Commands and their counts on this baseline:
-#   cargo +1.99.0 test -p au-engine --offline --lib   -> 678 passed, 1 failed, 1 ignored
-#   cargo +1.99.0 test -p au-engine --offline --test it -> 710 passed, 3 failed, 1 ignored
-#   cargo +1.99.0 fmt --check -p au-engine             -> exit 0 (clean since 2026-11-14)
-#   cargo +1.99.0 clippy --workspace --all-targets     -> 85 warnings, none from the
-#       fork: au-core 43, au-engine 38, au-testkit 4. `-D warnings` therefore fails.
-#       The earlier "1 error" here was an artifact: clippy stops at the first crate
-#       that fails, so au-core's findings were never reached.
+# Commands and their counts on this baseline (re-measured 2026-11-16, same host):
+#   cargo +1.99.0 test -p tb-engine --offline --lib     -> 716 passed, 1 failed, 2 ignored
+#   cargo +1.99.0 test -p tb-engine --offline --test it -> 729 passed, 3 failed, 1 ignored
+#   cargo +1.99.0 fmt --check -p tb-engine              -> exit 0
+#   cargo +1.99.0 clippy --workspace --all-targets -- -D warnings -> exit 0 since
+#       2026-11-16, when the engine job gained that gate (.github/workflows/ci.yml).
+#       The 85 warnings this file used to record (au-core 43, au-engine 38,
+#       au-testkit 4) are history, not a live measurement; six reasoned `#[allow]`s
+#       remain in tb-engine, which the gate accepts.
 #
 # The `it` count includes the three golden-capture tests added 2026-11-14.
 #
