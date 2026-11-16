@@ -228,3 +228,25 @@ parent commit:
 The counts that look alarming are content issues that predate the migration; the A/B is by name and by count, and
 neither moved. What the migration changed is the directory name and the claim spelling, which is the whole point.
 
+## The live window: the two served members — 2026-11-16
+
+`tb-mcp-sdk` and `tb-defaults/mcp-bundle` are members of the running workspace, so their rename was done in a
+window rather than casually:
+
+```
+  migrated  tb-mcp-sdk     9 claim lines in 9 files   (the manifest plus eight extends: lines in type/)
+  migrated  mcp-bundle     1 claim line in 1 file
+systemctl restart 2brain-engine   → socket answering again after 1 s
+```
+
+Before the restart the four golden reads were captured to a directory; after it they were captured again and
+compared: **byte-identical**, including `tb_diagnostics` and `tb_graph_health`. The workspace still reports its
+three members (`au-mcp-sdk`, `mcp-bundle`, `vault`) with 0 diagnostics.
+
+`tb-mcp-sdk` is the member with the most claims outside a manifest that this migration has touched so far — its
+eight `type/*.type.yaml` files carry `extends: au.engine.meta::au-engine`, and the writer spliced all of them
+without disturbing the surrounding YAML.
+
+What remains in scope is `/root/vault` alone, refused on a dirty tree: it moves when the notes are quiet, not
+before.
+
