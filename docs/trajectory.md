@@ -11,9 +11,9 @@ cost, and the evidence it would produce.
 | serving path | `/usr/local/bin/2brain` → engine socket; Rust only, one binary (`2brain mcp <target>`) |
 | state root | `~/.2brain` (legacy `~/.arsumbris` is a symlink), unit `2brain-engine.service` |
 | tools | 52 (33 read, 16 mutate behind three grants, 2 discover, 1 watch) |
-| read contract | one `VERB_SHAPES` table; the table is checked by the captured fixtures, not by memory |
+| read contract | one `VERB_SHAPES` table plus typed payloads for the eight hot reads; both checked by the captured fixtures, not by memory |
 | judge | batched: 100 questions per call, 0.76 s, 7.6 ms/question (`docs/research/judge-capabilities.md`) |
-| rebrand | tiers A, B, **D done**; tier C open with an inventory (`docs/research/tier-c-inventory.md`) |
+| rebrand | tiers A, B, **D done**; tier C steps 1–2 done (parser half), 24 engine sites left (`docs/research/tier-c-seams.md`) |
 | tool names | `au_*` — a client contract; the rename is a decision, not a sweep (`docs/naming.md`) |
 | FSM run log | done — `tools/fsm/check_run.py`, seven rules, `--selftest` proves each bites |
 | hygiene pass | done and applied — `tools/hygiene/pass.py`, `inbox/hygiene-2026-11-16.md` |
@@ -32,9 +32,10 @@ including the client's own stdio round trip; the daemon holds the IR at 72.6 MiB
 would duplicate that per session *and* become a second writer. What is left is not transport, it is
 ceremony:
 
-1. **per-verb typed payloads** for the hot reads (`overview`, `content`, `files`, `search`, `diagnostics`,
-   `hubs`, `graph_health`) — the shape table is the first half; typing the payload is the second, and the
-   gate is that a payload field the tool promises cannot disappear without a compile error.
+1. **per-verb typed payloads — done** (`270f57f`): eight hot reads check the type of every field they name,
+   tolerantly (a missing field is not an error; a field of the wrong type is). Completeness stays the
+   client's `outputSchema` job, and the first strict attempt was rejected for coupling eight unrelated test
+   files to the payload shape.
 2. **one source for the verb list** — `VERB_SHAPES` holds every read verb, but the tool→verb mapping still
    lives in the router. Gate: a test that every read tool names a verb in the table.
 3. **result modes** — measured and decided (`docs/research/payload-modes.md`): the default stays `both`,
