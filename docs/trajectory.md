@@ -438,6 +438,24 @@ The third row is the one to keep apart: **two defects that present identically a
 lookup we can add; vocabulary is a statement the note has to make about itself (an alias), and no search change
 substitutes for it.
 
+### The refusal lane, and the field it says is doing two jobs
+
+The 38 notes the link pass refused now each carry a decision and a reason (`docs/research/intake-decisions-2026-11-16.md`):
+9 link, 4 adopt into an existing family, 8 frontmatter only, 18 leave alone. All thirteen proposed edges were checked
+before being proposed — target resolves, edge absent, no cycle within five hops.
+
+The arithmetic corrects the previous lane's hope: **`topics:` gives inbound to the note's neighbour, not to the note.**
+A pass that links an isolated note raises its out-degree and its neighbour's in-degree, so the proposal moves
+zero-inbound from 14 to 10 and no-edge-at-all from 12 to 4, but four notes stay completely isolated because nothing in
+the corpus is in their subject. Filling the rest needs a pass that points AT them.
+
+And the field that keeps coming up: **350 of 433 `family:` values have exactly one member.** Two different things are
+called a family — a provenance (`f/arxiv-2605.29713`, `f/gh-hashcat-hashcat`, which duplicate `source_url`) and a
+topic (`f/voice-agents`, `f/decision-models`, which promise a group nobody joined); 13 of the 28 single-member notes
+already carry an outgoing `topics:` pointing outside their own family. Any future intake automation that trusts
+`family` as a grouping would be trusting a field with two meanings. The next step there is a decision about the field,
+not another pass over the notes.
+
 ### What that changes in the stages
 
 - **Stage 1** is done except the deploy window; #4 is the one remaining piece of design debt it created. The window
