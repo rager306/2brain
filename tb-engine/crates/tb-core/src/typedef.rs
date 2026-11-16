@@ -1471,7 +1471,7 @@ fn attach_docstrings(
     // spans absolute and honors the `\[[` escape.
     for c in &comments {
         let target = if c.own_line {
-            if first_key_offset.map_or(false, |fk| c.hash_offset < fk) {
+            if first_key_offset.is_some_and(|fk| c.hash_offset < fk) {
                 td_parts.push(c.text.clone());
                 for link in crate::instance::nav_links_in_range(source, doc_content_range(c)) {
                     doc_links.push(crate::instance::DocstringLink {

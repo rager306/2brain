@@ -747,6 +747,9 @@ pub(crate) struct QualifierCandidate {
 }
 
 /// Whether a `field{type}` qualifier resolves to ONE declaration.
+// The enum is returned and matched on immediately, never stored in bulk, so
+// boxing the large variant would only add an allocation per resolution.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum QualifierResolution {
     /// A single shape is reached — one declaring origin, or several that are
     /// token-equal (an auto-unified field). The chosen candidate.

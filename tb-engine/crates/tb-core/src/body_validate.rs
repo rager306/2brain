@@ -50,10 +50,7 @@ pub fn validate_body(
 
     // Resolve the effective body template by walking the instance's claims
     // and splicing use:.
-    let template = match build_effective_template(ctx, instance, &mut diags) {
-        Some(t) => t,
-        None => Vec::new(),
-    };
+    let template = build_effective_template(ctx, instance, &mut diags).unwrap_or_default();
     let body_declaring = !template.is_empty();
 
     // [[type-def body::au-type-system]] format coupling.
@@ -81,10 +78,7 @@ pub fn validate_body(
     // Computed BEFORE the value layer: `effective_values` needs it to decide
     // whether a whole-value wikilink is a reference or a literal string, which
     // is a per-SLOT question ([[type reference::au-type-system]]).
-    let shape = match crate::validate::effective_shape_for(ctx, &instance.type_claim) {
-        Ok(s) => Some(s),
-        Err(EffectiveShapeError::UnknownType(_)) => None,
-    };
+    let shape = crate::validate::effective_shape_for(ctx, &instance.type_claim).ok();
 
     let values = effective_values(instance, &events, body_byte_offset, shape.as_ref());
 
@@ -473,6 +467,10 @@ fn collect_body_section_paths(
     (paths, spans)
 }
 
+// Eight positional parameters are the walk's whole state: the instance, the
+// items, the two path prefixes, the section/heading tables, the value map and
+// the sink. Bundling them into a struct would only move the list to a literal.
+#[allow(clippy::too_many_arguments)]
 fn walk_scope(
     instance: &Instance,
     items: &[BodyItem],

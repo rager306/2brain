@@ -498,24 +498,6 @@ fn format_field_list(names: &[&str]) -> String {
     }
 }
 
-/// [[type-def field shape::au-type-system]] prose-extractability for `fills:` bindings.
-///
-/// Every leaf shape is extractable via some surface — primitives via
-/// inline-code, enums via inline-code, references via wikilink, records
-/// and inline-or-reference via a marked fence.
-///
-/// Lists recurse on the inner shape.
-///
-/// Unions and intersections are extractable when every branch is
-/// individually extractable AND at least one branch is non-primitive.
-/// The mixed case `<String | T*>` is the [[aspiration - type system ideas]] carve-out — the
-/// reference branch gives the contribution a clear surface (wikilink)
-/// distinct from the primitive surface (inline-code), so authors can
-/// disambiguate at the site. Compounds whose branches are entirely
-/// primitives (e.g. `<String | Number>`) are rejected per [[type-def field shape::au-type-system]] —
-/// inline-code can carry either, and the engine doesn't currently
-/// dispatch on parsed value shape inside `fills:`.
-
 fn check_body_use_in_closure(graph: &TypeGraph, td: &TypeDef, diags: &mut Vec<Diagnostic>) {
     let Some(body) = td.body.as_ref() else {
         return;
@@ -729,11 +711,8 @@ fn check_parent_redundant_claims(graph: &TypeGraph, td: &TypeDef, diags: &mut Ve
     ));
 }
 
-/// Type-def-level mixin-collision ([[type-def fields collision - auto-unify and qualified field::au-type-system]] — cannot be deferred to
-/// instance time). When a type-def has `type: [a, b, ...]` parents, walk
-/// the union of their closures and emit `mixin-collision` for any field
-/// name whose origins disagree on shape.
-///
+// A type-def-level mixin-collision check (walk the parents' closures and emit
+// `mixin-collision` for a field whose origins disagree on shape) does not exist.
 // A divergent inherited field is LEGAL at a type-def ([[type-def fields collision - auto-unify and qualified field::au-type-system]]): the type is
 // not broken, and the collision surfaces per-instance at a bare use, where it can
 // actually be resolved by a qualifier. So there is no type-graph-load
@@ -1119,12 +1098,10 @@ fn check_brand_not_referenceable(td: &TypeDef, graph: &TypeGraph, diags: &mut Ve
 /// `slot-references-absent-type` to suggest the primitive when the user
 /// most likely typo'd a case (e.g. `string` for `String`).
 fn primitive_typo_hint(name: &str) -> Option<&'static str> {
-    for &p in PRIMITIVE_NAMES {
-        if name != p && name.eq_ignore_ascii_case(p) {
-            return Some(p);
-        }
-    }
-    None
+    PRIMITIVE_NAMES
+        .iter()
+        .copied()
+        .find(|&p| name != p && name.eq_ignore_ascii_case(p))
 }
 
 // ----- subsumption-in-slot-union / -intersection (spec [[type-def shape compound::au-type-system]]) -----
@@ -1499,7 +1476,7 @@ fn check_slot_cardinality_subsumption(td: &TypeDef, diags: &mut Vec<Diagnostic>)
 /// Non-reference branches in a matching compound (primitives, enums,
 /// lists, nested compounds) are skipped — they have no closure to compare.
 fn collect_slot_compound_branch_names(shape: &Shape, op: CompoundRefOp) -> Vec<Vec<&str>> {
-    fn collect_ref_names<'a>(branches: &'a [Shape]) -> Vec<&'a str> {
+    fn collect_ref_names(branches: &[Shape]) -> Vec<&str> {
         branches
             .iter()
             .filter_map(|b| match b {
@@ -1567,10 +1544,6 @@ fn collect_slot_compound_branch_names(shape: &Shape, op: CompoundRefOp) -> Vec<V
     out
 }
 
-/// Walk a `Shape` and yield every type-def name a `Shape::Reference` targets,
-/// descending through `Shape::List` wrappers and into `Shape::Union` /
-/// `Shape::Intersection` branches. Returns names in source order so
-/// diagnostics are stable.
 // ----- duplicate meta sub-regions -----
 
 fn check_duplicate_meta(td: &TypeDef, diags: &mut Vec<Diagnostic>) {
@@ -3939,6 +3912,9 @@ mod tests {
     /// shaped `[Section parent (fills! parent_fields) { Section child
     /// (fills child_fields, optionally exclusive) }]`. Used to drive
     /// the nested-exclusivity check directly.
+    // A fixture builder: its arguments are the shape of the fixture, read at the
+    // call site; a struct would make every fixture two literals.
+    #[allow(clippy::too_many_arguments)]
     fn td_with_nested_fills(
         td_name: &str,
         fields: &[&str],

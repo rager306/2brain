@@ -38,6 +38,11 @@ impl TypeClaim {
         }
     }
 
+    /// True when the claim names no type at all — only a `type: []` list can.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// True when the claim names exactly one type (bare scalar, or a
     /// 1-element list). Multi-claim mixin (N≥2 list) is handled by
     /// `closure::effective_shape` directly; this helper is mainly used
@@ -386,7 +391,7 @@ pub fn parse_instance_stamped(
 
     // A written `type:` wins; else stamp the caller's claim when the file wrote
     // no key (a malformed written key already erred, so it is not stamped over).
-    let type_claim = type_claim.or_else(|| match stamp {
+    let type_claim = type_claim.or(match stamp {
         Some(claim) if !saw_type_key => Some(TypeClaim::Bare(claim)),
         _ => None,
     });
@@ -1816,7 +1821,7 @@ m:
         let codes: Vec<&str> = res.diagnostics.iter().map(|d| d.code.as_str()).collect();
         assert_eq!(codes, vec!["dangling-doc-comment"]);
         let inst = res.instance.unwrap();
-        assert!(inst.field_docs.get("m").is_none());
+        assert!(!inst.field_docs.contains_key("m"));
         assert!(inline_of(&inst.fields[0].value).doc.is_none());
     }
 

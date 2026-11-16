@@ -51,8 +51,11 @@ struct ResolveCtx<'a> {
     /// fold is pure over `(base, own_repo, seeds, resolver)`, all fixed within a
     /// walk, so the cache is sound; it is per-walk, so it never outlives the
     /// inputs it is keyed against. See [[codereview - 2609101214 - cross-repo nested discovery parity, healthy with one efficiency cliff]].
-    fold_cache: RefCell<BTreeMap<Vec<(TypeName, String)>, Rc<ResolutionGraph>>>,
+    fold_cache: RefCell<FoldCache>,
 }
+
+/// [`ResolveCtx::fold_cache`] key: a sorted `::repo` seed set, mapped to its fold.
+type FoldCache = BTreeMap<Vec<(TypeName, String)>, Rc<ResolutionGraph>>;
 
 impl<'a> ResolveCtx<'a> {
     fn new(

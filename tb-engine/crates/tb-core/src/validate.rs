@@ -358,6 +358,9 @@ pub(crate) fn effective_shape_for(
 ///
 /// `slot` is the slot's ELEMENT shape: a body contribution supplies one element,
 /// never a whole list, so a `String[]` slot checks its member against `String`.
+// The arguments are one body contribution: its value, span, slot and site.
+// A context struct would rename the list, not shorten it.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn check_body_scalar_value(
     ctx: &ValidateContext,
     instance_path: &Path,
@@ -1141,8 +1144,13 @@ struct FieldModel {
     /// needs. Real file spans are distinct, so an ambiguity arises only from
     /// synthetic zero-spans (unit tests); there the lookup misses and the
     /// re-parse fallback runs, which is authoritative either way.
-    by_span: std::collections::HashMap<(usize, usize), Option<(ContributionValue, Option<String>)>>,
+    by_span: ValuesBySpan,
 }
+
+/// Frontmatter values keyed by `(start, end)` span, each with the brand its
+/// container was written with.
+type ValuesBySpan =
+    std::collections::HashMap<(usize, usize), Option<(ContributionValue, Option<String>)>>;
 
 impl FieldModel {
     /// The model node for a value at `span`, `None` when the span is not a
@@ -1189,10 +1197,7 @@ fn build_field_model(
     shape: &EffectiveShape,
 ) -> FieldModel {
     use std::collections::hash_map::Entry;
-    let mut by_span: std::collections::HashMap<
-        (usize, usize),
-        Option<(ContributionValue, Option<String>)>,
-    > = std::collections::HashMap::new();
+    let mut by_span: ValuesBySpan = ValuesBySpan::new();
     let values = elaborate_fields(fields, source_path, Some(shape));
     for containers in values.values() {
         for container in containers {
@@ -1353,26 +1358,25 @@ fn check_value_against_shape(
             | Shape::InlineOrReference(_)
             | Shape::CompoundReference { .. }
             | Shape::DefReference(_)
-    ) {
-        if matches!(value, InstanceValue::String(_)) {
-            // A pinned value at a non-`*@` reference slot. Pinned-ness comes from
-            // the model node: a `Reference` carrying a parsed `commit`. Any other
-            // node, or no node, is not a pinned reference — the elaborator classifies
-            // every `[[…]]`-shaped value into a `Reference` / `MalformedReference`
-            // node, so a String with no `Reference` node here is not a wikilink and
-            // never carries a pin. A malformed pin is NOT caught here; it falls
-            // through to the inner arm's node handling, as before.
-            let pinned = matches!(
-                scope.model.and_then(|m| m.node(value_span)),
-                Some(ContributionValue::Reference { commit: Some(_), target, .. })
-                    if !target.is_empty()
-            );
-            if pinned {
-                let prefix = format_field_prefix(field_key, element_index);
-                return vec![unexpected_commit_pin_diag(
-                    scope, value_span, origin, &prefix, shape,
-                )];
-            }
+    ) && matches!(value, InstanceValue::String(_))
+    {
+        // A pinned value at a non-`*@` reference slot. Pinned-ness comes from
+        // the model node: a `Reference` carrying a parsed `commit`. Any other
+        // node, or no node, is not a pinned reference — the elaborator classifies
+        // every `[[…]]`-shaped value into a `Reference` / `MalformedReference`
+        // node, so a String with no `Reference` node here is not a wikilink and
+        // never carries a pin. A malformed pin is NOT caught here; it falls
+        // through to the inner arm's node handling, as before.
+        let pinned = matches!(
+            scope.model.and_then(|m| m.node(value_span)),
+            Some(ContributionValue::Reference { commit: Some(_), target, .. })
+                if !target.is_empty()
+        );
+        if pinned {
+            let prefix = format_field_prefix(field_key, element_index);
+            return vec![unexpected_commit_pin_diag(
+                scope, value_span, origin, &prefix, shape,
+            )];
         }
     }
     check_value_against_shape_inner(
@@ -2194,6 +2198,9 @@ fn check_value_against_shape_inner(
 /// Validate a value against a `<X | Y>*` / `<X & Y>*` slot. Same wikilink
 /// resolution as `check_reference`, but the target's `type:` closure must
 /// satisfy any (Union) or all (Intersection) of `branches`.
+// The arguments are the value site plus the compound's branches and slot;
+// a context struct would only move the list into a literal.
+#[allow(clippy::too_many_arguments)]
 fn check_compound_reference_star(
     scope: &Scope,
     value: &InstanceValue,
@@ -2713,6 +2720,9 @@ impl<'a> InlineCompat<'a> {
 ///
 /// Returns empty when the slot imposes no inline demand (so nothing to check) or
 /// when the claim satisfies it.
+// The arguments are the fence's value site plus its slot and shape span.
+// A context struct would rename the list, not shorten it.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn check_fence_record_against_slot(
     ctx: &ValidateContext,
     instance_path: &Path,
@@ -2835,7 +2845,7 @@ fn check_inline_claim_compat(
     // qualified branch whose shape diagnostic the peer gate owns, so the whole
     // compound compat is skipped rather than risk a false mismatch.
     let folded = match scope.ctx.resolution {
-        Some(rg) => folded_closure_ids(rg, &identity_claim),
+        Some(rg) => folded_closure_ids(rg, identity_claim),
         None => BTreeSet::new(),
     };
     let branch_pass = |b: &QualBranch| -> Option<bool> {
@@ -2856,7 +2866,7 @@ fn check_inline_claim_compat(
             if !in_closure(name) {
                 Some(format!(
                     "{}: inline value claims '{}' but the slot demands '{}' — declared closure does not include it",
-                    &prefix,
+                    prefix,
                     claim_summary.join(", "),
                     name
                 ))
@@ -2867,7 +2877,7 @@ fn check_inline_claim_compat(
         InlineCompat::Union(branches) => {
             match branches
                 .iter()
-                .map(|b| branch_pass(b))
+                .map(&branch_pass)
                 .collect::<Option<Vec<bool>>>()
             {
                 // An uncheckable branch (peer gate owns it): the value may
@@ -2876,7 +2886,7 @@ fn check_inline_claim_compat(
                 Some(oks) if oks.iter().any(|&ok| ok) => None,
                 Some(_) => Some(format!(
                     "{}: inline value claims '{}' but no inline-capable branch of union slot {} is in its closure; only a bare-record or '&' branch of a union hosts an inline value",
-                    &prefix,
+                    prefix,
                     claim_summary.join(", "),
                     slot_render()
                 )),
@@ -2885,7 +2895,7 @@ fn check_inline_claim_compat(
         InlineCompat::Intersection(branches) => {
             match branches
                 .iter()
-                .map(|b| branch_pass(b))
+                .map(&branch_pass)
                 .collect::<Option<Vec<bool>>>()
             {
                 // An uncheckable branch: cannot confirm every branch holds, so
@@ -2920,7 +2930,7 @@ fn check_inline_claim_compat(
             severity: Severity::Error,
             span: Span::new(
                 scope.instance_path.to_path_buf(),
-                claim_span(&identity_claim),
+                claim_span(identity_claim),
             ),
             message: msg,
             related: vec![outer_origin.related_span()],
@@ -2938,6 +2948,9 @@ fn check_inline_claim_compat(
     diags
 }
 
+// The arguments are the inline value site plus its slot and element index;
+// a context struct would only move the list into a literal.
+#[allow(clippy::too_many_arguments)]
 fn validate_inline_value(
     scope: &Scope,
     inline: &InlineValue,
@@ -3106,7 +3119,7 @@ fn validate_inline_value(
                 ),
                 message: format!(
                     "{}: inline value claims type-def '{}' which is not present in the type graph",
-                    &prefix,
+                    prefix,
                     name.as_str()
                 ),
                 related: vec![outer_origin.related_span()],
@@ -3308,7 +3321,7 @@ fn validate_qualified_inline_demand(
                 span: Span::new(scope.instance_path.to_path_buf(), claim_span(claim)),
                 message: format!(
                     "{}: inline value claims type-def '{}' which is not present in the type graph",
-                    &prefix,
+                    prefix,
                     name.as_str()
                 ),
                 related: vec![outer_origin.related_span()],
@@ -3489,6 +3502,7 @@ pub fn validate_meta_bodies(ctx: &ValidateContext) -> Vec<Diagnostic> {
 /// meta-legal. Skips the cases other gates own:
 /// - a bare target absent from the graph, `required-meta-absent-type` (load_checks).
 /// - a qualified target that does not resolve, the `type-repo-*` / `peer-type-not-found` gate.
+///
 /// Skipped entirely without a marker or cross-repo seam (au-core's own tests).
 fn check_required_meta_is_meta(ctx: &ValidateContext, td: &TypeDef) -> Vec<Diagnostic> {
     let mut diags: Vec<Diagnostic> = Vec::new();
@@ -3830,6 +3844,9 @@ fn validate_meta_subregion(
     diags
 }
 
+// The arguments are the reference's value site plus its demanded target.
+// A context struct would rename the list, not shorten it.
+#[allow(clippy::too_many_arguments)]
 fn check_reference(
     scope: &Scope,
     value: &InstanceValue,
@@ -4612,7 +4629,7 @@ fn check_def_reference_parsed(
     };
     let results: Vec<Option<bool>> = match bound {
         DefBound::Single(t) => vec![ceiling_ok(t)],
-        DefBound::Compound { branches, .. } => branches.iter().map(|t| ceiling_ok(t)).collect(),
+        DefBound::Compound { branches, .. } => branches.iter().map(ceiling_ok).collect(),
     };
     // An uncheckable ceiling makes the whole bound uncheckable (the gate owns the
     // ceiling's shape diagnostic), so skip rather than false-fire.
@@ -4906,7 +4923,7 @@ pub(crate) fn refinement_region_subset(
         // so be conservative, symmetric with the numeric `num_bound` guard.
         Primitive::Date | Primitive::DateTime => {
             let valid = |bd: &Option<tb_grammar::Bound>| {
-                bd.as_ref().map_or(true, |b| match base {
+                bd.as_ref().is_none_or(|b| match base {
                     Primitive::Date => is_iso_date(&b.value),
                     Primitive::DateTime => is_iso_datetime(&b.value),
                     _ => true,
@@ -4995,6 +5012,9 @@ fn interval_contains_integer(lv: f64, li: bool, hv: f64, hincl: bool) -> bool {
     if hincl { n <= hv } else { n < hv }
 }
 
+// The arguments are the list's value site plus its element shape and bounds.
+// A context struct would only move the list into a literal.
+#[allow(clippy::too_many_arguments)]
 fn check_list(
     scope: &Scope,
     value: &InstanceValue,
@@ -5806,6 +5826,9 @@ fn check_bare_field(
 /// `provided` — exactly one slot, the one named by the qualifier (spec
 /// [[type-def fields collision - auto-unify and qualified field::au-type-system]]). Failed-resolution branches do NOT contribute (the qualifier
 /// diagnostic is the failure mode).
+// The arguments are the field, its qualifier and the shared diagnostic state.
+// A context struct would only move the list into a literal.
+#[allow(clippy::too_many_arguments)]
 fn check_qualified_field(
     scope: &Scope,
     shape: &EffectiveShape,
@@ -5884,6 +5907,9 @@ fn check_qualified_field(
 /// yields the originator's authored `OriginId` (`name` for own, `name::repo` for
 /// a peer), so a caller keys the `provided` slot by the SAME identity the
 /// effective shape stored it under.
+// The Err is the diagnostic the caller records verbatim, as everywhere in this
+// crate; boxing it would ripple through every `Err(diag)` site.
+#[allow(clippy::result_large_err)]
 pub(crate) fn resolve_qualifier(
     ctx: &ValidateContext<'_>,
     shape: &EffectiveShape,
@@ -8657,7 +8683,7 @@ mod tests {
             vec![
                 ("s", InstanceValue::String("hi".into())),
                 ("n_int", InstanceValue::Integer(42)),
-                ("n_float", InstanceValue::Float(3.14)),
+                ("n_float", InstanceValue::Float(2.5)),
                 ("b", InstanceValue::Boolean(true)),
                 ("d", InstanceValue::String("2026-04-12".into())),
                 ("dt", InstanceValue::String("2026-04-12T133000Z".into())),

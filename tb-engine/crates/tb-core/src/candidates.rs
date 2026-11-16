@@ -391,12 +391,12 @@ fn json_pointer_escape(name: &str) -> String {
 /// Build a name → slot-shape map for the current host's effective shape.
 ///
 /// Iterates every type-def in the closure and collects each declared
-/// field's parsed shape, keyed by field name. With width-only subtyping
-/// + no-redeclare ([[type subtyping width-only::au-type-system]]), each name has exactly one declaring origin
-/// per closure (mixin auto-unify keeps shapes token-equal), so the
-/// "first encountered" pick is canonical. Fields whose shape failed to
-/// parse (Err) are skipped — they're already a load-time diagnostic and
-/// can't drive slot dispatch.
+/// field's parsed shape, keyed by field name. With width-only subtyping +
+/// no-redeclare ([[type subtyping width-only::au-type-system]]), each name has
+/// exactly one declaring origin per closure (mixin auto-unify keeps shapes
+/// token-equal), so the "first encountered" pick is canonical. Fields whose
+/// shape failed to parse (Err) are skipped — they're already a load-time
+/// diagnostic and can't drive slot dispatch.
 pub(crate) fn build_field_shape_map<'a>(
     graph: &'a TypeGraph,
     closure: &BTreeSet<TypeName>,
@@ -603,7 +603,7 @@ pub fn scan(graph: &TypeGraph, instance: &Instance) -> Vec<Candidate> {
 /// construction (`scan_top_level` filters non-satisfied), so the
 /// discriminator is the *size* of that set, not how many of its members
 /// are present.
-pub fn rank(candidates: &mut Vec<Candidate>) {
+pub fn rank(candidates: &mut [Candidate]) {
     candidates.sort_by(|a, b| {
         b.satisfied_required
             .len()

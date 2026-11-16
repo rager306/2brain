@@ -89,7 +89,7 @@ pub type BodyTemplate = Vec<BodyItem>;
 /// Is the type-def body-declaring per [[type-def body::au-type-system]] — i.e. carries one or more items
 /// (not just an empty `body: []`)?
 pub fn is_body_declaring(body: Option<&BodyTemplate>) -> bool {
-    body.map_or(false, |b| !b.is_empty())
+    body.is_some_and(|b| !b.is_empty())
 }
 
 /// Post-splice body for `name`: resolves every top-level `use: T` against
