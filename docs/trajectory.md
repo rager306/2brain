@@ -18,7 +18,7 @@ cost, and the evidence it would produce.
 | tool names | `au_*` — a client contract; the rename is a decision, not a sweep (`docs/naming.md`) |
 | FSM run log | done — `tools/fsm/check_run.py`, seven rules, `--selftest` proves each bites |
 | hygiene pass | done and applied — `tools/hygiene/pass.py`, `inbox/hygiene-2026-11-16.md` |
-| ranking | coverage weighting landed and measured; freshness prior measured and **rejected** |
+| ranking | coverage weighting + **proximity** landed and measured; freshness prior rejected, its retry now has a query class and a decision rule |
 
 Gates that must stay green on every change: adapter 207 tests, engine `--lib` 685/1 (the one failure is the
 documented root-runner), `search_read` 6/6, `fmt --check`, `clippy -D warnings` on the adapter, and
@@ -73,6 +73,13 @@ is not a memory diet (1.2% of RSS); it is the payment for proximity.
 - **Gate**: proximity lifts literal hit@1 above 0.571 with topical hit@1 not below 0.642 and durable not
   below 0.500, measured on the candidate copy; accepted changes are blessed in the golden `au_search` capture
   and swapped in with the same rollback artifacts as the sixth swap.
+- **Landed and served** (`1ee2463`, seventh swap): literal hit@1 0.571 → **0.714** with hit@5 **1.000**, topical
+  0.642 → 0.660, durable 0.500 → 0.538; production reproduces the candidate's numbers exactly. Cost: 3 359 B/doc
+  of 6 144, release p50 139 µs / p95 689 µs. The rejected attempt (description-only adjacency) and the swept
+  constants are recorded with the code.
+- **What would pay next**: the tail is set by the most frequent query term, because the pass walks every
+  unordered term pair before `min_should_match` filters. Running it only on documents that already satisfy the
+  minimum, or skipping high-document-frequency pairs, is the cheap fix if the tail starts to bite.
 - **Risk**: the index's per-document footprint doubles with positions; the budget is the constraint, not
   the code.
 
