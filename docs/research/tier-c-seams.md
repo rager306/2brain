@@ -162,3 +162,34 @@ Three things this run settles that the plan could only assert:
 - the refusals fire on real input, not only on fixtures — the vault is the one repository in scope that cannot be
   migrated while someone is writing to it;
 - `--dry-run` wrote nothing: the working tree hash of every repository was unchanged after the run.
+
+## The first member, migrated and compared — 2026-11-16
+
+`au migrate identity --apply --root tb-type-system`:
+
+```
+  migrated  tb-type-system  1 claim line in 1 file
+  commit    migrate identity: tb-type-system
+  rewrote   README.md  (1 claim line)
+```
+
+`.arsumbris/` became `.2brain/`, `README.md`'s claim became `tb.engine.readme::tb-engine`, one commit, clean
+tree. Its `repo.yaml` carries no `type:` line, so there was no claim inside it to rewrite — the case the inventory
+called "3 files with no written type".
+
+The engine then served the migrated member from a temporary daemon with its own `HOME`, and the same check ran
+against the parent commit in a throwaway worktree:
+
+| | before (`e9f1368`) | after (`b33795b`) |
+|---|---|---|
+| members | 1 | 1 |
+| type definitions | 12 | 12 |
+| diagnostics | **3** | **3** |
+| which | `engine-schema-type-unwritten`, `repo-folder-name-mismatch`, `body-section-missing` | identical |
+
+Identical, including the three diagnostics that predate the migration and are content issues, not identity ones:
+the manifest still has no written `type:`, the directory is `tb-type-system` while the manifest names
+`au-type-system` (member identity was deliberately not renamed), and the README lacks a section the template
+expects.
+
+That is what step 5 is supposed to look like: the rename and the claims change, nothing else does.
