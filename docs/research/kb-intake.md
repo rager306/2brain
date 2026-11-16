@@ -48,3 +48,24 @@ weakness the durability probe found in the other direction.
 
 The measurable target: the unlinked share and the inbox depth fall while the note count stays flat. If the count
 must rise, it should rise in `knowledge/` with a source and a link already attached.
+
+## The lifecycle field carries no signal yet
+
+`status:` across the vault, 2026-11-16:
+
+| value | count |
+|---|---|
+| `current` | 993 |
+| `pending` | 7 |
+| `active` | 3 |
+| `aging` | 1 |
+| `acknowledged` | 1 |
+| — | 3 rows that are documentation, not values (`current \| pending \| aging \| …`) |
+
+So 99.3% of the corpus says `current`, and the five other values look like three different people's vocabularies
+rather than one enum. Any "supersede the old decision" flow built on this field would be reading a constant.
+
+That is the same lesson as the search sets: **a field that is never allowed to be false measures nothing.** Before
+the lifecycle becomes load-bearing, it needs a small closed vocabulary (`current` / `superseded` / `proposed` /
+`retired`), a rule for who may write it, and at least one real `superseded` note per superseded topic. Until then
+the honest statement is that 2brain stores statuses, not that it tracks currency.
