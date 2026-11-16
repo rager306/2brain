@@ -32,6 +32,9 @@ jobs:
       # The adapter links the engine crates, so the engine's target dir is shared.
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
+      # `hotpath` is the only feature either crate has; measured at 0 findings on the tree of 2026-11-16, so
+      # it is a gate rather than a stretch goal: a feature that only compiles one way is not gated at all.
+      - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test
 
   engine:
@@ -51,6 +54,7 @@ jobs:
           workspaces: tb-engine
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test -p tb-core
       - run: cargo test -p tb-cli
       - run: cargo test -p tb-engine --lib
