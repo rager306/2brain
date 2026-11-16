@@ -193,3 +193,38 @@ the manifest still has no written `type:`, the directory is `tb-type-system` whi
 expects.
 
 That is what step 5 is supposed to look like: the rename and the claims change, nothing else does.
+
+## The rest of the monorepo, migrated — 2026-11-16
+
+Thirteen more members, one commit each (`migrate identity: <name>`), `tb-type-system` already done:
+
+```
+tb-agent-guides  tb-base-types  tb-competency  tb-govern  tb-ingest  tb-rules  tb-skills
+tb-tree-research tb-weave       tb-writing-style
+tb-defaults/{blank,host-bundle,minimal}
+```
+
+Fourteen directories now carry `.2brain/`; the two-claim pattern held everywhere (the manifest plus one `README.md`
+line), except `host-bundle`, which has one.
+
+Three repositories were **deliberately not migrated**, and that is the plan rather than an omission:
+
+| repository | why it waits |
+|---|---|
+| `tb-mcp-sdk`, `tb-defaults/mcp-bundle` | both are members of the **live** workspace that `/root/vault` is served with, and a rename under a served workspace needs a daemon restart to be picked up cleanly — that belongs to a swap window, not to an afternoon |
+| `/root/vault` | the plan refuses it: dirty working tree. It is the one repository that cannot move while notes are being written |
+| `tb-defaults/{studio, au-tree-research-template, au-weave-template, au-arscontexta-template}` | templates, not registered repositories; the registry walk does not see them |
+
+Spot check after the run, each member served by its own temporary daemon, compared with the same member on the
+parent commit:
+
+| member | diagnostics before | after |
+|---|---:|---:|
+| `tb-rules` | 3 | **3** |
+| `tb-weave` | 61 | **61** |
+| `tb-type-system` | 3 | **3** |
+| `tb-defaults/minimal` | — | 17 (3 members mounted, content diagnostics) |
+
+The counts that look alarming are content issues that predate the migration; the A/B is by name and by count, and
+neither moved. What the migration changed is the directory name and the claim spelling, which is the whole point.
+
