@@ -198,6 +198,74 @@ The test of the workstream is the README: the quickstart should shrink to `insta
 client block that `doctor` can print. Efficiency and "smarter" behaviour belong to that same test — a command a
 reader has to look up twice has not been finished.
 
+## Direction, after the external review of 2026-11-16
+
+An independent review of commit `9cdc0b4` read the README, this trajectory, the search and mutation sources, the
+policy, CI, and the public discussions around neighbouring tools. Its verdict is the one worth keeping: **develop
+2brain as shared, checkable project memory for several agents** — continuing work across sessions and clients, a
+compact context with sources, and controlled change to markdown. The technical base is there; demand for 2brain
+specifically is not yet tested, and the review says so more honestly than any roadmap line could.
+
+### What the review corrected, and what it got wrong
+
+| review claim | what the repository shows |
+|---|---|
+| install needs sibling repositories, Node, pnpm, Electron | the serving path is one Rust binary; the review is describing the pre-fork project |
+| tier C/D rebrand is the quarter's priority | tier D is done; 16 of 20 in-scope repositories carry `.2brain/` |
+| `init`/`doctor` are not started | they shipped the same day the review was written |
+| the CI at that SHA is red | true at `43816449572`, a `fmt` failure from an in-flight edit; green since |
+| "−65% tokens" | it is a tool-catalogue character measurement, not a task-level token count |
+| the license allows a freemium/SaaS choice | the engine and server are **Sustainable Use 1.0**, not OSI; a hosted service is a rights question |
+
+Its four **write-contract findings** are the useful part, and two are real defects by our own standard:
+
+1. **`tb_create_file` is a read-then-write with no atomic precondition.** One server process serialises mutations,
+   two client processes do not: both read absence, both write, the second wins silently. Being fixed with an
+   engine-side create verb whose absence check happens where the write is serialised.
+2. **`tb_edit_file`'s `expected_hash` is a read-ledger token, not a whole-file compare-and-set.** The engine gets
+   `old_string`, so a concurrent change elsewhere in the file does not invalidate the edit. That is a defensible
+   fragment-edit contract, but it must be *stated* as one rather than left to be discovered.
+3. **`tb_rename_type` checks the grant on the member owning the definition** while the rewrite touches references in
+   other members. A rename that reaches an ungranted member must be refused or the affected set must be checked.
+4. **Diagnostics stay advisory on a normal mutation.** Right for drafts; wrong for promoting into accepted
+   knowledge, which is a separate mode the schema does not have yet.
+
+### What changes in this trajectory because of it
+
+- **The milestone is a scenario, not a component**: *two different agents safely continue one project on one
+  knowledge base.* Done means: a clean-machine install, agent A records a decision with its evidence, agent B finds
+  it inside a bounded context and continues, a concurrent edit produces the intended conflict, a lost reply is
+  reconciled without double-applying, the change is in history, and every step is reproducible on a published SHA.
+- **Search evidence moves ahead of search features.** The three sets are synthetic (literal and topical are built
+  from the notes themselves; durable encodes a preference we chose). They measure rank stability, not usefulness.
+  The next instrument is a task set with real questions — exact identifier, paraphrase, Russian into English
+  material, multi-note questions, superseded decisions, contradictions, and questions the base cannot answer —
+  labelled with the **minimally sufficient evidence**, not just the right note. Candidate generation is measured
+  before selection, because ranking cannot fix a document that never entered the pool.
+- **A `context` contract becomes a goal rather than a wish**: every answer says why a fragment is included, which
+  source and version backs it, what is missing, and whether anything conflicts. Built as a composition of existing
+  tools first; a new tool only if it measurably cuts calls and bytes.
+- **Knowledge-base maintenance moves from "nightly hygiene" to "proposal → checks → acceptance".** The review is
+  right that the judge is a triage filter (staleness accuracy 0.884 at recall 0.333), not an acceptance gate.
+- **Item 9 of the review — a study with 8–12 external users — is not executable here** and is dropped rather than
+  softly promised. What replaces it is dogfooding with measurement: this vault, two clients, the five scenarios
+  above, run weekly, with the same numbers recorded as would be reported to a user. Demand is then argued from our
+  own recorded use, or not argued at all.
+
+### The second direction: 2brain as the knowledge base itself
+
+The vault is not a by-product of the repository; it is the product this repository serves. Today it grows from one
+person's interests, which makes it a good corpus and a weak test of demand. Three things follow, none of which need
+external users:
+
+- **Make intake deliberate.** Every note should say where it came from (`source_url`, `provenance` are already in
+  the schema), and the nightly pass should report the corpus's own gaps — topics that are read but never written,
+  notes with no inbound link, claims with no source — rather than only duplicates and staleness.
+- **Measure the knowledge base, not only the code.** Notes, links, typed coverage, evidence-bearing notes, isolated
+  share, median outbound citations, and the five questions this vault fails to answer. A card and a weekly delta.
+- **Let the base answer its own questions.** The transient query class the search section needs can be harvested
+  from this vault's own inbox — questions written down and not yet answered are the most honest query set there is.
+
 ## What runs in parallel, and why it is safe
 
 These tracks touch different files and different gates, so they can run at the same time:
