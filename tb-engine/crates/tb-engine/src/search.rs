@@ -307,7 +307,8 @@ impl<const N: usize> PostingBlock<N> {
         self.bytes = bytes;
     }
 
-    /// The bytes this block's allocation holds.
+    /// The bytes this block's allocation holds. Test-only, like the index-level accounting that asks.
+    #[cfg(test)]
     fn memory_bytes(&self) -> usize {
         self.bytes.capacity()
     }
