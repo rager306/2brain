@@ -16,7 +16,7 @@ cost, and the evidence it would produce.
 | judge | batched: 100 questions per call, 0.76 s, 7.6 ms/question (`docs/research/judge-capabilities.md`) |
 | rebrand | tiers A, B, **D done**; tier C steps 1–3 done (38 identity sites, schema seams, canonicaliser), step 4 is the migration command |
 | tool names | **`tb_*`** — 52 tools, renamed from `au_*` on 2026-11-16 without an alias (`docs/naming.md`); the `_meta` key and the docs followed |
-| migration | **14 members migrated** to `.2brain/` with `au migrate identity --apply`, each verified against its parent commit with a temporary daemon; `tb-mcp-sdk` and `tb-defaults/mcp-bundle` wait for a daemon window, the vault for a clean tree |
+| migration | **16 of 20 in-scope repositories migrated** to `.2brain/`; the two served members moved in a window with byte-identical live reads; the vault waits for a clean tree |
 | FSM run log | done — `tools/fsm/check_run.py`, seven rules, `--selftest` proves each bites |
 | hygiene pass | done and applied — `tools/hygiene/pass.py`, `inbox/hygiene-2026-11-16.md` |
 | ranking | coverage weighting + **proximity** landed and measured; freshness prior rejected, its retry now has a query class and a decision rule |
@@ -170,6 +170,27 @@ CI itself exists for the first time (`ci.yml`: adapter fmt/clippy/tests, engine 
 re-renders on a metrics change). Its first run found a real portability defect: `.cargo/config.toml` pinned the
 shared target directory to `/root/2brain/.cargo-target`, so any checkout that was not this one could not build.
 The path is relative now.
+
+## Installation and first use — a workstream, not a footnote
+
+The README tells a newcomer to clone, build in `tb-engine`, copy `au` onto PATH by hand, run the adapter's
+install script, `mkdir .2brain`, write a two-line manifest, start a daemon, and hand-write a JSON block for their
+client. Every one of those steps exists because nothing automates it, and a public repository whose quickstart is
+six manual steps is a repository people read and do not run.
+
+Three commands are being built, in the binary that already exists:
+
+- **`2brain init <dir> [--template minimal|blank]`** — a workspace that opens with zero diagnostics: `git init`,
+  the manifest, optional template content, and the exact next command printed;
+- **`2brain doctor [<target>]`** — one answer to "is this working, and if not what do I do": binary and build
+  commit, engine binary, socket resolution, daemon liveness, member and diagnostic counts, and the server's own
+  tool count, each line `ok`/`warn`/`fail` with a sentence;
+- **a root `install.sh`** — build both binaries, install to `PREFIX`, print what comes next, never touch a running
+  daemon.
+
+The test of the workstream is the README: the quickstart should shrink to `install.sh`, `2brain init`, and the
+client block that `doctor` can print. Efficiency and "smarter" behaviour belong to that same test — a command a
+reader has to look up twice has not been finished.
 
 ## What runs in parallel, and why it is safe
 
