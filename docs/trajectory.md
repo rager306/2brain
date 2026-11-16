@@ -334,6 +334,42 @@ The rule this makes explicit: **an observation becomes an issue only with a repr
 the seven harness issues came with numbers (`fan_in=1449`, `229/2247`, seventeen `sleep` processes), and those are
 the ones a maintainer can act on without re-deriving the session.
 
+### The knowledge-base target, corrected by its own instrument
+
+The morning's number — 424 notes with no outbound link — was measured by a regex over the note body. The vault's
+convention is to put "what this note is about" in `topics:` as frontmatter wikilinks, and the engine counts those as
+field references, so the regex called a connected note isolated. Corrected the same day:
+
+| measure | value |
+|---|---:|
+| links, body + `topics:` | 4 886 (median 3 per note) |
+| notes with no link of any kind | **76** |
+| notes with no `topics:` link | 165 |
+| isolated in the graph (no edge either way) | 204 |
+
+Three consequences, in order of how much they change the plan:
+
+1. **The intake target is 76, not 424**, and the number that matters is the graph's 204 — a note nobody links to is
+   invisible to traversal even when it links outward.
+2. **Every metric must state what it counts.** Both tools now print body, `topics:` and total separately, and
+   `connect.py` no longer proposes a link for a note that has one. This is not a footnote: the wrong number was the
+   headline of a whole research note for a day.
+3. **The method held.** The error surfaced because two instruments disagreed on one note — `connect.py` said
+   "unlinked", `grep` found a link — and the disagreement was treated as a bug in the instrument rather than in the
+   vault. That is the procedure worth keeping: when two measurements of the same thing differ, the smaller claim is
+   usually the instrument's.
+
+### The next parallel lanes, and what each is allowed to claim
+
+- **Intake by family** (`f/` patterns and inbox drafts that carry `family:`): 67 of the 76 unlinked notes have a
+  family, so a link can be added inside an existing grouping rather than invented. Nothing crosses a family boundary.
+- **A search excerpt** (`tb_search` returning a short body window beside each match): the context pack costs four
+  calls per answer today, one of which is a `tb_content` per fragment purely to read 1 200 characters. If the match
+  carries the window, the pack is one call — and the measurement that decides it is the same twelve tasks, counting
+  calls and bytes, with the pack's evidence set required to stay identical.
+- **The release binaries** are older than today's changes, so a deploy needs a rebuild rather than a rebuild plus a
+  window. Doing it now makes the window short when it opens.
+
 ### What that changes in the stages
 
 - **Stage 1** is done except the deploy window; #4 is the one remaining piece of design debt it created.
