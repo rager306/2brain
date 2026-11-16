@@ -116,10 +116,20 @@ the vault, then release 2 flips `DEFS` and `BUILTIN_ENGINE_REPO`.
 
 ### 4. Counters, then whatever they justify
 
-The engine has no per-verb counters, so "is `tb_grep` slow or is the vault big" is answered with a
-stopwatch. One histogram per verb, aggregated per version, is ~80 lines and makes the next protocol or
-ranking experiment answerable without one. Nothing else in this queue should be sized before that data
-exists.
+The engine has no per-verb counters, so "is `tb_grep` slow or is the vault big" is answered with a stopwatch. A
+first attempt drafted the whole counter module — fixed log2 histogram, one relaxed atomic add per request, no lock
+on the hot path — and stopped at the wiring, which is the part that decides whether it is worth having:
+
+- `handle_request` dispatches through a 40-arm `match`, and the verb is known only inside each arm. Counting
+  without restructuring the dispatch needs `Request::verb(&self) -> &'static str`, a mechanical 40-arm map — real
+  work, but work that also gives the wire a single place to name a verb (the same class of "one source" the
+  adapter's `READ_VERBS` solved for tools);
+- and counters nobody can read are not counters: exposure means a field on an existing read (`graph_health` with a
+  `verbs` argument), a `WIRE.md` note, a re-blessed golden capture and one adapter passthrough.
+
+So the item is restated rather than half-built: **first `Request::verb()`, then the histogram, then the field**,
+with the census in `WIRE.md` as the test that the map is total. The drafted module is not in the tree — an
+unreferenced module is the "item without a consumer" this project deletes, and it would have been the second.
 
 ### 5. Freshness prior — measured a second time, rejected for a new reason
 
