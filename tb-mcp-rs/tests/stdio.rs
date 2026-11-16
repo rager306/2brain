@@ -75,10 +75,14 @@ fn exercise_protocol(requested_protocol: &str, expected_protocol: &str) {
             }
         }
     });
+    // The assertions below check output schemas and descriptions, so the launch
+    // asks for the full profile explicitly rather than leaning on the default.
     let mut child = OwnedChild(
         Command::new(env!("CARGO_BIN_EXE_2brain"))
             .arg("mcp")
             .arg(socket)
+            .arg("--tools")
+            .arg("full")
             .arg("--allow-mutations")
             .arg("--allow-composition")
             .arg("--allow-workspace-shape")

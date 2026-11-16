@@ -4386,7 +4386,7 @@ OPTIONS
     --allow-composition      Also grant dependency edits; implies --allow-mutations
     --allow-workspace-shape  Also grant member add/remove/role; implies --allow-mutations
     --principal <name>       Label for audit records; not authentication
-    --tools full|concise     Definition detail in tools/list (default full)
+    --tools full|concise     Definition detail in tools/list (default concise)
     --payload both|text|structured
                              Result representation (default both)
     --info                   Print MCP and launch information, then exit
@@ -4419,7 +4419,7 @@ fn parse_args(
     let mut allow_composition = false;
     let mut allow_workspace_shape = false;
     let mut principal = "unknown".to_owned();
-    let mut profile = ToolProfile::Full;
+    let mut profile = ToolProfile::Concise;
     let mut payload = PayloadMode::Both;
     let mut arguments = arguments.peekable();
     while let Some(argument) = arguments.next() {

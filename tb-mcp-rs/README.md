@@ -160,16 +160,26 @@ mutation landed and re-arms the guard. See [`docs/tools.md`](docs/tools.md).
 
 ## Agent-facing cost
 
-Two profiles and three payload modes, measured on the live workspace:
+Two profiles and three payload modes, measured on the repo build, 2026-11-16:
 
 | setting | tools/list | tokens (chars/4) |
 |---|---|---|
-| `--tools full` (default), 52 tools with all grants | 91 189 chars | ≈22 797 |
-| `--tools full`, 36 tools in a read-only launch | 57 620 chars | ≈14 405 |
-| `--tools concise`, 52 tools with all grants | 29 564 chars | ≈7 391 |
-| `--tools concise`, 36 tools in a read-only launch | 19 356 chars | ≈4 839 |
+| `--tools concise` (default), 36 tools in a read-only launch | 19 404 bytes | ≈4 851 |
+| `--tools full`, 36 tools in a read-only launch | 59 127 bytes | ≈14 782 |
+| `--tools concise` (default), 52 tools with all grants | 29 612 bytes | ≈7 403 |
+| `--tools full`, 52 tools with all grants | 93 549 bytes | ≈23 387 |
 | `--payload structured` | halves the payload a client reads when it uses `structuredContent` | |
 
+The concise profile is the default. It keeps every tool name, every parameter
+name, type, enum, bound, default, and the required set; it shortens each
+description to its first sentence and drops the output schema. What a client
+loses by default is per-parameter semantics and the output envelope — one
+`tb_describe_tool` call per tool returns the complete definition (measured
+describe payloads are byte-identical under both profiles). A 28-scenario
+routing test (26 answerable + 2 traps), two judge agents per arm, showed no
+wrong-tool or schema-invalid-argument difference between the arms; the trade
+and its evidence are in
+[`../docs/research/tool-surface-tokens-2026-11-16.md`](../docs/research/tool-surface-tokens-2026-11-16.md).
 `tb_search_tools` and `tb_describe_tool` serve the detail a concise profile
 withholds. The reasoning, sources, and break-even rule are in
 [`docs/progressive-disclosure.md`](docs/progressive-disclosure.md).

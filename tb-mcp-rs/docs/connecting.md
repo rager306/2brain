@@ -122,16 +122,17 @@ is the OS user that owns the engine socket.
 
 | flag | effect |
 |---|---|
-| `--tools concise` | one line per tool, no parameter descriptions or output schemas; full definitions via `tb_search_tools` / `tb_describe_tool` |
-| `--tools full` (default) | every definition up front |
+| `--tools concise` (default) | one line per tool, no parameter descriptions or output schemas; full definitions via `tb_search_tools` / `tb_describe_tool` |
+| `--tools full` | every definition up front |
 | `--payload both` (default) | text block and `structuredContent`, as the specification recommends |
 | `--payload structured` | no text block, for clients that read `structuredContent` and would otherwise pay twice |
 | `--payload text` | no `structuredContent` |
 
-Measured discovery cost on the live workspace: 91 189 chars in `full` and
-29 564 in `concise` for the 52-tool surface with all grants; a read-only launch
-advertises 36 tools at 57 620 and 19 356 chars (see
-`docs/progressive-disclosure.md`).
+Measured discovery cost on the repo build (2026-11-16): 19 404 bytes in the
+default `concise` and 59 127 in `full` for the 36-tool read-only surface; with
+all grants, 52 tools cost 29 612 (`concise`) or 93 549 bytes (`full`) — see
+[`../../docs/research/tool-surface-tokens-2026-11-16.md`](../../docs/research/tool-surface-tokens-2026-11-16.md)
+for what the default drops and what a `tb_describe_tool` call gives back.
 
 ## 6. Troubleshooting
 

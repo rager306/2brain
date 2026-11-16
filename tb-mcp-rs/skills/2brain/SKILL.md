@@ -30,7 +30,9 @@ One server: **`2brain`**, the Rust adapter over the engine socket.
 2. `tb_describe_tool {"name": "..."}` — the full definition with schemas.
 3. Call it.
 
-If the catalog was launched with `--tools concise`, the list you see is already one line per tool.
+The catalog defaults to the concise profile: the list you see is already one line per tool,
+and `tb_describe_tool` returns the full definition. A launch with `--tools full` shows
+complete definitions without the describe step.
 
 ## Read the result
 

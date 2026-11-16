@@ -126,7 +126,7 @@ tool" loops.
 |---|---|
 | ladder of detail | `tb_search_tools` with `detail: name \| summary \| schema` |
 | full definition on demand | `tb_describe_tool` |
-| concise profile | `--tools concise`: one-line descriptions, no `outputSchema`, no parameter descriptions or presentation keys |
+| concise profile | the DEFAULT (`--tools concise`): one-line descriptions, no `outputSchema`, no parameter descriptions or presentation keys; `--tools full` opts back in |
 | typed results | `outputSchema` + `structuredContent` on every tool (full profile) |
 | annotations | `readOnlyHint` / `destructiveHint` / `idempotentHint` on every tool |
 | result metadata | `_meta["io.2brain/engineVersion"]` |
@@ -154,3 +154,15 @@ difference between a usable agent and a blown context.
 
 For reference, the existing Python bridge advertises 49 tools in 42 625 chars
 (≈10 656 tokens) with no annotations and no output schemas.
+
+## Decision 2026-11-16: concise is the default
+
+Since 2026-11-16 the adapter launches in the concise profile unless
+`--tools full` is passed. The measurement behind the decision, the per-tool
+accounting of what the profile drops, and a 28-scenario routing test (26
+answerable + 2 traps, two judge agents per arm: no wrong-tool or
+schema-invalid-argument difference) are in
+[`../../docs/research/tool-surface-tokens-2026-11-16.md`](../../docs/research/tool-surface-tokens-2026-11-16.md).
+The break-even rule above still holds: a session that describes most of the
+catalogue pays a little extra per describe call, and every describe payload was
+measured byte-identical across the two profiles.

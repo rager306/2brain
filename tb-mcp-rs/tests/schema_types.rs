@@ -198,7 +198,7 @@ fn call_against_engine(
         support::write_response_frame(&mut stream, 9, answer);
     });
 
-    let mut client = Client::start_with_timeout(&socket, &[], ENGINE_WAIT);
+    let mut client = Client::start_with_timeout(&socket, &["--tools", "full"], ENGINE_WAIT);
     let schemas = declared_schemas(&mut client);
     let result = client.call_result(2, tool, arguments);
     assert_ne!(result["isError"], true, "{tool}: {result}");

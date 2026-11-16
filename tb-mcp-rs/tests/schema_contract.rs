@@ -34,10 +34,14 @@ impl Drop for Client {
 }
 
 impl Client {
+    // The schemas collected from tools/list exist only in the full profile; the
+    // concise default strips them, so every launch here opts in explicitly.
     fn start(socket: &Path) -> Self {
         let mut child = Command::new(env!("CARGO_BIN_EXE_2brain"))
             .arg("mcp")
             .args([
+                "--tools",
+                "full",
                 "--allow-mutations",
                 "--allow-composition",
                 "--allow-workspace-shape",
@@ -95,7 +99,9 @@ fn fixture_dir() -> std::path::PathBuf {
 fn every_captured_payload_fits_the_schema_its_tool_declares() {
     let temp = tempfile::tempdir().unwrap();
     let socket = temp.path().join("engine.sock");
-    // tools/list needs no engine, so a dead socket path is enough here.
+    // tools/list needs no engine, so a dead socket path is enough here. The
+    // schemas validated below come from the full profile, which the concise
+    // default strips.
     let mut client = Client::start(&socket);
     let listed = client.request(json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}));
     let mut schemas: BTreeMap<String, Value> = BTreeMap::new();

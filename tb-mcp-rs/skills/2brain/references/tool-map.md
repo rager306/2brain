@@ -8,7 +8,7 @@ Regenerate with:
 
 ```sh
 /usr/local/bin/2brain mcp /root/vault --allow-mutations --allow-composition \
-  --allow-workspace-shape --tools concise     # then read tools/list
+  --allow-workspace-shape                        # concise is the default; read tools/list
 ```
 
 Counts: **33 read + 16 mutate + 2 discover + 1 watch = 52**. Without `--allow-mutations` a launch

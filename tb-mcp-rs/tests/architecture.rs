@@ -156,9 +156,14 @@ fn lib_rs_does_not_grow() {
 
 #[test]
 fn every_advertised_tool_declares_an_output_schema() {
+    // Output schemas are a full-profile property: the concise default withholds
+    // them by design (one line per tool; `tb_describe_tool` serves the rest).
+    // This test pins the catalogue property under the opt-in heavy surface.
     let mut client = Client::start_with_timeout(
         Path::new("/nonexistent.sock"),
         &[
+            "--tools",
+            "full",
             "--allow-mutations",
             "--allow-composition",
             "--allow-workspace-shape",
