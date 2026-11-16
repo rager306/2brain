@@ -168,8 +168,16 @@ fn a_default_grep_scans_the_own_workspace_not_a_mounted_dependency() {
         "edit:\n  - v\ndiscover:\n  - dep\ntype: au.engine.workspace::au-engine\n",
     )
     .unwrap();
-    fs::write(root.join("own.md"), "---\ntitle: own\n---\n\nthe zarquon line\n").unwrap();
-    fs::write(root.join("dep/borrowed.md"), "---\ntitle: borrowed\n---\n\nthe zarquon line\n").unwrap();
+    fs::write(
+        root.join("own.md"),
+        "---\ntitle: own\n---\n\nthe zarquon line\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("dep/borrowed.md"),
+        "---\ntitle: borrowed\n---\n\nthe zarquon line\n",
+    )
+    .unwrap();
     let mut h = harness(&root);
 
     let default = h
