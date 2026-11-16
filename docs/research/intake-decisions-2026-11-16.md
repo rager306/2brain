@@ -52,6 +52,8 @@ Two conventions the table adds, because an edge has a direction and the counts d
 - **Acyclicity.** All 13 proposed entries were checked against the engine: the target resolves (`tb_follow`), no
   such edge exists yet (`tb_references`), and the target cannot reach the source within 5 hops of existing edges.
   None of the 13 creates a 2-cycle or a larger one.
+  *(After the write: one of them did close a long cycle, beyond this bound — see “The cycle check” under
+  “Applied” for the measurement, and for the rule that replaced this one.)*
 
 ## The 38 (plus the `moc`)
 
@@ -364,4 +366,115 @@ is the owning session's to write, not the next pass's.
   edge would be a cycle, which is a statement about this graph, not about the note's importance.
 - **Out of scope:** whether any of the 38 should be promoted to `knowledge/`, merged, or deleted; the
   `family` schema change; and writing anything at all.
+
+## Applied — the write pass, 2026-11-16
+
+Eleven of the thirteen decided writes landed, each through the engine
+(`2brain mcp /root/vault --allow-mutations --principal intake-apply`) as its own commit. No git command was
+run, no file was written on disk by this session, and no path outside the decision table was touched. Two
+notes were not attempted (rows 37, 38; their lane belongs to another session). The gate refused nothing.
+
+Every anchor was re-checked against the live text before writing: the twenty quoted fragments in the
+justification blocks still matched, and every pre-write in-degree equalled the number the arithmetic table
+predicted. No decision was rewritten to fit the vault.
+
+### The thirteen
+
+| # | decision | write | commit | target in-degree |
+|---:|---|---|---|---:|
+| 2 | `link-to` on instabox | `topics:` (field did not exist; added under `family:`) | `5fbd0faf` | nvx 3 → **4** |
+| 11 | `link-to` on the index card | third `topics:` entry | `4a58899d` | catalog **0 → 1** |
+| 12 | `link-to` on hashcat | `topics:` (new field) | `7ce50d85` | oracle-drift 1 → **2** |
+| 13 | `adopt-into f/agent-architectures` | `family:` `f/gh-ljedrz-nachalnik` → `f/agent-architectures` | `14e7d5b7` | — |
+| 14 | `link-to` on nachalnik | `topics:` (new field) | `87585dda` | respan **0 → 1** |
+| 17 | `link-to` on the tabular note | `topics:` was present and empty; filled | `826a7d39` | category 7 → **8** |
+| 20 | `link-to` on the pattern | third entry in the flow list | `6a4213f5` | peach **0 → 1** |
+| 22 | `link-to` on nielsen | `topics: []` → one entry | `658a4bd9` | oo-harness 6 → **7** |
+| 4 | `adopt-into f/ml-foundations-books` | `family:` `f/arxiv-2605.29713` → `f/ml-foundations-books` | `6ae2195d` | — |
+| 23 | `adopt-into f/knowledge-graphs` | `family:` `f/neo4j-ontology-graph-spec` → `f/knowledge-graphs` | `bb82b787` | — |
+| 27 | `adopt-into f/decision-models` | `family:` `f/strands-decider` → `f/decision-models` | `b33ff8c8` | — |
+| 37 | `link-to` adversarial-verifier → external-verifier | **not attempted** — gate-blocked path, other session's lane | — | — |
+| 38 | `link-to` zero-token → team-lead | **not attempted** — same | — | — |
+
+Landed: **11** (7 edges + 4 family moves). Not attempted: **2**. Refused at write time: **0**. All four
+adopt-into families exist with the membership the document counted (6, 19, 3, 1); the four notes keep
+`source_url` and `provenance`, and each edit returned `diagnostics: []`. Every target gained exactly the one
+inbound edge predicted, from exactly the note the `entry` column named.
+
+### The graph, before and after
+
+`tb_graph_health` over the vault member, both counts from the same engine:
+
+| measure | before | after | delta |
+|---|---:|---:|---:|
+| nodes | 1214 | 1214 | 0 |
+| edges | 4697 | 4704 | **+7** |
+| isolated (no edge either way) | 204 | 198 | **−6** |
+| dead ends (inbound, no outbound) | 19 | 20 | **+1** |
+| sources (outbound, no inbound) | 174 | 177 | +3 |
+| components | 214 | 208 | −6 |
+| broken links | 0 | 0 | 0 |
+
+The seven edges are exactly the seven added edges: no other session wrote to the edge set during the pass.
+The six notes that left isolation are the six that had no edge at all and now have one — instabox,
+`awesome-reverse-engineered-catalog-automation`, respan, peach, the tabular note, nielsen. The component
+count falls by six for the same reason.
+
+### The two dead ends — yes, both were repaired
+
+- **nachalnik, 5 in / 0 out → 5 in / 1 out.** This is the note the brief names. One entry (row 14) turned
+  it into a note that links somewhere, and gave respan its first inbound reference at the same time.
+- **hashcat, 3 in / 0 out → 3 in / 1 out.** The second dead end in the write set; row 12 repaired it.
+
+The net `dead_ends` count still rises by one, and the arithmetic is exact: two dead ends were repaired
+(−2) and three targets became zero-outbound nodes when they gained their first inbound edge
+(+3: `awesome-reverse-engineered-catalog-automation` 1/0, respan 1/0, peach 1/0). That is the trade the
+"arithmetic" section predicted in the other direction — an inbound edge is not free when the receiving note
+has no outgoing one. Three of the proposals deliberately paid it.
+
+### The cycle check: what it got wrong, and the rule that replaces it
+
+**Row 12 closed a long cycle, and the edge stays.** hashcat had no outbound edge before the write, so its new
+edge necessarily closes the loop. The measured deltas:
+
+| measure | before | after | delta |
+|---|---:|---:|---:|
+| cycles (SCCs with more than one node) | 31 | 29 | **−2** |
+| nodes inside a cycle | 703 | 708 | **+5** |
+| largest component | 619 | 630 | **+11** |
+
+Three SCCs merged into one — the 619-node component, the 4-cycle holding `pattern-oracle-drift-ci`, and a
+2-cycle — and 619 + 4 + 2 + 5 newly cyclic nodes is the 630. The five nodes that entered a cycle, hashcat first:
+
+| node | how it entered |
+|---|---|
+| `hashcat-architecture-and-algorithms` | the source of the new edge; 3 in / 0 out before |
+| `taffy-layout-engine-cache-and-testing` | one of hashcat's three referrers, on the return path |
+| `neo4j-ontology-graph-specification-open-ai-first` | pulled in by the merged component |
+| `maze-storage-engine-build-log-btrees-slotted-pages` | same |
+| `pattern-immutable-published-schema-current-alias` | same |
+
+The check could not see it: `tb_neighborhood` from `pattern-oracle-drift-ci` does not reach hashcat in five
+hops across all four edge kinds, nor in six hops on the three non-commit kinds. A bounded walk is not a proof
+of acyclicity in a 619-node component.
+
+No other entry in the set moves an SCC. The two absorbed components and the five nodes that entered a cycle
+are all explained by this one edge; the other six point at notes with no path back to their source.
+
+**The criterion was wrong, not the write.** The vault is a link graph, not a DAG: 708 of its 1214 nodes sit in
+cycles and there are 29 SCCs, so any edge between two such nodes merges components — "a new edge must not
+create a cycle" either fails always or, as here, passes without meaning anything once it is bounded. What is
+worth preventing is a short accidental loop, not membership in a 630-node component. The rule for the next
+pass:
+
+> **Reject an edge that closes a cycle of length ≤ 3; accept the rest and record the SCC delta.**
+
+The write is right on merit: hashcat (0 out) gains its one real sibling and stops being a dead end, which is
+what the row was for. It is not reverted.
+
+### What this pass still did not do
+
+Rows 29–36 (`frontmatter-only`) are untouched: they are a different queue by the document's own argument,
+and four of them would have carried a `topics:` entry in the same write. The eighteen `leave-alone` rows
+are untouched. No note was promoted, merged, or deleted.
 
