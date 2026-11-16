@@ -14112,6 +14112,11 @@ struct SearchMatch {
     /// How many distinct query terms this document holds, the quantity
     /// `min_should_match` is compared against.
     matched_terms: usize,
+    /// TRUE when every query term this document matched is common in the corpus:
+    /// the hit says "these words occur here", not "this base knows this". A caller
+    /// that needs an answer should treat a page of weak hits as the base having
+    /// nothing, and ask a sharper question.
+    weak: bool,
 }
 
 /// The `search` answer: one page of ranked documents plus the totals that make
@@ -14161,6 +14166,7 @@ fn search_view(
             path: hit.path.display().to_string(),
             score: hit.score,
             matched_terms: hit.matched_terms,
+            weak: hit.weak,
         })
         .collect();
     let next_offset = (offset + matches.len() < total).then_some(offset + matches.len());

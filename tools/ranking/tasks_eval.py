@@ -52,7 +52,7 @@ def search(client: StdioMcp, query: str, limit: int = 10, min_should_match: int 
     root = str(VAULT) + "/"
     return [
         {"path": match["path"].removeprefix(root), "terms": match.get("matched_terms", 0),
-         "score": round(match.get("score", 0.0), 2)}
+         "score": round(match.get("score", 0.0), 2), "weak": bool(match.get("weak"))}
         for match in block.get("matches", [])
     ]
 
@@ -81,14 +81,17 @@ def main() -> int:
             hits = search(client, task["query"], args.limit, wanted_min)
             paths = [hit["path"] for hit in hits]
             if task["expect"] == "none":
-                passed = not hits or hits[0]["terms"] <= 1
+                # The engine never refuses to answer; it reports `weak` when every matched term is common in the
+                # corpus. A base that says "these words occur here" has not answered, so that counts as unanswered.
+                passed = not hits or hits[0]["terms"] <= 1 or hits[0]["weak"]
                 rank = None
             else:
                 wanted = task.get("accept") or task["evidence"]
                 rank = next((position for position, path in enumerate(paths, 1) if path in wanted), None)
                 passed = rank is not None and (task["expect"] == "any" or rank == 1)
             rows.append({"query": task["query"], "class": task["class"], "passed": passed, "rank": rank,
-                         "top": paths[:3], "top_terms": hits[0]["terms"] if hits else 0})
+                         "top": paths[:3], "top_terms": hits[0]["terms"] if hits else 0,
+                         "top_weak": hits[0]["weak"] if hits else None})
 
     if args.json:
         print(json.dumps(rows, ensure_ascii=False, indent=2))
@@ -98,6 +101,8 @@ def main() -> int:
     for row in rows:
         mark = "ok  " if row["passed"] else "MISS"
         where = f"rank {row['rank']}" if row["rank"] else f"terms {row['top_terms']}"
+        if row.get("top_weak"):
+            where += " weak"
         print(f"{mark} {row['class']:<{width}}  {where:<10} {row['query'][:60]}")
         if not row["passed"]:
             print(f"        top: {', '.join(row['top'])}")

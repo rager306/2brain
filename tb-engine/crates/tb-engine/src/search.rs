@@ -144,6 +144,27 @@ pub(crate) struct Hit {
     /// This is what the minimum should match is compared against; it never
     /// exceeds the number of distinct query terms.
     pub matched_terms: usize,
+    /// The largest idf among the terms this document matched: the rarity of its
+    /// best evidence. See [`RARE_IDF`] and [`Hit::weak`].
+    pub best_idf: f64,
+}
+
+/// The idf at which a matched term counts as rare rather than common.
+///
+/// In a corpus of ~1 000 notes this is a term that occurs in roughly 13% of them
+/// or fewer; a term in half the notes sits near 0.7, and one in every note near
+/// zero. A match whose best term is below this line is reported as `weak` rather
+/// than dropped: an agent asking "what does this base know about X" needs to be
+/// told that the answer rests on common words, and a caller must still be able to
+/// retrieve a note that genuinely uses only common words.
+pub const RARE_IDF: f64 = 2.0;
+
+impl Hit {
+    /// Whether every term this document matched is common in the corpus, so the
+    /// match says "these words occur here" rather than "this base knows this".
+    pub fn weak(&self) -> bool {
+        self.best_idf < RARE_IDF
+    }
 }
 
 /// One term's occurrence count in one document, per field.
@@ -699,6 +720,11 @@ struct Accumulator {
     /// How near the document's closest pair of query terms is, in `[0, 1]`; 0 when
     /// no pair is inside [`PROXIMITY_WINDOW`].
     closeness: f64,
+    /// The largest idf among the query terms this document matched — how RARE the
+    /// best evidence in it is. A document that matched only common words scored
+    /// above zero without being evidence, which is the failure the `weak` flag
+    /// reports rather than hides.
+    best_idf: f64,
 }
 
 /// A BM25 inverted index over `N` text fields per document.
@@ -900,6 +926,7 @@ impl<const N: usize> Bm25Index<N> {
                 let entry = accumulator.entry(posting.doc).or_default();
                 entry.score += score;
                 entry.matched += 1;
+                entry.best_idf = entry.best_idf.max(idf);
             }
         }
 
@@ -936,6 +963,7 @@ impl<const N: usize> Bm25Index<N> {
                         + COVERAGE * (accumulator.matched as f64) / (distinct_terms.max(1) as f64))
                     * (1.0 + PROXIMITY * accumulator.closeness),
                 matched_terms: accumulator.matched,
+                best_idf: accumulator.best_idf,
             })
             .collect();
         sort_hits(&mut hits);
@@ -1029,6 +1057,8 @@ impl<const N: usize> Bm25Index<N> {
                 doc_id: doc as usize,
                 score,
                 matched_terms: terms.len(),
+                // Every term is present, so the rarest of them is this document's best evidence.
+                best_idf: terms.iter().map(|(_, idf)| *idf).fold(0.0, f64::max),
             });
         }
         sort_hits(&mut hits);
@@ -1218,6 +1248,7 @@ impl SearchIndex {
                 path: self.paths[hit.doc_id].as_path(),
                 score: hit.score,
                 matched_terms: hit.matched_terms,
+                weak: hit.weak(),
             })
             .collect()
     }
@@ -1249,6 +1280,8 @@ pub(crate) struct SearchHit<'a> {
     pub path: &'a Path,
     pub score: f64,
     pub matched_terms: usize,
+    /// Every matched term is common in the corpus; see [`Hit::weak`].
+    pub weak: bool,
 }
 
 /// Whether a parse contributes a document to the index. See [`indexed_fields`].
@@ -2150,6 +2183,34 @@ mod tests {
             memory / DOCUMENTS <= MEMORY_BUDGET_PER_DOCUMENT,
             "{} bytes per document exceeds the {MEMORY_BUDGET_PER_DOCUMENT}-byte budget",
             memory / DOCUMENTS
+        );
+    }
+    /// A hit is `weak` when every term it matched is common in the corpus: the
+    /// match says "these words occur here", not "this base knows this".
+    ///
+    /// The corpus is sized so the two regimes are unambiguous: `common` occurs in
+    /// every document (idf near zero), `rare` in one of a hundred (idf well above
+    /// [`RARE_IDF`]).
+    #[test]
+    fn a_match_on_common_words_only_is_weak() {
+        let mut docs: Vec<(usize, [String; 2])> = (0..100)
+            .map(|id| (id, [format!("common word {id}"), String::new()]))
+            .collect();
+        docs.push((100, ["common word rare".to_string(), String::new()]));
+        let index = index_of(default_weights(), &docs);
+
+        let hits = index.search("common word", 2, 10);
+        assert!(!hits.is_empty(), "the common words do match");
+        assert!(
+            hits.iter().all(Hit::weak),
+            "a match resting only on corpus-wide terms is weak"
+        );
+
+        let hits = index.search("common rare", 2, 10);
+        assert_eq!(sorted_ids(hits.clone()), vec![100]);
+        assert!(
+            !hits[0].weak(),
+            "a rare term makes the same document evidence"
         );
     }
 }

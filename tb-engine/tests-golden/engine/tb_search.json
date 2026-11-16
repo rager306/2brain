@@ -5,7 +5,8 @@
       {
         "matched_terms": 1,
         "path": "$VAULT/alpha.md",
-        "score": 1.400407728984024
+        "score": 1.400407728984024,
+        "weak": false
       }
     ],
     "next_offset": null,

@@ -14,7 +14,8 @@ Three details the rehearsal learned the hard way (`docs/engine-swap-2026-11-16.m
   registry copy with **only** the `vault` entry re-pointed at the copy — leaving it at `/root/vault` would make
   the candidate index the live vault;
 - the socket name derives from the canonical path, so a copy at a different path gets a different socket name;
-- `grep` defaults to `scope: all` and scans members, so any comparison pins `scope: own`.
+- `search` and `grep` now default to `scope: own` (2026-11-16), so a comparison no longer has to pin it — but a
+  comparison against an OLDER binary still does, so the harness results state which binary answered.
 """
 
 from __future__ import annotations
