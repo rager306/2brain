@@ -1,53 +1,31 @@
 # Connecting an MCP client
 
-The server speaks MCP over stdio and needs two things: its own path, and the
-path of the **engine socket** it reads. It never starts a daemon and never
-derives a default socket.
+The server speaks MCP over stdio and needs one thing: a **target** — a workspace path, which it resolves to
+that workspace's engine socket, or a `.sock` path given as-is. It never starts a daemon; `2brain daemon start`
+does that, and `2brain doctor` says whether it answered.
 
-## 1. Build
-
-```sh
-cd au-mcp-rs
-RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
-# target/release/2brain  — engine daemon + MCP server in one binary
-# target/release/tb-mcp-rs  — the MCP server alone
-```
-
-Use `2brain mcp <workspace-or-socket>` everywhere below; `au-mcp-rs <socket>` is the same
-server with the same flags, kept so an existing configuration keeps working.
-
-The result is one self-contained executable (6 MB, dynamically linked only to
-`libc`, `libm`, `libgcc_s`). It has no runtime, interpreter, or package
-dependencies; the engine daemon is a separate process it talks to over a Unix
-socket.
-
-## 2. Find the engine socket
+## 1. Build, or install
 
 ```sh
-ls ~/.2brain/au-engine/run/*.sock
+./install.sh                    # from the repository root: both binaries, starters, PATH hint
+# or, in this crate alone:
+cargo +1.99.0 build --release   # target/release/2brain
 ```
 
-There is one socket per served workspace, named by a hash of the workspace path.
-When several exist, the bridge's socket name under `~/.arsumbris/au-mcp/run/`
-matches the engine socket for the same workspace, so comparing names pairs them.
+One binary serves both halves: `2brain mcp <target>` is the MCP server, `2brain daemon` the engine,
+`2brain init` makes a workspace, `2brain doctor` tells you whether the whole thing works. There is no
+second executable to keep in step.
 
-Check it answers before wiring a client:
+## 2. Find the engine socket — or let the server find it
 
 ```sh
-python3 - <<'PY'
-import json, socket, struct
-path = "/root/.2brain/au-engine/run/adcfe8680a485529.sock"
-with socket.socket(socket.AF_UNIX) as s:
-    s.connect(path)
-    body = json.dumps({"read": "overview", "id": 1}).encode()
-    s.sendall(struct.pack(">I", len(body)) + body)
-    n = struct.unpack(">I", s.recv(4))[0]
-    reply = json.loads(s.recv(n))
-print(reply["ready"], reply["schema_version"])
-PY
+2brain doctor <workspace>       # prints the socket it resolves, whether the daemon answers, and what to do
 ```
 
-`ready: true` and `schema_version: 29` mean this build can serve it.
+The rule it applies, in order: an explicit `.sock` path is used as given; a workspace is resolved to the
+socket its canonical path hashes to; `$2BRAIN_SOCKET` wins when set. One socket per served workspace, under
+`~/.2brain/au-engine/run/` (or `~/.arsumbris/au-engine/run/` on a machine that has not created the new
+directory).
 
 ## 2b. Check what the binary says about itself
 
