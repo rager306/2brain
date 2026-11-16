@@ -361,14 +361,20 @@ Three consequences, in order of how much they change the plan:
 
 ### The next parallel lanes, and what each is allowed to claim
 
-- **Intake by family** (`f/` patterns and inbox drafts that carry `family:`): 67 of the 76 unlinked notes have a
-  family, so a link can be added inside an existing grouping rather than invented. Nothing crosses a family boundary.
-- **A search excerpt** (`tb_search` returning a short body window beside each match): the context pack costs four
-  calls per answer today, one of which is a `tb_content` per fragment purely to read 1 200 characters. If the match
-  carries the window, the pack is one call — and the measurement that decides it is the same twelve tasks, counting
-  calls and bytes, with the pack's evidence set required to stay identical.
-- **The release binaries** are older than today's changes, so a deploy needs a rebuild rather than a rebuild plus a
-  window. Doing it now makes the window short when it opens.
+The two that ran are closed: the excerpt landed (`25ce096`, 4.00 calls / 8.86 KB → 1.00 call / 2.44 KB with the
+evidence unchanged) and the link pass landed 34 edges with 19 of 36 `f/patterns` notes still unreachable. What
+follows is the queue after them, ordered by what it would cost to be wrong.
+
+| lane | what it claims when it is done | touches | gate |
+|---|---|---|---|
+| **visit bound** | "work per read does not grow with the corpus", with a number and a slope | `search.rs`, `verb_metrics.rs`, a probe under `tools/` | engine suite + the three-size table |
+| **regression task set** | "the five ranking failures of the coverage audit are now tasks", each with the evidence a correct answer needs | `tools/ranking/*`, `docs/research/task-set.md` | a run showing which pass, which still fail |
+| **intake decisions** | for each of the 36 notes the link pass refused, a named decision and its reason — not a write | `docs/research/` only | read-only over the vault |
+| **aliases** | the vocabulary class has a design: what a note says about its other names, and the experiment that sizes it | `docs/research/`, `tools/kb/` | measurement on the 1 032 notes |
+| **context tool** (`tb_context`) | one call replaces the pack's composition, and it must beat 4 calls / ~9 KB — a bound that has already moved to 1 call / 2.44 KB | `serve.rs`, `lib.rs`, `context_pack.py` | the twelve-task pack |
+
+The visit-bound lane goes first because it is the only one whose failure mode is silent: a linear scan inside a read
+looks exactly like a constant one on a thousand notes, and doubling the corpus would not be noticed until it was slow.
 
 ### The intake lane, measured, and what it says about the metric
 
@@ -391,9 +397,37 @@ Equally part of the result is what was refused: 28 notes whose family has exactl
 crossed families), 8 with no frontmatter, 2 belonging to another session's uncommitted work where the write gate said
 no. A link pass that reports only what it added is not a measurement.
 
+### The research lane, 2026-11-16, and what it changed
+
+Two read-only lanes ran in parallel against the ADR corpus of `/root/kutha-graph` and against our own vault.
+
+**`docs/research/kutha-ideas-2026-11-16.md`** — twenty mechanisms ranked by value per unit of risk (3 ideas, 12
+patterns, 4 methodologies, 1 algorithm), each with the 2brain subsystem it would change, a cost, a risk, and the
+smallest experiment that would settle it. Two entries are measurements with zero blast radius and they rank first,
+which is the right order: **a visit bound tested at three corpus sizes** (the one defect that gets worse as the base
+grows) and **rebuild == patched** (a single equality that can fail). It also refused five attractive imports, each with
+a reason.
+
+**`docs/research/vault-coverage-kutha-themes.md`** — 62 searches and 23 greps on the live vault against those themes:
+4 covered, 9 touched, 2 absent. The temporal core is genuinely present; about half the rest is a one-line mention
+inside another subject. The diagnosis is worth more than the coverage table, and it is not about ranking:
+
+| failure | evidence | defect or corpus |
+|---|---|---|
+| a plural costs the query | `capsule` 2 hits, `capsules` **0** | defect — fixed in `c3c7ee4` (word-form lookup after an exact miss) |
+| `exact` promised a phrase | `exact` on `as of` returns 218 notes with the words anywhere | defect — the description lied; it is an AND, and the text now says so |
+| a vocabulary mismatch looks identical | `portable capsule` 0 both before and after the fix | corpus — no note holds both words; the base calls it an "RVF container" |
+| a hub outranks the atomic note | a 330-hit query puts a survey above the note titled after the question | open |
+| bilingual bodies | a Russian question cannot reach its English sibling; the reverse works through English titles | open |
+
+The third row is the one to keep apart: **two defects that present identically are not one bug.** Morphology is a
+lookup we can add; vocabulary is a statement the note has to make about itself (an alias), and no search change
+substitutes for it.
+
 ### What that changes in the stages
 
-- **Stage 1** is done except the deploy window; #4 is the one remaining piece of design debt it created.
+- **Stage 1** is done except the deploy window; #4 is the one remaining piece of design debt it created. The window
+  now also carries the excerpt and the word-form fix, so it is worth more than it was and no longer than it was.
 - **Stage 2** (release hygiene) absorbs #1–#3: they are each smaller than a release check and they are what a new
   user hits first.
 - **Stage 3** keeps its shape, with one addition: the context pack measurement needs a client that builds the pack,
@@ -407,12 +441,16 @@ These tracks touch different files and different gates, so they can run at the s
 
 | track | touches | gate | conflicts with |
 |---|---|---|---|
-| MCP path (typed payloads) | `tb-mcp-rs/src/{wire,schemas,lib}.rs` | adapter suite + live parity | none |
-| compact term map, then proximity | `tb-engine/crates/tb-engine/src/search.rs` | ranking eval + engine suite | none |
-| tier C step 2 | `tb-parser` (`scope.rs`, `fs.rs`), `tb-engine` repo discovery, `wire.rs` floor | vault opens with 0 diagnostics | none (different crates) |
-| verb counters | `tb-engine/src/serve.rs` | engine suite | tier C (same crate) |
-| tool names | every tool string | adapter suite + live server | MCP path (same files) |
+| visit bound | `tb-engine/src/{search,verb_metrics}.rs`, `tools/probe/` | engine suite + the slope table | none |
+| regression task set | `tools/ranking/*`, `docs/research/task-set.md` | a run against a candidate engine | none (no cargo) |
+| intake decisions | `docs/research/` | read-only over the vault | none |
+| adapter surface (`wire.rs` typed fields) | `tb-mcp-rs/src/wire.rs` | adapter suite | none |
 
+The ordering constraints:
 
-The one ordering constraint: **the tool rename comes after the MCP path**, because both rewrite the router
-and the schemas, and a rename on top of an unfinished refactor makes the diff unreadable.
+- **two lanes that need `cargo` do not overlap.** The build lock serialises them and the second one spends its time
+  waiting, so at most one worker compiles the engine at a time; the rest measure, read, or write documents.
+- **the deploy window comes after every lane that changes the engine**, because each one adds a binary to the swap
+  and the runbook is a single capture/compare/rollback sequence.
+- **a lane that cannot name its experiment does not start.** The list above is ordered by the cost of being wrong, not
+  by how interesting the mechanism is.
