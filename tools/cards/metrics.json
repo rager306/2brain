@@ -65,5 +65,18 @@
     "refused": 1,
     "skipped": 3,
     "source": "au migrate identity --dry-run --all, then --apply; 2026-11-16"
+  },
+  "knowledge_base": {
+    "notes": 1024,
+    "drafts": 557,
+    "typed": 995,
+    "sourced": 888,
+    "described": 1011,
+    "outbound_median": 1.0,
+    "notes_without_links": 424,
+    "isolated": 204,
+    "broken_links": 0,
+    "edges": 4637,
+    "source": "tools/kb/census.py --json; engine graph_health; 2026-11-16"
   }
 }

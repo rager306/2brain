@@ -63,6 +63,7 @@ def cards(metrics: dict) -> dict[str, tuple[str, list[tuple[str, str]], str]]:
     surface = metrics["surface"]
     ranking = metrics["ranking"]
     memory = metrics["memory"]
+    kb = metrics["knowledge_base"]
     known = sum(gate.get("known_environment_failures", 0) for gate in gates.values())
     return {
         "gates": (
@@ -85,6 +86,16 @@ def cards(metrics: dict) -> dict[str, tuple[str, list[tuple[str, str]], str]]:
                 ("binaries, languages on the request path", f'{surface["binaries"]}, {surface["languages_on_request_path"]}'),
             ],
             "one Rust binary serves reads, mutations and resources",
+        ),
+        "knowledge_base": (
+            "The knowledge base itself",
+            [
+                ("notes / of them drafts", f'{kb["notes"]} / {kb["drafts"]}'),
+                ("typed / sourced", f'{100 * kb["typed"] // kb["notes"]}% / {100 * kb["sourced"] // kb["notes"]}%'),
+                ("links, median per note", f'{kb["edges"]} · {kb["outbound_median"]:.0f}'),
+                ("isolated / broken links", f'{kb["isolated"]} / {kb["broken_links"]}'),
+            ],
+            "measured by tools/kb/census.py, weekly",
         ),
         "memory": (
             "One vault, held in memory",

@@ -55,6 +55,10 @@ number.
   <source media="(prefers-color-scheme: dark)" srcset="assets/cards/memory-dark.svg">
   <img src="assets/cards/memory-light.svg" width="410" alt="One vault, held in memory">
 </picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/cards/knowledge_base-dark.svg">
+  <img src="assets/cards/knowledge_base-light.svg" width="410" alt="The knowledge base itself">
+</picture>
 </p>
 
 ## Quickstart
