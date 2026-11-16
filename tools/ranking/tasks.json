@@ -1,6 +1,6 @@
 {
   "vault": "/root/vault",
-  "note": "Task-level set: real questions a person asks of this base, labelled with the minimally sufficient evidence. Unlike labelled-queries.json (built from filenames), these are written by hand and the expected path is checked by reading the note. A class of `absent` means the base should NOT answer; `ambiguous` accepts any of several; a task carrying `args` measures a documented flag, and `min_total` pins the width of the candidate set that flag implies.",
+  "note": "Task-level set: real questions a person asks of this base, labelled with the minimally sufficient evidence. Unlike labelled-queries.json (built from filenames), these are written by hand and the expected path is checked by reading the note. A class of `absent` means the base should NOT answer; `ambiguous` accepts any of several; a task carrying `args` measures a documented flag, and `min_total` pins the width of the candidate set that flag implies. Every path in `evidence` or `accept` is graded 2 by `graded.py` (it answers); an optional `support` list names grade-1 notes, needed as support rather than answering, and it does not change the pass rule `tasks_eval.py` applies. A row with no `support` is a binary label, and `docs/research/task-set.md` names those rows and why.",
   "rows": [
     {
       "query": "ReasoningBank",
@@ -145,6 +145,9 @@
       "evidence": [
         "knowledge/event-log-as-source-of-truth-agent-memory.md"
       ],
+      "support": [
+        "knowledge/kutha-temporal-graphs.md"
+      ],
       "expect": "hit",
       "why": "The query is this note's own title and the note states the rule asked for: the append-only log is primary, the graph and memory are deterministic projections. knowledge/kutha-temporal-graphs.md is the topic map that lists the note and repeats the phrase; it is a legitimate second hit, but a map is not the answer to what the event-log rule is."
     },
@@ -153,6 +156,9 @@
       "class": "bilingual",
       "evidence": [
         "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md"
+      ],
+      "support": [
+        "knowledge/bitemporal-valid-transaction-time.md"
       ],
       "expect": "any",
       "why": "The English note says what the Russian question asks: every edge carries four timestamps, so validity in the world is tracked separately from ingestion time. There is no shared token, so the row measures the bilingual gap; the Russian sibling knowledge/bitemporal-valid-transaction-time.md ranks third and is a different note (the general model, not the edge model)."
