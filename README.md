@@ -84,8 +84,9 @@ daemon: a daemon that is already serving keeps the binary it started with until 
 2brain doctor ~/my-vault                         # in another shell: one ok/warn/fail line per check, and the fix for each
 ```
 
-`2brain init --template blank` copies a starter (`minimal` and `blank` ship; the rest of `tb-defaults/`
-is installed too). It refuses a directory that already holds a workspace, and a non-empty directory
+`2brain init --template project-memory` copies a starter: six record types — `decision`, `constraint`,
+`evidence`, `experiment`, `handoff`, `error-fix` — that let the next session continue this one, plus a root
+README that says how to use them. `minimal` and `blank` ship too, and the rest of `tb-defaults/` is installed. It refuses a directory that already holds a workspace, and a non-empty directory
 unless `--force`. `2brain doctor` exits non-zero only when a check failed, and each failure names the
 command that fixes it.
 

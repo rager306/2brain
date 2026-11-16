@@ -1,0 +1,9 @@
+# What broke and what fixed it — the pair, not the symptom.
+#
+# The fix is only useful with the error text that identified it, so both are
+# required; a fix without its error cannot be matched against the next failure.
+fields:
+  description: String
+  error: String
+  fix: String
+  source_url?: String

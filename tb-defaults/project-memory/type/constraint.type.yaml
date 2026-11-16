@@ -1,0 +1,10 @@
+# A limit on what the work may do: a policy, a budget, a compatibility promise.
+#
+# `lifted` is the state that matters — a constraint nobody remembers lifting is
+# indistinguishable from a rule, so lifting one is a write with a date.
+fields:
+  description: String
+  status: [active, lifted]
+  scope?: String
+  lifted_on?: String
+  source_url?: String

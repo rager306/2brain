@@ -1,0 +1,10 @@
+# Something observed, with where it came from.
+#
+# `supports` names the records this evidence bears on, so a decision can be read
+# next to what it was based on. Evidence that supports nothing is a note.
+fields:
+  description: String
+  supports?: String[]
+  captured_on?: String
+  source_url?: String
+  provenance?: String

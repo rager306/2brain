@@ -217,3 +217,70 @@ fn init_adopts_a_template_identity_and_renames_only_it() {
     );
     assert!(manifest.contains("- bundle"), "{manifest}");
 }
+
+/// The project-memory starter is the one template that ships TYPES, so its value is
+/// that a fresh workspace validates and answers its own questions on the first run.
+/// Nothing here checks ranking; it checks that `2brain init --template project-memory`
+/// produces a workspace the engine accepts.
+#[test]
+fn the_project_memory_template_ships_the_six_record_types() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    fs::create_dir_all(&home).unwrap();
+    let workspace = temp.path().join("memory");
+    let done = init(&workspace, &["--template", "project-memory"]);
+    assert!(
+        done.status.success(),
+        "init failed: {}",
+        String::from_utf8_lossy(&done.stderr)
+    );
+
+    let types: Vec<String> = std::fs::read_dir(workspace.join("type"))
+        .expect("the template ships a type directory")
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    for name in [
+        "decision",
+        "constraint",
+        "evidence",
+        "experiment",
+        "handoff",
+        "error-fix",
+    ] {
+        assert!(
+            types.iter().any(|file| file == &format!("{name}.type.yaml")),
+            "{name}.type.yaml is missing from {types:?}"
+        );
+    }
+
+    // The engine must accept the workspace as it ships, with no diagnostics: a starter whose
+    // own types error is worse than no starter.
+    let daemon = Daemon::start(&home, &workspace);
+    let answer = daemon.read(json!({"read":"overview","id":1}));
+    let overview = &answer["result"]["overview"];
+    assert_eq!(
+        overview["diagnostic_counts"]["total"], 0,
+        "the shipped template must validate: {overview}"
+    );
+    let handoff = daemon.read(json!({"read":"instances_of","id":1,"type":"handoff"}));
+    assert!(
+        handoff["result"]["instances_of"].is_array(),
+        "the template's own types resolve: {handoff}"
+    );
+
+    // The identity the template carries is adopted, not copied verbatim: the engine
+    // refuses a repo whose folder name and `name:` disagree, and the next agent reads
+    // the name in every path it is given.
+    let repo = std::fs::read_to_string(workspace.join(".2brain/repo.yaml")).unwrap();
+    assert!(repo.contains("name: memory\n"), "{repo}");
+    assert!(!repo.contains("name: project-memory\n"), "{repo}");
+
+    // Every required field in every type is one the template's own guide explains;
+    // a type whose required field is a URL would make the honest record the rare one.
+    let decision = std::fs::read_to_string(workspace.join("type/decision.type.yaml")).unwrap();
+    assert!(decision.contains("description: String"), "{decision}");
+    assert!(
+        !decision.contains("\n  source_url: String"),
+        "source_url must stay optional: {decision}"
+    );
+}

@@ -1,0 +1,14 @@
+# Where the work stands, written for whoever reads it next.
+#
+# `task` is required because a handoff without one is a diary entry. `next_step`
+# is a single action, not a plan; `open_questions` are the ones the session could
+# not settle. A handoff is closed when the work it describes is finished or moved,
+# never because it is old.
+fields:
+  description: String
+  status: [open, closed]
+  task: String
+  next_step?: String
+  decided?: String[]
+  open_questions?: String[]
+  handoff_to?: String

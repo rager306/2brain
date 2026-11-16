@@ -1,0 +1,15 @@
+# A choice that was made, with what it rests on.
+#
+# Every accepted decision is a constraint on the future: the next agent may still
+# disagree, but it must be able to see what was decided and on what evidence.
+# Only `description` and `status` are required — a decision recorded in an
+# afternoon has no URL, and demanding one would make the honest record the rare one.
+fields:
+  description: String
+  status: [proposed, accepted, superseded]
+  decided_on?: String
+  supersedes?: String
+  evidence?: String[]
+  topics?: String[]
+  source_url?: String
+  provenance?: String

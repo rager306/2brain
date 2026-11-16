@@ -1,0 +1,10 @@
+# Something tried, and what happened — including when what happened was nothing.
+#
+# The negative result is the one worth writing: it is what stops the next agent
+# from repeating a measurement that already failed.
+fields:
+  description: String
+  status: [planned, running, done, abandoned]
+  question?: String
+  result?: String
+  source_url?: String

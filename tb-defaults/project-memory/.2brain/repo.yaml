@@ -1,0 +1,5 @@
+# The project-memory starter: the six record kinds an agent needs to continue work that another agent started.
+# It is a plain repo, so `2brain init --template project-memory` copies it and renames `name:` only.
+type: tb.engine.repo::tb-engine
+name: project-memory
+description: decisions, constraints, evidence, experiments, handoffs and fixes for one project
