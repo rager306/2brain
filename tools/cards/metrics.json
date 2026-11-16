@@ -2,12 +2,12 @@
   "generated_for": "2brain",
   "gates": {
     "adapter_tests": {
-      "value": 217,
+      "value": 225,
       "command": "cd tb-mcp-rs && cargo +1.99.0 test --offline",
       "date": "2026-11-16"
     },
     "engine_lib_tests": {
-      "value": 704,
+      "value": 712,
       "known_environment_failures": 1,
       "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --lib",
       "date": "2026-11-16"
@@ -27,7 +27,8 @@
     "watch": 1,
     "wire_schema": 29,
     "binaries": 1,
-    "languages_on_request_path": 1
+    "languages_on_request_path": 1,
+    "tool_prefix": "tb_"
   },
   "ranking": {
     "literal": {
@@ -57,5 +58,12 @@
     "daemon_rss_mib": 72.6,
     "index_bytes_per_document": 3359,
     "source": "ps -o rss= -p $(systemctl show 2brain-engine -p MainPID --value); find /root/vault -name '*.md' | wc -l; date 2026-11-16"
+  },
+  "migration": {
+    "in_scope_repositories": 20,
+    "migrated": 16,
+    "refused": 1,
+    "skipped": 3,
+    "source": "au migrate identity --dry-run --all, then --apply; 2026-11-16"
   }
 }
