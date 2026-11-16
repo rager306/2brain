@@ -73,10 +73,13 @@
     "sourced": 896,
     "described": 1019,
     "outbound_median": 3.0,
-    "notes_without_links": 76,
+    "notes_without_links": 13,
     "isolated": 204,
     "broken_links": 0,
-    "edges": 4655,
-    "source": "tools/kb/census.py --json; engine graph_health; 2026-11-16 evening"
+    "edges": 4689,
+    "source": "tools/kb/census.py --json (engine view); 2026-11-16 after the link pass",
+    "links": 4887,
+    "zero_inbound": 32,
+    "dead_ends": 19
   }
 }
