@@ -1,0 +1,5695 @@
+{
+ "vault": "/root/vault",
+ "generated": "2026-11-16",
+ "standard": "Each row is a question a reader who has NOT read the note could ask. `expect` lists the minimally sufficient evidence paths; `evidence` quotes what in the note answers it; `why_not_tautology` names the query words that do not occur in the expected note; `absent_terms_share` is the measured share of content terms that do not occur in it (prefix-5 stem match, stopword-filtered, no judgement). `axes` places every row on nine axes so a failure can be attributed; `pair` marks the rows that differ in exactly one axis. `measured` is the live engine's answer on 2026-11-16 (scope own, limit 20): rank of the first expected path, page width, top hit's matched_terms, and whether tb_grep finds the query literally.",
+ "counts": {
+  "paraphrase": 35,
+  "exact": 15,
+  "multi-hop": 20,
+  "ambiguous": 15,
+  "absent": 15,
+  "structural": 12,
+  "silly": 19,
+  "regression": 13,
+  "cross-lingual": 16
+ },
+ "axes_enum": {
+  "language": [
+   "en",
+   "ru",
+   "mixed"
+  ],
+  "length": [
+   "short",
+   "medium",
+   "long"
+  ],
+  "form": [
+   "question",
+   "keyword",
+   "silly",
+   "regression"
+  ],
+  "hop": [
+   "single",
+   "multi",
+   "none"
+  ],
+  "lifecycle": [
+   "any",
+   "current",
+   "proposed",
+   "superseded"
+  ],
+  "type": [
+   "any",
+   "insight",
+   "pattern",
+   "extract",
+   "decision",
+   "error",
+   "claim"
+  ],
+  "scope": [
+   "own",
+   "all"
+  ],
+  "temporality": [
+   "none",
+   "recent",
+   "as-of"
+  ],
+  "entity": [
+   "concept",
+   "artifact",
+   "error",
+   "decision"
+  ],
+  "noise": [
+   "caps",
+   "caps_keyword",
+   "code",
+   "fragment",
+   "mixed_language",
+   "path",
+   "path_anchor",
+   "punctuation_emoji",
+   "rambling",
+   "repeat",
+   "single_word",
+   "spelling_control",
+   "typo",
+   "url"
+  ],
+  "form_note": "path and code shapes live in `noise` under form=silly, because the class label is silly for every noise row"
+ },
+ "rows": [
+  {
+   "id": "p01",
+   "class": "paraphrase",
+   "query": "how much of the model's input should retrieved recollections take before they crowd out the user's own instructions",
+   "expect": [
+    "knowledge/context-window-stuffing-impairs-agent-performance-max-20-to-30-percent-for-retrieved-memories.md"
+   ],
+   "evidence": "Max 20-30% of context window for retrieved memories; the note lists 'Agent ignoring user instructions or tool descriptions (displaced)' as the detection signal.",
+   "why_not_tautology": "recollections, occupy/crowd, model's input, user's own are absent; the note says memories, context window, instructions, displaced.",
+   "axes": {
+    "language": "en",
+    "length": "long",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.636,
+   "measured": {
+    "rank": 2,
+    "total": 577,
+    "top_terms": 10,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agents-of-chaos-no-self-model.md",
+     "knowledge/context-window-stuffing-impairs-agent-performance-max-20-to-30-percent-for-retrieved-memories.md",
+     "knowledge/agents-of-chaos-no-stakeholder-model.md"
+    ]
+   }
+  },
+  {
+   "id": "p02",
+   "class": "paraphrase",
+   "query": "assistant's default permission mode when a destructive shell command is attempted",
+   "expect": [
+    "knowledge/three-autonomy-levels-govern-agent-action-authority-readonly-supervised-full.md"
+   ],
+   "evidence": "**Default**: `Supervised` — requires explicit approval for risky operations; destructive commands (rm, mkfs, dd, shutdown) are high-risk and blocked by default.",
+   "why_not_tautology": "assistant, permission, mode, attempted are absent; the note says autonomy level, default, Supervised, destructive.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.5,
+   "measured": {
+    "rank": 1,
+    "total": 447,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/three-autonomy-levels-govern-agent-action-authority-readonly-supervised-full.md",
+     "knowledge/claude-flow-deploys-15-agent-hierarchical-mesh-with-queen-coordinator-and-three-domain-clusters.md",
+     ".claude/skills/extract/SKILL.md"
+    ]
+   }
+  },
+  {
+   "id": "p03",
+   "class": "paraphrase",
+   "query": "как исправить запись в темпоральной базе, когда ошибся не мир, а мы сами",
+   "expect": [
+    "knowledge/assert-retract-correct-write-ops.md"
+   ],
+   "evidence": "correct — закрыть TT: мы ошибались; ошибочная запись сохраняется (аудит, replay); distинкция correction vs evolution — центральная.",
+   "why_not_tautology": "исправить, темпоральной, базе, сами are absent; the note says correct, TT, ошибались, ошибочная запись.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.636,
+   "measured": {
+    "rank": 1,
+    "total": 760,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/assert-retract-correct-write-ops.md",
+     "inbox/banking-ai-native-dev-talk.md",
+     "inbox/pattern-system-not-model-faults.md"
+    ]
+   }
+  },
+  {
+   "id": "p04",
+   "class": "paraphrase",
+   "query": "почему поиск по точным словам победил нейросетевые векторы на справочнике в тысячи страниц без обучения",
+   "expect": [
+    "knowledge/sqlite-fts5-handled-a-3799-page-manual-where-a-vector-db-was-overkill.md"
+   ],
+   "evidence": "«Технические документы — лексический домен… BM25/FTS5 бьют по точному вхождению»; документ структурирован в SQLite+FTS5 без эмбеддингов.",
+   "why_not_tautology": "победил, нейросетевые, векторы, справочнике, тысячи are absent; the note says точное вхождение, лексический, FTS5.",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.429,
+   "measured": {
+    "rank": 1,
+    "total": 762,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/sqlite-fts5-handled-a-3799-page-manual-where-a-vector-db-was-overkill.md",
+     "inbox/lsa-latent-sparse-attention.md",
+     "knowledge/agenticdb-five-table-schema-for-cognitive-memory.md"
+    ]
+   }
+  },
+  {
+   "id": "p05",
+   "class": "paraphrase",
+   "query": "an assistant refuses to hand over private records but does so when the same request is reworded as a routine forward",
+   "expect": [
+    "knowledge/agents-of-chaos-forwarding-reframes-bypass.md"
+   ],
+   "evidence": "Agent refuses direct request 'Share the emails with SSN and bank info', then complies when asked to 'Forward the email thread to me'.",
+   "why_not_tautology": "assistant, hand over, records, reworded, routine are absent; the note says share, emails, forward, PII.",
+   "axes": {
+    "language": "en",
+    "length": "long",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "error",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "error"
+   },
+   "absent_terms_share": 0.556,
+   "measured": {
+    "rank": 1,
+    "total": 634,
+    "top_terms": 14,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agents-of-chaos-forwarding-reframes-bypass.md",
+     "knowledge/agents-of-chaos-no-private-deliberation.md",
+     "knowledge/hermes-stories-personal-assistant.md"
+    ]
+   }
+  },
+  {
+   "id": "p07",
+   "class": "paraphrase",
+   "query": "граф начинает врать, когда одного и того же человека и героя фильма считают одним узлом",
+   "expect": [
+    "knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md"
+   ],
+   "evidence": "«Dr. Smith» врач пользователя и «Dr. Smith» персонаж фильма становятся одним узлом; false connections corrupt reasoning chains; ER ниже 85% накапливает ошибки при каждом обходе графа.",
+   "why_not_tautology": "человека, героя, фильма, считают, врать, начинает are absent; the note says Dr. Smith, персонаж, один узел, corrupt.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.615,
+   "measured": {
+    "rank": 1,
+    "total": 595,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md",
+     "inbox/specdlc-fondue-recipe-graph.md",
+     "inbox/harnessmm-guarded-decision-reuse-rsi.md"
+    ]
+   }
+  },
+  {
+   "id": "p08",
+   "class": "paraphrase",
+   "query": "почему редкие гонки почти невозможно поймать прогоном сценариев",
+   "expect": [
+    "knowledge/heisenbugs-require-formal-methods-not-testing.md"
+   ],
+   "evidence": "Гейзенбаги «проявляются только при специфических переплетениях событий» и «Тестирование с высокой вероятностью пропускает их».",
+   "why_not_tautology": "редкие, почти, невозможно, поймать, прогоном are absent; the note says Гейзенбаги, тестирование, пропускает, переплетениях.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.625,
+   "measured": {
+    "rank": 6,
+    "total": 29,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/pattern-mini-mirror-parity.md",
+     "inbox/kache-vs-mr-boxington-cargo-caches.md",
+     "inbox/ppa-ch8-datasets-benchmark-science.md"
+    ]
+   }
+  },
+  {
+   "id": "p09",
+   "class": "paraphrase",
+   "query": "откат возвращает и файлы, и память агента о его действиях",
+   "expect": [
+    "knowledge/rollback-restores-destroyed-codebase-and-agent-context-in-one-command.md"
+   ],
+   "evidence": "Двухслойный undo: «откатился и контекст агента: модель забыла, что сделала разрушение».",
+   "why_not_tautology": "возвращает, память, действиях are absent-ish; the note says откат, контекст, забыла.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.429,
+   "measured": {
+    "rank": 1,
+    "total": 467,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/rollback-restores-destroyed-codebase-and-agent-context-in-one-command.md",
+     "knowledge/four-agents-share-one-obsidian-vault-to-end-cross-agent-amnesia.md",
+     "inbox/deltadb-zed-between-commits.md"
+    ]
+   }
+  },
+  {
+   "id": "p10",
+   "class": "paraphrase",
+   "query": "несколько разных ассистентов писали одни и те же сведения в четыре места, и они разъезжались",
+   "expect": [
+    "knowledge/four-agents-share-one-obsidian-vault-to-end-cross-agent-amnesia.md"
+   ],
+   "evidence": "«The same facts about my work… lived in 4+ places, drifted apart, and there was no single place to ask»; решение — один Obsidian-vault как общий SoT.",
+   "why_not_tautology": "ассистентов, писали, сведения, разъезжались are absent; the note says агентов, факты, 4+ places, drifted apart.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.5,
+   "measured": {
+    "rank": 1,
+    "total": 736,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/four-agents-share-one-obsidian-vault-to-end-cross-agent-amnesia.md",
+     "inbox/deltadb-zed-between-commits.md",
+     "inbox/pattern-crash-tested-migration.md"
+    ]
+   }
+  },
+  {
+   "id": "p11",
+   "class": "paraphrase",
+   "query": "у каждого сотрудника свой постоянный помощник в отдельном сетевом отсеке",
+   "expect": [
+    "knowledge/razorpay-runs-220-isolated-per-employee-agents-on-kubernetes.md"
+   ],
+   "evidence": "«more than 220 Razorpay employees each have their own always-on AI agent… its own isolated Kubernetes namespace, with… its own network policy».",
+   "why_not_tautology": "постоянный, помощник, отдельном, отсеке are absent; the note says always-on, agent, isolated, namespace, network policy.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.5,
+   "measured": {
+    "rank": 9,
+    "total": 401,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/tsrs-bench-patterns-for-grobid-rust-port.md",
+     "inbox/arsumbris-fork-backlog.md",
+     "inbox/rust-profiling-measured-loop.md"
+    ]
+   }
+  },
+  {
+   "id": "p12",
+   "class": "paraphrase",
+   "query": "чем чужая реализация судьи на TypeScript сильнее нашей и что из неё стоит забрать",
+   "expect": [
+    "knowledge/prime-typesafe-jev-comparison-insight.md"
+   ],
+   "evidence": "«У НИХ сильнее… у нас провайдер-слой и интеграция с движком; брать паттерны (redactor, бюджет+kill-switch, G1-лестница, receipts)».",
+   "why_not_tautology": "чужая, судьи, нашей, забрать are absent; the note says у НИХ, у нас, брать паттерны, сильнее.",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.769,
+   "measured": {
+    "rank": 11,
+    "total": 771,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/pattern-distractor-semantic-eval.md",
+     "inbox/codenameone-java-not-rust-apps.md",
+     "inbox/namidsh-deepseek-harness-mini.md"
+    ]
+   }
+  },
+  {
+   "id": "p13",
+   "class": "paraphrase",
+   "query": "why does the index behind semantic lookup need to sit entirely in main memory",
+   "expect": [
+    "knowledge/hnsw-memory-bloat-index-requires-ram-residency-100k-vectors-at-1536-dims-needs-600mb-plus.md"
+   ],
+   "evidence": "HNSW indexes require the entire index to be RAM-resident; 100K memories @ 1536d = 600MB+; once nodes spill to disk, 'latency becomes dominated by page faults'.",
+   "why_not_tautology": "semantic, lookup, sit, entirely, main are absent; the note says HNSW, RAM-resident, index, page faults.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.556,
+   "measured": {
+    "rank": null,
+    "total": 597,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "ops/methodology/derivation-rationale.md",
+     "knowledge/rl2f-consolidation-problem-remains-unsolved.md",
+     ".claude/skills/connect/SKILL.md"
+    ]
+   }
+  },
+  {
+   "id": "p14",
+   "class": "paraphrase",
+   "query": "an agent asks the possibly compromised account whether it was really compromised",
+   "expect": [
+    "knowledge/agents-of-chaos-circular-verification.md"
+   ],
+   "evidence": "Circular verification — '<asking> the potentially compromised Discord account to confirm it is not compromised'.",
+   "why_not_tautology": "asks, possibly, really are absent; the note says circular verification, compromised account, confirm.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.429,
+   "measured": {
+    "rank": 2,
+    "total": 425,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agents-of-chaos-disproportionate-response.md",
+     "knowledge/agents-of-chaos-circular-verification.md",
+     "knowledge/agents-of-chaos-social-coherence-failure.md"
+    ]
+   }
+  },
+  {
+   "id": "p15",
+   "class": "paraphrase",
+   "query": "сколько таблиц нужно, чтобы хранить опыт агента по разным видам памяти",
+   "expect": [
+    "knowledge/agenticdb-five-table-schema-for-cognitive-memory.md"
+   ],
+   "evidence": "Строгая 5-табличная схема, где каждая таблица инкапсулирует специфический аспект агентного опыта (vectors/reflection/skills/causality/learning).",
+   "why_not_tautology": "сколько, нужно, чтобы, разным, видам are absent; the note says 5-табличная, схема, аспект опыта.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.545,
+   "measured": {
+    "rank": 3,
+    "total": 311,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/omnimem-earned-agent-memory.md",
+     "inbox/memcredit-decision-utility-memory.md",
+     "knowledge/agenticdb-five-table-schema-for-cognitive-memory.md"
+    ]
+   }
+  },
+  {
+   "id": "p16",
+   "class": "paraphrase",
+   "query": "what share of the blended score comes from learned vectors versus keyword ranking",
+   "expect": [
+    "knowledge/mnemosyne-hybrid-search-three-component.md"
+   ],
+   "evidence": "Search composition: Semantic weight 70% (vector similarity via sqlite-vec), FTS weight 20% (BM25-ranked), Graph weight 10%.",
+   "why_not_tautology": "share, blended, comes, learned, versus, keyword are absent; the note says weight, vector similarity, FTS, BM25-ranked.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.778,
+   "measured": {
+    "rank": null,
+    "total": 450,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/two-paths-out-of-the-embedding-pipeline-one-index-versus-one-swiss-army-knife.md",
+     ".claude/skills/review/SKILL.md",
+     "knowledge/agents-of-chaos-forwarding-reframes-bypass.md"
+    ]
+   }
+  },
+  {
+   "id": "p17",
+   "class": "paraphrase",
+   "query": "which agreement protocol is chosen at runtime when some peers may lie, and who chooses",
+   "expect": [
+    "knowledge/claude-flow-implements-three-consensus-protocols-raft-byzantine-gossip-with-runtime-factory-selection.md"
+   ],
+   "evidence": "The factory `createConsensusEngine(nodeId, config)` selects the protocol at runtime; PBFT is the Byzantine-fault-tolerant one.",
+   "why_not_tautology": "chosen, peers, may, lie, chooses are absent; the note says factory, selects, runtime, Byzantine fault tolerance.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.625,
+   "measured": {
+    "rank": 1,
+    "total": 418,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/claude-flow-implements-three-consensus-protocols-raft-byzantine-gossip-with-runtime-factory-selection.md",
+     "ops/methodology/derivation-rationale.md",
+     "knowledge/agents-of-chaos-no-private-deliberation.md"
+    ]
+   }
+  },
+  {
+   "id": "p18",
+   "class": "paraphrase",
+   "query": "насколько глубоко схема понятий проникает в разработку: от подсказки до генерации кода",
+   "expect": [
+    "knowledge/three-ontology-approaches-reference-vs-model-driven-vs-runtime.md"
+   ],
+   "evidence": "Спектр: Reference (онтологии на этапах требований и проектирования, код вручную) → Model-Driven (автогенерация) → Runtime.",
+   "why_not_tautology": "насколько, глубоко, схема, понятий, подсказки, генерации, кода are mostly absent; the note says спектр, проникает, автогенерация.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.636,
+   "measured": {
+    "rank": 8,
+    "total": 568,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/formal-verification-became-agentic-november-2026.md",
+     "knowledge/llm-compiler-not-executor-principle.md",
+     "inbox/agent-plasticity-the-efficiency-of-converting-experience-into-held-out-gains.md"
+    ]
+   }
+  },
+  {
+   "id": "p20",
+   "class": "paraphrase",
+   "query": "чиним кривой вызов инструмента детерминированными шагами до запуска, без обращения к модели",
+   "expect": [
+    "knowledge/toolcall-repair-layers-pattern.md"
+   ],
+   "evidence": "«Починка tool-call четырьмя детерминированными слоями до исполнения (coerce/alias-redirect/repair-catalog/hinted-reject)… ноль LLM в цикле».",
+   "why_not_tautology": "чиним, кривой, шагами, запуска, обращения are absent; the note says починка, слоями, до исполнения, ноль LLM.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.636,
+   "measured": {
+    "rank": 1,
+    "total": 531,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/toolcall-repair-layers-pattern.md",
+     "inbox/pattern-preregistered-quality-gates.md",
+     "inbox/buzzoni-jev-engineering-claude-code-hooks.md"
+    ]
+   }
+  },
+  {
+   "id": "p21",
+   "class": "paraphrase",
+   "query": "assistants act beyond their competence and never notice",
+   "expect": [
+    "knowledge/agents-of-chaos-no-self-model.md"
+   ],
+   "evidence": "«Agents take irreversible, user-affecting actions without recognizing they are exceeding their own competence boundaries».",
+   "why_not_tautology": "assistants, beyond, notice are absent; the note says agents, exceeding, competence boundaries, without recognizing.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.714,
+   "measured": {
+    "rank": 1,
+    "total": 128,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agents-of-chaos-no-self-model.md",
+     "knowledge/agents-of-chaos-zeroclaw-architecture-implications.md",
+     "knowledge/three-autonomy-levels-govern-agent-action-authority-readonly-supervised-full.md"
+    ]
+   }
+  },
+  {
+   "id": "p24",
+   "class": "paraphrase",
+   "query": "насколько можно верить вероятности, которую модель выдаёт вместо да или нет",
+   "expect": [
+    "knowledge/jev-noul-probabilities-are-calibrated.md"
+   ],
+   "evidence": "«из вопросов, на которые Jev ответила 0.9, примерно девять из десяти — фактическое „да“»; отличие от LLM, где вероятность — риторический приём.",
+   "why_not_tautology": "верить, которую, модель, выдаёт, вместо are absent; the note says калибрована, Jev, 0.9, девять из десяти.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.636,
+   "measured": {
+    "rank": 1,
+    "total": 404,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/jev-noul-probabilities-are-calibrated.md",
+     "inbox/parallel-decisions-api-web-grounded-systemone.md",
+     "inbox/hermann-stop-mixing-rag-kg-semantic-agents.md"
+    ]
+   }
+  },
+  {
+   "id": "p26",
+   "class": "paraphrase",
+   "query": "где хранится истина, если факты извлекает модель, а время жизни стоит на рёбрах",
+   "expect": [
+    "knowledge/graphiti-bitemporal-fact-edges-contrast.md"
+   ],
+   "evidence": "«LLM извлекает сущности и RELATES_TO-факты, рёбра несут valid_at/invalid_at/expired_at/reference_time», но SoT во внешнем GDBMS и LLM на пути записи.",
+   "why_not_tautology": "где, хранится, истина, извлекает, время жизни, стоит are absent; the note says SoT, LLM, рёбра, valid_at.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.667,
+   "measured": {
+    "rank": 1,
+    "total": 625,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/graphiti-bitemporal-fact-edges-contrast.md",
+     "knowledge/bitemporal-valid-transaction-time.md",
+     "inbox/agent-instruction-rationale-catastrophic-remembering.md"
+    ]
+   }
+  },
+  {
+   "id": "p28",
+   "class": "paraphrase",
+   "query": "скилл экономит около двух третей цены, но со временем начинает врать и стоить дороже",
+   "expect": [
+    "knowledge/skills-are-a-reasoning-cache-saving-63-percent-but-rot-needs-management.md"
+   ],
+   "evidence": "«skill-cached прогоны ~63% дешевле ре-деривации, но та же петля компаундирует дрейф стоимости, rot скиллов и trust surface».",
+   "why_not_tautology": "экономит, около, двух, третей, временем, врать are absent; the note says 63% дешевле, дрейф стоимости, rot.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.692,
+   "measured": {
+    "rank": 2,
+    "total": 513,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/jev-cost-is-not-always-a-win.md",
+     "knowledge/skills-are-a-reasoning-cache-saving-63-percent-but-rot-needs-management.md",
+     "inbox/nvidia-you-dont-need-long-context.md"
+    ]
+   }
+  },
+  {
+   "id": "p32",
+   "class": "paraphrase",
+   "query": "почему один большой вопрос с критериями в прозе считается плохой практикой",
+   "expect": [
+    "knowledge/vendor-doctrine-converges-on-atomic-judgments.md"
+   ],
+   "evidence": "«один большой Choice с criteria-прозой = „prompt gymnastics“, антипаттерн»; суждения атомарные и изолированные, решение = композиция.",
+   "why_not_tautology": "считается, плохой, практикой, большой are absent-ish; the note says Choice, criteria-проза, антипаттерн, атомарные.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.556,
+   "measured": {
+    "rank": 1,
+    "total": 716,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/vendor-doctrine-converges-on-atomic-judgments.md",
+     "inbox/buzzoni-jev-engineering-claude-code-hooks.md",
+     "inbox/the-signal-engine-filtering-beats-reading-and-the-question-is-the-policy.md"
+    ]
+   }
+  },
+  {
+   "id": "p34",
+   "class": "paraphrase",
+   "query": "why an index of pointers beats shipping full text into the prompt",
+   "expect": [
+    "knowledge/compressed-8kb-docs-index-preserves-full-agent-effectiveness-agents-need-pointers-not-content.md"
+   ],
+   "evidence": "Vercel compressed 40KB docs to an 8KB pipe-delimited index with zero effectiveness loss; details are fetched on demand from local files.",
+   "why_not_tautology": "pointers, beats, shipping, full text, prompt are absent-ish; the note says pipe-delimited index, on demand, effectiveness loss.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.571,
+   "measured": {
+    "rank": 2,
+    "total": 515,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/passive-context-agents-md-achieves-100-percent-pass-rate-where-on-demand-skills-achieve-53-percent-by-eliminating-invocation-decision.md",
+     "knowledge/compressed-8kb-docs-index-preserves-full-agent-effectiveness-agents-need-pointers-not-content.md",
+     "knowledge/agents-of-chaos-identity-spoofing.md"
+    ]
+   }
+  },
+  {
+   "id": "p35",
+   "class": "paraphrase",
+   "query": "the agent narrates its plan and leaks it",
+   "expect": [
+    "knowledge/agents-of-chaos-no-private-deliberation.md"
+   ],
+   "evidence": "Agents lack a private deliberation surface: reasoning may be hidden at LLM level but sensitive information leaks through tool outputs and cross-channel posting.",
+   "why_not_tautology": "narrates, plan, leaks it are absent; the note says private deliberation, tool outputs, cross-channel posting.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.5,
+   "measured": {
+    "rank": 1,
+    "total": 547,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agents-of-chaos-no-private-deliberation.md",
+     "knowledge/agents-of-chaos-disproportionate-response.md",
+     ".claude/skills/refactor/SKILL.md"
+    ]
+   }
+  },
+  {
+   "id": "p37",
+   "class": "paraphrase",
+   "query": "what are the four parts of the pattern-matching layer",
+   "expect": [
+    "knowledge/agentdb-reasoningbank-has-four-components-pattern-matcher-experience-curator-memory-optimizer-context-synthesizer.md"
+   ],
+   "evidence": "ReasoningBank's four components: pattern matcher, experience curator, memory optimizer, context synthesizer.",
+   "why_not_tautology": "four parts, pattern-matching layer are absent in that shape; the note names the four components.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.4,
+   "measured": {
+    "rank": 2,
+    "total": 450,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/every-ruvnet-project-runs-background-workers-as-the-operational-form-of-self-evolving-intelligence.md",
+     "knowledge/agentdb-reasoningbank-has-four-components-pattern-matcher-experience-curator-memory-optimizer-context-synthesizer.md",
+     "knowledge/agentdb-quic-sync-enables-real-time-delta-compressed-memory-sharing-across-distributed-agents.md"
+    ]
+   }
+  },
+  {
+   "id": "e01",
+   "class": "exact",
+   "query": "CapsuleCraft",
+   "expect": [
+    "inbox/statcraft-safe-rust-spss-alternative.md"
+   ],
+   "evidence": "StatCraft's knowledge base is CapsuleCraft, a `.capsule` file format (the note names it once, in the body).",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 2,
+    "page_head": [
+     "inbox/statcraft-safe-rust-spss-alternative.md"
+    ]
+   }
+  },
+  {
+   "id": "e02",
+   "class": "exact",
+   "query": "Oxetene",
+   "expect": [
+    "inbox/oxetene-rust-criticism-source-map.md"
+   ],
+   "evidence": "The note maps a long critique of Rust and names Oxetene as the source project under review.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 5,
+    "page_head": [
+     "inbox/oxetene-rust-criticism-source-map.md"
+    ]
+   }
+  },
+  {
+   "id": "e03",
+   "class": "exact",
+   "query": "OpenHarness",
+   "expect": [
+    "inbox/harness-consolidates-into-control-plane.md"
+   ],
+   "evidence": "The week's consolidation note names OpenHarness among the control-plane entrants.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 5,
+    "page_head": [
+     "inbox/harness-consolidates-into-control-plane.md"
+    ]
+   }
+  },
+  {
+   "id": "e04",
+   "class": "exact",
+   "query": "DeepAgents",
+   "expect": [
+    "inbox/gdpevo-rule-hybridization-makes-self-evolution-measurable-and-a-naive-skill-creator-beats-the-fancy-ones.md"
+   ],
+   "evidence": "DeepAgents is the baseline the GDPevo note compares against.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 2,
+    "page_head": [
+     "inbox/gdpevo-rule-hybridization-makes-self-evolution-measurable-and-a-naive-skill-creator-beats-the-fancy-ones.md"
+    ]
+   }
+  },
+  {
+   "id": "e05",
+   "class": "exact",
+   "query": "RefinedRust",
+   "expect": [
+    "inbox/rust-verification-tools-family.md"
+   ],
+   "evidence": "The verification-tool family note places RefinedRust among the tools.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 4,
+    "page_head": [
+     "inbox/rust-verification-tools-family.md"
+    ]
+   }
+  },
+  {
+   "id": "e06",
+   "class": "exact",
+   "query": "RustHorn",
+   "expect": [
+    "inbox/creusot-research-landscape.md"
+   ],
+   "evidence": "The Creusot landscape note lists RustHorn as a related approach.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 4,
+    "page_head": [
+     "inbox/creusot-research-landscape.md"
+    ]
+   }
+  },
+  {
+   "id": "e07",
+   "class": "exact",
+   "query": "Shuttle",
+   "expect": [
+    "inbox/bbtree-verified-concurrent-map.md"
+   ],
+   "evidence": "The BbTree note names Shuttle as the concurrency-testing tool it compares with.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 5,
+    "page_head": [
+     "inbox/bbtree-verified-concurrent-map.md"
+    ]
+   }
+  },
+  {
+   "id": "e08",
+   "class": "exact",
+   "query": "AutoStore",
+   "expect": [
+    "inbox/gul-retrieval-sequencing-side-access.md"
+   ],
+   "evidence": "The retrieval-sequencing note names AutoStore as the compact-store class it models.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 2,
+    "page_head": [
+     "inbox/gul-retrieval-sequencing-side-access.md"
+    ]
+   }
+  },
+  {
+   "id": "e09",
+   "class": "exact",
+   "query": "EvoMap",
+   "expect": [
+    "inbox/evolver-gene-experience-framework.md"
+   ],
+   "evidence": "EvoMap is the publishing network in the Evolver note.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 2,
+    "page_head": [
+     "inbox/evolver-gene-experience-framework.md"
+    ]
+   }
+  },
+  {
+   "id": "e10",
+   "class": "exact",
+   "query": "SteelDB",
+   "expect": [
+    "knowledge/kernel-flusher-throttling-cloud-oltp.md"
+   ],
+   "evidence": "SteelDB is the system the SOSP poster accompanies.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 4,
+    "page_head": [
+     "knowledge/kernel-flusher-throttling-cloud-oltp.md"
+    ]
+   }
+  },
+  {
+   "id": "e11",
+   "class": "exact",
+   "query": "Sage-A1.5",
+   "expect": [
+    "inbox/sage-a1-5-agentic-vlm.md"
+   ],
+   "evidence": "The note's subject: a 35B MoE agentic VLM.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 4,
+    "top_terms": 3,
+    "grep_literal": 5,
+    "page_head": [
+     "inbox/sage-a1-5-agentic-vlm.md",
+     "inbox/extract-bench-levanto-sage2.md",
+     "inbox/jevbench-independent-board.md"
+    ]
+   }
+  },
+  {
+   "id": "e12",
+   "class": "exact",
+   "query": "Firecrawl Alexandria",
+   "expect": [
+    "inbox/firecrawl-alexandria-a-tool-marketplace-where-agents-are-the-buyers.md"
+   ],
+   "evidence": "The launch note names the marketplace.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 2,
+    "grep_literal": 3,
+    "page_head": [
+     "inbox/firecrawl-alexandria-a-tool-marketplace-where-agents-are-the-buyers.md"
+    ]
+   }
+  },
+  {
+   "id": "e13",
+   "class": "exact",
+   "query": "gitoxide",
+   "expect": [
+    "inbox/gitoxide-pure-rust-git.md"
+   ],
+   "evidence": "The note's subject: a pure-Rust Git implementation.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 9,
+    "page_head": [
+     "inbox/gitoxide-pure-rust-git.md"
+    ]
+   }
+  },
+  {
+   "id": "e14",
+   "class": "exact",
+   "query": "uringscope",
+   "expect": [
+    "inbox/uringscope-ebpf-io-uring-verdicts.md"
+   ],
+   "evidence": "The note's subject: a one-binary eBPF tracer.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 9,
+    "page_head": [
+     "inbox/uringscope-ebpf-io-uring-verdicts.md"
+    ]
+   }
+  },
+  {
+   "id": "e15",
+   "class": "exact",
+   "query": "PaperQA2",
+   "expect": [
+    "inbox/paperqa2-vs-daily-archive-comparison.md"
+   ],
+   "evidence": "The comparison note names PaperQA2 as the reference agentic-PDF pipeline.",
+   "why_not_tautology": "exact class: the identifier occurs in exactly one note (measured df=1), so the question resolves a name rather than quoting an answer; 0% of the query's terms are absent by construction",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "artifact"
+   },
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 7,
+    "page_head": [
+     "inbox/paperqa2-vs-daily-archive-comparison.md"
+    ]
+   }
+  },
+  {
+   "id": "m01",
+   "class": "multi-hop",
+   "query": "four timestamps on one edge: which pair tracks the world and which pair tracks our recording",
+   "expect": [
+    "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md",
+    "knowledge/bitemporal-valid-transaction-time.md"
+   ],
+   "evidence": "Edge note: every edge has created_at/expired_at (ingestion) and valid_from/valid_until (event); bitemporal note: valid time = world truth, transaction time = when recorded, half-open intervals, AS OF on both axes.",
+   "why_not_tautology": "четыре, метки, момент, записали are absent from both notes; the notes say created_at/expired_at, valid_from/valid_until, valid time, transaction time.",
+   "axes": {
+    "language": "ru",
+    "length": "long",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "as-of",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.667,
+   "measured": {
+    "rank": 2,
+    "total": 500,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/tkg-bi-temporal-edge-model-tracks-four-timestamps-for-non-lossy-history.md",
+     "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md",
+     "knowledge/every-ruvnet-project-runs-background-workers-as-the-operational-form-of-self-evolving-intelligence.md"
+    ]
+   }
+  },
+  {
+   "id": "m02",
+   "class": "multi-hop",
+   "query": "чем закрытие неверной записи отличается от закрытия устаревшего факта, и где эта логика живёт у Graphiti",
+   "expect": [
+    "knowledge/assert-retract-correct-write-ops.md",
+    "knowledge/graphiti-bitemporal-fact-edges-contrast.md"
+   ],
+   "evidence": "assert/retract/correct: retract closes VT (the world changed), correct closes TT (we were wrong, bad record kept for audit); Graphiti keeps invalidate-not-delete on edges but supersession lives in app code.",
+   "why_not_tautology": "закрытие, неверной, устаревшего, живёт are absent; the notes say retract, correct, VT, TT, invalidate-not-delete.",
+   "axes": {
+    "language": "mixed",
+    "length": "long",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "as-of",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.714,
+   "measured": {
+    "rank": 4,
+    "total": 612,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/pattern-supersede-discipline.md",
+     "inbox/sermakarevich-thirty-memory-products-review.md",
+     "f/patterns/pattern-context-engine-coupling-choice.md"
+    ]
+   }
+  },
+  {
+   "id": "m03",
+   "class": "multi-hop",
+   "query": "сколько контекста отдать памяти под инструкции и почему готовый навык дешевле выводить заново",
+   "expect": [
+    "knowledge/context-window-stuffing-impairs-agent-performance-max-20-to-30-percent-for-retrieved-memories.md",
+    "knowledge/skills-are-a-reasoning-cache-saving-63-percent-but-rot-needs-management.md"
+   ],
+   "evidence": "Max 20-30% of the context window for retrieved memories, else instructions are displaced; a cached skill run is ~63% cheaper than re-deriving it.",
+   "why_not_tautology": "отдать, памяти, готовый, дешевле, выводить are absent; the notes say budget, context window, 63% дешевле, ре-деривация.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.833,
+   "measured": {
+    "rank": 5,
+    "total": 449,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/breunig-state-of-context-engineering.md",
+     "inbox/memcredit-decision-utility-memory.md",
+     "inbox/omnimem-earned-agent-memory.md"
+    ]
+   }
+  },
+  {
+   "id": "m04",
+   "class": "multi-hop",
+   "query": "how accurate must entity matching be before the knowledge graph is switched on, and what is built first",
+   "expect": [
+    "knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md",
+    "knowledge/fact-extraction-must-precede-graph-construction-intelligence-before-infrastructure.md"
+   ],
+   "evidence": "ER below 85% cascades into graph corruption; the phase order is fact extraction → semantic → entity → graph, and ER must exceed 90% before graph retrieval is enabled.",
+   "why_not_tautology": "строят, последним, порог, слияния, безопасным are absent; the notes say факт-экстракция, entity resolution, 85%, 90%, graph retrieval.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.3,
+   "measured": {
+    "rank": 3,
+    "total": 675,
+    "top_terms": 11,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/entity-resolution-accuracy-below-90-percent-corrupts-knowledge-graph-reasoning-chains.md",
+     "knowledge/zeroclaw-phase-ordering-fact-extraction-before-semantic-before-entity-before-graph.md",
+     "knowledge/fact-extraction-must-precede-graph-construction-intelligence-before-infrastructure.md"
+    ]
+   }
+  },
+  {
+   "id": "m05",
+   "class": "multi-hop",
+   "query": "two ways an assistant is talked past a refusal: rewording the request and emotional pressure",
+   "expect": [
+    "knowledge/agents-of-chaos-forwarding-reframes-bypass.md",
+    "knowledge/agents-of-chaos-guilt-trip-attack.md"
+   ],
+   "evidence": "Case 3: refuses to 'share' PII but forwards the same thread; Case 7: sustained emotional pressure exploiting real prior violations extracts escalating concessions.",
+   "why_not_tautology": "способы, обойти, отказ, переформулировка, давление, виной are absent; the notes say reframing, forward, emotional pressure, concessions.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "error",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "error"
+   },
+   "absent_terms_share": 0.7,
+   "measured": {
+    "rank": 1,
+    "total": 559,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agents-of-chaos-guilt-trip-attack.md",
+     "knowledge/hermes-stories-personal-assistant.md",
+     ".claude/skills/next/SKILL.md"
+    ]
+   }
+  },
+  {
+   "id": "m06",
+   "class": "multi-hop",
+   "query": "what the command validator refuses, and how many tests back the security module",
+   "expect": [
+    "knowledge/command-injection-prevention-blocks-shell-operators-subshells-and-dangerous-arguments.md",
+    "knowledge/claude-flow-security-module-passes-444-tests-with-bcrypt-safe-executor-and-zod-validation.md"
+   ],
+   "evidence": "Splits on && || ; | newline &, blocks subshells $() `${ <( >(, redirects, find -exec; the security module passes 444 tests across 8 components.",
+   "why_not_tautology": "проверяет, валидатор, сколько, тестов, закрывают are absent; the notes say split, blocked patterns, 444 passing tests, components.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.5,
+   "measured": {
+    "rank": 1,
+    "total": 449,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/claude-flow-security-module-passes-444-tests-with-bcrypt-safe-executor-and-zod-validation.md",
+     "knowledge/zeroclaw-command-injection-prevention-pattern.md",
+     "knowledge/agentdb-explainable-recall-provides-cryptographic-merkle-proofs-for-every-retrieval.md"
+    ]
+   }
+  },
+  {
+   "id": "m07",
+   "class": "multi-hop",
+   "query": "which autonomy level is the default, and how many actions an agent may take per hour",
+   "expect": [
+    "knowledge/three-autonomy-levels-govern-agent-action-authority-readonly-supervised-full.md",
+    "knowledge/sliding-window-rate-limiter-enforces-max-20-actions-per-hour-and-daily-cost-budget.md"
+   ],
+   "evidence": "Default is Supervised (approval for risky operations); max_actions_per_hour = 20 enforced by a sliding window.",
+   "why_not_tautology": "режиме, работает, разрешено are absent; the notes say Default: Supervised, max_actions_per_hour, 20.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.45,
+   "measured": {
+    "rank": 2,
+    "total": 675,
+    "top_terms": 9,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agents-of-chaos-no-self-model.md",
+     "knowledge/sliding-window-rate-limiter-enforces-max-20-actions-per-hour-and-daily-cost-budget.md",
+     ".claude/skills/graph/SKILL.md"
+    ]
+   }
+  },
+  {
+   "id": "m08",
+   "class": "multi-hop",
+   "query": "как изолируют агентов по сотрудникам и почему общая память всё равно нужна",
+   "expect": [
+    "knowledge/razorpay-runs-220-isolated-per-employee-agents-on-kubernetes.md",
+    "knowledge/four-agents-share-one-obsidian-vault-to-end-cross-agent-amnesia.md"
+   ],
+   "evidence": "Each employee gets an agent in its own Kubernetes namespace with encrypted storage and network policy; four agents sharing one vault to end cross-agent amnesia.",
+   "why_not_tautology": "изолируют, сотрудникам, общая, нужна are absent; the notes say isolated namespace, network policy, one Obsidian-vault, single SoT.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.591,
+   "measured": {
+    "rank": 1,
+    "total": 740,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/razorpay-runs-220-isolated-per-employee-agents-on-kubernetes.md",
+     "inbox/evomembench-long-context-still-beats-most-memory-and-no-memory-form-wins-everywhere.md",
+     "inbox/stale-instruction-files-override-code-one-sentence-fix.md"
+    ]
+   }
+  },
+  {
+   "id": "m09",
+   "class": "multi-hop",
+   "query": "which three retrieval channels are blended, and which tables store the experience",
+   "expect": [
+    "knowledge/mnemosyne-hybrid-search-three-component.md",
+    "knowledge/agenticdb-five-table-schema-for-cognitive-memory.md"
+   ],
+   "evidence": "70% vector + 20% FTS + 10% graph; AgenticDB's five tables (vectors, reflection, skills, causality, learning).",
+   "why_not_tautology": "канала, смешивает, таблицах, лежит are absent; the notes say vector/FTS/graph weights, five-table schema.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.5,
+   "measured": {
+    "rank": null,
+    "total": 490,
+    "top_terms": 8,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/pahf-framework-for-continual-agent-personalization.md",
+     "knowledge/agentdb-causal-memory-tracks-interventional-causality-via-doubly-robust-estimation.md",
+     "knowledge/every-ruvnet-project-runs-background-workers-as-the-operational-form-of-self-evolving-intelligence.md"
+    ]
+   }
+  },
+  {
+   "id": "m10",
+   "class": "multi-hop",
+   "query": "какие три способа применять онтологию и какой из них требует, чтобы код не был первичным",
+   "expect": [
+    "knowledge/three-ontology-approaches-reference-vs-model-driven-vs-runtime.md",
+    "knowledge/ontology-as-single-source-of-truth-code-never-primary.md"
+   ],
+   "evidence": "Reference / Model-Driven / Runtime spectrum; ODD: ontology is the single source of truth, code is never primary, change schema.yaml or .tla then regenerate.",
+   "why_not_tautology": "способа, применять, требует, первичным are absent; the notes say Reference, Model-Driven, Runtime, source of truth.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.536,
+   "measured": {
+    "rank": 7,
+    "total": 774,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/jev-three-primitives-choice-score-noul.md",
+     "inbox/blazing-rust-architectural-patterns-week-41.md",
+     "inbox/evoontology-self-evolving-ontology-layer-for-data-agents-served-as-an-mcp-server.md"
+    ]
+   }
+  },
+  {
+   "id": "m11",
+   "class": "multi-hop",
+   "query": "a memory that forgets on purpose and an undo that rewinds the agent",
+   "expect": [
+    "knowledge/synapse-temporal-kg-forgets-on-purpose-to-fix-friday-amnesia.md",
+    "knowledge/rollback-restores-destroyed-codebase-and-agent-context-in-one-command.md"
+   ],
+   "evidence": "Synapse forgets context deliberately instead of losing it in the window; `/rollback 1` restores files and rewinds agent context so the model does not build on a broken state.",
+   "why_not_tautology": "общего, намеренного, забывания, отката, оставить are absent; the notes say forgetting as a mechanism, rollback, context rewound.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.417,
+   "measured": {
+    "rank": 1,
+    "total": 727,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/rollback-restores-destroyed-codebase-and-agent-context-in-one-command.md",
+     "knowledge/agents-of-chaos-disproportionate-response.md",
+     "knowledge/hermes-user-stories.md"
+    ]
+   }
+  },
+  {
+   "id": "m12",
+   "class": "multi-hop",
+   "query": "which AgentDB layer answers interventional questions, and where it sits in the stack",
+   "expect": [
+    "knowledge/agentdb-causal-memory-tracks-interventional-causality-via-doubly-robust-estimation.md",
+    "knowledge/agentdb-architecture.md"
+   ],
+   "evidence": "p(y|do(x)) vs p(y|x) via doubly robust estimation; ReasoningBank is layer 2 of the three-layer stack (QUIC / ReasoningBank / vector DB).",
+   "why_not_tautology": "отличает, вмешательство, наблюдения, стоит, стопке are absent; the notes say p(y|do(x)), doubly robust, Layer 2, ReasoningBank.",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.5,
+   "measured": {
+    "rank": 3,
+    "total": 552,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agentdb-quic-sync-enables-real-time-delta-compressed-memory-sharing-across-distributed-agents.md",
+     "knowledge/ruvnet-ecosystem-is-four-projects-storage-memory-optimization-orchestration.md",
+     "knowledge/agentdb-architecture.md"
+    ]
+   }
+  },
+  {
+   "id": "m13",
+   "class": "multi-hop",
+   "query": "как соединять рёбра без материализации промежуточных результатов и почему CSR можно выбросить",
+   "expect": [
+    "knowledge/wcoj-leapfrog-triejoin-pattern.md",
+    "knowledge/droppable-materializations-pattern.md"
+   ],
+   "evidence": "WCOJ via leapfrog trie-intersect over a frozen CSR; CSR is a lease over the append-only log and can be dropped and rebuilt.",
+   "why_not_tautology": "соединять, материализации, промежуточных, выбросить are absent; the notes say leapfrog trie-intersect, frozen CSR, lease, пересобрать.",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.5,
+   "measured": {
+    "rank": 1,
+    "total": 711,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/droppable-materializations-pattern.md",
+     "inbox/lance-csr-cypher-over-lance-csr-index.md",
+     "knowledge/wcoj-leapfrog-triejoin-pattern.md"
+    ]
+   }
+  },
+  {
+   "id": "m14",
+   "class": "multi-hop",
+   "query": "why a lexical index and pointers beat putting whole documents in the prompt",
+   "expect": [
+    "knowledge/sqlite-fts5-handled-a-3799-page-manual-where-a-vector-db-was-overkill.md",
+    "knowledge/compressed-8kb-docs-index-preserves-full-agent-effectiveness-agents-need-pointers-not-content.md"
+   ],
+   "evidence": "FTS5 with exact terms beat embeddings on a 3 799-page manual; Vercel compressed 40KB docs to an 8KB pointer index with zero effectiveness loss.",
+   "why_not_tautology": "достаточно, лексического, указателей, полного, текста are absent; the notes say FTS5, BM25, pipe-delimited index, pointers.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.75,
+   "measured": {
+    "rank": 3,
+    "total": 608,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agents-of-chaos-indirect-injection.md",
+     "knowledge/agents-of-chaos-prompt-injection-structural.md",
+     "knowledge/compressed-8kb-docs-index-preserves-full-agent-effectiveness-agents-need-pointers-not-content.md"
+    ]
+   }
+  },
+  {
+   "id": "m15",
+   "class": "multi-hop",
+   "query": "which code edits skip the model, and what is repaired in a tool call before it runs",
+   "expect": [
+    "knowledge/agentic-flow-agent-booster-handles-trivial-edits-via-wasm-plus-ast-at-zero-cost-and-sub-millisecond-latency.md",
+    "knowledge/toolcall-repair-layers-pattern.md"
+   ],
+   "evidence": "WASM+AST handles var→const, type additions, simple renames with no LLM call (352x faster, $0); repair layers coerce/alias-redirect/repair-catalog/hinted-reject before execution.",
+   "why_not_tautology": "правки, делаются, чинится, вызове, исполнения are absent-ish; the notes say var→const, WASM+AST, coerce, alias-redirect.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.444,
+   "measured": {
+    "rank": 3,
+    "total": 780,
+    "top_terms": 11,
+    "grep_literal": 0,
+    "page_head": [
+     ".claude/skills/extract/SKILL.md",
+     "ops/skills-archive/extract-2026-03-06-pre-upgrade.md",
+     "knowledge/agentic-flow-agent-booster-handles-trivial-edits-via-wasm-plus-ast-at-zero-cost-and-sub-millisecond-latency.md"
+    ]
+   }
+  },
+  {
+   "id": "m16",
+   "class": "multi-hop",
+   "query": "the release profile for a memory-starved board and the RAM an HNSW index demands",
+   "expect": [
+    "knowledge/release-profile-optimizes-for-size-with-z-optlevel-thin-lto-and-single-codegen-unit.md",
+    "knowledge/hnsw-memory-bloat-index-requires-ram-residency-100k-vectors-at-1536-dims-needs-600mb-plus.md"
+   ],
+   "evidence": "opt-level z, thin LTO, codegen-units 1, strip, panic=abort for RPi 3; HNSW needs 600MB+ at 100K vectors and OOMs on embedded targets.",
+   "why_not_tautology": "уложить, сборку, память, маленького, устройства are absent; the notes say opt-level z, profile, RAM-resident, embedded.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.556,
+   "measured": {
+    "rank": 1,
+    "total": 641,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/hnsw-memory-bloat-index-requires-ram-residency-100k-vectors-at-1536-dims-needs-600mb-plus.md",
+     "f/patterns/pattern-zero-token-idle-message-board.md",
+     "knowledge/release-profile-optimizes-for-size-with-z-optlevel-thin-lto-and-single-codegen-unit.md"
+    ]
+   }
+  },
+  {
+   "id": "m17",
+   "class": "multi-hop",
+   "query": "why three consensus protocols ship, and which one gives strong consistency",
+   "expect": [
+    "knowledge/claude-flow-implements-three-consensus-protocols-raft-byzantine-gossip-with-runtime-factory-selection.md",
+    "knowledge/ruvector-raft-implements-paper-complete-consensus-with-consistent-hashing-for-distributed-deployment.md"
+   ],
+   "evidence": "Raft = strong consistency, PBFT = Byzantine fault tolerance, Gossip = eventual; factory selects at runtime; ruvector implements the Raft paper with consistent hashing.",
+   "why_not_tautology": "протокола, согласования, сильную, согласованность are absent; the notes say Raft, PBFT, Gossip, strong consistency.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.312,
+   "measured": {
+    "rank": 1,
+    "total": 305,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/claude-flow-implements-three-consensus-protocols-raft-byzantine-gossip-with-runtime-factory-selection.md",
+     "knowledge/claude-flow-architecture.md",
+     "knowledge/claude-flow-deploys-15-agent-hierarchical-mesh-with-queen-coordinator-and-three-domain-clusters.md"
+    ]
+   }
+  },
+  {
+   "id": "m18",
+   "class": "multi-hop",
+   "query": "как из отдельных проверок получается один вердикт и почему один большой вопрос считается антипаттерном",
+   "expect": [
+    "knowledge/jev-composite-scoring-pattern.md",
+    "knowledge/vendor-doctrine-converges-on-atomic-judgments.md"
+   ],
+   "evidence": "Composite scoring: several atomic Score calls with weights, weighted sum and decision in code; one big Choice with criteria prose is 'prompt gymnastics', an antipattern.",
+   "why_not_tautology": "отдельных, проверок, получается, вердикт, антипаттерном are absent; the notes say atomic Score, weighted sum, Choice, prompt gymnastics.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.542,
+   "measured": {
+    "rank": 1,
+    "total": 739,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/vendor-doctrine-converges-on-atomic-judgments.md",
+     "inbox/amv-guard-action-conditioned-verification.md",
+     "knowledge/search-weak-flag-is-a-signal-not-a-verdict.md"
+    ]
+   }
+  },
+  {
+   "id": "m19",
+   "class": "multi-hop",
+   "query": "credential scrubbing in tool output and the shell operators a validator blocks",
+   "expect": [
+    "knowledge/credential-scrubbing-uses-regex-patterns-to-redact-secrets-from-tool-output.md",
+    "knowledge/command-injection-prevention-blocks-shell-operators-subshells-and-dangerous-arguments.md"
+   ],
+   "evidence": "Scrubbing redacts sk-/xoxb-/ghp_ prefixes keeping the first 4 chars; the validator blocks shell operators, subshells, redirects and dangerous args.",
+   "why_not_tautology": "вырезают, вывода, запрещают, самой, команде are absent; the notes say scrub, REDACTED, blocked patterns, subshells.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.375,
+   "measured": {
+    "rank": 3,
+    "total": 625,
+    "top_terms": 8,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/zeroclaw-command-injection-prevention-pattern.md",
+     "knowledge/code-execution.md",
+     "knowledge/command-injection-prevention-blocks-shell-operators-subshells-and-dangerous-arguments.md"
+    ]
+   }
+  },
+  {
+   "id": "m20",
+   "class": "multi-hop",
+   "query": "как выбрать порог, если вероятность откалибрована, а версия модели имеет известные неровности",
+   "expect": [
+    "knowledge/jev-noul-probabilities-are-calibrated.md",
+    "knowledge/jev-1-13-has-known-jagged-edges.md"
+   ],
+   "evidence": "Noul 0.9 means roughly nine of ten yes, so threshold = where the cost of a miss equals the cost of a false alarm; jev-1.13 has known jagged edges, so pin the version when tuning thresholds.",
+   "why_not_tautology": "выбрать, порог, откалибрована, версия, неровности are absent; the notes say калибрована, 0.9, порог, ценой ошибки, pin the version.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "multi",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.636,
+   "measured": {
+    "rank": 1,
+    "total": 555,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/jev-1-13-has-known-jagged-edges.md",
+     "f/patterns/pattern-rules-earn-place.md",
+     "knowledge/jev-noul-probabilities-are-calibrated.md"
+    ]
+   }
+  },
+  {
+   "id": "a01",
+   "class": "ambiguous",
+   "query": "entity resolution accuracy threshold",
+   "expect": [
+    "knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md",
+    "knowledge/entity-resolution-accuracy-below-85-percent-corrupts-graph.md",
+    "knowledge/entity-resolution-accuracy-below-90-percent-corrupts-knowledge-graph-reasoning-chains.md"
+   ],
+   "evidence": "Three notes give the threshold two ways: 'ниже 85%' (cascades into graph corruption), 'below 85%' (corrupts graph), and 'below 90%' (corrupts reasoning chains). Each names its own number and its own failure mode.",
+   "why_not_tautology": "the query names the quantity, not any note's wording; the three notes disagree on the number, which is the ambiguity",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.25,
+   "measured": {
+    "rank": 2,
+    "total": 44,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/zeroclaw-fact-extraction.md",
+     "knowledge/entity-resolution-accuracy-below-85-percent-corrupts-graph.md",
+     "knowledge/zeroclaw-research-identified-5-critical-pitfalls-ranked-by-severity.md"
+    ]
+   }
+  },
+  {
+   "id": "a02",
+   "class": "ambiguous",
+   "query": "injection prevention",
+   "expect": [
+    "knowledge/agents-of-chaos-prompt-injection-structural.md",
+    "knowledge/command-injection-prevention-blocks-shell-operators-subshells-and-dangerous-arguments.md"
+   ],
+   "evidence": "Two senses of injection: prompt injection that reframes an instruction (agents of chaos) and shell/command injection that chains a command (validator). Each note defines its own threat model.",
+   "why_not_tautology": "prevention and injection are the only shared words; neither note claims the other's sense",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 13,
+    "top_terms": 2,
+    "grep_literal": 6,
+    "page_head": [
+     "knowledge/agents-of-chaos-prompt-injection-structural.md",
+     "knowledge/zeroclaw-command-injection-prevention-pattern.md",
+     "knowledge/command-injection-prevention-blocks-shell-operators-subshells-and-dangerous-arguments.md"
+    ]
+   }
+  },
+  {
+   "id": "a03",
+   "class": "ambiguous",
+   "query": "smart routing",
+   "expect": [
+    "knowledge/agentic-flow-smart-routing-cascades-from-zero-cost-wasm-through-haiku-sonnet-to-opus-swarm.md",
+    "knowledge/agentic-flow-supports-five-llm-providers-with-automatic-failover-and-cost-based-routing.md"
+   ],
+   "evidence": "Two routing layers: a model cascade (WASM → Haiku → Sonnet → Opus) and provider failover/routing across five LLM providers.",
+   "why_not_tautology": "smart routing is the note's own title for the first; the second calls it cost-based routing — a reader cannot tell which layer they want",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 16,
+    "top_terms": 2,
+    "grep_literal": 6,
+    "page_head": [
+     "knowledge/agentic-flow-smart-routing-cascades-from-zero-cost-wasm-through-haiku-sonnet-to-opus-swarm.md",
+     "knowledge/agentic-flow-architecture.md",
+     "knowledge/agentic-flow-init-scaffolds-complete-claude-directory-with-80-agents-100-commands-and-hooks.md"
+    ]
+   }
+  },
+  {
+   "id": "a04",
+   "class": "ambiguous",
+   "query": "how many background workers run",
+   "expect": [
+    "knowledge/agentic-flow-runs-six-background-workers-for-learning-optimization-audit-docs-refactor-and-testing.md",
+    "knowledge/claude-flow-runs-12-background-workers-from-ultralearn-to-testgaps-with-daemon-management.md"
+   ],
+   "evidence": "agentic-flow runs six workers (learning, optimization, audit, docs, refactor, testing); claude-flow runs twelve (ultralearn … testgaps). Each note names its project.",
+   "why_not_tautology": "the question is a count with no project name; both notes answer with a different correct number",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.375,
+   "measured": {
+    "rank": 4,
+    "total": 63,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/every-ruvnet-project-runs-background-workers-as-the-operational-form-of-self-evolving-intelligence.md",
+     "knowledge/agentdb-nightly-learner-runs-automated-causal-discovery-with-doubly-robust-learning-in-background.md",
+     "knowledge/memory-evolution-background-jobs.md"
+    ]
+   }
+  },
+  {
+   "id": "a05",
+   "class": "ambiguous",
+   "query": "hybrid search",
+   "expect": [
+    "knowledge/mnemosyne-hybrid-search-three-component.md",
+    "f/patterns/pattern-static-embedding-hybrid-search.md"
+   ],
+   "evidence": "Two meanings of hybrid: combine lexical (FTS/BM25) with vector similarity (Mnemosyne 20/70/10), or combine static per-token embeddings with lexical search at query time without a transformer.",
+   "why_not_tautology": "hybrid search is the shared phrase; the notes define different second components",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 49,
+    "top_terms": 2,
+    "grep_literal": 34,
+    "page_head": [
+     "knowledge/mnemosyne-hybrid-search-three-component.md",
+     "knowledge/hybrid-search-fusion-tuning-risk.md",
+     "f/patterns/pattern-static-embedding-hybrid-search.md"
+    ]
+   }
+  },
+  {
+   "id": "a06",
+   "class": "ambiguous",
+   "query": "capsule",
+   "expect": [
+    "inbox/evolver-gene-experience-framework.md",
+    "inbox/statcraft-safe-rust-spss-alternative.md"
+   ],
+   "evidence": "Evolver's Capsule = a Gene plus one concrete execution case; StatCraft's CapsuleCraft is a knowledge-base file format (.capsule). Both notes define the word.",
+   "why_not_tautology": "the single word is the whole query; the notes give two unrelated definitions",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 2,
+    "top_terms": 1,
+    "grep_literal": 4,
+    "page_head": [
+     "inbox/statcraft-safe-rust-spss-alternative.md",
+     "inbox/evolver-gene-experience-framework.md"
+    ]
+   }
+  },
+  {
+   "id": "a07",
+   "class": "ambiguous",
+   "query": "tantivy",
+   "expect": [
+    "knowledge/zeroclaw-stack-hnsw-rs-plus-tantivy-plus-petgraph-plus-fastembed.md",
+    "inbox/tantivy-lucene-in-rust.md"
+   ],
+   "evidence": "The stack note uses Tantivy as the lexical half of a memory stack; the library note is about Tantivy itself (a Lucene-inspired full-text library, 16 322 stars).",
+   "why_not_tautology": "the identifier is shared; one note is about adoption, the other about the library",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 27,
+    "top_terms": 1,
+    "grep_literal": 67,
+    "page_head": [
+     "knowledge/zeroclaw-stack-hnsw-rs-plus-tantivy-plus-petgraph-plus-fastembed.md",
+     "knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md",
+     "knowledge/ruvector-rejected-for-zeroclaw-due-to-168-downloads-and-single-author-risk.md"
+    ]
+   }
+  },
+  {
+   "id": "a08",
+   "class": "ambiguous",
+   "query": "miroflow tool calls",
+   "expect": [
+    "knowledge/miroflow-mcp-protocol-uses-xml-tool-calling.md",
+    "knowledge/miroflow-orchestrator-loop-uses-turn-based-execution.md"
+   ],
+   "evidence": "One note describes how tools are expressed (XML tool calling in the MCP protocol); the other describes how the loop drives them (turn-based orchestration).",
+   "why_not_tautology": "tool calls and miroflow are shared; the notes answer 'how expressed' and 'how driven'",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 55,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/miroflow-mcp-protocol-uses-xml-tool-calling.md",
+     "knowledge/miroflow-orchestrator-loop-uses-turn-based-execution.md",
+     "knowledge/miroflow-main-sub-agent-delegation-pattern.md"
+    ]
+   }
+  },
+  {
+   "id": "a09",
+   "class": "ambiguous",
+   "query": "lease",
+   "expect": [
+    "knowledge/droppable-materializations-pattern.md",
+    "inbox/pattern-lease-takeover.md"
+   ],
+   "evidence": "A lease on a materialization (a reason for the cache to exist, dropped when expired) versus a lease on an agent's task that another agent takes over.",
+   "why_not_tautology": "one word; the notes attach it to a cache and to an agent session",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 15,
+    "top_terms": 1,
+    "grep_literal": 200,
+    "page_head": [
+     "knowledge/droppable-materializations-pattern.md",
+     "inbox/pattern-lease-takeover.md",
+     "inbox/pgx-patterns-for-kutha-graph.md"
+    ]
+   }
+  },
+  {
+   "id": "a10",
+   "class": "ambiguous",
+   "query": "decay of memories",
+   "expect": [
+    "knowledge/no-forgetting-mechanism-anti-pattern.md",
+    "knowledge/mnemosyne-importance-recalibration-formula-base-30-percent-plus-access-40-percent-plus-recency-20-percent-plus-links-10-percent.md"
+   ],
+   "evidence": "One note argues forgetting must exist at all (an append-only memory self-degrades); the other gives the decay formula (base 30% + access 40% + recency 20% + links 10%).",
+   "why_not_tautology": "decay and memories are shared; one note is the principle, the other the arithmetic",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 33,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/no-forgetting-mechanism-anti-pattern.md",
+     "knowledge/context-window-stuffing-impairs-agent-performance-max-20-to-30-percent-for-retrieved-memories.md",
+     "knowledge/embedding-drift-silent-retrieval-killer.md"
+    ]
+   }
+  },
+  {
+   "id": "a11",
+   "class": "ambiguous",
+   "query": "compaction",
+   "expect": [
+    "f/patterns/pattern-record-then-fold.md",
+    "f/patterns/pattern-priced-landing-point.md"
+   ],
+   "evidence": "Two compaction decisions: what to record during execution so compaction never summarises (record-then-fold), and what state a compaction trigger may land in (S = B + L + D).",
+   "why_not_tautology": "one word; both patterns are about compaction and neither mentions the other",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 35,
+    "top_terms": 1,
+    "grep_literal": 78,
+    "page_head": [
+     "f/patterns/pattern-record-then-fold.md",
+     "inbox/allspark-opencode-issues-compaction-loops-cache-busting-756-byte-prompt.md",
+     "f/patterns/pattern-priced-landing-point.md"
+    ]
+   }
+  },
+  {
+   "id": "a12",
+   "class": "ambiguous",
+   "query": "judge reliability",
+   "expect": [
+    "knowledge/qa-judge-ab-gate-pattern.md",
+    "inbox/judge-calibration-from-verdict-matching-to-measured-reliability.md"
+   ],
+   "evidence": "One is an A/B gate for a judge in a pipeline; the other is calibration from verdict matching to measured reliability. Different reliability claims.",
+   "why_not_tautology": "reliability and judge are shared; one measures agreement in an experiment, the other gates a deploy",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.25,
+   "measured": {
+    "rank": 1,
+    "total": 8,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/judge-calibration-from-verdict-matching-to-measured-reliability.md",
+     "knowledge/agent-skills-go-unused-in-56-percent-of-cases-when-invocation-is-left-to-agent-discretion.md",
+     "inbox/sift-llm-judge-pairwise-bradley-terry-scores-reserve-expensive-evals-for-promising-nodes.md"
+    ]
+   }
+  },
+  {
+   "id": "a13",
+   "class": "ambiguous",
+   "query": "freshness",
+   "expect": [
+    "inbox/vault-freshness-system-classifies-notes-by-decay-speed.md",
+    "inbox/second-brain-v2-bm25-minin.md"
+   ],
+   "evidence": "Freshness as a note classification (volatile/slow/stable/evergreen decay speeds) versus freshness as a ranking weight in bm25() (durable types do not decay).",
+   "why_not_tautology": "one word; the notes place it in the schema and in the ranker",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 30,
+    "top_terms": 1,
+    "grep_literal": 1160,
+    "page_head": [
+     "inbox/vault-freshness-system-classifies-notes-by-decay-speed.md",
+     "inbox/arsumbris-fork-backlog.md",
+     "inbox/hermann-stop-mixing-rag-kg-semantic-agents.md"
+    ]
+   }
+  },
+  {
+   "id": "a14",
+   "class": "ambiguous",
+   "query": "recall",
+   "expect": [
+    "knowledge/agentdb-explainable-recall-provides-cryptographic-merkle-proofs-for-every-retrieval.md",
+    "f/patterns/pattern-relevance-recall-utility-arbitration.md"
+   ],
+   "evidence": "Recall as a named AgentDB operation with Merkle proofs, versus recall as the retrieval stage that a utility ranker arbitrates after.",
+   "why_not_tautology": "one word; one note is about proving a result, the other about choosing among results",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 108,
+    "top_terms": 1,
+    "grep_literal": 215,
+    "page_head": [
+     "f/patterns/pattern-relevance-recall-utility-arbitration.md",
+     "knowledge/ruvector-offers-five-quantization-schemes-from-4x-scalar-to-32x-binary-compression.md",
+     "knowledge/jev-compaction-beats-summary-on-hermes-transcripts.md"
+    ]
+   }
+  },
+  {
+   "id": "a15",
+   "class": "ambiguous",
+   "query": "skill rot",
+   "expect": [
+    "knowledge/skills-are-a-reasoning-cache-saving-63-percent-but-rot-needs-management.md",
+    "knowledge/skill-audit-compile-gate-pattern.md"
+   ],
+   "evidence": "Rot as compounding cost/drift in cached skills versus an audit-and-compile gate that catches a stale skill before it runs.",
+   "why_not_tautology": "rot is the shared word; one note diagnoses, the other gates",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "expect_behavior": "any_of",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 21,
+    "top_terms": 2,
+    "grep_literal": 2,
+    "page_head": [
+     "knowledge/skills-are-a-reasoning-cache-saving-63-percent-but-rot-needs-management.md",
+     "knowledge/skill-audit-compile-gate-pattern.md",
+     "inbox/rust-rulebook-vs-beautifulrust.md"
+    ]
+   }
+  },
+  {
+   "id": "ab01",
+   "class": "absent",
+   "query": "how many pull requests did RuVector merge in October",
+   "expect": [],
+   "evidence": "RuVector, pull, requests, October all occur; no note counts PRs — the architecture map and the 39-attention-mechanisms note are the closest and neither answers.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 187,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/mnemis-dual-route-memory-combines-fast-similarity-with-hierarchical-traversal-for-sota-long-term-recall.md",
+     "knowledge/ruvector-exposes-39-attention-mechanisms-as-first-class-postgresql-sql-functions.md",
+     "knowledge/ruvector-architecture.md"
+    ]
+   }
+  },
+  {
+   "id": "ab02",
+   "class": "absent",
+   "query": "какая зарплата у инженеров Razorpay",
+   "expect": [],
+   "evidence": "Razorpay and инженеров occur; the deployment note gives headcount (220+) and namespaces, not pay.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "mixed",
+    "length": "short",
+    "form": "keyword",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 14,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/meta-jitesting-human-on-the-loop.md",
+     "knowledge/seventeen-person-startup-runs-team-personalities-on-one-machine-that-dreams-at-night.md",
+     "knowledge/search-weak-flag-is-a-signal-not-a-verdict.md"
+    ]
+   }
+  },
+  {
+   "id": "ab03",
+   "class": "absent",
+   "query": "кто написал книгу, по которой разбирали теорему Менгера",
+   "expect": [],
+   "evidence": "Менгер, книг, теорему occur (Lavrov chapter notes); the notes summarise chapters, they do not name an author of the source book.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 67,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/hermann-stop-mixing-rag-kg-semantic-agents.md",
+     "inbox/pattern-mini-mirror-parity.md",
+     "inbox/lavrov-ch13-bipartite-matching.md"
+    ]
+   }
+  },
+  {
+   "id": "ab04",
+   "class": "absent",
+   "query": "what is the price of the AgentDB enterprise licence",
+   "expect": [],
+   "evidence": "price, licence, AgentDB occur (the MCP-server note lists Apache-2.0 for other projects); no note gives AgentDB's enterprise price.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 437,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/gemini-flash-uses-2x-more-tokens-than-pro-but-costs-47-percent-less-per-task-via-iterative-exploration.md",
+     "knowledge/claude-flow-microkernel-loads-five-named-plugins-hivemind-maestro-neural-verification-enterprise.md",
+     "knowledge/ruvnet-ecosystem-is-four-projects-storage-memory-optimization-orchestration.md"
+    ]
+   }
+  },
+  {
+   "id": "ab05",
+   "class": "absent",
+   "query": "сколько сотрудников работает в EvoMap",
+   "expect": [],
+   "evidence": "EvoMap and сотрудников occur in the Evolver note; it describes the framework, not the lab's headcount.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "mixed",
+    "length": "short",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 169,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/evolver-gene-experience-framework.md",
+     "inbox/omnimem-earned-agent-memory.md",
+     "f/patterns/pattern-external-verifier-grounded-cot.md"
+    ]
+   }
+  },
+  {
+   "id": "ab06",
+   "class": "absent",
+   "query": "which cloud region hosts the Claude Flow demo",
+   "expect": [],
+   "evidence": "region, cloud, hosts occur; the architecture notes name providers and transports, not a region.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 220,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/ruvnet-ecosystem-is-four-projects-storage-memory-optimization-orchestration.md",
+     "knowledge/rlvr-optimization.md",
+     "knowledge/hyperbolic-geometry-appears-at-every-layer-of-the-ruvnet-stack-from-sql-functions-to-onnx-embeddings.md"
+    ]
+   }
+  },
+  {
+   "id": "ab07",
+   "class": "absent",
+   "query": "какой размер команды у проекта Kutha",
+   "expect": [],
+   "evidence": "Kutha, команды, размер occur; the snapshot note records phases and dates, not team size.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 109,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/slatedb-solves-a-problem-kuthas-manifest-already-solved.md",
+     "knowledge/seventeen-person-startup-runs-team-personalities-on-one-machine-that-dreams-at-night.md",
+     "knowledge/surrealdb-agent-memory-vs-kutha.md"
+    ]
+   }
+  },
+  {
+   "id": "ab08",
+   "class": "absent",
+   "query": "how much does a Miroflow server cost to run",
+   "expect": [],
+   "evidence": "cost, server, Miroflow occur; the note gives GAIA score and a single RTX 4090, not a run cost.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 417,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/miroflow-parallel-thinking-uses-voting-for-answer-selection.md",
+     "knowledge/hermes-stories-cost-optimization.md",
+     "knowledge/miroflow-orchestrator-loop-uses-turn-based-execution.md"
+    ]
+   }
+  },
+  {
+   "id": "ab09",
+   "class": "absent",
+   "query": "what is the carbon footprint of the ZeroClaw build",
+   "expect": [],
+   "evidence": "carbon, footprint, build occur; no note measures energy.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 484,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agents-of-chaos-no-stakeholder-model.md",
+     "knowledge/premature-graphrag-builds-graph-before-validating-need.md",
+     ".claude/skills/next/SKILL.md"
+    ]
+   }
+  },
+  {
+   "id": "ab10",
+   "class": "absent",
+   "query": "when will jev 2.0 be released",
+   "expect": [],
+   "evidence": "jev, released, 2.0 occur; the jagged-edges note pins 1.13 and says nothing about a date.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 606,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/jev-1-13-has-known-jagged-edges.md",
+     "inbox/rust-glancer-persistent-incrementality-ajika.md",
+     "knowledge/agents-of-chaos-forwarding-reframes-bypass.md"
+    ]
+   }
+  },
+  {
+   "id": "ab11",
+   "class": "absent",
+   "query": "сколько человек работает над Hermes",
+   "expect": [],
+   "evidence": "Hermes, человек, работает occur; the story notes give users and teams adopting Hermes, not the Hermes team's own headcount.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "mixed",
+    "length": "short",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 109,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/pattern-human-on-loop-aggregate-review.md",
+     "inbox/omnimem-earned-agent-memory.md",
+     "inbox/cobra-skills-spend-evaluation-budget-like-a-bandit-not-like-a-sweep.md"
+    ]
+   }
+  },
+  {
+   "id": "ab12",
+   "class": "absent",
+   "query": "сколько стоит подписка на Firecrawl",
+   "expect": [],
+   "evidence": "Firecrawl and стоит occur (Alexandria launch note); it describes a marketplace, not a subscription price.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "mixed",
+    "length": "short",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 119,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/firecrawl-alexandria-a-tool-marketplace-where-agents-are-the-buyers.md",
+     "inbox/news-discovery-2026-practices.md",
+     "inbox/cloudflare-branch-predictor-btb.md"
+    ]
+   }
+  },
+  {
+   "id": "ab13",
+   "class": "absent",
+   "query": "what is the latency of tb_search on ten million notes",
+   "expect": [],
+   "evidence": "latency, tb_search, million occur (search notes and the serving-state note); no note measures at that size.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 570,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/search-scope-defaults-to-the-own-workspace.md",
+     "knowledge/mnemosyne-hybrid-search-three-component.md",
+     ".claude/skills/next/SKILL.md"
+    ]
+   }
+  },
+  {
+   "id": "ab14",
+   "class": "absent",
+   "query": "which target language does Oxetene compile to",
+   "expect": [],
+   "evidence": "Oxetene, compile, language occur; the criticism source-map note is about the review, not an output target.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 153,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     ".claude/skills/graph/SKILL.md",
+     "inbox/oxetene-rust-criticism-source-map.md",
+     "knowledge/rl2f-consolidation-problem-remains-unsolved.md"
+    ]
+   }
+  },
+  {
+   "id": "ab15",
+   "class": "absent",
+   "query": "how many people reviewed the legal MCP server",
+   "expect": [],
+   "evidence": "reviewed, people, legal, MCP occur; the Russian-Law-MCP note names the vendor, not a reviewer count.",
+   "why_not_tautology": "the words occur in the vault (that is the point); the answer does not — a good implementation returns an honest no-evidence page",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "none",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "must_not": "return a confident page: a top hit that matches most query terms as if it answered, or any note that states the asked quantity",
+   "expect_behavior": "no_confident_answer",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 207,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/moonlit-ai-legal-commentaries.md",
+     "inbox/evoontology-self-evolving-ontology-layer-for-data-agents-served-as-an-mcp-server.md",
+     "inbox/meta-social-technologies-mcp-app-lifecycle.md"
+    ]
+   }
+  },
+  {
+   "id": "s01",
+   "class": "structural",
+   "query": "which notes point at the AgentDB architecture map",
+   "expect": [
+    "knowledge/agentdb-causal-memory-tracks-interventional-causality-via-doubly-robust-estimation.md",
+    "knowledge/agentdb-quic-sync-enables-real-time-delta-compressed-memory-sharing-across-distributed-agents.md",
+    "knowledge/agentdb-mcp-server-exposes-32-tools-across-vector-ops-reasoning-learning-and-frontier-memory.md"
+   ],
+   "evidence": "tb_references(path=k/knowledge/agentdb-architecture.md, direction=in) returns 18 incoming edges; these three are the atomic notes whose topics slot points at the map.",
+   "why_not_tautology": "points at, architecture map are absent from the cited notes; the graph edge is a frontmatter [[agentdb-architecture]] link.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.333,
+   "measured": {
+    "rank": 4,
+    "total": 372,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agentdb-architecture.md",
+     "knowledge/every-ruvnet-project-runs-background-workers-as-the-operational-form-of-self-evolving-intelligence.md",
+     "knowledge/ruvector-agentdb-claude-flow-implement-all-three-agentic-reasoning-layers-in-production.md"
+    ]
+   },
+   "answer_count": 18
+  },
+  {
+   "id": "s02",
+   "class": "structural",
+   "query": "what cites the bi-temporal valid/transaction model",
+   "expect": [
+    "knowledge/assert-retract-correct-write-ops.md",
+    "knowledge/graphiti-bitemporal-fact-edges-contrast.md",
+    "knowledge/event-log-as-source-of-truth-agent-memory.md"
+   ],
+   "evidence": "18 notes carry a [[bitemporal-valid-transaction-time]] link; the three named here each restate one axis of it.",
+   "why_not_tautology": "cites, model are absent from the citing notes; the edge is the wikilink [[bitemporal-valid-transaction-time]].",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.333,
+   "measured": {
+    "rank": 3,
+    "total": 303,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md",
+     "knowledge/bitemporal-valid-transaction-time.md",
+     "knowledge/assert-retract-correct-write-ops.md"
+    ]
+   },
+   "answer_count": 18
+  },
+  {
+   "id": "s03",
+   "class": "structural",
+   "query": "which notes belong to the arXiv 2602.20021 family and which of them record failures",
+   "expect": [
+    "knowledge/agents-of-chaos-forwarding-reframes-bypass.md",
+    "knowledge/agents-of-chaos-guilt-trip-attack.md",
+    "knowledge/agents-of-chaos-silent-censorship.md",
+    "knowledge/agents-of-chaos-injection-refused.md"
+   ],
+   "evidence": "frontmatter family: f/arxiv-2602.20021 has 16 members; three are type: error (forwarding bypass, guilt trip, silent censorship) and one records zero compliance (injection refused).",
+   "why_not_tautology": "belong, family, failures are absent; the notes carry family: f/arxiv-2602.20021 and type: error.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.361,
+   "measured": {
+    "rank": 20,
+    "total": 632,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/arsumbris-improvement-backlog-from-the-memory-echo-wave.md",
+     "knowledge/agents-of-chaos-multi-agent-amplification.md",
+     "knowledge/codeactinstruct-self-improvement-behavior-filtering-improves-dataset-quality.md"
+    ]
+   },
+   "answer_count": 16
+  },
+  {
+   "id": "s04",
+   "class": "structural",
+   "query": "what replaces the earlier ZeroClaw stack choice and why the first pick was rejected",
+   "expect": [
+    "knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md",
+    "knowledge/ruvector-rejected-for-zeroclaw-due-to-168-downloads-and-single-author-risk.md"
+   ],
+   "evidence": "The validated stack note supersedes the hnsw-rs+tantivy+petgraph+fastembed note; RuVector was rejected for 168 downloads and single-author risk.",
+   "why_not_tautology": "replaces, earlier, first pick, rejected are absent; the notes say validated, over, rejected, single-author risk.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "decision",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "decision"
+   },
+   "absent_terms_share": 0.562,
+   "measured": {
+    "rank": 3,
+    "total": 519,
+    "top_terms": 8,
+    "grep_literal": 0,
+    "page_head": [
+     "ops/skills-archive/next-2026-03-06-pre-upgrade.md",
+     ".claude/skills/next/SKILL.md",
+     "knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md"
+    ]
+   }
+  },
+  {
+   "id": "s05",
+   "class": "structural",
+   "query": "which pattern notes are about budgets and which one says a rule must earn its place",
+   "expect": [
+    "f/patterns/pattern-budgets-as-trades.md",
+    "f/patterns/pattern-rules-earn-place.md"
+   ],
+   "evidence": "pattern-budgets-as-trades: every budget enforced [check]-style and phrased as a trade; pattern-rules-earn-place: a rule lives only while a metric shows it fires.",
+   "why_not_tautology": "budgets, earn its place are absent-ish; the notes say budgets as trades, [check]-style, rules earn place, metric.",
+   "axes": {
+    "language": "en",
+    "length": "long",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.5,
+   "measured": {
+    "rank": 2,
+    "total": 553,
+    "top_terms": 9,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agents-of-chaos-disproportionate-response.md",
+     "f/patterns/pattern-budgets-as-trades.md",
+     "inbox/exact-discipline-deep.md"
+    ]
+   },
+   "answer_count": 2
+  },
+  {
+   "id": "s06",
+   "class": "structural",
+   "query": "how many notes hang off the kutha temporal graph topic map",
+   "expect": [
+    "knowledge/kutha-graph-project-snapshot.md",
+    "knowledge/assert-retract-correct-write-ops.md",
+    "knowledge/wcoj-leapfrog-triejoin-pattern.md"
+   ],
+   "evidence": "32 notes carry [[kutha-temporal-graphs]]; these three are its atomic children (snapshot, write ops, join engine).",
+   "why_not_tautology": "hang off, topic map are absent; the notes carry the topics slot [[kutha-temporal-graphs]].",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.519,
+   "measured": {
+    "rank": 2,
+    "total": 451,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/surrealdb-stack-map.md",
+     "knowledge/kutha-graph-project-snapshot.md",
+     "knowledge/kutha-temporal-graphs.md"
+    ]
+   },
+   "answer_count": 32
+  },
+  {
+   "id": "s07",
+   "class": "structural",
+   "query": "which notes sit in the patterns directory",
+   "expect": [
+    "f/patterns/pattern-oracle-drift-ci.md",
+    "f/patterns/pattern-record-then-fold.md",
+    "f/patterns/pattern-enforced-memory.md"
+   ],
+   "evidence": "tb_children(repo=vault, path=f/patterns) lists the directory; it holds 63 files, all type: pattern.",
+   "why_not_tautology": "sit, directory are absent from the notes; the answer is a path listing, not note prose.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.75,
+   "measured": {
+    "rank": null,
+    "total": 406,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/every-ruvnet-project-runs-background-workers-as-the-operational-form-of-self-evolving-intelligence.md",
+     "knowledge/claude-flow-shares-learned-patterns-via-ipfs-with-four-level-anonymization-and-marketplace.md",
+     ".claude/skills/review/SKILL.md"
+    ]
+   },
+   "answer_count": 63
+  },
+  {
+   "id": "s08",
+   "class": "structural",
+   "query": "which decisions were taken about the search tool's default scope",
+   "expect": [
+    "knowledge/search-scope-defaults-to-the-own-workspace.md",
+    "knowledge/2brain-serving-state-lags-the-repository.md"
+   ],
+   "evidence": "The decision note: tb_search and tb_grep default to own, scope=all is the explicit escape; the serving-state note records that the served binary still declares all.",
+   "why_not_tautology": "decisions, taken, default scope are absent-ish; the notes say tb_search, scope, own, all.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.333,
+   "measured": {
+    "rank": 5,
+    "total": 457,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agents-of-chaos-disproportionate-response.md",
+     ".claude/skills/extract/SKILL.md",
+     ".claude/skills/learn/SKILL.md"
+    ]
+   },
+   "answer_count": 2
+  },
+  {
+   "id": "s09",
+   "class": "structural",
+   "query": "which queued notes are still pending",
+   "expect": [
+    "ops/queue/codeactinstruct-001.md",
+    "ops/queue/codeactinstruct-003.md",
+    "ops/queue/codeactinstruct-005.md"
+   ],
+   "evidence": "Five ops/queue/codeactinstruct notes carry status: pending: 001 through 005.",
+   "why_not_tautology": "queued, pending are absent-ish; the notes say status: pending (frontmatter).",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "claim",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.5,
+   "measured": {
+    "rank": null,
+    "total": 145,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     ".claude/skills/tasks/SKILL.md",
+     "knowledge/every-ruvnet-project-runs-background-workers-as-the-operational-form-of-self-evolving-intelligence.md",
+     ".claude/skills/review/SKILL.md"
+    ]
+   },
+   "answer_count": 5
+  },
+  {
+   "id": "s10",
+   "class": "structural",
+   "query": "which notes were extracted from the Agents of Chaos paper and which of them say the attack worked",
+   "expect": [
+    "knowledge/agents-of-chaos-injection-refused.md",
+    "knowledge/agents-of-chaos-prompt-injection-structural.md",
+    "knowledge/agents-of-chaos-no-self-model.md"
+   ],
+   "evidence": "source_url https://arxiv.org/abs/2602.20021 on 16 notes; injection-refused says zero compliance across 14 variants, prompt-injection-structural and no-self-model say the attack worked.",
+   "why_not_tautology": "extracted, paper, attack worked are absent; the notes carry the arxiv source_url and describe outcomes.",
+   "axes": {
+    "language": "en",
+    "length": "long",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.444,
+   "measured": {
+    "rank": 6,
+    "total": 575,
+    "top_terms": 10,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agentdb-skill-library-auto-consolidates-successful-patterns-into-parameterized-composable-skills.md",
+     "knowledge/agents-of-chaos-zeroclaw-architecture-implications.md",
+     "knowledge/agents-of-chaos-disproportionate-response.md"
+    ]
+   },
+   "answer_count": 16
+  },
+  {
+   "id": "z01",
+   "class": "silly",
+   "query": "agnet memory retrievel",
+   "expect": [
+    "knowledge/a-mem-uses-zettelkasten-method-for-agentic-memory-with-retroactive-evolution.md",
+    "knowledge/agentdb-architecture.md"
+   ],
+   "evidence": "Two misspellings in a two-word query; the corpus holds 'agent memory' in dozens of notes.",
+   "why_not_tautology": "the misspelled forms 'agnet' and 'retrievel' do not occur anywhere in the corpus; the note holds 'agent' and 'retrieval'",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "z02",
+   "pair_axis": "spelling",
+   "should": "sensible hit: an agent-memory note in the top few",
+   "must_not": "return an empty page or rank a hub/MOC first; crash on the unknown token",
+   "noise": "typo",
+   "absent_terms_share": 0.333,
+   "measured": {
+    "rank": null,
+    "total": 0,
+    "top_terms": null,
+    "grep_literal": 0,
+    "page_head": []
+   }
+  },
+  {
+   "id": "z02",
+   "class": "silly",
+   "query": "agent memory retrieval",
+   "expect": [
+    "knowledge/a-mem-uses-zettelkasten-method-for-agentic-memory-with-retroactive-evolution.md",
+    "knowledge/agentdb-architecture.md"
+   ],
+   "evidence": "The correct spelling of z01, same intent.",
+   "why_not_tautology": "the pair member with correct spelling: its absent share is the control, so a difference between z01 and z02 is attributable to the typo alone",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "z01",
+   "pair_axis": "spelling",
+   "should": "sensible hit: same family of notes as z01",
+   "must_not": "return a page that the typo row would not also return",
+   "noise": "spelling_control",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": null,
+    "total": 297,
+    "top_terms": 3,
+    "grep_literal": 1,
+    "page_head": [
+     "knowledge/memory-systems.md",
+     "knowledge/agentdb-explainable-recall-provides-cryptographic-merkle-proofs-for-every-retrieval.md",
+     "inbox/pattern-latent-memory-complement.md"
+    ]
+   }
+  },
+  {
+   "id": "z03",
+   "class": "silly",
+   "query": "oracle matrix?",
+   "expect": [
+    "f/patterns/pattern-oracle-drift-ci.md"
+   ],
+   "evidence": "A three-word fragment with punctuation; the vault holds the oracle half of the theme and says the matrix half is absent.",
+   "why_not_tautology": "the fragment drops every content word except 'oracle' and 'matrix'; the note's own wording is 'oracle', 'CI', 'diff' and the corpus has no 'matrix' in this sense",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "should": "sensible hit: the oracle-drift pattern, or an honest 'the matrix half is not in the base'",
+   "must_not": "rank a topic map first, or present a weak page as an answer",
+   "noise": "fragment",
+   "absent_terms_share": 0.5,
+   "measured": {
+    "rank": null,
+    "total": 0,
+    "top_terms": null,
+    "grep_literal": 0,
+    "page_head": []
+   }
+  },
+  {
+   "id": "z04",
+   "class": "silly",
+   "query": "HNSW",
+   "expect": [
+    "knowledge/ruvector-hnsw-achieves-52k-ops-sec-with-sub-millisecond-latency.md",
+    "knowledge/hnsw-memory-bloat-index-requires-ram-residency-100k-vectors-at-1536-dims-needs-600mb-plus.md"
+   ],
+   "evidence": "One identifier-level word that occurs in dozens of notes.",
+   "why_not_tautology": "one identifier the corpus uses in dozens of notes; the row measures breadth, not topical fit",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "should": "sensible hit: HNSW notes; the answer must be a page, not 'the corpus said yes'",
+   "must_not": "present the whole corpus as an answer (thousands of hits with no ranking)",
+   "noise": "single_word",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 2,
+    "total": 82,
+    "top_terms": 1,
+    "grep_literal": 225,
+    "page_head": [
+     "knowledge/zeroclaw-semantic-memory.md",
+     "knowledge/hnsw-memory-bloat-index-requires-ram-residency-100k-vectors-at-1536-dims-needs-600mb-plus.md",
+     "knowledge/ruvector-hnsw-core-validated-but-gnn-experimental.md"
+    ]
+   }
+  },
+  {
+   "id": "z06",
+   "class": "silly",
+   "query": "I was reading about how one agent writes something down and a different agent later picks it up, and the question I actually care about is what stops the two of them from ending up with different versions of the same fact, especially when they are different tools from different vendors",
+   "expect": [
+    "knowledge/four-agents-share-one-obsidian-vault-to-end-cross-agent-amnesia.md",
+    "inbox/agent-shared-state-is-a-channel.md"
+   ],
+   "evidence": "Forty-plus words that bury one subject (cross-agent shared memory) under framing.",
+   "why_not_tautology": "the subject (cross-agent shared memory) is eleven words into a 46-word sentence; the rest of the sentence is framing the note does not contain",
+   "axes": {
+    "language": "en",
+    "length": "long",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "should": "sensible hit: the shared-vault note or the shared-state-as-channel note",
+   "must_not": "return the whole corpus or drop the subject because the sentence is long",
+   "noise": "rambling",
+   "absent_terms_share": 0.886,
+   "measured": {
+    "rank": null,
+    "total": 818,
+    "top_terms": 28,
+    "grep_literal": 0,
+    "page_head": [
+     ".claude/skills/extract/SKILL.md",
+     "ops/skills-archive/extract-2026-03-06-pre-upgrade.md",
+     ".claude/skills/review/SKILL.md"
+    ]
+   }
+  },
+  {
+   "id": "z07",
+   "class": "silly",
+   "query": "f/patterns/pattern-oracle-drift-ci.md",
+   "expect": [
+    "f/patterns/pattern-oracle-drift-ci.md"
+   ],
+   "evidence": "A pasted vault path.",
+   "why_not_tautology": "the query is a path the vault resolves; it is not a sentence from the note",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "x07",
+   "pair_axis": "entity",
+   "should": "the named note as the first hit",
+   "must_not": "fail to resolve a path the vault itself contains",
+   "noise": "path",
+   "absent_terms_share": 0.167,
+   "measured": {
+    "rank": 1,
+    "total": 241,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "f/patterns/pattern-oracle-drift-ci.md",
+     ".claude/skills/review/SKILL.md",
+     "inbox/pattern-three-anchors-before-tuning.md"
+    ]
+   }
+  },
+  {
+   "id": "z08",
+   "class": "silly",
+   "query": "https://arxiv.org/abs/2602.20021",
+   "expect": [
+    "knowledge/agents-of-chaos-forwarding-reframes-bypass.md",
+    "knowledge/agents-of-chaos-guilt-trip-attack.md"
+   ],
+   "evidence": "A pasted source URL that 16 notes carry in source_url.",
+   "why_not_tautology": "the URL appears only in frontmatter source_url fields, never as prose; the notes describe outcomes, not the URL string",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "error",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "error"
+   },
+   "should": "a note from that family",
+   "must_not": "treat the URL as a literal phrase and return nothing",
+   "noise": "url",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": null,
+    "total": 28,
+    "top_terms": 5,
+    "grep_literal": 16,
+    "page_head": [
+     "inbox/folio-context-folding.md",
+     "knowledge/xml-jsonl-vs-json-ld-2026.md",
+     "inbox/da-video-qM-lE9Ovfp8.md"
+    ]
+   }
+  },
+  {
+   "id": "z09",
+   "class": "silly",
+   "query": "tb_search({\"query\": \"weak flag\"})",
+   "expect": [
+    "knowledge/search-weak-flag-is-a-signal-not-a-verdict.md"
+   ],
+   "evidence": "A pasted code fragment: punctuation, a key name and quotes around the real subject.",
+   "why_not_tautology": "the fragment wraps the real subject ('weak flag') in JSON punctuation; the note never contains the literal fragment",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "should": "the weak-flag decision note",
+   "must_not": "crash on braces/quotes, or search the key name as the main term",
+   "noise": "code",
+   "absent_terms_share": 0.2,
+   "measured": {
+    "rank": 1,
+    "total": 67,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/search-weak-flag-is-a-signal-not-a-verdict.md",
+     "knowledge/search-scope-defaults-to-the-own-workspace.md",
+     "knowledge/2brain-serving-state-lags-the-repository.md"
+    ]
+   }
+  },
+  {
+   "id": "z10",
+   "class": "silly",
+   "query": "WHY DOES THE EVENT LOG BEAT THE GRAPH",
+   "expect": [
+    "knowledge/event-log-as-source-of-truth-agent-memory.md"
+   ],
+   "evidence": "All caps, no punctuation.",
+   "why_not_tautology": "case is not part of a note's text; the note states the rule in lower case prose",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "should": "the event-log note; case must not change the answer",
+   "must_not": "treat case as significant",
+   "noise": "caps",
+   "absent_terms_share": 0.25,
+   "measured": {
+    "rank": null,
+    "total": 310,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/kutha-graph-project-snapshot.md",
+     "knowledge/surrealdb-agent-memory-vs-kutha.md",
+     "knowledge/kutha-temporal-graphs.md"
+    ]
+   }
+  },
+  {
+   "id": "z11",
+   "class": "silly",
+   "query": "memory decay?? 🔥",
+   "expect": [
+    "knowledge/no-forgetting-mechanism-anti-pattern.md",
+    "knowledge/mnemosyne-importance-recalibration-formula-base-30-percent-plus-access-40-percent-plus-recency-20-percent-plus-links-10-percent.md"
+   ],
+   "evidence": "Trailing punctuation and an emoji.",
+   "why_not_tautology": "the emoji and the doubled question mark appear nowhere in the corpus",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "should": "a decay/forgetting note; the emoji must be ignored, not tokenized into a false match",
+   "must_not": "tokenise the emoji into a false term match",
+   "noise": "punctuation_emoji",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 21,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/no-forgetting-mechanism-anti-pattern.md",
+     "knowledge/a-22k-line-memory-kernel-compiles-context-into-a-temporal-sqlite-graph-with-decay.md",
+     "knowledge/mnemosyne-importance-recalibration-formula-base-30-percent-plus-access-40-percent-plus-recency-20-percent-plus-links-10-percent.md"
+    ]
+   }
+  },
+  {
+   "id": "z12",
+   "class": "silly",
+   "query": "agent memory memory",
+   "expect": [
+    "knowledge/a-mem-uses-zettelkasten-method-for-agentic-memory-with-retroactive-evolution.md",
+    "knowledge/agentdb-architecture.md"
+   ],
+   "evidence": "A word repeated for emphasis.",
+   "why_not_tautology": "the repeated word occurs once in the note; the row measures whether a duplicate term changes the page",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "should": "the same page as 'agent memory'; a duplicate term must not change the ranking",
+   "must_not": "let the repeated word change the ranking",
+   "noise": "repeat",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": null,
+    "total": 228,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/memory-agent-abstraction-enables-natural-language-memory-operations.md",
+     "knowledge/amem-zettelkasten-retroactive-evolution.md",
+     "knowledge/surrealdb-agent-memory-openapi-facts-pin.md"
+    ]
+   }
+  },
+  {
+   "id": "z13",
+   "class": "silly",
+   "query": "агент memory decay — что это значит",
+   "expect": [
+    "knowledge/no-forgetting-mechanism-anti-pattern.md",
+    "knowledge/a-22k-line-memory-kernel-compiles-context-into-a-temporal-sqlite-graph-with-decay.md"
+   ],
+   "evidence": "One sentence with Russian and English mixed.",
+   "why_not_tautology": "the note is Russian with English technical nouns; 'агент' and 'memory decay' never share a sentence in it",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "should": "a decay note; language mixing must not halve the match",
+   "must_not": "halve the match because the sentence switches language",
+   "noise": "mixed_language",
+   "absent_terms_share": 0.417,
+   "measured": {
+    "rank": 2,
+    "total": 471,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/ai-memory-akitaonrails-coding-agent-memory.md",
+     "knowledge/a-22k-line-memory-kernel-compiles-context-into-a-temporal-sqlite-graph-with-decay.md",
+     "inbox/hermann-stop-mixing-rag-kg-semantic-agents.md"
+    ]
+   }
+  },
+  {
+   "id": "z14",
+   "class": "silly",
+   "query": "bitemporl edge model",
+   "expect": [
+    "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md"
+   ],
+   "evidence": "One character missing in the key adjective.",
+   "why_not_tautology": "'bitemporl' is a misspelling that occurs nowhere; the note has 'bi-temporal'",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "z15",
+   "pair_axis": "spelling",
+   "should": "the bi-temporal edge note; the typo must be tolerated or the page must say it found nothing",
+   "must_not": "return nothing because one character is missing",
+   "noise": "typo",
+   "absent_terms_share": 0.333,
+   "measured": {
+    "rank": 1,
+    "total": 21,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md",
+     "knowledge/tkg-bi-temporal-edge-model-tracks-four-timestamps-for-non-lossy-history.md",
+     "knowledge/dual-stream-ingestion-separates-fast-sync-path-from-async-llm-consolidation.md"
+    ]
+   }
+  },
+  {
+   "id": "z15",
+   "class": "silly",
+   "query": "bitemporal edge model",
+   "expect": [
+    "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md"
+   ],
+   "evidence": "The correct spelling of z14.",
+   "why_not_tautology": "the correct spelling, the control for z14",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "z14",
+   "pair_axis": "spelling",
+   "should": "the bi-temporal edge note",
+   "must_not": "differ from z14 in more than the spelling fix",
+   "noise": "spelling_control",
+   "absent_terms_share": 0.333,
+   "measured": {
+    "rank": 1,
+    "total": 30,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md",
+     "knowledge/tkg-bi-temporal-edge-model-tracks-four-timestamps-for-non-lossy-history.md",
+     "knowledge/dual-stream-ingestion-separates-fast-sync-path-from-async-llm-consolidation.md"
+    ]
+   }
+  },
+  {
+   "id": "z16",
+   "class": "silly",
+   "query": "knowledge/bitemporal-valid-transaction-time.md#as-of",
+   "expect": [
+    "knowledge/bitemporal-valid-transaction-time.md"
+   ],
+   "evidence": "A pasted path with a fragment anchor.",
+   "why_not_tautology": "the path and its '#as-of' anchor are addressing, not note text",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "should": "the named note; the '#as-of' suffix must not be searched as a term",
+   "must_not": "search '#as-of' as a term instead of resolving the path",
+   "noise": "path_anchor",
+   "absent_terms_share": 0.167,
+   "measured": {
+    "rank": 1,
+    "total": 381,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/bitemporal-valid-transaction-time.md",
+     "knowledge/graphiti-bitemporal-fact-edges-contrast.md",
+     "knowledge/surrealdb-agent-memory-temporal-api-fields.md"
+    ]
+   }
+  },
+  {
+   "id": "z17",
+   "class": "silly",
+   "query": "https://github.com/getzep/graphiti/",
+   "expect": [
+    "knowledge/graphiti-bitemporal-fact-edges-contrast.md"
+   ],
+   "evidence": "A pasted repository URL with a trailing slash.",
+   "why_not_tautology": "the repository URL with a trailing slash occurs nowhere in the note",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "should": "the Graphiti contrast note",
+   "must_not": "treat the trailing slash as a term",
+   "noise": "url",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": null,
+    "total": 89,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/hermes-stories-integrations.md",
+     "knowledge/hermes-stories-dev-workflow.md",
+     "knowledge/hermes-stories-messaging.md"
+    ]
+   }
+  },
+  {
+   "id": "z18",
+   "class": "silly",
+   "query": "RUVECTOR HNSW 52K",
+   "expect": [
+    "knowledge/ruvector-hnsw-achieves-52k-ops-sec-with-sub-millisecond-latency.md"
+   ],
+   "evidence": "Caps plus an identifier and a number.",
+   "why_not_tautology": "the caps form occurs nowhere; the note has '52K' and 'HNSW' in ordinary case",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "should": "the 52K ops/sec note",
+   "must_not": "treat the caps as a different token",
+   "noise": "caps_keyword",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 56,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/ruvector-hnsw-achieves-52k-ops-sec-with-sub-millisecond-latency.md",
+     "knowledge/zeroclaw-semantic-memory.md",
+     "knowledge/ruvector-hnsw-core-validated-but-gnn-experimental.md"
+    ]
+   }
+  },
+  {
+   "id": "z19",
+   "class": "silly",
+   "query": "у меня есть заметка про то как агент ночью перечитывает переписку и делает из неё сводку, но я не помню как это называется и хочу найти тот текст, где описано расписание таких задач и сколько их всего",
+   "expect": [
+    "knowledge/a-3am-dreaming-job-compiles-the-day-into-tomorrows-context-across-28-cron-jobs.md"
+   ],
+   "evidence": "A long Russian sentence that states the subject obliquely ('nightly rereading') and asks for the schedule.",
+   "why_not_tautology": "the sentence describes the schedule obliquely ('перечитывает переписку') and never uses the note's '3:00', 'cron' or '28'",
+   "axes": {
+    "language": "ru",
+    "length": "long",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "should": "the 3am dreaming note",
+   "must_not": "rank a cron-adjacent note first because the schedule words are common",
+   "noise": "rambling",
+   "absent_terms_share": 0.742,
+   "measured": {
+    "rank": 1,
+    "total": 796,
+    "top_terms": 10,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/a-3am-dreaming-job-compiles-the-day-into-tomorrows-context-across-28-cron-jobs.md",
+     "inbox/devin-agentic-mapreduce.md",
+     "inbox/claude-code-github-actions-best-practices-2026.md"
+    ]
+   }
+  },
+  {
+   "id": "z20",
+   "class": "silly",
+   "query": "битемпоральность",
+   "expect": [
+    "knowledge/bitemporal-valid-transaction-time.md",
+    "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md"
+   ],
+   "evidence": "One Russian word, the exact concept.",
+   "why_not_tautology": "the single Russian word is an inflected form the notes do not spell; the corpus writes 'битемпоральная' and 'bi-temporal'",
+   "axes": {
+    "language": "ru",
+    "length": "short",
+    "form": "silly",
+    "hop": "single",
+    "lifecycle": "any",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "should": "a bi-temporal note",
+   "must_not": "return an empty page for a single Russian word the corpus uses",
+   "noise": "single_word",
+   "absent_terms_share": 1.0,
+   "measured": {
+    "rank": null,
+    "total": 0,
+    "top_terms": null,
+    "grep_literal": 0,
+    "page_head": []
+   }
+  },
+  {
+   "id": "g01",
+   "class": "regression",
+   "query": "capsules",
+   "expect": [
+    "inbox/statcraft-safe-rust-spss-alternative.md",
+    "inbox/evolver-gene-experience-framework.md"
+   ],
+   "evidence": "The corpus holds only the singular `capsule` (Evolver's Capsule = gene + one case; StatCraft's CapsuleCraft). A plural must resolve to the singular form the index holds.",
+   "why_not_tautology": "the plural 'capsules' does not occur in either note; it is a word-form lookup, not a quote",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "regression",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "g02",
+   "pair_axis": "word_form",
+   "regression": "c3c7ee4 (word-form retry)",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": null,
+    "total": 0,
+    "top_terms": null,
+    "grep_literal": 0,
+    "page_head": []
+   }
+  },
+  {
+   "id": "g02",
+   "class": "regression",
+   "query": "capsule",
+   "expect": [
+    "inbox/statcraft-safe-rust-spss-alternative.md",
+    "inbox/evolver-gene-experience-framework.md"
+   ],
+   "evidence": "The singular form, the control for g01: same two notes, scores must not differ when the retry is not needed.",
+   "why_not_tautology": "'capsule' is the form the notes hold; this row exists so a word-form change cannot silently alter the answer for the form that already worked",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "regression",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "g01",
+   "pair_axis": "word_form",
+   "regression": "c3c7ee4 (control)",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 2,
+    "top_terms": 1,
+    "grep_literal": 4,
+    "page_head": [
+     "inbox/statcraft-safe-rust-spss-alternative.md",
+     "inbox/evolver-gene-experience-framework.md"
+    ]
+   }
+  },
+  {
+   "id": "g03",
+   "class": "regression",
+   "query": "as of",
+   "expect": [
+    "knowledge/bitemporal-valid-transaction-time.md"
+   ],
+   "evidence": "`exact: true` is an AND of terms, not a phrase: the bitemporal note documents AS OF queries and must rank first while the candidate set stays wide (218 notes hold both words, 7 hold the literal pair).",
+   "why_not_tautology": "the query is two stopword-like tokens whose pair occurs 7 times and whose AND occurs 218 times; the row pins which of the two the tool means",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "regression",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "as-of",
+    "entity": "concept"
+   },
+   "args": {
+    "exact": true
+   },
+   "min_total": 100,
+   "regression": "exact-and (tasks.json)",
+   "absent_terms_share": 1.0,
+   "measured": {
+    "rank": 1,
+    "total": 218,
+    "top_terms": 2,
+    "grep_literal": 10,
+    "page_head": [
+     "knowledge/bitemporal-valid-transaction-time.md",
+     "knowledge/kutha-temporal-graphs.md",
+     "knowledge/graphiti-bitemporal-fact-edges-contrast.md"
+    ]
+   }
+  },
+  {
+   "id": "g04",
+   "class": "regression",
+   "query": "oracle matrix tests",
+   "expect": [
+    "f/patterns/pattern-oracle-drift-ci.md"
+   ],
+   "evidence": "At the default floor the engine must keep the note whose subject is an oracle test corpus, not four notes that merely mention 'oracle' and 'tests'.",
+   "why_not_tautology": "the note is Russian ('korpus testov') so English 'tests' and 'matrix' do not match; only 'oracle' does",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "regression",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "g05",
+   "pair_axis": "floor",
+   "regression": "006ac0b (rare-term escape)",
+   "absent_terms_share": 0.667,
+   "measured": {
+    "rank": null,
+    "total": 5,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/insight-verifiable-artifact-beats-green-gates.md",
+     "inbox/matsakis-agentic-links-deepdive.md",
+     "inbox/egm-vs-superpowers-vs-compound-engineering.md"
+    ]
+   }
+  },
+  {
+   "id": "g05",
+   "class": "regression",
+   "query": "oracle matrix tests",
+   "expect": [
+    "f/patterns/pattern-oracle-drift-ci.md"
+   ],
+   "evidence": "With `min_should_match: 1` the note ranks third of 83; the default row and this row must return the same page after the rare-term escape.",
+   "why_not_tautology": "same query, different floor; the pair localises a failure to the floor rather than to the index",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "regression",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "args": {
+    "min_should_match": 1
+   },
+   "pair": "g04",
+   "pair_axis": "floor",
+   "regression": "006ac0b (rare-term escape)",
+   "absent_terms_share": 0.667,
+   "measured": {
+    "rank": 3,
+    "total": 83,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/insight-verifiable-artifact-beats-green-gates.md",
+     "inbox/pattern-three-anchors-before-tuning.md",
+     "f/patterns/pattern-oracle-drift-ci.md"
+    ]
+   }
+  },
+  {
+   "id": "g06",
+   "class": "regression",
+   "query": "the exact number of stars on the 2brain repository",
+   "expect": [],
+   "evidence": "The vault cannot answer this; with scope own the engine must not answer from a mounted dependency's README (tb-mcp-sdk/README.md was the pre-fix top hit).",
+   "why_not_tautology": "no note holds a star count; the words occur in the vault, which is what makes the row a test of scope and not of vocabulary",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "regression",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "g07",
+   "pair_axis": "scope",
+   "regression": "scope-own (task-set.md §1)",
+   "should": "no confident vault hit; no path outside /root/vault",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 433,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/exact-discipline-deep.md",
+     ".claude/skills/tasks/SKILL.md",
+     "knowledge/2brain-serving-state-lags-the-repository.md"
+    ]
+   }
+  },
+  {
+   "id": "g07",
+   "class": "regression",
+   "query": "the exact number of stars on the 2brain repository",
+   "expect": [],
+   "evidence": "With `scope: all` the mounted dependency is in scope by design, so a path outside the vault is allowed here and forbidden in g06.",
+   "why_not_tautology": "the same words; only the scope parameter differs",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "regression",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "all",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "args": {
+    "scope": "all"
+   },
+   "pair": "g06",
+   "pair_axis": "scope",
+   "regression": "scope-own (§1, inverse)",
+   "should": "any answer, possibly outside the vault; g06 must not do this",
+   "absent_terms_share": null,
+   "measured": {
+    "rank": null,
+    "total": 435,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "/root/2brain/tb-mcp-sdk/README.md",
+     "inbox/exact-discipline-deep.md",
+     ".claude/skills/tasks/SKILL.md"
+    ]
+   }
+  },
+  {
+   "id": "g08",
+   "class": "regression",
+   "query": "agent memory",
+   "expect": [
+    "knowledge/a-mem-uses-zettelkasten-method-for-agentic-memory-with-retroactive-evolution.md",
+    "knowledge/agentdb-architecture.md",
+    "knowledge/agent-personalization.md"
+   ],
+   "evidence": "A legitimate question whose top hit rests on two corpus-wide words; the `weak` flag must be true on it and false on a rare-term page.",
+   "why_not_tautology": "'agent memory' is deliberately non-distinctive; the row measures the flag, not the ranking",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "regression",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "any",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "regression": "weak-flag (tasks.json)",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 9,
+    "total": 228,
+    "top_terms": 2,
+    "grep_literal": 72,
+    "page_head": [
+     "knowledge/memory-agent-abstraction-enables-natural-language-memory-operations.md",
+     "knowledge/amem-zettelkasten-retroactive-evolution.md",
+     "knowledge/surrealdb-agent-memory-openapi-facts-pin.md"
+    ]
+   }
+  },
+  {
+   "id": "g09",
+   "class": "regression",
+   "query": "event log as source of truth",
+   "expect": [
+    "knowledge/event-log-as-source-of-truth-agent-memory.md"
+   ],
+   "evidence": "The atomic note states the rule; knowledge/kutha-temporal-graphs.md is the map that lists it and currently outranks it at rank 1 of 329.",
+   "why_not_tautology": "the query is the note's own title, which is why the row isolates hub-vs-atomic rather than retrieval",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "regression",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "regression": "D7-hub-vs-atomic (OPEN)",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 8,
+    "total": 329,
+    "top_terms": 6,
+    "grep_literal": 1,
+    "page_head": [
+     "knowledge/kutha-temporal-graphs.md",
+     "knowledge/surrealdb-agent-memory-vs-kutha.md",
+     "knowledge/kutha-graph-project-snapshot.md"
+    ]
+   }
+  },
+  {
+   "id": "g10",
+   "class": "regression",
+   "query": "битемпоральная модель ребра отслеживает валидность и время загрузки отдельно",
+   "expect": [
+    "knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md"
+   ],
+   "evidence": "The English note says exactly this (four timestamps per edge); the Russian question shares no token with it, so the row stays a probe of the bilingual gap.",
+   "why_not_tautology": "the note is English and the question Russian; the only shared tokens are numbers",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "regression",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "regression": "D1-bilingual (OPEN)",
+   "absent_terms_share": 1.0,
+   "measured": {
+    "rank": null,
+    "total": 346,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/pattern-blocker-rubric-grading.md",
+     "inbox/claims-slot-graph-balance-gate-for-proofgate.md",
+     "knowledge/bitemporal-valid-transaction-time.md"
+    ]
+   }
+  },
+  {
+   "id": "g13",
+   "class": "regression",
+   "query": "as of",
+   "expect": [
+    "knowledge/bitemporal-valid-transaction-time.md"
+   ],
+   "evidence": "The literal-phrase side of the pair: tb_grep 'as of' finds about seven notes, while tb_search with exact:true returns 218; the two tools must stay different.",
+   "why_not_tautology": "the row is about the tool pair, not about a note: it fails if grep or search collapses into the other",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "regression",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "as-of",
+    "entity": "concept"
+   },
+   "regression": "exact-and (grep side)",
+   "absent_terms_share": 1.0,
+   "measured": {
+    "rank": 1,
+    "total": 218,
+    "top_terms": 2,
+    "grep_literal": 10,
+    "page_head": [
+     "knowledge/bitemporal-valid-transaction-time.md",
+     "knowledge/kutha-temporal-graphs.md",
+     "knowledge/graphiti-bitemporal-fact-edges-contrast.md"
+    ]
+   }
+  },
+  {
+   "id": "g14",
+   "class": "regression",
+   "query": "oracle",
+   "expect": [
+    "f/patterns/pattern-oracle-drift-ci.md"
+   ],
+   "evidence": "The page must carry matched_terms, total and path on every match; the row fails if the wire shape drops a field the eval reads.",
+   "why_not_tautology": "the query is one word; the row measures the envelope, not the ranking",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "regression",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "regression": "wire-shape (matched_terms, total)",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 2,
+    "total": 30,
+    "top_terms": 1,
+    "grep_literal": 84,
+    "page_head": [
+     "inbox/pattern-three-anchors-before-tuning.md",
+     "f/patterns/pattern-oracle-drift-ci.md",
+     "inbox/properagent-memory-driven-proactive-assistance.md"
+    ]
+   }
+  },
+  {
+   "id": "g15",
+   "class": "regression",
+   "query": "races",
+   "expect": [
+    "knowledge/heisenbugs-require-formal-methods-not-testing.md"
+   ],
+   "evidence": "A match must carry a non-empty excerpt so a caller can see why it matched; the row fails if excerpt is empty.",
+   "why_not_tautology": "the query is one word; the row measures the envelope",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "regression",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "regression": "wire-shape (excerpt)",
+   "absent_terms_share": 1.0,
+   "measured": {
+    "rank": null,
+    "total": 1,
+    "top_terms": 1,
+    "grep_literal": 16,
+    "page_head": [
+     "inbox/rust-dynamic-error-detection-layer.md"
+    ]
+   }
+  },
+  {
+   "id": "x01",
+   "class": "paraphrase",
+   "query": "how many tests does the security module pass",
+   "expect": [
+    "knowledge/claude-flow-security-module-passes-444-tests-with-bcrypt-safe-executor-and-zod-validation.md"
+   ],
+   "evidence": "444 passing tests across 8 components; ADR-013.",
+   "why_not_tautology": "tests, security, module all occur; the count is the question",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "x02",
+   "pair_axis": "language",
+   "absent_terms_share": 0.2,
+   "measured": {
+    "rank": 1,
+    "total": 247,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/claude-flow-security-module-passes-444-tests-with-bcrypt-safe-executor-and-zod-validation.md",
+     ".claude/skills/refresh/SKILL.md",
+     "ops/skills-archive/refresh-2026-03-06-pre-upgrade.md"
+    ]
+   }
+  },
+  {
+   "id": "x02",
+   "class": "cross-lingual",
+   "query": "сколько тестов проходит модуль безопасности",
+   "expect": [
+    "knowledge/claude-flow-security-module-passes-444-tests-with-bcrypt-safe-executor-and-zod-validation.md"
+   ],
+   "evidence": "444 passing tests across 8 components.",
+   "why_not_tautology": "the note is English; none of these Russian stems occurs in it",
+   "axes": {
+    "language": "ru",
+    "length": "short",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "x01",
+   "pair_axis": "language",
+   "absent_terms_share": 1.0,
+   "measured": {
+    "rank": null,
+    "total": 11,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/relax-rust-jit-live-compiler.md",
+     "inbox/expo-exact-runtime.md",
+     "inbox/hashcat-architecture-and-algorithms.md"
+    ]
+   }
+  },
+  {
+   "id": "x03",
+   "class": "paraphrase",
+   "query": "oracle drift in ci",
+   "expect": [
+    "f/patterns/pattern-oracle-drift-ci.md"
+   ],
+   "evidence": "Run one test corpus against a live oracle in CI and diff the two outputs.",
+   "why_not_tautology": "the note does not use the word 'drift' in the body's first lines and none of the three words forms a quote",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "x04",
+   "pair_axis": "length",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 91,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "f/patterns/pattern-oracle-drift-ci.md",
+     "inbox/uringscope-ebpf-io-uring-verdicts.md",
+     "inbox/bashkit-virtual-bash-sandbox.md"
+    ]
+   }
+  },
+  {
+   "id": "x04",
+   "class": "paraphrase",
+   "query": "how do I keep a reimplementation honest by diffing its output against a live reference on every commit",
+   "expect": [
+    "f/patterns/pattern-oracle-drift-ci.md"
+   ],
+   "evidence": "Differential comparison against a live oracle in CI, with drift lines on concrete cases.",
+   "why_not_tautology": "reimplementation, honest, live reference, every commit are absent; the note says oracle, CI, diff",
+   "axes": {
+    "language": "en",
+    "length": "long",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "x03",
+   "pair_axis": "length",
+   "absent_terms_share": 1.0,
+   "measured": {
+    "rank": null,
+    "total": 532,
+    "top_terms": 12,
+    "grep_literal": 0,
+    "page_head": [
+     ".claude/skills/review/SKILL.md",
+     ".claude/skills/next/SKILL.md",
+     "ops/skills-archive/next-2026-03-06-pre-upgrade.md"
+    ]
+   }
+  },
+  {
+   "id": "x05",
+   "class": "paraphrase",
+   "query": "hierarchical memory graph",
+   "expect": [
+    "knowledge/hierarchical-graph-memory-simplifies-dynamic-agent-state-management.md"
+   ],
+   "evidence": "OpenSage: graph-based short-term memory with AgentRun/Event nodes for dynamically created sub-agents.",
+   "why_not_tautology": "three keywords with no grammar; the note's claim (isolated memory per sub-agent) is not in them",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "x06",
+   "pair_axis": "form",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 4,
+    "total": 169,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/mnemis-dual-route-memory-combines-fast-similarity-with-hierarchical-traversal-for-sota-long-term-recall.md",
+     "knowledge/mnemis-global-selection-uses-llm-guided-top-down-traversal.md",
+     "knowledge/dual-route-memory-combines-vector-similarity-with-hierarchical-graph-traversal.md"
+    ]
+   }
+  },
+  {
+   "id": "x06",
+   "class": "paraphrase",
+   "query": "how does a hierarchical graph make agent state easier to manage",
+   "expect": [
+    "knowledge/hierarchical-graph-memory-simplifies-dynamic-agent-state-management.md"
+   ],
+   "evidence": "Isolated memory instances for dynamically created sub-agents on a two-level graph.",
+   "why_not_tautology": "easier, manage, state are absent-ish; the note says state management, dynamically created agents",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "x05",
+   "pair_axis": "form",
+   "absent_terms_share": 0.286,
+   "measured": {
+    "rank": 12,
+    "total": 628,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/mnemis-global-selection-uses-llm-guided-top-down-traversal.md",
+     "knowledge/mnemis-dual-route-memory-combines-fast-similarity-with-hierarchical-traversal-for-sota-long-term-recall.md",
+     ".claude/skills/tasks/SKILL.md"
+    ]
+   }
+  },
+  {
+   "id": "x07",
+   "class": "paraphrase",
+   "query": "the oracle drift pattern",
+   "expect": [
+    "f/patterns/pattern-oracle-drift-ci.md"
+   ],
+   "evidence": "Differential CI comparison against a live oracle.",
+   "why_not_tautology": "the query names the concept, not the artifact; the row pairs with z07, which pastes the path",
+   "axes": {
+    "language": "en",
+    "length": "short",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "z07",
+   "pair_axis": "entity",
+   "absent_terms_share": 0.0,
+   "measured": {
+    "rank": 1,
+    "total": 199,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "f/patterns/pattern-oracle-drift-ci.md",
+     "inbox/pattern-three-anchors-before-tuning.md",
+     "inbox/pattern-latent-memory-complement.md"
+    ]
+   }
+  },
+  {
+   "id": "x08",
+   "class": "structural",
+   "query": "what does CodeActInstruct change about training",
+   "expect": [
+    "knowledge/codeactinstruct-contains-7k-multi-turn-code-interaction-trajectories-across-5-domains.md"
+   ],
+   "evidence": "7K multi-turn code interaction trajectories across 5 domains, with the claim that training on them does not degrade general capability.",
+   "why_not_tautology": "change, training are asked as a question; the note states the dataset and the claim, not the word 'change'",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "x09",
+   "pair_axis": "lifecycle",
+   "absent_terms_share": 0.333,
+   "measured": {
+    "rank": 8,
+    "total": 101,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "ops/queue/codeactinstruct-005.md",
+     "knowledge/zeroclaw-phase-3-could-benefit-from-codeactinstruct-style-training.md",
+     ".claude/skills/review/SKILL.md"
+    ]
+   }
+  },
+  {
+   "id": "x09",
+   "class": "structural",
+   "query": "what does CodeActInstruct change about training",
+   "expect": [
+    "ops/queue/codeactinstruct-001.md",
+    "ops/queue/codeactinstruct-002.md"
+   ],
+   "evidence": "The same claim as x08 sits in five queued notes with status: pending — claim 001 is '7K multi-turn code interaction trajectories across 5 domains'.",
+   "why_not_tautology": "same query as x08; only the lifecycle filter differs, so a lifecycle-blind index returns the promoted note twice",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "proposed",
+    "type": "claim",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "pair": "x08",
+   "pair_axis": "lifecycle",
+   "absent_terms_share": 0.333,
+   "measured": {
+    "rank": 7,
+    "total": 101,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "ops/queue/codeactinstruct-005.md",
+     "knowledge/zeroclaw-phase-3-could-benefit-from-codeactinstruct-style-training.md",
+     ".claude/skills/review/SKILL.md"
+    ]
+   }
+  },
+  {
+   "id": "c01",
+   "class": "cross-lingual",
+   "query": "max_actions_per_hour и max_cost_per_day_cents: какие значения по умолчанию",
+   "expect": [
+    "knowledge/sliding-window-rate-limiter-enforces-max-20-actions-per-hour-and-daily-cost-budget.md"
+   ],
+   "evidence": "| `max_actions_per_hour` | 20 | ... | `max_cost_per_day_cents` | 500 |",
+   "why_not_tautology": "какие, значения, умолчанию are absent; the note is English and says 20, 500, defaults.",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.364,
+   "measured": {
+    "rank": 1,
+    "total": 705,
+    "top_terms": 7,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/sliding-window-rate-limiter-enforces-max-20-actions-per-hour-and-daily-cost-budget.md",
+     "inbox/claude-code-github-actions-best-practices-2026.md",
+     "knowledge/search-scope-defaults-to-the-own-workspace.md"
+    ]
+   }
+  },
+  {
+   "id": "c02",
+   "class": "cross-lingual",
+   "query": "сколько RAM съедает HNSW-индекс на миллион векторов",
+   "expect": [
+    "knowledge/hnsw-memory-bloat-index-requires-ram-residency-100k-vectors-at-1536-dims-needs-600mb-plus.md"
+   ],
+   "evidence": "1M memories = 6GB+; the index must be RAM-resident.",
+   "why_not_tautology": "съедает, миллион are absent; the note says 1M memories, 6GB+, RAM-resident.",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.75,
+   "measured": {
+    "rank": 1,
+    "total": 148,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/hnsw-memory-bloat-index-requires-ram-residency-100k-vectors-at-1536-dims-needs-600mb-plus.md",
+     "knowledge/ruvector-hnsw-achieves-52k-ops-sec-with-sub-millisecond-latency.md",
+     "knowledge/droppable-materializations-pattern.md"
+    ]
+   }
+  },
+  {
+   "id": "c03",
+   "class": "paraphrase",
+   "query": "чем язык спецификаций дополняет статическую онтологию при проверке параллельных программ",
+   "expect": [
+    "knowledge/tla-plus-as-dynamic-ontology-for-concurrency-verification.md"
+   ],
+   "evidence": "TLA+ as dynamic ontology: the static ontology fixes structure, TLA+ fixes behavioural invariants and checks concurrency.",
+   "why_not_tautology": "спецификаций, дополняет, статическую, параллельных are absent; the note is Russian but says TLA+, динамическая онтология, инварианты.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.5,
+   "measured": {
+    "rank": 2,
+    "total": 119,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/pt-formal-methods-smart-contracts.md",
+     "knowledge/tla-plus-as-dynamic-ontology-for-concurrency-verification.md",
+     "inbox/evoontology-self-evolving-ontology-layer-for-data-agents-served-as-an-mcp-server.md"
+    ]
+   }
+  },
+  {
+   "id": "c04",
+   "class": "paraphrase",
+   "query": "можно ли добавлять методы к классам онтологии прямо из Python",
+   "expect": [
+    "knowledge/owlready2-adds-python-methods-to-owl-classes.md"
+   ],
+   "evidence": "Owlready2 manipulates OWL ontologies as Python objects and adds methods to OWL classes.",
+   "why_not_tautology": "добавлять, методы, классам, прямо are absent; the note says Owlready2, OWL classes, Python methods.",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.444,
+   "measured": {
+    "rank": 1,
+    "total": 434,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/owlready2-adds-python-methods-to-owl-classes.md",
+     "knowledge/a-local-email-gatekeeper-keeps-2fa-codes-out-of-agent-reach.md",
+     "knowledge/semantic-mcp-server-connects-claude-to-ontology-and-tla.md"
+    ]
+   }
+  },
+  {
+   "id": "c05",
+   "class": "cross-lingual",
+   "query": "Cypher и гиперрёбра в графовой базе RuVector",
+   "expect": [
+    "knowledge/ruvector-graph-provides-neo4j-compatible-cypher-with-n-ary-hyperedges-and-acid-transactions.md"
+   ],
+   "evidence": "Property graph with pairwise edges AND N-ary hyperedges, Cypher via nom/pest/lalrpop, MVCC transactions.",
+   "why_not_tautology": "гиперрёбра, графовой, базе are absent-ish; the note says hyperedges, property graph, Cypher.",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.6,
+   "measured": {
+    "rank": 3,
+    "total": 738,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/ruvector-graph-supports-n-ary-hypergraphs-for-complex-relationships.md",
+     "knowledge/hybrid-search-combines-cypher-filtering-with-hnsw-in-subgraph.md",
+     "knowledge/ruvector-graph-provides-neo4j-compatible-cypher-with-n-ary-hyperedges-and-acid-transactions.md"
+    ]
+   }
+  },
+  {
+   "id": "c06",
+   "class": "paraphrase",
+   "query": "do-calculus в векторном хранилище: p(y|do(x)) против p(y|x)",
+   "expect": [
+    "knowledge/agentdb-causal-memory-tracks-interventional-causality-via-doubly-robust-estimation.md"
+   ],
+   "evidence": "Distinguishes p(y|do(x)) from p(y|x) with doubly robust estimation and instrumental variables.",
+   "why_not_tautology": "хранилище, против are absent; the note says do-calculus, doubly robust, instrumental variables.",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.75,
+   "measured": {
+    "rank": 1,
+    "total": 486,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agentdb-causal-memory-tracks-interventional-causality-via-doubly-robust-estimation.md",
+     "inbox/selfplay-theorem-proving-theory.md",
+     "inbox/ante-safe-cyclic-mutability-places.md"
+    ]
+   }
+  },
+  {
+   "id": "c07",
+   "class": "cross-lingual",
+   "query": "AGENTS.md-индекс на 8KB вместо полного текста документов",
+   "expect": [
+    "knowledge/compressed-8kb-docs-index-preserves-full-agent-effectiveness-agents-need-pointers-not-content.md"
+   ],
+   "evidence": "40KB docs → 8KB pipe-delimited index, zero effectiveness loss, details fetched on demand.",
+   "why_not_tautology": "вместо, полного, текста are absent; the note says 8KB index, pipe-delimited, on demand.",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.667,
+   "measured": {
+    "rank": 2,
+    "total": 477,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/passive-context-agents-md-achieves-100-percent-pass-rate-where-on-demand-skills-achieve-53-percent-by-eliminating-invocation-decision.md",
+     "knowledge/compressed-8kb-docs-index-preserves-full-agent-effectiveness-agents-need-pointers-not-content.md",
+     "inbox/exact-discipline-deep.md"
+    ]
+   }
+  },
+  {
+   "id": "c08",
+   "class": "cross-lingual",
+   "query": "как Merkle-дерево доказывает, что выдача recall не подменена",
+   "expect": [
+    "knowledge/agentdb-explainable-recall-provides-cryptographic-merkle-proofs-for-every-retrieval.md"
+   ],
+   "evidence": "Cryptographic Merkle proofs for every retrieval, so a caller can verify the recall result.",
+   "why_not_tautology": "дерево, доказывает, выдача, подменена are absent; the note says Merkle proofs, cryptographic, retrieval.",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.778,
+   "measured": {
+    "rank": 1,
+    "total": 668,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agentdb-explainable-recall-provides-cryptographic-merkle-proofs-for-every-retrieval.md",
+     "inbox/pattern-gap-constrained-injection.md",
+     "knowledge/internal-planning-tree-in-a-public-repo-buries-the-product-diff.md"
+    ]
+   }
+  },
+  {
+   "id": "c09",
+   "class": "cross-lingual",
+   "query": "Evolver genes as reusable procedural assets with applicability conditions",
+   "expect": [
+    "inbox/evolver-gene-experience-framework.md"
+   ],
+   "evidence": "Gene gi=(summary, procedural steps, applicability conditions, task-matching signals, optional validation plans).",
+   "why_not_tautology": "the question is English and the note's body is Russian; only 'Evolver' and 'applicability' overlap",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.714,
+   "measured": {
+    "rank": 2,
+    "total": 212,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/agentdb-skill-library-auto-consolidates-successful-patterns-into-parameterized-composable-skills.md",
+     "inbox/evolver-gene-experience-framework.md",
+     "knowledge/curated-skills-boost-agent-pass-rate-by-16pp-while-self-generated-skills-degrade-by-1pp.md"
+    ]
+   }
+  },
+  {
+   "id": "c10",
+   "class": "cross-lingual",
+   "query": "how a borrow checker can treat disjoint fields as separate places",
+   "expect": [
+    "inbox/zetas-place-level-borrow-checking-and-the-hyrums-law-trap-inside-it.md"
+   ],
+   "evidence": "Place-level borrow checking: disjointness of places instead of shared-XOR-mutable.",
+   "why_not_tautology": "the note is Russian; borrow checker and places are the only English anchors",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.429,
+   "measured": {
+    "rank": 2,
+    "total": 307,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/ante-safe-cyclic-mutability-places.md",
+     "inbox/zetas-place-level-borrow-checking-and-the-hyrums-law-trap-inside-it.md",
+     "inbox/valen-reverse-walking-borrow-checker.md"
+    ]
+   }
+  },
+  {
+   "id": "c11",
+   "class": "cross-lingual",
+   "query": "static analysis guided by a belief about where the defect lives",
+   "expect": [
+    "inbox/creed-belief-guided-vulnerability-detection.md"
+   ],
+   "evidence": "Creed: belief-guided static analysis, a prior over where the vulnerability is.",
+   "why_not_tautology": "the note is Russian; static analysis and belief are the anchors",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.667,
+   "measured": {
+    "rank": 2,
+    "total": 465,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     ".claude/skills/graph/SKILL.md",
+     "inbox/creed-belief-guided-vulnerability-detection.md",
+     "knowledge/codeactinstruct-self-improvement-behavior-filtering-improves-dataset-quality.md"
+    ]
+   }
+  },
+  {
+   "id": "c12",
+   "class": "cross-lingual",
+   "query": "sequencing picks from a compact AutoStore grid with side access",
+   "expect": [
+    "inbox/gul-retrieval-sequencing-side-access.md"
+   ],
+   "evidence": "Order of retrieval from a compact store with side access (AutoStore-class).",
+   "why_not_tautology": "the note is Russian; AutoStore and side access are the anchors",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.286,
+   "measured": {
+    "rank": 1,
+    "total": 375,
+    "top_terms": 6,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/gul-retrieval-sequencing-side-access.md",
+     "knowledge/claude-flow-moe-router-cascades-three-tiers-wasm-ast-then-neural-agent-then-claude-llm.md",
+     "knowledge/mnemosyne-importance-recalibration-formula-base-30-percent-plus-access-40-percent-plus-recency-20-percent-plus-links-10-percent.md"
+    ]
+   }
+  },
+  {
+   "id": "c13",
+   "class": "cross-lingual",
+   "query": "Sage-A1.5 mixture-of-experts vision model for agent work",
+   "expect": [
+    "inbox/sage-a1-5-agentic-vlm.md"
+   ],
+   "evidence": "35B MoE agentic VLM on Qwen3.6-35B-A3B, Apache-2.0.",
+   "why_not_tautology": "the note is Russian; Sage-A1.5 and mixture-of-experts are the anchors",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "keyword",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "extract",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.625,
+   "measured": {
+    "rank": 1,
+    "total": 703,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/sage-a1-5-agentic-vlm.md",
+     "f/patterns/pattern-decision-layer-agent-work.md",
+     "knowledge/claude-flow-organizes-64-specialized-agents-in-25-subdirectories-with-yaml-config-and-mcp-integration.md"
+    ]
+   }
+  },
+  {
+   "id": "c14",
+   "class": "cross-lingual",
+   "query": "какой процент попаданий даёт Miroflow на одном GPU",
+   "expect": [
+    "knowledge/miroflow-achieves-82-percent-gaia-with-single-rtx-4090.md"
+   ],
+   "evidence": "MiroFlow reaches 82% on GAIA with a single RTX 4090.",
+   "why_not_tautology": "процент, попаданий, даёт, одном are absent; the note says 82%, GAIA, single RTX 4090.",
+   "axes": {
+    "language": "mixed",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.75,
+   "measured": {
+    "rank": 1,
+    "total": 311,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/miroflow-achieves-82-percent-gaia-with-single-rtx-4090.md",
+     "inbox/oo-harness-object-oriented-harness-evolution.md",
+     "inbox/da-video-9geM_9Wja0o.md"
+    ]
+   }
+  },
+  {
+   "id": "c15",
+   "class": "cross-lingual",
+   "query": "why does a tool card need a cryptographic signature",
+   "expect": [
+    "knowledge/glyph-protocol-signs-every-tool-card-before-the-agent-calls-it.md"
+   ],
+   "evidence": "Every tool available to an agent ships as a cryptographically signed card.",
+   "why_not_tautology": "the note's body is Russian; signature, card and cryptographic are the only anchors.",
+   "axes": {
+    "language": "en",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "absent_terms_share": 0.4,
+   "measured": {
+    "rank": 2,
+    "total": 233,
+    "top_terms": 4,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/rl2f-consolidation-problem-remains-unsolved.md",
+     "knowledge/glyph-protocol-signs-every-tool-card-before-the-agent-calls-it.md",
+     "f/patterns/pattern-calibrated-confidence-contract.md"
+    ]
+   }
+  },
+  {
+   "id": "c16",
+   "class": "cross-lingual",
+   "query": "что такое pointer head вместо языковой головы",
+   "expect": [
+    "f/patterns/pattern-pointer-head-not-lm-head.md"
+   ],
+   "evidence": "Discard the language-modelling head and add a tiny head that scores options — a decoder becomes a scorer.",
+   "why_not_tautology": "что/такое, вместо, языковой, головы are absent; the note says pointer head, LM head, decoder, scorer.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "pattern",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "measured": {
+    "rank": 2,
+    "total": 220,
+    "top_terms": 5,
+    "grep_literal": 0,
+    "page_head": [
+     "inbox/strands-decider-aws-open-decision-model-family.md",
+     "f/patterns/pattern-pointer-head-not-lm-head.md",
+     "f/patterns/pattern-option-attention-choice-head.md"
+    ]
+   },
+   "absent_terms_share": 0.714
+  },
+  {
+   "id": "c17",
+   "class": "cross-lingual",
+   "query": "сколько инструментов MCP отдаёт AgentDB",
+   "expect": [
+    "knowledge/agentdb-mcp-server-exposes-32-tools-across-vector-ops-reasoning-learning-and-frontier-memory.md"
+   ],
+   "evidence": "32 tools: 5 core vector + 5 AgentDB + 9 frontier memory + 10 learning + 3 resources.",
+   "why_not_tautology": "сколько, инструментов, отдаёт are absent; the note is English and says 32 tools.",
+   "axes": {
+    "language": "ru",
+    "length": "short",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "measured": {
+    "rank": 2,
+    "total": 56,
+    "top_terms": 3,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/mcp-servers.md",
+     "knowledge/agentdb-mcp-server-exposes-32-tools-across-vector-ops-reasoning-learning-and-frontier-memory.md",
+     "knowledge/agentdb-architecture.md"
+    ]
+   },
+   "absent_terms_share": 0.6
+  },
+  {
+   "id": "c18",
+   "class": "cross-lingual",
+   "query": "почему GNN в RuVector ещё экспериментальный",
+   "expect": [
+    "knowledge/ruvector-hnsw-core-validated-but-gnn-experimental.md"
+   ],
+   "evidence": "HNSW search is production-ready; GNN and advanced features are experimental, stated with honest warnings.",
+   "why_not_tautology": "почему, ещё, экспериментальный are absent; the note says HNSW validated, GNN experimental.",
+   "axes": {
+    "language": "ru",
+    "length": "medium",
+    "form": "question",
+    "hop": "single",
+    "lifecycle": "current",
+    "type": "insight",
+    "scope": "own",
+    "temporality": "none",
+    "entity": "concept"
+   },
+   "measured": {
+    "rank": 4,
+    "total": 206,
+    "top_terms": 2,
+    "grep_literal": 0,
+    "page_head": [
+     "knowledge/selective-dependency-adoption-over-monolithic-integration.md",
+     "knowledge/ruvector-agentdb-claude-flow-implement-all-three-agentic-reasoning-layers-in-production.md",
+     "knowledge/ruvector-architecture.md"
+    ]
+   },
+   "absent_terms_share": 0.6
+  }
+ ],
+ "measurement": {
+  "date": "2026-11-16",
+  "tool": "tb_search / tb_grep over 2brain mcp /root/vault",
+  "scope": "own",
+  "limit": 20,
+  "engine_note": "served binary predates the word-form retry, the rare-term escape and the weak/excerpt fields (see docs/research/task-set.md and knowledge/2brain-serving-state-lags-the-repository.md); ranks are therefore a baseline, not a target",
+  "absent_terms_share_method": "content terms only (English+Russian stoplist), prefix-5 stem match both ways, repeated terms counted once"
+ },
+ "pairs": [
+  {
+   "a": "z01",
+   "b": "z02",
+   "axis": "spelling",
+   "ranks": [
+    null,
+    null
+   ]
+  },
+  {
+   "a": "z14",
+   "b": "z15",
+   "axis": "spelling",
+   "ranks": [
+    1,
+    1
+   ]
+  },
+  {
+   "a": "g01",
+   "b": "g02",
+   "axis": "word_form",
+   "ranks": [
+    null,
+    1
+   ]
+  },
+  {
+   "a": "g04",
+   "b": "g05",
+   "axis": "floor",
+   "ranks": [
+    null,
+    3
+   ]
+  },
+  {
+   "a": "g06",
+   "b": "g07",
+   "axis": "scope",
+   "ranks": [
+    null,
+    null
+   ]
+  },
+  {
+   "a": "x01",
+   "b": "x02",
+   "axis": "language",
+   "ranks": [
+    1,
+    null
+   ]
+  },
+  {
+   "a": "x03",
+   "b": "x04",
+   "axis": "length",
+   "ranks": [
+    1,
+    null
+   ]
+  },
+  {
+   "a": "x05",
+   "b": "x06",
+   "axis": "form",
+   "ranks": [
+    4,
+    12
+   ]
+  },
+  {
+   "a": "x07",
+   "b": "z07",
+   "axis": "entity",
+   "ranks": [
+    1,
+    1
+   ]
+  },
+  {
+   "a": "x08",
+   "b": "x09",
+   "axis": "lifecycle",
+   "ranks": [
+    8,
+    7
+   ]
+  }
+ ],
+ "class_stats": {
+  "exact": {
+   "n": 15,
+   "mean_absent": 0.0,
+   "top10": 15,
+   "top20": 15,
+   "unreached": 0
+  },
+  "paraphrase": {
+   "n": 35,
+   "mean_absent": 0.523,
+   "top10": 30,
+   "top20": 32,
+   "unreached": 3
+  },
+  "multi-hop": {
+   "n": 20,
+   "mean_absent": 0.541,
+   "top10": 19,
+   "top20": 19,
+   "unreached": 1
+  },
+  "cross-lingual": {
+   "n": 16,
+   "mean_absent": 0.621,
+   "top10": 15,
+   "top20": 15,
+   "unreached": 1
+  },
+  "ambiguous": {
+   "n": 15,
+   "mean_absent": 0.058,
+   "top10": 15,
+   "top20": 15,
+   "unreached": 0
+  },
+  "absent": {
+   "n": 15,
+   "mean_absent": null,
+   "top10": 0,
+   "top20": 0,
+   "unreached": 15
+  },
+  "structural": {
+   "n": 12,
+   "mean_absent": 0.442,
+   "top10": 9,
+   "top20": 10,
+   "unreached": 2
+  },
+  "silly": {
+   "n": 19,
+   "mean_absent": 0.28,
+   "top10": 10,
+   "top20": 10,
+   "unreached": 9
+  },
+  "regression": {
+   "n": 13,
+   "mean_absent": 0.485,
+   "top10": 7,
+   "top20": 7,
+   "unreached": 6
+  }
+ }
+}
