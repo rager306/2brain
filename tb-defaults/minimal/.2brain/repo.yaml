@@ -1,7 +1,7 @@
 # A file tree beside a document. Its composition (minimal.yaml) is copied from the host's
 # shipped default templates; the deps below are EXACTLY the ::repo qualifiers that composition
 # and its keymap cross (the peer gate tests this repo's own dep list, so each must be direct).
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine
 name: minimal
 description: a file tree beside a document, and nothing else
 deps:
