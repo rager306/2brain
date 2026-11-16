@@ -1,5 +1,5 @@
 ---
-type: au.engine.readme::au-engine
+type: tb.engine.readme::tb-engine
 tldr: Six skills to build and maintain source-grounded knowledge graphs with your own profiles and node types.
 ---
 
