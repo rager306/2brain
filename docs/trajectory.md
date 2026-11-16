@@ -228,7 +228,9 @@ Its four **write-contract findings** are the useful part, and two are real defec
    `old_string`, so a concurrent change elsewhere in the file does not invalidate the edit. That is a defensible
    fragment-edit contract, but it must be *stated* as one rather than left to be discovered.
 3. **`tb_rename_type` checks the grant on the member owning the definition** while the rewrite touches references in
-   other members. A rename that reaches an ungranted member must be refused or the affected set must be checked.
+   other members. **Fixed 2026-11-16** (`6c080ad`): `preview_mutation` takes `op: rename_type` and answers every path
+   the cascade would rewrite with its member and the kind of change, from the same planner the mutation executes; the
+   adapter refuses when any of those members is outside its allowlist, naming them.
 4. **Diagnostics stay advisory on a normal mutation.** Right for drafts; wrong for promoting into accepted
    knowledge, which is a separate mode the schema does not have yet.
 
