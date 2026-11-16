@@ -14,6 +14,20 @@ source.
 
 ### Added
 
+- **`2brain init <dir>`** — one command to a workspace that works: `.2brain/repo.yaml`, a root README the
+  engine expects (so a fresh workspace reports no `repo-missing-readme`), a `git init` when the directory is
+  not already a work tree, and the exact next command printed. `--template minimal|blank` copies a starter —
+  from an installation's `share/2brain/templates/`, a checkout's `tb-defaults/`, or `$2BRAIN_TEMPLATES` — and
+  renames the starter's own identity rather than replacing it, so its `deps:` and `workspace.yaml` survive.
+  It refuses a directory that already holds a workspace (even with `--force`), a non-empty directory without
+  `--force`, and never overwrites a file.
+- **`2brain doctor [<target>]`** — one command that answers "is this working, and if not what do I do": the
+  binary's version and build commit, the `au` engine binary and its version, the target, the socket it
+  resolves to, the daemon on that socket, the workspace's member and diagnostic counts, and the MCP server's
+  own `tools/list` count. Every line is `ok`/`warn`/`fail`; the exit code is non-zero only on a `fail`.
+- **`./install.sh`** at the repository root — builds both halves and installs `2brain`, `au` and the starter
+  templates under `PREFIX` (default `/usr/local`), then prints the two commands that come next. It replaces
+  files and never signals a running daemon; `PREFIX=$HOME/.local ./install.sh` needs no root.
 - **`au migrate identity --apply`** — the tier-C migration performs the move it plans: `git mv` of the
   identity directory, exact-byte splicing of every `type:`/`extends:` claim line, one commit per
   repository, never a push. Every precondition is re-checked immediately before writing, and a failed
@@ -35,6 +49,9 @@ source.
 
 ### Changed
 
+- **The README quickstart is four commands** — clone and `./install.sh`, then `2brain init my-workspace`,
+  then `2brain daemon start my-workspace` with `2brain doctor my-workspace` in another shell. The manual
+  `mkdir .2brain` / `printf repo.yaml` / hand-copied-binary steps are gone.
 - **BREAKING: tool names are `tb_*`, not `au_*`.** All 52 names in `tools/list`, in `tb_describe_tool`, in the
   skill and in the generated tool map. There is no alias: a client calling `au_content` gets `tool not found`.
   The reason for the break rather than a compatibility window is in `docs/naming.md`; the short of it is one
