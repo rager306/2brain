@@ -174,6 +174,10 @@ pub fn walk(kb: &KnowledgeBase, seed: &std::path::Path, params: &WalkParams) -> 
     for cur_depth in 0..params.depth {
         let mut next: Vec<NodeId> = Vec::new();
         for node in &frontier {
+            // Instrumentation: one expansion reads one document's edges, so the
+            // walk's document count is the nodes it expanded — the reachable set,
+            // which `max_nodes` may cut, never the corpus.
+            crate::verb_metrics::note_documents(1);
             for (cand, far) in edges_of(kb, node, params.direction) {
                 // Kind filter. Absent set means all kinds.
                 if let Some(set) = params.kinds {

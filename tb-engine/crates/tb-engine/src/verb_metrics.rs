@@ -16,7 +16,21 @@
 //!   atomic adds whatever the latency turns out to be. A reservoir or a sorted
 //!   sample would answer percentiles more precisely and would allocate on the
 //!   hot path, which is the one thing a serving loop cannot do.
+//!
+//! The same rows carry the VISIT counters: how many documents a read examined
+//! and how many posting blocks it decoded. They exist to answer a question the
+//! latency histogram cannot — whether a read's work stays bounded as the corpus
+//! grows, or scales with the corpus while the answer stays one page. A read
+//! declares the scope it visits inside ([`visit_scope`]) and the walks inside it
+//! report what they touched ([`note_documents`], [`note_posting_blocks`]).
+//!
+//! The visit path is DELIBERATELY not an atomic per document. The accumulator is
+//! a thread-local tally, so a walk in a loop pays a plain cell add, and the scope
+//! flushes it into the per-verb atomics once, on the way out. Counting is
+//! observation only: no read consults these numbers, so a wrong one can change a
+//! report but never an answer.
 
+use std::cell::Cell;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
@@ -96,10 +110,13 @@ const VERB_COUNT: usize = VERBS.len();
 /// cache without a bucket per order of magnitude nobody will ever read.
 pub(crate) const BUCKET_COUNT: usize = 25;
 
-/// The one verb counter row: a request count and its latency histogram.
+/// The one verb counter row: a request count, its latency histogram, and the
+/// visits its answered requests made.
 struct VerbCounters {
     count: AtomicU64,
     buckets: [AtomicU64; BUCKET_COUNT],
+    documents_visited: AtomicU64,
+    posting_blocks_decoded: AtomicU64,
 }
 
 impl VerbCounters {
@@ -109,14 +126,16 @@ impl VerbCounters {
         VerbCounters {
             count: AtomicU64::new(0),
             buckets: [const { AtomicU64::new(0) }; BUCKET_COUNT],
+            documents_visited: AtomicU64::new(0),
+            posting_blocks_decoded: AtomicU64::new(0),
         }
     }
 }
 
 static COUNTERS: [VerbCounters; VERB_COUNT] = [const { VerbCounters::zero() }; VERB_COUNT];
 
-/// One verb's counters as served: the request count and the histogram buckets,
-/// `buckets.sum() == count` at every instant a client reads them.
+/// One verb's counters as served: the request count, the histogram buckets, and
+/// the visits, `buckets.sum() == count` at every instant a client reads them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) struct VerbCount {
     /// Requests this verb answered since the process started.
@@ -124,6 +143,18 @@ pub(crate) struct VerbCount {
     /// The histogram: `buckets[i]` requests in bucket `i` (see
     /// [`BUCKET_COUNT`] for the bounds).
     pub buckets: [u64; BUCKET_COUNT],
+    /// Document-visit STEPS this verb's answered requests made, summed.
+    ///
+    /// A step, not a distinct document: a document is counted once per pass that
+    /// examines it, so a two-term `search` that scores one document twice
+    /// contributes two. The number answers "how much of the corpus does one
+    /// request walk", so a step per (term, document) posting is the honest unit —
+    /// deduplicating would need a set and would hide the repetition.
+    pub documents_visited: u64,
+    /// Posting blocks this verb's answered requests decoded. One per term list
+    /// walked in a scoring or adjacency pass; zero for reads that hold no
+    /// postings (a backlink lookup, a graph walk).
+    pub posting_blocks_decoded: u64,
 }
 
 /// The bucket a duration lands in: 0 under 1 µs, else the octave above it,
@@ -145,6 +176,111 @@ fn bucket_for(elapsed: Duration) -> usize {
 /// count must not panic on in any case.
 fn slot_of(verb: &str) -> Option<usize> {
     VERBS.binary_search(&verb).ok()
+}
+
+/// The tally a [`visit_scope`] accumulates: the visits so far, waiting for the
+/// scope to close and flush them into its verb's row.
+#[derive(Clone, Copy)]
+struct Tally {
+    documents: u64,
+    posting_blocks: u64,
+}
+
+thread_local! {
+    /// The innermost open [`visit_scope`] on this thread, if any. A scope is
+    /// per-request and per-thread by construction: the walks it covers run on the
+    /// thread that opened it (a read that hands work to a blocking task opens its
+    /// scope inside that task, see `serve`'s `grep`).
+    static TALLY: Cell<Option<Tally>> = const { Cell::new(None) };
+}
+
+/// One open visit scope. Closes on drop, so an early return and a panic unwind
+/// both flush what was actually walked and restore the enclosing scope.
+struct VisitScope {
+    previous: Option<Tally>,
+    slot: usize,
+}
+
+impl Drop for VisitScope {
+    fn drop(&mut self) {
+        let finished = TALLY.with(Cell::get);
+        TALLY.with(|c| c.set(self.previous));
+        // A nested scope is not an error: a read may compose another instrumented
+        // read (`overview` folds the hub ranking and the graph shape). The inner
+        // one is counted for its own verb and the outer one continues with its own
+        // unchanged tally.
+        let Some(finished) = finished else {
+            return;
+        };
+        if finished.documents > 0 {
+            COUNTERS[self.slot]
+                .documents_visited
+                .fetch_add(finished.documents, Ordering::Relaxed);
+        }
+        if finished.posting_blocks > 0 {
+            COUNTERS[self.slot]
+                .posting_blocks_decoded
+                .fetch_add(finished.posting_blocks, Ordering::Relaxed);
+        }
+    }
+}
+
+/// Attribute the visits inside `f` to `verb`.
+///
+/// The one call a read makes to be measurable. Outside a scope the two `note_`
+/// functions are no-ops, so a path under test or reached from a verb that opens
+/// no scope pays nothing and reports nothing — the counters describe only the
+/// reads that asked to be described.
+///
+/// There is no reset verb: the counters accumulate for the process's lifetime,
+/// the same contract the request counts already have, and a caller that wants a
+/// per-request figure reads the snapshot before and after (the probe under
+/// `tools/probe/` does exactly that).
+pub(crate) fn visit_scope<T>(verb: &'static str, f: impl FnOnce() -> T) -> T {
+    // An unknown verb would have nowhere to flush to; it also cannot happen (the
+    // call sites are census literals), so the read simply runs unmeasured rather
+    // than clobbering an enclosing scope's tally.
+    let Some(slot) = slot_of(verb) else {
+        return f();
+    };
+    let guard = VisitScope {
+        previous: TALLY.with(Cell::get),
+        slot,
+    };
+    TALLY.with(|c| {
+        c.set(Some(Tally {
+            documents: 0,
+            posting_blocks: 0,
+        }))
+    });
+    let value = f();
+    drop(guard);
+    value
+}
+
+/// Record that the walk examined `count` documents (or document-posting steps).
+///
+/// A no-op outside a [`visit_scope`]. Cheap by design: one thread-local cell
+/// read and one add, no atomic and no shared cache line, so a caller may note in
+/// a loop. Prefer noting a batch where the batch size is already known (a posting
+/// list's length), which is what the search paths do.
+pub(crate) fn note_documents(count: u64) {
+    TALLY.with(|c| {
+        if let Some(mut tally) = c.get() {
+            tally.documents += count;
+            c.set(Some(tally));
+        }
+    });
+}
+
+/// Record that the walk decoded `count` posting blocks. See [`note_documents`].
+pub(crate) fn note_posting_blocks(count: u64) {
+    TALLY.with(|c| {
+        if let Some(mut tally) = c.get() {
+            tally.posting_blocks += count;
+            c.set(Some(tally));
+        }
+    });
 }
 
 /// Record one answered request: its count, and its handler time in a bucket.
@@ -177,6 +313,8 @@ pub(crate) fn snapshot() -> std::collections::BTreeMap<&'static str, VerbCount> 
                 VerbCount {
                     count: row.count.load(Ordering::Relaxed),
                     buckets,
+                    documents_visited: row.documents_visited.load(Ordering::Relaxed),
+                    posting_blocks_decoded: row.posting_blocks_decoded.load(Ordering::Relaxed),
                 },
             )
         })
@@ -234,5 +372,67 @@ mod tests {
         assert_eq!(slot_of("not_a_verb"), None);
         record("not_a_verb", Duration::from_micros(5));
         assert_eq!(slot_of("not_a_verb"), None);
+    }
+
+    /// The tally of the innermost open scope on this thread, for the visit tests.
+    fn active() -> Option<(u64, u64)> {
+        TALLY
+            .with(Cell::get)
+            .map(|tally| (tally.documents, tally.posting_blocks))
+    }
+
+    #[test]
+    fn a_visit_scope_accumulates_and_nests() {
+        assert_eq!(active(), None, "no scope is open before the first one");
+        visit_scope("search", || {
+            note_documents(3);
+            note_posting_blocks(1);
+            assert_eq!(active(), Some((3, 1)));
+            // A nested scope counts for ITS verb and leaves the outer tally alone.
+            visit_scope("hubs", || {
+                note_documents(5);
+                assert_eq!(active(), Some((5, 0)));
+            });
+            assert_eq!(
+                active(),
+                Some((3, 1)),
+                "the outer tally survived the inner one"
+            );
+            note_documents(2);
+        });
+        assert_eq!(active(), None, "the scope closes on the way out");
+    }
+
+    #[test]
+    fn a_note_outside_a_scope_is_a_no_op() {
+        assert_eq!(active(), None);
+        note_documents(7);
+        note_posting_blocks(3);
+        assert_eq!(active(), None, "nothing was opened, so nothing accumulated");
+    }
+
+    /// The flush is one atomic add per scope, not per document: the row for the
+    /// verb moves by the whole tally when the scope closes, and by nothing before
+    /// it. Asserted as a LOWER bound on the delta because these statics are shared
+    /// with every other test in the binary; `type_tree` is read by no test here.
+    #[test]
+    fn a_visit_scope_flushes_into_the_verb_row() {
+        let before = snapshot()["type_tree"].documents_visited;
+        visit_scope("type_tree", || {
+            note_documents(11);
+            note_posting_blocks(4);
+            assert_eq!(
+                snapshot()["type_tree"].documents_visited,
+                before,
+                "an open scope has not flushed yet"
+            );
+        });
+        let after = snapshot()["type_tree"].clone();
+        assert!(
+            after.documents_visited >= before + 11,
+            "the scope flushed its documents: {before} then {}",
+            after.documents_visited
+        );
+        assert!(after.posting_blocks_decoded >= 4);
     }
 }

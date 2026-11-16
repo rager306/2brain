@@ -71,6 +71,7 @@ use tb_core::{InstanceField, InstanceValue};
 
 use crate::ir::{FileEntry, OrdMap};
 use crate::parse::FileParse;
+use crate::verb_metrics;
 
 /// BM25 term-frequency saturation.
 const K1: f64 = 1.2;
@@ -269,19 +270,23 @@ impl<const N: usize> PostingBlock<N> {
     /// frequencies and a cursor over its positions.
     ///
     /// A merge walk over two ascending posting lists, so the adjacency pass costs
-    /// the pair's shared documents rather than either list.
+    /// the pair's shared documents rather than either list. Returns how many
+    /// postings it stepped, the merge's own document-visit count for the
+    /// instrumented caller.
     fn for_each_shared(
         &self,
         other: &Self,
         mut visit: impl FnMut(u32, [u16; N], PositionCursor<'_>, [u16; N], PositionCursor<'_>),
-    ) {
+    ) -> u64 {
         let mut left = PostingWalk::<N>::new(&self.bytes);
         let mut right = PostingWalk::<N>::new(&other.bytes);
+        let mut stepped = 0u64;
         let mut left_entry = left.next_entry();
         let mut right_entry = right.next_entry();
         while let (Some((left_doc, left_tf, left_at)), Some((right_doc, right_tf, right_at))) =
             (left_entry, right_entry)
         {
+            stepped += 1;
             match left_doc.cmp(&right_doc) {
                 std::cmp::Ordering::Less => left_entry = left.next_entry(),
                 std::cmp::Ordering::Greater => right_entry = right.next_entry(),
@@ -298,6 +303,7 @@ impl<const N: usize> PostingBlock<N> {
                 }
             }
         }
+        stepped
     }
 
     /// Insert a posting, keeping the block ascending by document id.
@@ -909,6 +915,11 @@ impl<const N: usize> Bm25Index<N> {
         for &term_id in &term_ids {
             let postings = &self.postings[term_id as usize];
             let idf = self.idf(postings.posting_count());
+            // Instrumentation: one block decoded, one document step per posting it
+            // holds. Both figures are known before the walk, so the loop pays
+            // nothing per document.
+            verb_metrics::note_posting_blocks(1);
+            verb_metrics::note_documents(postings.posting_count() as u64);
             let weight: [f64; N] = std::array::from_fn(|field| self.weights[field] * idf);
             for posting in postings.postings() {
                 let slot = &self.docs[posting.doc as usize];
@@ -934,7 +945,9 @@ impl<const N: usize> Bm25Index<N> {
         if PROXIMITY > 0.0 && term_ids.len() > 1 {
             for (at, &left) in term_ids.iter().enumerate() {
                 for &right in &term_ids[at + 1..] {
-                    self.postings[left as usize].for_each_shared(
+                    // Two blocks enter the merge; the steps it took are the
+                    // documents it examined on either side.
+                    let stepped = self.postings[left as usize].for_each_shared(
                         &self.postings[right as usize],
                         |doc, left_tf, left_positions, right_tf, right_positions| {
                             let near =
@@ -946,6 +959,8 @@ impl<const N: usize> Bm25Index<N> {
                             }
                         },
                     );
+                    verb_metrics::note_posting_blocks(2);
+                    verb_metrics::note_documents(stepped);
                 }
             }
         }
@@ -1000,6 +1015,10 @@ impl<const N: usize> Bm25Index<N> {
             .iter()
             .map(|&term_id| {
                 let postings = &self.postings[term_id as usize];
+                // Instrumentation: the conjunction decodes each term's whole block
+                // into a transient list, so every posting in it is a document step.
+                verb_metrics::note_posting_blocks(1);
+                verb_metrics::note_documents(postings.posting_count() as u64);
                 (
                     postings.postings().collect(),
                     self.idf(postings.posting_count()),

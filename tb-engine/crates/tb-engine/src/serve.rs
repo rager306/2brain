@@ -12233,7 +12233,12 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
         }
         Request::ReferencesIn { path } => {
             let target = handle.root().join(&path);
-            enveloped("references_in", handle.read(|v| backlinks_view(v, &target)))
+            enveloped(
+                "references_in",
+                handle.read(|v| {
+                    crate::verb_metrics::visit_scope("references_in", || backlinks_view(v, &target))
+                }),
+            )
         }
         Request::ReferencesOut { path } => {
             let target = abs_arg(handle.root(), &path);
@@ -12355,7 +12360,12 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             let query = args.query;
             let case_sensitive = args.case_sensitive;
             let scan = tokio::task::spawn_blocking(move || {
-                grep_scan(&paths, &query, case_sensitive, limit, offset)
+                // The scan runs OFF the request's own thread, so the visit scope is
+                // opened HERE, inside the task: a scope is thread-local and the
+                // handler's thread is not the one doing the walking.
+                crate::verb_metrics::visit_scope("grep", || {
+                    grep_scan(&paths, &query, case_sensitive, limit, offset)
+                })
             })
             .await
             .unwrap_or_else(|_| GrepScan::default());
@@ -12382,16 +12392,18 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             enveloped(
                 "search",
                 handle.read(move |v| {
-                    search_view(
-                        v,
-                        &query,
-                        exact,
-                        min_should_match,
-                        repo.as_deref(),
-                        scope,
-                        limit,
-                        offset,
-                    )
+                    crate::verb_metrics::visit_scope("search", || {
+                        search_view(
+                            v,
+                            &query,
+                            exact,
+                            min_should_match,
+                            repo.as_deref(),
+                            scope,
+                            limit,
+                            offset,
+                        )
+                    })
                 }),
             )
         }
@@ -12501,25 +12513,30 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             };
             enveloped(
                 "overview",
-                handle.read(move |v| OverviewView {
-                    repo: echo_repo.clone(),
-                    scope: scope_str,
-                    // `members` honors `repo` but NOT `scope`: it is the
-                    // TOPOLOGY field, and `scope` filters CONTENT. Filtering it
-                    // would hide the dependency set from the one field whose
-                    // job is to report it, and `members.editable` is exactly
-                    // how a consumer sees which repos `own` selected.
-                    members: wire::introspect_members(v, &root, cache_root.as_deref())
-                        .members
-                        .into_iter()
-                        .filter(|m| repo.as_deref().is_none_or(|want| m.repo == want))
-                        .collect(),
-                    top_level_dirs: top_level_dirs_view(v, repo.as_deref(), scope),
-                    type_counts: wire::introspect_type_counts(v, repo.as_deref(), scope)
-                        .unwrap_or_default(),
-                    diagnostic_counts: diagnostic_counts_view(v, &diag_scope),
-                    hubs: hub_ranking(v, repo.as_deref(), scope, HUB_LIMIT, 0),
-                    graph_shape: graph_shape_view(v, repo.as_deref(), scope, false),
+                handle.read(move |v| {
+                    // One scope over the whole composed read: the hub ranking and
+                    // the graph shape below report what they walked, and `overview`
+                    // owns those numbers because it asked for them.
+                    crate::verb_metrics::visit_scope("overview", || OverviewView {
+                        repo: echo_repo.clone(),
+                        scope: scope_str,
+                        // `members` honors `repo` but NOT `scope`: it is the
+                        // TOPOLOGY field, and `scope` filters CONTENT. Filtering it
+                        // would hide the dependency set from the one field whose
+                        // job is to report it, and `members.editable` is exactly
+                        // how a consumer sees which repos `own` selected.
+                        members: wire::introspect_members(v, &root, cache_root.as_deref())
+                            .members
+                            .into_iter()
+                            .filter(|m| repo.as_deref().is_none_or(|want| m.repo == want))
+                            .collect(),
+                        top_level_dirs: top_level_dirs_view(v, repo.as_deref(), scope),
+                        type_counts: wire::introspect_type_counts(v, repo.as_deref(), scope)
+                            .unwrap_or_default(),
+                        diagnostic_counts: diagnostic_counts_view(v, &diag_scope),
+                        hubs: hub_ranking(v, repo.as_deref(), scope, HUB_LIMIT, 0),
+                        graph_shape: graph_shape_view(v, repo.as_deref(), scope, false),
+                    })
                 }),
             )
         }
@@ -12537,7 +12554,11 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             let offset = args.offset.unwrap_or(0);
             enveloped(
                 "hubs",
-                handle.read(move |v| hub_ranking(v, repo.as_deref(), scope, limit, offset)),
+                handle.read(move |v| {
+                    crate::verb_metrics::visit_scope("hubs", || {
+                        hub_ranking(v, repo.as_deref(), scope, limit, offset)
+                    })
+                }),
             )
         }
         Request::GraphShape(args) => {
@@ -12546,7 +12567,11 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             let orphan_paths = args.orphan_paths;
             enveloped(
                 "graph_shape",
-                handle.read(move |v| graph_shape_view(v, repo.as_deref(), scope, orphan_paths)),
+                handle.read(move |v| {
+                    crate::verb_metrics::visit_scope("graph_shape", || {
+                        graph_shape_view(v, repo.as_deref(), scope, orphan_paths)
+                    })
+                }),
             )
         }
         Request::GraphHealth(args) => {
@@ -12559,7 +12584,11 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             let want_verbs = args.verbs;
             let mut response = enveloped(
                 "graph_health",
-                handle.read(move |v| graph_health_view(v, repo.as_deref(), scope, limit)),
+                handle.read(move |v| {
+                    crate::verb_metrics::visit_scope("graph_health", || {
+                        graph_health_view(v, repo.as_deref(), scope, limit)
+                    })
+                }),
             );
             // Opt-in instrumentation, a SIBLING of the payload: envelope metadata
             // ABOUT the read, never part of it, so `result.graph_health` keeps its
@@ -12806,43 +12835,48 @@ async fn neighborhood_response(
     // the in-memory `instance` splice, and the per-node file path the disk phase
     // enriches (None for a block node).
     let read = handle.read(move |v| {
-        let params = crate::neighborhood::WalkParams {
-            direction,
-            depth,
-            kinds: kinds.as_ref(),
-            scope_own,
-            max_nodes,
-        };
-        let walk = crate::neighborhood::walk(v, &seed, &params);
-        let mut payload =
-            serde_json::to_value(neighborhood_view(v, &walk)).expect("view serializes");
+        // The walk is the work this read does, and this is the thread that does
+        // it: one scope covers the traversal and the per-node projection.
+        crate::verb_metrics::visit_scope("neighborhood", || {
+            let params = crate::neighborhood::WalkParams {
+                direction,
+                depth,
+                kinds: kinds.as_ref(),
+                scope_own,
+                max_nodes,
+            };
+            let walk = crate::neighborhood::walk(v, &seed, &params);
+            let mut payload =
+                serde_json::to_value(neighborhood_view(v, &walk)).expect("view serializes");
 
-        // One enrichment site per node, in node order: the file path plus, for a
-        // block node, its resolved span (None = the whole file). A block whose
-        // id did not resolve has no span, so its slice is null.
-        let sites: Vec<EnrichSite> = walk
-            .nodes
-            .iter()
-            .map(|n| EnrichSite {
-                path: n.id.path.clone(),
-                span: n.block_span,
-                is_block: n.id.block_id.is_some(),
-            })
-            .collect();
+            // One enrichment site per node, in node order: the file path plus, for a
+            // block node, its resolved span (None = the whole file). A block whose
+            // id did not resolve has no span, so its slice is null.
+            let sites: Vec<EnrichSite> = walk
+                .nodes
+                .iter()
+                .map(|n| EnrichSite {
+                    path: n.id.path.clone(),
+                    span: n.block_span,
+                    is_block: n.id.block_id.is_some(),
+                })
+                .collect();
 
-        if want_instance {
-            let nodes = payload["nodes"].as_array_mut().expect("nodes is an array");
-            for (node, site) in nodes.iter_mut().zip(&sites) {
-                // A block node has no standalone resolved instance; only a file
-                // node carries one (null for a plain note).
-                node["instance"] = if site.is_block {
-                    serde_json::Value::Null
-                } else {
-                    serde_json::to_value(resolved_view(v, &site.path)).expect("resolved serializes")
-                };
+            if want_instance {
+                let nodes = payload["nodes"].as_array_mut().expect("nodes is an array");
+                for (node, site) in nodes.iter_mut().zip(&sites) {
+                    // A block node has no standalone resolved instance; only a file
+                    // node carries one (null for a plain note).
+                    node["instance"] = if site.is_block {
+                        serde_json::Value::Null
+                    } else {
+                        serde_json::to_value(resolved_view(v, &site.path))
+                            .expect("resolved serializes")
+                    };
+                }
             }
-        }
-        (payload, sites)
+            (payload, sites)
+        })
     });
 
     let (version, mut payload, sites) = match read {
@@ -13222,7 +13256,12 @@ fn resolved_view(kb: &KnowledgeBase, target: &Path) -> Option<ResolvedView> {
 
 fn backlinks_view(kb: &KnowledgeBase, target: &Path) -> Vec<BacklinkDto> {
     let target_repo = kb.repos.repo_of(target).map(|r| r.name.clone());
-    kb.backlinks(target)
+    let inbound = kb.backlinks(target);
+    // Instrumentation: the index answers this target directly, so the work is one
+    // entry per inbound edge and nothing else — the read's whole point is that it
+    // costs the answer, not the corpus.
+    crate::verb_metrics::note_documents(inbound.len() as u64);
+    inbound
         .iter()
         .map(|b| BacklinkDto {
             source: b.source.display().to_string(),
@@ -14655,6 +14694,9 @@ fn grep_scan(
         query.to_lowercase()
     };
     let mut scan = GrepScan::default();
+    // Instrumentation: this scan opens every path it was handed, so the visit
+    // count is the path list's length — the corpus, whatever `limit` pages out.
+    crate::verb_metrics::note_documents(paths.len() as u64);
     for (path, repo) in paths {
         let Ok(metadata) = std::fs::metadata(path) else {
             scan.skipped_files += 1;
@@ -15183,6 +15225,11 @@ fn graph_shape_view(
         }
     }
     let edge_count = edges_structural + edges_navigational;
+    // Instrumentation: the closure scans the whole in-scope node universe and then
+    // every edge whose endpoints are both inside it. This read's answer is
+    // corpus-wide by definition, so these numbers growing with the corpus is the
+    // contract, not a defect — the counter exists to keep that visible.
+    crate::verb_metrics::note_documents(n as u64 + edge_count as u64);
 
     // Component sizes from the union-find roots.
     let mut comp_size: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
@@ -15366,6 +15413,11 @@ fn graph_health_view(
     for i in 0..n {
         *comp_size.entry(uf.find(i)).or_default() += 1;
     }
+    // Instrumentation: one node scan plus one edge walk over the whole in-scope
+    // graph, and the SCC pass below walks the same adjacency once more. The answer
+    // is corpus-wide by definition, so the count growing with the corpus is the
+    // contract; the counter keeps it visible beside the request count.
+    crate::verb_metrics::note_documents((n + edges + edges) as u64);
 
     let mut isolated = Vec::new();
     let mut dead_ends = Vec::new();
@@ -15879,6 +15931,9 @@ fn hub_ranking(
     limit: usize,
     offset: usize,
 ) -> Vec<Hub> {
+    // One plain local increment per candidate, so counting costs the fold
+    // nothing it was not already doing.
+    let mut examined = 0u64;
     let mut hubs: Vec<Hub> = kb
         .backlinks
         .iter()
@@ -15887,7 +15942,10 @@ fn hub_ranking(
         // large dependency could fill every slot and crowd the user's own
         // content out of the top-N entirely. Filtering after would return fewer
         // than `limit` own hubs while own hubs existed.
-        .filter(|(target, _)| node_in_scope(kb, repo, scope, target))
+        .filter(|(target, _)| {
+            examined += 1;
+            node_in_scope(kb, repo, scope, target)
+        })
         .map(|(target, edges)| {
             let refs_structural = edges.iter().filter(|b| b.slot.is_some()).count();
             let refs_total = edges.len();
@@ -15904,6 +15962,10 @@ fn hub_ranking(
             }
         })
         .collect();
+    // Instrumentation: the ranking folds the WHOLE backlink index — one entry per
+    // referenced file — then sorts it and pages. `limit` cuts the answer, not this
+    // scan, which is why the visit count is the candidates examined.
+    crate::verb_metrics::note_documents(examined);
     hubs.sort_by(|a, b| {
         b.refs_structural
             .cmp(&a.refs_structural)
