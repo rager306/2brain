@@ -1,4 +1,4 @@
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine
 name: au-agent-guides
 description: Typed guides and shared discovery for decisions about using Ars Umbris.
 deps:

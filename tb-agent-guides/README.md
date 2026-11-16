@@ -1,5 +1,5 @@
 ---
-type: au.engine.readme::au-engine
+type: tb.engine.readme::tb-engine
 tldr: Guides for 2Brain and a skill to write your own in your repo.
 ---
 
