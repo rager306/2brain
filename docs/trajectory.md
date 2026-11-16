@@ -120,7 +120,17 @@ stopwatch. One histogram per verb, aggregated per version, is ~80 lines and make
 ranking experiment answerable without one. Nothing else in this queue should be sized before that data
 exists.
 
-### 5. The recency query class — a prerequisite, not a feature
+### 5. Freshness prior — measured a second time, rejected for a new reason
+
+With the durable class in place the prior was rebuilt as a per-class multiplier and measured on the candidate at
+`c = 0.10` and `c = 0.02`. At 0.10 it does its job (durable hit@1 0.538 → 0.654, transient ahead 12 → 8 of 26) and
+costs the phrase class everything (literal 0.714 → 0.571, the value before proximity). At 0.02 it changes nothing
+and literal still falls. So the conflict is structural, not a bad coefficient: the durable class is built from
+descriptions, the phrase class from bodies, and re-weighting by lifecycle moves documents across the boundary where
+adjacency tie-breaks. Rejected by the rule stated before the run; the shipped numbers are unchanged. A third
+attempt needs a query-time lifecycle facet, not a score multiplier.
+
+### 6. The recency query class — a prerequisite, not a feature
 
 The freshness prior was measured, cost 1.9 points of topical hit@1 and was reverted: the labelled set asks
 "which note holds these words", and the expected note does not change when the note goes stale. A freshness

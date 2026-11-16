@@ -71,3 +71,29 @@ The decision rule is stated now, so the measurement cannot be read backwards int
 
 What makes this different from the first attempt: the first had no class that could show a gain, so it was
 judged only by what it cost. This one is judged by both sides.
+
+## The prior, measured twice, and rejected again — with a second reason
+
+Run on a candidate engine over a copy of the vault, with the decision rule from the section above applied as
+written.
+
+| class | shipped baseline | prior, `c = 0.10` | prior, `c = 0.02` |
+|---|---:|---:|---:|
+| literal hit@1 | **0.714** | 0.571 | 0.571 |
+| topical hit@1 | **0.660** | 0.660 | 0.642 |
+| durable hit@1 | 0.538 | **0.654** | 0.538 |
+| transient ahead of durable | 12 / 26 | **8 / 26** | 12 / 26 |
+
+At `c = 0.10` the prior does exactly what it was built to do — eight of 26 durable pairs stop losing to their
+transient rival — and it costs the phrase class everything: literal hit@1 falls from 0.714 to 0.571, which is the
+value *before* proximity shipped. At `c = 0.02` it changes nothing at all, and literal still falls to 0.571.
+
+That second column is the finding, and it is not about the coefficient. A prior small enough to be neutral is
+still enough to disturb the phrase signal, which means the two are not independent multipliers on this corpus:
+the durable class is built from descriptions, the phrase class from bodies, and re-weighting by lifecycle moves
+documents across the boundary where adjacency tie-breaks. Two attempts, both rejected by the rule stated before
+the run; `search.rs` is unchanged and the shipped numbers are the baseline column.
+
+What would make a third attempt worth running: a signal that separates the two classes before scoring rather
+than re-weighting after it (a lifecycle facet in the index, queried rather than multiplied), or a durable class
+built from bodies instead of descriptions so the two tests stop sharing their evidence. Neither is a constant.
