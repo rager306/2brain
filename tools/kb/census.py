@@ -94,6 +94,7 @@ def census() -> dict:
         "outbound_total": sum(outbound),
         "outbound_median": statistics.median(outbound) if outbound else 0,
         "no_outbound": sum(1 for count in outbound if count == 0),
+        "unlinked_paths": [note["path"] for note in content if note["outbound"] == 0],
         "no_body_links": sum(1 for note in content if note["body_links"] == 0),
         "no_topic_links": sum(1 for note in content if note["topic_links"] == 0),
         "freshness": {
@@ -102,6 +103,24 @@ def census() -> dict:
         },
         "source": "frontmatter census of the vault; graph facts from the engine",
     }
+
+
+def engine_edges(client: StdioMcp, paths: list[str]) -> dict[str, tuple[int, int]]:
+    """Each note's (in, out) reference counts as the ENGINE sees them.
+
+    A regex over the file cannot answer this: `topics:` has a block-list and an inline-array spelling, a body link can
+    be qualified or pinned, and only the engine resolves any of them. The regex counts below stay as a file-level
+    view; the numbers a reader should trust come from here.
+    """
+    edges: dict[str, tuple[int, int]] = {}
+    for path in paths:
+        try:
+            reply = client.call("tb_references", {"repo": "vault", "path": path})
+        except Exception:
+            continue
+        payload = (reply.get("result", reply).get("structuredContent") or {})
+        edges[path] = (len(payload.get("references_in") or []), len(payload.get("references_out") or []))
+    return edges
 
 
 def graph_facts() -> dict:
@@ -129,6 +148,17 @@ def main() -> int:
 
     data = census()
     data["graph"] = graph_facts()
+    # The regex says "no link"; only the engine can say whether that is true, and whether anything points AT a note.
+    unlinked_by_regex = data.pop("unlinked_paths", [])
+    if unlinked_by_regex:
+        env = dict(os.environ, HOME=os.environ.get("BRAIN_HOME", "/root"))
+        with StdioMcp([ADAPTER, "mcp", str(VAULT)], name="kb-census-edges", env=env) as client:
+            edges = engine_edges(client, unlinked_by_regex)
+        data["engine"] = {
+            "checked": len(edges),
+            "no_edge_either_way": sorted(path for path, (i, o) in edges.items() if i == 0 and o == 0),
+            "no_inbound": sorted(path for path, (i, _) in edges.items() if i == 0),
+        }
     if args.json:
         print(json.dumps(data, indent=2))
         return 0
@@ -147,6 +177,11 @@ def main() -> int:
     print(f"             of which body links leave {data['no_body_links']} bare, "
           f"`topics:` links leave {data['no_topic_links']} bare")
     print("  freshness  " + ", ".join(f"{key} {count}" for key, count in data["freshness"].items()))
+    engine = data.get("engine")
+    if engine:
+        print(f"  engine     {engine['checked']} notes with no link by regex -> "
+              f"{len(engine['no_edge_either_way'])} with no reference either way, "
+              f"{len(engine['no_inbound'])} with nothing pointing at them")
     graph = data["graph"]
     if "error" in graph:
         print("  graph      unavailable: " + graph["error"])

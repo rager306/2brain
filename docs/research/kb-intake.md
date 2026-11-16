@@ -125,3 +125,37 @@ Two things follow, and the first is about instruments rather than content:
 
 The morning delta (+8 notes, +5 with no body link) stays true as a body-link delta. It just is not the headline it
 looked like.
+
+## Correction two: the regex also missed `topics: ["[[x]]"]`
+
+The same day, a second reader of the vault found the second spelling. `topics:` is written two ways —
+
+```yaml
+topics: ["[[ingar30-reviewer-economics-paper-panel]]"]     # inline array, most of f/patterns
+topics:
+  - "[[hermes-user-stories]]"                              # block list
+```
+
+— and the census matched only the block list. So "76 with no link of any kind" was still a statement about a regex.
+Asking the engine instead (`tb_references` for each of the 76) gives the number that can be defended:
+
+| question | answer | who can answer it |
+|---|---:|---|
+| notes with no body link | 429 | a regex |
+| notes with no `topics:` link | 165 | a regex |
+| notes with no reference either way | **13** | the engine |
+| notes with **nothing pointing at them** | **43** | the engine |
+| `graph_health` "isolated" | 204 | the engine, a wider definition |
+
+The fourth row is the one the intake work should move. A note with one outbound link and nothing inbound is reachable
+by nobody who does not already hold its path: 36 of the 43 are `f/patterns` notes whose only edge is the extract they
+came from. That is the shape of the hole, and it is an in-degree problem — which the outbound metric never measured.
+
+`census.py` now prints the regex view and the engine view side by side, and the engine's numbers are the ones to
+quote. Two corrections in one day, both from the same root: **a metric computed over text files is a statement about
+the file format, and a metric computed by the engine is a statement about the graph.** The tool now says which is
+which, and that is the part worth keeping.
+
+The lesson generalises past this repository: when two measurements of one thing disagree, the one that resolves the
+data (the engine) wins over the one that pattern-matches it (the regex) — and the disagreement is the finding, not the
+noise.
