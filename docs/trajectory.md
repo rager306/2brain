@@ -16,7 +16,7 @@ cost, and the evidence it would produce.
 | judge | batched: 100 questions per call, 0.76 s, 7.6 ms/question (`docs/research/judge-capabilities.md`) |
 | rebrand | tiers A, B, **D done**; tier C steps 1–3 done (38 identity sites, schema seams, canonicaliser), step 4 is the migration command |
 | tool names | **`tb_*`** — 52 tools, renamed from `au_*` on 2026-11-16 without an alias (`docs/naming.md`); the `_meta` key and the docs followed |
-| migration | `au migrate identity --apply` writes the tier-C move; dry run on the real monorepo: 16 to migrate, 3 skipped, 1 refused (the live vault, dirty tree) |
+| migration | **14 members migrated** to `.2brain/` with `au migrate identity --apply`, each verified against its parent commit with a temporary daemon; `tb-mcp-sdk` and `tb-defaults/mcp-bundle` wait for a daemon window, the vault for a clean tree |
 | FSM run log | done — `tools/fsm/check_run.py`, seven rules, `--selftest` proves each bites |
 | hygiene pass | done and applied — `tools/hygiene/pass.py`, `inbox/hygiene-2026-11-16.md` |
 | ranking | coverage weighting + **proximity** landed and measured; freshness prior rejected, its retry now has a query class and a decision rule |
