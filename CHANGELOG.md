@@ -55,6 +55,9 @@ source.
 - **`docs/internal/`** holds operations (host paths, units, runbooks) and `docs/` holds design; the rule is
   in `AGENTS.md` and `docs/internal/README.md`.
 - The shared cargo target directory is **relative**, so a checkout that is not the maintainer's can build.
+- The result metadata key is `_meta["io.2brain/engineVersion"]` (was `io.arsumbris/engineVersion`). It is
+  diagnostic-only — no client compares it — but it was the one string in the protocol still carrying the retired
+  name.
 
 ### Fixed
 
