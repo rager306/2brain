@@ -7,12 +7,12 @@ path.
 ```sh
 /usr/local/bin/2brain mcp /root/vault --allow-mutations     # the MCP server a client spawns
 /usr/local/bin/2brain info /root/vault                      # surface + a probe of the live engine
-/root/.arsumbris/bin/au daemon status /root/vault           # the engine daemon
+~/.2brain/bin/au daemon status /root/vault                   # the engine daemon
 ```
 
 ## Lineage
 
-2brain is a fork of the **2brain** project — a typed knowledge-graph engine over markdown workspaces
+2brain is a fork of the **arsumbris** project — a typed knowledge-graph engine over markdown workspaces
 with `[[wiki-links]]`, `^block-ids` and frontmatter type contracts: <https://github.com/arsumbris>.
 That project stopped receiving changes after `0.0.2-alpha` (last commit 2026-09-25); its `0.0.5`-era
 work is preserved here as the tag `archive/upstream-0.0.5` (commit `44b32f4`). Everything since —
