@@ -240,7 +240,15 @@ fn parse_type_def_file(path: &Path, bytes: &[u8]) -> FileParse {
             diagnostics,
         };
     };
-    let res = parse_type_def(path, text, 0, doc);
+    let mut res = parse_type_def(path, text, 0, doc);
+    // Canonicalize the engine-schema spellings this def yields: its own name and
+    // every claim it carries. tb-core stays domain-pure (it knows no engine-schema
+    // names); the spelling knowledge is the engine's, and it makes the future
+    // `tb.engine.*` spelling land on the same node as its legacy spelling. See
+    // `docs/research/tier-c-seams.md` "The seam the inventory missed".
+    if let Some(td) = res.type_def.as_mut() {
+        crate::engine_schema::canonical_schema_type_def(td);
+    }
     diagnostics.extend(res.diagnostics);
     // A duplicate field in the `fields:` map surfaces as `duplicate-field`
     // (au-core, which knows the fields span). Drop the coinciding generic
@@ -462,7 +470,14 @@ pub(crate) fn parse_engine_schema_instance(
         None => type_name.to_string(),
     };
     let stamp = TypeNameClaim::parse(&claim, ByteRange::new(0, 0));
-    let res = parse_instance_stamped(path, text, 0, doc, Some(stamp));
+    let mut res = parse_instance_stamped(path, text, 0, doc, Some(stamp));
+    // A written claim keeps its authored spelling; canonicalize it so a file
+    // written in the future `tb.engine.*` spelling (or qualified `::tb-engine`)
+    // resolves against the builtin this release canonicalizes to. See
+    // `docs/research/tier-c-seams.md` "The seam the inventory missed".
+    if let Some(inst) = res.instance.as_mut() {
+        crate::engine_schema::canonical_schema_instance(inst);
+    }
     diagnostics.extend(res.diagnostics);
     FileParse::Instance {
         instance: res.instance,
@@ -576,7 +591,13 @@ fn parse_instance_file(path: &Path, bytes: &[u8]) -> FileParse {
     }
 
     let mut diagnostics = duplicate_key_diags(path, text, split.frontmatter, frontmatter_offset);
-    let parsed = parse_instance(path, text, frontmatter_offset, doc);
+    let mut parsed = parse_instance(path, text, frontmatter_offset, doc);
+    // Canonicalize the engine-schema spelling of the `type:` claim, both
+    // directions of the release window; a knowledge base type keeps its own
+    // identity. See `docs/research/tier-c-seams.md` "The seam the inventory missed".
+    if let Some(inst) = parsed.instance.as_mut() {
+        crate::engine_schema::canonical_schema_instance(inst);
+    }
     diagnostics.extend(parsed.diagnostics);
 
     let is_markdown = !is_pure_yaml_instance_path(path);

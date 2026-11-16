@@ -1036,7 +1036,10 @@ pub(crate) fn config_path(state_dir: &Path, consumer: &str, file: &str) -> Resul
 pub(crate) fn check_config_segments(consumer: &str, file: &str) -> Result<(), String> {
     reject_config_segment("consumer", consumer)?;
     reject_config_segment("file", file)?;
-    if consumer.eq_ignore_ascii_case(crate::engine_schema::BUILTIN_ENGINE_REPO) {
+    if crate::engine_schema::BUILTIN_ENGINE_REPO_SPELLINGS
+        .iter()
+        .any(|name| consumer.eq_ignore_ascii_case(name))
+    {
         return Err(format!(
             "consumer '{consumer}' is reserved for the engine's own config and cannot be written through this channel"
         ));

@@ -8,7 +8,7 @@
 use std::fs;
 use std::path::Path;
 
-use tb_engine::build;
+use tb_engine::{FileParse, build};
 use tb_parser::RealFileSystem;
 
 fn write(root: &Path, rel: &str, content: &str) {
@@ -459,5 +459,148 @@ fn a_mixed_in_extra_types_required_field_is_checked() {
             .iter()
             .any(|c| c == "engine-schema-type-floor-omitted"),
         "the floor is present in the mixin, no floor-omitted: {codes:?}"
+    );
+}
+
+/// The future spelling is ACCEPTED, not merely parsed. A `repo.yaml` written
+/// `type: tb.engine.repo::au-engine` (what release 2 and `au migrate identity`
+/// write) resolves against the builtin the way its legacy spelling does: the
+/// file is clean, the claim is recorded canonically, and the member it describes
+/// is discovered as a real repo. Without the canonicalizer the claim finds no def
+/// (`unknown-type-claim`), while the floor check sees an empty closure and skips,
+/// so the failure would be silent exactly where the migration gate looks.
+#[test]
+fn a_future_spelled_engine_schema_claim_resolves_and_its_member_is_discovered() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    crate::seed_workspace(&root, &["member"]);
+    write(
+        &root,
+        "member/.arsumbris/repo.yaml",
+        "type: tb.engine.repo::au-engine\nname: member\n",
+    );
+    // A conformant member README, so the only thing this fixture could be
+    // complaining about is the claim spelling under test.
+    crate::seed_readme(&root.join("member"));
+    let kb = build(&root, &RealFileSystem).expect("build");
+
+    let member_yaml = root.join("member/.arsumbris/repo.yaml");
+    let codes = codes_for(&kb, &member_yaml);
+    assert!(
+        codes.is_empty(),
+        "a future-spelled engine-schema claim is clean: {codes:?}"
+    );
+    // RESOLVED, not merely accepted: the claim is held as the builtin's type.
+    let FileParse::Instance {
+        instance: Some(inst),
+        ..
+    } = kb.file_parse(&member_yaml).expect("catalogued")
+    else {
+        panic!("the repo.yaml is a parsed instance");
+    };
+    let claims: Vec<String> = inst.type_claim.iter().map(|c| c.authored()).collect();
+    assert_eq!(claims, vec!["au.engine.repo::au-engine".to_string()]);
+    // And discovery mounted the member, so its files are served as its own.
+    assert!(
+        kb.repos.by_name("member").is_some(),
+        "the member is discovered: {:?}",
+        kb.repos
+            .repos()
+            .iter()
+            .map(|r| r.name.as_str())
+            .collect::<Vec<_>>()
+    );
+}
+
+/// An UNQUALIFIED hardwired name in either spelling lands on ONE node identity.
+/// The repo defines the canonical name itself, so a bare claim has an own-repo
+/// node to resolve to; the two spellings must produce the same closure-hash, not
+/// two nodes that look alike.
+#[test]
+fn an_unqualified_hardwired_name_resolves_identically_in_either_spelling() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    crate::seed_repo(&root);
+    write(
+        &root,
+        "type/au.engine.repo.type.yaml",
+        "fields:\n  x?: String\n",
+    );
+    write(&root, "a.md", "---\ntype: au.engine.repo\nx: one\n---\n");
+    write(&root, "b.md", "---\ntype: tb.engine.repo\nx: two\n---\n");
+    let kb = build(&root, &RealFileSystem).expect("build");
+
+    for f in ["a.md", "b.md"] {
+        let codes = codes_for(&kb, &root.join(f));
+        assert!(
+            !codes.iter().any(|c| c == "unknown-type-claim"),
+            "{f} resolves its unqualified claim: {codes:?}"
+        );
+    }
+
+    let matches = tb_engine::wire::introspect_instances_of(
+        &kb,
+        "au.engine.repo",
+        Some(&[tb_engine::wire::Origin::File]),
+    );
+    let a = matches
+        .iter()
+        .find(|m| m.path.ends_with("a.md"))
+        .expect("a.md is an instance of au.engine.repo");
+    let b = matches
+        .iter()
+        .find(|m| m.path.ends_with("b.md"))
+        .expect("b.md lands on the same node");
+    assert_eq!(a.name, b.name, "the same type name");
+    assert_eq!(a.hash, b.hash, "one node identity, two spellings");
+    assert_eq!(
+        b.claim,
+        vec!["au.engine.repo".to_string()],
+        "the future spelling is recorded canonically"
+    );
+}
+
+/// A knowledge base type named in the future namespace that the engine does NOT
+/// hardwire keeps its own identity: `tb.engine.custom` is nobody's schema but its
+/// author's, so it is never respelled — and its instances still resolve to it.
+/// The namespace stays reserved (an advisory hint), never annihilating.
+#[test]
+fn a_kb_type_in_the_future_namespace_keeps_its_own_identity() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    crate::seed_repo(&root);
+    write(
+        &root,
+        "type/tb.engine.custom.type.yaml",
+        "fields:\n  x?: String\n",
+    );
+    write(&root, "n.md", "---\ntype: tb.engine.custom\nx: here\n---\n");
+    let kb = build(&root, &RealFileSystem).expect("build");
+
+    let def_path = root.join("type/tb.engine.custom.type.yaml");
+    let FileParse::TypeDef {
+        type_def: Some(td), ..
+    } = kb.file_parse(&def_path).expect("catalogued")
+    else {
+        panic!("the def is a type-def");
+    };
+    assert_eq!(td.name.0, "tb.engine.custom", "the authored name is kept");
+    // Its instance resolves to that def, so the identity is real, not stranded.
+    let codes = codes_for(&kb, &root.join("n.md"));
+    assert!(
+        codes.is_empty(),
+        "the kb type resolves as authored: {codes:?}"
+    );
+    // Reserved in both spellings: a hint, never a shadow of an engine type.
+    let def_codes = codes_for(&kb, &def_path);
+    assert!(
+        def_codes
+            .iter()
+            .any(|c| c == "engine-name-forward-reserved"),
+        "the future namespace is reserved too: {def_codes:?}"
+    );
+    assert!(
+        !def_codes.iter().any(|c| c == "engine-name-live-shadow"),
+        "it shadows no hardwired name: {def_codes:?}"
     );
 }

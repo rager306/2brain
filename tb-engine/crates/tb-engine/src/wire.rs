@@ -2341,7 +2341,7 @@ pub fn introspect_list_imports(kb: &KnowledgeBase, scope: TypeScope) -> Vec<Impo
         // imports and is not a user-authored dependency edge.
         if scope.own_only
             && (!scope.includes_name(kb, &importer)
-                || owner == crate::engine_schema::BUILTIN_ENGINE_REPO)
+                || crate::engine_schema::is_builtin_repo(&owner))
         {
             continue;
         }
