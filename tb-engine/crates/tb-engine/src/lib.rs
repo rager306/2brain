@@ -22,6 +22,7 @@ mod ensure_mixin;
 mod gitwatch;
 #[cfg(unix)]
 mod gitwriter;
+mod identity_migration;
 mod ignored_dir;
 mod incremental;
 #[cfg(unix)]
@@ -60,6 +61,7 @@ mod yaml_render;
 pub use backlinks::{Backlink, RefSurface};
 pub use build::{BuildError, build, build_reusing, default_package_cache_root, verify_entry};
 pub use engine::{Engine, EngineHandle, EngineState, Read, ReconcilePolicy, RefState};
+pub use identity_migration::{ClaimRewrite, rewrite_engine_claims};
 pub use ignored_dir::ensure_git_ignored_dir;
 // The incremental fast path, exposed only so `examples/rebuild_bench.rs` can
 // time the live recompute + clone-and-patch apply. Not part of the documented
@@ -78,5 +80,5 @@ pub use repo::{
 #[cfg(unix)]
 pub use serve::{
     Client, SCHEMA_VERSION, SagaFailure, SagaRecovery, SagaRecoveryReport, ServeHandle,
-    recover_crashed_saga, serve, socket_file_name, socket_path,
+    in_flight_saga_marker, recover_crashed_saga, serve, socket_file_name, socket_path,
 };

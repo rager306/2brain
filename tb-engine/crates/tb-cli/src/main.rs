@@ -51,6 +51,36 @@ enum TopCommand {
         #[arg(default_value = ".")]
         entry: PathBuf,
     },
+    /// Change a repository's on-disk engine identity spelling (tier C).
+    Migrate {
+        #[command(subcommand)]
+        cmd: MigrateCommand,
+    },
+}
+
+/// The tier-C migration: `.arsumbris/` and `au.engine.*` are an on-disk format, so they move by a
+/// migration rather than a rename (`docs/research/tier-c-seams.md`).
+#[cfg(unix)]
+#[derive(Subcommand)]
+enum MigrateCommand {
+    /// Plan the `.arsumbris` -> `.2brain` and `au.engine.*` -> `tb.engine.*` migration.
+    ///
+    /// Reads the per-user registry and the filesystem only: no daemon, no graph, no
+    /// network. Per repository it reports the directory rename and every `type:` /
+    /// `extends:` line it would rewrite, or refuses with a named reason: a dirty
+    /// working tree, a mutation in flight, or a daemon serving that root.
+    Identity {
+        /// Print the plan and write nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// One repository root to include. Defaults to the current directory when neither
+        /// --root nor --all is given.
+        #[arg(long, value_name = "PATH")]
+        root: Option<PathBuf>,
+        /// Include every repository the per-user registry knows about.
+        #[arg(long)]
+        all: bool,
+    },
 }
 
 /// Per-workspace daemon lifecycle. The daemon serves the engine's reads and
@@ -97,6 +127,11 @@ fn main() -> ExitCode {
         },
         TopCommand::Open { name } => tb_cli::daemon::open(&name),
         TopCommand::Members { entry, json } => tb_cli::members::members(&entry, json),
+        TopCommand::Migrate { cmd } => match cmd {
+            MigrateCommand::Identity { dry_run, root, all } => {
+                tb_cli::migrate::identity(dry_run, root, all)
+            }
+        },
         #[cfg(feature = "hotpath")]
         TopCommand::BuildProfile { entry } => tb_cli::daemon::build_profile(&entry),
     }

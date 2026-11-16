@@ -91,19 +91,19 @@ pub const ENGINE_SCHEMA_TYPE_FLOOR_OMITTED: DiagnosticCode =
 /// The engine-schema type namespace in its RELEASE-1 (canonical) spelling. A
 /// def named `au.engine` or under `au.engine.` sits in the engine's reserved
 /// namespace, see [`schema_type_matches`].
-const ENGINE_NAMESPACE: &str = "au.engine";
+pub(crate) const ENGINE_NAMESPACE: &str = "au.engine";
 
 /// The same namespace in its release-2 spelling. Accepted everywhere the legacy
 /// spelling is, so a file written by release-2 tooling (or by the identity
 /// migration) reads clean before `DEFS` itself is renamed. Release 1 never
 /// writes it, see [`canonical_schema_claim`].
-const NEXT_ENGINE_NAMESPACE: &str = "tb.engine";
+pub(crate) const NEXT_ENGINE_NAMESPACE: &str = "tb.engine";
 
 /// The part of a namespaced engine-schema name after its root: `""` for a bare
 /// root, `".repo"` for `au.engine.repo` AND `tb.engine.repo`. `None` for a name
 /// in neither spelling. The dot guard keeps an unrelated name like
 /// `au.engineering` out of the namespace.
-fn schema_leaf(name: &str) -> Option<&str> {
+pub(crate) fn schema_leaf(name: &str) -> Option<&str> {
     [ENGINE_NAMESPACE, NEXT_ENGINE_NAMESPACE]
         .into_iter()
         .find_map(|root| {
@@ -144,9 +144,14 @@ pub(crate) fn is_hardwired_engine_name(name: &str) -> bool {
         .any(|(canonical, _)| *canonical == canonical_schema_name(name))
 }
 
+/// The builtin engine repo's identity in its release-2 spelling, the one the identity
+/// migration writes (`au migrate identity`, tier C step 4).
+pub(crate) const NEXT_BUILTIN_ENGINE_REPO: &str = "tb-engine";
+
 /// Every spelling of the builtin engine repo's identity, the canonical one
 /// first. A `::repo` qualifier naming any of these names the builtin.
-pub(crate) const BUILTIN_ENGINE_REPO_SPELLINGS: &[&str] = &[BUILTIN_ENGINE_REPO, "tb-engine"];
+pub(crate) const BUILTIN_ENGINE_REPO_SPELLINGS: &[&str] =
+    &[BUILTIN_ENGINE_REPO, NEXT_BUILTIN_ENGINE_REPO];
 
 /// Whether a repo name is the builtin engine repo's identity, in either
 /// spelling (`au-engine` in release 1, `tb-engine` from release 2).

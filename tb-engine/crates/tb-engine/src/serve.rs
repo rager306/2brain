@@ -4550,6 +4550,26 @@ fn saga_marker_dir(root: &Path) -> PathBuf {
     root.join(".arsumbris").join("au-engine").join("run")
 }
 
+/// The saga intent marker present for `root` under either identity spelling, when a mutation is
+/// in flight or a crashed one is awaiting recovery: the marker opens before a write and closes
+/// on settle.
+///
+/// Read-only, so a tool about to touch a repository's files (the tier-C identity migration) can
+/// refuse rather than race the engine's recovery. The legacy directory is checked first because
+/// this release still spells it that way ([`saga_marker_dir`]); the new name answers for a
+/// repository that has already been migrated.
+pub fn in_flight_saga_marker(root: &Path) -> Option<PathBuf> {
+    [
+        saga_marker_dir(root),
+        root.join(tb_parser::IDENTITY_DIR)
+            .join("au-engine")
+            .join("run"),
+    ]
+    .into_iter()
+    .map(|dir| dir.join(INTENT_MARKER_NAME))
+    .find(|marker| marker.is_file())
+}
+
 /// Open a saga by writing its durable intent marker, fsynced. Returns the marker
 /// path so the caller closes it on settle.
 ///

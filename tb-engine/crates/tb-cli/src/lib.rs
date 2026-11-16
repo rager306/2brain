@@ -7,6 +7,9 @@ pub mod daemon;
 #[cfg(unix)]
 pub mod members;
 
+#[cfg(unix)]
+pub mod migrate;
+
 /// Derive a workspace's daemon socket exactly as `au daemon start` does.
 ///
 /// Exposed so a client that spawns over stdio (`2brain mcp <workspace>`) resolves
