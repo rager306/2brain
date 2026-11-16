@@ -1,4 +1,4 @@
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine
 name: au-ingest
 description: Local document and PDF conversion into typed source notes, with a shared converter contract for domain packages.
 deps:
