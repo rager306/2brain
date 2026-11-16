@@ -51,7 +51,7 @@ use std::io::{ErrorKind, Read as IoRead, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use tb_diagnostics::{Diagnostic, Severity};
@@ -724,6 +724,85 @@ enum Request {
     /// Control verb: ask the daemon to shut down. Acked, then the serving
     /// process unblocks and exits, removing the socket.
     Shutdown,
+}
+
+impl Request {
+    /// The wire verb this request names: the `read` tag's value, exactly as
+    /// `WIRE.md` spells it in the read catalog (and as `shutdown` in the control
+    /// verb section).
+    ///
+    /// A 52-arm match, written out rather than derived from the variant name, for
+    /// two reasons.
+    ///
+    /// - Totality is the point: the compiler refuses a variant without an arm, so
+    ///   there is no way to add a read that the counters cannot name. A derived
+    ///   name would compile and would silently disagree with the wire the first
+    ///   time a variant and its verb diverged.
+    /// - The dispatch in [`dispatch`] destructures its argument, so the verb is
+    ///   known only inside each arm. This map is what lets the serve loop time and
+    ///   COUNT a request without restructuring that dispatch into 52 call sites —
+    ///   the same "one source for the verb list" the adapter's `READ_VERBS` gave
+    ///   its tools.
+    ///
+    /// A test (`verb_tests`) pins all three: every arm's literal is in
+    /// [`crate::verb_metrics::VERBS`], `VERBS` equals this document's census, and
+    /// neither list carries a duplicate.
+    fn verb(&self) -> &'static str {
+        match self {
+            Request::Diagnostics(_) => "diagnostics",
+            Request::DiagnosticCounts(_) => "diagnostic_counts",
+            Request::Types(_) => "types",
+            Request::TypeCounts(_) => "type_counts",
+            Request::TypeTree { .. } => "type_tree",
+            Request::Type(_) => "type",
+            Request::TypeBatch(_) => "type_batch",
+            Request::InstancesOf(_) => "instances_of",
+            Request::Imports { .. } => "imports",
+            Request::Grep(_) => "grep",
+            Request::Search(_) => "search",
+            Request::Subtypes { .. } => "subtypes",
+            Request::Instances => "instances",
+            Request::Candidates(_) => "candidates",
+            Request::CandidateCounts(_) => "candidate_counts",
+            Request::InstanceCounts(_) => "instance_counts",
+            Request::Instance { .. } => "instance",
+            Request::ReferencesIn { .. } => "references_in",
+            Request::ReferencesOut { .. } => "references_out",
+            Request::Pins { .. } => "pins",
+            Request::CommitMeta { .. } => "commit_meta",
+            Request::FileHistory { .. } => "file_history",
+            Request::RecentCommits { .. } => "recent_commits",
+            Request::Neighborhood(_) => "neighborhood",
+            Request::ResolveTarget { .. } => "resolve_target",
+            Request::ResolveBlockId { .. } => "resolve_block_id",
+            Request::ResolveAnchor { .. } => "resolve_anchor",
+            Request::Anchors { .. } => "anchors",
+            Request::BlockIds { .. } => "block_ids",
+            Request::Files(_) => "files",
+            Request::DirEntries { .. } => "dir_entries",
+            Request::Frontmatter { .. } => "frontmatter",
+            Request::Content { .. } => "content",
+            Request::SemanticTokens { .. } => "semantic_tokens",
+            Request::ValidateValue { .. } => "validate_value",
+            Request::Members(_) => "members",
+            Request::Ignores { .. } => "ignores",
+            Request::ResolveMember { .. } => "resolve_member",
+            Request::DeviceConfig => "device_config",
+            Request::Config(_) => "config",
+            Request::TopLevelDirs(_) => "top_level_dirs",
+            Request::Overview(_) => "overview",
+            Request::TypeClosure(_) => "type_closure",
+            Request::Hubs(_) => "hubs",
+            Request::GraphShape(_) => "graph_shape",
+            Request::RollbackPreview(_) => "rollback_preview",
+            Request::GraphHealth(_) => "graph_health",
+            Request::LinkGraph(_) => "link_graph",
+            Request::TypeGraph(_) => "type_graph",
+            Request::PreviewMutation(_) => "preview_mutation",
+            Request::Lifecycle => "lifecycle",
+            Request::Shutdown => "shutdown",
+        }
+    }
 }
 
 /// The op a `preview_mutation` simulates, tagged by `op`. Mirrors the v1
@@ -1916,6 +1995,11 @@ struct GraphHealthArgs {
     /// central). Default 20, range 1..=200. `counts` always covers the whole
     /// in-scope graph.
     limit: Option<usize>,
+    /// Add the per-verb request counters, a `verbs` object BESIDE the payload.
+    /// Absent (or false) leaves the key out entirely, so a client that does not
+    /// ask sees byte-identical results to the read before this argument existed.
+    #[serde(default)]
+    verbs: bool,
 }
 
 /// Args for the `grep` read: a literal text search over the catalogued files.
@@ -11194,7 +11278,71 @@ fn type_graph_change_event_frame(
     })
 }
 
+/// Test-only hooks into the request path.
+///
+/// The one thing a histogram can be wrong about is *what it timed*: a counter
+/// that recorded a constant, or the frame's write, would look plausible and
+/// prove nothing. `delay` makes the handler demonstrably slow for one named verb,
+/// so a test can assert the bucket moved with it.
+#[cfg(test)]
+mod test_hooks {
+    use std::sync::Mutex;
+    use std::time::Duration;
+
+    static DELAY: Mutex<Option<(&'static str, Duration)>> = Mutex::new(None);
+
+    /// Arm one verb to sleep inside the handler, replacing any earlier arm.
+    pub(crate) fn delay_verb(verb: &'static str, delay: Duration) {
+        *armed() = Some((verb, delay));
+    }
+
+    /// Clear the arm, so a later request is not slowed by a finished test.
+    pub(crate) fn clear() {
+        *armed() = None;
+    }
+
+    pub(super) async fn delay(verb: &str) {
+        let arm = *armed();
+        if let Some((target, delay)) = arm {
+            if target == verb {
+                // A blocking task, not `tokio::time`: the crate does not enable
+                // tokio's `time` feature for a hook that only tests use.
+                let _ = tokio::task::spawn_blocking(move || std::thread::sleep(delay)).await;
+            }
+        }
+    }
+
+    fn armed() -> std::sync::MutexGuard<'static, Option<(&'static str, Duration)>> {
+        // A panicking assertion in one test must not poison the hook for the rest.
+        DELAY.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+/// Answer one request, timing it for the per-verb counters.
+///
+/// The counters wrap the WHOLE dispatch, so a handler that rejects its arguments
+/// early is counted like an answered read: the number that matters is "how long
+/// does this verb take", not "how long does a successful call take". The clock
+/// sits outside the dispatch precisely so an early `return` cannot skip it —
+/// which is why the dispatch is its own function rather than the body of this
+/// one.
+///
+/// The frame's write and the client's round trip are NOT counted; this is handler
+/// time, so a histogram says what the engine spent, not what the socket did.
 async fn handle_request(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx) -> Response {
+    let verb = req.verb();
+    let started = Instant::now();
+    // Test-only: an armed artificial delay proves the histogram times the
+    // handler instead of recording a constant. A no-op outside `cfg(test)`.
+    #[cfg(test)]
+    test_hooks::delay(verb).await;
+    let response = dispatch(handle, req, shutdown_tx).await;
+    crate::verb_metrics::record(verb, started.elapsed());
+    response
+}
+
+/// The dispatch itself: one arm per verb, answering against the held state.
+async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx) -> Response {
     match req {
         Request::PreviewMutation(args) => preview_mutation(handle, args).await,
         Request::Shutdown => {
@@ -11683,10 +11831,26 @@ async fn handle_request(handle: &EngineHandle, req: Request, shutdown_tx: &Shutd
                 .limit
                 .unwrap_or(GRAPH_HEALTH_DEFAULT_LIMIT)
                 .min(GRAPH_HEALTH_MAX_LIMIT);
-            enveloped(
+            let want_verbs = args.verbs;
+            let mut response = enveloped(
                 "graph_health",
                 handle.read(move |v| graph_health_view(v, repo.as_deref(), scope, limit)),
-            )
+            );
+            // Opt-in instrumentation, a SIBLING of the payload: envelope metadata
+            // ABOUT the read, never part of it, so `result.graph_health` keeps its
+            // shape and a client that does not ask sees the same bytes as before.
+            // Read off the process-global counters, so it needs no held state and
+            // cannot disagree with a rebuild in flight.
+            if want_verbs {
+                if let Some(result) = response.result.as_mut().and_then(|r| r.as_object_mut()) {
+                    result.insert(
+                        "verbs".to_owned(),
+                        serde_json::to_value(crate::verb_metrics::snapshot())
+                            .expect("verb counters serialize"),
+                    );
+                }
+            }
+            response
         }
         Request::LinkGraph(args) => {
             let repo = args.repo;
@@ -16956,6 +17120,477 @@ mod saga_tests {
             !preimage_dir(&marker_dir, "m-ignored-move").exists()
                 && !preimage_dir(&marker_dir, "m-orphan").exists(),
             "recovery sweeps every parked copy"
+        );
+    }
+}
+
+#[cfg(test)]
+mod verb_tests {
+    use super::*;
+    use crate::verb_metrics::{BUCKET_COUNT, VERBS, snapshot};
+    use std::sync::Mutex;
+    use std::sync::MutexGuard;
+
+    /// WIRE.md's verb census: the read catalog's entries, then the one control
+    /// verb. A read verb heads its own catalog entry as `**verb.**`, so the
+    /// document's own shape is the parse — no second list to keep in step.
+    fn wire_census() -> Vec<String> {
+        let wire = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/WIRE.md"));
+        let section = |start_marker: &str, end_marker: &str| -> String {
+            let start = wire
+                .find(start_marker)
+                .unwrap_or_else(|| panic!("WIRE.md must carry `{start_marker}`"));
+            let rest = &wire[start..];
+            let end = rest.find(end_marker).unwrap_or_else(|| {
+                panic!("WIRE.md must carry `{end_marker}` after `{start_marker}`")
+            });
+            rest[..end].to_string()
+        };
+        let mut verbs = Vec::new();
+        for body in [
+            section("## The read catalog", "## Subscriptions"),
+            section("## The control verb", "## Daemon-less member resolution"),
+        ] {
+            for line in body.lines() {
+                // `**graph_health.**` — a verb, not the `**\`schema_version\` N**`
+                // prose the same sections also carry.
+                let Some(rest) = line.strip_prefix("**") else {
+                    continue;
+                };
+                let Some(name) = rest.strip_suffix(".**") else {
+                    continue;
+                };
+                if !name.is_empty()
+                    && name
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+                {
+                    verbs.push(name.to_string());
+                }
+            }
+        }
+        verbs
+    }
+
+    /// Every `Request` variant, constructed with throwaway arguments. The point
+    /// is not the arguments: it is that the only way to enumerate the variants is
+    /// to name them, and naming each one here is what lets the test below ask
+    /// `verb()` what it calls it.
+    fn every_request() -> Vec<Request> {
+        vec![
+            Request::Diagnostics(DiagnosticsFilterArgs::default()),
+            Request::DiagnosticCounts(DiagnosticsFilterArgs::default()),
+            Request::Types(TypesArgs::default()),
+            Request::TypeCounts(TypeCountsArgs::default()),
+            Request::TypeTree { scope: Scope::All },
+            Request::Type(TypeArgs {
+                name: String::new(),
+            }),
+            Request::TypeBatch(TypeBatchArgs { names: Vec::new() }),
+            Request::InstancesOf(InstancesOfArgs {
+                type_name: String::new(),
+                origins: None,
+                instance: false,
+                body: false,
+            }),
+            Request::Imports { scope: Scope::All },
+            Request::Grep(GrepArgs::default()),
+            Request::Search(SearchArgs::default()),
+            Request::Subtypes {
+                base: String::new(),
+                scope: Scope::All,
+            },
+            Request::Instances,
+            Request::Candidates(CandidatesArgs::default()),
+            Request::CandidateCounts(CandidateCountsArgs::default()),
+            Request::InstanceCounts(InstanceCountsArgs::default()),
+            Request::Instance {
+                path: String::new(),
+            },
+            Request::ReferencesIn {
+                path: String::new(),
+            },
+            Request::ReferencesOut {
+                path: String::new(),
+            },
+            Request::Pins {
+                target: String::new(),
+                source_type: String::new(),
+            },
+            Request::CommitMeta {
+                commits: Vec::new(),
+            },
+            Request::FileHistory {
+                path: String::new(),
+                repo: None,
+            },
+            Request::RecentCommits {
+                members: None,
+                limit: None,
+                since: None,
+            },
+            Request::Neighborhood(NeighborhoodArgs {
+                path: String::new(),
+                direction: WireDirection::default(),
+                depth: 1,
+                kinds: None,
+                scope: Scope::All,
+                max_nodes: None,
+                content: false,
+                body: false,
+                instance: false,
+            }),
+            Request::ResolveTarget {
+                target: String::new(),
+                origin: None,
+            },
+            Request::ResolveBlockId {
+                target: String::new(),
+                block_id: String::new(),
+                origin: None,
+            },
+            Request::ResolveAnchor {
+                target: String::new(),
+                anchor: String::new(),
+                origin: None,
+            },
+            Request::Anchors {
+                target: String::new(),
+                origin: None,
+            },
+            Request::BlockIds {
+                target: String::new(),
+                origin: None,
+            },
+            Request::Files(FilesArgs::default()),
+            Request::DirEntries { dir: String::new() },
+            Request::Frontmatter {
+                path: String::new(),
+            },
+            Request::Content {
+                path: String::new(),
+            },
+            Request::SemanticTokens {
+                path: String::new(),
+            },
+            Request::ValidateValue {
+                type_name: String::new(),
+                value: serde_json::Value::Null,
+                repo: None,
+            },
+            Request::Members(MembersArgs::default()),
+            Request::Ignores {
+                repo: None,
+                resolve: false,
+            },
+            Request::ResolveMember {
+                path: String::new(),
+            },
+            Request::DeviceConfig,
+            Request::Config(ConfigArgs {
+                scope: ConfigScope::Machine,
+                consumer: String::new(),
+                file: String::new(),
+                type_name: String::new(),
+                root: None,
+            }),
+            Request::TopLevelDirs(TopLevelDirsArgs::default()),
+            Request::Overview(OverviewArgs {
+                repo: None,
+                scope: None,
+            }),
+            Request::TypeClosure(TypeClosureArgs {
+                name: String::new(),
+                repo: None,
+            }),
+            Request::Hubs(HubsArgs::default()),
+            Request::GraphShape(GraphShapeArgs::default()),
+            Request::RollbackPreview(RollbackPreviewArgs {
+                repo: String::new(),
+                commit: String::new(),
+            }),
+            Request::GraphHealth(GraphHealthArgs::default()),
+            Request::LinkGraph(LinkGraphArgs::default()),
+            Request::TypeGraph(TypeGraphArgs::default()),
+            Request::PreviewMutation(PreviewMutationArgs::DeleteFile {
+                path: String::new(),
+            }),
+            Request::Lifecycle,
+            Request::Shutdown,
+        ]
+    }
+
+    /// THE census invariant: the map is total (the compiler enforces an arm per
+    /// variant), it names each variant exactly once, and the set of names is
+    /// exactly `WIRE.md`'s census — the document's read catalog plus its control
+    /// verb. A rename on either side fails here, which is what keeps the counters
+    /// labelling requests with the wire's own words.
+    #[test]
+    fn the_verb_map_agrees_with_the_wire_census() {
+        let census = wire_census();
+        assert_eq!(
+            census.len(),
+            52,
+            "the census lost or gained a verb: {census:?}"
+        );
+
+        let mut mapped: Vec<String> = every_request()
+            .iter()
+            .map(|r| r.verb().to_string())
+            .collect();
+        let mut expected = census.clone();
+        expected.sort();
+        expected.dedup();
+        assert_eq!(
+            expected.len(),
+            census.len(),
+            "WIRE.md names a verb twice: {census:?}"
+        );
+
+        mapped.sort();
+        let mut deduped = mapped.clone();
+        deduped.dedup();
+        assert_eq!(
+            deduped.len(),
+            mapped.len(),
+            "two Request variants share one verb: {mapped:?}"
+        );
+        assert_eq!(
+            mapped, expected,
+            "the map and WIRE.md disagree; the map must name each variant as the document does"
+        );
+
+        // The counters INDEX this table, so it is the same census, sorted.
+        let table: Vec<String> = VERBS.iter().map(|v| v.to_string()).collect();
+        assert_eq!(table, expected, "the counter table is not the census");
+    }
+
+    /// A process-wide lock: these tests share the process-global counters and a
+    /// single armed delay hook, so they must not overlap each other. They are the
+    /// only tests in this binary that drive the request path.
+    fn counter_lock() -> MutexGuard<'static, ()> {
+        static LOCK: Mutex<()> = Mutex::new(());
+        LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// A one-repo knowledge base with two notes, on disk, plus a served socket
+    /// and a connected client.
+    fn served() -> (
+        tempfile::TempDir,
+        crate::Engine,
+        tempfile::TempDir,
+        ServeHandle,
+        Client,
+    ) {
+        let dir = tempfile::tempdir().unwrap();
+        let root = std::fs::canonicalize(dir.path()).unwrap().join("v");
+        std::fs::create_dir_all(root.join(".arsumbris")).unwrap();
+        std::fs::write(
+            root.join(".arsumbris/repo.yaml"),
+            "name: v\ntype: au.engine.repo::au-engine\n",
+        )
+        .unwrap();
+        std::fs::write(root.join("a.md"), "see [[b]].\n").unwrap();
+        std::fs::write(root.join("b.md"), "# b\n").unwrap();
+        let engine = crate::Engine::new(&root, crate::repo::ConfigSource::Empty);
+        engine.rebuild();
+        let sock_dir = tempfile::tempdir().unwrap();
+        let socket = sock_dir.path().join("s");
+        let server = serve(engine.handle(), &socket).expect("serve");
+        let client = Client::connect(&socket).expect("connect");
+        (dir, engine, sock_dir, server, client)
+    }
+
+    fn delta(
+        before: &crate::verb_metrics::VerbCount,
+        after: &crate::verb_metrics::VerbCount,
+    ) -> u64 {
+        after.count - before.count
+    }
+
+    /// Counters count REQUESTS: three reads of one verb and one of another move
+    /// exactly those two counts, nothing else, and the histogram accounts for
+    /// every request counted.
+    #[test]
+    fn counters_count_requests_not_versions() {
+        let _guard = counter_lock();
+        let (_dir, _engine, _sock_dir, _server, mut client) = served();
+        let before = snapshot();
+        for _ in 0..3 {
+            let resp = client
+                .query(&serde_json::json!({ "read": "diagnostics" }))
+                .unwrap();
+            assert_eq!(resp["ready"], true, "the read answers: {resp}");
+        }
+        client
+            .query(&serde_json::json!({ "read": "lifecycle" }))
+            .unwrap();
+        let after = snapshot();
+
+        assert_eq!(delta(&before["diagnostics"], &after["diagnostics"]), 3);
+        assert_eq!(delta(&before["lifecycle"], &after["lifecycle"]), 1);
+        for verb in VERBS {
+            if verb != "diagnostics" && verb != "lifecycle" {
+                assert_eq!(
+                    delta(&before[verb], &after[verb]),
+                    0,
+                    "{verb} moved without a request"
+                );
+            }
+        }
+        let row = &after["diagnostics"];
+        assert_eq!(
+            row.buckets.iter().sum::<u64>(),
+            row.count,
+            "every counted request sits in exactly one bucket"
+        );
+    }
+
+    /// The histogram times the HANDLER, not a constant and not the frame's write:
+    /// the same verb lands in a low bucket unarmed, and in a bucket at or above the
+    /// armed delay once the test hook slows the handler by 50 ms.
+    ///
+    /// The assertion is a BOUND, not one exact octave: the delayed request must be
+    /// at or above bucket 16 (whose lower bound is 32.8 ms, and the sleep is 50 ms),
+    /// and strictly above the undelayed one. Pinning the octave would make the test
+    /// fail on a loaded machine for a reason that is not about the wiring.
+    #[test]
+    fn the_histogram_tracks_handler_time() {
+        let _guard = counter_lock();
+        let (_dir, _engine, _sock_dir, _server, mut client) = served();
+        let before = snapshot();
+        // The control: an undelayed lifecycle read.
+        client
+            .query(&serde_json::json!({ "read": "lifecycle" }))
+            .unwrap();
+        let mid = snapshot();
+        test_hooks::delay_verb("lifecycle", std::time::Duration::from_millis(50));
+        client
+            .query(&serde_json::json!({ "read": "lifecycle" }))
+            .unwrap();
+        test_hooks::clear();
+        let after = snapshot();
+
+        let moved = |from: &crate::verb_metrics::VerbCount,
+                     to: &crate::verb_metrics::VerbCount|
+         -> Vec<usize> {
+            (0..BUCKET_COUNT)
+                .filter(|&i| to.buckets[i] != from.buckets[i])
+                .collect()
+        };
+        let control = moved(&before["lifecycle"], &mid["lifecycle"]);
+        assert_eq!(control.len(), 1, "one request, one bucket: {control:?}");
+        let delayed = moved(&mid["lifecycle"], &after["lifecycle"]);
+        assert_eq!(delayed.len(), 1, "one request, one bucket: {delayed:?}");
+
+        let (fast, slow) = (control[0], delayed[0]);
+        assert!(
+            slow >= 16,
+            "a 50 ms handler landed below the 32.8 ms octave: bucket {slow}"
+        );
+        assert!(
+            fast < slow,
+            "the histogram did not move with the handler time: unarmed bucket {fast}, \
+             armed bucket {slow}"
+        );
+        assert_eq!(delta(&mid["lifecycle"], &after["lifecycle"]), 1);
+        assert_eq!(
+            after["lifecycle"].buckets.iter().sum::<u64>(),
+            after["lifecycle"].count
+        );
+    }
+
+    /// A rebuild moves the knowledge base version and leaves the counters alone:
+    /// they count requests, so the requests before it are still counted after it,
+    /// bucket for bucket.
+    #[test]
+    fn a_rebuild_does_not_reset_the_counters() {
+        let _guard = counter_lock();
+        let (_dir, engine, _sock_dir, _server, mut client) = served();
+        let before = snapshot();
+        for _ in 0..2 {
+            client
+                .query(&serde_json::json!({ "read": "files" }))
+                .unwrap();
+        }
+        let mid = snapshot();
+        engine.rebuild();
+        client
+            .query(&serde_json::json!({ "read": "files" }))
+            .unwrap();
+        let after = snapshot();
+
+        assert_eq!(delta(&before["files"], &after["files"]), 3);
+        for (bucket, (mid, after)) in mid["files"]
+            .buckets
+            .iter()
+            .zip(after["files"].buckets.iter())
+            .enumerate()
+        {
+            assert!(
+                after >= mid,
+                "bucket {bucket} lost counts across a rebuild: {mid} then {after}"
+            );
+        }
+        assert_eq!(
+            after["files"].buckets.iter().sum::<u64>(),
+            after["files"].count
+        );
+    }
+
+    /// The wire change: `graph_health` carries a `verbs` object ONLY when asked,
+    /// beside the payload, one row per verb with a count and a full histogram.
+    #[test]
+    fn graph_health_serves_the_verbs_only_when_asked() {
+        let _guard = counter_lock();
+        let (_dir, _engine, _sock_dir, _server, mut client) = served();
+
+        let plain = client
+            .query(&serde_json::json!({ "read": "graph_health" }))
+            .unwrap();
+        assert!(plain["result"]["graph_health"].is_object());
+        assert!(
+            plain["result"].get("verbs").is_none(),
+            "the counters must not appear unless asked for: {}",
+            plain["result"]
+        );
+
+        let asked = client
+            .query(&serde_json::json!({ "read": "graph_health", "verbs": true }))
+            .unwrap();
+        let verbs = asked["result"]["verbs"]
+            .as_object()
+            .unwrap_or_else(|| panic!("no verbs object: {asked}"));
+        assert_eq!(verbs.len(), VERBS.len(), "one row per verb, none invented");
+        for verb in VERBS {
+            let row = verbs
+                .get(verb)
+                .unwrap_or_else(|| panic!("{verb}: no row in the verbs object"));
+            let count = row
+                .get("count")
+                .and_then(|c| c.as_u64())
+                .unwrap_or_else(|| panic!("{verb}: no count in {row}"));
+            let buckets = row
+                .get("buckets")
+                .and_then(|b| b.as_array())
+                .unwrap_or_else(|| panic!("{verb}: no buckets in {row}"));
+            assert_eq!(buckets.len(), BUCKET_COUNT, "{verb}: bucket count");
+            let sum: u64 = buckets
+                .iter()
+                .map(|b| b.as_u64().expect("bucket count"))
+                .sum();
+            assert_eq!(sum, count, "{verb}: buckets must account for the count");
+        }
+        // The plain call above answered before this one was read, so it is counted.
+        assert!(
+            verbs
+                .get("graph_health")
+                .and_then(|r| r.get("count"))
+                .and_then(|c| c.as_u64())
+                .unwrap_or(0)
+                >= 1,
+            "the verb that answers must itself be counted: {}",
+            verbs["graph_health"]
         );
     }
 }

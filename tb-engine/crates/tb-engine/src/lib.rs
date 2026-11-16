@@ -55,6 +55,7 @@ mod spancap;
 mod typerefs;
 #[cfg(unix)]
 mod value_validate;
+mod verb_metrics;
 pub mod wire;
 mod yaml_render;
 

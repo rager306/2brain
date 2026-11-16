@@ -194,6 +194,11 @@ It is always present for read files.
 
 Each read names its request arguments and its result shape.
 
+**This catalog plus the one control verb (`shutdown`) IS the whole verb set.** The engine carries one
+map, `Request::verb`, and a test asserts it agrees with this document in both directions: every
+variant names exactly one verb, every verb below appears, and no name is duplicated. So "add a read"
+and "add a line here" are one act, and a rename on either side fails the build.
+
 ### The result envelope
 
 **Every read's `result` is an object carrying its payload under the read's own name.**
@@ -705,12 +710,20 @@ The `shape_ast` value, a tagged union on `kind` mirroring the engine's parsed sl
 - additive: a NEW read verb, no `schema_version` bump.
 
 **graph_health.**
-- args: optional `repo`, optional `scope` (`all` default / `own`), optional `limit` (per list, default 20, range 1..=200).
+- args: optional `repo`, optional `scope` (`all` default / `own`), optional `limit` (per list, default 20, range 1..=200), optional `verbs` (default false).
 - result: `{ graph_health: { repo, scope, counts, cycles, isolated, dead_ends, sources, broken_links, central, truncated } }`.
   - `counts`: `nodes`, `edges`, `components` (weak), `isolated` (no inbound and no outbound), `dead_ends` (no outbound, some inbound), `sources` (no inbound, some outbound), `cycles` (components), `nodes_in_cycles`, `broken_links`. Counts cover the WHOLE in-scope graph; the lists are what `limit` caps.
   - `cycles`: one entry per strongly connected component with two or more nodes, or a single node with a self-loop: `{length, nodes}` with `nodes` SORTED — the component is the fact, its traversal order is incidental. Shortest cycles first, because a two-node loop is the one to break first.
   - `dead_ends`, `sources`, `isolated`, `central`: `{path, in, out, total}`. `central` is sorted by `total` descending, the navigational crossroads; `dead_ends` and `sources` by `total` ascending, because a low-degree problem is the cheap one to fix.
   - `broken_links`: the reference diagnostics that mean "this link goes nowhere or everywhere": `reference-target-missing`, `reference-target-ambiguous`, `reference-path-escapes-repo`, `navigational-target-not-found`. Shape `{path, code, message, line}`.
+- `verbs` (opt-in, `verbs: true`): a sibling key BESIDE the payload, never inside it — envelope metadata ABOUT the read, so `result.graph_health` keeps its shape. Absent unless asked, so a client that does not ask sees byte-identical results. A record `{ [verb]: { count, buckets } }`, one row per verb of this catalog and `shutdown`, verb-name-ordered.
+  - `count`: requests this verb answered since the process started. Requests, NOT versions: a rebuild leaves the counters alone, a restart clears them.
+  - `buckets`: a fixed 25-element latency histogram of HANDLER time — the dispatch only, never the frame's write or the client's round trip — and `buckets` always sums to `count` at the instant of the read.
+    - bucket `0`: under 1 µs.
+    - bucket `i` (1..=23): `[2^(i-1), 2^i)` µs — one octave per bucket, so bucket `1` is `[1,2)`, `2` is `[2,4)`, `3` is `[4,8)`, and so on.
+    - bucket `24`: open-ended at the top, everything at or above `2^23` µs (about 8.4 s).
+  - the cost on the hot path is two relaxed atomic adds per request, no lock and no allocation, so the counters never grow the daemon and never queue behind a reader.
+- additive: an optional argument and an opt-in sibling key, no `schema_version` bump. The golden `graph_health` capture is taken WITHOUT `verbs`, so it is unchanged.
 - composed over the same in-scope node set `graph_shape` counts: joining degrees, SCCs, and reference diagnostics once, in the engine, is the whole point of the read.
 - a dangling link is only DIAGNOSED on a file that claims a type, so `broken_links` inherits that boundary: an untyped note's broken prose link is not reported, and the read does not invent a diagnostic the validator never made.
 - additive: a NEW read verb, no `schema_version` bump.
