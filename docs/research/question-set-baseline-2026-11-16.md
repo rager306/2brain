@@ -89,3 +89,27 @@ ALL CAPS on a topic that is not crowded (rank 1). What breaks a query is either 
 That last one is the cheapest real gap the set has found: a note carries its `source_url` in frontmatter, an agent pastes
 the URL it was given, and the engine cannot connect them — and it is the same gap the provenance-echo work hit from the
 other side (identity recorded, nothing parses it).
+
+## Does the service-file noise cost anything at the top? Measured, and it is smaller than it looks
+
+The pages the 160 questions returned hold **1 234 note hits, 156 service hits** (16 `.claude/skills/*/SKILL.md` and 4
+`ops/skills-archive/*.md`) **and 30 other** (`manual/`, `ops/queue/`, `type/`). Service files are 11% of all hits, and the
+harvesting run counted them in a top-3 slot on 25 of 160 rows.
+
+Simulating their removal — drop only those two directories, keep `manual/` and `ops/queue/`, which are legitimate answers
+to structural questions:
+
+| page | hit@1 | hit@5 | not on the page |
+|---|---:|---:|---:|
+| as returned | 75 | 115 | 22 |
+| service files removed | **78** | **116** | 22 |
+
+So the cost is **three top-1 slots over 145 answerable questions (4% relative) and one top-5**. That is worth having, and
+it is not the 17.9% the share of hits suggests: the noise costs a reader *context*, not *rank*, because a skill file that
+outranks the answer is rare — the four pages where one is first are long natural-language questions, which is exactly the
+`form: question` axis that already scores 31/78.
+
+Two consequences. The cheap fix is a `kind` field per hit (note | map | skill | manual | queue) so a caller can discount
+what it does not want, and a default that omits `skill` unless asked — the same shape as `scope: own`, and for the same
+reason. The expensive fix — removing the archive from the served tree — would fix four pages and take away a record of what
+the vault used to contain; not worth it for three slots.
