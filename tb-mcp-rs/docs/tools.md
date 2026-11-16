@@ -83,7 +83,24 @@ with "additional properties are not allowed".
 
 `tb_preview_mutation {repo, path, op, content?, old_string?, new_string?, replace_all?}`
 returns the would-be product and blast radius; it writes nothing, needs no
-grant and no hash, but the member must be editable.
+grant and no hash, but the member must be editable. It covers the path-addressed
+ops (`write_file`, `edit_file`, `delete_file`). The engine also previews
+`rename_type`, which no path addresses: that op is what `tb_rename_type` calls
+itself, and it answers an `affected` list besides the product.
+
+`tb_rename_type` is the one structural mutation whose reach is not visible from
+its arguments. It names a type; the engine decides which files the rename
+rewrites, and a claim, a slot shape or a wikilink to the def can live in any
+mounted member. So the server previews the cascade first, through the same
+planning code the mutation runs, and reads `affected`: every file the rename
+writes, with the member that owns it. When any of those members is outside the
+launch's `members` allowlist the call is refused with `policy/member_grant`,
+recorded as `denied:member_grant` against the member outside the grant, and the
+message names the members and a few paths in each. The defining member being
+allowed is not enough, and nothing is written on a refusal. The engine's own
+consumed-member guard (`detail.blocking_consumed_referrers`) answers a different
+question — the workspace's edit/consumed topology — so neither check replaces
+the other.
 
 `tb_create_file {repo, path, content}` makes a file that does not exist yet. It
 has no text to compare against, so its gate replaces the read-then-hash pair with
@@ -120,7 +137,7 @@ at a time) and each is one engine saga:
 | `tb_inline` | `repo`, `path`, `into`, `at?`, `expected_hash`, `into_expected_hash` | folds one file into a referrer as an inline record and deletes it; both files must be armed |
 | `tb_promote` | `repo`, `path`, `to`, `at` xor `block_id`, `expected_hash` | lifts an inline record into its own file and leaves a reference |
 | `tb_batch` | `repo`, `ops` (1–50 of write_file / edit_file / delete_file, each with its own `expected_hash`) | applies the ops in order as one engine saga: one commit per touched member, and a rejection on any op leaves every file as it was |
-| `tb_rename_type` | `old_name`, `new_name`, `expected_hash` | renames a type-def and carries every claim, slot, and wikilink; the freshness check is the type's hash |
+| `tb_rename_type` | `old_name`, `new_name`, `expected_hash` | renames a type-def and carries every claim, slot, and wikilink; the freshness check is the type's hash, and the grant must cover every member the cascade rewrites, not only the defining one |
 | `tb_add_dep` / `tb_remove_dep` | `repo`, `dep`, `expected_hash?` | author `.arsumbris/repo.yaml`; requires the composition grant |
 
 ### Workspace shape

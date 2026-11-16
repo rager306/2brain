@@ -1625,7 +1625,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Rename a type-def and carry every reference with it, as one saga: the def file moves and claims, slot shapes, meta, and wikilinks follow. expected_hash is the type's hash from tb_type, so a stale read cannot rename. The owning member must be allowed by policy.",
+        description = "Rename a type-def and carry every reference with it, as one saga: the def file moves and claims, slot shapes, meta, and wikilinks follow. expected_hash is the type's hash from tb_type, so a stale read cannot rename. Policy covers the WHOLE cascade: the engine previews every file the rename writes, and the call is refused with policy/member_grant (audited as denied:member_grant) when any of them lies in a member the launch does not allow — the defining member being allowed is not enough.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1689,6 +1689,39 @@ impl Server {
             return return_error(format!(
                 "policy/member_grant: mutations are not allowed in workspace member {owner}"
             ));
+        }
+        // The cascade, not only the definition, must be inside this run's grant.
+        // The engine's preview names every file the rename rewrites and the member
+        // owning it, from the same planning code the mutation runs; the engine's own
+        // consumed-member guard is the workspace's topology, a different question.
+        let cascade = wire::rename_type_grant(
+            self.transport.as_ref(),
+            |member| self.policy.permits_member(member),
+            &args.old_name,
+            &args.new_name,
+        )
+        .await;
+        let outside = match cascade {
+            Ok(wire::CascadeGrant::Allowed) => None,
+            // The mutation would refuse with the same words.
+            Ok(wire::CascadeGrant::Rejected(message)) => {
+                self.audit
+                    .record(&self.principal, "tb_rename_type", &owner, "rejected");
+                return return_error(message);
+            }
+            Ok(wire::CascadeGrant::Outside(outside)) => Some(outside),
+            Err(error) => return return_error(error),
+        };
+        if let Some(outside) = outside {
+            self.audit.record(
+                &self.principal,
+                "tb_rename_type",
+                &outside[0].0,
+                "denied:member_grant",
+            );
+            return return_error(
+                policy::rename_type_cascade_denial(&args.old_name, &owner, &outside).text(),
+            );
         }
         let request = json!({
             "mutate": "rename_type",

@@ -306,6 +306,25 @@ mod request_deser_tests {
             }
             other => panic!("expected a rename op, got {other:?}"),
         }
+
+        // A type rename is addressed by name, not path: no `path`, and the two
+        // names are the whole request.
+        let claim: Request = serde_json::from_value(serde_json::json!({
+            "read": "preview_mutation",
+            "op": "rename_type",
+            "old_name": "note::base",
+            "new_name": "memo",
+        }))
+        .unwrap();
+        match claim {
+            Request::PreviewMutation(PreviewMutationArgs::RenameType { old_name, new_name }) => {
+                assert_eq!(
+                    (old_name.as_str(), new_name.as_str()),
+                    ("note::base", "memo")
+                );
+            }
+            other => panic!("expected a rename_type op, got {other:?}"),
+        }
     }
 }
 
@@ -859,6 +878,12 @@ enum PreviewMutationArgs {
     DeleteDir {
         path: String,
     },
+    /// A type-def rename, the `rename_type` mutation's `old_name` / `new_name`.
+    /// No `path`: the def file is derived from the type graph, not named.
+    RenameType {
+        old_name: String,
+        new_name: String,
+    },
 }
 
 impl PreviewMutationArgs {
@@ -917,6 +942,9 @@ impl PreviewMutationArgs {
                 return PreviewRequest::MoveDir { path, to };
             }
             PreviewMutationArgs::DeleteDir { path } => return PreviewRequest::DeleteDir { path },
+            PreviewMutationArgs::RenameType { old_name, new_name } => {
+                return PreviewRequest::RenameType { old_name, new_name };
+            }
         };
         PreviewRequest::File { path, op, riders }
     }
@@ -953,6 +981,10 @@ enum PreviewRequest {
     },
     DeleteDir {
         path: String,
+    },
+    RenameType {
+        old_name: String,
+        new_name: String,
     },
 }
 
@@ -4086,7 +4118,10 @@ fn renamed_type_def_path(from: &Path, new_name: &tb_core::TypeName) -> Option<Pa
 }
 
 /// Everything `rename_type` gathers under the read lock, before the saga writes.
-/// Carries the def's file relocation and every referrer to rewrite.
+/// Carries the def's file relocation and every referrer to rewrite. The
+/// committing saga and its preview both start from this one plan, so the two
+/// cannot disagree about which files the cascade touches.
+#[derive(Clone)]
 struct RenameTypeGather {
     /// The def's current path.
     from: PathBuf,
@@ -4097,14 +4132,234 @@ struct RenameTypeGather {
     /// The def's repo-relative paths, for the wikilink-surface rewrite.
     old_rel: PathBuf,
     new_rel: PathBuf,
-    /// Type-name-reference edits per referrer (surface 1).
-    type_edits: BTreeMap<PathBuf, Vec<(tb_diagnostics::ByteRange, String)>>,
+    /// The old and new names, the same in every reject message and commit.
+    old_name: tb_core::TypeName,
+    new_name: tb_core::TypeName,
+    /// Type-name-reference edits per referrer (surface 1), each tagged with what
+    /// the reference is.
+    type_edits: BTreeMap<PathBuf, Vec<crate::typerefs::TypeRefEdit>>,
     /// Wikilink-to-def spans per referrer (surface 2).
     link_spans: BTreeMap<PathBuf, Vec<tb_diagnostics::ByteRange>>,
     /// Each referrer's held content hash, the write-time re-read guard.
     referrer_hashes: BTreeMap<PathBuf, Option<crate::ir::ContentHash>>,
     /// Every referrer path to rewrite, deduped across both surfaces.
     referrers: Vec<PathBuf>,
+    /// The member owning each path the cascade may write, the def and every
+    /// referrer, so an affected-path report names a member without a second read.
+    repos: BTreeMap<PathBuf, crate::repo::RepoName>,
+}
+
+impl RenameTypeGather {
+    /// The paths the saga touches: the def's own file (`from` plus the
+    /// not-yet-existing `to`), and each referrer. Deduped, path-sorted.
+    fn touched(&self) -> Vec<PathBuf> {
+        let mut set: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
+        set.insert(self.from.clone());
+        set.insert(self.to.clone());
+        set.extend(self.referrers.iter().cloned());
+        set.into_iter().collect()
+    }
+
+    /// Split the referrers into those the cascade writes and those it leaves
+    /// byte-identical, remembering which of them re-spell a wikilink.
+    ///
+    /// `rename_type` writes a referrer for either of two reasons, so being left
+    /// unwritten needs both to be absent: a type-name CLAIM edit rewrites the
+    /// file even when every wikilink in it is frozen. Unreadable reads as
+    /// WRITTEN, so it stays gated: guessing exempt would write over uncommitted
+    /// work unchecked.
+    fn written_and_exempt(&self) -> RenameTypeWrites {
+        let mut writes = RenameTypeWrites::default();
+        for path in &self.referrers {
+            let claim_edit = self.type_edits.get(path).is_some_and(|e| !e.is_empty());
+            let link_edit = self.link_spans.get(path).is_some_and(|spans| {
+                read_referrer_checked(path, self.referrer_hashes.get(path).copied().flatten())
+                    .map(|c| crate::rename::would_rewrite(&c, spans))
+                    .unwrap_or(true)
+            });
+            if link_edit {
+                writes.links.insert(path.clone());
+            }
+            if claim_edit || link_edit {
+                writes.written.insert(path.clone());
+            } else {
+                writes.exempt.insert(path.clone());
+            }
+        }
+        writes.exempt.retain(|p| !writes.written.contains(p));
+        writes
+    }
+
+    /// How a written path changes: the def's move, plus the tagged type-name
+    /// edits and the wikilink re-spellings there. A self-referencing def reports
+    /// both its move and its own edits.
+    fn changes_at(&self, path: &Path, writes: &RenameTypeWrites) -> Vec<&'static str> {
+        let mut changes: Vec<&'static str> = Vec::new();
+        if path == self.from {
+            changes.push("definition_move");
+        }
+        if let Some(edits) = self.type_edits.get(path) {
+            changes.extend(edits.iter().map(|edit| edit.kind.as_str()));
+        }
+        if writes.links.contains(path) {
+            changes.push("wikilink");
+        }
+        changes.sort_unstable();
+        changes.dedup();
+        changes
+    }
+}
+
+/// The split of a `rename_type`'s referrers: what the cascade writes, what it
+/// leaves byte-identical, and which referrers re-spell a wikilink.
+#[derive(Default)]
+struct RenameTypeWrites {
+    written: std::collections::BTreeSet<PathBuf>,
+    exempt: std::collections::BTreeSet<PathBuf>,
+    /// Referrers whose wikilink to the def actually re-spells, so a frozen one
+    /// is not reported as a link change.
+    links: std::collections::BTreeSet<PathBuf>,
+}
+
+/// Plan a `rename_type` over the held knowledge base: the owned def file, the
+/// new path, and both reference surfaces. Surface 1 (type-name references) is
+/// repo-aware and its edits derive from each referrer's parse (claim spans, raw
+/// shapes). Surface 2 (wikilinks to the def file) is the backlink index,
+/// mounted-set scope, cross-repo referrers included. Each referrer's content
+/// hash is held so the write-time re-read is guarded.
+///
+/// Shared by the committing mutation and its preview, so neither the refusals
+/// nor the touched set can drift. The old name may be `base::repo` to select
+/// WHICH owner's identity to rename when two mounted repos own the name; bare
+/// picks the first owner. The new name is always the owner's own, so it stays
+/// bare.
+fn plan_rename_type(
+    v: &crate::ir::KnowledgeBase,
+    old_name_arg: &str,
+    new_name_arg: &str,
+) -> Result<RenameTypeGather, String> {
+    let (old_base, old_repo) = match old_name_arg.split_once("::") {
+        Some((base, repo)) => (base.to_string(), Some(repo.to_string())),
+        None => (old_name_arg.to_string(), None),
+    };
+    let old_name = tb_core::TypeName(old_base);
+    let new_name = tb_core::TypeName(new_name_arg.to_string());
+    let def =
+        find_owned_type_def(v, &old_name, old_repo.as_deref()).ok_or_else(|| match &old_repo {
+            Some(r) => format!(
+                "no type-def named '{}' owned by '{}' to rename",
+                old_name.as_str(),
+                r
+            ),
+            None => format!("no type-def named '{}' to rename", old_name.as_str()),
+        })?;
+    let from = def.source_path.clone();
+    let repo = v
+        .repos
+        .repo_of(&from)
+        .ok_or_else(|| "the type-def's repo is not mounted".to_string())?;
+    let repo_name = repo.name.clone();
+    let repo_root = repo.root.clone();
+    // The def file is a PRIMARY write derived from the graph, not a path
+    // arg, so it bypasses `resolve_editable_target`. Gate it here: a
+    // type-def owned by a consumed (`discover` / `dep`) member is not the
+    // engine's to author.
+    let role = crate::wire::member_role(v, &repo_name);
+    if !role.editable() {
+        return Err(format!(
+            "type-def '{}' is owned by '{}', mounted as '{}', not editable — \
+             list it in workspace.yaml 'edit:' to rename its types",
+            old_name.as_str(),
+            repo_name.as_str(),
+            role.as_str(),
+        ));
+    }
+    if !tb_core::is_valid_type_name(new_name.as_str()) {
+        return Err(format!("'{}' is not a valid type name", new_name.as_str()));
+    }
+    if v.graphs.of(&repo_name).get(&new_name).is_some() {
+        return Err(format!(
+            "type-def '{}' already exists — pick a free name",
+            new_name.as_str()
+        ));
+    }
+    let to = renamed_type_def_path(&from, &new_name)
+        .ok_or_else(|| format!("could not derive the new path for '{}'", new_name.as_str()))?;
+    let old_rel = from.strip_prefix(&repo_root).unwrap_or(&from).to_path_buf();
+    let new_rel = to.strip_prefix(&repo_root).unwrap_or(&to).to_path_buf();
+
+    let mut type_edits: BTreeMap<PathBuf, Vec<crate::typerefs::TypeRefEdit>> = BTreeMap::new();
+    let mut referrer_hashes: BTreeMap<PathBuf, Option<crate::ir::ContentHash>> = BTreeMap::new();
+    let mut repos: BTreeMap<PathBuf, crate::repo::RepoName> = BTreeMap::new();
+    repos.insert(from.clone(), repo_name.clone());
+    for path in v.type_referrers(&repo_name, &old_name) {
+        if let Some(entry) = v.catalog.get(&path) {
+            // Each referrer rewrites against its OWN repo: a bare `foo`
+            // in the def's repo becomes bare `new`, a mounted
+            // `foo::<def repo>` in a peer becomes `new::<def repo>`,
+            // qualifier-preserving.
+            let file_repo = crate::refnames::source_repo(&v.repos, &path);
+            let edits = crate::typerefs::type_ref_edits(
+                &entry.parse,
+                file_repo.as_str(),
+                &old_name,
+                repo_name.as_str(),
+                &new_name,
+            );
+            if !edits.is_empty() {
+                referrer_hashes.entry(path.clone()).or_insert(entry.hash);
+                note_repo(&mut repos, v, &path);
+                type_edits.insert(path, edits);
+            }
+        }
+    }
+
+    let mut link_spans: BTreeMap<PathBuf, Vec<tb_diagnostics::ByteRange>> = BTreeMap::new();
+    for bl in v.backlinks(&from) {
+        link_spans
+            .entry(bl.source.clone())
+            .or_default()
+            .push(bl.span);
+        referrer_hashes
+            .entry(bl.source.clone())
+            .or_insert_with(|| v.catalog.get(&bl.source).and_then(|e| e.hash));
+        note_repo(&mut repos, v, &bl.source);
+    }
+
+    // Every referrer to rewrite, deduped across both surfaces.
+    let referrers: Vec<PathBuf> = type_edits
+        .keys()
+        .chain(link_spans.keys())
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+
+    Ok(RenameTypeGather {
+        from,
+        to,
+        move_repo_root: repo_root,
+        old_rel,
+        new_rel,
+        old_name,
+        new_name,
+        type_edits,
+        link_spans,
+        referrer_hashes,
+        referrers,
+        repos,
+    })
+}
+
+/// Record the member owning `path`, so an affected-path report names it.
+fn note_repo(
+    repos: &mut BTreeMap<PathBuf, crate::repo::RepoName>,
+    v: &crate::ir::KnowledgeBase,
+    path: &Path,
+) {
+    if let Some(repo) = v.repos.repo_of(path) {
+        repos.insert(path.to_path_buf(), repo.name.clone());
+    }
 }
 
 /// The moves a saga's commits record, keyed by repo root, so each member's
@@ -5534,141 +5789,8 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                      stamp target",
                 ));
             }
-            // The old name may be `base::repo` to select WHICH owner's identity to
-            // rename when two mounted repos own the name; bare picks the first
-            // owner. The new name is always the owner's own, so it stays bare.
-            let (old_base, old_repo) = match args.old_name.split_once("::") {
-                Some((base, repo)) => (base.to_string(), Some(repo.to_string())),
-                None => (args.old_name.clone(), None),
-            };
-            let old_name = tb_core::TypeName(old_base);
-            let new_name = tb_core::TypeName(args.new_name.clone());
-            // Over the held knowledge base: the owned def file, the new path, and both
-            // reference surfaces. Surface 1 (type-name references) is repo-local
-            // and its edits derive from each referrer's parse (claim spans, raw
-            // shapes). Surface 2 (wikilinks to the def file) is the backlink
-            // index, mounted-set scope, cross-repo referrers included. Each
-            // referrer's content hash is held so the write-time re-read is
-            // guarded.
-            let gathered = handle.read(|v| {
-                let def =
-                    find_owned_type_def(v, &old_name, old_repo.as_deref()).ok_or_else(|| {
-                        match &old_repo {
-                            Some(r) => format!(
-                                "no type-def named '{}' owned by '{}' to rename",
-                                old_name.as_str(),
-                                r
-                            ),
-                            None => {
-                                format!("no type-def named '{}' to rename", old_name.as_str())
-                            }
-                        }
-                    })?;
-                let from = def.source_path.clone();
-                let repo = v
-                    .repos
-                    .repo_of(&from)
-                    .ok_or_else(|| "the type-def's repo is not mounted".to_string())?;
-                let repo_name = repo.name.clone();
-                let repo_root = repo.root.clone();
-                // The def file is a PRIMARY write derived from the graph, not a path
-                // arg, so it bypasses `resolve_editable_target`. Gate it here: a
-                // type-def owned by a consumed (`discover` / `dep`) member is not the
-                // engine's to author.
-                let role = crate::wire::member_role(v, &repo_name);
-                if !role.editable() {
-                    return Err(format!(
-                        "type-def '{}' is owned by '{}', mounted as '{}', not editable — \
-                         list it in workspace.yaml 'edit:' to rename its types",
-                        old_name.as_str(),
-                        repo_name.as_str(),
-                        role.as_str(),
-                    ));
-                }
-                if !tb_core::is_valid_type_name(new_name.as_str()) {
-                    return Err(format!("'{}' is not a valid type name", new_name.as_str()));
-                }
-                if v.graphs.of(&repo_name).get(&new_name).is_some() {
-                    return Err(format!(
-                        "type-def '{}' already exists — pick a free name",
-                        new_name.as_str()
-                    ));
-                }
-                let to = renamed_type_def_path(&from, &new_name).ok_or_else(|| {
-                    format!("could not derive the new path for '{}'", new_name.as_str())
-                })?;
-                let old_rel = from.strip_prefix(&repo_root).unwrap_or(&from).to_path_buf();
-                let new_rel = to.strip_prefix(&repo_root).unwrap_or(&to).to_path_buf();
-
-                let mut type_edits: BTreeMap<PathBuf, Vec<(tb_diagnostics::ByteRange, String)>> =
-                    BTreeMap::new();
-                let mut referrer_hashes: BTreeMap<PathBuf, Option<crate::ir::ContentHash>> =
-                    BTreeMap::new();
-                for path in v.type_referrers(&repo_name, &old_name) {
-                    if let Some(entry) = v.catalog.get(&path) {
-                        // Each referrer rewrites against its OWN repo: a bare `foo`
-                        // in the def's repo becomes bare `new`, a mounted
-                        // `foo::<def repo>` in a peer becomes `new::<def repo>`,
-                        // qualifier-preserving.
-                        let file_repo = crate::refnames::source_repo(&v.repos, &path);
-                        let edits = crate::typerefs::type_ref_edits(
-                            &entry.parse,
-                            file_repo.as_str(),
-                            &old_name,
-                            repo_name.as_str(),
-                            &new_name,
-                        );
-                        if !edits.is_empty() {
-                            referrer_hashes.entry(path.clone()).or_insert(entry.hash);
-                            type_edits.insert(path, edits);
-                        }
-                    }
-                }
-
-                let mut link_spans: BTreeMap<PathBuf, Vec<tb_diagnostics::ByteRange>> =
-                    BTreeMap::new();
-                for bl in v.backlinks(&from) {
-                    link_spans
-                        .entry(bl.source.clone())
-                        .or_default()
-                        .push(bl.span);
-                    referrer_hashes
-                        .entry(bl.source.clone())
-                        .or_insert_with(|| v.catalog.get(&bl.source).and_then(|e| e.hash));
-                }
-
-                // Every referrer to rewrite, deduped across both surfaces.
-                let referrers: Vec<PathBuf> = type_edits
-                    .keys()
-                    .chain(link_spans.keys())
-                    .cloned()
-                    .collect::<std::collections::BTreeSet<_>>()
-                    .into_iter()
-                    .collect();
-
-                Ok(RenameTypeGather {
-                    from,
-                    to,
-                    move_repo_root: repo_root,
-                    old_rel,
-                    new_rel,
-                    type_edits,
-                    link_spans,
-                    referrer_hashes,
-                    referrers,
-                })
-            });
-            let RenameTypeGather {
-                from,
-                to,
-                move_repo_root,
-                old_rel,
-                new_rel,
-                type_edits,
-                link_spans,
-                referrer_hashes,
-                referrers,
-            } = match gathered {
+            let gathered = handle.read(|v| plan_rename_type(v, &args.old_name, &args.new_name));
+            let gather = match gathered {
                 crate::Read::Ready { value: Ok(g), .. } => g,
                 crate::Read::Ready {
                     value: Err(msg), ..
@@ -5680,57 +5802,20 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                         .expect("response serializes");
                 }
             };
-            // The paths the saga touches: the def's own file (`from` plus the
-            // not-yet-existing `to`), and each referrer. Deduped.
-            let mut touched_set: std::collections::BTreeSet<PathBuf> =
-                std::collections::BTreeSet::new();
-            touched_set.insert(from.clone());
-            touched_set.insert(to.clone());
-            for path in &referrers {
-                touched_set.insert(path.clone());
-            }
-            let touched: Vec<PathBuf> = touched_set.into_iter().collect();
+            let touched = gather.touched();
             let planned = {
                 let h = handle.clone();
-                let referrers = referrers.clone();
-                let (type_edits, link_spans) = (type_edits.clone(), link_spans.clone());
-                let referrer_hashes = referrer_hashes.clone();
+                let gather = gather.clone();
                 off_thread(move || {
-                    // `rename_type` writes a referrer for either of two reasons, so
-                    // being left unwritten needs both to be absent: a type-name
-                    // CLAIM edit rewrites the file even when every wikilink in it
-                    // is frozen.
-                    let mut exempt: std::collections::BTreeSet<PathBuf> =
-                        std::collections::BTreeSet::new();
-                    let mut written: std::collections::BTreeSet<PathBuf> =
-                        std::collections::BTreeSet::new();
-                    for path in &referrers {
-                        let claim_edit = type_edits.get(path).is_some_and(|e| !e.is_empty());
-                        // Unreadable reads as WRITTEN, so it stays gated: guessing
-                        // exempt would write over uncommitted work unchecked.
-                        let link_edit = link_spans.get(path).is_some_and(|spans| {
-                            read_referrer_checked(
-                                path,
-                                referrer_hashes.get(path).copied().flatten(),
-                            )
-                            .map(|c| crate::rename::would_rewrite(&c, spans))
-                            .unwrap_or(true)
-                        });
-                        if claim_edit || link_edit {
-                            written.insert(path.clone());
-                        } else {
-                            exempt.insert(path.clone());
-                        }
-                    }
-                    exempt.retain(|p| !written.contains(p));
+                    let writes = gather.written_and_exempt();
                     // A referrer this rename_type would rewrite (a claim edit or a
                     // live wikilink) that lives in a consumed member rejects the
                     // whole refactor. `written` is referrers only; the def
                     // file's own editability is gated earlier.
-                    if let Some(reject) = reject_if_consumed_referrers(&h, &written) {
+                    if let Some(reject) = reject_if_consumed_referrers(&h, &writes.written) {
                         return Err(reject);
                     }
-                    Ok(resolve_saga_plan_writing(&h, &touched, exempt))
+                    Ok(resolve_saga_plan_writing(&h, &touched, writes.exempt))
                 })
                 .await
             };
@@ -5738,6 +5823,20 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 Ok(plan) => plan,
                 Err(reject) => return mutation_reject_frame(reject),
             };
+            let RenameTypeGather {
+                from,
+                to,
+                move_repo_root,
+                old_rel,
+                new_rel,
+                old_name,
+                new_name,
+                type_edits,
+                link_spans,
+                referrer_hashes,
+                referrers,
+                ..
+            } = gather;
             let marker_dir = saga_marker_dir(handle.root());
             let summary = format!("rename_type {} -> {}", old_name.as_str(), new_name.as_str());
             // A rename records the def file's move for the pinned-reference
@@ -5764,8 +5863,8 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                             let wrote = rewrite_referrer(
                                 path,
                                 referrer_hashes.get(path).copied().flatten(),
-                                type_edits.get(path),
-                                link_spans.get(path),
+                                type_edits.get(path).map(Vec::as_slice),
+                                link_spans.get(path).map(Vec::as_slice),
                                 &old_rel,
                                 &new_rel,
                             )?;
@@ -8373,33 +8472,54 @@ fn guard_unchanged_before_touch_all(
     Ok(())
 }
 
-/// Rewrite one `rename_type` referrer in place, returning the bytes written, or
-/// `None` when the rewrite was byte-identical and nothing was written. Merges the precomputed type-name
-/// edits with the wikilink edits derived now, applies them, then writes back.
-fn rewrite_referrer(
+/// What one `rename_type` referrer's bytes would become, or `None` when the
+/// rewrite is byte-identical. Merges the precomputed type-name edits with the
+/// wikilink edits derived now, and applies them.
+///
+/// A referrer whose every reference is commit-pinned yields no edits, so the
+/// rewrite is byte-identical. Writing it anyway costs a disk write and wakes the
+/// watcher for a file that did not change. The `rename_type` case can also reach
+/// here with only TYPE-NAME edits, which do change the bytes, so this is a byte
+/// comparison rather than an is-the-edit-list-empty test. Shared by the
+/// committing saga and its preview, so the two compute one answer.
+fn rewrite_referrer_content(
     path: &Path,
     held: Option<crate::ir::ContentHash>,
-    type_edits: Option<&Vec<(tb_diagnostics::ByteRange, String)>>,
-    link_spans: Option<&Vec<tb_diagnostics::ByteRange>>,
+    type_edits: Option<&[crate::typerefs::TypeRefEdit]>,
+    link_spans: Option<&[tb_diagnostics::ByteRange]>,
     old_rel: &Path,
     new_rel: &Path,
 ) -> Result<Option<String>, crate::mutate::MutationReject> {
     let content = read_referrer_checked(path, held)?;
-    let mut edits = type_edits.cloned().unwrap_or_default();
+    let mut edits: Vec<(tb_diagnostics::ByteRange, String)> = type_edits
+        .unwrap_or_default()
+        .iter()
+        .map(|edit| (edit.span, edit.replacement.clone()))
+        .collect();
     if let Some(spans) = link_spans {
         edits.extend(crate::rename::link_edits(
             &content, spans, old_rel, new_rel,
         )?);
     }
     let rewritten = crate::rename::apply_edits(&content, edits)?;
-    // A referrer whose every reference is commit-pinned yields no edits, so the
-    // rewrite is byte-identical. Writing it anyway costs a disk write and wakes
-    // the watcher for a file that did not change. The `rename_type` case can also
-    // reach here with only TYPE-NAME edits, which do change the bytes, so this is
-    // a byte comparison rather than an is-the-edit-list-empty test.
-    if rewritten == content {
+    Ok((rewritten != content).then_some(rewritten))
+}
+
+/// Rewrite one `rename_type` referrer in place, returning the bytes written, or
+/// `None` when the rewrite was byte-identical and nothing was written.
+fn rewrite_referrer(
+    path: &Path,
+    held: Option<crate::ir::ContentHash>,
+    type_edits: Option<&[crate::typerefs::TypeRefEdit]>,
+    link_spans: Option<&[tb_diagnostics::ByteRange]>,
+    old_rel: &Path,
+    new_rel: &Path,
+) -> Result<Option<String>, crate::mutate::MutationReject> {
+    let Some(rewritten) =
+        rewrite_referrer_content(path, held, type_edits, link_spans, old_rel, new_rel)?
+    else {
         return Ok(None);
-    }
+    };
     std::fs::write(path, &rewritten).map_err(|e| {
         crate::mutate::MutationReject::new(format!("cannot write referrer {}: {e}", path.display()))
     })?;
@@ -9381,6 +9501,9 @@ async fn preview_mutation(handle: &EngineHandle, args: PreviewMutationArgs) -> R
         }
         PreviewRequest::MoveDir { path, to } => return preview_move_dir(handle, path, to).await,
         PreviewRequest::DeleteDir { path } => return preview_delete_dir(handle, path).await,
+        PreviewRequest::RenameType { old_name, new_name } => {
+            return preview_rename_type(handle, old_name, new_name).await;
+        }
     };
     let root = handle.root().to_path_buf();
     // Resolve the path against the mounted members, with the mutation channel's
@@ -9614,6 +9737,132 @@ async fn preview_move_dir(handle: &EngineHandle, path_arg: String, to_arg: Strin
     .await
 }
 
+/// Preview a `rename_type`: every path the cascade rewrites, with the member
+/// owning it and what changes there, the moved def's verdict at its new path,
+/// and the blast radius, without writing or committing.
+///
+/// Shares the committing mutation's steps up to the write, in its order: the
+/// same [`plan_rename_type`] gather, the same written/exempt split, the
+/// consumed-member reject, the require-git precondition, and each referrer's
+/// rewrite through [`rewrite_referrer_content`]. The clean-at-HEAD precondition
+/// is a git step about the write moment, so it is not previewed, like every op.
+async fn preview_rename_type(
+    handle: &EngineHandle,
+    old_name_arg: String,
+    new_name_arg: String,
+) -> Response {
+    let planned = move |v: &KnowledgeBase| {
+        plan_rename_type(v, &old_name_arg, &new_name_arg)
+            .map_err(crate::mutate::MutationReject::new)
+    };
+    preview_change_set(handle, planned, move |h, gather| {
+        let writes = gather.written_and_exempt();
+        // A referrer this cascade rewrites that lives in a consumed member
+        // rejects the whole preview, as it rejects the mutation.
+        if let Some(reject) = reject_if_consumed_referrers(h, &writes.written) {
+            return Err(reject);
+        }
+        let saga = resolve_saga_plan_writing(h, &gather.touched(), writes.exempt.clone());
+        if let Some(reject) = saga_precondition_reject(&saga, true) {
+            return Err(reject);
+        }
+        let (set, affected) = rename_type_change_set(&gather, &writes)?;
+        Ok((
+            set,
+            PreviewExtras {
+                affected: Some(affected),
+                untracked_files: saga_untracked_files(&saga),
+                ..Default::default()
+            },
+        ))
+    })
+    .await
+}
+
+/// The would-be change set of a `rename_type`, the committing saga's writes
+/// without the disk write: the def moved (carrying its own rewritten bytes when
+/// it references itself), each written referrer at its new bytes, and the
+/// referrers left byte-identical still recomputed. Alongside it the wire's
+/// affected list: every path the cascade rewrites, its member, and what changes.
+fn rename_type_change_set(
+    gather: &RenameTypeGather,
+    writes: &RenameTypeWrites,
+) -> Result<(crate::engine::ChangeSet, Vec<wire::AffectedPathView>), crate::mutate::MutationReject>
+{
+    use crate::overlay::Override;
+    let mut overrides = Vec::new();
+    let mut also_dirty = Vec::new();
+    let mut self_rewrite: Option<String> = None;
+    for path in &gather.referrers {
+        if !writes.written.contains(path) {
+            also_dirty.push(path.clone());
+            continue;
+        }
+        let rewritten = rewrite_referrer_content(
+            path,
+            gather.referrer_hashes.get(path).copied().flatten(),
+            gather.type_edits.get(path).map(Vec::as_slice),
+            gather.link_spans.get(path).map(Vec::as_slice),
+            &gather.old_rel,
+            &gather.new_rel,
+        )?;
+        match rewritten {
+            Some(content) if *path == gather.from => self_rewrite = Some(content),
+            Some(content) => overrides.push(Override::Replace {
+                path: path.clone(),
+                content: content.into_bytes(),
+            }),
+            // A "written" referrer whose bytes did not change: the committing
+            // saga writes nothing either, so it only recomputes.
+            None => also_dirty.push(path.clone()),
+        }
+    }
+    // The committing saga's rename_file refuses a taken destination before it
+    // touches anything; so does the preview.
+    crate::mutate::rename_precheck(&gather.from, &gather.to)?;
+    overrides.push(Override::Remove {
+        path: gather.from.clone(),
+    });
+    overrides.push(match self_rewrite {
+        Some(text) => Override::Replace {
+            path: gather.to.clone(),
+            content: text.into_bytes(),
+        },
+        None => Override::Moved {
+            path: gather.to.clone(),
+            from: gather.from.clone(),
+        },
+    });
+    let view = |path: &Path| wire::AffectedPathView {
+        path: path.display().to_string(),
+        repo: gather
+            .repos
+            .get(path)
+            .map(|r| r.as_str().to_string())
+            .unwrap_or_default(),
+        changes: gather.changes_at(path, writes),
+    };
+    // The def always moves; every other entry is a referrer the cascade writes.
+    let mut affected = vec![view(&gather.from)];
+    affected.extend(
+        writes
+            .written
+            .iter()
+            .filter(|p| **p != gather.from)
+            .map(|p| view(p)),
+    );
+    affected.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok((
+        crate::engine::ChangeSet {
+            target: gather.to.clone(),
+            overrides,
+            also_dirty,
+            gone: vec![gather.from.clone()],
+        },
+        affected,
+    ))
+}
+
 /// Preview a `delete_dir`: the references it would strand, the blast radius,
 /// and what it would remove outside git, without writing or committing.
 ///
@@ -9682,6 +9931,9 @@ struct PreviewExtras {
     /// A rename's `ensure_mixins` outcomes, folded into its change set by the
     /// caller. A single-file op's ride the outcome instead.
     ensure_mixins: Option<Vec<wire::MixinOutcome>>,
+    /// A `rename_type`'s affected paths: every file the cascade rewrites, its
+    /// member, and what changes there.
+    affected: Option<Vec<wire::AffectedPathView>>,
 }
 
 /// Attach a preview's extra fields to its product; a reject passes.
@@ -9701,6 +9953,7 @@ fn with_extras(view: wire::PreviewProductView, extras: PreviewExtras) -> wire::P
             untracked_files: strings(&extras.untracked_files),
             untracked_dirs: extras.untracked_dirs.as_deref().map(strings),
             ensure_mixins: extras.ensure_mixins.or(ensure_mixins),
+            affected: extras.affected,
         },
         reject => reject,
     }
@@ -9853,6 +10106,8 @@ fn preview_product_view(outcome: crate::engine::PreviewOutcome) -> wire::Preview
                 untracked_files,
                 untracked_dirs,
                 ensure_mixins: mixins,
+                // Set by the caller's extras for a `rename_type` preview.
+                affected: None,
             },
             reject => reject,
         },

@@ -437,6 +437,240 @@ fn synthetic_read_fixtures_match_the_engine() {
     reader.join().unwrap();
 }
 
+/// A workspace with two editable members under ONE git tree: `base` owns the
+/// schema and defines `widget`, `app` peers `base` and holds an instance claiming
+/// `widget::base`. One enclosing tree is what a structural refactor requires, and
+/// it is also why a member grant is the only thing standing between the cascade
+/// and `app`.
+fn build_two_member_workspace(temp: &Path) -> (PathBuf, PathBuf) {
+    let home = temp.join("home");
+    let entry = temp.join("entry");
+    fs::create_dir_all(home.join(".arsumbris")).unwrap();
+    let write = |rel: &str, content: &str| {
+        let path = entry.join(rel);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, content).unwrap();
+    };
+    write(
+        ".arsumbris/repo.yaml",
+        "name: v\ntype: au.engine.repo::au-engine\n",
+    );
+    write(
+        ".arsumbris/workspace.yaml",
+        "edit:\n  - v\n  - base\n  - app\ntype: au.engine.workspace::au-engine\n",
+    );
+    write(
+        "base/.arsumbris/repo.yaml",
+        "name: base\ntype: au.engine.repo::au-engine\n",
+    );
+    write("base/type/widget.type.yaml", "fields:\n  label: String\n");
+    write(
+        "app/.arsumbris/repo.yaml",
+        "name: app\ntype: au.engine.repo::au-engine\ndeps:\n  - name: base\n",
+    );
+    write("app/holder.md", "---\ntype: widget::base\nlabel: x\n---\n");
+    commit_work_tree(&entry);
+    (home, entry)
+}
+
+/// A `2brain mcp` process over an existing socket, with the handshake done.
+struct Mcp {
+    _child: OwnedChild,
+    input: std::process::ChildStdin,
+    output: mpsc::Receiver<String>,
+}
+
+impl Mcp {
+    fn start(socket: &Path, home: &Path, extra: &[&str]) -> Self {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_2brain"));
+        child
+            .arg("mcp")
+            .arg(socket)
+            .args(extra)
+            .env("HOME", home)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        let mut child = OwnedChild(child.spawn().expect("start MCP server"));
+        let mut input = child.0.stdin.take().unwrap();
+        let stdout = child.0.stdout.take().unwrap();
+        let (tx, output) = mpsc::channel();
+        thread::spawn(move || {
+            for line in BufReader::new(stdout).lines() {
+                if tx.send(line.expect("read MCP stdout")).is_err() {
+                    break;
+                }
+            }
+        });
+        send(
+            &mut input,
+            json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"rename-type-grant","version":"1"}}}),
+        );
+        let init = receive(&output);
+        assert!(init.get("result").is_some(), "{init}");
+        send(
+            &mut input,
+            json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+        );
+        Self {
+            _child: child,
+            input,
+            output,
+        }
+    }
+
+    /// Call one tool and return the raw reply.
+    fn call(&mut self, id: u64, tool: &str, arguments: Value) -> Value {
+        send(
+            &mut self.input,
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":tool,"arguments":arguments}}),
+        );
+        receive(&self.output)
+    }
+}
+
+/// The text payload of a tool reply, or the error text when `isError`.
+fn reply_text(reply: &Value) -> String {
+    reply["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap_or_else(|| panic!("no text content in {reply}"))
+        .to_owned()
+}
+
+#[test]
+#[ignore = "requires AU_ENGINE_BIN pointing to a separately built au binary"]
+fn rename_type_refuses_a_cascade_outside_the_member_grant() {
+    let engine = std::env::var_os("AU_ENGINE_BIN").expect("set AU_ENGINE_BIN to the au binary");
+    let temp = tempfile::Builder::new()
+        .prefix("au-rename-type-grant-")
+        .tempdir_in("/tmp")
+        .unwrap();
+    let (home, entry) = build_two_member_workspace(temp.path());
+    let mut daemon = OwnedChild(
+        Command::new(engine)
+            .args(["daemon", "start"])
+            .arg(&entry)
+            .env("HOME", &home)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("start private engine"),
+    );
+    let socket = wait_ready(&home.join(".arsumbris/au-engine/run"), &mut daemon.0);
+
+    let def = entry.join("base/type/widget.type.yaml");
+    let note = entry.join("app/holder.md");
+    let def_before = fs::read(&def).unwrap();
+    let note_before = fs::read(&note).unwrap();
+
+    // Only `base` is allowed: the definition's member, not the referrer's.
+    let policy = temp.path().join("policy-base-only.json");
+    fs::write(&policy, r#"{"allow_mutations":true,"members":["base"]}"#).unwrap();
+    {
+        let mut mcp = Mcp::start(
+            &socket,
+            &home,
+            &[
+                "--allow-mutations",
+                "--policy",
+                policy.to_str().unwrap(),
+                "--principal",
+                "tester",
+            ],
+        );
+        let type_reply = mcp.call(2, "tb_type", json!({"name":"widget::base"}));
+        assert_ne!(type_reply["result"]["isError"], true, "{type_reply}");
+        let definition: Value = serde_json::from_str(&reply_text(&type_reply)).unwrap();
+        let hash = definition["type"]["hash"]
+            .as_str()
+            .expect("type hash")
+            .to_owned();
+        assert_eq!(definition["type"]["repo"], "base", "{definition}");
+
+        let reply = mcp.call(
+            3,
+            "tb_rename_type",
+            json!({"old_name":"widget::base","new_name":"gadget","expected_hash":hash}),
+        );
+        assert_eq!(
+            reply["result"]["isError"], true,
+            "the cascade leaves the grant, so the call must refuse: {reply}"
+        );
+        let message = reply_text(&reply);
+        assert!(
+            message.starts_with("policy/member_grant: "),
+            "the refusal keeps the stage vocabulary: {message}"
+        );
+        assert!(
+            message.contains("'app'") && message.contains("holder.md"),
+            "it names the member outside the grant and a path there: {message}"
+        );
+        assert!(
+            message.contains("'base'"),
+            "it says the defining member is allowed: {message}"
+        );
+    }
+
+    // The engine was never asked to write: both files are byte-identical.
+    assert_eq!(fs::read(&def).unwrap(), def_before, "the def moved");
+    assert_eq!(
+        fs::read(&note).unwrap(),
+        note_before,
+        "the referrer changed"
+    );
+    assert!(
+        !entry.join("base/type/gadget.type.yaml").exists(),
+        "the rename landed despite the refusal"
+    );
+
+    // The same rename, with both members allowed, applies and carries the claim.
+    let both = temp.path().join("policy-both.json");
+    fs::write(
+        &both,
+        r#"{"allow_mutations":true,"members":["base","app"]}"#,
+    )
+    .unwrap();
+    {
+        let mut mcp = Mcp::start(
+            &socket,
+            &home,
+            &[
+                "--allow-mutations",
+                "--policy",
+                both.to_str().unwrap(),
+                "--principal",
+                "tester",
+            ],
+        );
+        let type_reply = mcp.call(2, "tb_type", json!({"name":"widget::base"}));
+        let definition: Value = serde_json::from_str(&reply_text(&type_reply)).unwrap();
+        let hash = definition["type"]["hash"]
+            .as_str()
+            .expect("type hash")
+            .to_owned();
+        let reply = mcp.call(
+            3,
+            "tb_rename_type",
+            json!({"old_name":"widget::base","new_name":"gadget","expected_hash":hash}),
+        );
+        assert_ne!(
+            reply["result"]["isError"], true,
+            "a fully granted cascade applies: {reply}"
+        );
+    }
+    assert!(
+        entry.join("base/type/gadget.type.yaml").exists(),
+        "the def file moved to its new name"
+    );
+    assert!(!def.exists(), "the old def path is gone");
+    assert_eq!(
+        fs::read_to_string(&note).unwrap(),
+        "---\ntype: gadget::base\nlabel: x\n---\n",
+        "the referrer's claim followed the rename"
+    );
+}
+
 #[test]
 #[ignore = "requires AU_ENGINE_BIN pointing to a separately built au binary"]
 fn mcp_reads_match_real_engine_on_temporary_repo() {

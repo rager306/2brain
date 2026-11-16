@@ -32,6 +32,37 @@ use crate::parse::FileParse;
 /// the source file's OWN repo. The qualifier is a global repo NAME (resolved by
 /// [`crate::ir::KnowledgeBase`] via `repos.by_name`), never a per-file alias, so a match
 /// is a name comparison, `site.repo.unwrap_or(file_repo) == def_repo`.
+/// What a type-name reference IS, so a `rename_type` preview can say what happens
+/// to each file the cascade rewrites. The wire spells each as
+/// [`TypeRefKind::as_str`]; a change list is deduped and sorted by that spelling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TypeRefKind {
+    /// A `type:` claim: an instance identity, a parent, a sealed branch, or an
+    /// inline-record claim.
+    Claim,
+    /// A field slot shape: a type-name inside a shape expression.
+    SlotShape,
+    /// A qualified instance key, `field{name}`.
+    Qualifier,
+    /// A meta sub-region's own `type:` claim.
+    Meta,
+    /// A body `use: name`.
+    BodyUse,
+}
+
+impl TypeRefKind {
+    /// The wire spelling, the value a preview's change list carries.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Claim => "claim",
+            Self::SlotShape => "slot_shape",
+            Self::Qualifier => "qualifier",
+            Self::Meta => "meta",
+            Self::BodyUse => "body_use",
+        }
+    }
+}
+
 enum Site<'a> {
     /// A whole type-name token at `span`: a `type:` / `sealed:` / `use:` / meta
     /// `type:` name, or an inline-record `type:` claim. The span covers the whole
@@ -41,6 +72,7 @@ enum Site<'a> {
         name: &'a str,
         repo: Option<&'a str>,
         span: ByteRange,
+        kind: TypeRefKind,
     },
     /// A qualified instance key `field{T}` or `field{T::repo}`. `qualifier` is
     /// the type-name `T` inside the braces, `span` covers just `T` (the `field{`,
@@ -84,6 +116,7 @@ fn visit_type_def<'a>(td: &'a TypeDef, f: &mut impl FnMut(Site<'a>)) {
             name: c.name.as_str(),
             repo: c.repo.as_deref(),
             span: c.span,
+            kind: TypeRefKind::Claim,
         });
     }
     for c in &td.sealed {
@@ -91,6 +124,7 @@ fn visit_type_def<'a>(td: &'a TypeDef, f: &mut impl FnMut(Site<'a>)) {
             name: c.name.as_str(),
             repo: c.repo.as_deref(),
             span: c.span,
+            kind: TypeRefKind::Claim,
         });
     }
     for fd in &td.fields {
@@ -105,6 +139,7 @@ fn visit_type_def<'a>(td: &'a TypeDef, f: &mut impl FnMut(Site<'a>)) {
                 name: mb.type_name.as_str(),
                 repo: mb.repo.as_deref(),
                 span: mb.type_name_span,
+                kind: TypeRefKind::Meta,
             });
             for field in &mb.fields {
                 visit_field(field, f);
@@ -128,6 +163,7 @@ fn visit_body_items<'a>(items: &'a [BodyItem], f: &mut impl FnMut(Site<'a>)) {
                 name: type_name.as_str(),
                 repo: repo.as_deref(),
                 span: *type_name_span,
+                kind: TypeRefKind::BodyUse,
             }),
             BodyItem::Section {
                 body: Some(sub), ..
@@ -154,6 +190,7 @@ fn visit_type_claim<'a>(claim: &'a TypeClaim, f: &mut impl FnMut(Site<'a>)) {
             name: c.name.as_str(),
             repo: c.repo.as_deref(),
             span: c.span,
+            kind: TypeRefKind::Claim,
         });
     }
 }
@@ -242,6 +279,16 @@ pub fn references_type(
     found
 }
 
+/// One byte edit a `rename_type` cascade applies to a file: the span, the text
+/// that replaces it, and what the site is, so a preview can report why the file
+/// is rewritten.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TypeRefEdit {
+    pub span: ByteRange,
+    pub replacement: String,
+    pub kind: TypeRefKind,
+}
+
 /// The byte edits that rewrite every reference to the def `(old, def_repo)` from
 /// a file in `file_repo` into `new`, QUALIFIER-PRESERVING. An own-repo reference
 /// (bare `old`) becomes bare `new`; a mounted cross-repo reference (`old::def_repo`)
@@ -255,12 +302,17 @@ pub fn type_ref_edits(
     old: &TypeName,
     def_repo: &str,
     new: &TypeName,
-) -> Vec<(ByteRange, String)> {
+) -> Vec<TypeRefEdit> {
     let old = old.as_str();
     let new = new.as_str();
-    let mut edits: Vec<(ByteRange, String)> = Vec::new();
+    let mut edits: Vec<TypeRefEdit> = Vec::new();
     for_each_site(parse, |site| match site {
-        Site::Name { name, repo, span } => {
+        Site::Name {
+            name,
+            repo,
+            span,
+            kind,
+        } => {
             if name == old && site_targets(repo, file_repo, def_repo) {
                 // The span covers the whole authored form (`foo` or `foo::repoA`),
                 // so re-emit the new name with the SAME qualifier the site had.
@@ -268,7 +320,11 @@ pub fn type_ref_edits(
                     Some(r) => format!("{new}::{r}"),
                     None => new.to_string(),
                 };
-                edits.push((span, replacement));
+                edits.push(TypeRefEdit {
+                    span,
+                    replacement,
+                    kind,
+                });
             }
         }
         Site::Qualifier {
@@ -279,12 +335,20 @@ pub fn type_ref_edits(
             if qualifier == old && site_targets(repo, file_repo, def_repo) {
                 // The span covers only the type-name head; the `::repo` and
                 // `:field` bytes after it are left untouched.
-                edits.push((span, new.to_string()));
+                edits.push(TypeRefEdit {
+                    span,
+                    replacement: new.to_string(),
+                    kind: TypeRefKind::Qualifier,
+                });
             }
         }
         Site::Shape { raw, span } => {
             if let Some(rewritten) = rewrite_shape_tokens(raw, old, new, file_repo, def_repo) {
-                edits.push((span, rewritten));
+                edits.push(TypeRefEdit {
+                    span,
+                    replacement: rewritten,
+                    kind: TypeRefKind::SlotShape,
+                });
             }
         }
     });

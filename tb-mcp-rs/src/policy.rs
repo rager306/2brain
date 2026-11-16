@@ -216,6 +216,61 @@ pub const CREATE_STAGES: [Stage; 6] = [
 /// milliseconds apart — say the same thing to the client.
 pub const CREATE_ALREADY_EXISTS: &str = "file already exists; use tb_write_file to change it";
 
+/// At most this many paths are named per member in a cascade refusal.
+const CASCADE_PATHS_SHOWN: usize = 2;
+
+/// At most this many members are listed before the rest are counted.
+const CASCADE_MEMBERS_SHOWN: usize = 4;
+
+/// The refusal when a `rename_type` cascade would write members this launch does
+/// not allow: the definition's owner is permitted, its referrers are not.
+///
+/// `outside` is the member and the paths the rename would rewrite there, already
+/// member-sorted by the caller. The message names the members, because the fix is
+/// a policy edit rather than a guess, and says plainly that the grant covers the
+/// cascade too — the tool checks the owner's member first, so a caller could
+/// otherwise read the refusal as a contradiction.
+pub(crate) fn rename_type_cascade_denial(
+    type_name: &str,
+    owner: &str,
+    outside: &[(String, Vec<String>)],
+) -> Denial {
+    let mut listed: Vec<String> = outside
+        .iter()
+        .take(CASCADE_MEMBERS_SHOWN)
+        .map(|(member, paths)| {
+            let mut shown: Vec<&str> = paths
+                .iter()
+                .take(CASCADE_PATHS_SHOWN)
+                .map(String::as_str)
+                .collect();
+            if paths.len() > CASCADE_PATHS_SHOWN {
+                shown.push("…");
+            }
+            format!("'{member}' ({})", shown.join(", "))
+        })
+        .collect();
+    if outside.len() > CASCADE_MEMBERS_SHOWN {
+        listed.push(format!(
+            "and {} more member(s)",
+            outside.len() - CASCADE_MEMBERS_SHOWN
+        ));
+    }
+    Denial::new(
+        Stage::MemberGrant,
+        format!(
+            "the type '{type_name}' is defined in member '{owner}', which this launch allows, but \
+             renaming it would also rewrite files in {} member(s) outside the grant: {}. \
+             A rename_type carries claims, slot shapes, meta and wikilinks to every referrer, so \
+             the grant must cover the members it rewrites, not only the one that defines the type. \
+             Add them to the policy's 'members', or rename the type where every referrer's member \
+             is allowed",
+            outside.len(),
+            listed.join(", "),
+        ),
+    )
+}
+
 /// Appends policy decisions. Cloning shares the same sink and the same chain.
 #[derive(Debug, Clone)]
 pub struct Audit {

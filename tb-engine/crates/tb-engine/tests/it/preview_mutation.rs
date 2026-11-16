@@ -101,6 +101,161 @@ fn identity_names(target: &Value) -> Vec<String> {
     out
 }
 
+/// A two-member workspace: `base` owns the schema, `app` peers `base` and holds
+/// an instance claiming `widget::base`. One enclosing git tree covers both, which
+/// a structural refactor requires. Returns the root too, so a test can assert the
+/// files on disk.
+fn crossed() -> (Harness, PathBuf) {
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    crate::seed_workspace(&root, &["base", "app"]);
+    let write = |rel: &str, content: &str| {
+        let path = root.join(rel);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, content).unwrap();
+    };
+    write(
+        "base/.arsumbris/repo.yaml",
+        "name: base\ntype: au.engine.repo::au-engine\n",
+    );
+    crate::seed_readme(&root.join("base"));
+    write(
+        "app/.arsumbris/repo.yaml",
+        "name: app\ntype: au.engine.repo::au-engine\ndeps:\n  - name: base\n",
+    );
+    crate::seed_readme(&root.join("app"));
+    write("base/type/widget.type.yaml", "fields:\n  label: String\n");
+    // A type nothing references, so a rename of it touches the def file alone.
+    write("base/type/lonely.type.yaml", "fields:\n  title: String\n");
+    write("app/holder.md", "---\ntype: widget::base\nlabel: x\n---\n");
+
+    for args in [
+        ["init", "-q", "-b", "main"].as_slice(),
+        ["config", "user.name", "Tester"].as_slice(),
+        ["config", "user.email", "tester@example.com"].as_slice(),
+        ["add", "."].as_slice(),
+        ["commit", "-q", "-m", "seed"].as_slice(),
+    ] {
+        let out = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&root)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    let sock_dir = tempfile::tempdir().unwrap();
+    let socket = sock_dir.path().join("s");
+    let engine = Engine::new(&root, ConfigSource::Empty);
+    let server = serve(engine.handle(), &socket).expect("serve");
+    engine.rebuild();
+    let client = Client::connect(&socket).expect("connect");
+    let harness = Harness {
+        _dir: dir,
+        _sock_dir: sock_dir,
+        _engine: engine,
+        _server: server,
+        client,
+    };
+    (harness, root)
+}
+
+#[test]
+fn a_rename_type_preview_names_the_referrer_member_and_its_kind() {
+    let (mut h, root) = crossed();
+    let def_before = fs::read(root.join("base/type/widget.type.yaml")).unwrap();
+    let holder_before = fs::read(root.join("app/holder.md")).unwrap();
+
+    let p = preview(
+        &mut h,
+        json!({"op": "rename_type", "old_name": "widget::base", "new_name": "gadget"}),
+    );
+    assert!(
+        p.get("reject").is_none(),
+        "an allowed rename previews a product: {p:?}"
+    );
+    assert!(
+        p["target"]["path"]
+            .as_str()
+            .is_some_and(|path| path.ends_with("base/type/gadget.type.yaml")),
+        "the target is the def at its new path: {p:?}"
+    );
+    let affected = p["affected"].as_array().expect("affected list");
+    let holder = affected
+        .iter()
+        .find(|entry| {
+            entry["path"]
+                .as_str()
+                .is_some_and(|p| p.ends_with("app/holder.md"))
+        })
+        .unwrap_or_else(|| panic!("the cross-member referrer is missing: {affected:?}"));
+    assert_eq!(holder["repo"], "app", "{holder:?}");
+    assert_eq!(holder["changes"], json!(["claim"]), "{holder:?}");
+    let def = affected
+        .iter()
+        .find(|entry| {
+            entry["path"]
+                .as_str()
+                .is_some_and(|p| p.ends_with("widget.type.yaml"))
+        })
+        .expect("the def's own move");
+    assert_eq!(def["repo"], "base", "{def:?}");
+    assert_eq!(def["changes"], json!(["definition_move"]), "{def:?}");
+
+    // A preview writes nothing and moves nothing.
+    assert_eq!(
+        fs::read(root.join("base/type/widget.type.yaml")).unwrap(),
+        def_before,
+        "the def stays where it is"
+    );
+    assert!(!root.join("base/type/gadget.type.yaml").exists());
+    assert_eq!(
+        fs::read(root.join("app/holder.md")).unwrap(),
+        holder_before,
+        "the referrer is untouched"
+    );
+}
+
+#[test]
+fn a_rename_type_preview_of_an_unreferenced_type_rewrites_nothing() {
+    // A git-covered workspace, which a structural refactor requires; `lonely` is
+    // the type nothing claims, slots or links to.
+    let (mut h, root) = crossed();
+    let before = h.client.query(&json!({ "read": "lifecycle" })).unwrap()["version"].clone();
+    let p = preview(
+        &mut h,
+        json!({"op": "rename_type", "old_name": "lonely::base", "new_name": "solitary"}),
+    );
+    assert!(p.get("reject").is_none(), "{p:?}");
+    let affected = p["affected"].as_array().expect("affected list");
+    assert_eq!(affected.len(), 1, "only the def file is affected: {p:?}");
+    assert!(
+        affected[0]["path"]
+            .as_str()
+            .is_some_and(|path| path.ends_with("base/type/lonely.type.yaml")),
+        "{p:?}"
+    );
+    assert_eq!(affected[0]["repo"], "base", "{p:?}");
+    assert_eq!(
+        affected[0]["changes"],
+        json!(["definition_move"]),
+        "no referrer means no claim or link change: {p:?}"
+    );
+    assert!(
+        p["blast_radius"].as_array().unwrap().is_empty(),
+        "nothing else's diagnostics change: {p:?}"
+    );
+    assert!(!root.join("base/type/solitary.type.yaml").exists());
+    assert!(root.join("base/type/lonely.type.yaml").exists());
+    let after = h.client.query(&json!({ "read": "lifecycle" })).unwrap()["version"].clone();
+    assert_eq!(before, after, "a preview advances no version");
+}
+
 #[test]
 fn a_valid_write_reports_its_identity_and_no_diagnostics() {
     let mut h = started();

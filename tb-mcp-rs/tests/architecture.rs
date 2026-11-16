@@ -55,7 +55,12 @@ const ALLOWED: [(&str, &str); 12] = [
 // absence conflict is the create gate refusing a moment later, so `finish_mutation` maps it back to
 // `policy/absence`. The mapping is one guarded arm; its words, and the predicate that reads `detail.reason`,
 // live in `policy.rs` and `wire.rs` rather than here.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4531;
+// 4531, plus 33 on 2026-11-16: `tb_rename_type` previews the cascade before mutating and refuses when any
+// member it rewrites is outside the grant. The decision is a guarded match and the audit line that names the
+// offending member; the engine read, the `affected` parsing and the refusal text live in `wire.rs` and
+// `policy.rs`. The alternative — keeping the check out of lib.rs — would mean the mutation tool no longer
+// decides what it may write, which is the defect this closes.
+const LIB_RS_PRODUCTION_BUDGET: usize = 4564;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")

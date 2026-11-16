@@ -52,16 +52,24 @@ The engine has its own guard, and it is a different one: a rewrite that would to
 `--allow-mutations` allowlist is this run's narrower grant. A member can be editable by the workspace and outside
 this run's allowlist, and the cascade would still write it.
 
-Status: **defect**, narrower than it looks: it needs a workspace where the type is defined in an allowed member and
-referenced in a non-allowed one.
+Status: **fixed 2026-11-16**. `rename_type` is now a previewable op on the engine's `preview_mutation` read,
+addressed by type name rather than a path. Its product carries an `affected` list: every path the cascade rewrites,
+with the member that owns it and what changes there — `definition_move`, `claim`, `slot_shape`, `qualifier`, `meta`,
+`body_use`, `wikilink`. The preview is the mutation's own planning code (`plan_rename_type`, the written/exempt
+split, the referrer rewrite), not a second model of it, so the two cannot disagree about the write set. The adapter
+reads that list before it mutates: when any affected member is outside `policy.members` the call refuses as
+`denied:member_grant` — recorded in the audit under the same value, against the member outside the grant — and the
+message names the members and a few paths in each, saying plainly that the definition's own member is allowed and
+the cascade is not. A preview that itself refuses answers with the mutation's own message. Every allowed case
+proceeds exactly as before.
 
-Fix: the engine's structural refactors become previewable (`rename_type` is listed as not previewable today,
-WIRE.md:854), returning the affected paths grouped by member; the adapter then refuses when any of them is outside
-the allowlist, and names them. Until that exists, the tool description must say that the grant covers the
-definition, not the cascade — a caller that needs the guarantee can pre-read `tb_instances_of` and decide.
-
-Test: workspace A (allowed) defines a type, B (not allowed) holds an instance. `tb_rename_type` must refuse and
-name B, leaving both files byte-identical.
+Test: `tb-mcp-rs/tests/real_engine.rs` builds the workspace this defect needs — one git tree, member `base`
+defining `widget`, member `app` holding an instance that claims `widget::base` — and runs it against a private
+engine. With `members: ["base"]` the call refuses, names `app` and the instance path, the mutation connection is
+never made, and both files are byte-identical afterwards; with `members: ["base","app"]` the same call moves the def
+and rewrites the claim to `gadget::base`. The engine side has its own pair in
+`tb-engine/crates/tb-engine/tests/it/preview_mutation.rs`: a cross-member preview names the referrer's member and
+kind, and a preview of an unreferenced type lists the definition move alone and writes nothing.
 
 ## 4. Diagnostics stay advisory on a normal mutation
 

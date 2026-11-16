@@ -55,6 +55,19 @@ source.
   stays 29, no golden capture re-blessed. `tb-mcp-rs/tests/create_race.rs` runs two adapter processes against one
   private engine for twenty rounds.
 
+- **`rename_type` is previewable, and its cascade is held to the member grant** (engine, adapter). A type rename
+  rewrites the def file, claims, slot shapes, meta and wikilinks wherever they live, but `tb_rename_type` checked
+  the grant on the member owning the definition only: a referrer in another member was written even when that
+  member was outside the launch's `members` allowlist. `preview_mutation` now accepts `op: rename_type` and answers
+  an `affected` list — every path the cascade rewrites, with the member that owns it and what changes there
+  (`definition_move`, `claim`, `slot_shape`, `qualifier`, `meta`, `body_use`, `wikilink`) — computed by the
+  mutation's own planning code, so the two cannot disagree. The adapter previews before it mutates, and refuses
+  with `policy/member_grant` (audited as `denied:member_grant`) when any affected member is outside the grant,
+  naming the members and a few paths in each. Additive: one new previewable op and one new product field,
+  `schema_version` stays 29. `tb-mcp-rs/tests/real_engine.rs` runs the workspace this needs — member `base`
+  defines the type, member `app` holds the instance — against a private engine, refusing with `app` outside the
+  grant and applying the same rename once both members are allowed.
+
 ### Changed
 
 - **A task-level query set** (`tools/ranking/tasks.json`, `tasks_eval.py`): twelve hand-written tasks — exact

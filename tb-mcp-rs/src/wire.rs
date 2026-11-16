@@ -207,6 +207,101 @@ pub(crate) fn read_verb(tool: &str) -> Option<&'static str> {
     }
 }
 
+/// What a `rename_type` cascade check found.
+pub(crate) enum CascadeGrant {
+    /// Every member the rename rewrites is inside the grant.
+    Allowed,
+    /// The engine's preview refused, with the message the mutation would answer.
+    Rejected(String),
+    /// Members outside the grant, each with the paths the rename would rewrite,
+    /// member-sorted and path-sorted within each.
+    Outside(Vec<(String, Vec<String>)>),
+}
+
+/// Preview a `rename_type` and check every member it would write against the
+/// grant.
+///
+/// One engine read. The preview is the engine's own planning code — the same one
+/// the mutation runs — so this refuses where the mutation would, and names the
+/// members the cascade would reach beyond the definition's own.
+pub(crate) async fn rename_type_grant(
+    transport: &dyn EngineTransport,
+    permits: impl Fn(&str) -> bool,
+    old_name: &str,
+    new_name: &str,
+) -> Result<CascadeGrant, String> {
+    let preview = read_engine(
+        transport,
+        json!({
+            "read": "preview_mutation",
+            "id": 1,
+            "op": "rename_type",
+            "old_name": old_name,
+            "new_name": new_name,
+        }),
+    )
+    .await?
+    .payload;
+    let product = &preview["preview_mutation"];
+    if let Some(message) = product["reject"]["message"].as_str() {
+        return Ok(CascadeGrant::Rejected(message.to_owned()));
+    }
+    let outside = members_outside_grant(product, permits)?;
+    Ok(if outside.is_empty() {
+        CascadeGrant::Allowed
+    } else {
+        CascadeGrant::Outside(outside)
+    })
+}
+
+/// The members a previewed `rename_type` would write that the grant does not
+/// cover, each with the paths the rename would rewrite there.
+///
+/// Reads the engine's `affected` list: every path the cascade rewrites, with the
+/// member that owns it. A preview that OMITS the list is an error, not an empty
+/// answer — without it the write set cannot be checked, and proceeding would
+/// reproduce the very defect this guard closes.
+pub(crate) fn members_outside_grant(
+    product: &Value,
+    permits: impl Fn(&str) -> bool,
+) -> Result<Vec<(String, Vec<String>)>, String> {
+    // Without the list the write set is unknown, which is a refusal, not an
+    // empty answer.
+    let affected = product
+        .get("affected")
+        .and_then(Value::as_array)
+        .ok_or("the engine's rename_type preview carried no 'affected' list, so the write set cannot be checked against the grant")?;
+    let mut by_member: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
+    for entry in affected {
+        let member = entry
+            .get("repo")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let path = entry
+            .get("path")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if member.is_empty() || path.is_empty() {
+            return Err("the engine's rename_type preview carried an affected path with no member or no path".into());
+        }
+        if permits(member) {
+            continue;
+        }
+        by_member
+            .entry(member.to_owned())
+            .or_default()
+            .push(path.to_owned());
+    }
+    Ok(by_member
+        .into_iter()
+        .map(|(member, mut paths)| {
+            paths.sort();
+            (member, paths)
+        })
+        .collect())
+}
+
 /// Whether `payload` matches the declared shape.
 pub(crate) fn payload_matches(shape: Shape, payload: &Value) -> bool {
     match shape {
@@ -763,6 +858,43 @@ mod tests {
     use super::*;
 
     use crate::transport::{MemoryTransport, SCHEMA_VERSION};
+
+    #[test]
+    fn affected_members_outside_the_grant_are_grouped_and_path_sorted() {
+        let product = json!({
+            "affected": [
+                {"path": "/ws/app/b.md", "repo": "app", "changes": ["claim"]},
+                {"path": "/ws/base/type/widget.type.yaml", "repo": "base", "changes": ["definition_move"]},
+                {"path": "/ws/app/a.md", "repo": "app", "changes": ["claim", "wikilink"]},
+            ]
+        });
+        let outside = members_outside_grant(&product, |member| member == "base")
+            .expect("a well-formed affected list is accepted");
+        assert_eq!(
+            outside,
+            vec![(
+                "app".to_string(),
+                vec!["/ws/app/a.md".to_string(), "/ws/app/b.md".to_string()]
+            )],
+            "only members outside the grant, path-sorted inside each"
+        );
+        let all = members_outside_grant(&product, |_| true).expect("parsed");
+        assert!(all.is_empty(), "a fully granted set names nothing: {all:?}");
+    }
+
+    #[test]
+    fn a_preview_without_an_affected_list_is_refused_not_assumed_empty() {
+        // Fail closed: an engine that omits the list cannot prove the write set is
+        // inside the grant, so the check refuses instead of waving the rename on.
+        let product = json!({"target": {"path": "/ws/base/type/gadget.type.yaml"}});
+        let error = members_outside_grant(&product, |_| true).expect_err("no list, no answer");
+        assert!(error.contains("affected"), "{error}");
+        let malformed = json!({"affected": [{"path": "/ws/app/a.md"}]});
+        assert!(
+            members_outside_grant(&malformed, |_| true).is_err(),
+            "an entry with no member is malformed, not a member named ''"
+        );
+    }
 
     /// Every captured read must have a declared shape, and the captured payload must satisfy it.
     ///

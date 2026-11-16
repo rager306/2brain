@@ -4567,6 +4567,23 @@ pub struct StrandedLinkView {
     pub to_file: String,
 }
 
+/// One path a previewed `rename_type` rewrites: the file, the member that owns
+/// it, and what changes there.
+///
+/// `path` is the file the cascade touches NOW: the def's current path for the
+/// `definition_move` entry (its destination is the product's `target`), a
+/// referrer's own path otherwise. `repo` is the member's declared name, the same
+/// value `members[].repo` carries, so a consumer can compare it against its own
+/// grant without resolving the path again. `changes` is the sorted, deduped list
+/// of what happens at that path: `definition_move`, `claim`, `slot_shape`,
+/// `meta`, `body_use`, `qualifier`, `wikilink`.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct AffectedPathView {
+    pub path: String,
+    pub repo: String,
+    pub changes: Vec<&'static str>,
+}
+
 /// A structural reject: the op refused before any product existed.
 #[derive(Debug, Serialize)]
 pub struct PreviewRejectView {
@@ -4609,6 +4626,11 @@ pub enum PreviewProductView {
         /// write's response carries, absent when the op carried none.
         #[serde(skip_serializing_if = "Option::is_none")]
         ensure_mixins: Option<Vec<MixinOutcome>>,
+        /// A `rename_type`'s affected paths, path-sorted: every file the
+        /// cascade rewrites, the member that owns it, and what changes there.
+        /// Absent for every other op.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        affected: Option<Vec<AffectedPathView>>,
     },
 }
 
@@ -4686,6 +4708,7 @@ pub(crate) fn preview_product_view(
         untracked_files: Vec::new(),
         untracked_dirs: None,
         ensure_mixins: None,
+        affected: None,
     }
 }
 
