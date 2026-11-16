@@ -1,5 +1,5 @@
 ---
-type: au.engine.readme::au-engine
+type: tb.engine.readme::tb-engine
 tldr: Reusable writing style profiles and three skills to apply, check and extend them. Includes a default profile focused on scannability.
 ---
 
