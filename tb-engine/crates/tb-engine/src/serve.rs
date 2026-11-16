@@ -14572,8 +14572,11 @@ struct SearchAnswer {
 /// The `search` answer over the held index.
 ///
 /// Ranking and paging are separate passes on purpose: `total` counts every match
-/// in scope, so a page is interpretable without a second call, and the scope
-/// filter runs before paging because it can drop any of the ranked documents.
+/// in scope, so a page is interpretable without a second call. The scope decides
+/// the CANDIDATES, before any document is scored: a note the caller cannot
+/// receive is not ranked either, so a read scoped to `own` does not pay for every
+/// mounted member's notes (entry 1 of
+/// `docs/research/ruvector-adr-2026-11-16.md`).
 // Every argument is one field of the request this read serves, passed through
 // unchanged; a struct would name the wire request twice.
 #[allow(clippy::too_many_arguments)]
@@ -14587,12 +14590,14 @@ fn search_view(
     limit: usize,
     offset: usize,
 ) -> SearchAnswer {
-    let hits: Vec<crate::search::SearchHit<'_>> = kb
-        .search
-        .query(query, exact, min_should_match)
-        .into_iter()
-        .filter(|hit| in_read_scope(kb, hit.path, repo, scope))
-        .collect();
+    let mask = scope_engaged(repo, scope).then(|| candidate_mask(kb, repo, scope));
+    let hits: Vec<crate::search::SearchHit<'_>> = kb.search.query(
+        query,
+        exact,
+        min_should_match,
+        mask.as_deref()
+            .map_or(crate::search::DocMask::all(), crate::search::DocMask::new),
+    );
     let total = hits.len();
     let terms = crate::search::distinct_terms(query);
     let matches: Vec<SearchMatch> = hits
@@ -14635,6 +14640,14 @@ fn excerpt_of(kb: &KnowledgeBase, path: &std::path::Path, terms: &[String]) -> O
     ))
 }
 
+/// Whether a `repo` / `scope` selection narrows anything at all.
+///
+/// One spelling of the condition, so a read that skips per-item work and the
+/// predicate that does the work cannot disagree about whether a filter is on.
+fn scope_engaged(repo: Option<&str>, scope: wire::TypeScope) -> bool {
+    repo.is_some() || scope.own_only()
+}
+
 /// Whether a path is in the `repo` / `scope` selection the catalogue-wide reads
 /// share, spelled once so `grep` and `search` cannot disagree about scope.
 fn in_read_scope(
@@ -14643,7 +14656,7 @@ fn in_read_scope(
     repo: Option<&str>,
     scope: wire::TypeScope,
 ) -> bool {
-    if repo.is_none() && !scope.own_only() {
+    if !scope_engaged(repo, scope) {
         return true;
     }
     let Some(owner) = kb.repos.repo_of(path) else {
@@ -14657,6 +14670,33 @@ fn in_read_scope(
         }
     }
     scope.includes_repo(kb, owner)
+}
+
+/// The documents a scoped `search` may score: one flag per indexed document id.
+///
+/// The SAME [`in_read_scope`] predicate, asked once per repo instead of once per
+/// document: the predicate resolves a path to its owning repo, and that walk is
+/// the cost a candidate mask exists to remove. The repos go in the order
+/// `repo::RepoMap::repo_of` resolves a path — root depth, then name — because
+/// [`crate::search::SearchIndex::candidate_mask`] paints each repo's range of
+/// document ids and lets a deeper root replace a shallower one's verdict. The
+/// compiled-in engine repo's sentinel root matches no document, so its verdict
+/// paints an empty range.
+fn candidate_mask(kb: &KnowledgeBase, repo: Option<&str>, scope: wire::TypeScope) -> Vec<bool> {
+    let mut repos: Vec<&crate::repo::Repo> = kb.repos.repos().iter().collect();
+    repos.sort_by(|left, right| {
+        left.root
+            .components()
+            .count()
+            .cmp(&right.root.components().count())
+            .then_with(|| left.name.as_str().cmp(right.name.as_str()))
+    });
+    kb.search.candidate_mask(repos.into_iter().map(|member| {
+        (
+            member.root.as_path(),
+            in_read_scope(kb, &member.root, repo, scope),
+        )
+    }))
 }
 
 /// The catalogued paths a `grep` scans, paired with their owning repo.

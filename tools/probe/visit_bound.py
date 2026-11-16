@@ -254,7 +254,6 @@ def start_engine(binary: Path, entry: Path, home: Path, log_path: Path) -> tuple
         stdout=log,
         stderr=subprocess.STDOUT,
     )
-    run_dir = home / ".arsumbris" / "au-engine" / "run"
     deadline = time.time() + READY_TIMEOUT
     while time.time() < deadline:
         if process.poll() is not None:
@@ -262,8 +261,13 @@ def start_engine(binary: Path, entry: Path, home: Path, log_path: Path) -> tuple
             raise SystemExit(
                 f"engine for {entry} exited before binding a socket: see {log_path}"
             )
-        for candidate in sorted(run_dir.glob("*.sock")):
-            return process, candidate, log
+        # Both spellings of the per-user state directory: `~/.arsumbris` is the
+        # engine's historical name and `~/.2brain` the served one, and a fresh
+        # HOME holds whichever the binary writes, so the probe follows the binary
+        # rather than assuming one.
+        for state in (".2brain", ".arsumbris"):
+            for candidate in sorted((home / state / "au-engine" / "run").glob("*.sock")):
+                return process, candidate, log
         time.sleep(0.1)
     process.terminate()
     log.close()

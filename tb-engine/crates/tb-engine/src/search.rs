@@ -732,6 +732,55 @@ struct Accumulator {
     best_idf: f64,
 }
 
+/// Which documents a query may score: the candidate set, decided before the walk.
+///
+/// A scoped read (`repo` / `scope`) knows which documents it can return before it
+/// scores anything, and a document outside that set can never enter the answer.
+/// Carrying that knowledge into the walks is what stops a selective read from
+/// paying for the corpus it is about to discard.
+///
+/// A mask can only remove work, never change a score. Every quantity a score reads
+/// — a term's document frequency, each field's average length — is a property of
+/// the whole index, and a mask narrows which documents are ranked, not what the
+/// corpus is. That is also why the answer is identical to ranking everything and
+/// filtering afterwards: the same documents survive with the same scores, so the
+/// order (score descending, then document id) is the same order.
+///
+/// `None` is every document, which is what an unscoped read passes; the scoring
+/// loop then pays one branch it never takes.
+///
+/// The mask must come from the SAME predicate the post-ranking filter applied —
+/// `serve::in_read_scope`, asked once per repo by
+/// [`SearchIndex::candidate_mask`]. Two spellings of "in scope" would drift, and
+/// the drift would be a note that silently cannot be found.
+#[derive(Clone, Copy)]
+pub(crate) struct DocMask<'a> {
+    /// Whether each document id may be scored; `None` is every document.
+    admitted: Option<&'a [bool]>,
+}
+
+impl<'a> DocMask<'a> {
+    /// Every document is a candidate.
+    pub(crate) fn all() -> Self {
+        Self { admitted: None }
+    }
+
+    /// Only the documents `admitted` marks, indexed by document id.
+    pub(crate) fn new(admitted: &'a [bool]) -> Self {
+        Self {
+            admitted: Some(admitted),
+        }
+    }
+
+    /// Whether `doc` may be scored.
+    fn admits(&self, doc: u32) -> bool {
+        match self.admitted {
+            None => true,
+            Some(admitted) => admitted[doc as usize],
+        }
+    }
+}
+
 /// A BM25 inverted index over `N` text fields per document.
 ///
 /// The field count is a compile-time constant, so the engine's two-field
@@ -896,7 +945,17 @@ impl<const N: usize> Bm25Index<N> {
     /// Ties in score are broken by ascending [`Hit::doc_id`], so the order is
     /// total and identical across builds of the same corpus. `limit == 0`
     /// returns nothing.
-    pub(crate) fn search(&self, query: &str, min_should_match: usize, limit: usize) -> Vec<Hit> {
+    ///
+    /// `mask` is the caller's candidate set: a document it excludes is not scored
+    /// and cannot answer, and the result is what the same query over the whole
+    /// corpus answered with those documents filtered out.
+    pub(crate) fn search(
+        &self,
+        query: &str,
+        min_should_match: usize,
+        limit: usize,
+        mask: DocMask<'_>,
+    ) -> Vec<Hit> {
         if limit == 0 {
             return Vec::new();
         }
@@ -920,13 +979,19 @@ impl<const N: usize> Bm25Index<N> {
         for &term_id in &term_ids {
             let postings = &self.postings[term_id as usize];
             let idf = self.idf(postings.posting_count());
-            // Instrumentation: one block decoded, one document step per posting it
-            // holds. Both figures are known before the walk, so the loop pays
-            // nothing per document.
+            // Instrumentation: one block decoded, and one document step for each
+            // posting the mask admits. The block's length is known before the
+            // walk; the admitted count is not, so it accumulates here — one
+            // integer add, which is what lets a scoped read report the candidates
+            // it scored rather than the postings it decoded.
             verb_metrics::note_posting_blocks(1);
-            verb_metrics::note_documents(postings.posting_count() as u64);
             let weight: [f64; N] = std::array::from_fn(|field| self.weights[field] * idf);
+            let mut admitted = 0u64;
             for posting in postings.postings() {
+                if !mask.admits(posting.doc) {
+                    continue;
+                }
+                admitted += 1;
                 let slot = &self.docs[posting.doc as usize];
                 let mut score = 0.0;
                 for (field, &tf) in posting.tf.iter().enumerate() {
@@ -941,6 +1006,7 @@ impl<const N: usize> Bm25Index<N> {
                 entry.matched += 1;
                 entry.best_idf = entry.best_idf.max(idf);
             }
+            verb_metrics::note_documents(admitted);
         }
 
         // Adjacency: a document that states two query terms near each other is
@@ -952,9 +1018,18 @@ impl<const N: usize> Bm25Index<N> {
                 for &right in &term_ids[at + 1..] {
                     // Two blocks enter the merge; the steps it took are the
                     // documents it examined on either side.
+                    //
+                    // A mask does not shorten this merge: the walk still passes the
+                    // documents it excludes, so the step count is the same with and
+                    // without one, which is why it is reported as it is. What the
+                    // mask removes here is the per-document work — the two position
+                    // runs are not decoded for a document that cannot answer.
                     let stepped = self.postings[left as usize].for_each_shared(
                         &self.postings[right as usize],
                         |doc, left_tf, left_positions, right_tf, right_positions| {
+                            if !mask.admits(doc) {
+                                return;
+                            }
                             let near =
                                 closeness(&left_tf, left_positions, &right_tf, right_positions);
                             if near > 0.0
@@ -1008,7 +1083,10 @@ impl<const N: usize> Bm25Index<N> {
     /// matches too. Order would need an ordered walk of the two position runs, and
     /// the blocks carry the positions but the conjunction is not scored by them —
     /// [`closeness`] rewards nearness, not sequence.
-    pub(crate) fn exact(&self, needle: &str, limit: usize) -> Vec<Hit> {
+    ///
+    /// `mask` narrows the candidates the intersection starts from, with the same
+    /// guarantee [`Bm25Index::search`] gives.
+    pub(crate) fn exact(&self, needle: &str, limit: usize, mask: DocMask<'_>) -> Vec<Hit> {
         if limit == 0 {
             return Vec::new();
         }
@@ -1027,12 +1105,19 @@ impl<const N: usize> Bm25Index<N> {
             .iter()
             .map(|&term_id| {
                 let postings = &self.postings[term_id as usize];
-                // Instrumentation: the conjunction decodes each term's whole block
-                // into a transient list, so every posting in it is a document step.
+                // Instrumentation: the conjunction decodes each term's block into a
+                // transient list and keeps the postings the mask admits, so a scoped
+                // read counts the candidates it scored.
                 verb_metrics::note_posting_blocks(1);
-                verb_metrics::note_documents(postings.posting_count() as u64);
+                let decoded: Vec<Posting<N>> = postings
+                    .postings()
+                    .filter(|posting| mask.admits(posting.doc))
+                    .collect();
+                verb_metrics::note_documents(decoded.len() as u64);
                 (
-                    postings.postings().collect(),
+                    decoded,
+                    // The idf stays the WHOLE corpus's frequency: a mask narrows the
+                    // candidates, never what the corpus knows.
                     self.idf(postings.posting_count()),
                 )
             })
@@ -1271,23 +1356,25 @@ impl SearchIndex {
         }
     }
 
-    /// The ranked documents matching `query`, best first, unfiltered and unpaged.
+    /// The ranked documents matching `query`, best first, unpaged.
     ///
     /// `exact` takes the conjunction path ([`Bm25Index::exact`]); otherwise
     /// `min_should_match` decides how many distinct query terms a document must
-    /// hold. The whole answer comes back because scope (`repo` / `scope`) is a
-    /// query-side filter this index knows nothing about: the caller filters, then
-    /// totals and pages over what it kept.
+    /// hold. The whole answer comes back — the caller totals and pages over it —
+    /// but only over `mask`'s documents: scope (`repo` / `scope`) is a candidate
+    /// predicate here, not a filter over a ranking that already happened, so a
+    /// scoped read does not score the members it excludes.
     pub(crate) fn query(
         &self,
         query: &str,
         exact: bool,
         min_should_match: usize,
+        mask: DocMask<'_>,
     ) -> Vec<SearchHit<'_>> {
         let hits = if exact {
-            self.index.exact(query, usize::MAX)
+            self.index.exact(query, usize::MAX, mask)
         } else {
-            self.index.search(query, min_should_match, usize::MAX)
+            self.index.search(query, min_should_match, usize::MAX, mask)
         };
         hits.into_iter()
             .map(|hit| SearchHit {
@@ -1299,11 +1386,59 @@ impl SearchIndex {
             .collect()
     }
 
+    /// The candidate mask for a scoped read: one flag per document id.
+    ///
+    /// `verdicts` yields each repo's ROOT with whether that repo is in scope,
+    /// ordered by root depth and then by name — the order in which
+    /// `repo::RepoMap::repo_of` resolves a path: the deepest root that is an
+    /// ancestor wins, and two repos sharing one root are separated by name, larger
+    /// last. Painting each root's range of document ids in that order therefore
+    /// answers what asking the predicate about every path would answer, at one
+    /// predicate call per repo rather than one per document: the predicate
+    /// resolves a path to its owning repo, and that walk is the very cost a mask
+    /// must not add.
+    ///
+    /// A repo's documents are one contiguous range, because the path table is in
+    /// the path order the document ids were assigned in. A path under no repo
+    /// stays unadmitted, which is what the predicate answers for it whenever a
+    /// filter is engaged.
+    pub(crate) fn candidate_mask<'a>(
+        &self,
+        verdicts: impl IntoIterator<Item = (&'a Path, bool)>,
+    ) -> Vec<bool> {
+        let mut admitted = vec![false; self.paths.len()];
+        let mut depth = 0;
+        for (root, in_scope) in verdicts {
+            let root_depth = root.components().count();
+            debug_assert!(
+                root_depth >= depth,
+                "verdicts must be ordered by root depth: {} follows a depth-{depth} root",
+                root.display()
+            );
+            depth = root_depth;
+            let start = self.paths.partition_point(|path| path.as_path() < root);
+            let end = start + self.paths[start..].partition_point(|path| path.starts_with(root));
+            admitted[start..end].fill(in_scope);
+        }
+        admitted
+    }
+
     /// The id of an indexed path, `None` when the index holds no document for it.
     fn id_of(&self, path: &Path) -> Option<usize> {
         self.paths
             .binary_search_by(|probe| probe.as_path().cmp(path))
             .ok()
+    }
+
+    /// An index holding only the path table: the shape
+    /// [`SearchIndex::candidate_mask`] reads, so its ordering can be tested without
+    /// building a corpus.
+    #[cfg(test)]
+    fn with_paths(paths: Vec<PathBuf>) -> Self {
+        Self {
+            index: Bm25Index::new(default_weights()),
+            paths,
+        }
     }
 
     /// One line per document, for the identical-rebuild parity oracle: the id, its
@@ -2053,7 +2188,7 @@ mod tests {
         let index = index_of(default_weights(), &docs);
 
         // Three distinct terms, floor of two: without the escape this document is dropped.
-        let hits = index.search("common note acme", 2, 10);
+        let hits = index.search("common note acme", 2, 10, DocMask::all());
         assert!(
             sorted_ids(hits).contains(&60),
             "a rare term should admit the document that holds it"
@@ -2076,12 +2211,12 @@ mod tests {
         let index = index_of(default_weights(), &docs);
 
         assert_eq!(
-            sorted_ids(index.search("common note acme", usize::MAX, 10)),
+            sorted_ids(index.search("common note acme", usize::MAX, 10, DocMask::all())),
             vec![60]
         );
         // The conjunction path is untouched: `acme` alone does not satisfy `common note acme`.
         assert_eq!(
-            sorted_ids(index.exact("common note acme", 10)),
+            sorted_ids(index.exact("common note acme", 10, DocMask::all())),
             Vec::<usize>::new()
         );
     }
@@ -2098,13 +2233,25 @@ mod tests {
         ];
         let index = index_of(default_weights(), &docs);
 
-        assert_eq!(sorted_ids(index.search("capsules", 0, 10)), vec![0]);
-        assert_eq!(sorted_ids(index.search("capsule", 0, 10)), vec![0]);
-        assert_eq!(sorted_ids(index.search("entry", 0, 10)), vec![1]);
-        assert_eq!(sorted_ids(index.search("entries", 0, 10)), vec![1]);
+        assert_eq!(
+            sorted_ids(index.search("capsules", 0, 10, DocMask::all())),
+            vec![0]
+        );
+        assert_eq!(
+            sorted_ids(index.search("capsule", 0, 10, DocMask::all())),
+            vec![0]
+        );
+        assert_eq!(
+            sorted_ids(index.search("entry", 0, 10, DocMask::all())),
+            vec![1]
+        );
+        assert_eq!(
+            sorted_ids(index.search("entries", 0, 10, DocMask::all())),
+            vec![1]
+        );
         // An AND query whose one term resolves keeps working.
         assert_eq!(
-            sorted_ids(index.search("capsules payload", usize::MAX, 10)),
+            sorted_ids(index.search("capsules payload", usize::MAX, 10, DocMask::all())),
             vec![0]
         );
     }
@@ -2118,7 +2265,10 @@ mod tests {
             (1, ["capsules".to_owned(), String::new()]),
         ];
         let index = index_of(default_weights(), &docs);
-        assert_eq!(sorted_ids(index.search("capsules", 0, 10)), vec![1]);
+        assert_eq!(
+            sorted_ids(index.search("capsules", 0, 10, DocMask::all())),
+            vec![1]
+        );
         assert!(word_forms("as").is_empty());
         assert_eq!(
             word_forms("entries"),
@@ -2156,16 +2306,19 @@ mod tests {
 
         // Body only: the document that repeats the term wins.
         let body_only = index_of([1.0, 0.0], &docs);
-        assert_eq!(body_only.search("alpha", 1, 1)[0].doc_id, 0);
+        assert_eq!(body_only.search("alpha", 1, 1, DocMask::all())[0].doc_id, 0);
 
         // Description only: the one occurrence there wins.
         let description_only = index_of([0.0, 1.0], &docs);
-        assert_eq!(description_only.search("alpha", 1, 1)[0].doc_id, 1);
+        assert_eq!(
+            description_only.search("alpha", 1, 1, DocMask::all())[0].doc_id,
+            1
+        );
 
         // The defaults weight the description above the body, so the short
         // hand-written mention beats the three body repeats.
         let default = index_of(default_weights(), &docs);
-        assert_eq!(default.search("alpha", 1, 1)[0].doc_id, 1);
+        assert_eq!(default.search("alpha", 1, 1, DocMask::all())[0].doc_id, 1);
     }
 
     #[test]
@@ -2178,18 +2331,31 @@ mod tests {
         ];
         let index = index_of(default_weights(), &docs);
 
-        assert_eq!(sorted_ids(index.search("alpha beta", 1, 10)), vec![0, 1, 2]);
-        assert_eq!(sorted_ids(index.search("alpha beta", 2, 10)), vec![0]);
         assert_eq!(
-            sorted_ids(index.search("alpha beta", usize::MAX, 10)),
+            sorted_ids(index.search("alpha beta", 1, 10, DocMask::all())),
+            vec![0, 1, 2]
+        );
+        assert_eq!(
+            sorted_ids(index.search("alpha beta", 2, 10, DocMask::all())),
+            vec![0]
+        );
+        assert_eq!(
+            sorted_ids(index.search("alpha beta", usize::MAX, 10, DocMask::all())),
             vec![0],
             "a bound past the term count is clamped to AND"
         );
 
         // An unseen term still counts towards the requirement, so it can only
         // be satisfied by an OR.
-        assert!(index.search("alpha absent", 2, 10).is_empty());
-        assert_eq!(sorted_ids(index.search("alpha absent", 1, 10)), vec![0, 1]);
+        assert!(
+            index
+                .search("alpha absent", 2, 10, DocMask::all())
+                .is_empty()
+        );
+        assert_eq!(
+            sorted_ids(index.search("alpha absent", 1, 10, DocMask::all())),
+            vec![0, 1]
+        );
     }
 
     #[test]
@@ -2213,17 +2379,23 @@ mod tests {
 
         // BM25 over the two terms ranks the document that repeats one of them,
         // which is the prototype's `error->fix` failure.
-        assert_eq!(index.search("error->fix", 1, 1)[0].doc_id, 0);
+        assert_eq!(
+            index.search("error->fix", 1, 1, DocMask::all())[0].doc_id,
+            0
+        );
 
         // The exact path intersects the postings, so only the document holding
         // both terms answers.
-        let hits = index.exact("error->fix", 10);
+        let hits = index.exact("error->fix", 10, DocMask::all());
         assert_eq!(sorted_ids(hits.clone()), vec![1]);
         assert_eq!(hits[0].matched_terms, 2);
 
         // A term the index never saw makes the conjunction empty.
-        assert!(index.exact("error->absent", 10).is_empty());
-        assert_eq!(sorted_ids(index.exact("error", 10)), vec![0, 1]);
+        assert!(index.exact("error->absent", 10, DocMask::all()).is_empty());
+        assert_eq!(
+            sorted_ids(index.exact("error", 10, DocMask::all())),
+            vec![0, 1]
+        );
     }
 
     #[test]
@@ -2239,7 +2411,10 @@ mod tests {
         patched.remove(2);
 
         // A removed document leaves the ranking.
-        assert_eq!(sorted_ids(patched.search("gamma", 1, 10)), vec![0, 1, 4]);
+        assert_eq!(
+            sorted_ids(patched.search("gamma", 1, 10, DocMask::all())),
+            vec![0, 1, 4]
+        );
 
         corpus[2].1 = ["alpha".to_string(), "gamma delta".to_string()];
         let fresh = index_of(default_weights(), &corpus);
@@ -2254,18 +2429,18 @@ mod tests {
             "beta gamma alpha",
         ] {
             assert_eq!(
-                patched.search(query, 1, 10),
-                fresh.search(query, 1, 10),
+                patched.search(query, 1, 10, DocMask::all()),
+                fresh.search(query, 1, 10, DocMask::all()),
                 "OR ranking differs for {query}"
             );
             assert_eq!(
-                patched.search(query, 2, 10),
-                fresh.search(query, 2, 10),
+                patched.search(query, 2, 10, DocMask::all()),
+                fresh.search(query, 2, 10, DocMask::all()),
                 "AND ranking differs for {query}"
             );
             assert_eq!(
-                patched.exact(query, 10),
-                fresh.exact(query, 10),
+                patched.exact(query, 10, DocMask::all()),
+                fresh.exact(query, 10, DocMask::all()),
                 "exact answer differs for {query}"
             );
         }
@@ -2281,8 +2456,8 @@ mod tests {
         let fresh_without = index_of(default_weights(), &without);
         for query in ["gamma", "delta gamma", "alpha beta"] {
             assert_eq!(
-                shrunk.search(query, 1, 10),
-                fresh_without.search(query, 1, 10),
+                shrunk.search(query, 1, 10, DocMask::all()),
+                fresh_without.search(query, 1, 10, DocMask::all()),
                 "ranking after a removal differs for {query}"
             );
         }
@@ -2349,7 +2524,7 @@ mod tests {
         .collect();
         let index = index_of(default_weights(), &docs);
 
-        let hits = index.search("alpha beta", 1, 10);
+        let hits = index.search("alpha beta", 1, 10, DocMask::all());
         let order: Vec<usize> = hits.iter().map(|hit| hit.doc_id).collect();
         assert_eq!(order, vec![0, 1, 2, 3], "the nearest pair must rank first");
 
@@ -2378,18 +2553,21 @@ mod tests {
             "w00001 w00002 w00003",
             "w00007 w00011",
         ] {
-            let hits = first.search(query, 1, 10);
+            let hits = first.search(query, 1, 10, DocMask::all());
             assert_eq!(
                 hits,
-                second.search(query, 1, 10),
+                second.search(query, 1, 10, DocMask::all()),
                 "two builds disagree on {query}"
             );
             assert_eq!(
                 hits,
-                first.search(query, 1, 10),
+                first.search(query, 1, 10, DocMask::all()),
                 "two queries disagree on {query}"
             );
-            assert_eq!(first.exact(query, 10), second.exact(query, 10));
+            assert_eq!(
+                first.exact(query, 10, DocMask::all()),
+                second.exact(query, 10, DocMask::all())
+            );
         }
 
         // Equal scores fall back to the document id, so the order is total.
@@ -2400,7 +2578,7 @@ mod tests {
         ];
         let index = index_of(default_weights(), &tied);
         let order: Vec<usize> = index
-            .search("same", 1, 10)
+            .search("same", 1, 10, DocMask::all())
             .into_iter()
             .map(|hit| hit.doc_id)
             .collect();
@@ -2457,7 +2635,7 @@ mod tests {
             for min_should_match in [1, 2, 3] {
                 let wanted = reference_search(&docs, query, min_should_match);
                 let got: Vec<(usize, f64)> = index
-                    .search(query, min_should_match, usize::MAX)
+                    .search(query, min_should_match, usize::MAX, DocMask::all())
                     .into_iter()
                     .map(|hit| (hit.doc_id, hit.score))
                     .collect();
@@ -2469,7 +2647,7 @@ mod tests {
                 // The truncated answer is the head of the same order.
                 let top = wanted.len().min(5);
                 let paged: Vec<(usize, f64)> = index
-                    .search(query, min_should_match, top)
+                    .search(query, min_should_match, top, DocMask::all())
                     .into_iter()
                     .map(|hit| (hit.doc_id, hit.score))
                     .collect();
@@ -2478,7 +2656,7 @@ mod tests {
 
             let wanted = reference_exact(&docs, query);
             let got: Vec<(usize, f64)> = index
-                .exact(query, usize::MAX)
+                .exact(query, usize::MAX, DocMask::all())
                 .into_iter()
                 .map(|hit| (hit.doc_id, hit.score))
                 .collect();
@@ -2504,7 +2682,7 @@ mod tests {
             .into_iter()
             .next()
             .expect("a non-empty body");
-        assert!(!index.search(&first_term, 1, 5).is_empty());
+        assert!(!index.search(&first_term, 1, 5, DocMask::all()).is_empty());
     }
 
     #[test]
@@ -2558,7 +2736,7 @@ mod tests {
         let mut hits_seen = 0;
         for query in &queries {
             let started = Instant::now();
-            let hits = index.search(query, 1, 10);
+            let hits = index.search(query, 1, 10, DocMask::all());
             samples.push(started.elapsed().as_secs_f64() * 1e6);
             hits_seen += hits.len();
         }
@@ -2582,7 +2760,7 @@ mod tests {
         let mut samples = Vec::with_capacity(needles.len());
         for needle in &needles {
             let started = Instant::now();
-            let hits = index.exact(needle, 10);
+            let hits = index.exact(needle, 10, DocMask::all());
             samples.push(started.elapsed().as_secs_f64() * 1e6);
             std::hint::black_box(hits);
         }
@@ -2613,18 +2791,98 @@ mod tests {
         docs.push((100, ["common word rare".to_string(), String::new()]));
         let index = index_of(default_weights(), &docs);
 
-        let hits = index.search("common word", 2, 10);
+        let hits = index.search("common word", 2, 10, DocMask::all());
         assert!(!hits.is_empty(), "the common words do match");
         assert!(
             hits.iter().all(Hit::weak),
             "a match resting only on corpus-wide terms is weak"
         );
 
-        let hits = index.search("common rare", 2, 10);
+        let hits = index.search("common rare", 2, 10, DocMask::all());
         assert_eq!(sorted_ids(hits.clone()), vec![100]);
         assert!(
             !hits[0].weak(),
             "a rare term makes the same document evidence"
         );
+    }
+
+    /// A candidate mask removes work, never an answer: ranking a subset is ranking
+    /// everything and filtering afterwards, score for score and tie for tie,
+    /// because the corpus-wide statistics a score reads — per-term document
+    /// frequency, each field's average length — are properties of the whole index.
+    #[test]
+    fn a_candidate_mask_answers_what_the_filter_left_of_the_full_ranking() {
+        let corpus = generated_corpus(200, 40, 300);
+        let index = index_of(default_weights(), &corpus);
+        // Two documents in three are candidates, so the mask drops documents a
+        // query does match and the comparison is not vacuous.
+        let admitted: Vec<bool> = (0..corpus.len()).map(|id| id % 3 != 0).collect();
+        let mask = DocMask::new(&admitted);
+
+        for query in ["w00001", "w00003 w00004", "w00007 w00021 w00033"] {
+            for min_should_match in [1, 2, 3] {
+                let filtered: Vec<Hit> = index
+                    .search(query, min_should_match, usize::MAX, DocMask::all())
+                    .into_iter()
+                    .filter(|hit| admitted[hit.doc_id])
+                    .collect();
+                assert!(
+                    !filtered.is_empty(),
+                    "the mask must leave an answer for {query}"
+                );
+                assert_eq!(
+                    index.search(query, min_should_match, usize::MAX, mask),
+                    filtered,
+                    "the masked OR ranking differs for {query} at {min_should_match}"
+                );
+            }
+            let filtered: Vec<Hit> = index
+                .exact(query, usize::MAX, DocMask::all())
+                .into_iter()
+                .filter(|hit| admitted[hit.doc_id])
+                .collect();
+            assert_eq!(
+                index.exact(query, usize::MAX, mask),
+                filtered,
+                "the masked conjunction differs for {query}"
+            );
+        }
+    }
+
+    /// The mask a scoped read hands the ranking is the post-ranking filter's own
+    /// answer, document by document: a repo's documents are the contiguous id range
+    /// under its root, a deeper root's verdict replaces a shallower one's (that is
+    /// how `RepoMap::repo_of` picks the owner of a path), and a path under no root
+    /// is out of scope once anything is filtered.
+    #[test]
+    fn a_candidate_mask_is_the_per_document_filter_over_the_paths() {
+        let paths: Vec<PathBuf> = [
+            "/root/2brain/a/x.md",
+            "/root/2brain/b/deep/z.md",
+            "/root/2brain/b/y.md",
+            "/root/vault/c.md",
+            "/tmp/unowned/d.md",
+        ]
+        .iter()
+        .map(PathBuf::from)
+        .collect();
+        let index = SearchIndex::with_paths(paths);
+
+        // In `RepoMap::repo_of`'s resolution order: root depth, then name.
+        let verdicts = [
+            (Path::new("/root/2brain"), false),
+            (Path::new("/root/vault"), true),
+            (Path::new("/root/2brain/b"), true),
+        ];
+        assert_eq!(
+            index.candidate_mask(verdicts),
+            vec![false, true, true, true, false],
+            "a nested root overrides its parent, and an unowned path stays out"
+        );
+
+        // Nothing in scope: every document is a non-candidate, which is what a
+        // workspace with no owned repo answers.
+        let none = index.candidate_mask([]);
+        assert_eq!(none, vec![false; 5]);
     }
 }
