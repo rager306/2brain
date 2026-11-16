@@ -494,6 +494,30 @@ binary set would need about a hundred tasks to detect four points.
 That is the honest form of "we improved it": the change was accepted on a criterion that could see it, and the
 statistical instrument says plainly what it could not.
 
+### Six axes, and which of them has a number attached
+
+`docs/research/intelligence-axes-2026-11-16.md` sets out the axes that can still move, each with the measurement that
+would decide it. The findings that change the plan:
+
+- **The tool surface is a fixed cost per session, and nobody had counted it**: `tools/list` is 58 847 bytes, about
+  14 700 tokens, before an agent asks anything — 12 340 of descriptions and 21 466 of schemas. "Fewer tools" is
+  therefore mostly a bytes problem, and the cheapest lever is a one-line description on the wire with the long one
+  behind `tb_describe_tool`, which already exists.
+- **Seven entries instead of thirty-six** is the shape worth testing (`tb_orient`, `tb_context`, `tb_read`, `tb_links`,
+  `tb_check`, `tb_write`, `tb_help`), and the test is a routing experiment on 24 task descriptions, not an argument.
+  ruvector's "8–15 tools" is a recommendation with no code behind it; our own routing rate is the evidence that counts.
+- **The FSM belongs in MCP `prompts` and `resources`, not in the daemon.** We ship neither, they cost zero schema bytes,
+  and they version with the repository. A server-side stage would duplicate what the write gate already enforces.
+- **SIMD is deferred with a written trigger** (p95 above 5 ms or a corpus above 50 000 notes, then a decode benchmark);
+  **concurrency is measured first**, because "several agents on one base" is the product and we have never put two
+  readers on it.
+- **Temporality has a rung that needs no new store**: `tb_content(path, commit)` through `git show`. Bitemporal comes
+  later and only if a consumer asks.
+
+The missing list, ordered by cost of continued absence: a graded ranking metric, token accounting, abstention
+(`absent` 0/3 is a base asserting on questions it cannot answer), lineage, a deploy that lands, and a concurrency
+number.
+
 ### What that changes in the stages
 
 - **Stage 1** is done except the deploy window; #4 is the one remaining piece of design debt it created. The window
