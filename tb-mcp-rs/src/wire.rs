@@ -479,6 +479,8 @@ mod payloads {
         /// `null` on the page that reached the end, never a sentinel.
         next_offset: Option<u64>,
         exact: Option<bool>,
+        /// The character width each match's `excerpt` was cut to.
+        excerpt_chars: Option<u64>,
     }
 
     #[derive(Debug, Deserialize)]
@@ -486,6 +488,9 @@ mod payloads {
         path: Option<String>,
         score: Option<f64>,
         matched_terms: Option<u64>,
+        /// A window of the note's body around the query terms, or absent when the engine holds
+        /// no body for the path. Additive: an engine from before the field sends none.
+        excerpt: Option<String>,
     }
 
     /// One diagnostic, the shape `diagnostics` and `validate_value` share.

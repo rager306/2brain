@@ -14,6 +14,15 @@ source.
 
 ### Added
 
+- **`search` matches carry a body excerpt** (engine, adapter). Every `tb_search` match now carries
+  `excerpt` — up to 240 characters of the note's BODY around the first query term it holds, one line,
+  cut on word boundaries, `…` where an edge was cut — and the page states `excerpt_chars`. The text is a
+  slice of the parse the ranking already holds, so quoting a match reads no disk and the index keeps no
+  second copy of it. Additive: `schema_version` stays 29; the golden `tb_search` capture is re-blessed
+  for the two new fields. On the twelve-task context pack it removes the per-fragment `tb_content` read:
+  **4.00 calls and 8.86 KB per answer → 1.00 call and 2.44 KB**, with the evidence unchanged (7/9 found,
+  corroboration 7/9 at 1.0). `tools/kb/context_pack.py` labels each fragment `search-excerpt` or
+  `content`, because a fragment built from a search answer carries no `hash`, `commit` or `status`.
 - **`2brain init <dir>`** — one command to a workspace that works: `.2brain/repo.yaml`, a root README the
   engine expects (so a fresh workspace reports no `repo-missing-readme`), a `git init` when the directory is
   not already a work tree, and the exact next command printed. `--template minimal|blank` copies a starter —

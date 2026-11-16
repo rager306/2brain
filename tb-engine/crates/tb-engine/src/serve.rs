@@ -14495,6 +14495,16 @@ struct SearchMatch {
     /// that needs an answer should treat a page of weak hits as the base having
     /// nothing, and ask a sharper question.
     weak: bool,
+    /// A short window of the note's BODY — never its frontmatter — around the
+    /// first query term it holds, cut to [`search::EXCERPT_CHARS`] characters at a
+    /// word boundary, one line, with `…` where an edge was cut from the middle.
+    ///
+    /// Enough for a caller to judge a hit without a second read: the context pack
+    /// used to spend one `content` call per fragment for exactly this window
+    /// (`docs/research/context-pack.md`). Absent when the catalogue holds no body
+    /// for the path at read time, which a caller reads as "ask `content`".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    excerpt: Option<String>,
 }
 
 /// The `search` answer: one page of ranked documents plus the totals that make
@@ -14512,6 +14522,12 @@ struct SearchAnswer {
     next_offset: Option<usize>,
     /// Whether the conjunction path answered.
     exact: bool,
+    /// The character width each `matches[].excerpt` was cut to
+    /// ([`search::EXCERPT_CHARS`]). Echoed once rather than per match, so a caller
+    /// can budget the answer without reading it. It is the window, not a hard
+    /// bound: a window that falls inside one long word runs forward to the end of
+    /// it, and one cut from a shorter body is shorter.
+    excerpt_chars: usize,
 }
 
 /// The `search` answer over the held index.
@@ -14539,6 +14555,7 @@ fn search_view(
         .filter(|hit| in_read_scope(kb, hit.path, repo, scope))
         .collect();
     let total = hits.len();
+    let terms = crate::search::distinct_terms(query);
     let matches: Vec<SearchMatch> = hits
         .into_iter()
         .skip(offset)
@@ -14548,6 +14565,7 @@ fn search_view(
             score: hit.score,
             matched_terms: hit.matched_terms,
             weak: hit.weak,
+            excerpt: excerpt_of(kb, hit.path, &terms),
         })
         .collect();
     let next_offset = (offset + matches.len() < total).then_some(offset + matches.len());
@@ -14557,7 +14575,25 @@ fn search_view(
         offset,
         next_offset,
         exact,
+        excerpt_chars: crate::search::EXCERPT_CHARS,
     }
+}
+
+/// A match's body excerpt, cut from the parse the catalogue already holds.
+///
+/// No disk read and no `spawn_blocking`: the body is a slice of the parse the ranking itself
+/// was built from. `None` when the path has no catalogue entry or no body, which leaves the
+/// `excerpt` field off the match rather than sending an empty string a caller could mistake for
+/// "the note says nothing".
+fn excerpt_of(kb: &KnowledgeBase, path: &std::path::Path, terms: &[String]) -> Option<String> {
+    let own = path.to_path_buf();
+    let entry = kb.catalog.get(&own)?;
+    let body = crate::search::body_of(&entry.parse)?;
+    Some(crate::search::excerpt(
+        body,
+        terms,
+        crate::search::EXCERPT_CHARS,
+    ))
 }
 
 /// Whether a path is in the `repo` / `scope` selection the catalogue-wide reads

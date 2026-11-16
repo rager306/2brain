@@ -1,8 +1,10 @@
 {
   "search": {
     "exact": false,
+    "excerpt_chars": 240,
     "matches": [
       {
+        "excerpt": "the zarquon protocol. gamma appears once among these filler words: one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen.",
         "matched_terms": 1,
         "path": "$VAULT/alpha.md",
         "score": 1.400407728984024,

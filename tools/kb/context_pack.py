@@ -2,11 +2,16 @@
 """Build a context pack from the tools that already exist, and measure what it costs.
 
 `docs/research/context-pack.md` fixes the contract and says a dedicated tool has to earn its place by cutting calls
-and bytes. This is the composition that has to beat: candidates from `tb_search`, a window from `tb_content` per
-fragment, provenance from the same read, and the pack assembled here.
+and bytes. This is the composition that has to beat: candidates from `tb_search` carrying their own short excerpt,
+and a `tb_content` window only for a fragment the search did not quote.
 
     python3 tools/kb/context_pack.py --query "why was the freshness prior rejected" --budget 6000
     python3 tools/kb/context_pack.py --tasks --json     # measure the task set: calls, bytes, evidence found
+
+Each fragment states its `provenance`, because the fields a reader can trust differ: `search-excerpt` carries the
+body window and the ranking reason but no `hash`, `commit` or `status` (the search answer holds no frontmatter),
+while `content` carries all of them from the one read that produced the text. A fragment whose excerpt the engine
+did not send falls back to `tb_content`, so the pack works against an engine from before the field.
 
 The pack is deliberately explicit about what it does NOT establish: `missing` is filled from the terms that found
 nothing, and `weak` fragments are marked rather than dropped, because a reader deciding what to trust needs both.
@@ -49,7 +54,9 @@ class Pack:
         return payload
 
 
-def build(client: StdioMcp, budget: Pack, query: str, fragments: int, excerpt: int) -> dict:
+def build(
+    client: StdioMcp, budget: Pack, query: str, fragments: int, excerpt: int, use_excerpt: bool = True
+) -> dict:
     search = budget.call(client, "tb_search", {"query": query, "limit": fragments})
     hits = (search.get("search") or {}).get("matches") or []
     out = {
@@ -62,26 +69,44 @@ def build(client: StdioMcp, budget: Pack, query: str, fragments: int, excerpt: i
     }
     for hit in hits:
         path = hit["path"].removeprefix(PREFIX)
-        content = budget.call(client, "tb_content", {"repo": "vault", "path": path, "max_chars": excerpt})
-        body = content.get("content") or {}
-        text = body.get("text") or ""
-        fields, prose = _frontmatter(text)
-        out["fragments"].append(
-            {
-                "path": path,
-                "hash": body.get("hash"),
-                "commit": body.get("head") or body.get("commit"),
-                "about": fields.get("description", "").strip('"'),
-                "excerpt": prose[:excerpt],
-                "reason": {
-                    "score": round(hit.get("score", 0.0), 2),
-                    "matched_terms": hit.get("matched_terms"),
-                    "weak": bool(hit.get("weak")),
-                },
-                "status": _status(body.get("text") or ""),
-                "truncated": bool(body.get("truncated")),
-            }
-        )
+        reason = {
+            "score": round(hit.get("score", 0.0), 2),
+            "matched_terms": hit.get("matched_terms"),
+            "weak": bool(hit.get("weak")),
+        }
+        if use_excerpt and hit.get("excerpt"):
+            # The search answer quoted the body itself: no second read, and no frontmatter either.
+            out["fragments"].append(
+                {
+                    "path": path,
+                    "provenance": "search-excerpt",
+                    "hash": None,
+                    "commit": None,
+                    "about": None,
+                    "excerpt": hit["excerpt"],
+                    "reason": reason,
+                    "status": None,
+                    "truncated": None,
+                }
+            )
+        else:
+            content = budget.call(client, "tb_content", {"repo": "vault", "path": path, "max_chars": excerpt})
+            body = content.get("content") or {}
+            text = body.get("text") or ""
+            fields, prose = _frontmatter(text)
+            out["fragments"].append(
+                {
+                    "path": path,
+                    "provenance": "content",
+                    "hash": body.get("hash"),
+                    "commit": body.get("head") or body.get("commit"),
+                    "about": fields.get("description", "").strip('"'),
+                    "excerpt": prose[:excerpt],
+                    "reason": reason,
+                    "status": _status(text),
+                    "truncated": bool(body.get("truncated")),
+                }
+            )
         if hit.get("weak"):
             out["weak_fragments"] += 1
     out["engine_version"] = None  # filled by the caller from _meta when it needs it
@@ -111,12 +136,14 @@ def _status(text: str) -> str | None:
     return _frontmatter(text)[0].get("status")
 
 
-def measure(tasks_path: Path, client: StdioMcp, fragments: int, excerpt: int) -> list[dict]:
+def measure(
+    tasks_path: Path, client: StdioMcp, fragments: int, excerpt: int, use_excerpt: bool = True
+) -> list[dict]:
     rows = json.loads(tasks_path.read_text())["rows"]
     report = []
     for task in rows:
         budget = Pack()
-        pack = build(client, budget, task["query"], fragments, excerpt)
+        pack = build(client, budget, task["query"], fragments, excerpt, use_excerpt)
         wanted = task.get("accept") or task.get("evidence") or []
         found = [f["path"] for f in pack["fragments"] if f["path"] in wanted]
         # A multi-note question needs its corroboration, not one mention, so the count matters more than the boolean.
@@ -143,9 +170,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--query")
     parser.add_argument("--fragments", type=int, default=CANDIDATES)
-    parser.add_argument("--excerpt", type=int, default=FRAGMENT_CHARS)
+    parser.add_argument(
+        "--excerpt",
+        type=int,
+        default=FRAGMENT_CHARS,
+        help="window per fragment for the tb_content fallback; an engine excerpt is used as it arrives",
+    )
     parser.add_argument("--tasks", action="store_true")
     parser.add_argument("--tasks-file", type=Path, default=REPO / "tools/ranking/tasks.json")
+    parser.add_argument(
+        "--no-excerpt",
+        action="store_true",
+        help="ignore the engine's excerpt and read tb_content per fragment: the control arm of the measurement",
+    )
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--socket", default=None)
     parser.add_argument("--vault", default=None)
@@ -160,7 +197,9 @@ def main() -> int:
 
     with StdioMcp([ADAPTER, "mcp", target], name="context-pack", env=env) as client:
         if args.tasks:
-            report = measure(args.tasks_file, client, args.fragments, args.excerpt)
+            report = measure(
+                args.tasks_file, client, args.fragments, args.excerpt, not args.no_excerpt
+            )
             if args.json:
                 print(json.dumps(report, indent=2))
             else:
@@ -178,7 +217,7 @@ def main() -> int:
         if not args.query:
             parser.error("--query or --tasks is required")
         budget = Pack()
-        pack = build(client, budget, args.query, args.fragments, args.excerpt)
+        pack = build(client, budget, args.query, args.fragments, args.excerpt, not args.no_excerpt)
         pack["cost"] = {"calls": budget.calls, "bytes": budget.bytes}
         print(json.dumps(pack, indent=2, ensure_ascii=False))
     return 0

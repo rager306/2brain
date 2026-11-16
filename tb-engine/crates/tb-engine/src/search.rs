@@ -1105,16 +1105,10 @@ impl<const N: usize> Bm25Index<N> {
     /// The count includes terms the index never saw, so a caller asking for an
     /// AND still requires them.
     fn query_terms(&self, query: &str) -> (usize, Vec<u32>) {
-        let tokens = tokenize(query);
-        let mut distinct: Vec<&str> = Vec::with_capacity(tokens.len());
-        for token in &tokens {
-            if !distinct.contains(&token.as_str()) {
-                distinct.push(token);
-            }
-        }
+        let distinct = distinct_terms(query);
         let ids = distinct
             .iter()
-            .filter_map(|term| self.term_ids.get(*term).copied())
+            .filter_map(|term| self.term_ids.get(term).copied())
             .collect();
         (distinct.len(), ids)
     }
@@ -1286,6 +1280,20 @@ pub(crate) fn indexed(parse: &FileParse) -> bool {
     indexed_fields(parse).is_some()
 }
 
+/// A parse's note BODY, `None` when it has none: the text a `search` match quotes.
+///
+/// This is field 0 of the index and the only text an excerpt is cut from. It is a
+/// slice of the parse the catalogue already holds, so quoting a match reads no
+/// disk and the index keeps no second copy of the document.
+pub(crate) fn body_of(parse: &FileParse) -> Option<&str> {
+    match parse {
+        FileParse::Instance { body, .. } | FileParse::Note { body, .. } if !body.is_empty() => {
+            Some(body)
+        }
+        _ => None,
+    }
+}
+
 /// The index text of one parse: `[body, description]`, `None` when the parse
 /// carries no body.
 ///
@@ -1293,19 +1301,16 @@ pub(crate) fn indexed(parse: &FileParse) -> bool {
 /// instance. The read answers "which note says this", so a file whose only text
 /// is a frontmatter declaration is not an answer.
 fn indexed_fields(parse: &FileParse) -> Option<[&str; 2]> {
-    match parse {
-        FileParse::Instance { body, instance, .. } if !body.is_empty() => {
-            let description = instance
-                .as_ref()
-                .map(|inst| description_of(&inst.fields))
-                .unwrap_or("");
-            Some([body, description])
-        }
-        FileParse::Note { body, fields, .. } if !body.is_empty() => {
-            Some([body, description_of(fields)])
-        }
-        _ => None,
-    }
+    let body = body_of(parse)?;
+    let description = match parse {
+        FileParse::Instance { instance, .. } => instance
+            .as_ref()
+            .map(|inst| description_of(&inst.fields))
+            .unwrap_or(""),
+        FileParse::Note { fields, .. } => description_of(fields),
+        _ => return None,
+    };
+    Some([body, description])
 }
 
 /// The `description:` frontmatter value, empty when absent or not a string.
@@ -1317,6 +1322,154 @@ fn description_of(fields: &[InstanceField]) -> &str {
             _ => None,
         })
         .unwrap_or("")
+}
+
+/// The character width a `search` match's `excerpt` is cut to.
+///
+/// 240 characters is a paragraph or two of note prose: enough for a reader to judge what a hit is
+/// about, and a fifth of the 1 200-character window the context pack used to read per fragment with
+/// a second call (`docs/research/context-pack.md`). An excerpt is a candidate, not the document — a
+/// caller that needs the whole note still asks `content`, and the pack keeps that as its fallback.
+pub const EXCERPT_CHARS: usize = 240;
+
+/// The distinct lowercase terms of a query, in first-appearance order.
+///
+/// Two callers: the ranking's `min_should_match` count, and the excerpt's search for the term to
+/// quote. One derivation, so a match is located by exactly the terms the index matched.
+pub(crate) fn distinct_terms(query: &str) -> Vec<String> {
+    let mut terms: Vec<String> = Vec::new();
+    for term in tokenize(query) {
+        if !terms.contains(&term) {
+            terms.push(term);
+        }
+    }
+    terms
+}
+
+/// A short window of a note's body, cut around the first query term it holds.
+///
+/// The window opens a third of its width before the first match, so the terms a reader searched for
+/// are not clipped off the left edge; both edges snap to word boundaries, so the excerpt quotes whole
+/// words — a window that falls inside one unbroken run runs forward to the end of it, one word past
+/// the budget, and a run longer than that stays cut; `…` marks each edge that was cut out of the
+/// middle of the text, and whitespace runs collapse to one space so the excerpt is one line a caller
+/// can put in a table.
+///
+/// `terms` are [`distinct_terms`] of the query. When the body holds none of them — a hit that matched
+/// only its `description:` — the window opens at the body's start, which is still the note's opening
+/// paragraph.
+pub(crate) fn excerpt(body: &str, terms: &[String], width: usize) -> String {
+    if width == 0 || body.is_empty() {
+        return String::new();
+    }
+    let start = window_start(body, terms, width);
+    let mut end = start;
+    for (taken, (at, ch)) in body[start..].char_indices().enumerate() {
+        if taken == width {
+            break;
+        }
+        end = start + at + ch.len_utf8();
+    }
+
+    // Snap the left edge forward out of a partial word, and the right edge back to the last space.
+    let mut from = start;
+    if from > 0
+        && !body[..from]
+            .chars()
+            .next_back()
+            .is_some_and(char::is_whitespace)
+    {
+        match body[from..]
+            .char_indices()
+            .find(|(_, ch)| ch.is_whitespace())
+        {
+            Some((at, _)) => from += at,
+            None => from = body.len(),
+        }
+    }
+    let mut to = end;
+    if to < body.len() && !body[to..].chars().next().is_some_and(char::is_whitespace) {
+        match body[from..to]
+            .char_indices()
+            .rev()
+            .find(|(_, ch)| ch.is_whitespace())
+        {
+            Some((at, _)) => to = from + at,
+            // No space to cut back to, so the window runs forward to the end of the word instead:
+            // one word wide, and never more than another window, so a body with no spaces at all
+            // (a blob under a text extension) still costs about what it is budgeted.
+            None => {
+                if let Some((at, _)) = body[to..]
+                    .char_indices()
+                    .take(width)
+                    .find(|(_, ch)| ch.is_whitespace())
+                {
+                    to += at;
+                }
+            }
+        }
+    }
+    if to < from {
+        to = from;
+    }
+
+    let text = body[from..to]
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut out = String::with_capacity(text.len() + 8);
+    if from > 0 {
+        out.push('…');
+    }
+    out.push_str(&text);
+    if to < body.len() {
+        out.push('…');
+    }
+    out
+}
+
+/// Where the excerpt window opens: a third of the width before the first query term the body holds,
+/// or the body's start when it holds none.
+fn window_start(body: &str, terms: &[String], width: usize) -> usize {
+    let Some(at) = first_term(body, terms) else {
+        return 0;
+    };
+    body[..at]
+        .char_indices()
+        .rev()
+        .nth(width / 3)
+        .map_or(0, |(index, _)| index)
+}
+
+/// The byte offset at which `body` first states one of `terms`.
+///
+/// The same definition of a term the index uses — a run of Unicode alphanumerics, lowercased — so the
+/// excerpt quotes a word the ranking actually matched, not a substring of another word. ASCII runs
+/// compare without allocating; only non-ASCII text pays a lowercase conversion.
+fn first_term(body: &str, terms: &[String]) -> Option<usize> {
+    if terms.is_empty() {
+        return None;
+    }
+    let mut start: Option<usize> = None;
+    for (at, ch) in body.char_indices() {
+        if ch.is_alphanumeric() {
+            start.get_or_insert(at);
+        } else if let Some(from) = start.take()
+            && terms.iter().any(|term| term_matches(&body[from..at], term))
+        {
+            return Some(from);
+        }
+    }
+    start.filter(|from| terms.iter().any(|term| term_matches(&body[*from..], term)))
+}
+
+/// Whether one body token is one of the query's terms, allocating only when the token is non-ASCII.
+fn term_matches(token: &str, term: &str) -> bool {
+    if token.is_ascii() {
+        token.eq_ignore_ascii_case(term)
+    } else {
+        token.to_lowercase() == term
+    }
 }
 
 /// The default minimum should match for a query: how many distinct terms a
@@ -1707,6 +1860,90 @@ mod tests {
         }
         sort_reference(&mut scored);
         scored
+    }
+
+    /// The excerpt is a window of the body around the queried term: the term is inside it, both
+    /// edges are marked as cut, and it stays inside the character budget.
+    #[test]
+    fn an_excerpt_opens_near_the_queried_term() {
+        let body = format!(
+            "{} the zarquon protocol sits here {}",
+            "leading filler words. ".repeat(40),
+            "trailing filler words. ".repeat(40)
+        );
+        let text = excerpt(&body, &distinct_terms("zarquon"), EXCERPT_CHARS);
+        assert!(text.contains("zarquon"), "{text}");
+        assert!(
+            text.starts_with('…') && text.ends_with('…'),
+            "a window cut from the middle is marked at both edges: {text}"
+        );
+        assert!(
+            text.chars().count() <= EXCERPT_CHARS + 2,
+            "{} characters over a {EXCERPT_CHARS}-character budget: {text}",
+            text.chars().count()
+        );
+    }
+
+    /// Both edges are word boundaries: an excerpt is a run of whole words from the body, never a
+    /// prefix or a suffix of one. Every width below is shorter than the body, so both edges land
+    /// inside it.
+    #[test]
+    fn an_excerpt_never_quotes_half_a_word() {
+        let body = "alphabetical bravissimo charleston delta echo foxtrot golf hotel india juliet";
+        let words: Vec<&str> = body.split_whitespace().collect();
+        for width in [8, 16, 24, 40] {
+            let text = excerpt(body, &[], width);
+            let trimmed = text.trim_matches('…');
+            let first = trimmed.split(' ').next().expect("an excerpt holds a word");
+            let last = trimmed
+                .split(' ')
+                .next_back()
+                .expect("an excerpt holds a word");
+            assert!(
+                words.contains(&first),
+                "width {width} starts mid-word: {text}"
+            );
+            assert!(words.contains(&last), "width {width} ends mid-word: {text}");
+        }
+    }
+
+    /// A body shorter than the budget is quoted whole, with no ellipsis to imply text was left out —
+    /// and paragraph breaks and indentation collapse to one line, because the excerpt is a line a
+    /// caller puts in a table.
+    #[test]
+    fn a_short_body_is_quoted_whole_on_one_line() {
+        let body = "the error->fix atom\n\n  second   paragraph\n";
+        assert_eq!(
+            excerpt(body, &distinct_terms("error"), EXCERPT_CHARS),
+            "the error->fix atom second paragraph"
+        );
+    }
+
+    /// A hit whose match was in the `description:` holds none of the query terms in its body; the
+    /// excerpt is then the note's opening, which is still what a reader needs to judge it.
+    #[test]
+    fn a_body_holding_no_query_term_quotes_its_opening() {
+        let body = "opening line of the note. unrelated words follow.";
+        let text = excerpt(body, &distinct_terms("nothing here"), 24);
+        assert!(text.starts_with("opening line"), "{text}");
+        assert!(text.ends_with('…'), "a cut tail is marked: {text}");
+    }
+
+    /// A term is located the way the index defines one: a whole alphanumeric run, lowercased. A
+    /// substring of another word is not a match, so the window does not open on `errors` when the
+    /// query asked for `error`, and non-ASCII text is matched by its lowercase form.
+    #[test]
+    fn a_term_is_located_as_a_whole_token() {
+        assert_eq!(
+            first_term("the errors page", &distinct_terms("error")),
+            None
+        );
+        assert_eq!(
+            first_term("the error page", &distinct_terms("error")),
+            Some(4)
+        );
+        // Cyrillic is two bytes per character: "Привет, " is 14 bytes.
+        assert_eq!(first_term("Привет, мир", &distinct_terms("МИР")), Some(14));
     }
 
     #[test]

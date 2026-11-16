@@ -275,6 +275,70 @@ fn three_distinct_terms_need_two_of_them_by_default() {
     assert_eq!(search["matches"][0]["matched_terms"], 2);
 }
 
+// (e) Every match carries a short excerpt of the note's BODY around the queried
+// term, and the answer states the width it was cut to. The window is what lets a
+// caller judge a hit without a second `content` read (`docs/research/context-pack.md`);
+// it is body text only, so a note whose `description:` matched still gets its
+// opening paragraph rather than YAML.
+#[test]
+fn a_match_carries_a_body_excerpt_around_the_queried_term() {
+    let (_dir, root) = seeded();
+    let mut h = harness(&root);
+    let answered = search(&mut h.client, json!({ "query": "zarquon" }));
+    assert_eq!(answered["excerpt_chars"], 240, "{answered}");
+    let excerpt = answered["matches"][0]["excerpt"]
+        .as_str()
+        .expect("a match carries an excerpt");
+    assert!(excerpt.contains("zarquon"), "{excerpt}");
+    assert!(
+        !excerpt.contains("title:"),
+        "an excerpt is body text, never frontmatter: {excerpt}"
+    );
+
+    // A term that occurs only in the `description:` still finds the note, and the
+    // excerpt is then the body's opening: the query terms are not in the body to
+    // open on.
+    write(
+        &root,
+        "described.md",
+        "---\ntitle: described\ndescription: a quasar vocabulary note\n---\n\n\
+         The opening paragraph says nothing about the query.\n",
+    );
+    h.engine.rebuild();
+    let described = search(&mut h.client, json!({ "query": "quasar" }));
+    assert_eq!(
+        names(&described),
+        vec!["described.md".to_string()],
+        "{described}"
+    );
+    let excerpt = described["matches"][0]["excerpt"]
+        .as_str()
+        .expect("a match carries an excerpt");
+    assert!(
+        excerpt.starts_with("The opening paragraph"),
+        "a description-only hit quotes the body's opening: {excerpt}"
+    );
+
+    // The excerpt follows the body, not a copy of it: it is cut from the parse the
+    // catalogue holds, so an edit that reaches the catalogue reaches the excerpt on
+    // the next read.
+    write(
+        &root,
+        "described.md",
+        "---\ntitle: described\ndescription: a quasar vocabulary note\n---\n\n\
+         A rewritten body now opens the note.\n",
+    );
+    h.engine.rebuild();
+    let rewritten = search(&mut h.client, json!({ "query": "quasar" }));
+    let excerpt = rewritten["matches"][0]["excerpt"]
+        .as_str()
+        .expect("a match carries an excerpt");
+    assert!(
+        excerpt.starts_with("A rewritten body"),
+        "the excerpt is cut from the held parse, so it follows the edit: {excerpt}"
+    );
+}
+
 // The golden capture: the served shape and its values against a fixed corpus,
 // checked on every run rather than only structurally. It is regenerable in
 // process (`AU_BLESS_SEARCH_CAPTURE=1`), which is why this one capture is
