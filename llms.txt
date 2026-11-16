@@ -1,0 +1,54 @@
+# 2brain
+
+> A typed knowledge engine over markdown — notes claim a type, link each other with `[[wiki-links]]` and
+> carry addressable `^block-ids` — plus the MCP server agents read and write it through. One Rust binary,
+> one language on the request path, files as the source of truth. Status: alpha; the on-disk format still
+> carries its pre-fork `au.engine.*` naming and is migrating in steps.
+
+This file maps the repository for an agent. Each link is a document written to be read whole, not a page
+of a website.
+
+## Start here
+
+- [README.md](README.md): what the project is and is not, quickstart, the MCP surface, development gates.
+- [AGENTS.md](AGENTS.md): how to work *in* this repository — the three layers, the live-system rules, the
+  gates that must stay green, the docs split between design and operations.
+- [CHANGELOG.md](CHANGELOG.md): what changed, including the changes that were measured and rejected.
+
+## Use the server
+
+- [tb-mcp-rs/skills/2brain/SKILL.md](tb-mcp-rs/skills/2brain/SKILL.md): the tool ladder, the result
+  envelope, the read-then-write loop, the recovery path for an unclear mutation.
+- [tb-mcp-rs/skills/2brain/references/tool-map.md](tb-mcp-rs/skills/2brain/references/tool-map.md): every
+  tool with its arguments, generated from the running binary.
+- [tb-mcp-rs/docs/roadmap.md](tb-mcp-rs/docs/roadmap.md): what the MCP surface does not do yet, stated
+  plainly.
+
+## The contracts
+
+- [tb-engine/crates/tb-engine/WIRE.md](tb-engine/crates/tb-engine/WIRE.md): the engine wire protocol, verb
+  by verb, with the schema version and the payload of each read.
+- [tb-type-system/](tb-type-system/): the type-system contract the vault format depends on.
+- [docs/naming.md](docs/naming.md): which names are the product, which are contracts, and which are
+  mid-migration.
+- [LICENSE.md](LICENSE.md): the monorepo's license map (Sustainable Use 1.0 for the engine and server, MIT
+  for the content repositories).
+
+## Evidence
+
+- [tb-mcp-rs/docs/verification.md](tb-mcp-rs/docs/verification.md): every property this repository claims,
+  the command that re-measures it, and the date it was last measured.
+- [docs/trajectory.md](docs/trajectory.md): what is done, what is open, the gate for each open item, and
+  what was measured and reverted.
+- [docs/research/](docs/research/): the measurements behind the ranking, the payload modes, the judge layer,
+  the tier-C migration, and the engine-to-server path.
+- [tools/cards/metrics.json](tools/cards/metrics.json): the numbers on the README cards, each with the
+  command that produced it.
+
+## Optional
+
+- [docs/architecture-plan.md](docs/architecture-plan.md): the architecture as it was planned, kept for the
+  reasoning rather than as a description of today.
+- [docs/internal/](docs/internal/): operations for one host — swap runbooks, client wiring, run logs. Not
+  needed to understand the system; a second machine would rewrite this first.
+- [upstream/](upstream/): the upstream project's own documentation, kept verbatim as an archive.
