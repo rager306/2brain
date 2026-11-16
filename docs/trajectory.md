@@ -373,6 +373,20 @@ follows is the queue after them, ordered by what it would cost to be wrong.
 | **aliases** | the vocabulary class has a design: what a note says about its other names, and the experiment that sizes it | `docs/research/`, `tools/kb/` | measurement on the 1 032 notes |
 | **context tool** (`tb_context`) | one call replaces the pack's composition, and it must beat 4 calls / ~9 KB — a bound that has already moved to 1 call / 2.44 KB | `serve.rs`, `lib.rs`, `context_pack.py` | the twelve-task pack |
 
+Two defects now have a task each, so they are queue entries with a pre-registered rule rather than opinions
+(`docs/research/task-set.md` records both rules before any fix):
+
+- **the `min_should_match` floor hides what the ranker found** — `oracle matrix tests` admits five notes and the right
+  one is not among them, while the same ranking at `min_should_match: 1` puts it third of 83. Proposed rule:
+  `matched >= msm || best_idf >= RARE_IDF`, i.e. a rare term that matched is enough even when the AND floor is not
+  met. Accepted only if `absent` stays 0/3 and no other class moves.
+- **the title is not a scored field** — a note titled after the question ranks 8th behind a survey, with 6 of 6 terms.
+  A title field with its own weight is the obvious mechanism; the risk is that a title match flatters a shallow note,
+  so the rule is that `hub-vs-atomic` must reach rank 1 and `absent` must not gain a hit.
+
+Both touch `search.rs`, so they queue behind the visit-bound lane rather than beside it: one writer per file, and the
+build lock makes a second engine lane wait anyway.
+
 The visit-bound lane goes first because it is the only one whose failure mode is silent: a linear scan inside a read
 looks exactly like a constant one on a thousand notes, and doubling the corpus would not be noticed until it was slow.
 
