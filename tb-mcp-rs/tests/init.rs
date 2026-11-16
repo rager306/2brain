@@ -248,7 +248,9 @@ fn the_project_memory_template_ships_the_six_record_types() {
         "error-fix",
     ] {
         assert!(
-            types.iter().any(|file| file == &format!("{name}.type.yaml")),
+            types
+                .iter()
+                .any(|file| file == &format!("{name}.type.yaml")),
             "{name}.type.yaml is missing from {types:?}"
         );
     }
