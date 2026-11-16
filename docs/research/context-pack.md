@@ -63,3 +63,34 @@ The cross-agent run showed the deeper half: a pack can only report `status` if t
 report conflicts if two notes disagree *visibly*. The vault today is 99% `status: current`, so a pack built on it
 would report "no conflicts" and be technically correct and practically useless. That is why the lifecycle vocabulary
 and the `proposed → accepted` rule are part of this work rather than a separate hygiene chore.
+
+## The composition, measured
+
+`tools/kb/context_pack.py` builds the pack above from the existing tools and counts what it costs. On the twelve
+tasks of `tools/ranking/tasks.json`, live vault, 2026-11-16:
+
+| fragments read | excerpt chars | calls per answer | bytes per answer | tasks whose evidence appears |
+|---:|---:|---:|---:|---:|
+| 3 | 1 200 | 4 | 8.7 KB | 7 / 9 answerable |
+| 5 | 1 200 | 6 | 15.2 KB | 7 / 9 |
+| 8 | 600 | 9 | 13.3 KB | 7 / 9 |
+| 8 | 1 200 | 9 | 24.2 KB | 7 / 9 |
+
+**Three fragments find exactly the evidence eight do.** Reading eight documents per answer — the naive composition —
+costs 2.25× the calls and 2.8× the bytes for the same binary hit rate. That is the number a `tb_context` has to beat:
+its budget must be at most four calls and about nine kilobytes per answer, or it is a convenience wrapper with a
+worse price.
+
+The binary "evidence appears" is a weak judge on its own: a multi-note question needs *supporting* fragments, not one
+mention. The next run of this harness should report how many of the expected paths the pack contains per class, and
+a pack that finds the note but not its corroboration must not count as a pass.
+
+### What the pack already says that a rank list cannot
+
+- `status` and `about` come from each fragment's frontmatter, so a reader sees "proposed" or "superseded" beside
+  the text instead of trusting it;
+- `weak` is carried per fragment rather than averaged away, so a page of common-word matches is visible as such;
+- `hash` and `commit` come from the same read that produced the excerpt, so a fragment can be re-read and verified;
+- `missing` and `conflicts` remain the caller's work — this composition does not guess them, and an empty list means
+  "nobody looked", not "nothing is missing". That is the honest state and the reason the contract is worth writing
+  down before a tool hides it.
