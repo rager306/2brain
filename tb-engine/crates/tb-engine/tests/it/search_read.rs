@@ -4,7 +4,10 @@
 //! occurs in one note finds that note, `exact` answers a punctuation token as a
 //! conjunction, a body rewrite changes the ranking on the next read (the
 //! incremental index patch), and the last page reports `next_offset: null`
-//! rather than a sentinel. The capture test at the end pins the served shape.
+//! rather than a sentinel. The source-identity tests pin the URL lookup: a
+//! pasted `source_url` finds its notes, an equivalent form finds the same
+//! notes, an unknown URL falls through to the plain ranking. The capture test
+//! at the end pins the served shape.
 
 #![cfg(unix)]
 
@@ -364,6 +367,170 @@ fn a_match_carries_a_body_excerpt_around_the_queried_term() {
         excerpt.starts_with("A rewritten body"),
         "the excerpt is cut from the held parse, so it follows the edit: {excerpt}"
     );
+}
+
+// The source-identity lookup: a query that is itself a URL is answered by the
+// notes whose `source_url:` names it, ahead of anything the ranking can say
+// about the words inside that URL. The corpus is its own, so these URL fields
+// cannot enter the shared corpus's answers above.
+fn seeded_with_source() -> (tempfile::TempDir, PathBuf) {
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    crate::seed_repo(&root);
+    write(
+        &root,
+        "cited.md",
+        "---\ntitle: cited\nsource_url: \"https://arxiv.org/abs/2602.20021\"\n---\n\n\
+         an echo attack on peer messages mentions arxiv 2602 20021 in prose too\n",
+    );
+    // The same identity in a different form: the scheme, `www.`, the
+    // abs/pdf choice, a query string and a fragment all normalize away.
+    write(
+        &root,
+        "cited-echo.md",
+        "---\ntitle: cited echo\nsource_url: \"http://www.arxiv.org/pdf/2602.20021?utm_source=x#conclusion\"\n---\n\n\
+         a second extraction of the same paper\n",
+    );
+    // Prose that holds the URL's words without holding its identity: it can
+    // only ever be ranked, never looked up.
+    write(
+        &root,
+        "prose-only.md",
+        "---\ntitle: prose only\n---\n\n\
+         arxiv 2602 20021 as plain words plus example org not held, no source_url field\n",
+    );
+    (dir, root)
+}
+
+// (source-lookup) The lookup answers with the carrying notes, unranked and
+// marked; the ranking follows, with the looked-up paths deduplicated — so
+// `cited.md`, whose prose holds the URL's words, appears once, not twice.
+#[test]
+fn a_pasted_source_url_finds_the_notes_that_carry_it() {
+    let (_dir, root) = seeded_with_source();
+    let mut h = harness(&root);
+    let search = search(
+        &mut h.client,
+        json!({ "query": "https://arxiv.org/abs/2602.20021" }),
+    );
+    // Catalogue path order: `cited-echo.md` sorts before `cited.md`.
+    assert_eq!(
+        names(&search),
+        vec![
+            "cited-echo.md".to_string(),
+            "cited.md".to_string(),
+            "prose-only.md".to_string(),
+        ],
+        "{search}"
+    );
+    // Three answers: two from the lookup, one from the ranking. Without the
+    // dedupe the looked-up note would also be ranked and `total` would be 4.
+    assert_eq!(search["total"], 3, "{search}");
+    for looked_up in &search["matches"].as_array().unwrap()[..2] {
+        assert_eq!(
+            looked_up["matched_source"]["identity"], "arxiv:2602.20021",
+            "{search}"
+        );
+    }
+    // Each hit echoes the URL ITS OWN note authored.
+    assert_eq!(
+        search["matches"][0]["matched_source"]["source_url"],
+        "http://www.arxiv.org/pdf/2602.20021?utm_source=x#conclusion",
+        "{search}"
+    );
+    assert_eq!(
+        search["matches"][1]["matched_source"]["source_url"], "https://arxiv.org/abs/2602.20021",
+        "{search}"
+    );
+    // No ranking happened for a lookup hit: the existing fields sit at their
+    // no-match values, and the proof the hit is exact is `matched_source`.
+    let looked_up = &search["matches"][0];
+    assert_eq!(looked_up["score"], 0.0);
+    assert_eq!(looked_up["matched_terms"], 0);
+    assert_eq!(looked_up["weak"], false);
+    let ranked = &search["matches"][2];
+    assert!(
+        ranked["score"].as_f64().expect("a ranked score") > 0.0,
+        "{search}"
+    );
+    assert_eq!(ranked["matched_terms"], 4, "{search}");
+    assert!(ranked.get("matched_source").is_none(), "{search}");
+}
+
+// (source-lookup) Identity, not spelling: whatever the caller pasted, if it
+// normalizes to the same source, it finds the same notes — and the answer
+// echoes each note's OWN spelling of the URL.
+#[test]
+fn an_equivalent_url_form_finds_the_same_notes() {
+    let (_dir, root) = seeded_with_source();
+    let mut h = harness(&root);
+    let search = search(
+        &mut h.client,
+        json!({ "query": "HTTP://WWW.arxiv.ORG/pdf/2602.20021?utm_source=x#conclusion" }),
+    );
+    assert_eq!(
+        names(&search)[..2],
+        ["cited-echo.md".to_string(), "cited.md".to_string()],
+        "{search}"
+    );
+    for looked_up in &search["matches"].as_array().unwrap()[..2] {
+        assert_eq!(looked_up["matched_source"]["identity"], "arxiv:2602.20021");
+    }
+    // Each note's authored form, not the query's, is what comes back.
+    assert_eq!(
+        search["matches"][0]["matched_source"]["source_url"],
+        "http://www.arxiv.org/pdf/2602.20021?utm_source=x#conclusion",
+        "{search}"
+    );
+    assert_eq!(
+        search["matches"][1]["matched_source"]["source_url"], "https://arxiv.org/abs/2602.20021",
+        "{search}"
+    );
+}
+
+// (source-lookup) A URL the base holds no `source_url` for must not return
+// worse results than the ranking it interrupted: the answer is exactly the
+// plain ranking of the URL's own terms, with no lookup marker anywhere.
+#[test]
+fn an_unknown_url_falls_through_to_the_plain_ranking() {
+    let (_dir, root) = seeded_with_source();
+    let mut h = harness(&root);
+    let url = search(
+        &mut h.client,
+        json!({ "query": "https://example.org/not-held" }),
+    );
+    let words = search(&mut h.client, json!({ "query": "example org not held" }));
+    // Same terms, same ranking: the URL shape added nothing and took nothing.
+    assert_eq!(url["total"], words["total"], "{url} vs {words}");
+    assert_eq!(names(&url), names(&words), "{url} vs {words}");
+    for m in url["matches"].as_array().unwrap() {
+        assert!(m.get("matched_source").is_none(), "{m}");
+    }
+}
+
+// (source-lookup) The looked-up hits are ranks like any ranks: paging crosses
+// the lookup/ranked boundary on the same `offset` / `next_offset` rules.
+#[test]
+fn a_source_page_pages_like_any_page() {
+    let (_dir, root) = seeded_with_source();
+    let mut h = harness(&root);
+    let first = search(
+        &mut h.client,
+        json!({ "query": "https://arxiv.org/abs/2602.20021", "limit": 1 }),
+    );
+    assert_eq!(names(&first), vec!["cited-echo.md".to_string()], "{first}");
+    assert_eq!(first["next_offset"], 1, "{first}");
+    let second = search(
+        &mut h.client,
+        json!({ "query": "https://arxiv.org/abs/2602.20021", "limit": 2, "offset": 1 }),
+    );
+    assert_eq!(
+        names(&second),
+        vec!["cited.md".to_string(), "prose-only.md".to_string()],
+        "{second}"
+    );
+    assert_eq!(second["offset"], 1);
+    assert_eq!(second["next_offset"], Value::Null, "{second}");
 }
 
 // The golden capture: the served shape and its values against a fixed corpus,

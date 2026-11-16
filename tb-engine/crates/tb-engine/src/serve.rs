@@ -14544,6 +14544,26 @@ struct SearchMatch {
     /// for the path at read time, which a caller reads as "ask `content`".
     #[serde(skip_serializing_if = "Option::is_none")]
     excerpt: Option<String>,
+    /// Present when this match was found by source identity — the query is a
+    /// URL whose normalized identity equals this note's `source_url:` — and
+    /// absent on every ranked match, so a caller can tell an exact lookup from
+    /// a scored guess without comparing paths.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    matched_source: Option<MatchedSource>,
+}
+
+/// Why a match was found by source identity, the proof an exact URL lookup
+/// carries that a ranked hit does not.
+#[derive(Debug, Serialize)]
+struct MatchedSource {
+    /// The note's `source_url:` as the note authored it.
+    source_url: String,
+    /// The identity both the query and that URL normalize to (the provenance
+    /// rules: scheme, `www.`, fragment, query string and trailing slashes
+    /// dropped; `arxiv.org/abs|pdf|html/<id>`, `docs.google.com/document/d/<id>`
+    /// and `github.com/<owner>/<repo>` collapsed). See
+    /// [`crate::source_url::identity`].
+    identity: String,
 }
 
 /// The `search` answer: one page of ranked documents plus the totals that make
@@ -14591,28 +14611,51 @@ fn search_view(
     offset: usize,
 ) -> SearchAnswer {
     let mask = scope_engaged(repo, scope).then(|| candidate_mask(kb, repo, scope));
-    let hits: Vec<crate::search::SearchHit<'_>> = kb.search.query(
-        query,
-        exact,
-        min_should_match,
-        mask.as_deref()
-            .map_or(crate::search::DocMask::all(), crate::search::DocMask::new),
-    );
-    let total = hits.len();
-    let terms = crate::search::distinct_terms(query);
-    let matches: Vec<SearchMatch> = hits
+    // A URL-shaped query is a lookup before it is a ranking: the notes whose
+    // `source_url:` names the queried address are the exact answer, and they
+    // lead the page so a caller cannot mistake them for scored guesses. The
+    // ranking still runs and follows them, minus the paths the lookup named.
+    // A query that is not a URL, or a URL no `source_url` holds, finds nothing
+    // here and falls through to the ranking unchanged.
+    let source_hits: Vec<crate::source_url::SourceHit> =
+        crate::source_url::lookup(&kb.catalog, query)
+            .into_iter()
+            .filter(|hit| in_read_scope(kb, &hit.path, repo, scope))
+            .collect();
+    let source_paths: std::collections::HashSet<&std::path::Path> =
+        source_hits.iter().map(|hit| hit.path.as_path()).collect();
+    let ranked: Vec<crate::search::SearchHit<'_>> = kb
+        .search
+        .query(
+            query,
+            exact,
+            min_should_match,
+            mask.as_deref()
+                .map_or(crate::search::DocMask::all(), crate::search::DocMask::new),
+        )
         .into_iter()
-        .skip(offset)
-        .take(limit)
-        .map(|hit| SearchMatch {
-            path: hit.path.display().to_string(),
-            score: hit.score,
-            matched_terms: hit.matched_terms,
-            weak: hit.weak,
-            excerpt: excerpt_of(kb, hit.path, &terms),
-        })
+        .filter(|hit| !source_paths.contains(hit.path))
         .collect();
-    let next_offset = (offset + matches.len() < total).then_some(offset + matches.len());
+    let total = source_hits.len() + ranked.len();
+    let terms = crate::search::distinct_terms(query);
+    let page_end = (offset + limit).min(total);
+    let mut matches: Vec<SearchMatch> = Vec::with_capacity(page_end.saturating_sub(offset));
+    for index in offset..page_end {
+        matches.push(if let Some(hit) = source_hits.get(index) {
+            source_match(kb, hit, &terms)
+        } else {
+            let hit = &ranked[index - source_hits.len()];
+            SearchMatch {
+                path: hit.path.display().to_string(),
+                score: hit.score,
+                matched_terms: hit.matched_terms,
+                weak: hit.weak,
+                excerpt: excerpt_of(kb, hit.path, &terms),
+                matched_source: None,
+            }
+        });
+    }
+    let next_offset = (page_end < total).then_some(page_end);
     SearchAnswer {
         matches,
         total,
@@ -14620,6 +14663,31 @@ fn search_view(
         next_offset,
         exact,
         excerpt_chars: crate::search::EXCERPT_CHARS,
+    }
+}
+
+/// The match a source-identity lookup answers with: the note itself, unranked.
+///
+/// `score` 0.0, `matched_terms` 0 and `weak` false say "no ranking happened" —
+/// there is no BM25 answer here to interpret, and the existing fields keep
+/// their meanings by staying at their no-match values. The proof the hit is
+/// exact rather than a guess is `matched_source`: the identity both the query
+/// and the note's own `source_url:` normalize to.
+fn source_match(
+    kb: &KnowledgeBase,
+    hit: &crate::source_url::SourceHit,
+    terms: &[String],
+) -> SearchMatch {
+    SearchMatch {
+        path: hit.path.display().to_string(),
+        score: 0.0,
+        matched_terms: 0,
+        weak: false,
+        excerpt: excerpt_of(kb, &hit.path, terms),
+        matched_source: Some(MatchedSource {
+            source_url: hit.note_url.clone(),
+            identity: hit.identity.clone(),
+        }),
     }
 }
 

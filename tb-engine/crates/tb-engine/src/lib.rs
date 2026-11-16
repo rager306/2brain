@@ -50,6 +50,7 @@ mod resolution_build;
 mod search;
 #[cfg(unix)]
 mod serve;
+mod source_url;
 #[cfg(test)]
 mod spancap;
 mod typerefs;
