@@ -89,8 +89,18 @@ Two things the step forced: `FileSystem` gained a required `is_dir` (probing `<r
 wrong wherever the directory exists without a marker), and `consistency_diagnostics` now takes a filesystem so
 its four span joins resolve per root.
 
-Step 3 adds `schema_type_matches`, `canonical_schema_claim` and `is_builtin_repo`, because a predicate alone
-leaves every legacy claim unresolvable while the floor check stays silent (`docs/research/tier-c-seams.md`).
+Step 3 landed (`ddee8f7`): `schema_type_matches`, `is_hardwired_engine_name`, `canonical_schema_claim` and
+`is_builtin_repo`, applied in three parse wrappers — a claim in the future spelling now resolves to the builtin
+node instead of vanishing, which is the case the floor check would otherwise skip silently.
+
+Step 4 landed (`8438196`): `au migrate identity [--dry-run] [--root] [--all]` prints the rename and every
+`type:`/`extends:` line it would rewrite, refuses a repo with a named reason (dirty tree, saga in flight, live
+daemon), and writes nothing — including not creating `.2brain` to "check". Running it twice is a no-op, tested.
+The writer is deliberately absent: without `--dry-run` it prints the plan and refuses, because half a migration
+is worse than none.
+
+Next: the writer (exact-byte splicing, one commit per repo, clean-tree check), then migrate a leaf member, then
+the monorepo, then the vault, then release 2 flips `DEFS` and `BUILTIN_ENGINE_REPO`.
 
 - **Gate**: a migrated repository opens with 0 diagnostics and the unmigrated tree still opens.
 - **Cost**: the largest single change left, and the only one that touches files on disk.
