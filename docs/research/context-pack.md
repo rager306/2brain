@@ -82,8 +82,10 @@ its budget must be at most four calls and about nine kilobytes per answer, or it
 worse price.
 
 The binary "evidence appears" is a weak judge on its own: a multi-note question needs *supporting* fragments, not one
-mention. The next run of this harness should report how many of the expected paths the pack contains per class, and
-a pack that finds the note but not its corroboration must not count as a pass.
+mention. The harness now reports `evidence_paths / expected_paths` per task, and at three fragments every answerable
+task scores 1/1 except the ambiguous one (0/3 — a query with three legitimate answers cannot be covered by a
+three-fragment pack that ranks one note first). A pack that finds the note but not its corroboration does not count
+as a pass.
 
 ### What the pack already says that a rank list cannot
 

@@ -119,6 +119,8 @@ def measure(tasks_path: Path, client: StdioMcp, fragments: int, excerpt: int) ->
         pack = build(client, budget, task["query"], fragments, excerpt)
         wanted = task.get("accept") or task.get("evidence") or []
         found = [f["path"] for f in pack["fragments"] if f["path"] in wanted]
+        # A multi-note question needs its corroboration, not one mention, so the count matters more than the boolean.
+        corroboration = len(found) / len(wanted) if wanted else None
         report.append(
             {
                 "class": task["class"],
@@ -127,6 +129,9 @@ def measure(tasks_path: Path, client: StdioMcp, fragments: int, excerpt: int) ->
                 "bytes": budget.bytes,
                 "fragments": len(pack["fragments"]),
                 "evidence_found": bool(found),
+                "evidence_paths": len(found),
+                "expected_paths": len(wanted),
+                "corroboration": corroboration,
                 "weak": pack["weak_fragments"],
                 "expect": task["expect"],
             }
@@ -165,8 +170,9 @@ def main() -> int:
                 print(f"{len(report)} tasks, {calls} calls, {size} bytes, evidence in {found}")
                 for row in report:
                     mark = "ok  " if row["evidence_found"] or row["expect"] == "none" else "MISS"
+                    covered = "" if not row["expected_paths"] else f"{row['evidence_paths']}/{row['expected_paths']}"
                     print(f"  {mark} {row['class']:<10} {row['calls']:>2} calls {row['bytes']:>6} B "
-                          f"{row['weak']} weak  {row['query'][:50]}")
+                          f"{covered:>4} evidence {row['query'][:44]}")
             return 0
 
         if not args.query:
