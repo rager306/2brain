@@ -353,3 +353,52 @@ fn assert_same(actual: &Value, golden: &Value, at: &str) {
         _ => assert_eq!(actual, golden, "{at}"),
     }
 }
+
+/// A dependency mounted beside the workspace must not answer for it.
+///
+/// `scope` defaulted to `all`, so a term that occurs only in a `discover` member came back as if it were the
+/// user's own knowledge: measured on the live vault, a question the vault could not answer was answered by a
+/// dependency repository's README (`docs/research/task-set.md`). The default is now `own`; `all` is something a
+/// caller asks for.
+#[test]
+fn a_default_search_answers_from_the_own_workspace_not_a_mounted_dependency() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    crate::seed_repo(&root);
+    fs::create_dir_all(root.join("dep/.arsumbris")).unwrap();
+    fs::write(root.join("dep/.arsumbris/repo.yaml"), "name: dep\n").unwrap();
+    crate::seed_readme(&root.join("dep"));
+    fs::write(
+        root.join(".arsumbris/workspace.yaml"),
+        "edit:\n  - v\ndiscover:\n  - dep\ntype: au.engine.workspace::au-engine\n",
+    )
+    .unwrap();
+    write(
+        &root,
+        "own.md",
+        "---\ntitle: own\n---\n\nthe zarquon protocol\n",
+    );
+    write(
+        &root,
+        "dep/borrowed.md",
+        "---\ntitle: borrowed\n---\n\nthe zarquon protocol, borrowed\n",
+    );
+    let mut h = harness(&root);
+
+    let default = search(&mut h.client, json!({"query": "zarquon"}));
+    assert_eq!(
+        names(&default),
+        vec!["own.md"],
+        "the default scope answers from the workspace, not a mounted dependency: {default}"
+    );
+
+    let all = search(&mut h.client, json!({"query": "zarquon", "scope": "all"}));
+    assert_eq!(
+        paths(&all).len(),
+        2,
+        "`scope: all` is the escape hatch and sees both: {all}"
+    );
+
+    let explicit_own = search(&mut h.client, json!({"query": "zarquon", "scope": "own"}));
+    assert_eq!(names(&explicit_own), vec!["own.md"], "{explicit_own}");
+}

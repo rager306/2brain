@@ -153,3 +153,34 @@ fn grep_refuses_an_empty_query_and_counts_what_it_skipped() {
     assert_eq!(resp["result"]["grep"]["total"], 3, "{resp}");
     assert_eq!(resp["result"]["grep"]["skipped_files"], 1, "{resp}");
 }
+
+/// `grep` shares `search`'s default: the workspace the caller asked about, not the dependencies mounted beside it.
+#[test]
+fn a_default_grep_scans_the_own_workspace_not_a_mounted_dependency() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    crate::seed_repo(&root);
+    fs::create_dir_all(root.join("dep/.arsumbris")).unwrap();
+    fs::write(root.join("dep/.arsumbris/repo.yaml"), "name: dep\n").unwrap();
+    crate::seed_readme(&root.join("dep"));
+    fs::write(
+        root.join(".arsumbris/workspace.yaml"),
+        "edit:\n  - v\ndiscover:\n  - dep\ntype: au.engine.workspace::au-engine\n",
+    )
+    .unwrap();
+    fs::write(root.join("own.md"), "---\ntitle: own\n---\n\nthe zarquon line\n").unwrap();
+    fs::write(root.join("dep/borrowed.md"), "---\ntitle: borrowed\n---\n\nthe zarquon line\n").unwrap();
+    let mut h = harness(&root);
+
+    let default = h
+        .client
+        .query(&json!({ "read": "grep", "query": "zarquon" }))
+        .unwrap();
+    assert_eq!(default["result"]["grep"]["total"], 1, "{default}");
+
+    let all = h
+        .client
+        .query(&json!({ "read": "grep", "query": "zarquon", "scope": "all" }))
+        .unwrap();
+    assert_eq!(all["result"]["grep"]["total"], 2, "{all}");
+}

@@ -32,8 +32,9 @@ With `scope: "own"` the same query returns vault notes only. Two consequences:
 - The three `absent` tasks cannot be measured at all while the default is `all`: the corpus answering them is not
   the corpus under test.
 
-Fix, pending: `tb_search` and `tb_grep` default to `own`, `scope: "all"` stays as the escape. It is a behaviour
-change and belongs in the CHANGELOG, not in a footnote.
+**Fixed 2026-11-16.** `tb_search` and `tb_grep` default to `own`; `scope: "all"` stays as the escape. The behaviour
+change is in the CHANGELOG, and two end-to-end tests pin it: a default query answers from the own workspace, an
+explicit `all` sees the mounted dependency as well.
 
 ## 2. Function words count as matches, so no question is unanswerable
 

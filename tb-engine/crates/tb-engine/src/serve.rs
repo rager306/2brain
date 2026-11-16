@@ -2048,9 +2048,11 @@ struct GrepArgs {
     /// Absent = every mounted member. Present = only this member's files.
     #[serde(default)]
     repo: Option<String>,
-    /// `all` (default) or `own` (only the user's own editable repos).
+    /// Absent = `own`, the same default as `search`: a literal scan answers a question about the caller's own
+    /// workspace, and a dependency repository mounted beside it is not part of the answer. `all` widens to every
+    /// mounted member.
     #[serde(default)]
-    scope: Scope,
+    scope: Option<Scope>,
     /// Case-sensitive matching. Default false: prose search is case-insensitive
     /// far more often than not, and the exact-case caller can ask.
     #[serde(default)]
@@ -2078,9 +2080,15 @@ struct SearchArgs {
     /// Absent = every mounted member. Present = only this member's documents.
     #[serde(default)]
     repo: Option<String>,
-    /// `all` (default) or `own` (only the user's own editable repos).
+    /// Absent = `own`, only the workspace the caller is asking about: its own
+    /// editable members, not the dependency repositories mounted beside them.
+    /// `all` widens to every mounted member, including dependencies, and is
+    /// something a caller asks for rather than receives. This read defaults to
+    /// `own` deliberately, unlike the workspace-wide type reads: a search is a
+    /// question about the caller's own knowledge, and a dependency repository's
+    /// README answering it is the "searched the wrong base" failure.
     #[serde(default)]
-    scope: Scope,
+    scope: Option<Scope>,
     /// Require every distinct query term instead of the `min_should_match`
     /// default. A conjunction, not a phrase: the index stores no positions.
     #[serde(default)]
@@ -11697,7 +11705,7 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
                 return Response::invalid("`query` must not be empty: it would match every line");
             }
             let repo = args.repo.clone();
-            let scope = wire::TypeScope::new(args.scope.own_only());
+            let scope = wire::TypeScope::new(args.scope.unwrap_or(Scope::Own).own_only());
             let limit = args.limit.unwrap_or(GREP_DEFAULT_LIMIT).min(GREP_MAX_LIMIT);
             let offset = args.offset.unwrap_or(0);
             // The paths come from the held state; the bytes come from disk, the
@@ -11722,7 +11730,7 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
                 return Response::invalid("`query` must not be empty: it carries no term to rank");
             }
             let repo = args.repo.clone();
-            let scope = wire::TypeScope::new(args.scope.own_only());
+            let scope = wire::TypeScope::new(args.scope.unwrap_or(Scope::Own).own_only());
             let limit = args
                 .limit
                 .unwrap_or(SEARCH_DEFAULT_LIMIT)

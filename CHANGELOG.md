@@ -57,6 +57,13 @@ source.
 
 ### Changed
 
+- **BREAKING for callers who relied on the default: `tb_search` and `tb_grep` read the workspace, not its
+  dependencies.** Both reads defaulted `scope` to `all`, so a question the served vault could not answer came back
+  answered by a dependency repository's README — measured, not hypothesised: *"the exact number of stars on the
+  2brain repository"* returned `/root/2brain/tb-mcp-sdk/README.md` as its top hit. `scope` now defaults to `own`
+  (the workspace's own editable members) and `all` is an explicit request. The task-level set in
+  `tools/ranking/tasks.json` is what made the failure visible.
+
 - **A task-level query set** (`tools/ranking/tasks.json`, `tasks_eval.py`): twelve hand-written tasks — exact
   identifiers, paraphrases, a Russian question about English material, multi-note questions, one ambiguous query,
   and three the base should not answer — scored per class. Its first run found the two defects below.
