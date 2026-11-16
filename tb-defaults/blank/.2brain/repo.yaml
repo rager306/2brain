@@ -1,5 +1,5 @@
 # The minimal curated empty start: the host UI + agent layer mounted, nothing composed.
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine
 name: blank
 description: the curated empty start — host UI and agent layer, nothing composed
 deps:

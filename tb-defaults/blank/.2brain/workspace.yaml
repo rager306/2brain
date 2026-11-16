@@ -1,4 +1,4 @@
-type: au.engine.workspace::au-engine
+type: tb.engine.workspace::tb-engine
 edit:
   - blank                     # the containing repo, required (rewritten to the new name on create)
 discover:
