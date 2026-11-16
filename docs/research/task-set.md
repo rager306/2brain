@@ -337,3 +337,125 @@ In the shape the earlier experiments used, written down before the change:
 
 Any of them that misses its row is rejected and published here, like the stopword experiment and the freshness
 prior.
+
+## What a paired bootstrap can and cannot say about eighteen tasks
+
+`ruvector-crates-2026-11-16.md` entry 2 proposes a paired bootstrap with three outcomes over a graded query set, and
+warns that its source repository cannot be used as evidence: that harness synthesizes BM25 tokens from vector
+components and reports `recall_at_1`, `recall_at_10` and `recall_at_100` as the same number. The lesson is not "do not
+measure" but "validate the instrument against a ranker that is worse by construction before reading its verdict".
+`tools/ranking/bootstrap.py` is the instrument; this section is its validation and the one real pair it was run on.
+
+The tool takes two `tasks_eval.py --json` runs over the same queries and vault, pairs them by position after checking
+that the query/class sequence is identical (the `mixed-language` class has two rows with the same query and different
+`args`, so the JSON cannot pair on its own keys), and resamples the per-task deltas 2 000 times. It prints one of
+three words and never a fourth: **better** when the 95% interval's lower bound is above zero, **worse** when the upper
+bound is below zero, otherwise **inconclusive**. The RNG is seeded from the deltas themselves, so a verdict is
+reproducible from the two files. Beside the interval it prints the exact McNemar p-value, the tasks whose pass/fail
+changed (named), and the smallest net gain this n could certify.
+
+### The two controls
+
+Both ran on the candidate build that carries `006ac0b`, over a `cp -a` copy of the live vault
+(`tools/ranking/candidate_engine.py`), with `tasks_eval.py` unmodified. That build's run reproduced the accepted
+`after.json` byte for byte, so the real pair below is the one the change was accepted on.
+
+| control | before | after | changed | delta | 95% interval | verdict | McNemar |
+|---|---|---|---|---|---|---|---|
+| self-pair, two processes | 11/18 | 11/18 | 0 | 0 | [0.000, 0.000] | **inconclusive** | p = 1.000 |
+| page order reversed | 11/18 | 5/18 | 8 | −6 (−0.333) | [−0.611, −0.056] | **worse** | p = 0.070 |
+
+The self-pair is the check that matters most: a statistic that calls identical input "better" is broken, and this one
+cannot. Its interval is [0, 0] because every resample of a zero vector is zero, and the word for that is
+`inconclusive` — the tool cannot certify no effect any more than it can certify an effect.
+
+The degraded ranker is a stdio proxy (`tools/ranking/degraded_ranker.py`) that forwards every MCP message unchanged
+and reverses the `matches` array of a `tb_search` reply. The engine, the vault and `tasks_eval.py` are untouched, so
+the only difference between the arms is the order of the page. It loses seven tasks and gains one: the seven are every
+row that passed at rank 1 (seven rows in five classes), and the gain is `absent` — reversed, the Kafka page's head is
+`inbox/bui-blender-ui-library.md` with one matched term, and one term is that class' pass condition. That gain is
+the first useful thing the control says: **the pass count is not monotone in ranking quality**, because the `absent`
+class rewards a page whose head is a thin match. The verdict is `worse`, which is what it must be.
+
+The second thing it says is a caveat on the tool. The bootstrap interval excludes zero while exact McNemar does not
+(p = 0.070 on seven losses to one gain). Both read the same eight flips and answer different questions: the
+percentile interval is an interval on the *mean delta* and treats the ten unchanged tasks as evidence about that
+mean, while McNemar asks only about the direction of the discordant pairs. For binary data the bootstrap is the more
+liberal of the two, and here it is liberal by enough to change a 5% decision. The output prints both and says so; a
+gate that reads only the verdict word reads the weaker signal.
+
+### The change we shipped today
+
+| n | before | after | changed | delta | 95% interval | verdict | McNemar |
+|---|---|---|---|---|---|---|---|
+| 18 | 10/18 | 11/18 | 1 | +1 (+0.056) | [0.000, 0.167] = [0, +3] tasks | **inconclusive** | p = 1.000 |
+
+`006ac0b` gives `min_should_match` a rare-term escape: a match survives the floor when one matched term has
+`best_idf >= RARE_IDF`. The one changed task is the default `mixed-language` row — `oracle matrix tests` goes from 5
+candidates with the right note absent to 83 candidates with it at rank 3. Every other class keeps its verdict.
+Eleven more rows moved in rank or candidate count and contribute nothing to the statistic; that is the metric's
+blindness, not a null result.
+
+The arithmetic behind `inconclusive` is short. A resample of 18 tasks misses a single flipped task with probability
+(17/18)^18 = 0.357, so 36% of resamples of the observed delta vector have a mean of exactly zero, and a 95%
+percentile interval must include zero. One flip cannot be separated from none at n=18 by this tool or by any paired
+test: exact McNemar on one discordant pair is p = 1.000.
+
+What the interval does say is worth as much as what it refuses. Its upper bound is +3 tasks, so the data are
+consistent with a gain anywhere from zero to 16.7 points. The honest sentence is not "a small improvement" but "an
+improvement too small for this set to separate from none, and no larger than three tasks". The lower bound is 0
+because that is the smallest value the metric can produce, not because the change was measured as neutral.
+
+What the number cannot support, in order of how easy it is to forget:
+
+- **It is not a statement about questions in general.** The rows are a hand-built diagnostic set, not a sample of a
+  population. The interval describes how far the pass count would move if these same 18 tasks were drawn again — a
+  null model for noise, not an estimate of user-visible quality.
+- **The rows are not independent, and 18 overstates n.** There are 11 classes; `mixed-language` is two rows of the
+  same query with different flags; the three `absent` rows share a pass rule that a refusing ranker satisfies.
+- **A pass count is the coarsest available metric.** It cannot see rank 3 becoming rank 2, which is what most of the
+  eleven moved rows did. A change that improves ranking without moving a task across its threshold scores zero.
+- **The tool's resolution is four net flips, and it barely moves with n.** (1−k/18)^18 first falls below 0.025 at
+  k=4, so `resolution` prints 4; n=40 and n=100 need the same 4, which is 10% and 4% of those sets. Growing the set
+  buys resolution in *rate*, linearly; it never buys resolution in *number of tasks*, because a resample of n tasks
+  misses four of them with probability about e^−4. And a `better` verdict at four flips is still short of the exact
+  test (McNemar p = 0.125), which is the same liberality the control showed.
+- **A bootstrap run after the change cannot supply the hypothesis.** It tests the difference in pass counts, not the
+  mechanism the change was made for.
+
+### The criterion, and what to gate on next
+
+The acceptance rule for `006ac0b` was pre-registered and class-level: `mixed-language` 2/2, `absent` 0/3, every other
+class unmoved. It was the right instrument, and the bootstrap does not change that — it explains the limit:
+
+- the criterion is a **defect detector**. It names a mechanism (a floor that dropped a note the ranker had already
+  placed third of 83), the two rows that show it, and the guard the fix must not break. Its evidence is direct: 5
+  candidates to 83, rank 3, `weak: false`, and the same three `absent` top hits at 5, 2 and 5 matched terms. A
+  pass-count aggregate cannot see any of that, and at n=18 it could not certify a one-task move either.
+- the bootstrap is a **gain estimator**, and at this n it is only a screen. With a resolution of four tasks,
+  requiring `better` would reject every ranking change of the size we actually ship, on the day it is measured.
+
+So the split that should hold until the set changes shape: **gate on task-level criteria, publish the bootstrap
+beside them, and treat `worse` as a veto even when the class criterion passes.** That veto is the one thing the
+statistic adds to the current process, and the degraded control is a pair it calls `worse`.
+
+The bootstrap becomes the gate when its resolution falls below the effect we intend to claim. With pass/fail that is
+about 100 independent tasks for a four-point effect, and the reason is the metric rather than the statistic: four
+discordant pairs is the smallest number a 95% interval on a mean can separate at any n. A graded metric (nDCG@10 or
+MRR over two to four relevance grades, as entry 2 proposes) makes the per-task value continuous, so the interval uses
+every row instead of only the rows that crossed a threshold. That, not a larger pass/fail set, is what would make a
+statistical gate worth installing.
+
+Reproduction:
+
+```sh
+tools/ranking/candidate_engine.py --start                                  # vault copy, its own socket
+BRAIN_BIN=<candidate adapter> python3 tools/ranking/tasks_eval.py --json \
+  --socket <socket> --vault <copy> > a.json
+BRAIN_BIN=tools/ranking/degraded_ranker.py BRAIN_REAL_ADAPTER=<adapter> \
+  python3 tools/ranking/tasks_eval.py --json --socket <socket> --vault <copy> > reversed.json
+python3 tools/ranking/bootstrap.py a.json a.json            # inconclusive, [0.000, 0.000]
+python3 tools/ranking/bootstrap.py a.json reversed.json     # worse, [−0.611, −0.056]
+python3 tools/ranking/bootstrap.py before.json after.json   # the pair above
+python3 tools/ranking/bootstrap.py --selftest               # the arithmetic, on known shapes
+```
