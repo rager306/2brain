@@ -1103,14 +1103,38 @@ impl<const N: usize> Bm25Index<N> {
     /// index knows, in first-appearance order.
     ///
     /// The count includes terms the index never saw, so a caller asking for an
-    /// AND still requires them.
+    /// AND still requires them. A term the index does not know is retried as a
+    /// word form of itself (`capsules` asks for `capsule`), because the corpus is
+    /// written by different authors on different days and a plural should not
+    /// cost a whole query.
     fn query_terms(&self, query: &str) -> (usize, Vec<u32>) {
         let distinct = distinct_terms(query);
-        let ids = distinct
-            .iter()
-            .filter_map(|term| self.term_ids.get(term).copied())
-            .collect();
+        let mut ids: Vec<u32> = Vec::with_capacity(distinct.len());
+        for term in &distinct {
+            let Some(id) = self.resolve_term(term) else {
+                continue;
+            };
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
         (distinct.len(), ids)
+    }
+
+    /// The id of `term`, or of a word form of it the index holds: the singular
+    /// when `term` is plural, the plural when it is singular.
+    ///
+    /// Only consulted after an exact miss, so a term the corpus really contains is
+    /// never redirected and no score changes for a query that already worked. It is
+    /// a lookup over the dictionary, not stemming: the corpus is not re-indexed, and
+    /// `capsule` and `capsules` stay separate terms with separate frequencies.
+    fn resolve_term(&self, term: &str) -> Option<u32> {
+        if let Some(&id) = self.term_ids.get(term) {
+            return Some(id);
+        }
+        word_forms(term)
+            .iter()
+            .find_map(|form| self.term_ids.get(form).copied())
     }
 
     /// Each field's average length per live document, for length normalisation.
@@ -1336,6 +1360,37 @@ pub const EXCERPT_CHARS: usize = 240;
 ///
 /// Two callers: the ranking's `min_should_match` count, and the excerpt's search for the term to
 /// quote. One derivation, so a match is located by exactly the terms the index matched.
+/// The word forms a term may also be written as, in the order to try them.
+///
+/// Deliberately narrow: a trailing `-s`/`-es`/`-ies`, and their reverses. It is not a stemmer — a
+/// stemmer changes which terms exist and would need every score re-blessed — it is a dictionary
+/// lookup for the spelling drift a corpus of notes actually has (`capsule`/`capsules`,
+/// `entry`/`entries`). Long words only: four letters is the shortest a plural rule is safe at.
+fn word_forms(term: &str) -> Vec<String> {
+    let mut forms = Vec::new();
+    let length = term.chars().count();
+    if length < 4 {
+        return forms;
+    }
+    if let Some(stem) = term.strip_suffix("ies").filter(|stem| stem.len() >= 2) {
+        forms.push(format!("{stem}y"));
+    }
+    if let Some(stem) = term.strip_suffix("es").filter(|stem| stem.len() >= 3) {
+        forms.push(stem.to_owned());
+    }
+    if let Some(stem) = term.strip_suffix('s').filter(|stem| stem.len() >= 3) {
+        if !stem.ends_with('s') {
+            forms.push(stem.to_owned());
+        }
+    }
+    if let Some(stem) = term.strip_suffix('y') {
+        forms.push(format!("{stem}ies"));
+    }
+    forms.push(format!("{term}s"));
+    forms.push(format!("{term}es"));
+    forms
+}
+
 pub(crate) fn distinct_terms(query: &str) -> Vec<String> {
     let mut terms: Vec<String> = Vec::new();
     for term in tokenize(query) {
@@ -1944,6 +1999,46 @@ mod tests {
         );
         // Cyrillic is two bytes per character: "Привет, " is 14 bytes.
         assert_eq!(first_term("Привет, мир", &distinct_terms("МИР")), Some(14));
+    }
+
+    /// A plural in the query finds a note written in the singular and the reverse, because a corpus of
+    /// notes is written by different authors on different days. The lookup happens only after an exact
+    /// miss, so a term the corpus holds is never redirected.
+    #[test]
+    fn a_word_form_of_a_query_term_still_finds_the_note() {
+        let docs = vec![
+            (0, ["the capsule holds a payload".to_owned(), String::new()]),
+            (1, ["two entries in a table".to_owned(), String::new()]),
+            (2, ["an unrelated note".to_owned(), String::new()]),
+        ];
+        let index = index_of(default_weights(), &docs);
+
+        assert_eq!(sorted_ids(index.search("capsules", 0, 10)), vec![0]);
+        assert_eq!(sorted_ids(index.search("capsule", 0, 10)), vec![0]);
+        assert_eq!(sorted_ids(index.search("entry", 0, 10)), vec![1]);
+        assert_eq!(sorted_ids(index.search("entries", 0, 10)), vec![1]);
+        // An AND query whose one term resolves keeps working.
+        assert_eq!(
+            sorted_ids(index.search("capsules payload", usize::MAX, 10)),
+            vec![0]
+        );
+    }
+
+    /// The forms are candidates, not rewrites: a term the index knows is answered exactly, and a word
+    /// too short for a plural rule is left alone.
+    #[test]
+    fn a_known_term_is_not_redirected_to_another_form() {
+        let docs = vec![
+            (0, ["capsule".to_owned(), String::new()]),
+            (1, ["capsules".to_owned(), String::new()]),
+        ];
+        let index = index_of(default_weights(), &docs);
+        assert_eq!(sorted_ids(index.search("capsules", 0, 10)), vec![1]);
+        assert!(word_forms("as").is_empty());
+        assert_eq!(
+            word_forms("entries"),
+            vec!["entry", "entri", "entrie", "entriess", "entrieses"]
+        );
     }
 
     #[test]

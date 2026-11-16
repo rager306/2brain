@@ -14,6 +14,15 @@ source.
 
 ### Added
 
+- **A query term the index never saw is retried as a word form of itself** (engine). `capsules` returned
+  nothing while `capsule` returned two notes, because the tokenizer keeps a plural and the corpus has only the
+  singular. After an exact miss the index now also looks up `-s`/`-es`/`-ies` and their reverses, so a plural
+  costs one dictionary lookup instead of the whole query: on a copy of the live vault `capsules` **0 → 2**.
+  It is a lookup, not a stemmer: `capsule` and `capsules` stay separate terms with separate frequencies, no
+  score of a query that already worked changes, and the corpus is not re-indexed. It does not fix a
+  vocabulary mismatch — `portable capsule` stays 0 because no note holds both words (the vault calls the thing
+  an "RVF container"), and that is a wording problem, not a morphology one.
+
 - **`search` matches carry a body excerpt** (engine, adapter). Every `tb_search` match now carries
   `excerpt` — up to 240 characters of the note's BODY around the first query term it holds, one line,
   cut on word boundaries, `…` where an edge was cut — and the page states `excerpt_chars`. The text is a
