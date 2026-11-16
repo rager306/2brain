@@ -1218,6 +1218,16 @@ Attribution rider: `write_file`, `edit_file`, and `delete_file` accept an option
 - `expected_hash` is the read-before-write guard: the hash of the content the caller last read. A mismatch rejects without writing; `detail.current_hash` carries the current one.
 - absent `expected_hash` means overwrite-regardless; creating a new file needs none.
 
+**create_file.**
+- args: `path`, `content`, optional `stamps` (the Stamps rider above), optional `ensure_mixins` / `ensure_mixins_strict` (the Ensure-mixins rider above), optional `attribution` (the Attribution rider above). The same riders `write_file` takes.
+- full-content write of a path that MUST NOT EXIST YET, parent directories created.
+- `write_file`'s read-before-write guard rejects a STALE previous version; `create_file`'s rejects ANY previous version. Absence is the precondition, and it is checked where the write happens: the create takes the path in one exclusive-create step (`O_CREAT | O_EXCL`) inside the serialized mutation, so the check and the write cannot interleave. Two writers of one path — two connections, two consumer processes, or a consumer racing a human editor — yield one success and one conflict, never a silent overwrite.
+- an existing path rejects and nothing is written. `detail.reason` is `"already_exists"`, the machine-usable discriminator a consumer maps to its own conflict wording, and `detail.current_hash` is the incumbent's content hash (null when the path is not a readable file, e.g. a directory). A consumer that finds that hash equal to its own has learned the work is already done.
+- an `expected_hash` field is an unknown-field reject, not an ignored argument: there is no prior text to compare against, and a caller cannot restate the precondition as a compare-and-set.
+- the result is `write_file`'s: `path`, `hash` (the new content's), fresh `diagnostics`, `reflected`, `commit`, `commits`, `untracked_files`, plus `ensure_mixins` when the write carried mixins.
+- the file verbs read as one axis: `create_file` refuses an existing path, `delete_file` refuses an absent one, and `write_file` is the overwrite either of them points at.
+- additive: a NEW mutation verb, no `schema_version` bump.
+
 **edit_file.**
 - args: `path`, `old_string`, `new_string`, optional `replace_all` (default false), optional `stamps` (the Stamps rider above), optional `ensure_mixins` (the Ensure-mixins rider above), optional `attribution` (the Attribution rider above).
 - exact string replacement; `old_string` must match exactly and be unique, `replace_all` lifts uniqueness.

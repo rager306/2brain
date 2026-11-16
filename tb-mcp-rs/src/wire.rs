@@ -645,6 +645,15 @@ pub(crate) async fn mutate_engine(
     })
 }
 
+/// Whether a rejection is the engine refusing a create because the path was
+/// already taken: `create_file`'s absence precondition, read from the error
+/// frame's machine-usable `detail.reason`. Keyed on that field, never on the
+/// message text — the engine owns its prose, and an edit to it must not turn a
+/// create conflict into an opaque engine error.
+pub(crate) fn absence_conflict(detail: &Value) -> bool {
+    detail.get("reason").and_then(Value::as_str) == Some("already_exists")
+}
+
 pub(crate) async fn read_mutation_with_timeout(
     transport: &dyn EngineTransport,
     request: Value,
@@ -654,7 +663,9 @@ pub(crate) async fn read_mutation_with_timeout(
         Err(_) => Err(MutationFailure::Unknown(format!(
             "engine mutation timed out after {timeout:?}"
         ))),
-        Ok(Err(WireError::Rejected(message))) => Err(MutationFailure::Rejected(message)),
+        Ok(Err(WireError::Rejected { message, detail })) => {
+            Err(MutationFailure::Rejected { message, detail })
+        }
         Ok(Err(WireError::Broken(message))) => Err(MutationFailure::Unknown(message)),
         Ok(Ok(result)) => Ok(result),
     }

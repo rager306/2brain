@@ -51,7 +51,11 @@ const ALLOWED: [(&str, &str); 12] = [
 // dispatcher, which costs one line here and no logic — the budget did not move.
 // 4501 after the verb table, plus 10 on 2026-11-16: `tb_graph_health` gained the `verbs` argument that reaches
 // the engine's per-verb counters — a diagnostic no client could reach before the engine exposed it.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4511;
+// 4511, plus 20 on 2026-11-16: `tb_create_file` sends the engine's `create_file` verb, and that verb's
+// absence conflict is the create gate refusing a moment later, so `finish_mutation` maps it back to
+// `policy/absence`. The mapping is one guarded arm; its words, and the predicate that reads `detail.reason`,
+// live in `policy.rs` and `wire.rs` rather than here.
+const LIB_RS_PRODUCTION_BUDGET: usize = 4531;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")

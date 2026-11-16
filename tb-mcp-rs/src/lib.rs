@@ -1369,7 +1369,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Create a new file in a member. The path must not exist: the server reads it first and refuses with 'already exists' rather than overwriting, so changing an existing file goes through tb_write_file. Writes commit like any other mutation; a lost reply is outcome_unknown and must not be retried blindly.",
+        description = "Create a new file in a member. The path must not exist: the server reads it first and refuses with 'already exists' rather than overwriting, and the engine re-checks absence where the write happens, so a competing create of the same path is refused instead of overwriting this one. Changing an existing file goes through tb_write_file. Writes commit like any other mutation; a lost reply is outcome_unknown and must not be retried blindly.",
         annotations(
             read_only_hint = false,
             destructive_hint = false,
@@ -1395,13 +1395,16 @@ impl Server {
                 return return_error(denial.text());
             }
         };
+        let ArmedFile { key, target } = prepared;
+        // The read above is this process's view; the engine's create is the
+        // race-free half, because it takes the path inside the serialized write.
         let request = json!({
-            "mutate": "write_file",
+            "mutate": "create_file",
             "id": 1,
-            "path": prepared.target,
+            "path": target,
             "content": args.content,
         });
-        self.finish_mutation("tb_create_file", &repo, request, [prepared.key])
+        self.finish_mutation("tb_create_file", &repo, request, [key])
             .await
     }
 
@@ -1701,10 +1704,10 @@ impl Server {
                     .record(&self.principal, "tb_rename_type", &owner, "applied");
                 success_result(result, self.payload)
             }
-            Err(MutationFailure::Rejected(error)) => {
+            Err(MutationFailure::Rejected { message, .. }) => {
                 self.audit
                     .record(&self.principal, "tb_rename_type", &owner, "rejected");
-                return_error(error)
+                return_error(message)
             }
             Err(MutationFailure::Unknown(error)) => {
                 self.audit
@@ -2784,9 +2787,9 @@ impl Server {
                 self.ledger.forget(&prepared.key);
                 success_result(result, self.payload)
             }
-            Err(MutationFailure::Rejected(error)) => {
+            Err(MutationFailure::Rejected { message, .. }) => {
                 self.audit.record(&self.principal, tool, &repo, "rejected");
-                CallToolResult::error(vec![ContentBlock::text(error)])
+                CallToolResult::error(vec![ContentBlock::text(message)])
             }
             Err(MutationFailure::Unknown(error)) => {
                 self.audit
@@ -2847,9 +2850,22 @@ impl Server {
                 }
                 success_result(result, self.payload)
             }
-            Err(MutationFailure::Rejected(error)) => {
+            // The engine refused because the path was taken, which is the ABSENCE gate
+            // answering a few milliseconds after this process's own pre-check looked: a
+            // competing client created the file in between. Same gate, same words.
+            Err(MutationFailure::Rejected { detail, .. }) if wire::absence_conflict(&detail) => {
+                let absence = policy::Stage::Absence;
+                self.audit.record(
+                    &self.principal,
+                    tool,
+                    repo,
+                    &format!("denied:{}", absence.name()),
+                );
+                return_error(Denial::new(absence, policy::CREATE_ALREADY_EXISTS).text())
+            }
+            Err(MutationFailure::Rejected { message, .. }) => {
                 self.audit.record(&self.principal, tool, repo, "rejected");
-                return_error(error)
+                return_error(message)
             }
             Err(MutationFailure::Unknown(error)) => {
                 self.audit
@@ -2880,15 +2896,17 @@ impl Server {
             permits_member: self.policy.permits_member(repo),
         };
         gate::reduce(&policy::CREATE_STAGES, &input)?;
-        // Absence is the engine's answer, not a filesystem check: the window between this
-        // read and the write is a few milliseconds and is documented.
+        // Absence is the engine's answer, not a filesystem check. This read is the cheap
+        // refusal (one round trip, no write attempt); it is NOT the guarantee — a competing
+        // create can land between it and the engine's write, which is why the mutation is
+        // `create_file` and refuses there too, in the same words.
         let read = read_content(self.transport.as_ref(), repo, path)
             .await
             .map_err(|error| Denial::new(policy::Stage::Absence, error))?;
         if read.payload.get("content").is_some_and(|c| !c.is_null()) {
             return Err(Denial::new(
                 policy::Stage::Absence,
-                "file already exists; use tb_write_file to change it",
+                policy::CREATE_ALREADY_EXISTS,
             ));
         }
         let target = resolve_editable(self.transport.as_ref(), repo, path)
@@ -3019,9 +3037,9 @@ impl Server {
                 self.audit.record(&self.principal, tool, &repo, "applied");
                 success_result(result, self.payload)
             }
-            Err(MutationFailure::Rejected(error)) => {
+            Err(MutationFailure::Rejected { message, .. }) => {
                 self.audit.record(&self.principal, tool, &repo, "rejected");
-                return_error(error)
+                return_error(message)
             }
             Err(MutationFailure::Unknown(error)) => {
                 self.audit
@@ -3073,9 +3091,9 @@ impl Server {
                 self.audit.record(&self.principal, tool, &repo, "applied");
                 success_result(result, self.payload)
             }
-            Err(MutationFailure::Rejected(error)) => {
+            Err(MutationFailure::Rejected { message, .. }) => {
                 self.audit.record(&self.principal, tool, &repo, "rejected");
-                return_error(error)
+                return_error(message)
             }
             Err(MutationFailure::Unknown(error)) => {
                 self.audit
@@ -4140,7 +4158,9 @@ async fn print_info(arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn st
     {
         Err(_) => println!("    status     no answer within 5 s"),
         Ok(Err(WireError::Broken(message))) => println!("    status     unusable: {message}"),
-        Ok(Err(WireError::Rejected(message))) => println!("    status     rejected: {message}"),
+        Ok(Err(WireError::Rejected { message, .. })) => {
+            println!("    status     rejected: {message}");
+        }
         Ok(Ok(response)) => {
             let overview = &response["result"]["overview"];
             println!("    ready      true");

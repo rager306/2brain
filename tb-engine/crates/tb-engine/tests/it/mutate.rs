@@ -6229,3 +6229,170 @@ fn promote_into_a_git_ignored_folder_commits_only_the_host() {
         "the new file is listed as outside git: {listed:?}"
     );
 }
+
+#[test]
+fn create_file_writes_a_new_file_and_refuses_an_existing_one() {
+    let mut h = started_in_git();
+
+    let resp = h
+        .client
+        .query(&json!({
+            "mutate": "create_file",
+            "path": "races/new.md",
+            "content": "---\ntype: note\ndescription: created\n---\n",
+            "id": "c-1",
+        }))
+        .unwrap();
+    assert_eq!(resp["type"], "response", "the create lands: {resp:?}");
+    assert_eq!(resp["id"], "c-1", "the response echoes the request id");
+    assert_eq!(resp["ready"], true);
+    assert_eq!(
+        resp["version"], 2,
+        "the synchronous rebuild advanced the version"
+    );
+    assert!(
+        resp["result"]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with("races/new.md")
+    );
+    assert_eq!(resp["result"]["reflected"], true);
+    let winner_hash = resp["result"]["hash"].as_str().unwrap().to_string();
+
+    // A second create of the same path is a conflict, never an overwrite.
+    let resp = h
+        .client
+        .query(&json!({
+            "mutate": "create_file",
+            "path": "races/new.md",
+            "content": "---\ntype: note\ndescription: loser\n---\n",
+        }))
+        .unwrap();
+    assert_eq!(
+        resp["type"], "error",
+        "a create over an existing path conflicts: {resp:?}"
+    );
+    assert_eq!(
+        resp["detail"]["reason"], "already_exists",
+        "the conflict carries the machine-usable discriminator: {resp:?}"
+    );
+    assert_eq!(
+        resp["detail"]["current_hash"].as_str().unwrap(),
+        winner_hash,
+        "the conflict names the incumbent's hash, so identical bytes are distinguishable"
+    );
+    let on_disk = fs::read_to_string(h.root.join("races/new.md")).unwrap();
+    assert!(
+        on_disk.contains("description: created"),
+        "the winner's bytes are intact: {on_disk}"
+    );
+}
+
+#[test]
+fn create_file_refuses_an_expected_hash_as_an_unknown_field() {
+    let mut h = started_in_git();
+    let resp = h
+        .client
+        .query(&json!({
+            "mutate": "create_file",
+            "path": "x.md",
+            "content": "x\n",
+            "expected_hash": "0000000000000000",
+        }))
+        .unwrap();
+    assert_eq!(resp["type"], "error", "got {resp:?}");
+    let error = resp["error"].as_str().unwrap_or_default();
+    assert!(
+        error.contains("expected_hash"),
+        "the refusal names the field it will not take: {error}"
+    );
+}
+
+#[test]
+fn create_file_folds_a_stamp_into_its_own_commit() {
+    let mut h = started_in_git();
+    let resp = h
+        .client
+        .query(&json!({
+            "mutate": "create_file",
+            "path": "stamped.md",
+            "content": "---\ntype: note\ndescription: stamped on create\n---\n",
+            "stamps": [{"field": "provenance", "record": {"session": "s-1"}}],
+        }))
+        .unwrap();
+    assert_eq!(resp["type"], "response", "the create lands: {resp:?}");
+    let written = fs::read_to_string(h.root.join("stamped.md")).unwrap();
+    assert!(
+        written.contains("provenance:") && written.contains("session: s-1"),
+        "the rider rode the create: {written}"
+    );
+    let committed = git_out(&h.root, &["show", "--name-only", "--format=", "HEAD"]);
+    assert_eq!(
+        committed, "stamped.md",
+        "the stamp shares the create's one commit"
+    );
+}
+
+/// Two consumers creating one path at the same instant: the engine's write lock
+/// serialises them and the loser's exclusive create refuses. Repeated, because
+/// one clean pass proves agreement, not the absence of an interleaving.
+#[test]
+fn two_concurrent_creates_of_one_path_produce_one_success_and_one_conflict() {
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+
+    let h = started_in_git();
+    for round in 0..10 {
+        let path = format!("races/round-{round}.md");
+        let barrier = Arc::new(Barrier::new(2));
+        let handles: Vec<_> = ["left\n", "right\n"]
+            .into_iter()
+            .map(|content| {
+                let socket = h.socket.clone();
+                let path = path.clone();
+                let barrier = Arc::clone(&barrier);
+                thread::spawn(move || {
+                    let mut client = Client::connect(&socket).unwrap();
+                    // Both requests go out at the same instant; the engine settles them.
+                    barrier.wait();
+                    let answer = client
+                        .query(&json!({"mutate": "create_file", "path": path, "content": content}))
+                        .unwrap();
+                    (content.to_owned(), answer)
+                })
+            })
+            .collect();
+        let answers: Vec<(String, serde_json::Value)> = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect();
+
+        let wins = answers
+            .iter()
+            .filter(|(_, answer)| answer["type"] == "response")
+            .count();
+        assert_eq!(
+            wins, 1,
+            "round {round}: exactly one create wins: {answers:?}"
+        );
+        let (_, loser) = answers
+            .iter()
+            .find(|(_, answer)| answer["type"] == "error")
+            .expect("one conflict");
+        assert_eq!(
+            loser["detail"]["reason"], "already_exists",
+            "round {round}: the loser is a conflict, not a malformed request"
+        );
+
+        // The file holds the winner's bytes, whole.
+        let (winner_content, _) = answers
+            .iter()
+            .find(|(_, answer)| answer["type"] == "response")
+            .expect("one success");
+        let on_disk = fs::read_to_string(h.root.join(&path)).unwrap();
+        assert_eq!(
+            &on_disk, winner_content,
+            "round {round}: the winner's bytes are what landed"
+        );
+    }
+}

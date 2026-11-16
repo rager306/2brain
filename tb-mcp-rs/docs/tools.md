@@ -87,11 +87,13 @@ grant and no hash, but the member must be editable.
 
 `tb_create_file {repo, path, content}` makes a file that does not exist yet. It
 has no text to compare against, so its gate replaces the read-then-hash pair with
-the opposite promise: the server reads the path first and refuses with
-`policy/absence: file already exists; use tb_write_file` instead of overwriting,
-then writes without `expected_hash`. The window between that read and the write
-is a few milliseconds; a concurrent creator can still land first, and the git
-history of the member is what makes that recoverable.
+the opposite promise: the path must be free. The server reads it first and
+refuses with `policy/absence: file already exists; use tb_write_file` instead of
+overwriting, and the engine re-checks absence where the write happens: the
+mutation is `create_file`, one exclusive-create inside the serialized write, so a
+second client creating the same path at the same instant is refused rather than
+silently overwriting the first. Both refusals are the same `policy/absence`
+message — the local read is the cheap one, the engine's is the guarantee.
 
 `tb_write_file`, `tb_edit_file`, `tb_delete_file` share one gate: a prior
 `tb_content` of the same path in the same process, a matching `expected_hash`,

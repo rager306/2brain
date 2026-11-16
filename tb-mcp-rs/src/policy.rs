@@ -211,6 +211,11 @@ pub const CREATE_STAGES: [Stage; 6] = [
     Stage::Capacity,
 ];
 
+/// A create's refusal when the path is taken: one string, so the local pre-check
+/// and the engine's mid-write conflict — the same gate answering a few
+/// milliseconds apart — say the same thing to the client.
+pub const CREATE_ALREADY_EXISTS: &str = "file already exists; use tb_write_file to change it";
+
 /// Appends policy decisions. Cloning shares the same sink and the same chain.
 #[derive(Debug, Clone)]
 pub struct Audit {

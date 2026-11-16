@@ -219,9 +219,11 @@ specifically is not yet tested, and the review says so more honestly than any ro
 
 Its four **write-contract findings** are the useful part, and two are real defects by our own standard:
 
-1. **`tb_create_file` is a read-then-write with no atomic precondition.** One server process serialises mutations,
-   two client processes do not: both read absence, both write, the second wins silently. Being fixed with an
-   engine-side create verb whose absence check happens where the write is serialised.
+1. ~~**`tb_create_file` is a read-then-write with no atomic precondition.**~~ **Fixed 2026-11-16.** One server
+   process serialised mutations, two client processes did not: both read absence, both wrote, the second won
+   silently. The engine now has a `create_file` mutation whose absence check IS its write (one exclusive create
+   inside the serialized mutation), and the adapter sends it; a two-process test asserts one success, one refusal
+   and the winner's bytes through 20 rounds. See `tb-engine/crates/tb-engine/WIRE.md`.
 2. **`tb_edit_file`'s `expected_hash` is a read-ledger token, not a whole-file compare-and-set.** The engine gets
    `old_string`, so a concurrent change elsewhere in the file does not invalidate the edit. That is a defensible
    fragment-edit contract, but it must be *stated* as one rather than left to be discovered.

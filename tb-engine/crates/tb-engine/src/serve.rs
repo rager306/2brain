@@ -977,6 +977,11 @@ enum Mutation {
     /// Full-content write, parents created. `expected_hash` is the optional
     /// read-before-write guard.
     WriteFile(WriteFileArgs),
+    /// Full-content write whose precondition is the target's ABSENCE, checked
+    /// inside the serialized mutation as part of the write itself. An existing
+    /// path rejects instead of being overwritten, so two consumers creating one
+    /// path produce one success and one conflict rather than a lost update.
+    CreateFile(CreateFileArgs),
     /// Exact string replacement; the match is its own precondition.
     EditFile(EditFileArgs),
     /// Remove a file. `expected_hash` is the optional read-before-write guard.
@@ -1176,6 +1181,27 @@ struct WriteFileArgs {
     #[serde(default = "default_true")]
     ensure_mixins_strict: bool,
     /// Caller attribution trailers folded into this write's commit.
+    #[serde(default)]
+    attribution: Vec<TrailerInput>,
+}
+
+/// Args for `create_file`, the absence-preconditioned sibling of
+/// [`WriteFileArgs`]: the same full content and the same riders, and no
+/// `expected_hash` — there is no prior text to compare against, and the absence
+/// is the engine's precondition, not the caller's. An `expected_hash` sent here
+/// is an unknown field, refused rather than silently ignored.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreateFileArgs {
+    path: String,
+    content: String,
+    #[serde(default)]
+    stamps: Vec<Stamp>,
+    #[serde(default)]
+    ensure_mixins: Vec<String>,
+    #[serde(default = "default_true")]
+    ensure_mixins_strict: bool,
+    /// Caller attribution trailers folded into this create's commit.
     #[serde(default)]
     attribution: Vec<TrailerInput>,
 }
@@ -5132,6 +5158,63 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                         // so they share this commit. The final hash (if a rider
                         // changed the file) is the response hash, so `reflected`
                         // compares the riddled bytes.
+                        let written = fold_write_stamps(&blocking_path, &args.stamps, written)?;
+                        fold_write_mixins(
+                            &blocking_handle,
+                            &blocking_path,
+                            &args.ensure_mixins,
+                            args.ensure_mixins_strict,
+                            written,
+                        )
+                    })?;
+                blocking_handle.rebuild_paths(saga_dirty_set(&plan));
+                Ok::<_, crate::mutate::MutationReject>((written, mixins, commits))
+            })
+            .await
+            .expect("mutation task never panics");
+            match outcome {
+                Err(reject) => mutation_reject_frame(reject),
+                Ok((written, mixins, commits)) => mutation_response_extra(
+                    handle,
+                    &response_path,
+                    Some(written),
+                    commits,
+                    mixin_outcomes_extra(mixins),
+                ),
+            }
+        }
+        Mutation::CreateFile(args) => {
+            let write_path = match resolve_mutation_target(handle, &args.path) {
+                Ok(t) => t,
+                Err(frame) => return frame,
+            };
+            let response_path = write_path.clone();
+            // A stamp or a mixin rides an instance file's frontmatter; a
+            // type-def target would be corrupted. Reject early, before any write.
+            if !args.stamps.is_empty() || !args.ensure_mixins.is_empty() {
+                if let Some(reject) = rider_target_reject(&write_path) {
+                    return mutation_reject_frame(reject);
+                }
+            }
+            let attribution = match resolve_attribution(&args.attribution) {
+                Ok(a) => a,
+                Err(frame) => return frame,
+            };
+            let mut plan = saga_plan_off_thread(handle, vec![write_path.clone()]).await;
+            plan.attribution = attribution;
+            let marker_dir = saga_marker_dir(handle.root());
+            let summary = format!("create_file {}", args.path);
+            // Disk write, commit-or-compensate, then full rebuild, off the workers.
+            // The absence check is `create_file`'s own exclusive create, INSIDE the
+            // closure, so it runs where the write is serialized and no second
+            // request can slip between deciding the path is free and taking it.
+            // A conflict is a saga that wrote nothing, so it compensates to a no-op.
+            let blocking_handle = handle.clone();
+            let blocking_path = write_path.clone();
+            let outcome = tokio::task::spawn_blocking(move || {
+                let ((written, mixins), commits) =
+                    apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {
+                        let written = crate::mutate::create_file(&blocking_path, &args.content)?;
                         let written = fold_write_stamps(&blocking_path, &args.stamps, written)?;
                         fold_write_mixins(
                             &blocking_handle,

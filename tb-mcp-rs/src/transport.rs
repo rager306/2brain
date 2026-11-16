@@ -29,15 +29,19 @@ pub(crate) struct ReadResult {
 /// mutation: an engine rejection wrote nothing, while a transport failure may
 /// have landed.
 pub(crate) enum WireError {
-    /// The engine answered with a rejection: nothing was written.
-    Rejected(String),
+    /// The engine answered with a rejection: nothing was written. `detail` is the
+    /// error frame's optional machine-usable context, null when the frame carried
+    /// none — a tool that must tell one rejection from another keys on it, never
+    /// on the message text.
+    Rejected { message: String, detail: Value },
     /// No usable answer: the operation may or may not have happened.
     Broken(String),
 }
 
 pub(crate) enum MutationFailure {
-    /// The engine rejected the mutation: nothing was written.
-    Rejected(String),
+    /// The engine rejected the mutation: nothing was written. `detail` as on
+    /// [`WireError::Rejected`].
+    Rejected { message: String, detail: Value },
     /// No usable answer: the outcome is unknown and a retry could double-apply.
     Unknown(String),
 }
@@ -45,7 +49,7 @@ pub(crate) enum MutationFailure {
 impl WireError {
     pub(crate) fn message(self) -> String {
         match self {
-            Self::Rejected(message) | Self::Broken(message) => message,
+            Self::Rejected { message, .. } | Self::Broken(message) => message,
         }
     }
 }
@@ -140,13 +144,22 @@ fn validate(request: &Value, response: Value) -> Result<Value, WireError> {
                 .get("error")
                 .and_then(Value::as_str)
                 .ok_or_else(|| WireError::Broken("invalid engine error frame".into()))?;
-            return Err(WireError::Rejected(format!("engine error: {message}")));
+            let detail = response.get("detail").cloned().unwrap_or(Value::Null);
+            return Err(WireError::Rejected {
+                message: format!("engine error: {message}"),
+                detail,
+            });
         }
         Some("response") => {}
         _ => return Err(WireError::Broken("unexpected engine frame type".into())),
     }
     match response.get("ready").and_then(Value::as_bool) {
-        Some(false) => return Err(WireError::Rejected("engine not ready".into())),
+        Some(false) => {
+            return Err(WireError::Rejected {
+                message: "engine not ready".into(),
+                detail: Value::Null,
+            });
+        }
         Some(true) => {}
         None => return Err(WireError::Broken("invalid engine readiness".into())),
     }

@@ -7,6 +7,7 @@
 //! missing `old_string`); a mutation never rejects because the result has
 //! validation errors — diagnostics stay advisory.
 
+use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 
 use serde_json::{Map, Value};
@@ -149,6 +150,66 @@ pub(crate) fn write_file(
     // The hash of what landed on disk, so the caller can tell whether the
     // rebuilt knowledge base has caught up to this write.
     Ok(ContentHash::of(content.as_bytes()))
+}
+
+/// `create_file`: a full-content write whose precondition is the target's
+/// ABSENCE. The check and the write are one `O_CREAT | O_EXCL` open, so they
+/// cannot interleave: a create that loses a race gets the path's current
+/// occupant, never a silent overwrite of it. That is the whole point of the
+/// verb — an absence check followed by a separate `write_file` is two requests,
+/// and two consumers of one knowledge base do exactly that concurrently.
+///
+/// The reject is a conflict, not a malformed request, and it carries
+/// `detail.reason` (`already_exists`, the machine-usable discriminator) beside
+/// the incumbent's hash, so a consumer can tell a lost race from any other
+/// refusal, and identical bytes from a genuine disagreement.
+pub(crate) fn create_file(target: &Path, content: &str) -> Result<ContentHash, MutationReject> {
+    if let Some(parent) = target.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            return Err(MutationReject::new(format!(
+                "cannot create parent directories: {e}"
+            )));
+        }
+    }
+    let mut file = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(target)
+    {
+        Ok(file) => file,
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(create_conflict(target));
+        }
+        Err(e) => {
+            return Err(MutationReject::new(format!(
+                "cannot create {}: {e}",
+                target.display()
+            )));
+        }
+    };
+    file.write_all(content.as_bytes())
+        .map_err(|e| MutationReject::new(format!("cannot write {}: {e}", target.display())))?;
+    Ok(ContentHash::of(content.as_bytes()))
+}
+
+/// The reject a create makes when the path is taken. `current_hash` is the
+/// incumbent's content hash, null when the path is not a readable file (a
+/// directory, or bytes no longer readable at reject time).
+fn create_conflict(target: &Path) -> MutationReject {
+    let current_hash = std::fs::read(target)
+        .ok()
+        .map(|bytes| hash_hex(ContentHash::of(&bytes)));
+    MutationReject {
+        message: format!(
+            "file already exists: create_file never overwrites — read {} and use write_file \
+             to change it",
+            target.display()
+        ),
+        detail: Some(serde_json::json!({
+            "reason": "already_exists",
+            "current_hash": current_hash,
+        })),
+    }
 }
 
 /// `edit_file`: exact string replacement. `old_string` must match exactly
