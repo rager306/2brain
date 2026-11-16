@@ -755,7 +755,8 @@ The `shape_ast` value, a tagged union on `kind` mirroring the engine's parsed sl
 - each: `path`, `name`, `kind` (`file` or `directory`).
 
 **grep.**
-- args: `query` (required, non-empty), optional `repo`, optional `scope` (`all` default / `own`), optional `case_sensitive` (default false), optional `limit` / `offset`.
+- args: `query` (required, non-empty), optional `repo`, optional `scope` (`own` default / `all`), optional `case_sensitive` (default false), optional `limit` / `offset`.
+- `scope` defaults to `own` for the same reason `search` does: a literal scan answers a question about the caller's own workspace, and a dependency repository mounted beside it is not part of the answer. `all` widens to every mounted member and is asked for, not defaulted.
 - result: `{ grep: { matches, total, truncated, skipped_files } }`.
   - `matches`: one entry per matching LINE in catalogue order, then file order: `path`, `repo` (nullable), `line` (1-based), `column` (1-based character column of the match), `text` (the line, trailing `\r` stripped), `text_truncated` (whether `text` was cut at 400 characters).
   - `total`: matches over the whole scanned set, not just the page. `truncated`: the page ends before the last match. Page size defaults to 20 and is capped at 200 — a search result is a page, not a dump.
@@ -767,7 +768,8 @@ The `shape_ast` value, a tagged union on `kind` mirroring the engine's parsed sl
 - additive: a NEW read verb, no `schema_version` bump.
 
 **search.**
-- args: `query` (required, non-empty), optional `repo`, optional `scope` (`all` default / `own`), optional `exact` (default false), optional `min_should_match`, optional `limit` / `offset`. An unknown arg is an `error` frame.
+- args: `query` (required, non-empty), optional `repo`, optional `scope` (`own` default / `all`), optional `exact` (default false), optional `min_should_match`, optional `limit` / `offset`. An unknown arg is an `error` frame.
+- `scope` on THIS read defaults to `own`, deliberately unlike the workspace-wide type reads: a search is a question about the caller's own knowledge, so the default set is the workspace's own editable members, not the dependency repositories mounted beside them. `all` widens to every mounted member and is something a caller asks for. Before this, a question the served vault could not answer was answered by a dependency repository's README — the "searched the wrong base" failure, measured in `docs/research/task-set.md`.
 - result: `{ search: { matches, total, offset, next_offset, exact } }`.
   - `matches`: one entry per matching DOCUMENT (not line), best score first: `path`, `score`, `matched_terms`. `score` is the BM25 sum over the document's two fields, comparable only within one query over one corpus.
   - `total`: matches over the whole in-scope set, not just the page. `offset`: the page's start, echoed.

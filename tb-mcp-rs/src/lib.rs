@@ -1042,7 +1042,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Search the catalogued files for literal text, one match per line. Not a regular expression: it answers 'which notes mention this phrase'. Case-insensitive unless case_sensitive is set; repo and scope compose; defaults limit=20, offset=0, limit range 1..=200. The answer carries matches, the total over the whole scanned set, truncated, and skipped_files (files above 1 MiB or binary, counted rather than silently missed). Text is workspace content and may be sensitive; this is not an authorization boundary.",
+        description = "Search the catalogued files for literal text, one match per line. Not a regular expression: it answers 'which notes mention this phrase'. Case-insensitive unless case_sensitive is set; repo and scope compose, and scope defaults to the workspace's own members rather than the dependencies mounted beside them (scope='all' widens); defaults limit=20, offset=0, limit range 1..=200. The answer carries matches, the total over the whole scanned set, truncated, and skipped_files (files above 1 MiB or binary, counted rather than silently missed). Text is workspace content and may be sensitive; this is not an authorization boundary.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -1088,7 +1088,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Rank notes by relevance to a query instead of scanning them. BM25 over each note's body and its frontmatter description, with the description weighted higher; the answer carries matches (path, score, matched_terms), the total, and paging. exact requires every term and is the way to find a punctuation token or a two-word phrase exactly. min_should_match defaults to all terms for one or two terms and to two above that, so a three-word query is not an OR over a third of the vault. Use tb_grep when you need the literal line, and this when you need the right notes.",
+        description = "Rank notes by relevance to a query instead of scanning them. BM25 over each note's body and its frontmatter description, with the description weighted higher; the answer carries matches (path, score, matched_terms), the total, and paging. exact requires every term and is the way to find a punctuation token or a two-word phrase exactly. min_should_match defaults to all terms for one or two terms and to two above that, so a three-word query is not an OR over a third of the vault. scope defaults to the workspace's own members, not the dependency repositories mounted beside it — scope='all' widens to every mounted member. Use tb_grep when you need the literal line, and this when you need the right notes.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,
