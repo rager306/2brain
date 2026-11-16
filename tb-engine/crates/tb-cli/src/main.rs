@@ -63,16 +63,26 @@ enum TopCommand {
 #[cfg(unix)]
 #[derive(Subcommand)]
 enum MigrateCommand {
-    /// Plan the `.arsumbris` -> `.2brain` and `au.engine.*` -> `tb.engine.*` migration.
+    /// Plan or perform the `.arsumbris` -> `.2brain` and `au.engine.*` -> `tb.engine.*`
+    /// migration.
     ///
     /// Reads the per-user registry and the filesystem only: no daemon, no graph, no
     /// network. Per repository it reports the directory rename and every `type:` /
     /// `extends:` line it would rewrite, or refuses with a named reason: a dirty
     /// working tree, a mutation in flight, or a daemon serving that root.
+    ///
+    /// `--dry-run` prints the plan and writes nothing, and the bare command does the same
+    /// and names `--apply`. `--apply` performs the plan one repository at a time: `git mv
+    /// .arsumbris .2brain`, the claim splices, then one commit per repository. It never
+    /// pushes. Every precondition is re-checked immediately before a repository's first
+    /// write.
     Identity {
         /// Print the plan and write nothing.
-        #[arg(long)]
+        #[arg(long, conflicts_with = "apply")]
         dry_run: bool,
+        /// Perform the migration: one commit per repository, no push.
+        #[arg(long)]
+        apply: bool,
         /// One repository root to include. Defaults to the current directory when neither
         /// --root nor --all is given.
         #[arg(long, value_name = "PATH")]
@@ -128,9 +138,12 @@ fn main() -> ExitCode {
         TopCommand::Open { name } => tb_cli::daemon::open(&name),
         TopCommand::Members { entry, json } => tb_cli::members::members(&entry, json),
         TopCommand::Migrate { cmd } => match cmd {
-            MigrateCommand::Identity { dry_run, root, all } => {
-                tb_cli::migrate::identity(dry_run, root, all)
-            }
+            MigrateCommand::Identity {
+                dry_run,
+                apply,
+                root,
+                all,
+            } => tb_cli::migrate::identity(dry_run, apply, root, all),
         },
         #[cfg(feature = "hotpath")]
         TopCommand::BuildProfile { entry } => tb_cli::daemon::build_profile(&entry),

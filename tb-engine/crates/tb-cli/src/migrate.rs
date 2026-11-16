@@ -1,25 +1,30 @@
-//! `au migrate identity [--dry-run] [--root <path>] [--all]`: tier C's on-disk identity
-//! migration, as a plan plus its refusals.
+//! `au migrate identity [--dry-run | --apply] [--root <path>] [--all]`: tier C's on-disk
+//! identity migration, as a plan plus, with `--apply`, the write.
 //!
 //! Two spellings move together: the repository's identity directory, `.arsumbris/` -> `.2brain/`
-//! (a rename), and the engine-schema claims it writes, `au.engine.*::au-engine` ->
-//! `tb.engine.*::tb-engine` (`tb_engine::rewrite_engine_claims`, an exact-byte splice). See
-//! `docs/research/tier-c-seams.md` section 4.
+//! (a `git mv`, so the index carries it), and the engine-schema claims it writes,
+//! `au.engine.*::au-engine` -> `tb.engine.*::tb-engine` (`tb_engine::rewrite_engine_claims`, an
+//! exact-byte splice). See `docs/research/tier-c-seams.md` section 4.
 //!
 //! Reads the per-user registry (`repos.yaml`, `workspaces.yaml`) and the filesystem: no daemon,
-//! no graph, no network. `--dry-run` prints the plan and writes nothing; this build PLANS only,
-//! so a plan that needs writing is refused rather than half-applied — the apply step (`git mv`,
-//! the splices, one commit per repository) is a later commit.
+//! no graph, no network. `--dry-run` prints the plan and writes nothing, and so does the command
+//! with neither flag — a bare run names `--apply` rather than moving anything. `--apply` performs
+//! the plan one repository at a time: the rename, the splices, then `git add` and one commit per
+//! repository. It never pushes, and every precondition is re-checked immediately before that
+//! repository's first write, because the printed plan was computed earlier and the tree may have
+//! moved since.
 //!
 //! A repository is IN SCOPE when its plan is non-empty, and the plan derives only from the
 //! legacy spelling (`.arsumbris/` present, or a claim that still spells `au.engine.*` /
-//! `::au-engine`). A migrated repository therefore derives an empty plan, so a second run writes
-//! nothing and exits `0`.
+//! `::au-engine`). A migrated repository therefore derives an empty plan, so `--apply` on one is
+//! a no-op that exits `0`.
 //!
-//! Exit codes: `0` a plan (including the empty one) was printed, `2` a repository was refused or
-//! the run could not be planned.
+//! Exit codes: `0` the plan was printed and nothing needed doing, or every planned repository was
+//! migrated; `2` a repository was refused, the run could not be planned, or a repository failed
+//! to write.
 
 use std::collections::BTreeSet;
+use std::ffi::OsStr;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
@@ -42,8 +47,8 @@ const IDENTITY_CLAIM_FILES: &[&str] =
 /// else is an asset and is never read.
 const CLAIM_EXTENSIONS: &[&str] = &["md", "markdown", "yaml", "yml"];
 
-/// Print the plan for every repository in scope, or refuse with a named reason.
-pub fn identity(dry_run: bool, root: Option<PathBuf>, all: bool) -> ExitCode {
+/// Print the plan for every repository in scope, then apply it when `apply` is set.
+pub fn identity(dry_run: bool, apply: bool, root: Option<PathBuf>, all: bool) -> ExitCode {
     let candidates = match candidates(root.as_deref(), all) {
         Ok(candidates) => candidates,
         Err(reason) => {
@@ -64,7 +69,35 @@ pub fn identity(dry_run: bool, root: Option<PathBuf>, all: bool) -> ExitCode {
     for repo_plan in &plans {
         print_plan(repo_plan);
     }
-    summarize(&plans, dry_run)
+
+    let counts = Counts::of(&plans);
+    println!();
+    if counts.planned == 0 && counts.refused == 0 && counts.skipped == 0 {
+        println!(
+            "au: migrate identity: nothing to do, every repository in scope is already migrated"
+        );
+        return ExitCode::SUCCESS;
+    }
+    println!(
+        "au: migrate identity: {} to migrate, {} already migrated, {} refused, {} skipped",
+        counts.planned, counts.already, counts.refused, counts.skipped,
+    );
+    if dry_run {
+        println!("au: migrate identity: dry run, nothing was written");
+        return if counts.refused > 0 {
+            ExitCode::from(FAILED)
+        } else {
+            ExitCode::SUCCESS
+        };
+    }
+    if !apply {
+        eprintln!(
+            "au: migrate identity: nothing was written; re-run with --apply to perform the \
+             migration"
+        );
+        return ExitCode::from(FAILED);
+    }
+    apply_plans(&plans)
 }
 
 /// One repository considered by the run, with the name it is known by.
@@ -205,6 +238,19 @@ fn plan(root: &Path, label: &str) -> RepoPlan {
             label,
             "two identity directories, .arsumbris and .2brain, both holding a repo.yaml; \
              resolve the half-finished move first"
+                .to_string(),
+        );
+    }
+    // `git mv .arsumbris .2brain` follows `mv` semantics: an existing `.2brain` directory would
+    // receive `.arsumbris` INSIDE it, and the repository would end up with `.2brain/.arsumbris/`.
+    // Any `.2brain` beside a legacy repository therefore blocks the rename until a human says
+    // which directory is the real one.
+    if legacy_repo && current.exists() {
+        return RepoPlan::refused(
+            root,
+            label,
+            "the new identity directory .2brain already exists beside .arsumbris, so the rename \
+             would move one inside the other; resolve it first"
                 .to_string(),
         );
     }
@@ -389,52 +435,408 @@ fn print_plan(plan: &RepoPlan) {
     }
 }
 
-/// Count the outcomes and state what happens next. An empty plan exits `0`: a second run over a
-/// migrated tree must be a no-op, not an error.
-fn summarize(plans: &[RepoPlan], dry_run: bool) -> ExitCode {
-    let mut planned = 0usize;
+/// The printed plan's outcomes, one tally per kind.
+struct Counts {
+    planned: usize,
+    already: usize,
+    refused: usize,
+    skipped: usize,
+}
+
+impl Counts {
+    fn of(plans: &[RepoPlan]) -> Self {
+        let mut counts = Self {
+            planned: 0,
+            already: 0,
+            refused: 0,
+            skipped: 0,
+        };
+        for plan in plans {
+            match &plan.outcome {
+                Outcome::Planned => counts.planned += 1,
+                Outcome::AlreadyMigrated => counts.already += 1,
+                Outcome::Refused(_) => counts.refused += 1,
+                Outcome::Skipped(_) => counts.skipped += 1,
+            }
+        }
+        counts
+    }
+}
+
+/// Apply the printed plan: one commit per repository, stopping at the first repository that
+/// fails to write.
+///
+/// A refused or skipped repository is reported and does not stop the run — the repositories are
+/// independent, and each commit stands alone — but a repository whose WRITE fails does: the run
+/// stops there, names what it committed and what it never attempted, and exits `2`. Each
+/// repository is re-planned immediately before its first write, so every precondition is judged
+/// on the tree as it is then rather than as it was when the plan was printed.
+fn apply_plans(plans: &[RepoPlan]) -> ExitCode {
+    let mut migrated = 0usize;
     let mut already = 0usize;
     let mut refused = 0usize;
     let mut skipped = 0usize;
-    for plan in plans {
-        match &plan.outcome {
-            Outcome::Planned => planned += 1,
+    let mut failure: Option<(String, String)> = None;
+    let mut not_attempted: Vec<String> = Vec::new();
+
+    println!();
+    for printed in plans {
+        if failure.is_some() {
+            not_attempted.push(printed.label.clone());
+            continue;
+        }
+        match &printed.outcome {
+            Outcome::Planned => {
+                // The printed plan is what this run was asked about; the fresh one is what it
+                // may write. They differ only if another writer slipped in between.
+                let fresh = plan(&printed.root, &printed.label);
+                match &fresh.outcome {
+                    Outcome::Planned => match apply_repo(&fresh) {
+                        Ok(committed) => {
+                            if committed.claims == 0 {
+                                println!(
+                                    "  migrated  {}  the directory rename alone",
+                                    committed.label
+                                );
+                            } else {
+                                println!(
+                                    "  migrated  {}  {} {} in {} {}",
+                                    committed.label,
+                                    committed.claims,
+                                    plural(committed.claims, "claim line", "claim lines"),
+                                    committed.files.len(),
+                                    plural(committed.files.len(), "file", "files"),
+                                );
+                            }
+                            println!("  commit    {}", committed.subject);
+                            for (file, claims) in &committed.files {
+                                println!(
+                                    "  rewrote   {}  ({} {})",
+                                    file.display(),
+                                    claims,
+                                    plural(*claims, "claim line", "claim lines"),
+                                );
+                            }
+                            migrated += 1;
+                        }
+                        Err(reason) => failure = Some((fresh.label.clone(), reason)),
+                    },
+                    Outcome::AlreadyMigrated => {
+                        println!(
+                            "  already   {}  migrated since the plan was printed",
+                            printed.label
+                        );
+                        already += 1;
+                    }
+                    Outcome::Refused(reason) => {
+                        println!("  refused   {}  {reason}", printed.label);
+                        refused += 1;
+                    }
+                    Outcome::Skipped(reason) => {
+                        println!("  skipped   {}  {reason}", printed.label);
+                        skipped += 1;
+                    }
+                }
+            }
             Outcome::AlreadyMigrated => already += 1,
-            Outcome::Refused(_) => refused += 1,
-            Outcome::Skipped(_) => skipped += 1,
+            Outcome::Refused(reason) => {
+                println!("  refused   {}  {reason}", printed.label);
+                refused += 1;
+            }
+            Outcome::Skipped(reason) => {
+                println!("  skipped   {}  {reason}", printed.label);
+                skipped += 1;
+            }
         }
     }
 
     println!();
-    if planned == 0 && refused == 0 && skipped == 0 {
-        println!(
-            "au: migrate identity: nothing to do, every repository in scope is already migrated"
-        );
-        return ExitCode::SUCCESS;
+    if let Some((label, reason)) = &failure {
+        eprintln!("au: migrate identity: {label}: {reason}");
     }
     println!(
-        "au: migrate identity: {planned} to migrate, {already} already migrated, {refused} refused, \
-         {skipped} skipped",
+        "au: migrate identity: {migrated} migrated, {already} already migrated, {refused} refused, \
+         {skipped} skipped{}",
+        if failure.is_some() { ", 1 failed" } else { "" },
     );
-    if dry_run {
-        println!("au: migrate identity: dry run, nothing was written");
-        return if refused > 0 {
-            ExitCode::from(FAILED)
+    if let Some((label, _)) = &failure {
+        if not_attempted.is_empty() {
+            println!(
+                "au: migrate identity: stopped at {label}; there was no other repository left to \
+                 attempt"
+            );
         } else {
-            ExitCode::SUCCESS
-        };
-    }
-    if planned > 0 {
-        eprintln!(
-            "au: migrate identity: applying is not implemented in this build; nothing was written \
-             (re-run with --dry-run to print the plan)"
-        );
+            println!(
+                "au: migrate identity: stopped at {label}; not attempted: {}",
+                not_attempted.join(", ")
+            );
+        }
         return ExitCode::from(FAILED);
     }
     if refused > 0 {
         ExitCode::from(FAILED)
     } else {
         ExitCode::SUCCESS
+    }
+}
+
+/// One repository as the migration left it.
+struct Committed {
+    label: String,
+    /// The commit message's subject line.
+    subject: String,
+    /// Every rewritten file, under the name it has after the rename, with its claim count.
+    files: Vec<(PathBuf, usize)>,
+    /// The claim lines rewritten across all of them.
+    claims: usize,
+}
+
+/// Write one repository's plan in a single commit: the rename through git, then every claim
+/// splice, then the stage and the commit. Never a push.
+///
+/// The splices are computed in memory before the first write, so a file that is unreadable or no
+/// longer carries a legacy claim leaves the repository untouched. A failure after the first
+/// write unwinds what was written, so a run that stops midway leaves no half-migrated repository
+/// behind: a repository is either fully migrated in one commit or as the plan found it.
+fn apply_repo(plan: &RepoPlan) -> Result<Committed, String> {
+    let root = &plan.root;
+    let splices = prepare(plan)?;
+    let mut undo = Undo::default();
+
+    if let Some(rename) = &plan.rename {
+        git(
+            root,
+            &[
+                OsStr::new("mv"),
+                rename.from.as_os_str(),
+                rename.to.as_os_str(),
+            ],
+        )
+        .map_err(|e| format!("cannot rename {}: {e}", rename.from.display()))?;
+        undo.rename = Some((rename.from.clone(), rename.to.clone()));
+    }
+
+    for splice in &splices {
+        if let Err(e) = std::fs::write(root.join(&splice.written), &splice.next) {
+            let warnings = undo.finish(root);
+            return Err(explain(
+                format!("cannot write {}: {e}", splice.written.display()),
+                &warnings,
+            ));
+        }
+        undo.files
+            .push((splice.written.clone(), splice.original.clone()));
+    }
+
+    // Stage exactly the files the splice rewrote. `-f` is required: `git add` refuses a path an
+    // ignore rule covers even when `git mv` has just staged it, and a repository mid-rebrand can
+    // well carry `.2brain/` in its `.gitignore`. The paths are the ones this migration read and
+    // spliced, already tracked by the rename, so the override reaches nothing else.
+    if !splices.is_empty() {
+        let mut stage: Vec<&OsStr> = vec![OsStr::new("add"), OsStr::new("-f"), OsStr::new("--")];
+        stage.extend(splices.iter().map(|splice| splice.written.as_os_str()));
+        if let Err(e) = git(root, &stage) {
+            let warnings = undo.finish(root);
+            return Err(explain(
+                format!("cannot stage the rewritten files: {e}"),
+                &warnings,
+            ));
+        }
+    }
+
+    let subject = format!("migrate identity: {}", plan.label);
+    let body = commit_body(plan, &splices);
+    if let Err(e) = git(
+        root,
+        &[
+            OsStr::new("commit"),
+            OsStr::new("-q"),
+            OsStr::new("-m"),
+            OsStr::new(&subject),
+            OsStr::new("-m"),
+            OsStr::new(&body),
+        ],
+    ) {
+        let warnings = undo.finish(root);
+        return Err(explain(
+            format!("cannot commit the migration: {e}"),
+            &warnings,
+        ));
+    }
+
+    Ok(Committed {
+        label: plan.label.clone(),
+        subject,
+        claims: splices.iter().map(|splice| splice.claims).sum(),
+        files: splices
+            .iter()
+            .map(|splice| (splice.written.clone(), splice.claims))
+            .collect(),
+    })
+}
+
+/// One file's byte splice, computed but not yet written.
+struct Splice {
+    /// The file after the rename: where the new bytes are written.
+    written: PathBuf,
+    original: Vec<u8>,
+    next: Vec<u8>,
+    claims: usize,
+}
+
+/// Read and splice every file the plan rewrites, writing nothing.
+///
+/// Every read and every splice happens here, before the first write, so a stale plan (a file
+/// that is gone, not UTF-8, or no longer carries a legacy claim) fails with the repository
+/// untouched.
+fn prepare(plan: &RepoPlan) -> Result<Vec<Splice>, String> {
+    let mut seen: BTreeSet<&Path> = BTreeSet::new();
+    let mut splices = Vec::new();
+    for rewrite in &plan.rewrites {
+        if !seen.insert(rewrite.file.as_path()) {
+            continue;
+        }
+        let planned = &rewrite.file;
+        let path = plan.root.join(planned);
+        let original = std::fs::read(&path)
+            .map_err(|e| format!("cannot read {}: {e}; the plan is stale", planned.display()))?;
+        let text = std::str::from_utf8(&original)
+            .map_err(|_| format!("{} is not UTF-8; the plan is stale", planned.display()))?;
+        let (next, lines) = rewrite_engine_claims(&path, text).ok_or_else(|| {
+            format!(
+                "{} carries no legacy claim any more; the plan is stale",
+                planned.display()
+            )
+        })?;
+        splices.push(Splice {
+            written: written_path(plan, planned),
+            original,
+            next: next.into_bytes(),
+            claims: lines.len(),
+        });
+    }
+    Ok(splices)
+}
+
+/// Where a planned file lives once the identity directory has moved: a path inside the renamed
+/// directory is re-based on the new name, and every other path is unchanged.
+fn written_path(plan: &RepoPlan, planned: &Path) -> PathBuf {
+    match &plan.rename {
+        Some(rename) => planned
+            .strip_prefix(&rename.from)
+            .map(|rest| rename.to.join(rest))
+            .unwrap_or_else(|_| planned.to_path_buf()),
+        None => planned.to_path_buf(),
+    }
+}
+
+/// The commit message's body: the rename, then the claim count and the files it names.
+fn commit_body(plan: &RepoPlan, splices: &[Splice]) -> String {
+    let claims: usize = splices.iter().map(|splice| splice.claims).sum();
+    let mut lines: Vec<String> = Vec::new();
+    if let Some(rename) = &plan.rename {
+        lines.push(format!(
+            "Renamed {} -> {}.",
+            rename.from.display(),
+            rename.to.display()
+        ));
+    }
+    if claims > 0 {
+        if !lines.is_empty() {
+            lines.push(String::new());
+        }
+        lines.push(format!(
+            "{claims} {} rewritten in {} {}:",
+            plural(claims, "claim line", "claim lines"),
+            splices.len(),
+            plural(splices.len(), "file", "files"),
+        ));
+        for splice in splices {
+            lines.push(format!("  {}", splice.written.display()));
+        }
+    }
+    lines.join("\n")
+}
+
+/// What a failed apply has to put back: the rename it performed and the bytes it already wrote.
+#[derive(Default)]
+struct Undo {
+    /// The directory rename already done, `(from, to)` relative to the repository root.
+    rename: Option<(PathBuf, PathBuf)>,
+    /// The files already rewritten, with the bytes to put back.
+    files: Vec<(PathBuf, Vec<u8>)>,
+}
+
+impl Undo {
+    /// Return the repository to the state the plan read: the bytes put back, the rename
+    /// reversed, then the index reset — the tree was verified clean before the first write, so
+    /// HEAD is the state to return to. Best effort: a step that fails is returned as a warning,
+    /// because a rollback that cannot complete must still be reported rather than hidden.
+    fn finish(self, root: &Path) -> Vec<String> {
+        let mut warnings = Vec::new();
+        for (path, bytes) in &self.files {
+            if let Err(e) = std::fs::write(root.join(path), bytes) {
+                warnings.push(format!(
+                    "cannot restore {}; it may carry a half-written splice",
+                    path.display()
+                ));
+                warnings.push(e.to_string());
+            }
+        }
+        if let Some((from, to)) = &self.rename {
+            if let Err(e) = git(root, &[OsStr::new("mv"), to.as_os_str(), from.as_os_str()]) {
+                warnings.push(format!(
+                    "cannot rename {} back to {}",
+                    to.display(),
+                    from.display()
+                ));
+                warnings.push(e);
+            }
+        }
+        if let Err(e) = git(root, &[OsStr::new("reset"), OsStr::new("-q")]) {
+            warnings.push("cannot unstage the migration".to_string());
+            warnings.push(e);
+        }
+        warnings
+    }
+}
+
+/// A failure plus whatever the rollback could not put back, as one message.
+fn explain(reason: String, warnings: &[String]) -> String {
+    if warnings.is_empty() {
+        return format!("{reason}; the repository was left as the plan found it");
+    }
+    format!(
+        "{reason}; the rollback is incomplete: {}",
+        warnings.join("; ")
+    )
+}
+
+/// `git -C <root> <args>`, every pathspec read literally. A failure returns git's own stderr,
+/// so the operator sees the repository's reason (a hook, a missing identity) rather than a
+/// paraphrase.
+fn git(root: &Path, args: &[&OsStr]) -> Result<(), String> {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .env("GIT_LITERAL_PATHSPECS", "1")
+        .args(args)
+        .output()
+        .map_err(|e| format!("git is unavailable: {e}"))?;
+    if out.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let stderr = stderr.trim();
+    let command = args
+        .iter()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if stderr.is_empty() {
+        Err(format!("`git {command}` failed"))
+    } else {
+        Err(format!("`git {command}` failed: {stderr}"))
     }
 }
 
