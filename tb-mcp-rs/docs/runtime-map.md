@@ -19,14 +19,14 @@ is in git history, and this one records what replaced it.
 `au-mcp` (Node daemon), `au-mcp-core` (49 tool definitions and their implementations), both client
 adapters, `au-mcp-bridge` (the Python bridge), `au-engine-sdk` (the Node client) and `au-type-codegen`
 (all TypeScript), plus `arsumbris-mcp.service`. Reasons and measurements:
-`docs/serving-parity.md`, `docs/repo-inventory.md`, `docs/detach-and-consolidate.md`.
+`docs/internal/serving-parity.md`, `docs/repo-inventory.md`, `docs/internal/detach-and-consolidate.md`.
 
 The consequences worth knowing:
 
 - **nothing outside Rust runs in the served path** — no Node, no Python, no bridge;
 - the client spawns one binary and gets MCP directly, so there is no protocol translation layer to
   reconnect or pin;
-- what the client loses is listed and decided in `docs/serving-parity.md` §2b: the four `au_host_*`
+- what the client loses is listed and decided in `docs/internal/serving-parity.md` §2b: the four `au_host_*`
   relays (dead: no `au-host` socket here), the inert `bash` stub, `glob`/`grep_files`, and
   `au_type_system`.
 

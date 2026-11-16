@@ -156,4 +156,4 @@ Honest ledger, so a reader does not have to infer the gaps from the evidence fil
 | generated schemas | `tests/schema_contract.rs` catches drift against captured payloads, which is the safety half. Generating the schemas needs `WIRE.md` marked up machine-readably; today it is prose |
 | an `au_files` golden capture | the engine golden set covers four reads; the file listing is size-heavy and still uncaptured |
 | a scripted live A/B | the eleven byte-identical reads of 2026-11-13 were a manual session, so they cannot be re-run by the next person |
-| ~~Phase D (retire the Node stack)~~ | **done 2026-11-16**: the bridge, the Node daemon, both adapters, the SDK code and the codegen are deleted; the client spawns `/usr/local/bin/2brain`. Decisions and measurements in [`../../docs/serving-parity.md`](../../docs/serving-parity.md) |
+| ~~Phase D (retire the Node stack)~~ | **done 2026-11-16**: the bridge, the Node daemon, both adapters, the SDK code and the codegen are deleted; the client spawns `/usr/local/bin/2brain`. Decisions and measurements in [`../../docs/internal/serving-parity.md`](../../docs/internal/serving-parity.md) |
