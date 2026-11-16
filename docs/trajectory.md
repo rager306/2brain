@@ -291,9 +291,12 @@ next to the synthetic ones rather than replacing them.
 *Exit:* a stated threshold per query class, written down before the next ranking change.
 
 **Stage 4 — the project-memory template.** `decision`, `constraint`, `evidence`, `experiment`, `handoff`,
-`error_fix`; a `supersedes` relation with a status that survives retrieval; a handoff note the next agent can read
-in one call.
-*Exit:* the two-agent scenario passes on the live vault, with the transcript kept as evidence.
+`error-fix` ship as `2brain init --template project-memory`, with a test that starts a daemon on a fresh workspace
+and requires zero diagnostics from the starter's own types. Writing it already taught one lesson: `String` in the
+type system means REQUIRED, so the first draft rejected a decision for a missing `supersedes` — only what a record
+cannot do without stays required.
+*Exit:* the two-agent scenario passes on the live vault, with the transcript kept as evidence. The template is
+half of it; the transcript is the half that is not written yet.
 
 **Stage 5 — knowledge-base intake.** Deliberate intake (every note sourced and linked at write time), the weekly
 census as a card, proposal-based maintenance with a human-checkable diff.
