@@ -14,7 +14,7 @@
 #
 # Mixes in the schema-18 nominal-meta marker so it is meta-legal (closure includes
 # `au.engine.meta::au-engine`).
-extends: au.engine.meta::au-engine
+extends: tb.engine.meta::tb-engine
 fields:
   # ESM entry implementing the tool's shape functions, relative to the package root.
   entry: String

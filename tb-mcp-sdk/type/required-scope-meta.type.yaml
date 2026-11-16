@@ -20,7 +20,7 @@
 # Owned here (au-mcp-sdk, the contract owner). Meta is excluded from the canonical hash, so a
 # vendored copy drops the doc; discovery reads the OWNER copy. Mixes in the schema-18 nominal-meta
 # marker so it is meta-legal (closure includes `au.engine.meta::au-engine`).
-extends: au.engine.meta::au-engine
+extends: tb.engine.meta::tb-engine
 fields:
   #: the capabilities that must be AVAILABLE in the session, as type-def refs. A tool IS a typed def,
   #: so one ref shape covers "tool `au_declare` available" and "type `T` resolvable" uniformly;

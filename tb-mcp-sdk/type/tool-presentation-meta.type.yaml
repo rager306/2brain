@@ -13,7 +13,7 @@
 #
 # Mixes in the schema-18 nominal-meta marker so it is meta-legal (its closure includes
 # `au.engine.meta::au-engine`, the universal `::au-engine` peer — no `deps` needed).
-extends: au.engine.meta::au-engine
+extends: tb.engine.meta::tb-engine
 fields:
   # Human-readable description, advertised to the agent. Required: every tool presents one.
   # The engine enforces BOTH the SHAPE (this field) and the DECLARATION: mcp.tool's

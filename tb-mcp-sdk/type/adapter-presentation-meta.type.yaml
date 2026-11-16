@@ -8,7 +8,7 @@
 #
 # Mixes in the schema-18 nominal-meta marker so it is meta-legal (closure includes
 # `au.engine.meta::au-engine`).
-extends: au.engine.meta::au-engine
+extends: tb.engine.meta::tb-engine
 fields:
   # What this adapter is — shown to a human picking an adapter.
   description: String

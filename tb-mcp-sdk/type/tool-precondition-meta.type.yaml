@@ -15,5 +15,5 @@
 # Mixes in the schema-18 nominal-meta marker so its subtypes (e.g. `read-precondition-meta`)
 # are meta-legal by closure (`au.engine.meta::au-engine` is the universal `::au-engine` peer).
 abstract: true
-extends: au.engine.meta::au-engine
+extends: tb.engine.meta::tb-engine
 fields: {}

@@ -10,7 +10,7 @@
 #
 # Mixes in the schema-18 nominal-meta marker so it is meta-legal (closure includes
 # `au.engine.meta::au-engine`).
-extends: au.engine.meta::au-engine
+extends: tb.engine.meta::tb-engine
 fields:
   # Exact-equality contract handshake (no semver), mirrors the plugin-runtime-meta convention.
   contractVersion: Number{>=0 & integer}

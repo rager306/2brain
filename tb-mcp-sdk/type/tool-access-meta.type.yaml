@@ -21,7 +21,7 @@
 #
 # Mixes in the schema-18 nominal-meta marker so it is meta-legal (closure includes
 # `au.engine.meta::au-engine`).
-extends: au.engine.meta::au-engine
+extends: tb.engine.meta::tb-engine
 fields:
   #: declared engine-broker access. `none` (or the meta absent) — no broker. `read` — a
   #: read-only broker (engine reads, mutate denied). `read-write` — the full broker (reads +
