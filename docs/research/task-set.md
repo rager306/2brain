@@ -654,18 +654,20 @@ what a slightly larger set would buy — but it is contaminated by the effect, a
 | **18 (this set)** | **0.229** | **0.076** |
 | **160 (the size the coverage work is building)** | **0.077** | **0.025** |
 
-Read the conservative column: **at n = 18 the smallest nDCG@5 change this set can certify is about 0.23, a
-quarter of the metric's range.** A 160-question set would reach 0.077. The change shipped today is +0.033,
-so it is below the MDE at *every* size in the table — under the conservative σ it would need about **870
-questions** to become decidable; under the delta σ about **95**. Which is true depends on whether future
-effects spread across questions like the level distribution or like this one, and one pair cannot say. The
-number to quote is the conservative one.
+**Withdrawn on second opinion (`docs/research/second-opinion-2026-11-16.md`, O1):** the constants in the table above are
+not quotable. Weber's formula needs the σ of *paired deltas between comparable systems*; what was substituted is the
+cross-task spread of one system over fifteen rows of a different set, and the delta σ (0.129) comes from a single pair and
+contains the effect it was meant to certify. So:
 
-This is the most important line in the document, so it is stated plainly: **the eighteen-task set cannot
-certify the size of change we actually ship.** It can name a mechanism, show the row it moved, and veto a
-regression (the reversed control), and those are the jobs it should keep. It cannot tell a +0.03 ranking
-change from noise at n = 18, and at n = 160 the answer depends on a σ we have only bounded. Any future claim
-of the form "this improved ranking" has to name the σ it used and the n that σ requires.
+- **σ is not measured yet.** The first honest estimate needs two graded runs over the *same* graded set, and today only two
+  of fifteen rows carry grades at all.
+- **no MDE number is quoted** — not 0.229, not 0.077, not "about 95 questions". The method (declare σ, derive n, name it
+  with the claim) survives; the arithmetic that used a σ of the wrong type does not.
+- **what stands unchanged**: the eighteen-task set cannot certify the size of change we ship. It can name a mechanism, show
+  the row it moved, and veto a regression (the reversed control), and those are the jobs it should keep.
+
+To make an MDE real, the steps are: grade all eighteen rows (or use the 160-question set with grades), run two builds over
+the same rows, take the paired-delta σ, and only then state the n a given effect needs.
 
 ### What nDCG@5 still cannot see
 

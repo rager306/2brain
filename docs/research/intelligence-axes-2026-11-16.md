@@ -126,8 +126,10 @@ handoff notes written, how many name a next step and an evidence path.
 
 ## What we are missing, ordered by how much it costs to keep missing it
 
-1. **A graded ranking metric.** Pass/fail at n=18 cannot see a one-task change; the bootstrap said so in arithmetic. nDCG@10
-   over the existing labelled set is a day of work and makes every later ranking argument decidable.
+1. **A graded ranking metric, built.** Pass/fail at n=18 cannot see a one-task change; nDCG@5 with grades now exists
+   (`graded.py`), and it does **not** make every later ranking argument decidable — it makes a moved rank legible. The
+   difference is a second opinion's correction (`second-opinion-2026-11-16.md`, O2): the metric is expressiveness, and
+   power comes from n and a measured paired σ, neither of which we have.
 2. **Token accounting.** We optimise bytes because that is what we count. A client pays tokens.
 3. **Abstention.** `absent` 0/3 means the base asserts on questions it cannot answer — the single worst property for a shared
    memory, and the cheapest to fix (an answer field plus a scoring rule).

@@ -64,10 +64,16 @@ nothing because a two-term default floor is an AND, not because of punctuation);
 
 ## How to read any future number from this set
 
-`run_questions.py` stores every row's page, so a change is diffable row by row. The set is 160 rows with nine axes, which
-is enough to attribute a miss to a class or an axis and **not** enough to certify a small effect: at σ = 0.391 the MDE at
-n = 145 is about 0.08 nDCG, and the shipped-vs-candidate difference above (0.018 MRR) is below it. The set names the
-mechanism; the bootstrap decides whether it is real.
+`run_questions.py` stores every row's page, so a change is diffable row by row. The set is 160 rows whose axes are unevenly
+populated (two axes carry 159 of 160 rows in one value, so they have no contrast), which is enough to attribute a miss to a
+class and, for `form`, `length` and `entity`, to name the axis **when the class is held fixed** — and it is not enough to
+certify a small effect.
+
+**No MDE is quoted for this set.** A second opinion (`docs/research/second-opinion-2026-11-16.md`) found that the power
+constant used from `task-set.md` was computed from the cross-task spread of one system over a different set of fifteen
+tasks, not from paired deltas between comparable systems; the honest state is that the σ this set needs has not been
+measured, and it becomes measurable only after two graded runs over these 160 rows exist. Until then the rule stands: this
+set names a mechanism and shows the row it moved; it does not certify that the movement is real.
 
 ## What the noise class actually contains
 
