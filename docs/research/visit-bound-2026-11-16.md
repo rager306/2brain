@@ -200,9 +200,14 @@ cd /root/2brain
 python3 tools/probe/visit_bound.py --json /tmp/visit-bound/rows.json
 ```
 
-The probe prints the two tables above; `--json` writes the raw per-query rows. It takes a
-few minutes: three cold engine builds, three daemons started and stopped, and roughly 140
-measured requests. `--keep` reuses the copies under `/tmp/visit-bound` on a re-run.
+The probe prints the tables above (documents visited, posting blocks decoded, and the
+per-query series); `--json` writes the raw per-query rows. It takes a few minutes: three
+cold engine builds, three daemons started and stopped, and roughly 140 measured requests.
+`--keep` reuses the copies under `/tmp/visit-bound` on a re-run.
+
+A second run reproduced every number in the tables exactly: the copies, the note order and
+the query set are all deterministic, so a future change in a number is the engine and not
+the probe.
 
 ## Equivalence: the counters changed no answer
 

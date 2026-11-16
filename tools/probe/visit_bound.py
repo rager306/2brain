@@ -454,6 +454,20 @@ def report(rows: list[dict], sizes: list[int], seed: str) -> None:
             + " | ".join(f"{mean:.1f}" for mean in means)
             + f" | {slope:.2f} | {r2:.2f} |"
         )
+    print("\n# posting blocks decoded per query, min–max over each verb's query set\n")
+    print("| verb | " + " | ".join(f"{size} notes" for size in sizes) + " |")
+    print("|---|" + "---:|" * len(sizes))
+    for verb in VERBS + CLOSURE_VERBS:
+        cells = []
+        for size in sizes:
+            values = [
+                row["posting_blocks"]
+                for row in rows
+                if row["verb"] == verb and row["size"] == size
+            ]
+            low, high = min(values), max(values)
+            cells.append(f"{low}" if low == high else f"{low}–{high}")
+        print(f"| `{verb}` | " + " | ".join(cells) + " |")
     print("\n# per-query slopes (documents visited against note count)\n")
     print("| verb | query | " + " | ".join(str(size) for size in sizes) + " | slope |")
     print("|---|---|" + "---:|" * len(sizes) + "---:|")
