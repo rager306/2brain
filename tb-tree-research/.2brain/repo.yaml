@@ -1,7 +1,7 @@
 # au-mcp-sdk supplies the skill carrier.
 # au-base-types supplies the map's navigation identity and the article's source identity.
 # Premise and question are standalone research types.
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine
 name: au-tree-research
 description: Scoped research trees with separate questions and answering articles. Four skills guide research; a native tool computes each premise's map through the engine.
 deps:

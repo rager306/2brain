@@ -1,5 +1,5 @@
 ---
-type: au.engine.readme::au-engine
+type: tb.engine.readme::tb-engine
 tldr: Recursive deep research produces articles for further processing. Run four skills from a scoped premise. Extend with consumer types and writing guidance.
 ---
 
