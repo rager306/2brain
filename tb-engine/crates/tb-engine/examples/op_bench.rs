@@ -835,8 +835,8 @@ fn run_real_entry(entry: &std::path::Path) {
 fn report(label: &str, rows: &[Row]) {
     println!("\n=== write-to-observable, profile `{label}` ===\n");
     println!(
-        "{:<22} {:>10} {:>10} {:>10}  {:<12} {}",
-        "operation", "engine", "wire", "untraced", "path", "note"
+        "{:<22} {:>10} {:>10} {:>10}  {:<12} note",
+        "operation", "engine", "wire", "untraced", "path"
     );
     for row in rows {
         let mut note = match row.gap {

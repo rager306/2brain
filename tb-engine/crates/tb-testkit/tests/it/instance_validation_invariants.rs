@@ -64,7 +64,7 @@ fn validate_output_invariant_under_field_permutation() {
     // exercise here.
     let g = build_graph(vec![type_def_with_fields("rec", &[], &["a", "b", "c"])]).graph;
 
-    let base = vec![
+    let base = [
         instance_field("a", InstanceValue::String("x".into())),
         instance_field("b", InstanceValue::String("y".into())),
         instance_field("c", InstanceValue::String("z".into())),

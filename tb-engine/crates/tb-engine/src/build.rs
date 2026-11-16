@@ -1152,6 +1152,17 @@ pub(crate) struct Composition {
     pub(crate) diagnostics: Vec<Diagnostic>,
 }
 
+/// The unioned member walk: the deduped member file set, the member roots, the
+/// root-to-name map, each root's walk error, and every `.arsumbris/repo.yaml`
+/// marker surfaced under a member root.
+type MemberUnion = (
+    Vec<PathBuf>,
+    Vec<PathBuf>,
+    BTreeMap<PathBuf, RepoName>,
+    BTreeMap<PathBuf, std::io::Error>,
+    Vec<PathBuf>,
+);
+
 /// Compose the workspace an entry opens: resolve the entry, run the local
 /// walk-resolve fixpoint, mount the locked dependencies from the cache, walk the
 /// members that adds, and discover the repos with their deps resolved.
@@ -1264,13 +1275,7 @@ pub(crate) fn compose(
     // `bound_nested_repos` warns for an undeclared nested marker under a member
     // root; its file-drop is a no-op now that the walk is bounded up front.
     let union_span = tracing::info_span!("discover.union").entered();
-    let (files, roots, member_names, member_walk_errors, repo_markers): (
-        Vec<PathBuf>,
-        Vec<PathBuf>,
-        BTreeMap<PathBuf, RepoName>,
-        BTreeMap<PathBuf, std::io::Error>,
-        Vec<PathBuf>,
-    ) = {
+    let (files, roots, member_names, member_walk_errors, repo_markers): MemberUnion = {
         let ws = &entry_ws;
         let member_roots: BTreeSet<PathBuf> = ws.member_paths.values().cloned().collect();
         let mut files: Vec<PathBuf> = Vec::new();
@@ -1384,7 +1389,7 @@ pub(crate) fn compose(
             .map(|d| d.span.file.as_path())
             .collect();
         let mut out = Vec::new();
-        for (_root, (_files, mmarkers)) in &walked {
+        for (_files, mmarkers) in walked.values() {
             for marker in mmarkers {
                 if !seen.insert(marker.as_path()) {
                     continue;
@@ -3336,7 +3341,7 @@ mod tests {
 
         assert!(
             kb.diagnostics().any(|d| d.code == tb_parser::FILE_TOO_LARGE
-                && d.span.file == PathBuf::from("/v/type/note.type.yaml")),
+                && d.span.file == Path::new("/v/type/note.type.yaml")),
             "an over-cap type-def surfaces a file-too-large diagnostic"
         );
         // An unread type-def is a vocabulary error, so its repo aborts its own

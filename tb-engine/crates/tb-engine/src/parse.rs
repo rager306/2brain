@@ -34,6 +34,10 @@ use crate::diagnostics::{duplicate_key_diags, not_utf8_diag};
 /// content hash holds. The variant follows the file's kind; `Unparsed` covers
 /// notes without a `type:`, files whose frontmatter or YAML failed, and any
 /// non-candidate the caller routes here.
+// The held parse, one per file: `TypeDef` is 640 bytes against `Instance`'s 257, a
+// few hundred KB over a large vault. Boxing `type_def` would put an indirection in
+// front of a field ~30 readers destructure, to save less than the parse holds.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum FileParse {
     /// A type-def file. `type_def` is `None` when the structural parse failed.

@@ -729,9 +729,7 @@ struct TraceGuards {
 fn install_tracing(entry: &Path) -> Option<TraceGuards> {
     use tracing_subscriber::prelude::*;
 
-    if std::env::var_os("AU_TRACE").is_none() {
-        return None;
-    }
+    std::env::var_os("AU_TRACE")?;
     let dir = entry
         .join(".arsumbris")
         .join("au-engine")

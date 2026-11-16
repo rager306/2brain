@@ -1496,17 +1496,21 @@ struct EditFileArgs {
 /// One operation inside a batch. The tag names the same file-level verbs the
 /// single mutations serve, so a batch is a composition of writes, edits, and
 /// deletes, never a new primitive.
+// Each tag is pinned to the single verb it composes, so a variant rename cannot
+// silently change the wire.
 #[derive(Debug, Deserialize)]
-#[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
+#[serde(tag = "op", deny_unknown_fields)]
 enum BatchOp {
-    WriteFile {
+    #[serde(rename = "write_file")]
+    Write {
         path: String,
         content: String,
         /// Read-before-write guard, per op.
         #[serde(default)]
         expected_hash: Option<String>,
     },
-    EditFile {
+    #[serde(rename = "edit_file")]
+    Edit {
         path: String,
         old_string: String,
         new_string: String,
@@ -1515,7 +1519,8 @@ enum BatchOp {
         #[serde(default)]
         replace_all: bool,
     },
-    DeleteFile {
+    #[serde(rename = "delete_file")]
+    Delete {
         path: String,
         #[serde(default)]
         expected_hash: Option<String>,
@@ -1894,7 +1899,7 @@ enum Subscription {
     /// live half of the git ACTIVITY view. Scoped by the same `members` /
     /// `limit` / `since` as the read. See [[spec - recent-commits activity stream
     /// - a member-aware bounded commit stream with a reflog-watched append-only
-    /// subscription]].
+    ///   subscription]].
     RecentCommits(RecentCommitsSubArgs),
 }
 
@@ -1934,13 +1939,13 @@ struct OverviewArgs {
     scope: ScopeArg,
 }
 
-/// The ONE deliberate gap the defaults leave: `overview.type_counts` is
-/// own-scoped while `type_counts({})` is all-scoped, because `overview` is the
-/// first-person map. `overview` therefore echoes its resolved `repo` / `scope`,
-/// so a consumer drilling down passes them verbatim instead of re-deriving a
-/// default it cannot see. Every other default is the read's own row in the scope
-/// table beside [`Request`], and `repo: "base", scope: "own"` legitimately
-/// yields nothing: the caller stated both filters.
+// The ONE deliberate gap the defaults leave: `overview.type_counts` is
+// own-scoped while `type_counts({})` is all-scoped, because `overview` is the
+// first-person map. `overview` therefore echoes its resolved `repo` / `scope`,
+// so a consumer drilling down passes them verbatim instead of re-deriving a
+// default it cannot see. Every other default is the read's own row in the scope
+// table beside [`Request`], and `repo: "base", scope: "own"` legitimately
+// yields nothing: the caller stated both filters.
 
 /// Args for the `members` read. Optional `repo` narrows to one member, so
 /// `overview({repo}).members` is reproducible by one `members` call — the mirror
@@ -2735,13 +2740,13 @@ impl DiagnosticsScope {
     }
 
     fn matches(&self, v: &KnowledgeBase, d: &Diagnostic) -> bool {
-        self.path.as_deref().map_or(true, |p| d.span.file == p)
+        self.path.as_deref().is_none_or(|p| d.span.file == p)
             && self
                 .path_prefix
                 .as_deref()
-                .map_or(true, |p| d.span.file.starts_with(p))
-            && self.severity.map_or(true, |s| d.severity == s)
-            && self.code.as_deref().map_or(true, |c| d.code.as_str() == c)
+                .is_none_or(|p| d.span.file.starts_with(p))
+            && self.severity.is_none_or(|s| d.severity == s)
+            && self.code.as_deref().is_none_or(|c| d.code.as_str() == c)
             && self.owner_matches(v, d)
     }
 }
@@ -4999,6 +5004,9 @@ fn apply_saga_with_moves<T>(
 /// by the shared `Mutation-Id`, and compensate every member on any failure, a
 /// write failure or a commit failure alike. Always settles before returning, so
 /// the caller can close the intent marker.
+// Nine inputs are the saga's own state, passed once by its only caller; a struct
+// would restate that list at the one call site instead of naming the arguments.
+#[allow(clippy::too_many_arguments)]
 fn settle_saga<T>(
     git: &impl GitWriter,
     git_members: &[&SagaMember],
@@ -6632,7 +6640,7 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                             ))
                         })?;
                         // Fold the stamp into the newly-extracted file, this commit.
-                        Ok(fold_write_stamps(&blocking_to, &stamps, written)?)
+                        fold_write_stamps(&blocking_to, &stamps, written)
                     })?;
                 blocking_handle.rebuild_paths(saga_dirty_set(&plan));
                 Ok::<_, crate::mutate::MutationReject>((written, commits))
@@ -7107,7 +7115,7 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                             ))
                         })?;
                         // Fold the stamp into the host file the content was pulled into.
-                        Ok(fold_write_stamps(&blocking_into, &stamps, written)?)
+                        fold_write_stamps(&blocking_into, &stamps, written)
                     })?;
                 blocking_handle.rebuild_paths(saga_dirty_set(&plan));
                 Ok::<_, crate::mutate::MutationReject>((written, commits))
@@ -7303,7 +7311,7 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                         }
                         let written = crate::mutate::write_file(&blocking_host, &host_after, None)?;
                         // Fold the stamp into the host file carrying the record.
-                        Ok(fold_write_stamps(&blocking_host, &stamps, written)?)
+                        fold_write_stamps(&blocking_host, &stamps, written)
                     })?;
                 blocking_handle.rebuild_paths(saga_dirty_set(&plan));
                 Ok::<_, crate::mutate::MutationReject>((written, commits))
@@ -9921,7 +9929,7 @@ async fn preview_mutation(handle: &EngineHandle, args: PreviewMutationArgs) -> R
     let read = tokio::task::spawn_blocking(move || {
         // The saga plan the committing write would build, classified the same
         // way, refusing where the write's saga would.
-        let saga = resolve_saga_plan(&h, &[target.clone()]);
+        let saga = resolve_saga_plan(&h, std::slice::from_ref(&target));
         if let Some(reject) = saga_precondition_reject(&saga, false) {
             return h.read(move |_| preview_reject_view(reject));
         }
@@ -10732,6 +10740,10 @@ fn delete_dir_write(
     Ok(())
 }
 
+/// A folder move's referrer rewrites: each changed referrer's new bytes, and the
+/// wire list, each shown at the path it ends at.
+type DirRewrites = (Vec<(PathBuf, String)>, Vec<wire::PreviewRewriteView>);
+
 /// A folder move's referrer rewrites, computed at the referrers' OLD paths
 /// without writing: each changed referrer's new bytes, and the wire list, each
 /// shown at the path it ends at, path-sorted.
@@ -10743,8 +10755,7 @@ fn delete_dir_write(
 fn move_dir_rewrites(
     plan: &crate::dirop::MoveDirPlan,
     not_written: &std::collections::BTreeSet<PathBuf>,
-) -> Result<(Vec<(PathBuf, String)>, Vec<wire::PreviewRewriteView>), crate::mutate::MutationReject>
-{
+) -> Result<DirRewrites, crate::mutate::MutationReject> {
     let mut rewritten = Vec::new();
     let mut views = Vec::new();
     for path in plan.referrers.keys() {
@@ -10988,9 +10999,9 @@ async fn batch_mutation(handle: &EngineHandle, args: BatchArgs) -> serde_json::V
     let mut targets = Vec::with_capacity(args.ops.len());
     for op in &args.ops {
         let path = match op {
-            BatchOp::WriteFile { path, .. }
-            | BatchOp::EditFile { path, .. }
-            | BatchOp::DeleteFile { path, .. } => path,
+            BatchOp::Write { path, .. }
+            | BatchOp::Edit { path, .. }
+            | BatchOp::Delete { path, .. } => path,
         };
         match resolve_mutation_target(handle, path) {
             Ok(t) => targets.push(t),
@@ -11028,7 +11039,7 @@ fn apply_batch_ops(
     let mut applied = Vec::with_capacity(ops.len());
     for (op, target) in ops.iter().zip(resolved) {
         let entry = match op {
-            BatchOp::WriteFile {
+            BatchOp::Write {
                 content,
                 expected_hash,
                 ..
@@ -11040,7 +11051,7 @@ fn apply_batch_ops(
                     "hash": crate::mutate::hash_hex(hash),
                 })
             }
-            BatchOp::EditFile {
+            BatchOp::Edit {
                 old_string,
                 new_string,
                 replace_all,
@@ -11053,7 +11064,7 @@ fn apply_batch_ops(
                     "hash": crate::mutate::hash_hex(hash),
                 })
             }
-            BatchOp::DeleteFile { expected_hash, .. } => {
+            BatchOp::Delete { expected_hash, .. } => {
                 crate::mutate::delete_file(target, expected_hash.as_deref())?;
                 serde_json::json!({
                     "op": "delete_file",
@@ -11501,16 +11512,18 @@ async fn run_types(handle: EngineHandle, frame_tx: FrameTx, id: u64, mut rx: wat
     }
 }
 
-/// The type graph coherent at one version: the `types` read's array shape for
-/// the wire, plus the same introspections keyed by type name for the change
-/// diff. `None` while Deriving.
-fn types_snapshot(
-    handle: &EngineHandle,
-) -> Option<(
+/// The type graph coherent at one version: the version, the `types` read's array
+/// shape, and the same introspections keyed by type identity.
+type TypesSnapshot = (
     u64,
     serde_json::Value,
     BTreeMap<(String, String), serde_json::Value>,
-)> {
+);
+
+/// The type graph coherent at one version: the `types` read's array shape for
+/// the wire, plus the same introspections keyed by type name for the change
+/// diff. `None` while Deriving.
+fn types_snapshot(handle: &EngineHandle) -> Option<TypesSnapshot> {
     match handle.read(|v| wire::introspect_workspace_types(v, wire::TypeScope::all())) {
         Read::Ready { version, value } => {
             // Key by IDENTITY, `(name, owner repo)`, not bare name. Two mounted
@@ -12201,7 +12214,7 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
         }
         Request::CandidateCounts(_) => enveloped(
             "candidate_counts",
-            handle.read(|v| wire::introspect_candidate_counts(v)),
+            handle.read(wire::introspect_candidate_counts),
         ),
         Request::InstanceCounts(args) => {
             let scope = args.scope();
@@ -13483,21 +13496,20 @@ fn classify_edge(edge: &crate::backlinks::SourceEdge, gate: SlotGate) -> &'stati
         return "unknown";
     };
     match shape.get(&tb_core::FieldName(key.to_string())) {
-        Some(origin) => {
+        Some(origin)
             if origin
                 .canonical_decl()
                 .parsed_shape
                 .as_ref()
-                .is_ok_and(tb_grammar::slot_admits_reference)
-            {
-                "field-reference"
-            } else {
-                "field-string-wikilink"
-            }
+                .is_ok_and(tb_grammar::slot_admits_reference) =>
+        {
+            "field-reference"
         }
         // In the shape but absent from it: an EXTRA field, which has no slot at
         // all. That is knowledge, not uncertainty, so it is not `unknown`.
         None => "field-string-wikilink",
+        // A resolved slot the shape does not admit a reference from.
+        Some(_) => "field-string-wikilink",
     }
 }
 
@@ -13991,6 +14003,9 @@ fn field_value_token(
 /// wikilink token per link, a `field-value` token over each surrounding text
 /// run. Links are parse-ordered and non-overlapping, so a single left-to-
 /// right sweep over the value span covers it without gaps or overlaps.
+// The token context (`kb`, `source`, `field`, `shape`, `lines`) is the caller's
+// already; a struct would only restate that context at the one call site.
+#[allow(clippy::too_many_arguments)]
 fn emit_mixed_string_tokens(
     kb: &KnowledgeBase,
     source: &Path,
@@ -14041,10 +14056,7 @@ fn record_effective_shape(
     let names: Vec<tb_core::TypeName> = if let Some(claim) = &inline.type_claim {
         claim.iter().map(|c| c.name.clone()).collect()
     } else {
-        match slot.and_then(pinned_name) {
-            Some(name) => vec![tb_core::TypeName(name.to_string())],
-            None => return None,
-        }
+        vec![tb_core::TypeName(slot.and_then(pinned_name)?.to_string())]
     };
     tb_core::effective_shape(graph, &synth_claim(&names)).ok()
 }
@@ -14507,6 +14519,9 @@ struct SearchAnswer {
 /// Ranking and paging are separate passes on purpose: `total` counts every match
 /// in scope, so a page is interpretable without a second call, and the scope
 /// filter runs before paging because it can drop any of the ranked documents.
+// Every argument is one field of the request this read serves, passed through
+// unchanged; a struct would name the wire request twice.
+#[allow(clippy::too_many_arguments)]
 fn search_view(
     kb: &KnowledgeBase,
     query: &str,

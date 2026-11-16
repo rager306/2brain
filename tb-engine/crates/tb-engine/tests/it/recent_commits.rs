@@ -7,7 +7,7 @@
 //! `limit` / `since` bound. A monorepo's members share one tree, so one commit
 //! is one row tagged with them all. See [[spec - recent-commits activity stream
 //! - a member-aware bounded commit stream with a reflog-watched append-only
-//! subscription]].
+//!   subscription]].
 
 #![cfg(unix)]
 

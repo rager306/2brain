@@ -24,7 +24,7 @@ fn nav_codes_on(kb: &tb_engine::KnowledgeBase, file: &Path) -> Vec<String> {
     kb.diagnostics()
         .filter(|d| d.span.file == file)
         .filter(|d| d.code.as_str() == "navigational-target-not-found")
-        .map(|d| format!("{}", d.message))
+        .map(|d| d.message.clone())
         .collect()
 }
 

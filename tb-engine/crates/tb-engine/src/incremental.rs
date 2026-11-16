@@ -2168,7 +2168,7 @@ mod tests {
             linked_base(fs);
             for i in 0..8 {
                 fs.insert(
-                    &format!("/v/n{i}.md"),
+                    format!("/v/n{i}.md"),
                     format!("---\ntype: note\ntitle: N{i}\nlink: \"[[ghost{i}]]\"\n---\n")
                         .into_bytes(),
                 );
@@ -2367,9 +2367,7 @@ mod tests {
         assert!(
             v.backlinks
                 .get(&PathBuf::from("/v/target.md"))
-                .is_some_and(|edges| edges
-                    .iter()
-                    .any(|b| b.source == PathBuf::from("/v/note.md"))),
+                .is_some_and(|edges| edges.iter().any(|b| b.source == Path::new("/v/note.md"))),
             "fixture must form a note->target backlink (is note.md a FileParse::Note?)"
         );
 

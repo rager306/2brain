@@ -279,12 +279,9 @@ impl<const N: usize> PostingBlock<N> {
         let mut right = PostingWalk::<N>::new(&other.bytes);
         let mut left_entry = left.next_entry();
         let mut right_entry = right.next_entry();
-        loop {
-            let (Some((left_doc, left_tf, left_at)), Some((right_doc, right_tf, right_at))) =
-                (left_entry, right_entry)
-            else {
-                break;
-            };
+        while let (Some((left_doc, left_tf, left_at)), Some((right_doc, right_tf, right_at))) =
+            (left_entry, right_entry)
+        {
             match left_doc.cmp(&right_doc) {
                 std::cmp::Ordering::Less => left_entry = left.next_entry(),
                 std::cmp::Ordering::Greater => right_entry = right.next_entry(),
@@ -1645,7 +1642,7 @@ mod tests {
                 }
                 // A posting exists exactly for the documents holding the term in
                 // some field, and that is what `matched` counts.
-                if doc.tf[0].get(term).is_none() && doc.tf[1].get(term).is_none() {
+                if !doc.tf[0].contains_key(term) && !doc.tf[1].contains_key(term) {
                     continue;
                 }
                 matched += 1;
@@ -1682,7 +1679,7 @@ mod tests {
     fn reference_exact(docs: &[ReferenceDoc], needle: &str) -> Vec<(usize, f64)> {
         let terms = reference_terms(needle);
         let frequency = reference_frequencies(docs, &terms);
-        if frequency.iter().any(|&frequency| frequency == 0) {
+        if frequency.contains(&0) {
             return Vec::new();
         }
         let (weights, average, idf) = reference_setup(docs, &frequency);

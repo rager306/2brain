@@ -291,8 +291,8 @@ pub fn generate(dir: &Path, knobs: &Knobs, seed: u64) -> GenOutput {
         .map(|k| k != 0 && knobs.repo_count > 1 && rng.ratio() < knobs.xref_density)
         .collect();
 
-    for k in 0..knobs.repo_count {
-        gen_repo(dir, k, knobs, importers[k], &mut out);
+    for (k, &imports) in importers.iter().enumerate() {
+        gen_repo(dir, k, knobs, imports, &mut out);
     }
     out
 }

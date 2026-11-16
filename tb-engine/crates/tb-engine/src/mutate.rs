@@ -634,7 +634,7 @@ struct Edit {
 /// Apply edits high-offset first, so an earlier splice never shifts a later
 /// (lower) span. Ranges are parser byte offsets, on char boundaries.
 fn apply_edits(content: &str, mut edits: Vec<Edit>) -> String {
-    edits.sort_by(|a, b| b.start.cmp(&a.start));
+    edits.sort_by_key(|a| std::cmp::Reverse(a.start));
     let mut out = content.to_string();
     for e in edits {
         out.replace_range(e.start..e.end, &e.text);

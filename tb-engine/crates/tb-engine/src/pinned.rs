@@ -193,7 +193,7 @@ pub(crate) enum ForwardTrace {
 /// The precision ladder, best first.
 /// 1. the exact pinned bytes still at the recorded path, `Present`.
 /// 2. a `Moved:` trailer chain from the pinned commit to HEAD, recorded rather
-/// than inferred (but unauthenticated, see [`TraceTier::Trailer`]).
+///    than inferred (but unauthenticated, see [`TraceTier::Trailer`]).
 /// 3. the pinned blob's exact oid present once in HEAD, certain (out-of-band move).
 /// 4. the oid present several times, `Ambiguous`, a candidate set, never a fact.
 /// 5. else `Gone`.

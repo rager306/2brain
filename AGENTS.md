@@ -200,9 +200,9 @@ intentional diffs regenerate the fixture in the same commit, with the reason in
 the message. The top-level `tests-golden/*.json` are the 2026-11-12 pre-fork
 captures in the retired daemon's shapes; they are history, not a contract.
 
-Gates: `cargo fmt --check` is clean for both halves and is a real gate; `clippy -D
-warnings` is a gate only for `au-mcp-rs` (the engine workspace still carries
-style warnings, see `tb-engine/tests-known-environment.txt`).
+Gates: `cargo fmt --check` is clean for both halves and is a real gate, and so is
+`cargo clippy --all-targets -- -D warnings` — `.github/workflows/ci.yml` runs both
+in the adapter job and in the engine job.
 
 ## Improvement backlog
 

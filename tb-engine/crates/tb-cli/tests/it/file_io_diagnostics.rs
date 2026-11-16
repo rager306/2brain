@@ -207,7 +207,7 @@ fn unreadable_typedef_surfaces_a_read_error() {
     );
     assert!(
         kb.diagnostics()
-            .any(|d| d.span.file == PathBuf::from("/v/bad.type.yaml")
+            .any(|d| d.span.file == Path::new("/v/bad.type.yaml")
                 && d.code.as_str() == "repo-file-read-error"),
         "expected the bad path on the read-error span; got {:?}",
         kb.diagnostics().collect::<Vec<_>>()

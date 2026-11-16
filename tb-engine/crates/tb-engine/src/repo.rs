@@ -2347,6 +2347,9 @@ struct ParsedRegistry {
 /// a missing or nameless root is `repo-name-missing`. `deps` is optional;
 /// malformed dep entries (no `name`) are skipped, not fatal, the file still
 /// identifies the repo.
+// The Err is the diagnostic the caller records verbatim, as everywhere in this
+// crate; boxing it would ripple through every `Err(diag)` site.
+#[allow(clippy::result_large_err)]
 fn parse_registry(registry: &Path, bytes: &[u8]) -> Result<ParsedRegistry, Diagnostic> {
     let text = std::str::from_utf8(bytes).map_err(|_| {
         err_diag(
@@ -2558,6 +2561,9 @@ pub(crate) fn declared_name_at(root: &Path, fs: &impl FileSystem) -> Option<Repo
 /// present but will not load, unparseable or nameless, carrying the blocking
 /// diagnostic so the refusal can name the cause. Distinct from `declared_name_at`,
 /// which collapses all three failures into `None`.
+// The Err is the diagnostic the boot refusal prints, as everywhere in this crate;
+// boxing it would ripple through the callers' `map_err`.
+#[allow(clippy::result_large_err)]
 pub(crate) fn entry_repo_load(root: &Path, fs: &impl FileSystem) -> Result<(), Option<Diagnostic>> {
     let repo_yaml = registry_path_in(root, fs);
     let bytes = match fs.read_file(&repo_yaml) {
@@ -4039,7 +4045,7 @@ mod tests {
         // and no scratch temp leaked.
         let final_content = std::fs::read_to_string(&path).unwrap();
         assert!(
-            values.iter().any(|v| *v == final_content),
+            values.contains(&final_content),
             "the final file is one complete written value, not a torn mix: {final_content:?}"
         );
         let leaked = std::fs::read_dir(path.parent().unwrap()).unwrap().any(|e| {

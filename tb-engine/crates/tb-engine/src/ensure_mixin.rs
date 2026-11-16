@@ -238,6 +238,43 @@ impl RefData for NullRefData {
     }
 }
 
+/// Fold a write's `ensure_mixins` into its would-be `content`, in order, each
+/// decided against the content the previous one left, so a second mixin sees
+/// the first's claim. Returns the final content and each entry's outcome.
+///
+/// The one fold the committing write and its `preview_mutation` both run, so a
+/// preview reports the product the write would land. Under STRICT an
+/// un-appliable mixin is a [`MutationReject`], the whole write refused; under
+/// LENIENT it is a reported skip.
+pub(crate) fn fold(
+    kb: &KnowledgeBase,
+    target: &Path,
+    mut content: String,
+    mixins: &[String],
+    strict: bool,
+) -> Result<(String, Vec<crate::wire::MixinOutcome>), crate::mutate::MutationReject> {
+    use crate::wire::MixinOutcome;
+    let mut outcomes = Vec::new();
+    for mixin in mixins {
+        match decide(kb, target, &content, mixin) {
+            MixinDecision::NoOp => outcomes.push(MixinOutcome::no_op(mixin)),
+            MixinDecision::Apply(next) => {
+                content = next;
+                outcomes.push(MixinOutcome::applied(mixin));
+            }
+            MixinDecision::UnAppliable(reason) => {
+                if strict {
+                    return Err(crate::mutate::MutationReject::new(format!(
+                        "ensure_mixin '{mixin}' cannot be applied cleanly and ensure_mixins_strict is set: {reason}"
+                    )));
+                }
+                outcomes.push(MixinOutcome::skipped(mixin, reason));
+            }
+        }
+    }
+    Ok((content, outcomes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -366,41 +403,4 @@ mod tests {
             other => panic!("expected Apply, got {other:?}"),
         }
     }
-}
-
-/// Fold a write's `ensure_mixins` into its would-be `content`, in order, each
-/// decided against the content the previous one left, so a second mixin sees
-/// the first's claim. Returns the final content and each entry's outcome.
-///
-/// The one fold the committing write and its `preview_mutation` both run, so a
-/// preview reports the product the write would land. Under STRICT an
-/// un-appliable mixin is a [`MutationReject`], the whole write refused; under
-/// LENIENT it is a reported skip.
-pub(crate) fn fold(
-    kb: &KnowledgeBase,
-    target: &Path,
-    mut content: String,
-    mixins: &[String],
-    strict: bool,
-) -> Result<(String, Vec<crate::wire::MixinOutcome>), crate::mutate::MutationReject> {
-    use crate::wire::MixinOutcome;
-    let mut outcomes = Vec::new();
-    for mixin in mixins {
-        match decide(kb, target, &content, mixin) {
-            MixinDecision::NoOp => outcomes.push(MixinOutcome::no_op(mixin)),
-            MixinDecision::Apply(next) => {
-                content = next;
-                outcomes.push(MixinOutcome::applied(mixin));
-            }
-            MixinDecision::UnAppliable(reason) => {
-                if strict {
-                    return Err(crate::mutate::MutationReject::new(format!(
-                        "ensure_mixin '{mixin}' cannot be applied cleanly and ensure_mixins_strict is set: {reason}"
-                    )));
-                }
-                outcomes.push(MixinOutcome::skipped(mixin, reason));
-            }
-        }
-    }
-    Ok((content, outcomes))
 }

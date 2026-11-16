@@ -173,6 +173,13 @@ pub fn multi_member_kb() -> (tempfile::TempDir, PathBuf) {
 /// than shortening it.
 pub const CROWDING_HUBS: usize = 25;
 
+// The fixture is only meaningful while that bound holds, so state it once, here,
+// at compile time rather than re-asserting a private wire constant at run time.
+const _: () = assert!(
+    CROWDING_HUBS > 20,
+    "the dependency must exceed HUB_LIMIT, else it merely shortens the list"
+);
+
 /// A dependency that crowds own content out of the hub top-N.
 ///
 /// Ranking is `refs_structural` desc, then `refs_total`, then path. So `base`'s
@@ -403,9 +410,5 @@ fn hub_crowding_fixture_fills_the_whole_ranking_with_the_dependency() {
     assert!(
         hubs.iter().all(|hb| hb["refs_structural"] == 2),
         "each dependency hub carries two structural edges: {hubs:?}"
-    );
-    assert!(
-        CROWDING_HUBS > 20,
-        "the dependency must exceed HUB_LIMIT, else it merely shortens the list"
     );
 }

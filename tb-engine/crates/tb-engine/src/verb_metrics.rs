@@ -103,13 +103,17 @@ struct VerbCounters {
 }
 
 impl VerbCounters {
-    const ZERO: Self = VerbCounters {
-        count: AtomicU64::new(0),
-        buckets: [const { AtomicU64::new(0) }; BUCKET_COUNT],
-    };
+    /// A zeroed row. This must stay a function: every use of a named `const`
+    /// makes a fresh copy, so the counters would silently not be shared.
+    const fn zero() -> Self {
+        VerbCounters {
+            count: AtomicU64::new(0),
+            buckets: [const { AtomicU64::new(0) }; BUCKET_COUNT],
+        }
+    }
 }
 
-static COUNTERS: [VerbCounters; VERB_COUNT] = [VerbCounters::ZERO; VERB_COUNT];
+static COUNTERS: [VerbCounters; VERB_COUNT] = [const { VerbCounters::zero() }; VERB_COUNT];
 
 /// One verb's counters as served: the request count and the histogram buckets,
 /// `buckets.sum() == count` at every instant a client reads them.

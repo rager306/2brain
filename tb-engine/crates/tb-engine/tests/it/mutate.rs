@@ -5080,9 +5080,12 @@ fn cross_repo_rename_failure_compensates_every_repo() {
         );
     }
 
-    // Restore write permission so the temp dir can be cleaned up.
+    // Restore write permission so the temp dir can be cleaned up. Restored by
+    // adding the owner's write bit, not `set_readonly(false)`, which on Unix
+    // hands write permission to every user.
+    use std::os::unix::fs::PermissionsExt;
     let mut perms = fs::metadata(&rc_doc).unwrap().permissions();
-    perms.set_readonly(false);
+    perms.set_mode(perms.mode() | 0o200);
     let _ = fs::set_permissions(&rc_doc, perms);
 }
 

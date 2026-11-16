@@ -928,10 +928,7 @@ fn introspect_type(
             .map(|b| introspect_meta_block(b, site))
             .collect()
     });
-    let body = def
-        .body
-        .as_ref()
-        .map(|tmpl| body_template_to_introspection(tmpl));
+    let body = def.body.as_ref().map(body_template_to_introspection);
     let effective_body =
         splice_effective_body(graph, name, peer).map(|tmpl| body_template_to_introspection(&tmpl));
     let required_meta = def.required_meta.iter().map(|r| r.authored()).collect();
@@ -1011,9 +1008,7 @@ fn body_item_to_introspection(item: &BodyItem) -> BodyItemIntrospection {
             optional: *optional,
             fills: fills.as_ref().map(fills_contract_to_introspection),
             guidance: guidance.clone(),
-            body: body
-                .as_ref()
-                .map(|inner| body_template_to_introspection(inner)),
+            body: body.as_ref().map(body_template_to_introspection),
         },
         BodyItem::Fills { contract, .. } => BodyItemIntrospection::Fills {
             contract: fills_contract_to_introspection(contract),
@@ -4613,7 +4608,9 @@ pub enum PreviewProductView {
         reject: PreviewRejectView,
     },
     Product {
-        target: PreviewTargetView,
+        // Boxed: the product carries six optional lists, and the target would
+        // otherwise make this variant ~5x the reject it sits beside.
+        target: Box<PreviewTargetView>,
         blast_radius: Vec<PreviewBlastView>,
         /// A rename's or a folder move's would-change referrers, absent
         /// otherwise.
@@ -4706,12 +4703,12 @@ pub(crate) fn preview_product_view(
         .and_then(|e| e.hash)
         .map(crate::mutate::hash_hex);
     PreviewProductView::Product {
-        target: PreviewTargetView {
+        target: Box::new(PreviewTargetView {
             path: target.display().to_string(),
             hash,
             identities: preview_target_identities(preview, target),
             diagnostics,
-        },
+        }),
         blast_radius: preview_blast_radius(preview, held, target, gone),
         rewrites: None,
         stranded: None,

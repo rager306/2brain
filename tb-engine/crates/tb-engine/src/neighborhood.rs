@@ -335,7 +335,7 @@ fn inbound_edges(kb: &KnowledgeBase, node: &NodeId) -> Vec<(WalkEdge, Option<Nod
                 .is_some_and(|b| b.referent && b.id == *bid),
             // File node: links with no `^`, or a bare `^id` whose referent is
             // the file. A `^^` link belongs to the block node, not here.
-            None => bl.block_id.as_ref().map_or(true, |b| !b.referent),
+            None => bl.block_id.as_ref().is_none_or(|b| !b.referent),
         })
         .map(|bl| {
             let from = NodeId {

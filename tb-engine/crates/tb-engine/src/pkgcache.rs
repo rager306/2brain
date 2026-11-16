@@ -599,8 +599,9 @@ fn detect_version_conflicts<'a>(
     entries: impl Iterator<Item = (&'a RepoName, &'a str, Option<&'a str>, &'a str)>,
     manifest_path: &Path,
 ) -> (Vec<Diagnostic>, BTreeSet<RepoName>) {
-    let mut by_source: BTreeMap<(String, Option<&str>), (BTreeSet<&str>, BTreeSet<&'a RepoName>)> =
-        BTreeMap::new();
+    // The shas and the member names seen for one normalized `(remote, path)`.
+    type Group<'a> = (BTreeSet<&'a str>, BTreeSet<&'a RepoName>);
+    let mut by_source: BTreeMap<(String, Option<&str>), Group<'a>> = BTreeMap::new();
     for (name, remote, path, sha) in entries {
         let group = by_source
             .entry((normalize_remote(remote), path))
@@ -887,6 +888,14 @@ pub(crate) fn partition_workspace_lock(
         .collect()
 }
 
+/// What a lock pass produced: the per-member resolutions, the diagnostics the
+/// resolve raised, and the `(repo, lock_path)` set it wrote.
+pub(crate) type LockOutcome = (
+    Vec<DependencyResolution>,
+    Vec<Diagnostic>,
+    Vec<(RepoName, PathBuf)>,
+);
+
 /// Resolve a workspace's dependency closure and write each editable repo's lock.
 ///
 /// Walks the transitive closure (`resolve_dependencies`), partitions the resolved
@@ -917,11 +926,7 @@ pub(crate) fn resolve_and_lock(
     ws: &mut Workspace,
     cache: &PackageCache,
     registry_remote: &str,
-) -> std::io::Result<(
-    Vec<DependencyResolution>,
-    Vec<Diagnostic>,
-    Vec<(RepoName, PathBuf)>,
-)> {
+) -> std::io::Result<LockOutcome> {
     let resolved = resolve_dependencies(ws, cache, registry_remote);
     let mut written: Vec<(RepoName, PathBuf)> = Vec::new();
     // Preserve the prior locks untouched on any fetch failure: a failed fetch drops

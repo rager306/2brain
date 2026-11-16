@@ -63,7 +63,7 @@ fn seeded() -> (tempfile::TempDir, PathBuf) {
     (dir, root)
 }
 
-fn health(client: &mut Client, args: Value) -> Value {
+fn health(client: &mut Client) -> Value {
     let resp = client.query(&json!({ "read": "graph_health" })).unwrap();
     assert_eq!(resp["ready"], true, "{resp}");
     resp["result"]["graph_health"].clone()
@@ -74,7 +74,7 @@ fn graph_health_reports_the_cycle_and_the_problems() {
     let (_dir, root) = seeded();
     let mut h = harness(&root);
     let _ = harness;
-    let view = health(&mut h.client, json!({}));
+    let view = health(&mut h.client);
     let counts = &view["counts"];
     assert!(counts["nodes"].as_u64().unwrap() >= 5, "{counts}");
     assert!(counts["edges"].as_u64().unwrap() >= 3, "{counts}");

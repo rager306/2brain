@@ -115,7 +115,7 @@ fn enum_field_validation_invariant_under_field_permutation() {
     .graph;
     // Single field on this type-def, so we permute three fields where one is
     // the declared `kind` and the others are extras (pass silently).
-    let base = vec![
+    let base = [
         instance_field("kind", InstanceValue::String("not_a_member".into())),
         instance_field("extra1", InstanceValue::String("anything".into())),
         instance_field("extra2", InstanceValue::String("anything".into())),

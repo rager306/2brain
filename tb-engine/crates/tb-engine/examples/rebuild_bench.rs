@@ -117,6 +117,10 @@ enum Cross {
     Typed,
 }
 
+/// One measured variant: its row label, its cross-repo topology, whether it seeds
+/// the dirty stream, and the bytes the edit and the add write.
+type Variant = (&'static str, Cross, bool, &'static [u8], &'static [u8]);
+
 /// Write an assembled workspace of `repo_count` repos, each `repo_size`
 /// instances, into `dir`. The entry is a content-free folder-repo; its
 /// `.arsumbris/workspace.yaml` lists it plus each member in `edit`. Members are
@@ -380,7 +384,7 @@ fn main() {
     // `reference-target-missing`, so the served diagnostic stream scales with the
     // knowledge base. They isolate the whole-stream re-derivation apply runs, which a clean
     // knowledge base hides (its served stream is near-empty). Same topologies otherwise.
-    let variants: [(&str, Cross, bool, &[u8], &[u8]); 4] = [
+    let variants: [Variant; 4] = [
         (
             "multi-indep",
             Cross::None,

@@ -126,9 +126,7 @@ fn claim_region(path: &Path, text: &str) -> Option<Range<usize>> {
         offset += line.len();
         let body = line.trim_end_matches('\n').trim_end_matches('\r');
         if body.trim() != "---" {
-            if opened.is_none() {
-                return None;
-            }
+            opened?;
             continue;
         }
         match opened {

@@ -2217,7 +2217,7 @@ mod tests {
             .commit(p, &[PathBuf::from("a.md")], &msg("m1", &["repoA"]))
             .unwrap();
 
-        let recs = sg.commit_meta(p, &[sha.0.clone()]).unwrap();
+        let recs = sg.commit_meta(p, std::slice::from_ref(&sha.0)).unwrap();
         assert_eq!(recs.len(), 1);
         let r = &recs[0];
         assert!(r.available);
@@ -2247,7 +2247,9 @@ mod tests {
         let repo = init_repo();
         let sg = ShellGit;
         let ghost = "0".repeat(40);
-        let recs = sg.commit_meta(repo.path(), &[ghost.clone()]).unwrap();
+        let recs = sg
+            .commit_meta(repo.path(), std::slice::from_ref(&ghost))
+            .unwrap();
         assert_eq!(recs.len(), 1);
         let r = &recs[0];
         assert!(!r.available);
@@ -2563,7 +2565,7 @@ mod tests {
         let sha = sg.commit(p, &[PathBuf::from("a.md")], &message).unwrap();
 
         // The caller trailers read back verbatim, beside the engine's own.
-        let recs = sg.commit_meta(p, &[sha.0.clone()]).unwrap();
+        let recs = sg.commit_meta(p, std::slice::from_ref(&sha.0)).unwrap();
         let t = &recs[0].trailers;
         assert!(
             t.iter().any(|x| x.key == "session" && x.value == "s-1"),

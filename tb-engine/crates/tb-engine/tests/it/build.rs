@@ -32,7 +32,7 @@ fn build_catalogs_every_file_with_its_parse() {
     );
     assert!(!v.catalog.is_empty(), "catalog holds the walked files");
     assert!(
-        v.entry_graph().len() >= 1,
+        !v.entry_graph().is_empty(),
         "type graph built from the type-def"
     );
 

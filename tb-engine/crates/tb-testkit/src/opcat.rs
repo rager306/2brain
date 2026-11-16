@@ -63,6 +63,12 @@ impl Targets {
     }
 }
 
+/// The setup an operation needs before its measurement window opens.
+///
+/// Returns the paths it created, so a caller that must wait for the setup to be
+/// absorbed knows what to wait for.
+pub type Prepare = fn(&Targets) -> std::io::Result<Vec<PathBuf>>;
+
 /// The rebuild path a write drives the engine down.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RebuildPath {
@@ -163,7 +169,7 @@ pub struct Operation {
     /// knows, so it says; a caller-side list of seeded filenames is a second
     /// source of truth, and it silently rots the moment a second seeding
     /// operation appears.
-    pub prepare: Option<fn(&Targets) -> std::io::Result<Vec<PathBuf>>>,
+    pub prepare: Option<Prepare>,
     /// Perform the write. The measured window.
     pub apply: fn(&Targets) -> std::io::Result<Applied>,
 }
