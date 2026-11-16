@@ -62,3 +62,39 @@ Stage 3 of the plan needs a threshold written down **before** the next ranking c
 position is 8 percentage points, so this set is a smoke test, not a benchmark: it is sized to catch a regression and
 to name a defect, not to prove a gain. Growing it to forty tasks with handled evidence is the next step, and the
 `absent` class has to become answerable first — which means fixing (1) and (2).
+
+## Experiment 1: function words as noise — a negative result, measured
+
+Hypothesis: the `absent` class fails because stopwords (`the`, `of`, `on`) count as matches, so dropping them from
+the term count would make an unanswerable question look unanswerable.
+
+Two runs on the live vault, before the scope default changed (so the dependency hit is still present and the two
+effects are visible separately):
+
+| run | absent | exact | paraphrase | multi-hop | ru-cross | ambiguous |
+|---|---|---|---|---|---|---|
+| baseline | 0/3 | 1/2 | 2/3 | 2/2 | 1/1 | 1/1 |
+| `min_should_match` = number of non-stopword terms | 2/3 | 1/2 | 1/3 | **0/2** | 1/1 | 1/1 |
+
+**Rejected.** Requiring every content word answers two absent questions by making the engine refuse to answer
+questions it *can* answer: `как держать 2FA-коды вне доступа агента` and `ночная задача в 3:00 компилирует день в
+контекст` both returned nothing. A conjunction over all terms is the wrong shape for a question, and a stopword
+list cannot fix a relevance threshold.
+
+The third absent task still matched five terms even with the list applied, because its content words — `exact`,
+`number`, `stars`, `repository` — are frequent in a vault about software. The signal that separates "this base knows"
+from "these words occur" is **term rarity**, not word class.
+
+### The next experiment, with its rule written before the measurement
+
+Mechanism: after ranking, drop a match in which **no matched term has an idf above a floor**, and let the floor be
+chosen from the corpus's own idf distribution (reported as a histogram, not tuned against the task set).
+
+Pre-registered acceptance, all of it:
+
+- `absent` reaches **3/3**;
+- `exact` 2/2, `ru-cross` 1/1, `multi-hop` 2/2 are unchanged;
+- topical hit@1 on `labelled-queries.json` falls by no more than **0.02**, and literal hit@1 does not fall at all;
+- the rule is measured on the candidate engine, never on the served vault.
+
+If it misses any one of those, it is rejected and published here, like the freshness prior and this one.
