@@ -14,7 +14,7 @@ cost, and the evidence it would produce.
 | read contract | one `VERB_SHAPES` table plus typed payloads for the eight hot reads; both checked by the captured fixtures, not by memory |
 | audit | hash-chained `mcp_policy` records on stderr; the tool name is recorded (fixed from the literal `mutation`), the principal comes from `--principal` and Hermes now passes `hermes` |
 | judge | batched: 100 questions per call, 0.76 s, 7.6 ms/question (`docs/research/judge-capabilities.md`) |
-| rebrand | tiers A, B, **D done**; tier C steps 1–2 done (parser half), 24 engine sites left (`docs/research/tier-c-seams.md`) |
+| rebrand | tiers A, B, **D done**; tier C steps 1–2 done (parser + engine halves, 38 sites), step 3 (schema seams) open |
 | tool names | `au_*` — a client contract; the rename is a decision, not a sweep (`docs/naming.md`) |
 | FSM run log | done — `tools/fsm/check_run.py`, seven rules, `--selftest` proves each bites |
 | hygiene pass | done and applied — `tools/hygiene/pass.py`, `inbox/hygiene-2026-11-16.md` |
@@ -73,11 +73,19 @@ is not a memory diet (1.2% of RSS); it is the payment for proximity.
 
 ### 3. Tier C — the engine's on-disk identity
 
-Step 1 landed (`tb-parser/src/identity.rs`, five tests, no call site changed). Step 2 routes the 30 identity
-read sites through it and makes the walk floor accept both spellings — a **wire change**
-(`MemberIgnoresView.floor`), so its snapshot is re-blessed in the same commit. Step 3 adds
-`schema_type_matches`, `canonical_schema_claim` and `is_builtin_repo`, because a predicate alone leaves every
-legacy claim unresolvable while the floor check stays silent (`docs/research/tier-c-seams.md`).
+Steps 1–2 landed: the seam module, the parser half (floor, nested markers, memory-FS filter), and the engine
+half — 38 places across 12 files now resolve identity per root through `identity_dir` / `identity_marker`,
+with the read rule and the write rule separated (`identity_dir_for_write_with` follows the directory a root
+already holds; only a root with neither gets `CREATE_IDENTITY_DIR`, the legacy spelling in release 1 so a
+previous-release binary still reads what this one writes). The end-to-end proof is `tests/it/identity_dir.rs`:
+a `.2brain/` repository is discovered, serves `search`, and its `.auignore` is read from the new spelling.
+
+Two things the step forced: `FileSystem` gained a required `is_dir` (probing `<root>/.2brain/repo.yaml` was
+wrong wherever the directory exists without a marker), and `consistency_diagnostics` now takes a filesystem so
+its four span joins resolve per root.
+
+Step 3 adds `schema_type_matches`, `canonical_schema_claim` and `is_builtin_repo`, because a predicate alone
+leaves every legacy claim unresolvable while the floor check stays silent (`docs/research/tier-c-seams.md`).
 
 - **Gate**: a migrated repository opens with 0 diagnostics and the unmigrated tree still opens.
 - **Cost**: the largest single change left, and the only one that touches files on disk.

@@ -1,9 +1,8 @@
 //! Keep three catalogs from drifting apart: the verbs `WIRE.md` documents, the
-//! adapter's read tools with the engine verb each one sends, and the fixture
-//! corpus. The adapter half is derived from `src/lib.rs`, not hand-written: each
-//! `#[tool(...)]` handler names its engine read in a `json!` literal, forwards a
-//! verb to `file_read` / `target_read`, or names it in a helper. Two tables cover
-//! the indirections a text scan cannot see, and both are kept honest below.
+//! adapter's read tools with the engine verb each one asks for, and the fixture
+//! corpus. The tool→verb half is read from `src/wire.rs`'s `READ_VERBS`, the one place
+//! the adapter states which verb a tool reads; the handler text supplies only the
+//! mutations, which stay request literals.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -18,18 +17,6 @@ struct Tool {
     reads: BTreeSet<String>,
     mutates: BTreeSet<String>,
 }
-
-/// Handlers whose engine read verb sits in a helper, not in the handler.
-const HELPER_VERBS: [(&str, &str); 2] = [
-    ("self.content_with_timeout", "content"),
-    ("read_content(", "content"),
-];
-
-/// A handler that picks its read verb at runtime, so no request literal names it.
-const DYNAMIC_VERBS: [(&str, &[&str]); 1] = [(
-    "au_follow",
-    &["resolve_target", "resolve_anchor", "resolve_block_id"],
-)];
 
 /// Tools that send no engine request of their own.
 #[rustfmt::skip]
@@ -103,37 +90,48 @@ fn request_verbs(block: &str, key: &str) -> BTreeSet<String> {
     verbs
 }
 
-/// The engine reads one handler sends, in all the shapes `src/lib.rs` uses.
-fn read_verbs(name: &str, block: &str) -> BTreeSet<String> {
-    let mut verbs = request_verbs(block, "read");
-    // `self.file_read(args, "<verb>", ...)`: the first literal after the call.
-    for marker in ["self.file_read(", "self.target_read("] {
-        let args = block
-            .find(marker)
-            .map(|start| skip_space(block, start + marker.len()));
-        if let Some(verb) = args
-            .and_then(|args| block[args..].find('"').map(|offset| args + offset))
-            .and_then(|open| quoted(block, open))
-        {
-            verbs.insert(verb);
-        }
+/// Every quoted string in `text`, in order.
+fn strings(text: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut at = 0;
+    while let Some(offset) = text[at..].find('"') {
+        let open = at + offset;
+        let Some(value) = quoted(text, open) else {
+            break;
+        };
+        at = open + value.len() + 2;
+        found.push(value);
     }
-    for (marker, verb) in HELPER_VERBS {
-        if block.contains(marker) {
-            verbs.insert(verb.to_owned());
-        }
-    }
-    for (tool, extra) in DYNAMIC_VERBS {
-        if tool == name {
-            verbs.extend(extra.iter().map(|verb| (*verb).to_owned()));
-        }
-    }
-    verbs
+    found
 }
 
-/// Every registered tool: one `#[tool(...)]` attribute per handler.
+/// The tool→verb table in `src/wire.rs`: the one place a read tool's engine verb is
+/// stated. Each row is `("<tool>", &["<verb>", …])`, however the formatter wraps it; a
+/// composed tool lists every verb it builds its answer from.
+fn verb_table() -> BTreeMap<String, BTreeSet<String>> {
+    let source = read(&manifest_dir().join("src/wire.rs"));
+    let start = source
+        .find("pub(crate) const READ_VERBS")
+        .expect("the verb table");
+    let block = &source[start..];
+    let block = &block[block.find("= &[").expect("the table's body")..];
+    let block = &block[..block.find("\n];").expect("the table's end")];
+    let mut table = BTreeMap::new();
+    // A row is the only thing in the table that opens a parenthesis, so splitting on one
+    // leaves each row's strings: its tool, then its verbs.
+    for row in block.split('(').skip(1) {
+        let mut names = strings(row).into_iter();
+        let tool = names.next().expect("a row names its tool");
+        table.insert(tool, names.collect());
+    }
+    table
+}
+
+/// Every registered tool: one `#[tool(...)]` attribute per handler, with the verbs the
+/// table says it reads and the mutation literals it builds.
 fn tools() -> Vec<Tool> {
     let source = read(&manifest_dir().join("src/lib.rs"));
+    let table = verb_table();
     let starts: Vec<usize> = source.match_indices("#[tool(").map(|(at, _)| at).collect();
     let last = source.find("#[tool_handler(").unwrap_or(source.len());
     starts
@@ -151,7 +149,7 @@ fn tools() -> Vec<Tool> {
                 .unwrap_or_default()
                 .to_owned();
             Tool {
-                reads: read_verbs(&name, block),
+                reads: table.get(&name).cloned().unwrap_or_default(),
                 mutates: request_verbs(block, "mutate"),
                 name,
             }

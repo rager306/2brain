@@ -658,8 +658,7 @@ impl Server {
         _arguments: Parameters<EmptyArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.read(json!({"read": "overview", "id": 1}), "overview", ctx)
-            .await
+        self.read(json!({"id": 1}), "au_overview", ctx).await
     }
 
     #[tool(
@@ -676,12 +675,7 @@ impl Server {
         _arguments: Parameters<EmptyArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.read(
-            json!({"read": "top_level_dirs", "id": 1}),
-            "top_level_dirs",
-            ctx,
-        )
-        .await
+        self.read(json!({"id": 1}), "au_top_level_dirs", ctx).await
     }
 
     #[tool(
@@ -698,8 +692,7 @@ impl Server {
         _arguments: Parameters<EmptyArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.read(json!({"read": "type_tree", "id": 1}), "type_tree", ctx)
-            .await
+        self.read(json!({"id": 1}), "au_type_tree", ctx).await
     }
 
     #[tool(
@@ -726,7 +719,7 @@ impl Server {
             Some(repo) if !args.name.contains("::") => format!("{}::{repo}", args.name),
             _ => args.name,
         };
-        self.read(json!({"read": "type", "id": 1, "name": name}), "type", ctx)
+        self.read(json!({"id": 1, "name": name}), "au_type", ctx)
             .await
     }
 
@@ -749,11 +742,12 @@ impl Server {
                 "'limit' must be between 1 and 500",
             )]);
         }
-        let mut request = json!({"read": "types", "id": 1, "summary": args.summary, "limit": args.limit, "offset": args.offset});
+        let mut request =
+            json!({"id": 1, "summary": args.summary, "limit": args.limit, "offset": args.offset});
         if let Some(repo) = args.repo {
             request["repo"] = json!(repo);
         }
-        self.read(request, "types", ctx).await
+        self.read(request, "au_types", ctx).await
     }
 
     #[tool(
@@ -778,8 +772,7 @@ impl Server {
                 "'limit' must be between 1 and 500",
             )]);
         }
-        let mut request =
-            json!({"read": "hubs", "id": 1, "limit": args.limit, "offset": args.offset});
+        let mut request = json!({"id": 1, "limit": args.limit, "offset": args.offset});
         if let Some(repo) = args.repo {
             request["repo"] = json!(repo);
         }
@@ -789,7 +782,7 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "hubs", ctx).await
+        self.read(request, "au_hubs", ctx).await
     }
 
     #[tool(
@@ -817,8 +810,7 @@ impl Server {
                 "'limit' must be between 1 and 500",
             )]);
         }
-        let mut request =
-            json!({"read": "diagnostics", "id": 1, "limit": args.limit, "offset": args.offset});
+        let mut request = json!({"id": 1, "limit": args.limit, "offset": args.offset});
         if let Some(repo) = args.repo {
             request["repo"] = json!(repo);
         }
@@ -834,7 +826,7 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "diagnostics", ctx).await
+        self.read(request, "au_diagnostics", ctx).await
     }
 
     #[tool(
@@ -854,14 +846,14 @@ impl Server {
         if args.base.is_empty() {
             return CallToolResult::error(vec![ContentBlock::text("'base' must not be empty")]);
         }
-        let mut request = json!({"read": "subtypes", "id": 1, "base": args.base});
+        let mut request = json!({"id": 1, "base": args.base});
         if let Some(scope) = args.scope {
             request["scope"] = json!(match scope {
                 HubScope::Own => "own",
                 HubScope::All => "all",
             });
         }
-        self.read(request, "subtypes", ctx).await
+        self.read(request, "au_subtypes", ctx).await
     }
 
     #[tool(
@@ -881,11 +873,11 @@ impl Server {
         if args.repo.as_deref() == Some("") {
             return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
         }
-        let mut request = json!({"read": "members", "id": 1});
+        let mut request = json!({"id": 1});
         if let Some(repo) = args.repo {
             request["repo"] = json!(repo);
         }
-        self.read(request, "members", ctx).await
+        self.read(request, "au_members", ctx).await
     }
 
     #[tool(
@@ -902,14 +894,14 @@ impl Server {
         Parameters(args): Parameters<ImportsArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        let mut request = json!({"read": "imports", "id": 1});
+        let mut request = json!({"id": 1});
         if let Some(scope) = args.scope {
             request["scope"] = json!(match scope {
                 HubScope::Own => "own",
                 HubScope::All => "all",
             });
         }
-        self.read(request, "imports", ctx).await
+        self.read(request, "au_imports", ctx).await
     }
 
     #[tool(
@@ -934,7 +926,7 @@ impl Server {
                 "'limit' must be between 1 and 500",
             )]);
         }
-        let mut request = json!({"read":"files","id":1,"limit":args.limit,"offset":args.offset});
+        let mut request = json!({"id":1,"limit":args.limit,"offset":args.offset});
         if let Some(repo) = args.repo {
             request["repo"] = json!(repo);
         }
@@ -944,7 +936,7 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "files", ctx).await
+        self.read(request, "au_files", ctx).await
     }
 
     #[tool(
@@ -996,12 +988,11 @@ impl Server {
             return CallToolResult::error(vec![ContentBlock::text("'commit' must not be empty")]);
         }
         let request = json!({
-            "read": "rollback_preview",
             "id": 1,
             "repo": args.repo,
             "commit": args.commit,
         });
-        self.read(request, "rollback_preview", ctx).await
+        self.read(request, "au_rollback_preview", ctx).await
     }
 
     #[tool(
@@ -1026,7 +1017,7 @@ impl Server {
                 "'limit' must be between 1 and 200",
             )]);
         }
-        let mut request = json!({"read": "graph_health", "id": 1, "limit": args.limit});
+        let mut request = json!({"id": 1, "limit": args.limit});
         if let Some(repo) = args.repo {
             request["repo"] = json!(repo);
         }
@@ -1036,7 +1027,7 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "graph_health", ctx).await
+        self.read(request, "au_graph_health", ctx).await
     }
 
     #[tool(
@@ -1065,7 +1056,6 @@ impl Server {
             )]);
         }
         let mut request = json!({
-            "read": "grep",
             "id": 1,
             "query": args.query,
             "limit": args.limit,
@@ -1083,7 +1073,7 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "grep", ctx).await
+        self.read(request, "au_grep", ctx).await
     }
 
     #[tool(
@@ -1112,7 +1102,6 @@ impl Server {
             )]);
         }
         let mut request = json!({
-            "read": "search",
             "id": 1,
             "query": args.query,
             "limit": args.limit,
@@ -1133,7 +1122,7 @@ impl Server {
                 HubScope::All => "all",
             });
         }
-        self.read(request, "search", ctx).await
+        self.read(request, "au_search", ctx).await
     }
 
     #[tool(
@@ -1652,7 +1641,6 @@ impl Server {
         let read = read_engine(
             self.transport.as_ref(),
             json!({"read": "type", "id": 1, "name": args.old_name}),
-            "type",
         )
         .await;
         let read = match read {
@@ -1957,7 +1945,6 @@ impl Server {
             Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
         };
         let mut request = json!({
-            "read": "preview_mutation",
             "id": 1,
             "op": op,
             "path": target,
@@ -1968,7 +1955,7 @@ impl Server {
         tokio::select! {
             biased;
             _ = ctx.ct.cancelled() => CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]),
-            result = self.read_with_timeout(request, "preview_mutation", ENGINE_READ_TIMEOUT) => result,
+            result = self.read_with_timeout(request, "au_preview_mutation", ENGINE_READ_TIMEOUT) => result,
         }
     }
 
@@ -2062,7 +2049,6 @@ impl Server {
             )]);
         }
         let mut request = json!({
-            "read": "instances_of",
             "id": 1,
             "type": args.type_name,
             "instance": args.instance,
@@ -2079,7 +2065,7 @@ impl Server {
                 .collect();
             request["origins"] = json!(origins);
         }
-        let result = self.read(request, "instances_of", ctx).await;
+        let result = self.read(request, "au_instances_of", ctx).await;
         match (args.limit, args.offset) {
             (None, None) => result,
             (limit, offset) => page_instances(result, limit, offset.unwrap_or(0), self.payload),
@@ -2137,7 +2123,7 @@ impl Server {
             if let Some(anchor) = &parts.anchor {
                 request["anchor"] = json!(anchor);
             }
-            let resolved = read_engine(self.transport.as_ref(), request, verb).await?;
+            let resolved = read_engine(self.transport.as_ref(), request).await?;
             let answer = &resolved.payload[key];
             let mut out = json!({
                 "target": args.target.trim(),
@@ -2168,7 +2154,6 @@ impl Server {
                 && let Ok(content) = read_engine(
                     self.transport.as_ref(),
                     json!({"read": "content", "id": 1, "path": addressed}),
-                    "content",
                 )
                 .await
                 && let Some(text) = content.payload["content"]["text"].as_str()
@@ -2229,7 +2214,6 @@ impl Server {
             let instance = read_engine(
                 self.transport.as_ref(),
                 json!({"read": "instance", "id": 1, "path": absolute}),
-                "instance",
             )
             .await?;
             let view = &instance.payload["instance"];
@@ -2247,7 +2231,6 @@ impl Server {
             let kind = read_engine(
                 self.transport.as_ref(),
                 json!({"read": "resolve_target", "id": 1, "target": "", "origin": absolute}),
-                "resolve_target",
             )
             .await?;
             let kind = kind.payload["resolve_target"]
@@ -2284,7 +2267,7 @@ impl Server {
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.file_read(args, "instance", "instance", ctx).await
+        self.file_read(args, "au_resolved", ctx).await
     }
 
     #[tool(
@@ -2318,10 +2301,10 @@ impl Server {
         };
         let outcome = async {
             let dir = absolute_member_path(self.transport.as_ref(), &args.repo, &args.path).await?;
-            read_engine(
+            read_for(
                 self.transport.as_ref(),
-                json!({"read": "dir_entries", "id": 1, "dir": dir}),
-                "dir_entries",
+                "au_children",
+                json!({"id": 1, "dir": dir}),
             )
             .await
         };
@@ -2350,9 +2333,7 @@ impl Server {
         Parameters(args): Parameters<PageArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        let result = self
-            .read(json!({"read": "instances", "id": 1}), "instances", ctx)
-            .await;
+        let result = self.read(json!({"id": 1}), "au_instances", ctx).await;
         match (args.limit, args.offset) {
             (None, None) => result,
             (limit, offset) => page_array(
@@ -2379,7 +2360,7 @@ impl Server {
         Parameters(args): Parameters<CandidatesArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        let mut request = json!({"read": "candidates", "id": 1});
+        let mut request = json!({"id": 1});
         if args.summary {
             request["summary"] = json!(true);
         }
@@ -2389,7 +2370,7 @@ impl Server {
         if let Some(offset) = args.offset {
             request["offset"] = json!(offset);
         }
-        self.read(request, "candidates", ctx).await
+        self.read(request, "au_candidates", ctx).await
     }
 
     #[tool(
@@ -2406,8 +2387,7 @@ impl Server {
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.file_read(args, "semantic_tokens", "semantic_tokens", ctx)
-            .await
+        self.file_read(args, "au_semantic_tokens", ctx).await
     }
 
     #[tool(
@@ -2424,8 +2404,7 @@ impl Server {
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.file_read(args, "resolve_member", "resolve_member", ctx)
-            .await
+        self.file_read(args, "au_resolve_member", ctx).await
     }
 
     #[tool(
@@ -2442,8 +2421,7 @@ impl Server {
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.file_read(args, "frontmatter", "frontmatter", ctx)
-            .await
+        self.file_read(args, "au_frontmatter", ctx).await
     }
 
     #[tool(
@@ -2460,7 +2438,7 @@ impl Server {
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.target_read(args, "anchors", "anchors", ctx).await
+        self.target_read(args, "au_anchors", ctx).await
     }
 
     #[tool(
@@ -2477,7 +2455,7 @@ impl Server {
         Parameters(args): Parameters<FileArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.target_read(args, "block_ids", "block_ids", ctx).await
+        self.target_read(args, "au_block_ids", ctx).await
     }
 
     #[tool(
@@ -2523,7 +2501,6 @@ impl Server {
                 let out = read_engine(
                     self.transport.as_ref(),
                     json!({"read": "references_out", "id": 1, "path": path}),
-                    "references_out",
                 )
                 .await?;
                 payload.insert(
@@ -2535,7 +2512,6 @@ impl Server {
                 let inb = read_engine(
                     self.transport.as_ref(),
                     json!({"read": "references_in", "id": 1, "path": path}),
-                    "references_in",
                 )
                 .await?;
                 payload.insert(
@@ -2591,7 +2567,7 @@ impl Server {
             Ok(path) => path,
             Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
         };
-        let mut request = json!({"read": "neighborhood", "id": 1, "path": path});
+        let mut request = json!({"id": 1, "path": path});
         if let Some(direction) = args.direction {
             request["direction"] = json!(match direction {
                 WalkDirection::Out => "out",
@@ -2623,7 +2599,7 @@ impl Server {
         if let Some(max_nodes) = args.max_nodes {
             request["max_nodes"] = json!(max_nodes);
         }
-        self.read(request, "neighborhood", ctx).await
+        self.read(request, "au_neighborhood", ctx).await
     }
 
     #[tool(
@@ -2649,7 +2625,6 @@ impl Server {
             return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
         }
         let mut request = json!({
-            "read": "validate_value",
             "id": 1,
             "type_name": args.type_name,
             "value": args.value,
@@ -2657,7 +2632,7 @@ impl Server {
         if let Some(repo) = args.repo {
             request["repo"] = json!(repo);
         }
-        self.read(request, "validate_value", ctx).await
+        self.read(request, "au_validate_value", ctx).await
     }
 
     #[tool(
@@ -3105,8 +3080,7 @@ impl Server {
     async fn file_read(
         &self,
         args: FileArguments,
-        verb: &'static str,
-        _key: &'static str,
+        tool: &str,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
         if args.repo.is_empty() {
@@ -3129,7 +3103,7 @@ impl Server {
         let request = async {
             let path =
                 absolute_member_path(self.transport.as_ref(), &args.repo, &args.path).await?;
-            Ok::<Value, String>(json!({"read": verb, "id": 1, "path": path}))
+            Ok::<Value, String>(json!({"id": 1, "path": path}))
         };
         let request = tokio::select! {
             biased;
@@ -3139,7 +3113,7 @@ impl Server {
                 Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
             },
         };
-        self.read(request, verb, ctx).await
+        self.read(request, tool, ctx).await
     }
 
     /// One target-addressed read: `anchors` and `block_ids` take a resolvable
@@ -3147,8 +3121,7 @@ impl Server {
     async fn target_read(
         &self,
         args: FileArguments,
-        verb: &'static str,
-        key: &'static str,
+        tool: &str,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
         if args.repo.is_empty() {
@@ -3174,7 +3147,7 @@ impl Server {
             // the origin file itself, which is the file the caller named.
             let origin =
                 absolute_member_path(self.transport.as_ref(), &args.repo, &args.path).await?;
-            Ok::<Value, String>(json!({"read": verb, "id": 1, "target": "", "origin": origin}))
+            Ok::<Value, String>(json!({"id": 1, "target": "", "origin": origin}))
         };
         let request = tokio::select! {
             biased;
@@ -3184,8 +3157,7 @@ impl Server {
                 Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
             },
         };
-        let _ = key;
-        self.read(request, verb, ctx).await
+        self.read(request, tool, ctx).await
     }
 
     /// The tools this launch may advertise, before any profile compacting.
@@ -3211,7 +3183,7 @@ impl Server {
     async fn read(
         &self,
         request: Value,
-        verb: &str,
+        tool: &str,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
         if ctx.ct.is_cancelled() {
@@ -3225,17 +3197,17 @@ impl Server {
         tokio::select! {
             biased;
             _ = ctx.ct.cancelled() => CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]),
-            result = self.read_with_timeout(request, verb, ENGINE_READ_TIMEOUT) => result,
+            result = self.read_with_timeout(request, tool, ENGINE_READ_TIMEOUT) => result,
         }
     }
 
     async fn read_with_timeout(
         &self,
         request: Value,
-        verb: &str,
+        tool: &str,
         timeout: Duration,
     ) -> CallToolResult {
-        match read_engine_with_timeout(self.transport.as_ref(), request, verb, timeout).await {
+        match read_for_with_timeout(self.transport.as_ref(), tool, request, timeout).await {
             Ok(result) => success_result(result, self.payload),
             Err(error) => CallToolResult::error(vec![ContentBlock::text(error)]),
         }
@@ -3389,7 +3361,6 @@ impl ServerHandler for Server {
         let read = read_engine_with_timeout(
             self.transport.as_ref(),
             json!({"read": "files", "id": 1, "limit": page, "offset": offset}),
-            "files",
             ENGINE_READ_TIMEOUT,
         )
         .await
@@ -3397,7 +3368,6 @@ impl ServerHandler for Server {
         let members_read = read_engine_with_timeout(
             self.transport.as_ref(),
             json!({"read": "members", "id": 1}),
-            "members",
             ENGINE_READ_TIMEOUT,
         )
         .await
@@ -4607,6 +4577,37 @@ mod tests {
         assert_eq!(capability::of("no_such_tool"), None);
     }
 
+    /// A read tool's engine verb is stated once, in `wire::READ_VERBS`. Both directions of that
+    /// table are asserted here: every advertised read tool is a row — a composed tool lists the
+    /// verbs it builds its answer from, so it is a row too — and every verb a row names is a verb
+    /// the wire can validate. Nothing joined a tool to a shape when `search` shipped, and every
+    /// call to it failed as a result.
+    #[test]
+    fn every_read_tool_declares_its_engine_verb() {
+        let mut read_tools: Vec<&str> = capability::CAPABILITIES
+            .iter()
+            .filter(|(_, capability)| *capability == capability::Capability::Read)
+            .map(|(name, _)| *name)
+            .collect();
+        read_tools.sort_unstable();
+        let mut tabulated: Vec<&str> = wire::READ_VERBS.iter().map(|(tool, _)| *tool).collect();
+        tabulated.sort_unstable();
+        assert_eq!(
+            read_tools, tabulated,
+            "the verb table and the advertised read tools disagree"
+        );
+
+        for (tool, verbs) in wire::READ_VERBS {
+            assert!(!verbs.is_empty(), "{tool} declares no engine read verb");
+            for &verb in *verbs {
+                assert!(
+                    wire::shape_of(verb).is_some(),
+                    "{tool} asks for the read {verb:?}, which VERB_SHAPES does not declare"
+                );
+            }
+        }
+    }
+
     fn request_context() -> RequestContext<RoleServer> {
         let (transport, _client) = tokio::io::duplex(64);
         let service = serve_directly(test_server(PathBuf::new()), transport, None);
@@ -4644,7 +4645,7 @@ mod tests {
                 let _ = socket.write_all(&body).await;
             }
         });
-        let result = read_engine(&UnixTransport::new(path), request, verb).await;
+        let result = read_engine(&UnixTransport::new(path), request).await;
         task.await.unwrap();
         result
     }
@@ -5032,11 +5033,7 @@ mod tests {
         });
         let server = test_server(path);
         let result = server
-            .read_with_timeout(
-                json!({"read":"overview","id":1}),
-                "overview",
-                Duration::from_millis(50),
-            )
+            .read_with_timeout(json!({"id": 1}), "au_overview", Duration::from_millis(50))
             .await;
         let result = serde_json::to_value(result).unwrap();
         assert_eq!(result["isError"], true);
@@ -5058,7 +5055,7 @@ mod tests {
         let path = temp.path().join("missing.sock");
         let request = json!({"read":"type", "id":1, "name":"a".repeat(MAX_FRAME_BYTES)});
         assert_eq!(
-            read_engine(&UnixTransport::new(path), request, "type")
+            read_engine(&UnixTransport::new(path), request)
                 .await
                 .unwrap_err(),
             "request frame too large"
@@ -5074,7 +5071,7 @@ mod tests {
         assert!(name.len() < MAX_FRAME_BYTES);
         let request = json!({"read":"type", "id":1, "name":name});
         assert_eq!(
-            read_engine(&UnixTransport::new(path), request, "type")
+            read_engine(&UnixTransport::new(path), request)
                 .await
                 .unwrap_err(),
             "request frame too large"

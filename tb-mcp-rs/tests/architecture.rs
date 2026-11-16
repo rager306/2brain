@@ -44,7 +44,9 @@ const ALLOWED: [(&str, &str); 11] = [
 // its own lines once and the number is recorded here with its reason.
 // 4505 after `au_search`, plus 25 on 2026-11-16: `guarded_mutation` now takes the tool name so the audit
 // ledger records `au_write_file` instead of the literal `mutation` — provenance the ledger existed for.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4530;
+// 4501 on 2026-11-16: the read tools' engine verbs moved into `wire.rs`'s `READ_VERBS`, so a read
+// call site names a tool instead of also repeating the verb, and `file_read` lost an unused key.
+const LIB_RS_PRODUCTION_BUDGET: usize = 4501;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")

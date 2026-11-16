@@ -131,6 +131,82 @@ pub(crate) fn shape_of(verb: &str) -> Option<Shape> {
         .map(|(_, shape)| *shape)
 }
 
+/// The engine verb each read tool asks for: the table the router consults instead of naming a
+/// verb itself.
+///
+/// `VERB_SHAPES` says what a verb's payload looks like; this table says which tool asks for
+/// which verb, and the tests join the two rather than a reviewer's memory. `search` shipped
+/// broken because nothing joined them: the tool was advertised, no payload for it was ever
+/// validated, and every call failed at "invalid read result payload".
+///
+/// A tool whose answer is one engine read names exactly one verb here, and the router fills
+/// that verb into the request (`read_for`). A tool the adapter composes from several reads
+/// lists every verb it builds its answer from, so the table stays the whole statement of what
+/// the read surface asks the engine and no declared shape is left unreachable: `au_follow`
+/// picks a resolve verb by the link's grammar and peeks the addressed line with `content`,
+/// `au_typed` classifies with `instance` then `resolve_target`, and `au_references` reads both
+/// directions.
+pub(crate) const READ_VERBS: &[(&str, &[&str])] = &[
+    ("au_anchors", &["anchors"]),
+    ("au_block_ids", &["block_ids"]),
+    ("au_candidates", &["candidates"]),
+    ("au_children", &["dir_entries"]),
+    ("au_content", &["content"]),
+    ("au_diagnostics", &["diagnostics"]),
+    ("au_files", &["files"]),
+    (
+        "au_follow",
+        &[
+            "resolve_block_id",
+            "resolve_anchor",
+            "resolve_target",
+            "content",
+        ],
+    ),
+    ("au_frontmatter", &["frontmatter"]),
+    ("au_graph_health", &["graph_health"]),
+    ("au_grep", &["grep"]),
+    ("au_hubs", &["hubs"]),
+    ("au_imports", &["imports"]),
+    ("au_instances", &["instances"]),
+    ("au_instances_of", &["instances_of"]),
+    ("au_members", &["members"]),
+    ("au_neighborhood", &["neighborhood"]),
+    ("au_overview", &["overview"]),
+    ("au_preview_mutation", &["preview_mutation"]),
+    ("au_reconcile", &["content"]),
+    ("au_references", &["references_out", "references_in"]),
+    ("au_resolve_member", &["resolve_member"]),
+    ("au_resolved", &["instance"]),
+    ("au_rollback_preview", &["rollback_preview"]),
+    ("au_search", &["search"]),
+    ("au_semantic_tokens", &["semantic_tokens"]),
+    ("au_subtypes", &["subtypes"]),
+    ("au_top_level_dirs", &["top_level_dirs"]),
+    ("au_type", &["type"]),
+    ("au_type_tree", &["type_tree"]),
+    ("au_typed", &["instance", "resolve_target"]),
+    ("au_types", &["types"]),
+    ("au_validate_value", &["validate_value"]),
+];
+
+/// The verbs the table names for `tool`, or `None` when it has no row.
+fn verbs_for(tool: &str) -> Option<&'static [&'static str]> {
+    READ_VERBS
+        .iter()
+        .find(|(name, _)| *name == tool)
+        .map(|(_, verbs)| *verbs)
+}
+
+/// The single engine verb a plain read tool asks for; `None` when the tool is unknown or
+/// composes its answer from several reads, and so builds its own requests.
+pub(crate) fn read_verb(tool: &str) -> Option<&'static str> {
+    match verbs_for(tool)? {
+        [verb] => Some(*verb),
+        _ => None,
+    }
+}
+
 /// Whether `payload` matches the declared shape.
 pub(crate) fn payload_matches(shape: Shape, payload: &Value) -> bool {
     match shape {
@@ -455,12 +531,18 @@ fn deserializes<T: DeserializeOwned>(payload: &Value) -> bool {
     T::deserialize(payload).is_ok()
 }
 
+/// Send one read and validate the answer against the verb the request asks for.
+///
+/// The verb is taken from the request, so the request and the shape the answer is checked
+/// against cannot disagree; which verb a tool asks for comes from `READ_VERBS`.
 pub(crate) async fn read_engine(
     transport: &dyn EngineTransport,
     request: Value,
-    verb: &str,
 ) -> Result<ReadResult, String> {
     let base = request.get("base").cloned();
+    let verb = requested_verb(&request)
+        .ok_or("missing read verb")?
+        .to_owned();
     let response = transport
         .exchange(request)
         .await
@@ -478,9 +560,11 @@ pub(crate) async fn read_engine(
         Some(Value::Object(result)) => result,
         _ => return Err("invalid result envelope".into()),
     };
-    let shape = shape_of(verb).ok_or_else(|| format!("unvalidated read verb: {verb}"))?;
-    let payload = result.get(verb).ok_or("missing read result payload")?;
-    if !payload_matches(shape, payload) || !payload_deserializes(verb, payload) {
+    let shape = shape_of(&verb).ok_or_else(|| format!("unvalidated read verb: {verb}"))?;
+    let payload = result
+        .get(verb.as_str())
+        .ok_or("missing read result payload")?;
+    if !payload_matches(shape, payload) || !payload_deserializes(&verb, payload) {
         return Err("invalid read result payload".into());
     }
     if verb == "subtypes" && result.get("base") != base.as_ref() {
@@ -492,15 +576,48 @@ pub(crate) async fn read_engine(
     })
 }
 
+/// The verb a read request asks for.
+fn requested_verb(request: &Value) -> Option<&str> {
+    request.get("read").and_then(Value::as_str)
+}
+
+/// `read_engine`, bounded by `timeout`.
 pub(crate) async fn read_engine_with_timeout(
     transport: &dyn EngineTransport,
     request: Value,
-    verb: &str,
     timeout: Duration,
 ) -> Result<ReadResult, String> {
-    tokio::time::timeout(timeout, read_engine(transport, request, verb))
+    let verb = requested_verb(&request).unwrap_or_default().to_owned();
+    tokio::time::timeout(timeout, read_engine(transport, request))
         .await
         .map_err(|_| format!("engine read '{verb}' timed out after {timeout:?} (connect, write, or response); no retry was attempted"))?
+}
+
+/// One engine read for `tool`: the verb comes from `READ_VERBS` and the request carries only
+/// the parameters, so a call site cannot name a verb the shape table does not know.
+pub(crate) async fn read_for(
+    transport: &dyn EngineTransport,
+    tool: &str,
+    request: Value,
+) -> Result<ReadResult, String> {
+    read_engine(transport, request_for(tool, request)?).await
+}
+
+/// `read_for`, bounded by `timeout`.
+pub(crate) async fn read_for_with_timeout(
+    transport: &dyn EngineTransport,
+    tool: &str,
+    request: Value,
+    timeout: Duration,
+) -> Result<ReadResult, String> {
+    read_engine_with_timeout(transport, request_for(tool, request)?, timeout).await
+}
+
+/// `request` carrying the verb the table names for `tool`.
+fn request_for(tool: &str, mut request: Value) -> Result<Value, String> {
+    let verb = read_verb(tool).ok_or_else(|| format!("{tool} has no single engine read verb"))?;
+    request["read"] = json!(verb);
+    Ok(request)
 }
 
 /// Send one mutation. A rejection is definitive; anything else means the
@@ -550,12 +667,7 @@ pub(crate) async fn resolve_editable(
     repo: &str,
     relative: &str,
 ) -> Result<String, String> {
-    let members = read_engine(
-        transport,
-        json!({"read": "members", "id": 1, "repo": repo}),
-        "members",
-    )
-    .await?;
+    let members = read_engine(transport, json!({"read": "members", "id": 1, "repo": repo})).await?;
     let member = members
         .payload
         .get("members")
@@ -587,12 +699,7 @@ pub(crate) async fn absolute_member_path(
     repo: &str,
     relative: &str,
 ) -> Result<String, String> {
-    let members = read_engine(
-        transport,
-        json!({"read": "members", "id": 1, "repo": repo}),
-        "members",
-    )
-    .await?;
+    let members = read_engine(transport, json!({"read": "members", "id": 1, "repo": repo})).await?;
     let member = members
         .payload
         .get("members")
@@ -616,12 +723,7 @@ pub(crate) async fn member_root(
     transport: &dyn EngineTransport,
     repo: &str,
 ) -> Result<String, String> {
-    let members = read_engine(
-        transport,
-        json!({"read": "members", "id": 1, "repo": repo}),
-        "members",
-    )
-    .await?;
+    let members = read_engine(transport, json!({"read": "members", "id": 1, "repo": repo})).await?;
     members
         .payload
         .get("members")
@@ -642,12 +744,7 @@ pub(crate) async fn read_content(
     relative: &str,
 ) -> Result<ReadResult, String> {
     let path = absolute_member_path(transport, repo, relative).await?;
-    read_engine(
-        transport,
-        json!({"read": "content", "id": 1, "path": path}),
-        "content",
-    )
-    .await
+    read_engine(transport, json!({"read": "content", "id": 1, "path": path})).await
 }
 
 #[cfg(test)]
@@ -714,6 +811,23 @@ mod tests {
         assert!(checked.len() >= 25, "checked only {checked:?}");
     }
 
+    /// Every declared shape is asked for by some read tool: the reverse of the direction the
+    /// tool-side test checks. A shape nothing asks for outlived its tool, and a tool cannot stop
+    /// reading a verb without the table noticing.
+    #[test]
+    fn every_declared_shape_is_asked_for_by_a_read_tool() {
+        let named: std::collections::BTreeSet<&str> = READ_VERBS
+            .iter()
+            .flat_map(|(_, verbs)| verbs.iter().copied())
+            .collect();
+        for (verb, _) in VERB_SHAPES {
+            assert!(
+                named.contains(verb),
+                "VERB_SHAPES declares `{verb}` and no read tool asks for it"
+            );
+        }
+    }
+
     #[test]
     fn an_unknown_verb_is_refused_rather_than_guessed() {
         assert_eq!(shape_of("not_a_verb"), None);
@@ -756,7 +870,7 @@ mod tests {
         let transport = MemoryTransport::new(move |_request: &Value| {
             Ok(answering_frame(&answering_verb, &payload))
         });
-        read_engine(&transport, json!({"read": verb, "id": 1}), verb).await
+        read_engine(&transport, json!({"read": verb, "id": 1})).await
     }
 
     /// A payload the typed form refuses must fail with the message a shape mismatch uses.
