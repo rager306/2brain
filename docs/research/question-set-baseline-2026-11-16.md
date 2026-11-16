@@ -68,3 +68,24 @@ nothing because a two-term default floor is an AND, not because of punctuation);
 is enough to attribute a miss to a class or an axis and **not** enough to certify a small effect: at σ = 0.391 the MDE at
 n = 145 is about 0.08 nDCG, and the shipped-vs-candidate difference above (0.018 MRR) is below it. The set names the
 mechanism; the bootstrap decides whether it is real.
+
+## What the noise class actually contains
+
+Nineteen rows, and the failures sort into four shapes — only the first two are defects:
+
+| row | query | total | what happened |
+|---|---|---:|---|
+| `z01` | `agnet memory retrievel` | **0** | two misspellings, so no term has a posting and an AND over unknown terms is zero |
+| `z20` | `битемпоральность` | **0** | the note says `битемпоральная`; the word-form lookup only knows Latin suffixes |
+| `z08` | `https://arxiv.org/abs/2602.20021` | 109 | the note whose **`source_url` is that URL** is not in the top ten: the index holds body and description, never the URL field |
+| `z10` | `WHY DOES THE EVENT LOG BEAT THE GRAPH` | 356 | case is not the problem — the tokenizer lowercases — the hub ranks first, the known hub-over-atomic defect |
+| `z12` | `agent memory memory` | 228 | a repeated term is deduplicated, so this is the plain two-term query, and the expected note is outside the top ten |
+
+The four that pass are the instructive part: **a single degenerate feature does not break a query** — `oracle matrix?`
+(rank 2), `memory decay?? 🔥` (rank 1), a pasted path with a `#block-id` (rank 1), a pasted `tb_search(...)` call (rank 1),
+ALL CAPS on a topic that is not crowded (rank 1). What breaks a query is either *every* content term being unknown
+(`z01`), or a term that exists in the base under a different form (`z20`), or a field that is not indexed at all (`z08`).
+
+That last one is the cheapest real gap the set has found: a note carries its `source_url` in frontmatter, an agent pastes
+the URL it was given, and the engine cannot connect them — and it is the same gap the provenance-echo work hit from the
+other side (identity recorded, nothing parses it).
