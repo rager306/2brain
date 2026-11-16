@@ -29,6 +29,7 @@ from mcp_stdio import StdioMcp, is_error, tool_payload  # noqa: E402
 ADAPTER = os.environ.get("BRAIN_BIN", "/usr/local/bin/2brain")
 VAULT = Path(os.environ.get("BRAIN_VAULT", "/root/vault"))
 LINK = re.compile(r"\[\[([^\]|#]+)")
+TOPIC = re.compile(r'^\s*-\s*"?\[\[([^\]|#]+)\]\]"?\s*$', re.MULTILINE)
 SERVICE = {"ops", "self", "templates"}
 
 
@@ -60,7 +61,11 @@ def census() -> dict:
         text = path.read_text(errors="ignore")
         fields = frontmatter(text)
         body = text.split("---", 2)[-1]
-        links = [target.strip() for target in LINK.findall(body)]
+        body_links = [target.strip() for target in LINK.findall(body)]
+        # The vault's convention puts "what this note is about" in `topics:` as wikilinks, and the engine counts
+        # those as field references. A body-only count therefore calls a connected note isolated.
+        topic_links = [target.strip() for target in TOPIC.findall(text[: len(text) - len(body)])]
+        links = body_links + topic_links
         notes.append(
             {
                 "path": str(relative),
@@ -71,6 +76,8 @@ def census() -> dict:
                 "freshness": fields.get("freshness", ""),
                 "status": fields.get("status", ""),
                 "outbound": len(links),
+                "body_links": len(body_links),
+                "topic_links": len(topic_links),
             }
         )
 
@@ -87,6 +94,8 @@ def census() -> dict:
         "outbound_total": sum(outbound),
         "outbound_median": statistics.median(outbound) if outbound else 0,
         "no_outbound": sum(1 for count in outbound if count == 0),
+        "no_body_links": sum(1 for note in content if note["body_links"] == 0),
+        "no_topic_links": sum(1 for note in content if note["topic_links"] == 0),
         "freshness": {
             key: sum(1 for note in content if note["freshness"] == key)
             for key in ("evergreen", "stable", "slow", "volatile")
@@ -135,6 +144,8 @@ def main() -> int:
     print(f"  status:current {share('with_status_current')}")
     print(f"  links      {data['outbound_total']} total, median {data['outbound_median']} per note, "
           f"{data['no_outbound']} with none")
+    print(f"             of which body links leave {data['no_body_links']} bare, "
+          f"`topics:` links leave {data['no_topic_links']} bare")
     print("  freshness  " + ", ".join(f"{key} {count}" for key, count in data["freshness"].items()))
     graph = data["graph"]
     if "error" in graph:

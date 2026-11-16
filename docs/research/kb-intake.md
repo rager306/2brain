@@ -9,8 +9,8 @@
 | typed | 995 (97%) |
 | described | 1011 (98%) |
 | sourced | 888 (86%) |
-| links | 3112, median 1 per note |
-| notes with no outbound link | 424 (416 of them described) |
+| links (body only) | 3112, median 1 per note |
+| notes with no *body* link | 424 (416 of them described) |
 | graph | 1205 nodes, 4637 edges, 204 isolated, 0 broken links |
 
 The capture side is healthy: typing, descriptions and sources are near-complete, and the graph has no broken links.
@@ -86,3 +86,42 @@ following anything.
 
 It also fixes the weekly target in units: **the unlinked count is the number to move**, not the note count. A week
 that adds ten notes and links nine of them is a better week than one that adds two and links neither.
+
+## The metric was counting one kind of link, and it overstated isolation fivefold
+
+Re-run a few hours later with the same code, then with a correction. The vault's convention is to put *what this note
+is about* in the frontmatter as wikilinks:
+
+```yaml
+topics:
+  - "[[hermes-user-stories]]"
+```
+
+The engine counts those as field references (`kind: field`, `slot: topics`), and they are what makes the graph
+traverse. The census counted only body links, so it called a connected note isolated — and so did `connect.py`, which
+proposed neighbours for notes that already had them.
+
+Corrected numbers, same corpus, 2026-11-16:
+
+| measure | value |
+|---|---:|
+| links, body + `topics:` | 4886 |
+| median links per note | 3 |
+| notes with no link of any kind | **76** |
+| notes with no *body* link | 429 |
+| notes with no `topics:` link | 165 |
+| isolated in the graph (no edge either way) | 204 |
+
+So the honest statement is: **76 notes are unlinked in the sense the convention uses, and 204 are isolated in the
+graph's sense (nothing points at them and they point nowhere).** The 424 figure was an artifact of one regex, and it
+made the base look five times lonelier than it is.
+
+Two things follow, and the first is about instruments rather than content:
+
+- **A link metric has to say which link it counts.** `census.py` now reports body, `topics:` and total separately and
+  prints the bare counts for each kind; `connect.py` no longer proposes a link for a note that already has one.
+- The intake target is still real but smaller: 76 unlinked notes, 165 without topics, and 204 isolated — the last is
+  the one that matters, because a note nobody links to is invisible to traversal even if it links outward.
+
+The morning delta (+8 notes, +5 with no body link) stays true as a body-link delta. It just is not the headline it
+looked like.

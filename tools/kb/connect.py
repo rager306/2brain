@@ -29,6 +29,7 @@ from mcp_stdio import StdioMcp, tool_payload  # noqa: E402
 ADAPTER = os.environ.get("BRAIN_BIN", "/usr/local/bin/2brain")
 VAULT = Path(os.environ.get("BRAIN_VAULT", "/root/vault"))
 LINK = re.compile(r"\[\[([^\]|#]+)")
+TOPIC = re.compile(r'^\s*-\s*"?\[\[([^\]|#]+)\]\]"?\s*$', re.MULTILINE)
 SKIP_DIRS = {"ops", "self", "templates", ".git", ".2brain", ".arsumbris"}
 
 
@@ -45,7 +46,11 @@ def unlinked(limit: int | None) -> list[dict]:
             continue
         text = path.read_text(errors="ignore")
         body = text.split("---", 2)[-1]
-        if LINK.search(body):
+        # A note is connected if it links anywhere. The vault's convention is `topics:` wikilinks in the
+        # frontmatter, which the engine counts as references — a body-only test proposed links for notes that
+        # already had them.
+        frontmatter = text[: len(text) - len(body)]
+        if LINK.search(body) or TOPIC.search(frontmatter):
             continue
         description = frontmatter_value(text, "description")
         if not description:
