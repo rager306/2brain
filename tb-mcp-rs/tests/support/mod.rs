@@ -9,12 +9,14 @@
 #![allow(dead_code)]
 
 use std::{
+    fs,
     io::{BufRead, BufReader, Read, Write},
-    path::Path,
+    os::unix::net::UnixStream,
+    path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
     sync::mpsc::{self, Receiver, RecvTimeoutError},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use serde_json::{Value, json};
@@ -278,4 +280,94 @@ pub fn assert_error(response: &Value) {
         response.get("error").is_some() || response["result"]["isError"] == true,
         "{response}"
     );
+}
+
+// ------------------------------------------------------------- real daemon
+
+/// A private engine daemon serving one fixture workspace.
+///
+/// `HOME` is the fixture's, so the socket, the registries and the package cache
+/// all live under the temporary directory: a test can never reach the live
+/// device area or a production socket.
+pub struct Daemon {
+    child: Child,
+    socket: PathBuf,
+}
+
+impl Daemon {
+    /// Start `2brain daemon start <entry>` under `home`, and wait until it answers.
+    #[track_caller]
+    pub fn start(home: &Path, entry: &Path) -> Self {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_2brain"))
+            .arg("daemon")
+            .arg("start")
+            .arg(entry)
+            .env("HOME", home)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("start a private daemon");
+        let deadline = Instant::now() + Duration::from_secs(60);
+        loop {
+            if let Some(socket) = socket_under(home)
+                && exchange(&socket, json!({"read":"lifecycle","id":1}))
+                    .is_ok_and(|answer| answer["ready"] == true)
+            {
+                return Self { child, socket };
+            }
+            assert!(
+                child.try_wait().unwrap().is_none(),
+                "the daemon exited before it was ready"
+            );
+            assert!(Instant::now() < deadline, "the daemon did not become ready");
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    /// The socket this daemon bound.
+    pub fn socket(&self) -> &Path {
+        &self.socket
+    }
+
+    /// One engine read, asserting the engine answered.
+    #[track_caller]
+    pub fn read(&self, request: Value) -> Value {
+        exchange(&self.socket, request).expect("the private engine answers")
+    }
+}
+
+impl Drop for Daemon {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+/// The first `.sock` a device area holds, under either identity spelling.
+fn socket_under(home: &Path) -> Option<PathBuf> {
+    for state in [".2brain", ".arsumbris"] {
+        let run = home.join(state).join("au-engine").join("run");
+        let Ok(entries) = fs::read_dir(&run) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path
+                .extension()
+                .is_some_and(|extension| extension == "sock")
+            {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
+/// One request frame to a real engine, one answer frame back.
+pub fn exchange(socket: &Path, request: Value) -> std::io::Result<Value> {
+    let mut stream = UnixStream::connect(socket)?;
+    stream.set_read_timeout(Some(Duration::from_secs(10)))?;
+    write_frame(&mut stream, request);
+    Ok(read_request(&mut stream))
 }

@@ -16,3 +16,9 @@ pub mod migrate;
 /// the same path without duplicating the hash rule.
 #[cfg(unix)]
 pub use tb_engine::socket_path;
+
+/// The entry preflight `au daemon start` runs, re-exported so a client that
+/// creates a workspace (`2brain init`) can prove its own output the same way the
+/// daemon will.
+#[cfg(unix)]
+pub use tb_engine::verify_entry;

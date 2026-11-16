@@ -1,5 +1,6 @@
-//! Per-verb request counters: how many requests each read answered, and a
-//! latency histogram for each, read back through `graph_health`.
+//! Per-verb request counters: how many requests each read (and the one control
+//! verb, `shutdown`) answered, and a latency histogram for each, read back through
+//! `graph_health`.
 //!
 //! The engine held no per-verb instrumentation, so "is `grep` slow or is the
 //! vault big" was answered with a stopwatch on one call, which cannot separate a
@@ -145,7 +146,10 @@ fn slot_of(verb: &str) -> Option<usize> {
 /// Record one answered request: its count, and its handler time in a bucket.
 ///
 /// Called once per request from the serve loop, after the handler returns, so it
-/// times the HANDLER and not the frame's write or the client's round trip.
+/// times the HANDLER and not the frame's write or the client's round trip. A frame
+/// whose `read` tag names no known verb fails deserialization before the handler,
+/// so it names no verb to count — the counters answer "what did this verb cost",
+/// not "what did the socket receive".
 pub(crate) fn record(verb: &'static str, elapsed: Duration) {
     let Some(slot) = slot_of(verb) else {
         return;

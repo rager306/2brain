@@ -3,7 +3,8 @@
 //!
 //! `2brain daemon …` delegates to the engine's own implementation (`tb_cli`),
 //! and `2brain mcp …` delegates to this crate's server, so the two cannot drift
-//! from their standalone binaries.
+//! from their standalone binaries. `init` and `doctor` are this crate's own: they
+//! are what a first run needs, and they live in `tb_mcp_rs::cli`.
 //!
 //! `mcp` and `info` take a *target* rather than a socket: a path ending in
 //! `.sock` is used as given, anything else is a workspace entry, and the socket
@@ -11,10 +12,7 @@
 //! therefore say `2brain mcp /root/vault` and never carry a hash that changes
 //! with the entry path.
 
-use std::{
-    path::{Path, PathBuf},
-    process::ExitCode,
-};
+use std::{path::PathBuf, process::ExitCode};
 
 use clap::{Parser, Subcommand};
 
@@ -22,7 +20,7 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "2brain",
     version,
-    about = "2brain engine daemon and MCP server",
+    about = "2brain engine daemon, MCP server, workspace init and doctor",
     long_about = "One binary for both halves: serve a typed-markdown workspace over the engine wire, \
 or expose it to agents over MCP. The engine commands behave exactly like `au`; the MCP command \
 behaves exactly like the `au-mcp-rs` binary."
@@ -43,6 +41,35 @@ enum Command {
     Open {
         /// The workspace name from `~/.arsumbris/au-engine/config/workspaces.yaml`.
         name: String,
+    },
+    /// Create a workspace here and print the one command that starts it.
+    ///
+    /// Writes the identity directory and a root README the engine expects, copies a
+    /// starter when one is named, and makes the directory a git work tree if it is not
+    /// already inside one. It never overwrites a file and refuses a directory that
+    /// already holds a workspace.
+    Init {
+        /// The directory to create or fill. Defaults to the current directory.
+        #[arg(default_value = ".")]
+        directory: PathBuf,
+        /// Copy a starter from `tb-defaults/<name>` or the installed template directory.
+        /// Shipped names: `minimal`, `blank`.
+        #[arg(long, value_name = "NAME")]
+        template: Option<String>,
+        /// Add a workspace to a directory that already holds files.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Answer "is this working, and if not what do I do".
+    ///
+    /// Checks this binary, the engine binary, the target, the socket it resolves to,
+    /// the daemon on that socket, the workspace behind the daemon, and the MCP
+    /// server's own `tools/list`. Every line starts with `ok`, `warn` or `fail`;
+    /// the exit code is non-zero only when a line failed.
+    Doctor {
+        /// A workspace entry, or a `.sock` path. Defaults to the current directory.
+        #[arg(default_value = ".")]
+        target: PathBuf,
     },
     /// Show a workspace's resolved members without a daemon (same as `au members`).
     Members {
@@ -136,6 +163,12 @@ fn main() -> ExitCode {
             DaemonCommand::Stop { entry, force } => tb_cli::daemon::stop(&entry, force),
             DaemonCommand::Status { entry } => tb_cli::daemon::status(&entry),
         },
+        Command::Init {
+            directory,
+            template,
+            force,
+        } => tb_mcp_rs::cli::init(&directory, template.as_deref(), force),
+        Command::Doctor { target } => tb_mcp_rs::cli::doctor(&target),
         Command::Open { name } => tb_cli::daemon::open(&name),
         Command::Members { entry, json } => tb_cli::members::members(&entry, json),
         Command::Mcp { arguments } => {
@@ -147,7 +180,7 @@ fn main() -> ExitCode {
                 && !first.starts_with('-')
             {
                 let target = PathBuf::from(rest.next().expect("peeked"));
-                match resolve_socket(&target) {
+                match tb_mcp_rs::cli::resolve_socket(&target) {
                     Ok(socket) => forwarded.push(socket.into_os_string()),
                     Err(error) => {
                         eprintln!("2brain: {error}");
@@ -161,7 +194,7 @@ fn main() -> ExitCode {
         Command::Info { target } => {
             let mut arguments: Vec<std::ffi::OsString> = vec!["--info".into()];
             if let Some(target) = target {
-                match resolve_socket(&target) {
+                match tb_mcp_rs::cli::resolve_socket(&target) {
                     Ok(socket) => arguments.push(socket.into_os_string()),
                     Err(error) => {
                         eprintln!("2brain: {error}");
@@ -176,24 +209,6 @@ fn main() -> ExitCode {
             .map(std::ffi::OsString::from)
             .collect()),
     }
-}
-
-/// The socket a target names: a `.sock` path as given, anything else a workspace
-/// entry whose socket is derived the way `au daemon start` derives it.
-///
-/// The entry is canonicalized first because the daemon hashes a canonical path
-/// (`tb_engine::serve::socket_path` documents this), and a symlinked or relative
-/// spelling would otherwise hash to a socket nobody bound.
-fn resolve_socket(target: &Path) -> Result<PathBuf, String> {
-    if target
-        .extension()
-        .is_some_and(|extension| extension == "sock")
-    {
-        return Ok(target.to_path_buf());
-    }
-    let canonical =
-        std::fs::canonicalize(target).map_err(|error| format!("{}: {error}", target.display()))?;
-    Ok(tb_cli::socket_path(&canonical))
 }
 
 /// Run the MCP server half with `arguments` and map its result to an exit code.

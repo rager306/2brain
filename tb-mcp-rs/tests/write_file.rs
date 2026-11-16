@@ -355,10 +355,7 @@ fn preview_sends_the_op_and_returns_the_engine_product() {
             payload["preview_mutation"]["target"].is_object(),
             "{payload}"
         );
-        assert_eq!(
-            response["result"]["_meta"]["io.2brain/engineVersion"],
-            "11"
-        );
+        assert_eq!(response["result"]["_meta"]["io.2brain/engineVersion"], "11");
     }
     daemon.join().unwrap();
 }

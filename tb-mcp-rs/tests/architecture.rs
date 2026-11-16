@@ -23,7 +23,8 @@ const LEAVES: [&str; 4] = ["bounded_stdio", "capability", "policy", "schemas"];
 
 /// Every module dependency that is allowed today. Adding one is a decision, so it needs a
 /// line here and a reason in the message.
-const ALLOWED: [(&str, &str); 11] = [
+const ALLOWED: [(&str, &str); 12] = [
+    ("cli", "transport"),
     ("gate", "policy"),
     ("lib", "bounded_stdio"),
     ("lib", "capability"),
@@ -46,6 +47,8 @@ const ALLOWED: [(&str, &str); 11] = [
 // ledger records `tb_write_file` instead of the literal `mutation` — provenance the ledger existed for.
 // 4501 on 2026-11-16: the read tools' engine verbs moved into `wire.rs`'s `READ_VERBS`, so a read
 // call site names a tool instead of also repeating the verb, and `file_read` lost an unused key.
+// 4501 after `init` and `doctor` moved into `src/cli.rs`: the module is public for the binary's
+// dispatcher, which costs one line here and no logic — the budget did not move.
 const LIB_RS_PRODUCTION_BUDGET: usize = 4501;
 
 fn src() -> std::path::PathBuf {

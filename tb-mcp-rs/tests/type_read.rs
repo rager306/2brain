@@ -220,10 +220,7 @@ fn subtypes_preserve_envelope_and_reject_bad_results_before_recovery() {
         let response = client.call(i as u32 + 2, "tb_subtypes", args);
         if success {
             assert_eq!(result_payload(&response), payload);
-            assert_eq!(
-                response["result"]["_meta"]["io.2brain/engineVersion"],
-                "42"
-            );
+            assert_eq!(response["result"]["_meta"]["io.2brain/engineVersion"], "42");
         } else {
             assert_error(&response);
             assert!(response["result"].get("_meta").is_none());
@@ -320,10 +317,7 @@ fn members_preserve_envelope_and_recover_after_invalid_responses() {
         let response = client.call(i as u32 + 2, "tb_members", args);
         if success {
             assert_eq!(result_payload(&response), payload);
-            assert_eq!(
-                response["result"]["_meta"]["io.2brain/engineVersion"],
-                "42"
-            );
+            assert_eq!(response["result"]["_meta"]["io.2brain/engineVersion"], "42");
         } else {
             assert_error(&response);
             assert!(response["result"].get("_meta").is_none());
@@ -421,10 +415,7 @@ fn imports_preserve_scope_envelope_and_recover_after_errors() {
         let response = client.call(i as u32 + 2, "tb_imports", args);
         if success {
             assert_eq!(result_payload(&response), payload);
-            assert_eq!(
-                response["result"]["_meta"]["io.2brain/engineVersion"],
-                "42"
-            );
+            assert_eq!(response["result"]["_meta"]["io.2brain/engineVersion"], "42");
         } else {
             assert_error(&response);
             assert!(response["result"].get("_meta").is_none());
@@ -520,10 +511,7 @@ fn files_preserve_paging_scope_order_and_recover_after_bad_envelopes() {
         let response = client.call(i as u32 + 2, "tb_files", args);
         if success {
             assert_eq!(result_payload(&response), payload);
-            assert_eq!(
-                response["result"]["_meta"]["io.2brain/engineVersion"],
-                "42"
-            );
+            assert_eq!(response["result"]["_meta"]["io.2brain/engineVersion"], "42");
         } else {
             assert_error(&response);
             assert!(response["result"].get("_meta").is_none());
@@ -605,10 +593,7 @@ fn content_resolves_the_member_root_and_preserves_envelope() {
         result_payload(&response),
         json!({"content":{"text":"hello","hash":"abc","commit":null}})
     );
-    assert_eq!(
-        response["result"]["_meta"]["io.2brain/engineVersion"],
-        "6"
-    );
+    assert_eq!(response["result"]["_meta"]["io.2brain/engineVersion"], "6");
     daemon.join().unwrap();
 }
 

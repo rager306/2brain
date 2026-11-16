@@ -62,24 +62,28 @@ number.
 **Prerequisites.** Linux or macOS with a Unix domain socket; [Rust 1.99.0](https://rustup.rs) (pinned in
 `tb-engine/rust-toolchain.toml`); `git` for the daemon's write path. No database, no service to install.
 
-**Build from source.**
+**Install both binaries.**
 
 ```sh
 git clone https://github.com/rager306/2brain && cd 2brain
-(cd tb-engine && cargo +1.99.0 build --release -p tb-cli)   # the engine binary: tb-engine/target/release/au
-(cd tb-mcp-rs && ./scripts/install.sh)                      # the MCP server: /usr/local/bin/2brain
-export PATH="$PWD/tb-engine/target/release:$PATH"           # or copy `au` somewhere on PATH
+./install.sh                                     # builds the engine and the server; installs to /usr/local/bin
 ```
 
-**Point it at a workspace and start the engine.**
+`PREFIX=$HOME/.local ./install.sh` installs without root. It replaces the files and touches no running
+daemon: a daemon that is already serving keeps the binary it started with until you restart it.
+
+**Make a workspace, serve it, and check it.**
 
 ```sh
-mkdir -p ~/my-vault && cd ~/my-vault && git init
-mkdir -p .2brain                                 # the identity directory a repository carries
-printf 'name: my-vault\ntype: au.engine.repo::au-engine\n' > .2brain/repo.yaml
-au daemon start ~/my-vault                       # serves reads over a socket under ~/.arsumbris/au-engine/run
-2brain info ~/my-vault                           # surface, members, diagnostics — and a probe of that daemon
+2brain init ~/my-vault                           # .2brain/repo.yaml, a root README, and a git work tree
+2brain daemon start ~/my-vault                   # foreground; serves reads over a socket under ~/.2brain/au-engine/run
+2brain doctor ~/my-vault                         # in another shell: one ok/warn/fail line per check, and the fix for each
 ```
+
+`2brain init --template blank` copies a starter (`minimal` and `blank` ship; the rest of `tb-defaults/`
+is installed too). It refuses a directory that already holds a workspace, and a non-empty directory
+unless `--force`. `2brain doctor` exits non-zero only when a check failed, and each failure names the
+command that fixes it.
 
 The daemon's state root is `~/.2brain/` when that directory exists and `~/.arsumbris/` otherwise — the second
 spelling is the one a fresh machine gets in this release, and the migration to the first is a separate step

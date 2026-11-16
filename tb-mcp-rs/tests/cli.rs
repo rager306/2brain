@@ -120,7 +120,7 @@ fn the_unified_binary_exposes_both_halves() {
     let output = unified().arg("--help").output().unwrap();
     assert!(output.status.success(), "{output:?}");
     let text = String::from_utf8(output.stdout).unwrap();
-    for expected in ["daemon", "open", "members", "mcp", "info"] {
+    for expected in ["daemon", "open", "members", "mcp", "info", "init", "doctor"] {
         assert!(text.contains(expected), "help lacks {expected}: {text}");
     }
     let version = unified().arg("--version").output().unwrap();

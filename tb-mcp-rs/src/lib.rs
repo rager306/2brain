@@ -1,5 +1,6 @@
 mod bounded_stdio;
 mod capability;
+pub mod cli;
 mod gate;
 mod ledger;
 mod policy;
