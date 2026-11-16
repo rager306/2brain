@@ -2,7 +2,7 @@
   "generated_for": "2brain",
   "gates": {
     "adapter_tests": {
-      "value": 226,
+      "value": 229,
       "command": "cd tb-mcp-rs && cargo +1.99.0 test --offline",
       "date": "2026-11-16"
     },
@@ -13,7 +13,7 @@
       "date": "2026-11-16"
     },
     "engine_it_tests": {
-      "value": 720,
+      "value": 724,
       "known_environment_failures": 3,
       "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --test it",
       "date": "2026-11-16"

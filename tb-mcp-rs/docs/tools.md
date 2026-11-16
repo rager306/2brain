@@ -100,6 +100,15 @@ message — the local read is the cheap one, the engine's is the guarantee.
 an editable member, one mutation at a time. An engine rejection wrote nothing; a
 transport failure is `outcome_unknown` and must not be retried blindly.
 
+`expected_hash` means one thing to this server and another to the engine, and the
+difference matters when two clients share the base. The server holds the hash the
+`tb_content` read returned and refuses a mismatch; the engine, for `tb_edit_file`,
+receives only `old_string`, so **its** precondition is that the text at that span
+is what the caller saw. A concurrent change elsewhere in the file does not cancel
+an edit, which is what two agents editing different sections of one note need.
+`tb_write_file` is the whole-file compare-and-set: it passes `expected_hash` to
+the engine, so any change at all since the read cancels it.
+
 Structural mutations ride the same gate (prior read, hash, editable member, one
 at a time) and each is one engine saga:
 

@@ -1218,7 +1218,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Replace one exact string in a member's file after a successful tb_content read of the same path. expected_hash must equal the hash that read returned. old_string must match exactly and uniquely unless replace_all is true; the engine rejects a miss or a non-unique match without writing. Unknown outcomes are reported as outcome_unknown and must not be retried blindly.",
+        description = "Replace one exact string in a member's file after a successful tb_content read of the same path. expected_hash must equal the hash that read returned, checked against this server's read ledger; it does not freeze the whole file. The engine's own precondition is old_string itself: old_string must match exactly and uniquely unless replace_all is true, and a miss or a non-unique match rejects without writing. A concurrent change ELSEWHERE in the file therefore does not cancel this edit, by design — a fragment edit that only applied to a byte-identical file would refuse exactly the case of two agents editing different sections of one note. Use tb_write_file when the whole file must be unchanged since the read; that one passes expected_hash to the engine. Unknown outcomes are reported as outcome_unknown and must not be retried blindly.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,

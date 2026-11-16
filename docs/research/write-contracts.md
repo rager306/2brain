@@ -14,14 +14,13 @@ Within one server process the single mutation slot (`take_slot`, `lib.rs:2901`) 
 one session cannot race. **Two clients are two processes**, and nothing serialises them: both read absence, both
 write, the second wins silently, and the first agent's note is gone with no record.
 
-Status: **defect** by this repository's own standard, since the milestone is two agents on one base.
+Status: **fixed 2026-11-16** (`1b601b0`). The engine has a `create_file` mutation whose absence check IS its write —
+one `O_CREAT | O_EXCL` open inside the serialized mutation — and the adapter sends it, keeping its own read as the
+cheap refusal. An existing path rejects with `detail.reason: "already_exists"` and the incumbent's hash.
 
-Fix in flight: an engine-side create verb whose absence check happens inside the engine's mutation handling, where
-the write is already serialised. The adapter keeps its own pre-check for the better error message, and maps the
-engine's rejection onto the existing `policy/absence` wording.
-
-Test: two `2brain mcp` processes, one temporary engine, concurrent `tb_create_file` for one path, twenty rounds.
-Exactly one success, one refusal, and the file holds the winner's bytes.
+Test: `tb-mcp-rs/tests/create_race.rs` runs two `2brain mcp` processes against one private engine, both creates in
+flight before either reply is read, twenty rounds; one success, one `policy/absence` refusal, the winner's bytes
+whole. The engine has its own two-connection proof that the reject carries `reason: already_exists`.
 
 ## 2. `expected_hash` on `tb_edit_file` is a read-ledger token, not a whole-file compare-and-set
 
@@ -35,11 +34,12 @@ would refuse exactly the case where two agents edit different sections of a long
 
 Compare `tb_write_file` (`lib.rs:1200`), which does pass `expected_hash` and is a whole-file compare-and-set.
 
-Status: **contract, under-documented.** The behaviour is right; the tool description does not distinguish the two,
-so a caller can read `expected_hash` as stronger than it is.
+Status: **contract, now documented** (`1b601b0`). The behaviour was right; the description did not distinguish the
+two, so a caller could read `expected_hash` as stronger than it is.
 
-Fix: the `tb_edit_file` description states the span precondition and points at `tb_write_file` for whole-file
-freshness. A test pins the semantics: change a different section between read and edit, and the edit still applies.
+`tb_edit_file`'s description now states the span precondition and points at `tb_write_file` for whole-file freshness;
+`tb-mcp-rs/docs/tools.md` carries the same paragraph. The adapter already pins the wire half
+(`edit_file takes no expected_hash: the exact match is its precondition`, `tests/write_file.rs`).
 
 ## 3. `tb_rename_type` checks the grant on the defining member, and rewrites references elsewhere
 
