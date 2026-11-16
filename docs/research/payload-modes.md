@@ -121,3 +121,22 @@ block, at 47.1% fewer bytes (22.0 MB → 11.6 MB over the read suite). The previ
 
 Revisit when a client that validates schemas is connected: that one wants `--payload structured`, and the
 52.8% saving is only real for it.
+
+## Correction, same day: the client *does* validate schemas
+
+This section's original claim — "Hermes reads `content[0].text`, so text-only is safe for it" — was wrong, and
+the logs prove it. With `--payload text` in the Hermes entry, six tool calls failed in 46 seconds:
+
+```
+Tool au_overview has an output schema but did not return structured content
+```
+
+The check is not in Hermes' own code, which is why searching Hermes' source found nothing; it is in the MCP
+client layer the server is consumed through, and it enforces the spec rule that a tool declaring an
+`outputSchema` must return `structuredContent`. Text-only therefore breaks every read tool, not just the ones
+that care about shapes, and the client's circuit breaker turns the third failure into "server unreachable".
+
+The entry is back on the default (`both`) and the three calls were re-checked live. The measurement in the
+table above stands — the bytes are real — but the compatibility conclusion does not: **`text` is only safe
+for a client that ignores schemas, and this one does not**. The full account is in
+`docs/research/hermes-log-findings.md`.

@@ -1199,15 +1199,21 @@ impl Server {
         _ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
         let expected_hash = args.expected_hash.clone();
-        self.guarded_mutation(args.repo, args.path, args.expected_hash, move |target| {
-            json!({
-                "mutate": "write_file",
-                "id": 1,
-                "path": target,
-                "content": args.content,
-                "expected_hash": expected_hash,
-            })
-        })
+        self.guarded_mutation(
+            "au_write_file",
+            args.repo,
+            args.path,
+            args.expected_hash,
+            move |target| {
+                json!({
+                    "mutate": "write_file",
+                    "id": 1,
+                    "path": target,
+                    "content": args.content,
+                    "expected_hash": expected_hash,
+                })
+            },
+        )
         .await
     }
 
@@ -1225,16 +1231,22 @@ impl Server {
         Parameters(args): Parameters<EditArguments>,
         _ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.guarded_mutation(args.repo, args.path, args.expected_hash, |target| {
-            json!({
-                "mutate": "edit_file",
-                "id": 1,
-                "path": target,
-                "old_string": args.old_string,
-                "new_string": args.new_string,
-                "replace_all": args.replace_all,
-            })
-        })
+        self.guarded_mutation(
+            "au_edit_file",
+            args.repo,
+            args.path,
+            args.expected_hash,
+            |target| {
+                json!({
+                    "mutate": "edit_file",
+                    "id": 1,
+                    "path": target,
+                    "old_string": args.old_string,
+                    "new_string": args.new_string,
+                    "replace_all": args.replace_all,
+                })
+            },
+        )
         .await
     }
 
@@ -1253,14 +1265,20 @@ impl Server {
         _ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
         let expected_hash = args.expected_hash.clone();
-        self.guarded_mutation(args.repo, args.path, args.expected_hash, move |target| {
-            json!({
-                "mutate": "delete_file",
-                "id": 1,
-                "path": target,
-                "expected_hash": expected_hash,
-            })
-        })
+        self.guarded_mutation(
+            "au_delete_file",
+            args.repo,
+            args.path,
+            args.expected_hash,
+            move |target| {
+                json!({
+                    "mutate": "delete_file",
+                    "id": 1,
+                    "path": target,
+                    "expected_hash": expected_hash,
+                })
+            },
+        )
         .await
     }
 
@@ -1779,6 +1797,7 @@ impl Server {
     ) -> CallToolResult {
         let at = args.at;
         self.guarded_mutation(
+            "au_assign_block_id",
             args.repo,
             args.path,
             args.expected_hash,
@@ -1803,15 +1822,21 @@ impl Server {
     ) -> CallToolResult {
         let block_id = args.block_id;
         let to_block_id = args.to_block_id;
-        self.guarded_mutation(args.repo, args.path, args.expected_hash, move |target| {
-            json!({
-                "mutate": "rename_block_id",
-                "id": 1,
-                "path": target,
-                "block_id": block_id,
-                "to_block_id": to_block_id,
-            })
-        })
+        self.guarded_mutation(
+            "au_rename_block_id",
+            args.repo,
+            args.path,
+            args.expected_hash,
+            move |target| {
+                json!({
+                    "mutate": "rename_block_id",
+                    "id": 1,
+                    "path": target,
+                    "block_id": block_id,
+                    "to_block_id": to_block_id,
+                })
+            },
+        )
         .await
     }
 
@@ -1842,6 +1867,7 @@ impl Server {
             Err(error) => return return_error(error),
         };
         self.guarded_mutation(
+            "au_rename",
             repo,
             args.path,
             args.expected_hash,
@@ -2745,6 +2771,7 @@ impl Server {
     /// time, and a lost answer is `outcome_unknown` rather than a retry.
     async fn guarded_mutation(
         &self,
+        tool: &str,
         repo: String,
         path: String,
         expected_hash: String,
@@ -2755,7 +2782,7 @@ impl Server {
             Err(denial) => {
                 self.audit.record(
                     &self.principal,
-                    "mutation",
+                    tool,
                     &repo,
                     &format!("denied:{}", denial.stage.name()),
                 );
@@ -2767,19 +2794,17 @@ impl Server {
             .await
         {
             Ok(result) => {
-                self.audit
-                    .record(&self.principal, "mutation", &repo, "applied");
+                self.audit.record(&self.principal, tool, &repo, "applied");
                 self.ledger.forget(&prepared.key);
                 success_result(result, self.payload)
             }
             Err(MutationFailure::Rejected(error)) => {
-                self.audit
-                    .record(&self.principal, "mutation", &repo, "rejected");
+                self.audit.record(&self.principal, tool, &repo, "rejected");
                 CallToolResult::error(vec![ContentBlock::text(error)])
             }
             Err(MutationFailure::Unknown(error)) => {
                 self.audit
-                    .record(&self.principal, "mutation", &repo, "outcome_unknown");
+                    .record(&self.principal, tool, &repo, "outcome_unknown");
                 self.ledger.forget(&prepared.key);
                 CallToolResult::error(vec![ContentBlock::text(format!(
                     "outcome_unknown: {error}. The mutation may have landed; read the file again before retrying."

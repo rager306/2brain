@@ -243,8 +243,33 @@ fn the_gate_order_is_observable_in_errors_and_audit() {
     let text = unread["result"]["content"][0]["text"].as_str().unwrap();
     assert!(text.starts_with("policy/prior_read:"), "{text}");
 
+    // A second mutating tool, refused at the same gate, so the ledger has two tools to tell apart.
+    let escaped_delete = client.call(
+        6,
+        "au_delete_file",
+        json!({"repo":"allowed","path":"../y.md","expected_hash":"h"}),
+    );
+    let text = escaped_delete["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert!(text.starts_with("policy/path_scope:"), "{text}");
+
     assert_not_connected(&listener);
-    let stages: Vec<String> = audit_lines(&client)
+    // The ledger names the tool that was refused, not a shared placeholder: an audit record reading
+    // `mutation` cannot say which of the six mutating tools ran, which is the one thing it is for.
+    let audit = audit_lines(&client);
+    let tools: Vec<String> = audit
+        .iter()
+        .map(|line| line["tool"].as_str().unwrap_or_default().to_owned())
+        .collect();
+    assert!(
+        tools
+            .iter()
+            .all(|tool| tool == "au_write_file" || tool == "au_delete_file"),
+        "{tools:?}"
+    );
+    assert!(tools.contains(&"au_delete_file".to_owned()), "{tools:?}");
+    let stages: Vec<String> = audit
         .iter()
         .map(|line| line["outcome"].as_str().unwrap().to_owned())
         .collect();

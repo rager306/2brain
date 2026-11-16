@@ -42,7 +42,9 @@ const ALLOWED: [(&str, &str); 11] = [
 // 4424 after the gate moved out of lib.rs, plus 81 for one new tool (`au_search`,
 // 2026-11-15) — the ratchet guards a refactor from re-growing the file; a feature pays
 // its own lines once and the number is recorded here with its reason.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4505;
+// 4505 after `au_search`, plus 25 on 2026-11-16: `guarded_mutation` now takes the tool name so the audit
+// ledger records `au_write_file` instead of the literal `mutation` — provenance the ledger existed for.
+const LIB_RS_PRODUCTION_BUDGET: usize = 4530;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
