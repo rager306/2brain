@@ -1,0 +1,107 @@
+{
+  "vault": "/root/vault",
+  "note": "Task-level set: real questions a person asks of this base, labelled with the minimally sufficient evidence. Unlike labelled-queries.json (built from filenames), these are written by hand and the expected path is checked by reading the note. A class of `absent` means the base should NOT answer; `ambiguous` accepts any of several.",
+  "rows": [
+    {
+      "query": "ReasoningBank",
+      "class": "exact",
+      "evidence": [
+        "knowledge/agentdb-architecture.md"
+      ],
+      "expect": "hit"
+    },
+    {
+      "query": "NVDA translation addon blind user",
+      "class": "exact",
+      "evidence": [
+        "knowledge/a-blind-since-birth-user-shipped-an-nvda-translation-addon.md"
+      ],
+      "expect": "hit"
+    },
+    {
+      "query": "агент не вызывает доступные скиллы, если выбор оставлен на его усмотрение",
+      "class": "paraphrase",
+      "evidence": [
+        "knowledge/agent-skills-go-unused-in-56-percent-of-cases-when-invocation-is-left-to-agent-discretion.md"
+      ],
+      "expect": "hit"
+    },
+    {
+      "query": "перехват аргументов tool-call до исполнения",
+      "class": "ru-cross",
+      "evidence": [
+        "knowledge/agent-tool-call-breakpoint-pattern.md"
+      ],
+      "expect": "hit"
+    },
+    {
+      "query": "как Zettelkasten применяют к памяти агента",
+      "class": "multi-hop",
+      "evidence": [
+        "knowledge/a-mem-uses-zettelkasten-method-for-agentic-memory-with-retroactive-evolution.md"
+      ],
+      "expect": "hit"
+    },
+    {
+      "query": "Q-learning меняет топологию графа агентов",
+      "class": "paraphrase",
+      "evidence": [
+        "knowledge/adaptive-dag-routing-uses-q-learning-to-optimize-agent-topology.md"
+      ],
+      "expect": "hit"
+    },
+    {
+      "query": "ночная задача в 3:00 компилирует день в контекст",
+      "class": "paraphrase",
+      "evidence": [
+        "knowledge/a-3am-dreaming-job-compiles-the-day-into-tomorrows-context-across-28-cron-jobs.md"
+      ],
+      "expect": "hit"
+    },
+    {
+      "query": "как держать 2FA-коды вне доступа агента",
+      "class": "multi-hop",
+      "evidence": [
+        "knowledge/a-local-email-gatekeeper-keeps-2fa-codes-out-of-agent-reach.md"
+      ],
+      "expect": "hit"
+    },
+    {
+      "query": "agent memory",
+      "class": "ambiguous",
+      "evidence": [],
+      "accept": [
+        "knowledge/a-mem-uses-zettelkasten-method-for-agentic-memory-with-retroactive-evolution.md",
+        "knowledge/agentdb-architecture.md",
+        "knowledge/agent-personalization.md"
+      ],
+      "expect": "any"
+    },
+    {
+      "query": "какая лицензия у Apache Kafka",
+      "class": "absent",
+      "evidence": [],
+      "expect": "none"
+    },
+    {
+      "query": "сколько стоит подписка Netflix в Таиланде",
+      "class": "absent",
+      "evidence": [],
+      "expect": "none"
+    },
+    {
+      "query": "the exact number of stars on the 2brain repository",
+      "class": "absent",
+      "evidence": [],
+      "expect": "none"
+    }
+  ],
+  "counts": {
+    "exact": 2,
+    "paraphrase": 3,
+    "ru-cross": 1,
+    "multi-hop": 2,
+    "ambiguous": 1,
+    "absent": 3
+  }
+}
