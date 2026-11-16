@@ -51,6 +51,8 @@ jobs:
           workspaces: tb-engine
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test -p tb-core
+      - run: cargo test -p tb-cli
       - run: cargo test -p tb-engine --lib
       - run: cargo test -p tb-engine --test it
 
