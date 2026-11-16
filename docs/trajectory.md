@@ -12,6 +12,7 @@ cost, and the evidence it would produce.
 | state root | `~/.2brain` (legacy `~/.arsumbris` is a symlink), unit `2brain-engine.service` |
 | tools | 52 (33 read, 16 mutate behind three grants, 2 discover, 1 watch) |
 | read contract | one `VERB_SHAPES` table plus typed payloads for the eight hot reads; both checked by the captured fixtures, not by memory |
+| audit | hash-chained `mcp_policy` records on stderr; the tool name is recorded (fixed from the literal `mutation`), the principal comes from `--principal` and Hermes now passes `hermes` |
 | judge | batched: 100 questions per call, 0.76 s, 7.6 ms/question (`docs/research/judge-capabilities.md`) |
 | rebrand | tiers A, B, **D done**; tier C steps 1–2 done (parser half), 24 engine sites left (`docs/research/tier-c-seams.md`) |
 | tool names | `au_*` — a client contract; the rename is a decision, not a sweep (`docs/naming.md`) |
@@ -38,9 +39,13 @@ ceremony:
    files to the payload shape.
 2. **one source for the verb list** — `VERB_SHAPES` holds every read verb, but the tool→verb mapping still
    lives in the router. Gate: a test that every read tool names a verb in the table.
-3. **result modes** — measured and decided (`docs/research/payload-modes.md`): the default stays `both`,
-   Hermes is pinned to `--payload text` (47.1% fewer bytes, JSON-equal). Revisit only for a
-   schema-validating client.
+3. **result modes — settled, and the first answer was wrong.** Measured: `both` 22.0 MB, `text` 11.6 MB,
+   `structured` 10.4 MB over 36 reads. I concluded Hermes reads only text and pinned it to `--payload text`;
+   six tool calls then failed in 46 seconds with "has an output schema but did not return structured
+   content", and the client's circuit breaker reported the server as unreachable. The schema check lives in
+   the MCP client layer, not in Hermes' own source, which is why searching Hermes found nothing. The default
+   stays `both` and the Hermes entry is back on it; `text` is only safe for a client that ignores schemas,
+   and this one does not. Account: `docs/research/hermes-log-findings.md`.
 
 ### 2. Ranking: proximity, paid for by a compact term map
 
