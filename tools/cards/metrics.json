@@ -2,18 +2,18 @@
   "generated_for": "2brain",
   "gates": {
     "adapter_tests": {
-      "value": 233,
+      "value": 237,
       "command": "cd tb-mcp-rs && cargo +1.99.0 test --offline",
       "date": "2026-11-16"
     },
     "engine_lib_tests": {
-      "value": 712,
+      "value": 716,
       "known_environment_failures": 1,
       "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --lib",
       "date": "2026-11-16"
     },
     "engine_it_tests": {
-      "value": 726,
+      "value": 729,
       "known_environment_failures": 3,
       "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --test it",
       "date": "2026-11-16"
