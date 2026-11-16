@@ -330,8 +330,7 @@ struct GrepArguments {
     /// Search only this member's files.
     #[schemars(length(min = 1))]
     repo: Option<String>,
-    /// Select own or all members (default own: this launch's workspace, not the dependencies mounted
-    /// beside it; `all` widens to every mounted member).
+    /// Select own or all members (default own; `all` widens to every mounted member).
     scope: Option<HubScope>,
     /// Match case exactly (default false).
     #[serde(default)]
@@ -354,8 +353,7 @@ struct SearchArguments {
     /// Search only this member's files.
     #[schemars(length(min = 1))]
     repo: Option<String>,
-    /// Select own or all members (default own: this launch's workspace, not the dependencies mounted
-    /// beside it; `all` widens to every mounted member).
+    /// Select own or all members (default own; `all` widens to every mounted member).
     scope: Option<HubScope>,
     /// Require every term instead of a ranked subset. Use it for punctuation or a
     /// two-word phrase; ranking alone can put a heavier document first.
