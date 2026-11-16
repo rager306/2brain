@@ -46,8 +46,21 @@ source.
 - **CI** (`.github/workflows/ci.yml`): adapter fmt/clippy/tests, engine fmt/unit/end-to-end, and a card check.
 - **`llms.txt`** and this changelog, so an agent landing on the repository can find the documents that answer
   its question instead of reading the tree.
+- **`create_file` — a create that cannot be raced** (engine, adapter). `tb_create_file` used to read the path,
+  see nothing, and send a plain `write_file`: one server process serialised that pair, two client processes did
+  not, so both read absence, both wrote, and the second silently replaced the first. The engine now has a
+  `create_file` mutation whose absence check **is** its write (one `O_CREAT | O_EXCL` open inside the serialized
+  mutation); an existing path rejects with `detail.reason: "already_exists"` and the incumbent's hash, and the
+  adapter reports it as the same `policy/absence` message the local pre-check uses. Additive: `schema_version`
+  stays 29, no golden capture re-blessed. `tb-mcp-rs/tests/create_race.rs` runs two adapter processes against one
+  private engine for twenty rounds.
 
 ### Changed
+
+- **A task-level query set** (`tools/ranking/tasks.json`, `tasks_eval.py`): twelve hand-written tasks — exact
+  identifiers, paraphrases, a Russian question about English material, multi-note questions, one ambiguous query,
+  and three the base should not answer — scored per class. Its first run found the two defects below.
+
 
 - **The README quickstart is four commands** — clone and `./install.sh`, then `2brain init my-workspace`,
   then `2brain daemon start my-workspace` with `2brain doctor my-workspace` in another shell. The manual
