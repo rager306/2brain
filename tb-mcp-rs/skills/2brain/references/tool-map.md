@@ -93,11 +93,11 @@ refused with `policy/member_grant`.
 
 ## Resources
 
-`arsumbris://<repo>/<path>` is a catalogued file a client can hold and re-read without a tool call:
+`2brain://<repo>/<path>` is a catalogued file a client can hold and re-read without a tool call:
 `resources/list` pages the catalogue, `resources/read` returns the text. There is no resource
-subscription — `tb_watch` is the change signal. The URI scheme is a contract and moved only with a
-versioned alias (`docs/naming.md`, phase N4), which is why it still says `arsumbris://` while the
-server is `2brain`.
+subscription — `tb_watch` is the change signal. The scheme moved to `2brain://` on 2026-11-16 with the
+legacy `arsumbris://` still accepted on parse for one release, so a URI a client cached keeps working
+while everything newly emitted carries the current name.
 
 ## What is not here
 

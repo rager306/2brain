@@ -221,7 +221,7 @@ fn subtypes_preserve_envelope_and_reject_bad_results_before_recovery() {
         if success {
             assert_eq!(result_payload(&response), payload);
             assert_eq!(
-                response["result"]["_meta"]["io.arsumbris/engineVersion"],
+                response["result"]["_meta"]["io.2brain/engineVersion"],
                 "42"
             );
         } else {
@@ -321,7 +321,7 @@ fn members_preserve_envelope_and_recover_after_invalid_responses() {
         if success {
             assert_eq!(result_payload(&response), payload);
             assert_eq!(
-                response["result"]["_meta"]["io.arsumbris/engineVersion"],
+                response["result"]["_meta"]["io.2brain/engineVersion"],
                 "42"
             );
         } else {
@@ -422,7 +422,7 @@ fn imports_preserve_scope_envelope_and_recover_after_errors() {
         if success {
             assert_eq!(result_payload(&response), payload);
             assert_eq!(
-                response["result"]["_meta"]["io.arsumbris/engineVersion"],
+                response["result"]["_meta"]["io.2brain/engineVersion"],
                 "42"
             );
         } else {
@@ -521,7 +521,7 @@ fn files_preserve_paging_scope_order_and_recover_after_bad_envelopes() {
         if success {
             assert_eq!(result_payload(&response), payload);
             assert_eq!(
-                response["result"]["_meta"]["io.arsumbris/engineVersion"],
+                response["result"]["_meta"]["io.2brain/engineVersion"],
                 "42"
             );
         } else {
@@ -606,7 +606,7 @@ fn content_resolves_the_member_root_and_preserves_envelope() {
         json!({"content":{"text":"hello","hash":"abc","commit":null}})
     );
     assert_eq!(
-        response["result"]["_meta"]["io.arsumbris/engineVersion"],
+        response["result"]["_meta"]["io.2brain/engineVersion"],
         "6"
     );
     daemon.join().unwrap();
@@ -762,7 +762,7 @@ fn instances_of_forwards_the_exact_read_and_preserves_the_envelope() {
     for (i, (args, _, payload)) in cases.into_iter().enumerate() {
         let reply = client.call(i as u32 + 2, "tb_instances_of", args);
         assert_eq!(result_payload(&reply), payload);
-        assert_eq!(reply["result"]["_meta"]["io.arsumbris/engineVersion"], "21");
+        assert_eq!(reply["result"]["_meta"]["io.2brain/engineVersion"], "21");
     }
     daemon.join().unwrap();
 }

@@ -40,4 +40,4 @@ Rust surface added what the daemon never had (`tb_batch`, `tb_search`, `tb_graph
 `tb_rollback_preview`, `tb_watch`, `tb_reconcile`, `tb_preview_mutation`, `tb_content`, and the two
 discovery tools).
 
-`references/tool-map.md` in `skills/arsumbris/` carries the full generated list.
+`references/tool-map.md` in `skills/2brain/` carries the full generated list.

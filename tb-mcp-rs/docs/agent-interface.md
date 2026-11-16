@@ -30,7 +30,7 @@ takes 66 ms.
 |---|---|
 | `tb_overview`, first answer | 7 466 chars (~1.9k tokens), 17–29 ms |
 | `structuredContent` | present on every result, equal to the text payload |
-| engine version metadata | `_meta["io.arsumbris/engineVersion"]` on every result |
+| engine version metadata | `_meta["io.2brain/engineVersion"]` on every result |
 | `tb_files` limit 500 | 65 806 chars (~16.5k tokens), 16 ms |
 | `tb_type_tree` | 13 467 chars (~3.4k tokens), 14 ms |
 | `tb_types` limit 500 | 15 228 chars (~3.8k tokens), 6 ms |

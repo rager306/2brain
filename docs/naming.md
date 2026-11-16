@@ -18,7 +18,7 @@ The rebrand ran in tiers (`docs/rebrand-plan.md`). This page states what is true
 | **state and socket paths** | **`~/.2brain/…`** (`$2BRAIN_HOME`, else `<home>/.2brain`, else legacy `<home>/.arsumbris`); `~/.arsumbris` is a symlink to it | `repo.rs` (`state_dir_in`) |
 | **systemd unit** | **`2brain-engine.service`**, `ExecStart=/root/.2brain/bin/au daemon start /root/vault` | `/etc/systemd/system` |
 | the engine binary | `au` (unchanged: the unit and every script name it; a device layout, not a repository directory) | `~/.2brain/bin/au` |
-| tool names | `au_*` — 52 tools, a wire contract | `src/capability.rs` |
+| tool names | **`tb_*`** — 52 tools, renamed from `au_*` on 2026-11-16 | `src/capability.rs` |
 | engine file format | `.arsumbris/repo.yaml`, `au.engine.*` types | every member repo |
 | member identity (`name:` in `repo.yaml`) | unchanged (`au-engine`, `au-mcp-sdk`, …): content cites these names | each `repo.yaml` |
 

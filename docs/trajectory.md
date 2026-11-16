@@ -15,7 +15,7 @@ cost, and the evidence it would produce.
 | audit | hash-chained `mcp_policy` records on stderr; the tool name is recorded (fixed from the literal `mutation`), the principal comes from `--principal` and Hermes now passes `hermes` |
 | judge | batched: 100 questions per call, 0.76 s, 7.6 ms/question (`docs/research/judge-capabilities.md`) |
 | rebrand | tiers A, B, **D done**; tier C steps 1–3 done (38 identity sites, schema seams, canonicaliser), step 4 is the migration command |
-| tool names | `au_*` — a client contract; the rename is a decision, not a sweep (`docs/naming.md`) |
+| tool names | **`tb_*`** — 52 tools, renamed from `au_*` on 2026-11-16 (`docs/naming.md`) |
 | FSM run log | done — `tools/fsm/check_run.py`, seven rules, `--selftest` proves each bites |
 | hygiene pass | done and applied — `tools/hygiene/pass.py`, `inbox/hygiene-2026-11-16.md` |
 | ranking | coverage weighting + **proximity** landed and measured; freshness prior rejected, its retry now has a query class and a decision rule |
@@ -140,7 +140,7 @@ lifecycle.
 ### 6. Tool names — one decision, then a mechanical commit
 
 52 names, 618 occurrences in 81 files, 34 fixtures named after them, 91 vault mentions. The safe form is
-`tb_*` with `au_*` accepted as a deprecated alias for one release. Nothing moves until the prefix is
+`tb_*`. That decision was taken on 2026-11-16 and executed without an alias; the reasoning is in
 chosen; `docs/naming.md` records the open state.
 
 ## The repository is public now, and it shows its own numbers

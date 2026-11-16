@@ -52,7 +52,7 @@ fn grep_sends_the_literal_search_and_passes_the_answer_through() {
     assert_eq!(payload["grep"]["total"], 1);
     assert_eq!(payload["grep"]["matches"][0]["line"], 5);
     assert_eq!(payload["grep"]["skipped_files"], 2);
-    assert_eq!(reply["result"]["_meta"]["io.arsumbris/engineVersion"], "7");
+    assert_eq!(reply["result"]["_meta"]["io.2brain/engineVersion"], "7");
     daemon.join().unwrap();
 }
 

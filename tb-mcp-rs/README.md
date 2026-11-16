@@ -17,7 +17,7 @@ and can write only when the launch grants it.
   grant, 36 with none.
 - **Results are the engine's own object**, under the read's key: `tb_overview`
   answers `{"overview": ...}`. Nothing is re-shaped on the way out.
-- **Two surfaces**: the tools above, and MCP **resources** at `arsumbris://<repo>/<path>`
+- **Two surfaces**: the tools above, and MCP **resources** at `2brain://<repo>/<path>` (the legacy `arsumbris://` is still accepted on parse)
   for files a client wants to hold and re-read (`resources/list` pages the
   catalogue, `resources/read` returns the engine's text). No resource
   subscriptions: `tb_watch` carries change notification.
@@ -78,7 +78,7 @@ au-mcp-rs 0.1.0+74e88f7e3688.dirty   # `.dirty` = uncommitted changes in this cr
 `--info` adds the target triple and profile, and the same string is reported to
 clients as `serverInfo.version`, so a bug report names an exact source. The
 adapter's own identity is separate from the engine's: the engine version rides
-`_meta["io.arsumbris/engineVersion"]` on every result.
+`_meta["io.2brain/engineVersion"]` on every result.
 
 The build identity comes from `build.rs` (`git rev-parse --short=12 HEAD`, plus a
 dirty check scoped to this crate). A tarball build without `.git` reports
@@ -248,7 +248,7 @@ This suite does not establish full MCP conformance or production readiness.
 
 ## Skill
 
-`skills/arsumbris/SKILL.md` is an agent skill for working a workspace: surface
+`skills/2brain/SKILL.md` is an agent skill for working a workspace: surface
 choice, tool ladder, envelope, read-then-write loop, and mutation recovery.
 `references/tool-map.md` is generated from the running binary and loads only when
 needed.

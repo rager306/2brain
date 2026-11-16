@@ -117,7 +117,7 @@ fn write_sends_the_guarded_mutation_and_invalidates_the_read() {
     let payload: Value =
         serde_json::from_str(write["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(payload["hash"], "hash-2");
-    assert_eq!(write["result"]["_meta"]["io.arsumbris/engineVersion"], "7");
+    assert_eq!(write["result"]["_meta"]["io.2brain/engineVersion"], "7");
     // The recorded read is gone: the same write must not be replayed.
     let replay = error_text(&client.call(
         4,
@@ -356,7 +356,7 @@ fn preview_sends_the_op_and_returns_the_engine_product() {
             "{payload}"
         );
         assert_eq!(
-            response["result"]["_meta"]["io.arsumbris/engineVersion"],
+            response["result"]["_meta"]["io.2brain/engineVersion"],
             "11"
         );
     }

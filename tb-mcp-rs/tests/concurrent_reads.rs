@@ -15,7 +15,7 @@ mod support;
 use support::Client;
 
 const TIMEOUT: Duration = Duration::from_secs(5);
-const VERSION_KEY: &str = "io.arsumbris/engineVersion";
+const VERSION_KEY: &str = "io.2brain/engineVersion";
 
 fn accept(listener: &UnixListener, offset: u32) -> UnixStream {
     let deadline = Instant::now() + TIMEOUT;

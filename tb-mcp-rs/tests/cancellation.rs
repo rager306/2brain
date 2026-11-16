@@ -198,7 +198,7 @@ fn cancellation_is_isolated_from_another_in_flight_read() {
         assert!(response.get("error").is_none(), "{response}");
         assert_ne!(response["result"]["isError"], true, "{response}");
         assert_eq!(
-            response["result"]["_meta"]["io.arsumbris/engineVersion"],
+            response["result"]["_meta"]["io.2brain/engineVersion"],
             version.to_string(),
             "{response}"
         );

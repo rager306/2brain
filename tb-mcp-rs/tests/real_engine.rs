@@ -101,7 +101,7 @@ fn receive(output: &mpsc::Receiver<String>) -> Value {
 /// direct read taken just before the MCP call can legitimately observe an older
 /// one. Accept the pair only when the engine reaches the reported version.
 fn assert_engine_version(socket: &Path, reply: &Value, direct: &Value) {
-    let metadata_version = reply["result"]["_meta"]["io.arsumbris/engineVersion"]
+    let metadata_version = reply["result"]["_meta"]["io.2brain/engineVersion"]
         .as_str()
         .expect("MCP response must carry a string engine version")
         .to_owned();

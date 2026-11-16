@@ -58,7 +58,7 @@ fn run_case(tool: &str, request: Value, result_payload: Value, expected: Value) 
     let payload: Value =
         serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(payload, expected, "{tool} altered the captured payload");
-    assert_eq!(reply["result"]["_meta"]["io.arsumbris/engineVersion"], "42");
+    assert_eq!(reply["result"]["_meta"]["io.2brain/engineVersion"], "42");
     daemon.join().unwrap();
 }
 

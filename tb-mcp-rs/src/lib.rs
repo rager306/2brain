@@ -2735,7 +2735,7 @@ impl Server {
         });
         let mut response = success_payload(payload, self.payload);
         response.meta = Some(MetaObject(serde_json::Map::from_iter([(
-            "io.arsumbris/engineVersion".to_owned(),
+            "io.2brain/engineVersion".to_owned(),
             Value::String(result.version.to_string()),
         )])));
         response
@@ -4158,7 +4158,7 @@ fn success_result(result: ReadResult, mode: PayloadMode) -> CallToolResult {
     let version = result.version;
     let mut response = success_payload(result.payload, mode);
     response.meta = Some(MetaObject(serde_json::Map::from_iter([(
-        "io.arsumbris/engineVersion".to_owned(),
+        "io.2brain/engineVersion".to_owned(),
         Value::String(version.to_string()),
     )])));
     response
@@ -4937,7 +4937,7 @@ mod tests {
             task.await.unwrap();
             if valid {
                 assert_eq!(
-                    result["_meta"]["io.arsumbris/engineVersion"],
+                    result["_meta"]["io.2brain/engineVersion"],
                     u64::MAX.to_string()
                 );
                 assert_eq!(result["content"][0]["text"], payload.to_string());
@@ -5197,7 +5197,7 @@ mod tests {
             json!([])
         );
         assert_eq!(
-            result["_meta"]["io.arsumbris/engineVersion"], "7",
+            result["_meta"]["io.2brain/engineVersion"], "7",
             "the engine version rides the answer metadata"
         );
         let seen = seen.lock().unwrap();

@@ -129,7 +129,7 @@ tool" loops.
 | concise profile | `--tools concise`: one-line descriptions, no `outputSchema`, no parameter descriptions or presentation keys |
 | typed results | `outputSchema` + `structuredContent` on every tool (full profile) |
 | annotations | `readOnlyHint` / `destructiveHint` / `idempotentHint` on every tool |
-| result metadata | `_meta["io.arsumbris/engineVersion"]` |
+| result metadata | `_meta["io.2brain/engineVersion"]` |
 | stable names, deterministic order | yes; search sorts by score then name |
 | `tools/list` cursor pagination | not used: 52 tools fit one page |
 | `listChanged` | not used: the catalogue is fixed at launch |

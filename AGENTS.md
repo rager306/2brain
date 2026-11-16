@@ -8,7 +8,7 @@ into allspark/prime-agent.
 
 **2brain** is a Rust implementation of a typed knowledge graph (typed markdown + `[[wiki-links]]` +
 `^block-ids`, frontmatter contracts, MCP serving) with a judgement layer kept outside the serving path.
-It is a fork of the `2brain` project (<https://github.com/arsumbris>), which stalled after
+It is a fork of the `arsumbris` project (<https://github.com/arsumbris>), which stalled after
 `0.0.2-alpha`; the `0.0.5`-era upstream work is preserved as the tag `archive/upstream-0.0.5`
 (commit `44b32f4`). The only place the upstream name belongs now is the lineage paragraph in
 `README.md`; the engine's file format still spells `au.engine.*` and `.arsumbris/`, which is a format
@@ -18,7 +18,7 @@ waiting for its migration (`docs/rebrand-plan.md`, tier C).
 
 | path | role |
 |---|---|
-| `tb-engine/` | Rust engine Cargo workspace — the authoritative writer, serving `/root/vault` through `arsumbris-engine.service` |
+| `tb-engine/` | Rust engine Cargo workspace — the authoritative writer, serving `/root/vault` through `2brain-engine.service` |
 | `tb-mcp-rs/` | **The serving path**: the Rust MCP adapter behind `/usr/local/bin/2brain` (52 tools, fail-closed gate, `scripts/install.sh` builds and installs it) |
 | ~~`au-mcp-bridge/`~~ | **retired 2026-11-16** — the Python stdio bridge Hermes used to speak; removed with the Node daemon when Hermes moved to `/usr/local/bin/2brain` (`docs/internal/hermes-2brain.md`) |
 | `tb-type-system/` | the type-system contract. **Do not break**: vault format compatibility depends on it |
@@ -84,7 +84,7 @@ home is `scripts/`.
 
 ## Workspace and Rust environment
 
-- This directory is ONE Git repository (`github.com/rager306/arsumbris`,
+- This directory is ONE Git repository (`github.com/rager306/2brain`,
   private). Every `au-*` directory inside it is a plain directory whose history
   was imported with `git subtree`; there are no nested repositories and no
   submodules. Run `git status` and `git log` once, at the monorepo root, and
@@ -134,7 +134,7 @@ its current limitations and plan. Do not assume bridge, policy, or client parity
 2. Never point tests at the live vault. Use a fixture copy:
    `git -C /root/vault worktree add /tmp/vault-fixture` or `cp -r`.
 3. Never kill or restart the engine daemon / bridge processes while Hermes
-   sessions are live. Socket: `~/.arsumbris/au-engine/run/*.sock`.
+   sessions are live. Socket: `~/.2brain/au-engine/run/*.sock` (`~/.arsumbris` is a symlink).
 4. Engine swaps to the live daemon require the golden wire contract to pass
    (below) — no exceptions. A swap is a read comparison on a frozen copy of the
    vault working tree first, then the install, then the same reads against the

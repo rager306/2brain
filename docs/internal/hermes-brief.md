@@ -106,7 +106,7 @@ Python-мост и Node-демон удалены 2026-11-16: второго п�
     topics:
       - "[[tool-use]]"
     confidence: medium
-    provenance: "Сессия Hermes <дата>; инструменты 2brain__au_*"
+    provenance: "Сессия Hermes <дата>; инструменты 2brain__tb_*"
     ---
 
     # Прогон Rust-адаптера на живом волте

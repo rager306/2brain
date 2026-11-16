@@ -6,7 +6,7 @@ mod support;
 
 use support::{Client, read_request};
 
-const VERSION_KEY: &str = "io.arsumbris/engineVersion";
+const VERSION_KEY: &str = "io.2brain/engineVersion";
 
 fn response(ready: bool, version: u64, result: Value) -> Value {
     json!({"type":"response","schema_version":29,"id":1,"ready":ready,"version":version,"result":result})

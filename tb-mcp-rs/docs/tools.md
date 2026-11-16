@@ -1,7 +1,7 @@
 # Tools
 
 Two surfaces: **tools** (51) for actions and reads, and **resources** for
-addressable files. A resource URI is `arsumbris://<repo>/<path>`, where the path is
+addressable files. A resource URI is `2brain://<repo>/<path>` (the legacy `arsumbris://` is accepted on parse), where the path is
 member-relative and percent-encoded; `resources/list` pages the catalogue 100 at a
 time and `resources/read` returns the engine's own text with `text/markdown`.
 `resources/templates/list` publishes the one shape, so a client can construct a URI
@@ -13,7 +13,7 @@ mutations that exist only when the launch grants them (11 with the mutation
 grant, 2 more with composition, 3 more with workspace shape). The three grants
 are independent, and composition and workspace shape each require
 `allow_mutations`. Every result is the engine's own object under the read's key,
-and carries `_meta["io.arsumbris/engineVersion"]`.
+and carries `_meta["io.2brain/engineVersion"]`.
 
 ## Discovery
 

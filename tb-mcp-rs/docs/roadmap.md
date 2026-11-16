@@ -25,7 +25,7 @@ eleven documents.
 | budgets | `tb_content {max_chars}`, `tb_instances_of {limit, offset}`; `tests/budgets.rs` |
 | contracts | synthetic corpus (32), production golden replay, client matrix, bridge parity, rollback rehearsal |
 | one binary | `2brain` (delegates `daemon`/`open`/`members` to `au_cli`, `mcp`/`info` here); `tests/cli.rs` |
-| agent skill | `skills/arsumbris`, installed by `scripts/install_skill.sh` |
+| agent skill | `skills/2brain`, installed by `scripts/install_skill.sh` |
 | trajectory | `docs/roadmap.md`, `docs/runtime-map.md` |
 
 ## Phase A — remaining engine reads

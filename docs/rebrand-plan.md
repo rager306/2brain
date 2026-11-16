@@ -16,7 +16,7 @@ doing them as one find-and-replace breaks the live vault.
 | engine schema types `au.engine.*` | 6 | **no** — hardcoded in `engine_schema.rs` and declared in every `repo.yaml` |
 | systemd units | 1 (`arsumbris-engine.service`) | yes, with a restart |
 | resource scheme `arsumbris://` | 1 | yes, but it is a wire contract: fixtures and clients compare it |
-| tool names `au_*` | 52 | not in scope: `au` is the engine's short name, not the brand |
+| tool names `au_*` | 52 | **done 2026-11-16** — renamed to `tb_*` without an alias (`docs/naming.md`) |
 
 ## The tiers
 

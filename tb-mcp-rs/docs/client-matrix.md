@@ -44,8 +44,8 @@ Run again on this host with the fork release builds instead of the debug builds:
 
 ```sh
 cd au-mcp-rs
-AU_ENGINE_BIN=/root/arsumbris/tb-engine/target/release/au \
-AU_MCP_RS_BIN=/root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs \
+AU_ENGINE_BIN=/root/2brain/tb-engine/target/release/au \
+AU_MCP_RS_BIN=/root/2brain/tb-mcp-rs/target/release/2brain \
 bash scripts/client-matrix.sh
 ```
 
@@ -64,11 +64,11 @@ Full output of the run, including the exit status the harness appended:
 
 ```text
 engine: /tmp/au-client-matrix-1vQCCf/home/.arsumbris/au-engine/run/afa490f1da63b5bb.sock
-adapter: /root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs
+adapter: /root/2brain/tb-mcp-rs/target/release/2brain
 
 client         version    result
 ---------------------------------------------------------------
-claude         2.1.323    FAILED: arsumbris-rs: /root/arsumbris/tb-mcp-rs//root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs /tmp/au-client-matrix-1vQCCf/home/.arsumbris/au-engine/run/afa490f1da63b5bb.sock - ✘ Failed to connect — ENOENT: no such file or directory, posix_spawn '/root/arsumbris/tb-mcp-rs//root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs'
+claude         2.1.323    FAILED: arsumbris-rs: /root/arsumbris/tb-mcp-rs//root/2brain/tb-mcp-rs/target/release/2brain /tmp/au-client-matrix-1vQCCf/home/.arsumbris/au-engine/run/afa490f1da63b5bb.sock - ✘ Failed to connect — ENOENT: no such file or directory, posix_spawn '/root/arsumbris/tb-mcp-rs//root/2brain/tb-mcp-rs/target/release/2brain'
 codex          0.164.0    registered; no non-interactive health check
 cursor-agent   2026.10.22-27dcf5f configured via .cursor/mcp.json; needs an API key, not exercised
 EXIT:1
@@ -105,7 +105,7 @@ Same command, same binaries, after the fix:
 
 ```text
 engine: /tmp/au-client-matrix-MNGeir/home/.arsumbris/au-engine/run/af3ace6d988bed39.sock
-adapter: /root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs
+adapter: /root/2brain/tb-mcp-rs/target/release/2brain
 
 client         version    result
 ---------------------------------------------------------------
@@ -132,7 +132,7 @@ except this one, so a correct answer cannot be a lucky guess:
 
 ```text
 engine:  /tmp/au-fixture-DSYaVF/home/.arsumbris/au-engine/run/123e4ed907267994.sock
-adapter: /root/arsumbris/tb-mcp-rs/target/release/tb-mcp-rs
+adapter: /root/2brain/tb-mcp-rs/target/release/2brain
 prompt:  find unique-marker-7f3a with tb_grep
 PASS: the model called mcp__arsumbris-rs__au_grep
 PASS: the marker travelled through the engine (tool result and/or answer)
@@ -215,7 +215,7 @@ as the tool result:
 ```
 
 Two things this run established that the Claude Code run could not. First, Codex
-reads the installed skill before acting (`cat /root/.agents/skills/arsumbris/SKILL.md`
+reads the installed skill before acting (`cat /root/.agents/skills/2brain/SKILL.md`
 is the first command in its transcript), so the skill is live for more than one
 client. Second, the client's own sandbox does not interfere with the adapter: Codex
 spawns it as an MCP server outside the model's sandbox.

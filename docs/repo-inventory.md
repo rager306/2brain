@@ -17,7 +17,7 @@ counted). This is the map the consolidation works from: every directory has one 
 
 | directory | files | language | layer | serving today | fate |
 |---|---:|---|---|---|---|
-| `au-engine` | 1 869 | Rust (180 src files, 157 k LOC) + yaml fixtures | code | **yes** — `arsumbris-engine.service` | keep; primary target for every architectural feature |
+| `au-engine` | 1 869 | Rust (180 src files, 157 k LOC) + yaml fixtures | code | **yes** — `2brain-engine.service` | keep; primary target for every architectural feature |
 | `au-mcp-rs` | 140 | Rust (51 src/test files, 20 k LOC) + 11 shell + 10 py in `scripts/` | code + tooling | **yes** — `arsumbris-rs` MCP server | keep; its `scripts/` stays tooling |
 | ~~`au-mcp`~~ | 0 | — | — | **no** | **deleted 2026-11-16** with its unit; the Node daemon had no consumer left |
 | ~~`au-mcp-core`~~ | 0 | — | — | no | **deleted 2026-11-16**: 55 `mcp.tool.*`/`mcp.hook.*` definitions for a tool surface that no longer exists |

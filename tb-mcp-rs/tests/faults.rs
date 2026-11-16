@@ -118,7 +118,7 @@ fn an_engine_that_dies_during_a_read_is_an_error_and_the_server_recovers() {
 
     let second = client.call(3, "tb_overview", json!({}));
     assert_ne!(second["result"]["isError"], true, "{second}");
-    assert_eq!(second["result"]["_meta"]["io.arsumbris/engineVersion"], "7");
+    assert_eq!(second["result"]["_meta"]["io.2brain/engineVersion"], "7");
     daemon.join().unwrap();
 }
 

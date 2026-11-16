@@ -11,7 +11,7 @@ mod support;
 
 use support::Client;
 
-const VERSION_KEY: &str = "io.arsumbris/engineVersion";
+const VERSION_KEY: &str = "io.2brain/engineVersion";
 
 fn fake_daemon(listener: UnixListener, cases: Vec<(u32, Value)>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
