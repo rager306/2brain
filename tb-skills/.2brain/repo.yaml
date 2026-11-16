@@ -1,4 +1,4 @@
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine
 name: au-skills
 description: Skills and guides for authoring and independently reviewing agent skills.
 deps:

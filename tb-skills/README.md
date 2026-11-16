@@ -1,5 +1,5 @@
 ---
-type: au.engine.readme::au-engine
+type: tb.engine.readme::tb-engine
 tldr: Write and independently review agent skills. Load two skills and use them to develop guidance in your own package.
 ---
 
