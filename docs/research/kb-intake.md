@@ -69,3 +69,20 @@ That is the same lesson as the search sets: **a field that is never allowed to b
 the lifecycle becomes load-bearing, it needs a small closed vocabulary (`current` / `superseded` / `proposed` /
 `retired`), a rule for who may write it, and at least one real `superseded` note per superseded topic. Until then
 the honest statement is that 2brain stores statuses, not that it tracks currency.
+
+## A measured delta, hours later
+
+The census run twice on the same day, which is the smallest useful experiment it can do:
+
+| | 2026-11-16 morning | 2026-11-16 evening | delta |
+|---|---:|---:|---:|
+| notes | 1024 | 1032 | +8 |
+| links | 3112 | 3120 | +8 |
+| notes with no outbound link | 424 | 429 | **+5** |
+
+Eight notes arrived and five of them joined the unlinked set. That is the thesis of this note, measured rather than
+argued: the inbox fills faster than the graph, and a note nobody linked to is a note the next agent will not reach by
+following anything.
+
+It also fixes the weekly target in units: **the unlinked count is the number to move**, not the note count. A week
+that adds ten notes and links nine of them is a better week than one that adds two and links neither.
