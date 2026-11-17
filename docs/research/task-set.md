@@ -19,6 +19,23 @@ First run, live vault, 2026-11-16:
 
 The misses are the useful part.
 
+## The decision rule this table supports, and the one it does not
+
+The table answers "does this class still pass", not "how much better is this build". Eighteen rows over eleven
+classes give one to three rows per class, so a single row is 33–100% of its class and no percentage has a
+sampling error behind it; a bootstrap over eighteen non-independent hand-written rows would be arithmetic
+without a model. The rule is therefore per row and fixed before the run:
+
+- a change is **accepted** only when its pre-registered rows pass and no other row moves against its recorded
+  rank (a row that flips for an unrelated reason is a finding, not noise to average away);
+- a change that moves a row it did not name is **rejected**, even if the move looks benign;
+- a claim of improvement names the row and the rank, never a percentage (`hub 8 → 1`, not "+9%");
+- repeated runs of one binary are not variance: the ranking is deterministic, and the only variance in this
+  repository is the pilot's twelve fixtures across arms, which is a different experiment and is not mixed with
+  this table.
+
+A second query per class would be the cheapest way to earn a threshold; until then, `n` is part of the result.
+
 ## 1. `tb_search` searches dependency repositories by default
 
 The query *"the exact number of stars on the 2brain repository"* — which this vault cannot answer — returned
