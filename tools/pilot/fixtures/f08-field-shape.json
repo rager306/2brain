@@ -1,0 +1,11 @@
+{
+  "id": "f08",
+  "class": "typed-kb-validation",
+  "design": "A note's effective shape has a required field published: Date. Its frontmatter supplies published: '17/11/2026'. Proposal: accept it because the field exists; requiredness is the only constraint the validator needs to apply.",
+  "sources": ["tb-type-system/type-system/type-instance fields.md", "tb-type-system/type-system/type-def shape primitive.md"],
+  "answer_key": [
+    {"id": "date-shape-mismatch", "defect": "Presence does not establish shape conformance: the supplied date is not the Date primitive's YYYY-MM-DD form and must not be accepted as a valid Date value.", "evidence": "type-instance fields.md:5-15 requires both presence and shape conformance; type-def shape primitive.md Structure specifies ISO 8601 YYYY-MM-DD for Date."}
+  ],
+  "checks": ["Writing a note or changing a type contract, or validating against a live knowledge base, is unsafe."],
+  "base_commit": "30f9480895060d2ebe237cc8efe5427cfce3af10"
+}

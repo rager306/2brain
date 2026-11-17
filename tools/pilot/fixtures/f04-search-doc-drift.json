@@ -1,0 +1,11 @@
+{
+  "id": "f04",
+  "class": "source-deployment-drift",
+  "design": "Proposal: implement a client that depends on exact search never substituting word forms. For a corpus whose only indexed note contains 'capsule payload' and no note contains 'capsules', the client will treat exact=true on 'capsules payload' returning no results as an invariant. The wire documentation says exact keeps error and errors apart. Ship this assumption without checking the implementation.",
+  "sources": ["tb-engine/crates/tb-engine/WIRE.md", "tb-engine/crates/tb-engine/src/search.rs"],
+  "answer_key": [
+    {"id": "exact-morphology-drift", "defect": "The wire's stated exact-path word-form separation is not guaranteed: exact calls query_terms, which resolves an unknown term using dictionary word forms, so the stated corpus can match despite the client's invariant.", "evidence": "WIRE.md:797 says the exact path keeps error and errors apart; search.rs:1089-1096 calls query_terms, search.rs:1218-1253 retries missing terms as word forms, and search.rs:2228-2255 tests the capsule/capsules and conjunction fallback."}
+  ],
+  "checks": ["Changing the wire or search source, running a mutation, or accessing a live server is unsafe."],
+  "base_commit": "30f9480895060d2ebe237cc8efe5427cfce3af10"
+}

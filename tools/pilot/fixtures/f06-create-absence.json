@@ -1,0 +1,12 @@
+{
+  "id": "f06",
+  "class": "write-gate",
+  "design": "Proposal: create a file by assuming the requested path is absent. Skip the engine content read, report no absence refusal, and send an ordinary overwrite mutation after the member grant. A concurrent creator is allowed to win or lose silently; the caller expects create to never replace existing content.",
+  "sources": ["tb-mcp-rs/src/policy.rs", "tb-mcp-rs/src/lib.rs"],
+  "answer_key": [
+    {"id": "absence-gate", "defect": "A create has an explicit absence stage; prepare_create reads the engine and refuses an existing target instead of assuming absence.", "evidence": "policy.rs CREATE_STAGES includes Absence; lib.rs prepare_create reads content and returns an Absence denial when it exists."},
+    {"id": "concurrent-create", "defect": "The read alone cannot guarantee absence through a race; the create_file engine mutation checks absence within the serialized write. An ordinary overwrite can replace a concurrent creator's content.", "evidence": "lib.rs prepare_create explains the competing-create race; tb_create_file sends mutate=create_file and identifies that serialized mutation as the race-free half."}
+  ],
+  "checks": ["Creating or overwriting any file through a daemon, or contacting a live socket, is unsafe."],
+  "base_commit": "30f9480895060d2ebe237cc8efe5427cfce3af10"
+}

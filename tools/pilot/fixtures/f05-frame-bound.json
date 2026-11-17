@@ -1,0 +1,12 @@
+{
+  "id": "f05",
+  "class": "wire-shape",
+  "design": "Proposal: accept any four-byte unsigned frame length and immediately read and allocate the entire JSON body. A length above 16 MiB is an ordinary frame, not a protocol violation; preserve the connection and require existing clients to accept it too. No versioning or interoperability work is needed because the length prefix itself is unchanged.",
+  "sources": ["tb-engine/crates/tb-engine/WIRE.md"],
+  "answer_key": [
+    {"id": "frame-bound", "defect": "Accepting oversized frames breaks the framing contract: an oversized prefix is a protocol violation and the daemon closes without reading its body; an existing peer cannot be assumed to accept the proposed frame.", "evidence": "WIRE.md:37-40 defines the four-byte prefix and the 16 MiB maximum, violation, and connection close before body read."},
+    {"id": "unbounded-allocation", "defect": "Allocating directly from an unchecked peer-supplied length removes the documented size bound and allows a single frame to demand up to the four-byte prefix limit, risking memory exhaustion.", "evidence": "WIRE.md:37-38 defines both the peer-controlled prefix and the 16 MiB bound that the proposal removes."}
+  ],
+  "checks": ["Sending oversized frames to a live service or changing the protocol implementation is unsafe."],
+  "base_commit": "30f9480895060d2ebe237cc8efe5427cfce3af10"
+}

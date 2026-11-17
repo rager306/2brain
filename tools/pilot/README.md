@@ -2,20 +2,20 @@
 
 Status: **not run**. This is a screening experiment, not proof of general
 improvement and not an installation of any upstream plugin. The thresholds
-below are proposed decision preferences, not measured constants. The three
-seed fixtures exist; nine further fixtures, independently authored and
-evidence-checked answer keys, frozen sources, and isolation controls are
-required before the pilot can run. No results may be claimed from the seeds.
+below are proposed decision preferences, not measured constants. All twelve
+fixtures exist with evidence-backed answer keys. What remains before a run is
+the independent human check of source evidence and materiality, the frozen
+offline snapshots, and the isolated environments. No results may be claimed
+from the fixtures themselves.
 
 ## Population and construction
 
 The population is exactly 12 diagnostic fixtures, `f01`–`f12`, not a random
 sample. Each is a frozen design artifact plus a minimal allowlist of frozen
 repository source files and an independently authored, evidence-backed answer
-key. The following slots are registered now; the nine unbuilt slots are not
-represented as existing or validated fixtures. The author must create those
-artifacts and keys, and a separate human must check their source evidence and
-materiality before seeing any review output. Include naturally occurring
+key. All twelve slots are built (`f01`–`f12`); a separate human must still
+check their source evidence and materiality before seeing any review output.
+Include naturally occurring
 omissions from history as well as constructed failures. If a listed source
 cannot support a fixture, stop and amend the registration before the run.
 
@@ -24,7 +24,7 @@ cannot support a fixture, stop and amend the registration before the run.
 | f01 | wire shape | Synthetic rename of `ready` without version or golden update, against `WIRE.md` and `AGENTS.md`. |
 | f02 | write gate | Synthetic direct-write retry after prior-read/freshness denial, against `gate.rs` and `policy.rs`. |
 | f03 | typed KB | Synthetic required-field omission and missing typed reference, against the three type-system atoms named in the fixture. |
-| f04 | wire shape | History: reconstruct the pre/post schema v17 envelope migration from `WIRE.md` and the relevant commit; review a pre-migration compatibility plan omitting client migration. |
+| f04 | source/deployment drift | Synthetic client plan trusting `WIRE.md`'s exact-search morphology claim; compare that claim with the current search implementation and its test. |
 | f05 | wire shape | Synthetic framing proposal removing the documented length bound; use `WIRE.md` framing and identify the omitted protocol consequence. |
 | f06 | write gate | Synthetic create plan that assumes a file is absent without the gate's absence check; use `policy.rs` and the implementing handler at the frozen revision. |
 | f07 | write gate | Synthetic member-grant plan that ignores path scope; use `gate.rs` and `policy.rs`. |
@@ -33,6 +33,8 @@ cannot support a fixture, stop and amend the registration before the run.
 | f10 | source/deployment drift | History: reconstruct the default search-scope change described in `docs/research/task-set.md`; review a design claiming that a source change proves deployment. Freeze the relevant source and run record. |
 | f11 | source/deployment drift | Synthetic engine swap without frozen-copy wire comparison; use `AGENTS.md` and `WIRE.md`. |
 | f12 | source/deployment drift | History: reconstruct the rejected title-index experiment in `docs/research/task-set.md`; review a design claiming title weighting changes scores only, ignoring candidate-set effects. |
+
+The original f04 required a pre/post v17 migration commit. Its description is already present in the imported root commit `46f12389d4d4833fed51640a48cf938516433106`, which has no parent; the transition cannot be reconstructed from this repository's available history. The replacement tests a current, evidenced documentation-versus-source contradiction instead.
 
 For history slots the author records the exact commit IDs, extracts the cited
 files and design from that history into an immutable offline snapshot, and
@@ -56,9 +58,9 @@ pass the fixture JSON itself to a reviewer: it contains the key.
   frozen sources. It is not the installed plugin.
 
 Run one repetition of each arm per fixture (36 sessions). `plan.py` emits a
-seeded random permutation of the 36 jobs when all fixtures are present; its
-current output is 9 jobs for the 3 seeds, not the full pilot. The default
-ordering seed is 20261117. Fix the same model and version, source snapshot,
+seeded random permutation of the 36 jobs; its current output is 36 jobs for the
+12 fixtures, and the prompts never carry an answer key. The default ordering
+seed is 20261117. Fix the same model and version, source snapshot,
 tool access, and explicit time and token caps for every arm *before* running;
 record those values, all prompts, review outputs, traces, start order, actual
 elapsed time and total tokens, including drafting/reviewer overhead. The

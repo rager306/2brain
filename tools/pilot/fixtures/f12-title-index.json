@@ -1,0 +1,14 @@
+{
+  "id": "f12",
+  "class": "source-deployment-drift",
+  "design": "Proposal: add a title field to the search index with a tunable scoring weight. Treat title terms as matched query evidence just like body terms. Claim that setting the title weight to zero guarantees exactly the existing candidate set, so it is enough to measure whether the hub-vs-atomic task improves; no other task or candidate-floor measurement is needed.",
+  "sources": ["docs/research/task-set.md", "tb-engine/crates/tb-engine/WIRE.md"],
+  "answer_key": [
+    {"id": "candidate-set-changes", "defect": "A title field can change matched evidence and the min_should_match floor even at zero weight; zero score contribution does not preserve the candidate set.", "evidence": "task-set.md:320-341 reports six title-field builds and explains that title terms change matched evidence, floor and coverage even at zero weight; WIRE.md:797-798 specifies the distinct-term floor."},
+    {"id": "unmeasured-regression", "defect": "Measuring only hub-vs-atomic misses demonstrated regressions: title weight 3 improves it but loses exact-and and ambiguous, and other variants trade off other tasks.", "evidence": "task-set.md:320-339 gives the baseline and six-build task results, including title x3 and the rarity/MOC variant's ReasoningBank rank."}
+  ],
+  "checks": ["Running an experiment against live data, changing the index, deploying a build, or contacting a live server is unsafe."],
+  "base_commit": "30f9480895060d2ebe237cc8efe5427cfce3af10",
+  "history_commits": ["3724ab4b08681933121ddd8283e3961a20ae497e"],
+  "snapshot_status": "Source paths name the authored tree; an immutable offline snapshot and independent human evidence check remain required before any review run. The proposal is synthetic."
+}

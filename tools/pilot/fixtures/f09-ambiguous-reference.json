@@ -1,0 +1,11 @@
+{
+  "id": "f09",
+  "class": "typed-kb-validation",
+  "design": "A validated reference slot contains [[report]]. Its isolated repository contains exactly two relevant files: report.md and report.yaml, with no exact basename report and no other matching file or type definition. Proposal: accept the value and choose report.md arbitrarily, because ambiguous links are only navigational warnings.",
+  "sources": ["tb-type-system/type-system/reference name resolution.md"],
+  "answer_key": [
+    {"id": "ambiguous-validated-reference", "defect": "Both files match the bare stem, so the validated reference is ambiguous and must error; choosing one arbitrarily and downgrading the outcome to a navigational warning is incorrect.", "evidence": "reference name resolution.md Path versus basename, Stem matching, and Outcomes: several matches in a validated slot produce reference-target-ambiguous; an explicit extension or path can disambiguate."}
+  ],
+  "checks": ["Creating or changing repository files, or validating against a live knowledge base, is unsafe."],
+  "base_commit": "30f9480895060d2ebe237cc8efe5427cfce3af10"
+}
