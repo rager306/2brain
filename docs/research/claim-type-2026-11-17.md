@@ -23,6 +23,11 @@ carrying `evidence:` (the register) and **5** ingest-queue work items carrying `
 | C. discriminator (`claim_kind: proposition\|queue-item`) | one type, one enum | every query branches; the type stops promising anything; rejected |
 | D. leave it, filter on `evidence` | no change | the overload is documented as a required filter, which is the defect |
 
+**Decision (2026-11-17): A accepted, and it is blocked on the writer.** The queue item becomes
+`ingest-task`; `claim` stays the proposition. The blocker is external: no writer for `ops/queue` lives in
+this repository (the queue is filled by an outside pipeline), so renaming the type first would let that
+pipeline recreate `type: claim` on its next write. The rename and the pipeline edit must land together.
+
 ## How A is executed safely
 
 `tb_rename_type` (engine) carries claims, slot shapes, meta and wikilinks through one saga, and the

@@ -36,18 +36,38 @@ family with one note — a promise of a group nobody joined — and there are 18
 | **C. discriminator** (`family_kind: provenance\|topic`) | one field, one enum | readers can branch | every query must branch; a type change; no data becomes cleaner |
 | **D. hybrid: family = series/namespace, topics = subject** | a written rule + a tooling audit; topic-like families are re-homed *when a note is edited anyway* | provenance stays reliable, series stay addressable, subject queries already work; singles become legitimate | no big-bang; the rule is enforced by a report, not a mutation |
 
-**Recommendation: D.** State the rule in `AGENTS.md`/the type docs: `family:` names the note's series
-or source namespace (a provenance id or a curated series such as `f/patterns`), `topics:` names the
-subjects the note belongs to. A single-member family is then legitimate; a *topic-shaped* family with
-one member is a finding for the next intake pass, not a schema error. Re-home values opportunistically
-(where `topics:` already names the same thing), never in one sweep.
+**Decision (2026-11-17): D accepted.** `family:` names the note's series or source namespace (a
+provenance id or a curated series such as `f/patterns`); `topics:` names the subjects the note belongs
+to. A single-member family is then legitimate; a *topic-shaped* family with one member is a finding for
+the next intake pass, not a schema error. Re-home values opportunistically (where `topics:` already
+names the same thing), never in one sweep.
 
 What D does not fix, stated plainly: `family` remains a string without a registry, so two spellings of
 one series still coexist, and a family that is a topic by name is not prevented — only reported.
+
+## The first audit run, 2026-11-17
+
+`tools/kb/family_audit.py` (standard library, read-only, `--selftest`) encodes the rule and reports the
+split. Its first run on the migrated vault, service directories excluded:
+
+| fact | value |
+|---|---|
+| notes | 1 047 |
+| with `family` / with `topics` / with both | 827 / 885 / 749 |
+| family values | 429 |
+| single-member values | 345 (159 provenance, **186 topic-shaped**) |
+| provenance-like values (notes) | 191 (326) |
+| topic/series-like values (notes) | 238 (501) |
+| family values that are also used as a `topics:` entry | **2** |
+
+The last row is the useful correction: the two meanings rarely collide **by name**; the collision is
+that a topic-shaped family promises a group (186 of them promise it to one note). That is exactly what
+the hybrid is for, and it means the migration is a review of 186 values, not a rename sweep.
 
 ## The audit that makes the rule real
 
 `tools/kb/family_audit.py` (tooling layer, standard library) reads the vault, classifies each family
 by the rule above (provenance pattern vs series/topic), and prints: single-member values by class,
 values whose name is also a `topics:` entry, and notes whose family and topics disagree. It must not
-write. Its first run is what decides whether the 238 topic-like values are three families or thirty.
+write. The first run is the table above; the next one is a delta, and the 186 topic-shaped singles are
+the queue it produces.
