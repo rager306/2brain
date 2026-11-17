@@ -2,13 +2,13 @@
   "generated_for": "2brain",
   "gates": {
     "adapter_tests": {
-      "value": 256,
+      "value": 211,
       "known_environment_failures": 0,
       "command": "cd tb-mcp-rs && cargo +1.99.0 test --offline",
       "date": "2026-11-17"
     },
     "engine_lib_tests": {
-      "value": 743,
+      "value": 744,
       "known_environment_failures": 1,
       "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --lib",
       "date": "2026-11-17"
