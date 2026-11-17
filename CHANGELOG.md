@@ -14,6 +14,15 @@ source.
 
 ### Added
 
+- **`search` lifts a note whose title states the query's rare terms, and a topic map yields to a note** (engine).
+Two post-ranking multipliers, neither an index field, so neither can change `matched_terms`, the
+`min_should_match` floor or the candidate set: a hit whose file stem states a query term with `idf >= RARE_IDF`
+is multiplied by `1 + (stated ÷ rare)²` (at most 2×), and on the ranked path for a query of three or more
+distinct terms a `type: moc` hit is halved when a non-map hit matched at least as many terms. `hub-vs-atomic`
+moved 8 → 1 with every other pre-registered class unchanged; the indexing route stays rejected
+(`docs/research/task-set.md` §4). The wire shape is unchanged — `schema_version` stays 29 — but scores differ,
+so the search capture is re-blessed in the same change.
+
 - **`graph_health` names the graph's fragile joints** (engine, adapter). A bridge is an edge whose removal
 disconnects its ends; an articulation point is a node whose removal does. Both are computed on the undirected
 projection of the same resolved in-scope edges, with parallel edges collapsed for the structure but never reported

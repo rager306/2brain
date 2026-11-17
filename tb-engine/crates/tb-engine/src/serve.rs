@@ -14589,6 +14589,49 @@ struct SearchAnswer {
     excerpt_chars: usize,
 }
 
+/// How far a `type: moc` topic map gives way to a note that matched at least as many query terms.
+///
+/// A map is a hub, not evidence: it states a topic in its title and body without answering the
+/// question itself. The discount is post-ranking, so it cannot change `matched_terms`, the
+/// `min_should_match` floor or the candidate set (`docs/research/task-set.md` §4).
+const MAP_WEIGHT: f64 = 0.5;
+
+/// Whether `path` is a `type: moc` instance.
+fn is_map(kb: &KnowledgeBase, path: &std::path::Path) -> bool {
+    kb.catalog.get(path).is_some_and(|entry| {
+        matches!(entry.parse.as_ref(), FileParse::Instance { instance: Some(inst), .. }
+            if inst.type_claim.iter().any(|claim| claim.name.as_str() == "moc"))
+    })
+}
+
+/// A map yields to a note that matched at least as many terms, so a hub cannot outrank the note
+/// it exists to point at. Silent when the page holds no note that matched as many terms.
+fn yield_maps(kb: &KnowledgeBase, hits: &mut Vec<crate::search::SearchHit<'_>>) {
+    let Some(best) = hits
+        .iter()
+        .filter(|hit| !is_map(kb, hit.path))
+        .map(|hit| hit.matched_terms)
+        .max()
+    else {
+        return;
+    };
+    let mut moved = false;
+    for hit in hits.iter_mut() {
+        if hit.matched_terms >= best && is_map(kb, hit.path) {
+            hit.score *= MAP_WEIGHT;
+            moved = true;
+        }
+    }
+    if moved {
+        hits.sort_by(|left, right| {
+            right
+                .score
+                .total_cmp(&left.score)
+                .then_with(|| left.path.cmp(right.path))
+        });
+    }
+}
+
 /// The `search` answer over the held index.
 ///
 /// Ranking and paging are separate passes on purpose: `total` counts every match
@@ -14624,7 +14667,7 @@ fn search_view(
             .collect();
     let source_paths: std::collections::HashSet<&std::path::Path> =
         source_hits.iter().map(|hit| hit.path.as_path()).collect();
-    let ranked: Vec<crate::search::SearchHit<'_>> = kb
+    let mut ranked: Vec<crate::search::SearchHit<'_>> = kb
         .search
         .query(
             query,
@@ -14636,6 +14679,11 @@ fn search_view(
         .into_iter()
         .filter(|hit| !source_paths.contains(hit.path))
         .collect();
+    // A lookup stays a lookup: one or two terms name a note, and a map may be the note they name.
+    // At three distinct terms the read answers a question, and a hub there is a pointer, not evidence.
+    if !exact && crate::search::distinct_terms(query).len() >= 3 {
+        yield_maps(kb, &mut ranked);
+    }
     let total = source_hits.len() + ranked.len();
     let terms = crate::search::distinct_terms(query);
     let page_end = (offset + limit).min(total);

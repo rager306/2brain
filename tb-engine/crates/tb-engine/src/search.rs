@@ -90,6 +90,14 @@ const B: f64 = 0.75;
 /// The value is chosen against that set, not by taste; see `docs/trajectory.md`, track 3.
 const COVERAGE: f64 = 0.6;
 
+/// How much a note's title lifts it AFTER ranking, when it states the query's rare terms.
+///
+/// The title is not an index field: six builds measured that route closed (`docs/research/task-set.md` §4),
+/// because a third field changes `matched`, the `min_should_match` floor and the candidate set. A post-ranking
+/// multiplier cannot: it only reorders the page the two-field ranking produced, by the share of the query's
+/// RARE terms (`idf >= RARE_IDF`) the file stem states, squared. Registered before the run, not tuned after it.
+const TITLE_COVERAGE: f64 = 1.0;
+
 /// How much two query terms stated near each other lift a document's score.
 ///
 /// BM25 sums per-term contributions, so a note that states `error` and `fix` in one sentence and a note
@@ -1253,6 +1261,12 @@ impl<const N: usize> Bm25Index<N> {
             .find_map(|form| self.term_ids.get(form).copied())
     }
 
+    /// The idf of one query term, `None` when the index never saw the term or a word form.
+    pub(crate) fn term_idf(&self, term: &str) -> Option<f64> {
+        let id = self.resolve_term(term)?;
+        Some(self.idf(self.postings[id as usize].posting_count()))
+    }
+
     /// Each field's average length per live document, for length normalisation.
     fn average_lengths(&self) -> [f64; N] {
         let documents = self.live_docs.max(1) as f64;
@@ -1371,11 +1385,28 @@ impl SearchIndex {
         min_should_match: usize,
         mask: DocMask<'_>,
     ) -> Vec<SearchHit<'_>> {
-        let hits = if exact {
+        let mut hits = if exact {
             self.index.exact(query, usize::MAX, mask)
         } else {
             self.index.search(query, min_should_match, usize::MAX, mask)
         };
+        // A title that states the query's RARE terms is evidence the two-field ranking cannot see: the stem is
+        // not indexed, and adding it as a field changed the floor and the candidate set (task-set §4). The
+        // multiplier is post-ranking, bounded by `1 + TITLE_COVERAGE`, and silent when the query has no rare term.
+        let rare: Vec<String> = distinct_terms(query)
+            .into_iter()
+            .filter(|term| self.index.term_idf(term).is_some_and(|idf| idf >= RARE_IDF))
+            .collect();
+        if !rare.is_empty() {
+            for hit in &mut hits {
+                let title = self.paths[hit.doc_id]
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .unwrap_or("");
+                hit.score *= title_multiplier(title_coverage(&rare, title));
+            }
+            sort_hits(&mut hits);
+        }
         hits.into_iter()
             .map(|hit| SearchHit {
                 path: self.paths[hit.doc_id].as_path(),
@@ -1739,6 +1770,22 @@ fn sort_hits(hits: &mut [Hit]) {
             .total_cmp(&left.score)
             .then(left.doc_id.cmp(&right.doc_id))
     });
+}
+
+/// The share of the query's rare terms that a note's title states.
+fn title_coverage(rare: &[String], title: &str) -> f64 {
+    if rare.is_empty() {
+        return 0.0;
+    }
+    let terms = tokenize(title);
+    let matched = rare.iter().filter(|term| terms.contains(term)).count();
+    matched as f64 / rare.len() as f64
+}
+
+/// The multiplier a coverage earns: linear in the square, so a title that states half the rare
+/// terms is worth a quarter of the bonus.
+fn title_multiplier(coverage: f64) -> f64 {
+    1.0 + TITLE_COVERAGE * coverage * coverage
 }
 
 /// The default weights: body 1.0, description 3.0, anything else 1.0.
@@ -2319,6 +2366,22 @@ mod tests {
         // hand-written mention beats the three body repeats.
         let default = index_of(default_weights(), &docs);
         assert_eq!(default.search("alpha", 1, 1, DocMask::all())[0].doc_id, 1);
+    }
+
+    /// The post-ranking title multiplier: only rare terms count, the bonus is the square of the
+    /// share the title states, and an empty rare set changes nothing.
+    #[test]
+    fn a_title_covers_only_the_rare_terms_it_states() {
+        let rare: Vec<String> = ["event", "log", "source", "truth"]
+            .iter()
+            .map(|term| (*term).to_owned())
+            .collect();
+        assert_eq!(title_coverage(&[], "event log"), 0.0);
+        assert_eq!(title_coverage(&rare, "event-log-as-source-of-truth"), 1.0);
+        assert_eq!(title_coverage(&rare, "event log"), 0.5);
+        assert_eq!(title_multiplier(0.0), 1.0);
+        assert_eq!(title_multiplier(0.5), 1.25);
+        assert_eq!(title_multiplier(1.0), 2.0);
     }
 
     #[test]

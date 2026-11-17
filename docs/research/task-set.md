@@ -342,6 +342,49 @@ What this does not test: a **post-ranking** title bonus that never enters the in
 the floor or the candidate set, gated on the query's rare terms. That is the next hypothesis and it must be
 pre-registered before it runs; the six builds above are kept as the evidence that the indexing route is closed.
 
+**Next hypothesis, registered 2026-11-17 — post-ranking title coverage.** The title is not indexed: after the
+two-field ranking is complete, each hit whose path stem contains a query term whose idf is at least `RARE_IDF` is
+multiplied by `1 + TITLE_COVERAGE × (rare terms in the title ÷ rare query terms)²`, with `TITLE_COVERAGE = 1.0`.
+The constants are registered before the run, not tuned after it. Gate: `hub-vs-atomic` 1/1; the `exact` and
+`paraphrase` tasks keep their ranks; `exact-and` stays 1/1; `ambiguous` stays 1/1 under the widened label. Any move
+rejects it, and the measurement runs on the same frozen copy as the six rejected builds.
+
+**Run 2026-11-17 — rejected, the closest miss.** Hub moved **8 → 2** (scores: the map 75.11, the atomic note
+73.24), and every other class stayed exactly where it was: `exact` 1/2, `exact-and` 1/1, `ambiguous` 1/1,
+`paraphrase` 2/3. The gate required rank 1, so the hypothesis is rejected as registered; the remaining gap is
+the `type: moc` map that matches the same six terms.
+
+**Next registration, same day — title coverage plus the map discount.** The same post-ranking multiplier, plus
+`MAP_WEIGHT = 0.5` applied post-ranking to a `type: moc` hit when a non-map hit matched at least as many terms.
+Both constants are fixed before the run. Gate: hub 1/1; the `exact` and `paraphrase` ranks unchanged; `exact-and`
+1/1; `ambiguous` 1/1; `absent` 0/3. Any move rejects the pair.
+
+**Run 2026-11-17 — rejected on the `exact` guard.** `hub-vs-atomic` reached **1/1**, but `exact ReasoningBank`
+moved **2 → 6**: the expected answer, `agentdb-architecture`, is itself a `type: moc`, so a blanket map discount
+demotes the exact answer. A map is the answer to a conjunction lookup and a hub for a ranked one.
+
+**Next registration, same day — the map yield only on the ranked path.** The same pair, with `yield_maps`
+skipped when `exact == true`: `exact` is a lookup whose prefix (`agentdb-architecture`) may be a map, while the
+ranked path answers a question and a hub there is a pointer, not evidence. Gate unchanged, and it now names the
+`exact` ranks explicitly: hub 1/1; `exact` 1/2 with the `ReasoningBank` rank at 2; `exact-and` 1/1; `ambiguous`
+1/1; `paraphrase` 2/3; `absent` 0/3.
+
+**Run 2026-11-17 — rejected, the wire flag is the wrong boundary.** `ReasoningBank` stayed at rank 6: the task is
+called `exact` because its expected note states the term exactly, not because the request sets `exact: true`.
+The query is one token, and the map it should find is the answer.
+
+**Next registration, same day — the map yield only for a multi-term query.** A one- or two-term query is a
+lookup; at three distinct terms the read answers a question, and a hub there is a pointer. The rule counts the
+query's distinct terms (`distinct_terms`), not the wire flag. Gate: hub 1/1; `exact` 1/2 with the
+`ReasoningBank` rank at 2; `exact-and` 1/1; `ambiguous` 1/1; `paraphrase` 2/3; `absent` 0/3.
+
+**Run 2026-11-17 — accepted.** The gate passed: `hub-vs-atomic` **1/1 at rank 1** (from 8), `exact` 1/2 with
+`ReasoningBank` back at rank 2, `exact-and` 1/1, `ambiguous` 1/1, `paraphrase` 2/3 with the same ranks,
+`absent` 0/3, `multi-hop` 2/2, `mixed-language` 2/2, `bilingual` 0/1, `word-form` 0/1, `ru-cross` 1/1. The two
+multipliers ship together: title coverage (≤2×) and the multi-term map yield (½). The two rejected boundaries —
+a blanket map discount, and the wire `exact` flag — are what pin the rule: a lookup keeps its map, a question
+does not.
+
 ### 5. bilingual — **defect**, in the corpus, not in the ranker
 
 The Russian question — `битемпоральная модель ребра отслеживает валидность и время загрузки отдельно` — asks what
