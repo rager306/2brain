@@ -46,10 +46,12 @@ Read and write, through the engine wire on that host:
    `cargo +1.99.0 build --release`, so a host that has no toolchain cannot use it. What worked is
    copying the built binaries; release hygiene therefore needs either a published artifact or an
    install mode that accepts one. This pass did not add it.
-2. **A fresh `HOME` still creates `~/.arsumbris/au-engine/`.** The vault's identity was migrated to
-   `.2brain` (`a8aba4b`), but the engine's per-user state directory keeps the legacy spelling, and
-   `doctor` prints it. Renaming it touches every running daemon and needs its own migration, so it
-   is a release-2 item, recorded here rather than fixed mid-gate.
+2. **A fresh `HOME` still creates `~/.arsumbris/au-engine/`, by design.** The vault's identity was
+   migrated to `.2brain` (`a8aba4b`), but writers still create the legacy spelling:
+   `tb-parser::identity::CREATE_IDENTITY_DIR` is `LEGACY_IDENTITY_DIR`, stated so a previous-release
+   binary reads what this one writes. Release 2 flips that one constant (tier C step 7); the gate
+   confirms the constant is the only thing deciding it, and that no other code path invents the
+   name. `doctor` printing the legacy socket path is therefore correct, not drift.
 
 The test daemon was stopped; `~/gate` remains as the evidence (binaries, vault copy, the written
 note).
