@@ -1,9 +1,80 @@
-//! How a tool describes itself when the surface is one line per tool.
+//! How the tool catalogue presents itself: the one-line cut every default surface
+//! carries, and the task-word ranking `tb_search_tools` runs over the same catalogue.
 //!
 //! The concise profile carries the first sentence of each description and withholds the rest until
 //! `tb_describe_tool` asks for it, so this cut is what every agent reads by default. It is its own module
 //! because the ratchet on `lib.rs` counts a line whether or not it is about routing: the rule there is to
 //! move a responsibility out rather than raise the ceiling.
+
+use crate::capability::Capability;
+use rmcp::model::Tool;
+
+/// Rank tools for a query: a term in the name weighs most, then a parameter
+/// name, then the description. Deterministic, and cheap enough to run per call.
+pub(crate) fn search_tools(
+    tools: &[Tool],
+    query: &str,
+    limit: usize,
+    capability: Option<Capability>,
+) -> Vec<Tool> {
+    let terms: Vec<String> = tokenize(query);
+    if terms.is_empty() {
+        return Vec::new();
+    }
+    let mut scored: Vec<(u32, &Tool)> = tools
+        .iter()
+        .filter(|tool| match capability {
+            Some(wanted) => crate::capability::of(tool.name.as_ref()) == Some(wanted),
+            None => true,
+        })
+        .filter_map(|tool| {
+            let name = tokenize(tool.name.as_ref());
+            let text = tokenize(tool.description.as_deref().unwrap_or(""));
+            let params: Vec<String> = tool
+                .input_schema
+                .get("properties")
+                .and_then(serde_json::Value::as_object)
+                .map(|properties| properties.keys().flat_map(|key| tokenize(key)).collect())
+                .unwrap_or_default();
+            let mut score = 0;
+            for term in &terms {
+                if name.contains(term) {
+                    score += 3;
+                }
+                if params.contains(term) {
+                    score += 2;
+                }
+                if text.iter().any(|word| word == term) {
+                    score += 1;
+                }
+                if text.iter().any(|word| word.starts_with(term.as_str())) {
+                    score += 1;
+                }
+            }
+            (score > 0).then_some((score, tool))
+        })
+        .collect();
+    scored.sort_by(|(left_score, left), (right_score, right)| {
+        right_score
+            .cmp(left_score)
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    scored
+        .into_iter()
+        .take(limit)
+        .map(|(_, tool)| tool.clone())
+        .collect()
+}
+
+/// Lowercase word tokens; underscores and dots split so `tb_content` matches
+/// "content" and `io.arsumbris` matches "2brain".
+fn tokenize(text: &str) -> Vec<String> {
+    text.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
 
 /// The first sentence, on a clause boundary, never wider than the limit.
 ///

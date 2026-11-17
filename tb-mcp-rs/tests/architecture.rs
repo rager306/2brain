@@ -19,15 +19,23 @@ use support::Client;
 
 /// Modules that must never depend on a sibling: an infrastructure leaf that reaches back
 /// into the crate is where cycles are born.
-const LEAVES: [&str; 4] = ["bounded_stdio", "capability", "policy", "schemas"];
+const LEAVES: [&str; 5] = [
+    "bounded_stdio",
+    "capability",
+    "contract",
+    "policy",
+    "schemas",
+];
 
 /// Every module dependency that is allowed today. Adding one is a decision, so it needs a
 /// line here and a reason in the message.
-const ALLOWED: [(&str, &str); 13] = [
+const ALLOWED: [(&str, &str); 15] = [
     ("cli", "transport"),
+    ("describe", "capability"), // tb_search_tools filters by the capability class it ranks
     ("gate", "policy"),
     ("lib", "bounded_stdio"),
     ("lib", "capability"),
+    ("lib", "contract"), // the answer contract: prompts and workflow resources are its own module
     ("lib", "describe"), // one-line descriptions: the cut every default surface carries
     ("lib", "gate"),
     ("lib", "ledger"),
@@ -63,7 +71,14 @@ const ALLOWED: [(&str, &str); 13] = [
 // decides what it may write, which is the defect this closes.
 // 4564 before the one-line description cut moved out to `describe.rs`; the port took 9 lines with it and
 // the ceiling follows DOWN, which is the only direction the ratchet is allowed to move on a refactor.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4556;
+// 4546 on 2026-11-17 (measured after rustfmt): the answer contract moved in as three MCP
+// prompts and two workflow resources (+52 of wiring after formatting: two handlers, the
+// workflow branch of resources/read, the workflow head of resources/list, enable_prompts,
+// INSTRUCTIONS moving out with the rest of the static client-facing text), paid for by
+// moving the task-word ranking (`search_tools`, `tokenize`) into `describe.rs`, where the
+// one-line cut already lived. The ratchet only moves DOWN on a refactor; a feature must
+// pay for itself, and this one did.
+const LIB_RS_PRODUCTION_BUDGET: usize = 4546;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")

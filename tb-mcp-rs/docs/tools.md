@@ -1,11 +1,20 @@
 # Tools
 
-Two surfaces: **tools** (52) for actions and reads, and **resources** for
-addressable files. A resource URI is `2brain://<repo>/<path>` (the legacy `arsumbris://` is accepted on parse), where the path is
+Three surfaces: **tools** (52) for actions and reads; **resources** for
+addressable files; and **prompts** for the answer contract (see
+`docs/research/answer-contract-2026-11-16.md` in the monorepo).
+
+A resource URI is `2brain://<repo>/<path>` (the legacy `arsumbris://` is accepted on parse), where the path is
 member-relative and percent-encoded; `resources/list` pages the catalogue 100 at a
 time and `resources/read` returns the engine's own text with `text/markdown`.
 `resources/templates/list` publishes the one shape, so a client can construct a URI
-without listing first. Resource subscriptions are not advertised: a client that
+without listing first. Two static workflow resources sit ahead of the catalogue on
+the first page: `2brain://workflow/answer-shape` (the six-part answer contract and
+its honesty standard) and `2brain://workflow/write-gates` (what the write gate
+refuses, stage by stage, and what clears each stage); both answer without the
+engine. `prompts/list` carries three workflows (`recall`, `intake`, `handoff`),
+each taking one required argument and returning the workflow with it substituted.
+Resource subscriptions are not advertised: a client that
 needs change notification calls `tb_watch`.
 
 52 tools: 29 engine reads, 4 derived reads and observability helpers, 2 discovery, 1 watch, and 16

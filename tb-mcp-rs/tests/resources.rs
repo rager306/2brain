@@ -57,11 +57,15 @@ fn list_resources_returns_member_scoped_uris() {
     let reply =
         client.request(json!({"jsonrpc":"2.0","id":2,"method":"resources/list","params":{}}));
     let resources = reply["result"]["resources"].as_array().unwrap();
-    assert_eq!(resources.len(), 2, "{reply}");
-    assert_eq!(resources[0]["uri"], "2brain://fixture/notes/a.md");
-    assert_eq!(resources[0]["mimeType"], "text/markdown");
+    // Two static workflow resources sit ahead of the catalogue on the first page;
+    // the member-scoped shape below them is what this test pins.
+    assert_eq!(resources.len(), 4, "{reply}");
+    assert_eq!(resources[0]["uri"], "2brain://workflow/answer-shape");
+    assert_eq!(resources[1]["uri"], "2brain://workflow/write-gates");
+    assert_eq!(resources[2]["uri"], "2brain://fixture/notes/a.md");
+    assert_eq!(resources[2]["mimeType"], "text/markdown");
     assert_eq!(
-        resources[1]["uri"], "2brain://fixture/notes/b%20c.md",
+        resources[3]["uri"], "2brain://fixture/notes/b%20c.md",
         "a space in a file name must not break the URI"
     );
     daemon.join().unwrap();

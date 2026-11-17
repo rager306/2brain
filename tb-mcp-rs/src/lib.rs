@@ -1,6 +1,7 @@
 mod bounded_stdio;
 mod capability;
 pub mod cli;
+mod contract;
 mod describe;
 mod gate;
 mod ledger;
@@ -29,9 +30,10 @@ use rmcp::{
     RoleServer, ServerHandler, ServiceExt,
     handler::server::{router::tool::ToolRouter, tool::ToolCallContext, wrapper::Parameters},
     model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation,
-        InitializeRequestParams, InitializeResult, ListResourceTemplatesResult,
-        ListResourcesResult, ListToolsResult, MetaObject, PaginatedRequestParams, ProtocolVersion,
+        CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock,
+        GetPromptRequestParams, GetPromptResponse, Implementation, InitializeRequestParams,
+        InitializeResult, ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult,
+        ListToolsResult, MetaObject, PaginatedRequestParams, ProtocolVersion,
         ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult, ResourceContents,
         ResourceTemplate, ServerCapabilities, ServerConfig,
     },
@@ -2025,7 +2027,12 @@ impl Server {
         if query.is_empty() {
             return CallToolResult::error(vec![ContentBlock::text("'query' must not be empty")]);
         }
-        let matches = search_tools(&self.visible_tools(), query, args.limit, args.capability);
+        let matches = crate::describe::search_tools(
+            &self.visible_tools(),
+            query,
+            args.limit,
+            args.capability,
+        );
         let tools: Vec<Value> = matches
             .into_iter()
             .map(|tool| match args.detail {
@@ -3439,9 +3446,14 @@ impl ServerHandler for Server {
             rmcp::ErrorData::internal_error(format!("reading members: {error}"), None)
         })?;
         let members = member_roots(&members_read.payload);
-        let resources = resource_page(&read.payload, &members);
-        let entries_len = resources.len();
-        let next_cursor = (entries_len == page).then(|| (offset + page).to_string());
+        let catalogued = resource_page(&read.payload, &members);
+        // The catalogue pages by the engine's `files` read; the workflow resources
+        // sit ahead of it on the first page only, so a cursor always lands on a
+        // catalogued page and the two static entries are never duplicated.
+        let more_catalogued = catalogued.len() == page;
+        let mut resources = contract::workflow_resources();
+        resources.extend(catalogued);
+        let next_cursor = more_catalogued.then(|| (offset + page).to_string());
         Ok(ListResourcesResult {
             resources,
             next_cursor,
@@ -3485,6 +3497,20 @@ impl ServerHandler for Server {
                 None,
             ));
         }
+        // The workflow resources are static text: they answer without the engine,
+        // and an unknown workflow name never falls through to a member read.
+        match contract::workflow_resource(&request.uri) {
+            None => {}
+            Some(Ok(text)) => {
+                return Ok(ReadResourceResponse::Complete(ReadResourceResult::new(
+                    vec![
+                        ResourceContents::text(text.to_owned(), request.uri.clone())
+                            .with_mime_type("text/markdown"),
+                    ],
+                )));
+            }
+            Some(Err(error)) => return Err(error),
+        }
         let (repo, path) = parse_resource_uri(&request.uri).ok_or_else(|| {
             rmcp::ErrorData::invalid_params(
                 format!("not an 2brain resource URI: {}", request.uri),
@@ -3515,18 +3541,52 @@ impl ServerHandler for Server {
         )))
     }
 
+    /// The answer contract as MCP prompts; the workflow texts are `contract`'s.
+    async fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, rmcp::ErrorData> {
+        if !serves_request(&context) {
+            return Err(rmcp::ErrorData::invalid_request(
+                "initialize required",
+                None,
+            ));
+        }
+        Ok(ListPromptsResult {
+            prompts: contract::prompts(),
+            ..Default::default()
+        })
+    }
+
+    /// One workflow with the caller's argument substituted into its template.
+    async fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResponse, rmcp::ErrorData> {
+        if !serves_request(&context) {
+            return Err(rmcp::ErrorData::invalid_request(
+                "initialize required",
+                None,
+            ));
+        }
+        contract::prompt(&request.name, request.arguments.as_ref()).map(Into::into)
+    }
+
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()
+                .enable_prompts()
                 .build(),
         )
         .with_server_info(Implementation::new(
             "2brain", // the product name clients see; the crate keeps `au-mcp-rs`
             version_string(),
         ))
-        .with_instructions(INSTRUCTIONS)
+        .with_instructions(contract::INSTRUCTIONS)
     }
 
     fn supported_protocol_versions(&self) -> Cow<'static, [ProtocolVersion]> {
@@ -3898,9 +3958,6 @@ struct PreparedMutation {
 
 use policy::Denial;
 
-/// What a client should know before choosing a tool.
-const INSTRUCTIONS: &str = "Read-only access to an 2brain workspace, plus gated mutations. Every result is the engine's own result object under the read's key: tb_overview answers {\"overview\": ...}, tb_type answers {\"type\": ...}. Start with tb_overview, then tb_members for member roots, tb_types and tb_type for vocabulary, and tb_files or tb_content to locate text. Paged tools take limit and offset; tb_type_tree, tb_content, tb_instances_of, and tb_validate_value are unpaged and can return large answers. Mutations are disabled unless the operator granted them at launch; when enabled they need a prior tb_content read of the same path and the hash it returned. A lost reply is outcome_unknown and must not be retried blindly; tb_reconcile reports whether it landed.";
-
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct SearchToolsArguments {
@@ -3946,73 +4003,6 @@ struct DescribeToolArguments {
     /// Tool name, exactly as tools/list reports it.
     #[schemars(length(min = 1))]
     name: String,
-}
-
-/// Rank tools for a query: a term in the name weighs most, then a parameter
-/// name, then the description. Deterministic, and cheap enough to run per call.
-fn search_tools(
-    tools: &[rmcp::model::Tool],
-    query: &str,
-    limit: usize,
-    capability: Option<capability::Capability>,
-) -> Vec<rmcp::model::Tool> {
-    let terms: Vec<String> = tokenize(query);
-    if terms.is_empty() {
-        return Vec::new();
-    }
-    let mut scored: Vec<(u32, &rmcp::model::Tool)> = tools
-        .iter()
-        .filter(|tool| match capability {
-            Some(wanted) => capability::of(tool.name.as_ref()) == Some(wanted),
-            None => true,
-        })
-        .filter_map(|tool| {
-            let name = tokenize(tool.name.as_ref());
-            let text = tokenize(tool.description.as_deref().unwrap_or(""));
-            let params: Vec<String> = tool
-                .input_schema
-                .get("properties")
-                .and_then(Value::as_object)
-                .map(|properties| properties.keys().flat_map(|key| tokenize(key)).collect())
-                .unwrap_or_default();
-            let mut score = 0;
-            for term in &terms {
-                if name.contains(term) {
-                    score += 3;
-                }
-                if params.contains(term) {
-                    score += 2;
-                }
-                if text.iter().any(|word| word == term) {
-                    score += 1;
-                }
-                if text.iter().any(|word| word.starts_with(term.as_str())) {
-                    score += 1;
-                }
-            }
-            (score > 0).then_some((score, tool))
-        })
-        .collect();
-    scored.sort_by(|(left_score, left), (right_score, right)| {
-        right_score
-            .cmp(left_score)
-            .then_with(|| left.name.cmp(&right.name))
-    });
-    scored
-        .into_iter()
-        .take(limit)
-        .map(|(_, tool)| tool.clone())
-        .collect()
-}
-
-/// Lowercase word tokens; underscores and dots split so `tb_content` matches
-/// "content" and `io.arsumbris` matches "2brain".
-fn tokenize(text: &str) -> Vec<String> {
-    text.to_lowercase()
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|word| !word.is_empty())
-        .map(str::to_owned)
-        .collect()
 }
 
 /// Page an array that sits under `key`, keeping the rest of the payload.

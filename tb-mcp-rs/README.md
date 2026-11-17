@@ -16,10 +16,17 @@ socket, and can write only when the launch grants it.
   grant, 36 with none.
 - **Results are the engine's own object**, under the read's key: `tb_overview`
   answers `{"overview": ...}`. Nothing is re-shaped on the way out.
-- **Two surfaces**: the tools above, and MCP **resources** at `2brain://<repo>/<path>` (the legacy `arsumbris://` is still accepted on parse)
+- **Three surfaces**: the tools above; MCP **resources** at `2brain://<repo>/<path>` (the legacy `arsumbris://` is still accepted on parse)
   for files a client wants to hold and re-read (`resources/list` pages the
-  catalogue, `resources/read` returns the engine's text). No resource
-  subscriptions: `tb_watch` carries change notification.
+  catalogue, `resources/read` returns the engine's text), plus two static
+  workflow resources at `2brain://workflow/answer-shape` and
+  `2brain://workflow/write-gates`; and MCP **prompts** — three workflows
+  (`recall`, `intake`, `handoff`) that carry the answer contract
+  (`docs/research/answer-contract-2026-11-16.md` in the monorepo) as text.
+  The prompt and workflow text is static: it answers without the engine, and
+  `tools/list` is byte-identical whether or not a client ever asks for the
+  other two surfaces (`tests/answer_contract.rs` pins the bytes).
+  No resource subscriptions: `tb_watch` carries change notification.
 - **Read-only by default.** Without a grant the mutating tools are absent from
   `tools/list` and refused before the engine is contacted.
 - **Typed answers**: every tool declares an `outputSchema`, every result carries
