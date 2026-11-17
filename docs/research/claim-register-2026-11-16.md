@@ -11,6 +11,35 @@ measured the number, and a `decision` extension whose `backed_by` field
 resolves to the claims. Every write went through the engine as principal
 `claims`; nothing was edited on disk.
 
+## Relation to the earlier register document
+
+The first version of this document (commit `ab23197`) described a **12-note** register. The vault has **13**: six
+measurement notes, six claim notes, one decision. The miscount was in the prose, not in the vault — one claim
+(`concise-surface-saves-67pct`) was left out of the list.
+
+The notes are the same work, committed one per write, and this is the verifiable record:
+
+```
+69b7193  inbox/concise-tool-list-saves-39723-bytes-a-session.md            measurement
+5727141  inbox/scoped-read-candidate-mask-decides-scope-before-scoring.md  measurement
+8f8410e  inbox/plural-query-finds-0-hits-where-the-singular-finds-2.md     measurement
+b9e6883  inbox/lineage-echoes-census-36-notes-carry-17-observations.md     measurement
+f86a597  inbox/abstention-leave-one-out-no-rule-catches-more-than-0-of-8.md measurement
+fa33131  inbox/graded-ndcg-at-5-replaced-a-binary-ndcg-at-10-that-mirrored-mrr.md measurement
+6ce98e6  inbox/the-concise-surface-saves-67-percent-of-a-sessions-tool-bytes.md  claim
+0679a4c  inbox/a-scoped-read-decides-candidates-before-scoring.md          claim
+e6f50fc  inbox/a-plural-costs-a-query-without-the-word-form-lookup.md      claim
+da39607  inbox/36-provenance-notes-collapse-to-17-observations.md          claim
+473e72c  inbox/abstention-has-no-surface-signal-leave-one-out-catches-0-of-8.md claim
+fca2d5b  inbox/ndcg-at-5-replaced-a-metric-that-could-not-disagree-with-mrr.md  claim
+9f59787  inbox/the-concise-profile-is-the-default-tool-surface.md           decision
+```
+
+A previous draft of this section claimed the vault did not contain the register the earlier document described. That was
+wrong, and it is the failure this project keeps correcting: **the claim was about the document, not about the vault**. The
+vault held every note; the document had the count off by one. Verified by `git log` above and by
+`tb_instances_of type_name=claim` returning six entries with `evidence` present.
+
 ## The types as written
 
 `type/claim.type.yaml` (the type existed with an ingest-queue shape; the
@@ -149,12 +178,12 @@ applied`, seq 1–13 for the notes): two type edits
 
 ## Deviations, stated
 
-1. **`tb_instances_of claim` returns 11, not 6.** The type was already
-   claimed by five ingest-queue notes. Redefining or renaming the type would
-   have rewritten live queue notes (a `rename_type` cascade) or changed the
-   contract of a pipeline that still writes `type: claim`; the additive
-   extension keeps both readings valid. The register's six are the `inbox/`
-   ones.
+1. **`tb_instances_of claim` returns 11, not 6.** Five ingest-queue notes
+   share the type; the six register claims are the `inbox/` ones. Why the
+   collision is a type decision rather than something this pass fixed, and
+   why renaming was not an option (a `rename_type` cascade would rewrite
+   live queue notes the pipeline still writes), is in "The collision this
+   register exposed" below.
 2. **Evidence resolves to a measurement note, not a `metrics.json` key.**
    None of the six numbers is in `tools/cards/metrics.json`, and this pass
    may not modify that file; each measurement note is a typed `insight`
