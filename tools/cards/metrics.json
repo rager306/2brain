@@ -68,16 +68,16 @@
     "source": "au migrate identity --dry-run --all, then --apply; 2026-11-16"
   },
   "knowledge_base": {
-    "notes": 1047,
+    "notes": 1040,
     "drafts": 573,
     "typed": 1018,
     "sourced": 905,
     "described": 1034,
     "outbound_median": 3.0,
     "notes_without_links": 71,
-    "isolated": 197,
+    "isolated": 196,
     "broken_links": 0,
-    "edges": 4895,
+    "edges": 4856,
     "source": "tools/kb/census.py --json (frontmatter) + engine graph_shape; 2026-11-17 after the intake pass",
     "links": 4920,
     "zero_inbound": 10,
@@ -85,17 +85,17 @@
   },
   "graph": {
     "nodes": 1227,
-    "edges": 4895,
+    "edges": 4856,
     "bridges": 35,
     "articulation_points": 57,
     "triangles": 3124,
     "transitivity": 0.1815,
-    "isolated": 197,
+    "isolated": 196,
     "sources": 163,
     "cycles": 29,
     "command": "2brain mcp /root/vault then tb_graph_health {\"limit\": 200}; or engine_probe.py --verb tb_graph_health on the live socket",
     "date": "2026-11-17",
-    "source": "engine a6f9a3f4, adapter 0.1.0+020d0de, vault 620ffba (after the MOC pass)",
+    "source": "engine a6f9a3f4, adapter 0.1.0+020d0de, vault eee0430 (after the duplicate merge)",
     "components": 206
   }
 }
