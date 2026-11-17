@@ -1,0 +1,374 @@
+---
+source: crates/tb-cli/tests/it/scenarios.rs
+assertion_line: 219
+expression: rendered
+---
+{
+  "diagnostics": [
+    {
+      "code": "workspace-omits-containing-repo",
+      "fix": {
+        "actions": [
+          {
+            "args": {
+              "name": "workspace-omits-containing-repo",
+              "role": "edit"
+            },
+            "title": "Add 'workspace-omits-containing-repo' to edit members",
+            "verb": "add_workspace_member"
+          }
+        ],
+        "description": "add 'workspace-omits-containing-repo' to the 'edit' list"
+      },
+      "message": "workspace.yaml does not list its containing repo 'workspace-omits-containing-repo' in 'edit'; the entry repo is a live working tree and belongs in 'edit'",
+      "severity": "error",
+      "span": {
+        "file": "<root>/scenarios/workspace-omits-containing-repo/.arsumbris/workspace.yaml",
+        "line_col": {
+          "end": {
+            "col": 1,
+            "line": 1
+          },
+          "start": {
+            "col": 1,
+            "line": 1
+          }
+        },
+        "range": {
+          "end": 0,
+          "start": 0
+        }
+      }
+    }
+  ],
+  "instances": {
+    "aborted_at_load": false,
+    "count": 3,
+    "entries": [
+      {
+        "body_events": null,
+        "claim": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "closure": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "deps",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "tb.engine.dep::tb-engine[]"
+              }
+            ],
+            "required": false,
+            "shape": "tb.engine.dep::tb-engine[]"
+          },
+          {
+            "divergent": false,
+            "field": "description",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "name",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": true,
+                "shape": "String"
+              }
+            ],
+            "required": true,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "remote",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 37,
+                        "line_col": {
+                          "end": {
+                            "col": 38,
+                            "line": 1
+                          },
+                          "start": {
+                            "col": 7,
+                            "line": 1
+                          }
+                        },
+                        "start": 6
+                      },
+                      "file": "<root>/scenarios/workspace-omits-containing-repo/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "workspace-omits-containing-repo"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "workspace-omits-containing-repo"
+                }
+              }
+            ],
+            "field": "name"
+          }
+        ],
+        "file": "<root>/scenarios/workspace-omits-containing-repo/.arsumbris/repo.yaml",
+        "section_presence": null
+      },
+      {
+        "body_events": null,
+        "claim": [
+          "tb.engine.workspace::tb-engine"
+        ],
+        "closure": [
+          "tb.engine.workspace::tb-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "disabled",
+            "origins": [
+              {
+                "name": "tb.engine.workspace",
+                "origin_path": "<au-engine-builtin>/tb.engine.workspace.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String[]"
+              }
+            ],
+            "required": false,
+            "shape": "String[]"
+          },
+          {
+            "divergent": false,
+            "field": "discover",
+            "origins": [
+              {
+                "name": "tb.engine.workspace",
+                "origin_path": "<au-engine-builtin>/tb.engine.workspace.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String[]"
+              }
+            ],
+            "required": false,
+            "shape": "String[]"
+          },
+          {
+            "divergent": false,
+            "field": "edit",
+            "origins": [
+              {
+                "name": "tb.engine.workspace",
+                "origin_path": "<au-engine-builtin>/tb.engine.workspace.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String[]"
+              }
+            ],
+            "required": false,
+            "shape": "String[]"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 13,
+                        "line_col": {
+                          "end": {
+                            "col": 8,
+                            "line": 2
+                          },
+                          "start": {
+                            "col": 5,
+                            "line": 2
+                          }
+                        },
+                        "start": 10
+                      },
+                      "file": "<root>/scenarios/workspace-omits-containing-repo/.arsumbris/workspace.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "sub"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "sub"
+                }
+              }
+            ],
+            "field": "edit"
+          }
+        ],
+        "file": "<root>/scenarios/workspace-omits-containing-repo/.arsumbris/workspace.yaml",
+        "section_presence": null
+      },
+      {
+        "body_events": null,
+        "claim": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "closure": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "deps",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "tb.engine.dep::tb-engine[]"
+              }
+            ],
+            "required": false,
+            "shape": "tb.engine.dep::tb-engine[]"
+          },
+          {
+            "divergent": false,
+            "field": "description",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "name",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": true,
+                "shape": "String"
+              }
+            ],
+            "required": true,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "remote",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 9,
+                        "line_col": {
+                          "end": {
+                            "col": 10,
+                            "line": 1
+                          },
+                          "start": {
+                            "col": 7,
+                            "line": 1
+                          }
+                        },
+                        "start": 6
+                      },
+                      "file": "<root>/scenarios/workspace-omits-containing-repo/sub/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "sub"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "sub"
+                }
+              }
+            ],
+            "field": "name"
+          }
+        ],
+        "file": "<root>/scenarios/workspace-omits-containing-repo/sub/.arsumbris/repo.yaml",
+        "section_presence": null
+      }
+    ]
+  }
+}

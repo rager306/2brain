@@ -1,0 +1,127 @@
+---
+source: crates/tb-cli/tests/it/scenarios.rs
+assertion_line: 219
+expression: rendered
+---
+{
+  "diagnostics": [],
+  "instances": {
+    "aborted_at_load": false,
+    "count": 1,
+    "entries": [
+      {
+        "body_events": null,
+        "claim": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "closure": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "deps",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "tb.engine.dep::tb-engine[]"
+              }
+            ],
+            "required": false,
+            "shape": "tb.engine.dep::tb-engine[]"
+          },
+          {
+            "divergent": false,
+            "field": "description",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "name",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": true,
+                "shape": "String"
+              }
+            ],
+            "required": true,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "remote",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 20,
+                        "line_col": {
+                          "end": {
+                            "col": 21,
+                            "line": 1
+                          },
+                          "start": {
+                            "col": 7,
+                            "line": 1
+                          }
+                        },
+                        "start": 6
+                      },
+                      "file": "<root>/scenarios/location-clean/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "location-clean"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "location-clean"
+                }
+              }
+            ],
+            "field": "name"
+          }
+        ],
+        "file": "<root>/scenarios/location-clean/.arsumbris/repo.yaml",
+        "section_presence": null
+      }
+    ]
+  }
+}

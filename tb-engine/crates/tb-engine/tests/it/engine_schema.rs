@@ -1,5 +1,5 @@
-//! The hardwired `au.engine.*` schema defs are owned by a compiled-in
-//! `au-engine` repo identity, resolvable from any knowledge base via `::au-engine`
+//! The hardwired `tb.engine.*` schema defs are owned by a compiled-in
+//! `tb-engine` repo identity, resolvable from any knowledge base via `::tb-engine`
 //! without declaring it as a peer — a universal peer, the engine's slice of
 //! the layered-ownership pattern.
 
@@ -24,32 +24,32 @@ fn codes_for(kb: &tb_engine::KnowledgeBase, file: &Path) -> Vec<String> {
         .collect()
 }
 
-/// A knowledge base repo that never declares `au-engine` as a peer can still name an
-/// engine-schema type via `::au-engine`: the builtin repo is present in every
+/// A knowledge base repo that never declares `tb-engine` as a peer can still name an
+/// engine-schema type via `::tb-engine`: the builtin repo is present in every
 /// build, so the gate resolves it, and its graph holds the hardwired def.
 #[test]
 fn a_kb_resolves_a_hardwired_type_via_the_au_engine_peer() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    // No `deps:` — `::au-engine` is a universal peer, not a declared one.
+    // No `deps:` — `::tb-engine` is a universal peer, not a declared one.
     write(&root, ".arsumbris/repo.yaml", "name: myrepo\n");
     // A def extending a hardwired engine type by its qualified name.
     write(
         &root,
         "type/thing.type.yaml",
-        "extends: au.engine.repo::au-engine\nfields:\n  extra: String\n",
+        "extends: tb.engine.repo::tb-engine\nfields:\n  extra: String\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
 
     let codes = codes_for(&kb, &root.join("type/thing.type.yaml"));
-    // The peer resolves (present) and holds `au.engine.repo`: no gate diagnostic.
+    // The peer resolves (present) and holds `tb.engine.repo`: no gate diagnostic.
     assert!(
         !codes.iter().any(|c| c == "type-repo-unknown"),
-        "au-engine should be a known peer; codes: {codes:?}"
+        "tb-engine should be a known peer; codes: {codes:?}"
     );
     assert!(
         !codes.iter().any(|c| c == "peer-type-not-found"),
-        "au.engine.repo should resolve in the builtin peer; codes: {codes:?}"
+        "tb.engine.repo should resolve in the builtin peer; codes: {codes:?}"
     );
 }
 
@@ -65,18 +65,18 @@ fn an_undefined_engine_name_is_peer_type_not_found_not_repo_unknown() {
     write(
         &root,
         "type/badref.type.yaml",
-        "extends: au.engine.nope::au-engine\nfields:\n  extra: String\n",
+        "extends: tb.engine.nope::tb-engine\nfields:\n  extra: String\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
 
     let codes = codes_for(&kb, &root.join("type/badref.type.yaml"));
     assert!(
         codes.iter().any(|c| c == "peer-type-not-found"),
-        "an undefined au.engine.* name should be peer-type-not-found; codes: {codes:?}"
+        "an undefined tb.engine.* name should be peer-type-not-found; codes: {codes:?}"
     );
     assert!(
         !codes.iter().any(|c| c == "type-repo-unknown"),
-        "the au-engine repo itself is known; codes: {codes:?}"
+        "the tb-engine repo itself is known; codes: {codes:?}"
     );
 }
 
@@ -93,32 +93,32 @@ fn engine_schema_files_are_typed_instance_nodes() {
 
     let repos = tb_engine::wire::introspect_instances_of(
         &kb,
-        "au.engine.repo",
+        "tb.engine.repo",
         Some(&[tb_engine::wire::Origin::File]),
     );
     assert!(
         repos
             .iter()
             .any(|m| m.path.ends_with("proj/.arsumbris/repo.yaml")),
-        "repo.yaml is an au.engine.repo instance node: {:?}",
+        "repo.yaml is an tb.engine.repo instance node: {:?}",
         repos.iter().map(|m| m.path.clone()).collect::<Vec<_>>()
     );
     let wss = tb_engine::wire::introspect_instances_of(
         &kb,
-        "au.engine.workspace",
+        "tb.engine.workspace",
         Some(&[tb_engine::wire::Origin::File]),
     );
     assert!(
         wss.iter()
             .any(|m| m.path.ends_with(".arsumbris/workspace.yaml")),
-        "the workspace file is an au.engine.workspace instance node: {:?}",
+        "the workspace file is an tb.engine.workspace instance node: {:?}",
         wss.iter().map(|m| m.path.clone()).collect::<Vec<_>>()
     );
 }
 
 /// A knowledge base def named like a hardwired engine type COEXISTS with the builtin as a
 /// distinct identity: `engine-name-live-shadow` notes the shared name, and there
-/// is NO `duplicate-type-def` (the builtin lives in the `au-engine` repo, the
+/// is NO `duplicate-type-def` (the builtin lives in the `tb-engine` repo, the
 /// knowledge base def in its own), so the knowledge base's def is never annihilated.
 #[test]
 fn a_repo_def_named_like_a_hardwired_type_is_live_shadow_and_coexists() {
@@ -127,11 +127,11 @@ fn a_repo_def_named_like_a_hardwired_type_is_live_shadow_and_coexists() {
     crate::seed_repo(&root);
     write(
         &root,
-        "type/au.engine.repo.type.yaml",
+        "type/tb.engine.repo.type.yaml",
         "fields:\n  x: String\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
-    let codes = codes_for(&kb, &root.join("type/au.engine.repo.type.yaml"));
+    let codes = codes_for(&kb, &root.join("type/tb.engine.repo.type.yaml"));
     assert!(
         codes.iter().any(|c| c == "engine-name-live-shadow"),
         "a knowledge base def sharing a hardwired name is live-shadow; codes: {codes:?}"
@@ -150,14 +150,14 @@ fn a_diverged_shadow_also_fires_shadow_drift() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_repo(&root);
-    // `au.engine.repo` with different fields than the engine's copy → diverged.
+    // `tb.engine.repo` with different fields than the engine's copy → diverged.
     write(
         &root,
-        "type/au.engine.repo.type.yaml",
+        "type/tb.engine.repo.type.yaml",
         "fields:\n  x: String\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
-    let codes = codes_for(&kb, &root.join("type/au.engine.repo.type.yaml"));
+    let codes = codes_for(&kb, &root.join("type/tb.engine.repo.type.yaml"));
     assert!(
         codes.iter().any(|c| c == "engine-name-live-shadow"),
         "the base coexistence note still fires; codes: {codes:?}"
@@ -175,15 +175,15 @@ fn an_in_sync_shadow_fires_no_drift() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_repo(&root);
-    // `au.engine.workspace`'s hardwired shape is exactly `edit?` / `discover?` /
+    // `tb.engine.workspace`'s hardwired shape is exactly `edit?` / `discover?` /
     // `disabled?`. An in-sync shadow must mirror all three.
     write(
         &root,
-        "type/au.engine.workspace.type.yaml",
+        "type/tb.engine.workspace.type.yaml",
         "fields:\n  edit?: String[]\n  discover?: String[]\n  disabled?: String[]\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
-    let codes = codes_for(&kb, &root.join("type/au.engine.workspace.type.yaml"));
+    let codes = codes_for(&kb, &root.join("type/tb.engine.workspace.type.yaml"));
     assert!(
         codes.iter().any(|c| c == "engine-name-live-shadow"),
         "the coexistence note fires for an in-sync shadow too; codes: {codes:?}"
@@ -194,7 +194,7 @@ fn an_in_sync_shadow_fires_no_drift() {
     );
 }
 
-/// A knowledge base def in the reserved `au.engine.*` namespace the engine does not
+/// A knowledge base def in the reserved `tb.engine.*` namespace the engine does not
 /// hardwire carries the forward-reservation hint.
 #[test]
 fn a_repo_def_in_the_reserved_namespace_is_forward_reserved() {
@@ -203,11 +203,11 @@ fn a_repo_def_in_the_reserved_namespace_is_forward_reserved() {
     crate::seed_repo(&root);
     write(
         &root,
-        "type/au.engine.widget.type.yaml",
+        "type/tb.engine.widget.type.yaml",
         "fields:\n  x: String\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
-    let codes = codes_for(&kb, &root.join("type/au.engine.widget.type.yaml"));
+    let codes = codes_for(&kb, &root.join("type/tb.engine.widget.type.yaml"));
     assert!(
         codes.iter().any(|c| c == "engine-name-forward-reserved"),
         "a reserved-but-unhardwired name is forward-reserved; codes: {codes:?}"
@@ -215,7 +215,7 @@ fn a_repo_def_in_the_reserved_namespace_is_forward_reserved() {
 }
 
 /// The engine-written `.arsumbris/repo.lock` is a typed instance node too: read
-/// past the walk floor by targeted path and catalogued as `au.engine.repo-lock`,
+/// past the walk floor by targeted path and catalogued as `tb.engine.repo-lock`,
 /// so it is `instances_of`-queryable.
 #[test]
 fn the_state_locks_are_typed_instance_nodes() {
@@ -228,20 +228,20 @@ fn the_state_locks_are_typed_instance_nodes() {
     write(
         &root,
         "proj/.arsumbris/repo.lock",
-        "type: au.engine.repo-lock::au-engine\npackages:\n  - name: library\n    remote: git@x\n    sha: 9f3a1c2e\n",
+        "type: tb.engine.repo-lock::tb-engine\npackages:\n  - name: library\n    remote: git@x\n    sha: 9f3a1c2e\n",
     );
     let kb = build(&root.join("proj"), &RealFileSystem).expect("build");
 
     let repo_locks = tb_engine::wire::introspect_instances_of(
         &kb,
-        "au.engine.repo-lock",
+        "tb.engine.repo-lock",
         Some(&[tb_engine::wire::Origin::File]),
     );
     assert!(
         repo_locks
             .iter()
             .any(|m| m.path.ends_with("proj/.arsumbris/repo.lock")),
-        "repo.lock is an au.engine.repo-lock node: {:?}",
+        "repo.lock is an tb.engine.repo-lock node: {:?}",
         repo_locks
             .iter()
             .map(|m| m.path.clone())
@@ -263,7 +263,7 @@ fn a_corrupt_repo_lock_is_validated_against_its_def() {
     let root = fs::canonicalize(dir.path()).unwrap();
     write(&root, "proj/.arsumbris/repo.yaml", "name: proj\n");
     write(&root, "proj/type/thing.type.yaml", "fields:\n  x: String\n");
-    // A package entry omits the required `sha` (au.engine.locked-package).
+    // A package entry omits the required `sha` (tb.engine.locked-package).
     write(
         &root,
         "proj/.arsumbris/repo.lock",
@@ -275,7 +275,7 @@ fn a_corrupt_repo_lock_is_validated_against_its_def() {
         codes
             .iter()
             .any(|c| c == "required-field-absent" || c == "embedded-record-validation-failure"),
-        "a locked-package missing its sha is flagged against au.engine.locked-package: {codes:?}"
+        "a locked-package missing its sha is flagged against tb.engine.locked-package: {codes:?}"
     );
 }
 
@@ -286,8 +286,8 @@ fn a_repo_yaml_dep_missing_its_name_is_validated_against_au_engine_dep() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     // The repo is valid (has name), but a dep entry omits its required `name`.
-    // The `deps` field is `au.engine.dep[]`, so the inline record validates
-    // against au.engine.dep (folded from au-engine) — proving the engine file
+    // The `deps` field is `tb.engine.dep[]`, so the inline record validates
+    // against tb.engine.dep (folded from tb-engine) — proving the engine file
     // is a validated node, not just a catalogued blob.
     write(
         &root,
@@ -301,7 +301,7 @@ fn a_repo_yaml_dep_missing_its_name_is_validated_against_au_engine_dep() {
         codes
             .iter()
             .any(|c| c == "required-field-absent" || c == "embedded-record-validation-failure"),
-        "a dep missing its required name is flagged against au.engine.dep: {codes:?}"
+        "a dep missing its required name is flagged against tb.engine.dep: {codes:?}"
     );
 }
 
@@ -329,7 +329,7 @@ fn a_written_floor_type_is_clean() {
     write(
         &root,
         ".arsumbris/repo.yaml",
-        "type: au.engine.repo::au-engine\nname: myrepo\n",
+        "type: tb.engine.repo::tb-engine\nname: myrepo\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
     let codes = codes_for(&kb, &root.join(".arsumbris/repo.yaml"));
@@ -346,7 +346,7 @@ fn a_written_floor_type_is_clean() {
 }
 
 /// A written `type:` whose closure omits the kind's floor is an error: the
-/// claim names the wrong kind (a `repo.yaml` claiming `au.engine.workspace`).
+/// claim names the wrong kind (a `repo.yaml` claiming `tb.engine.workspace`).
 #[test]
 fn a_wrong_floor_written_type_errors() {
     let dir = tempfile::tempdir().unwrap();
@@ -354,7 +354,7 @@ fn a_wrong_floor_written_type_errors() {
     write(
         &root,
         ".arsumbris/repo.yaml",
-        "type: au.engine.workspace::au-engine\nname: myrepo\n",
+        "type: tb.engine.workspace::tb-engine\nname: myrepo\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
     let codes = codes_for(&kb, &root.join(".arsumbris/repo.yaml"));
@@ -381,7 +381,7 @@ fn a_mixin_written_type_including_the_floor_is_clean() {
     write(
         &root,
         ".arsumbris/repo.yaml",
-        "type:\n  - au.engine.repo::au-engine\n  - my-config\nname: myrepo\nflavor: spicy\n",
+        "type:\n  - tb.engine.repo::tb-engine\n  - my-config\nname: myrepo\nflavor: spicy\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
     let codes = codes_for(&kb, &root.join(".arsumbris/repo.yaml"));
@@ -446,7 +446,7 @@ fn a_mixed_in_extra_types_required_field_is_checked() {
     write(
         &root,
         ".arsumbris/repo.yaml",
-        "type:\n  - au.engine.repo::au-engine\n  - my-config\nname: myrepo\n",
+        "type:\n  - tb.engine.repo::tb-engine\n  - my-config\nname: myrepo\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
     let codes = codes_for(&kb, &root.join(".arsumbris/repo.yaml"));
@@ -463,7 +463,7 @@ fn a_mixed_in_extra_types_required_field_is_checked() {
 }
 
 /// The future spelling is ACCEPTED, not merely parsed. A `repo.yaml` written
-/// `type: tb.engine.repo::au-engine` (what release 2 and `au migrate identity`
+/// `type: tb.engine.repo::tb-engine` (what release 2 and `au migrate identity`
 /// write) resolves against the builtin the way its legacy spelling does: the
 /// file is clean, the claim is recorded canonically, and the member it describes
 /// is discovered as a real repo. Without the canonicalizer the claim finds no def
@@ -477,7 +477,7 @@ fn a_future_spelled_engine_schema_claim_resolves_and_its_member_is_discovered() 
     write(
         &root,
         "member/.arsumbris/repo.yaml",
-        "type: tb.engine.repo::au-engine\nname: member\n",
+        "type: tb.engine.repo::tb-engine\nname: member\n",
     );
     // A conformant member README, so the only thing this fixture could be
     // complaining about is the claim spelling under test.
@@ -499,7 +499,7 @@ fn a_future_spelled_engine_schema_claim_resolves_and_its_member_is_discovered() 
         panic!("the repo.yaml is a parsed instance");
     };
     let claims: Vec<String> = inst.type_claim.iter().map(|c| c.authored()).collect();
-    assert_eq!(claims, vec!["au.engine.repo::au-engine".to_string()]);
+    assert_eq!(claims, vec!["tb.engine.repo::tb-engine".to_string()]);
     // And discovery mounted the member, so its files are served as its own.
     assert!(
         kb.repos.by_name("member").is_some(),
@@ -523,10 +523,10 @@ fn an_unqualified_hardwired_name_resolves_identically_in_either_spelling() {
     crate::seed_repo(&root);
     write(
         &root,
-        "type/au.engine.repo.type.yaml",
+        "type/tb.engine.repo.type.yaml",
         "fields:\n  x?: String\n",
     );
-    write(&root, "a.md", "---\ntype: au.engine.repo\nx: one\n---\n");
+    write(&root, "a.md", "---\ntype: tb.engine.repo\nx: one\n---\n");
     write(&root, "b.md", "---\ntype: tb.engine.repo\nx: two\n---\n");
     let kb = build(&root, &RealFileSystem).expect("build");
 
@@ -540,13 +540,13 @@ fn an_unqualified_hardwired_name_resolves_identically_in_either_spelling() {
 
     let matches = tb_engine::wire::introspect_instances_of(
         &kb,
-        "au.engine.repo",
+        "tb.engine.repo",
         Some(&[tb_engine::wire::Origin::File]),
     );
     let a = matches
         .iter()
         .find(|m| m.path.ends_with("a.md"))
-        .expect("a.md is an instance of au.engine.repo");
+        .expect("a.md is an instance of tb.engine.repo");
     let b = matches
         .iter()
         .find(|m| m.path.ends_with("b.md"))
@@ -555,7 +555,7 @@ fn an_unqualified_hardwired_name_resolves_identically_in_either_spelling() {
     assert_eq!(a.hash, b.hash, "one node identity, two spellings");
     assert_eq!(
         b.claim,
-        vec!["au.engine.repo".to_string()],
+        vec!["tb.engine.repo".to_string()],
         "the future spelling is recorded canonically"
     );
 }

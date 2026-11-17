@@ -760,8 +760,8 @@ pub(crate) fn write_package_lock(lock_path: &Path, lock: &PackageLock) -> std::i
     // The lock's floor type is its kind, derived from the filename: `repo.lock`
     // is `au.engine.repo-lock`, `workspace.lock` is `au.engine.workspace-lock`.
     let type_name = match lock_path.file_name().and_then(|n| n.to_str()) {
-        Some("workspace.lock") => "au.engine.workspace-lock",
-        _ => "au.engine.repo-lock",
+        Some("workspace.lock") => "tb.engine.workspace-lock",
+        _ => "tb.engine.repo-lock",
     };
     // Atomic temp-sibling-then-rename, so a crash mid-write never leaves a repo's
     // `repo.lock` half-written (which would parse to a truncated dependency set).

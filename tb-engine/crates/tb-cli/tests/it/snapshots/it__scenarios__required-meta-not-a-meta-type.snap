@@ -1,12 +1,12 @@
 ---
-source: crates/au-cli/tests/it/scenarios.rs
+source: crates/tb-cli/tests/it/scenarios.rs
 expression: rendered
 ---
 {
   "diagnostics": [
     {
       "code": "required-meta-not-a-meta-type",
-      "message": "type-def 'base' requires meta 'plain', which is not a meta type; it must mix in 'au.engine.meta::au-engine'",
+      "message": "type-def 'base' requires meta 'plain', which is not a meta type; it must mix in 'tb.engine.meta::tb-engine'",
       "severity": "error",
       "span": {
         "file": "<root>/scenarios/required-meta-not-a-meta-type/type/base.type.yaml",

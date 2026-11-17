@@ -29,7 +29,7 @@ use crate::parse::FileParse;
 use crate::repo::{RepoMap, RepoName};
 
 /// The hardwired type a repo README self-declares.
-pub(crate) const README_TYPE_NAME: &str = "au.engine.readme";
+pub(crate) const README_TYPE_NAME: &str = "tb.engine.readme";
 
 /// The canonical README basename, at a repo root.
 const README_BASENAME: &str = "README.md";

@@ -2022,6 +2022,7 @@ pub fn introspect_instances_of(
     type_name: &str,
     origins: Option<&[Origin]>,
 ) -> Vec<InstanceMatch> {
+    let type_name = &crate::engine_schema::canonical_query_name(type_name);
     let owners = owners_by_identity(kb);
     // The identity rule is shared with `instance_files_of` so the two cannot
     // scope differently. `None` is a `name::repo` naming an absent repo/name.
@@ -2690,8 +2691,8 @@ pub fn device_config_view(
     workspaces: (Option<PathBuf>, Option<Vec<u8>>),
 ) -> DeviceConfigView {
     DeviceConfigView {
-        repos: device_config_file(kb, repos, "au.engine.repos"),
-        workspaces: device_config_file(kb, workspaces, "au.engine.workspaces"),
+        repos: device_config_file(kb, repos, "tb.engine.repos"),
+        workspaces: device_config_file(kb, workspaces, "tb.engine.workspaces"),
     }
 }
 
@@ -3488,6 +3489,7 @@ pub fn introspect_subtypes(kb: &KnowledgeBase, base: &str, scope: TypeScope) -> 
     // Split the base into its name and optional `::repo` scope. A bare base is
     // matched by NAME (conflating every same-named identity across the
     // workspace); a `base::repo` base scopes to the ONE identity that repo owns.
+    let base = &crate::engine_schema::canonical_query_name(base);
     let base_claim = TypeNameClaim::parse(base, ByteRange::new(0, 0));
 
     // Resolve a qualified base to its demanded identity: `(name, ClosureHash)`
@@ -3865,6 +3867,7 @@ pub fn introspect_workspace_types(kb: &KnowledgeBase, scope: TypeScope) -> Vec<W
 /// view. `None` when unresolved. The shared per-name resolution behind both the
 /// single `type` read and the batch `names` form.
 pub fn introspect_type_by_name(kb: &KnowledgeBase, name: &str) -> Option<WorkspaceTypeView> {
+    let name = &crate::engine_schema::canonical_query_name(name);
     match name.split_once("::") {
         Some((base, repo)) => introspect_repo_type_named(kb, base, repo),
         None => introspect_workspace_type_named(kb, name),

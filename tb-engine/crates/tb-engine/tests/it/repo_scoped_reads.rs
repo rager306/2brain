@@ -112,8 +112,8 @@ fn types_scoped_to_a_repo_returns_that_repos_graph() {
                 t["repo"].as_str().unwrap().to_string(),
             )
         })
-        // The au.engine.* builtin schema types (and, in a real workspace, every mounted dependency) are surfaced here too; filtered to the knowledge base's own types. On-demand hiding is tracked in the todo.
-        .filter(|(n, _)| !n.starts_with("au.engine."))
+        // The tb.engine.* builtin schema types (and, in a real workspace, every mounted dependency) are surfaced here too; filtered to the knowledge base's own types. On-demand hiding is tracked in the todo.
+        .filter(|(n, _)| !n.starts_with("tb.engine."))
         .collect();
     ws_entries.sort();
     assert_eq!(
@@ -246,6 +246,6 @@ fn single_repo_kb_workspace_read_is_the_sole_member() {
 
     let resp = client.query(&json!({ "read": "types" })).unwrap();
     let mut names = type_names(&resp["result"]["types"]);
-    names.retain(|n| !n.starts_with("au.engine."));
+    names.retain(|n| !n.starts_with("tb.engine."));
     assert_eq!(names, vec!["note"]);
 }

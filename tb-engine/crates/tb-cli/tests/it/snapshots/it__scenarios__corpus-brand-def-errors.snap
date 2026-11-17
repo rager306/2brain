@@ -1,5 +1,5 @@
 ---
-source: crates/au-cli/tests/it/scenarios.rs
+source: crates/tb-cli/tests/it/scenarios.rs
 expression: rendered
 ---
 {

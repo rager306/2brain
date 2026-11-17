@@ -1,7 +1,7 @@
 //! The `scope: own | all` filter on the workspace-wide type reads. `all`
 //! (default) surfaces every mounted repo's vocabulary; `own` keeps only the
 //! user's own editable repos (role-derived: the entry and `edit` members),
-//! hiding every dependency and the compiled-in `au.engine.*` builtin.
+//! hiding every dependency and the compiled-in `tb.engine.*` builtin.
 
 #![cfg(unix)]
 
@@ -21,7 +21,7 @@ fn write(root: &Path, rel: &str, content: &str) {
     fs::write(p, content).unwrap();
 }
 
-/// The compiled-in `au.engine.*` builtin types surface under `all` but are
+/// The compiled-in `tb.engine.*` builtin types surface under `all` but are
 /// hidden under `own` — the degenerate case of the dependency filter, since the
 /// builtin is a dependency-like type source, not the user's own vocabulary.
 #[test]
@@ -34,7 +34,7 @@ fn scope_own_hides_the_engine_builtin() {
 
     let all = introspect_type_counts(&kb, None, TypeScope::all()).unwrap();
     assert!(
-        all.by_repo.contains_key("au-engine"),
+        all.by_repo.contains_key("tb-engine"),
         "all shows the builtin: {:?}",
         all.by_repo
     );
@@ -46,7 +46,7 @@ fn scope_own_hides_the_engine_builtin() {
 
     let own = introspect_type_counts(&kb, None, TypeScope::new(true)).unwrap();
     assert!(
-        !own.by_repo.contains_key("au-engine"),
+        !own.by_repo.contains_key("tb-engine"),
         "own hides the builtin: {:?}",
         own.by_repo
     );
@@ -111,7 +111,7 @@ fn scope_own_hides_a_dependency_repos_types() {
         own.by_repo
     );
     assert!(
-        !own.by_repo.contains_key("au-engine"),
+        !own.by_repo.contains_key("tb-engine"),
         "own hides the builtin: {:?}",
         own.by_repo
     );
@@ -155,7 +155,7 @@ fn instance_counts_are_closure_inclusive() {
 
     let counts = introspect_instance_counts(&kb, None, TypeScope::all(), None).unwrap();
     // Three authored docs plus the repo's own `.arsumbris/repo.yaml`, itself an
-    // `au.engine.repo` engine-schema instance.
+    // `tb.engine.repo` engine-schema instance.
     assert_eq!(
         counts.total, 4,
         "three docs + the repo.yaml config instance"
@@ -308,7 +308,7 @@ fn instance_counts_scope_by_site_repo() {
     );
 }
 
-/// `list_imports` under `own` drops the automatic `au.engine.*` builtin fold
+/// `list_imports` under `own` drops the automatic `tb.engine.*` builtin fold
 /// (every repo imports it), keeping only the user's own authored imports.
 #[test]
 fn scope_own_hides_the_engine_fold_from_list_imports() {
@@ -320,7 +320,7 @@ fn scope_own_hides_the_engine_fold_from_list_imports() {
 
     let all = introspect_list_imports(&kb, TypeScope::all());
     assert!(
-        all.iter().any(|i| i.owner == "au-engine"),
+        all.iter().any(|i| i.owner == "tb-engine"),
         "all lists the builtin fold import: {:?}",
         all.iter()
             .map(|i| (&i.importer, &i.name, &i.owner))
@@ -329,7 +329,7 @@ fn scope_own_hides_the_engine_fold_from_list_imports() {
 
     let own = introspect_list_imports(&kb, TypeScope::new(true));
     assert!(
-        own.iter().all(|i| i.owner != "au-engine"),
+        own.iter().all(|i| i.owner != "tb-engine"),
         "own drops the builtin fold import: {:?}",
         own.iter()
             .map(|i| (&i.importer, &i.name, &i.owner))
@@ -353,7 +353,7 @@ fn instance_counts_is_the_dual_of_instances_of_per_origin() {
     write(
         &root,
         "type/display-meta.type.yaml",
-        "extends: au.engine.meta::au-engine\nfields:\n  icon: String\n",
+        "extends: tb.engine.meta::tb-engine\nfields:\n  icon: String\n",
     );
     // A host def carrying a nested-record slot AND a meta block (the meta site).
     write(

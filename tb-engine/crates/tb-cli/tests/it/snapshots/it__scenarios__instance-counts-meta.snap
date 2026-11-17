@@ -1,5 +1,5 @@
 ---
-source: crates/au-cli/tests/it/scenarios.rs
+source: crates/tb-cli/tests/it/scenarios.rs
 expression: rendered
 ---
 {
@@ -9,23 +9,7 @@ expression: rendered
     "by_type": [
       {
         "count": 1,
-        "hash": "0f5ba88b639e8bcb",
-        "name": "au.engine.meta",
-        "type_owners": [
-          "au-engine"
-        ]
-      },
-      {
-        "count": 1,
-        "hash": "a6b6604679d2eeaf",
-        "name": "au.engine.repo",
-        "type_owners": [
-          "au-engine"
-        ]
-      },
-      {
-        "count": 1,
-        "hash": "6b7c824e0b83e925",
+        "hash": "4ea225359874ea0f",
         "name": "display-meta",
         "type_owners": [
           "instance-counts-meta"
@@ -37,6 +21,22 @@ expression: rendered
         "name": "note",
         "type_owners": [
           "instance-counts-meta"
+        ]
+      },
+      {
+        "count": 1,
+        "hash": "1dbd0d8e39215cf3",
+        "name": "tb.engine.meta",
+        "type_owners": [
+          "tb-engine"
+        ]
+      },
+      {
+        "count": 1,
+        "hash": "03336d678cabc4dd",
+        "name": "tb.engine.repo",
+        "type_owners": [
+          "tb-engine"
         ]
       }
     ],

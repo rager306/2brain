@@ -242,7 +242,7 @@ pub fn build_reusing(
         let parse = crate::parse::parse_engine_schema_instance(
             path,
             bytes,
-            "au.engine.repo",
+            "tb.engine.repo",
             Some(crate::engine_schema::BUILTIN_ENGINE_REPO),
         );
         // Surface the node-view parse diagnostics (the `engine-schema-type-*`
@@ -271,7 +271,7 @@ pub fn build_reusing(
     // the same bytes; this is the node view. See [[spec - engine-schema files - hardwired-schema files are first-class substrate nodes]].
     for (path, bytes) in crate::repo::lock_files(&roots, &files, &repo_markers, fs) {
         let (kind, type_name) = match path.file_name().and_then(|n| n.to_str()) {
-            Some("repo.lock") => (FileKind::RepoLock, "au.engine.repo-lock"),
+            Some("repo.lock") => (FileKind::RepoLock, "tb.engine.repo-lock"),
             _ => continue,
         };
         let parse = crate::parse::parse_engine_schema_instance(
@@ -1954,9 +1954,9 @@ fn report_undeclared_nested_repos(
 /// [[spec - engine-schema file claims - the kind assigns a floor, a written type self-describes and mixes in more]].
 fn engine_schema_floor(kind: FileKind) -> Option<&'static str> {
     match kind {
-        FileKind::RepoRegistry => Some("au.engine.repo"),
-        FileKind::Workspace => Some("au.engine.workspace"),
-        FileKind::RepoLock => Some("au.engine.repo-lock"),
+        FileKind::RepoRegistry => Some("tb.engine.repo"),
+        FileKind::Workspace => Some("tb.engine.workspace"),
+        FileKind::RepoLock => Some("tb.engine.repo-lock"),
         _ => None,
     }
 }
@@ -1970,7 +1970,7 @@ fn workspace_entry(path: &Path, bytes: &[u8]) -> FileEntry {
     let parse = crate::parse::parse_engine_schema_instance(
         path,
         bytes,
-        "au.engine.workspace",
+        "tb.engine.workspace",
         Some(crate::engine_schema::BUILTIN_ENGINE_REPO),
     );
     FileEntry {

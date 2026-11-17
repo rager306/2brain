@@ -14,6 +14,18 @@ source.
 
 ### Changed
 
+- **The engine schema moved to `tb.engine.*` and `::tb-engine`** (engine). The 12 hardwired type
+defs, every floor name a file kind assigns, `ENGINE_META_TYPE` and `BUILTIN_ENGINE_REPO` are renamed;
+`ENGINE_NAMESPACE` is `tb.engine` and the legacy spelling is a named constant beside it. The legacy
+spelling is still ACCEPTED: a file claiming `au.engine.repo::au-engine` is canonicalized forward on
+read, and a read argument goes through the same canonicalization (`canonical_query_name`), which is
+what keeps a release-1 client answering — before that seam `instances_of {type: "au.engine.repo::au-engine"}`
+returned 0 rows. On a copy of the live vault the old and new binaries answer `overview`, `hubs`,
+`diagnostics`, `graph_health`, `files` and `search` byte-identically; 242 scenario snapshots were
+re-blessed and their diff is the rename plus the hash and sort-position consequences. Not in this
+change: dropping the legacy acceptance, which is what closes the window
+(`docs/research/release-2-schema-2026-11-17.md`).
+
 - **A new repository gets `.2brain/`, not `.arsumbris/`** (engine). `CREATE_IDENTITY_DIR` is now
 `IDENTITY_DIR`, so a root that holds neither spelling is created with the new name. Release 1 wrote the legacy
 one so a previous binary could read what it wrote; readers still accept both spellings, so no existing tree

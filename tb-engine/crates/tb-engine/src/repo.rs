@@ -4569,9 +4569,12 @@ deps:
                 path: None,
             },
         );
-        let text = serialize_package_lock(&lock, "au.engine.repo-lock");
+        let text = serialize_package_lock(&lock, "tb.engine.repo-lock");
         // The engine-written lock self-describes with its qualified type.
-        assert!(text.starts_with("type: au.engine.repo-lock::au-engine\n"));
+        assert!(
+            text.starts_with("type: tb.engine.repo-lock::tb-engine\n"),
+            "{text}"
+        );
         // Sorted by name, deterministic: atlas before bento.
         assert!(text.find("atlas").unwrap() < text.find("bento").unwrap());
         // The reader ignores the `type:` key, round-tripping the pins.

@@ -1,5 +1,5 @@
 ---
-source: crates/au-cli/tests/it/scenarios.rs
+source: crates/tb-cli/tests/it/scenarios.rs
 expression: rendered
 ---
 {
@@ -7,9 +7,9 @@ expression: rendered
     {
       "code": "engine-schema-type-floor-omitted",
       "fix": {
-        "description": "include `au.engine.repo::au-engine` in the `type:` claim; mixing in more is fine"
+        "description": "include `tb.engine.repo::tb-engine` in the `type:` claim; mixing in more is fine"
       },
-      "message": "engine-schema file writes a `type:` whose closure omits the kind's floor `au.engine.repo::au-engine`; the written claim names the wrong kind",
+      "message": "engine-schema file writes a `type:` whose closure omits the kind's floor `tb.engine.repo::tb-engine`; the written claim names the wrong kind",
       "severity": "error",
       "span": {
         "file": "<root>/scenarios/engine-schema-type-floor-omitted/.arsumbris/repo.yaml",
@@ -37,10 +37,10 @@ expression: rendered
       {
         "body_events": null,
         "claim": [
-          "au.engine.workspace::au-engine"
+          "tb.engine.workspace::tb-engine"
         ],
         "closure": [
-          "au.engine.workspace::au-engine"
+          "tb.engine.workspace::tb-engine"
         ],
         "effective_shape": [
           {
@@ -48,9 +48,9 @@ expression: rendered
             "field": "disabled",
             "origins": [
               {
-                "name": "au.engine.workspace",
-                "origin_path": "<au-engine-builtin>/au.engine.workspace.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.workspace",
+                "origin_path": "<au-engine-builtin>/tb.engine.workspace.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String[]"
               }
@@ -63,9 +63,9 @@ expression: rendered
             "field": "discover",
             "origins": [
               {
-                "name": "au.engine.workspace",
-                "origin_path": "<au-engine-builtin>/au.engine.workspace.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.workspace",
+                "origin_path": "<au-engine-builtin>/tb.engine.workspace.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String[]"
               }
@@ -78,9 +78,9 @@ expression: rendered
             "field": "edit",
             "origins": [
               {
-                "name": "au.engine.workspace",
-                "origin_path": "<au-engine-builtin>/au.engine.workspace.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.workspace",
+                "origin_path": "<au-engine-builtin>/tb.engine.workspace.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String[]"
               }

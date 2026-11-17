@@ -1,5 +1,5 @@
 ---
-source: crates/au-cli/tests/it/scenarios.rs
+source: crates/tb-cli/tests/it/scenarios.rs
 expression: rendered
 ---
 {
@@ -11,10 +11,10 @@ expression: rendered
       {
         "body_events": null,
         "claim": [
-          "au.engine.repo::au-engine"
+          "tb.engine.repo::tb-engine"
         ],
         "closure": [
-          "au.engine.repo::au-engine"
+          "tb.engine.repo::tb-engine"
         ],
         "effective_shape": [
           {
@@ -22,24 +22,24 @@ expression: rendered
             "field": "deps",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
-                "shape": "au.engine.dep::au-engine[]"
+                "shape": "tb.engine.dep::tb-engine[]"
               }
             ],
             "required": false,
-            "shape": "au.engine.dep::au-engine[]"
+            "shape": "tb.engine.dep::tb-engine[]"
           },
           {
             "divergent": false,
             "field": "description",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
               }
@@ -52,9 +52,9 @@ expression: rendered
             "field": "name",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": true,
                 "shape": "String"
               }
@@ -67,9 +67,9 @@ expression: rendered
             "field": "remote",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
               }
@@ -124,10 +124,10 @@ expression: rendered
       {
         "body_events": null,
         "claim": [
-          "au.engine.workspace::au-engine"
+          "tb.engine.workspace::tb-engine"
         ],
         "closure": [
-          "au.engine.workspace::au-engine"
+          "tb.engine.workspace::tb-engine"
         ],
         "effective_shape": [
           {
@@ -135,9 +135,9 @@ expression: rendered
             "field": "disabled",
             "origins": [
               {
-                "name": "au.engine.workspace",
-                "origin_path": "<au-engine-builtin>/au.engine.workspace.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.workspace",
+                "origin_path": "<au-engine-builtin>/tb.engine.workspace.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String[]"
               }
@@ -150,9 +150,9 @@ expression: rendered
             "field": "discover",
             "origins": [
               {
-                "name": "au.engine.workspace",
-                "origin_path": "<au-engine-builtin>/au.engine.workspace.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.workspace",
+                "origin_path": "<au-engine-builtin>/tb.engine.workspace.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String[]"
               }
@@ -165,9 +165,9 @@ expression: rendered
             "field": "edit",
             "origins": [
               {
-                "name": "au.engine.workspace",
-                "origin_path": "<au-engine-builtin>/au.engine.workspace.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.workspace",
+                "origin_path": "<au-engine-builtin>/tb.engine.workspace.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String[]"
               }
@@ -288,10 +288,10 @@ expression: rendered
       {
         "body_events": null,
         "claim": [
-          "au.engine.repo::au-engine"
+          "tb.engine.repo::tb-engine"
         ],
         "closure": [
-          "au.engine.repo::au-engine"
+          "tb.engine.repo::tb-engine"
         ],
         "effective_shape": [
           {
@@ -299,24 +299,24 @@ expression: rendered
             "field": "deps",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
-                "shape": "au.engine.dep::au-engine[]"
+                "shape": "tb.engine.dep::tb-engine[]"
               }
             ],
             "required": false,
-            "shape": "au.engine.dep::au-engine[]"
+            "shape": "tb.engine.dep::tb-engine[]"
           },
           {
             "divergent": false,
             "field": "description",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
               }
@@ -329,9 +329,9 @@ expression: rendered
             "field": "name",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": true,
                 "shape": "String"
               }
@@ -344,9 +344,9 @@ expression: rendered
             "field": "remote",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
               }
@@ -598,10 +598,10 @@ expression: rendered
       {
         "body_events": null,
         "claim": [
-          "au.engine.repo::au-engine"
+          "tb.engine.repo::tb-engine"
         ],
         "closure": [
-          "au.engine.repo::au-engine"
+          "tb.engine.repo::tb-engine"
         ],
         "effective_shape": [
           {
@@ -609,24 +609,24 @@ expression: rendered
             "field": "deps",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
-                "shape": "au.engine.dep::au-engine[]"
+                "shape": "tb.engine.dep::tb-engine[]"
               }
             ],
             "required": false,
-            "shape": "au.engine.dep::au-engine[]"
+            "shape": "tb.engine.dep::tb-engine[]"
           },
           {
             "divergent": false,
             "field": "description",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
               }
@@ -639,9 +639,9 @@ expression: rendered
             "field": "name",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": true,
                 "shape": "String"
               }
@@ -654,9 +654,9 @@ expression: rendered
             "field": "remote",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
               }

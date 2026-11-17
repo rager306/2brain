@@ -1,0 +1,314 @@
+---
+source: crates/tb-cli/tests/it/scenarios.rs
+assertion_line: 219
+expression: rendered
+---
+{
+  "diagnostics": [
+    {
+      "code": "body-use-target-has-no-body",
+      "message": "`use: decision` splices nothing — 'decision' declares no `body:` template",
+      "severity": "warning",
+      "span": {
+        "file": "<root>/scenarios/body-use-target-has-no-body/type/decision.decided.type.yaml",
+        "line_col": {
+          "end": {
+            "col": 18,
+            "line": 5
+          },
+          "start": {
+            "col": 10,
+            "line": 5
+          }
+        },
+        "range": {
+          "end": 78,
+          "start": 70
+        }
+      }
+    }
+  ],
+  "instances": {
+    "aborted_at_load": false,
+    "count": 2,
+    "entries": [
+      {
+        "body_events": null,
+        "claim": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "closure": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "deps",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "tb.engine.dep::tb-engine[]"
+              }
+            ],
+            "required": false,
+            "shape": "tb.engine.dep::tb-engine[]"
+          },
+          {
+            "divergent": false,
+            "field": "description",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "name",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": true,
+                "shape": "String"
+              }
+            ],
+            "required": true,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "remote",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 33,
+                        "line_col": {
+                          "end": {
+                            "col": 34,
+                            "line": 1
+                          },
+                          "start": {
+                            "col": 7,
+                            "line": 1
+                          }
+                        },
+                        "start": 6
+                      },
+                      "file": "<root>/scenarios/body-use-target-has-no-body/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "body-use-target-has-no-body"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "body-use-target-has-no-body"
+                }
+              }
+            ],
+            "field": "name"
+          }
+        ],
+        "file": "<root>/scenarios/body-use-target-has-no-body/.arsumbris/repo.yaml",
+        "section_presence": null
+      },
+      {
+        "body_events": [
+          {
+            "kind": "heading",
+            "level": 1,
+            "span": {
+              "end": 95,
+              "line_col": {
+                "end": {
+                  "col": 1,
+                  "line": 8
+                },
+                "start": {
+                  "col": 1,
+                  "line": 7
+                }
+              },
+              "start": 85
+            },
+            "text": "Outcome"
+          }
+        ],
+        "claim": [
+          "decision.decided"
+        ],
+        "closure": [
+          "decision",
+          "decision.decided"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "description",
+            "origins": [
+              {
+                "name": "decision",
+                "origin_path": "<root>/scenarios/body-use-target-has-no-body/type/decision.type.yaml",
+                "required": true,
+                "shape": "String"
+              }
+            ],
+            "required": true,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "status",
+            "origins": [
+              {
+                "name": "decision.decided",
+                "origin_path": "<root>/scenarios/body-use-target-has-no-body/type/decision.decided.type.yaml",
+                "required": true,
+                "shape": "[made, superseded]"
+              }
+            ],
+            "required": true,
+            "shape": "[made, superseded]"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 66,
+                        "line_col": {
+                          "end": {
+                            "col": 40,
+                            "line": 3
+                          },
+                          "start": {
+                            "col": 14,
+                            "line": 3
+                          }
+                        },
+                        "start": 40
+                      },
+                      "file": "<root>/scenarios/body-use-target-has-no-body/migrate-sqlite.md"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Migrate dev DB to SQLite"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "Migrate dev DB to SQLite"
+                }
+              }
+            ],
+            "field": "description"
+          },
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 79,
+                        "line_col": {
+                          "end": {
+                            "col": 13,
+                            "line": 4
+                          },
+                          "start": {
+                            "col": 9,
+                            "line": 4
+                          }
+                        },
+                        "start": 75
+                      },
+                      "file": "<root>/scenarios/body-use-target-has-no-body/migrate-sqlite.md"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "made"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "made"
+                }
+              }
+            ],
+            "field": "status"
+          }
+        ],
+        "file": "<root>/scenarios/body-use-target-has-no-body/migrate-sqlite.md",
+        "section_presence": [
+          {
+            "depth": 1,
+            "name": "Outcome",
+            "optional": false,
+            "path": [
+              "Outcome"
+            ],
+            "present": true,
+            "span": {
+              "end": 95,
+              "line_col": {
+                "end": {
+                  "col": 1,
+                  "line": 8
+                },
+                "start": {
+                  "col": 1,
+                  "line": 7
+                }
+              },
+              "start": 85
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

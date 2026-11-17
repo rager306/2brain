@@ -119,9 +119,9 @@ fn workspace_types_span_members_deduped_to_owner_copies() {
 
     // Every owner type across base and app; `thing` is owned only by base and
     // appears once (app imports it rather than copying it).
-    // The au.engine.* builtin schema types (and, in a real workspace, every mounted dependency) are surfaced here too; filtered to the knowledge base's own types. On-demand hiding is tracked in the todo.
+    // The tb.engine.* builtin schema types (and, in a real workspace, every mounted dependency) are surfaced here too; filtered to the knowledge base's own types. On-demand hiding is tracked in the todo.
     let mut own = names(result);
-    own.retain(|n| !n.starts_with("au.engine."));
+    own.retain(|n| !n.starts_with("tb.engine."));
     assert_eq!(
         own,
         vec!["audited-task", "tag", "task", "thing"],
@@ -160,7 +160,7 @@ fn types_summary_projects_a_lightweight_entry_keeping_identity() {
 
     // Same owner set and name-sorted order as the full read.
     let mut own = ordered_names(result);
-    own.retain(|n| !n.starts_with("au.engine."));
+    own.retain(|n| !n.starts_with("tb.engine."));
     assert_eq!(
         own,
         vec!["audited-task", "tag", "task", "thing"],
@@ -193,49 +193,51 @@ fn types_summary_projects_a_lightweight_entry_keeping_identity() {
 fn types_pages_the_name_sorted_set_by_limit_and_offset() {
     let mut h = started();
 
-    // The au.engine.* builtin schema types (and, in a real workspace, every mounted dependency) are surfaced here too; they sort ahead of the knowledge base's own names, so page past them to exercise paging over the knowledge base's OWN name-sorted set. On-demand hiding is tracked in the todo.
+    // The tb.engine.* builtin schema types are surfaced here too, and they sort
+    // ACROSS the knowledge base's own names (release 2 renamed the namespace, so
+    // they no longer all precede it). Paging is therefore checked as the property
+    // that matters: consecutive pages concatenate to the whole name-sorted set.
     let full = h.client.query(&json!({ "read": "types" })).unwrap();
-    let base = ordered_names(&full["result"]["types"])
-        .iter()
-        .position(|n| !n.starts_with("au.engine."))
-        .unwrap();
+    let all = ordered_names(&full["result"]["types"]);
+    assert!(all.len() > 4, "the fixture carries a pageable set: {all:?}");
 
-    // First page of two, name-sorted.
     let p1 = h
         .client
-        .query(&json!({ "read": "types", "limit": 2, "offset": base }))
+        .query(&json!({ "read": "types", "limit": 2, "offset": 0 }))
         .unwrap();
+    let p2 = h
+        .client
+        .query(&json!({ "read": "types", "limit": 2, "offset": 2 }))
+        .unwrap();
+    let mut paged = ordered_names(&p1["result"]["types"]);
+    paged.extend(ordered_names(&p2["result"]["types"]));
     assert_eq!(
-        ordered_names(&p1["result"]["types"]),
-        vec!["audited-task", "tag"]
+        paged,
+        all[..4].to_vec(),
+        "two pages of two are the first four names, in order"
     );
     // Full detail is intact on a paged entry.
     assert!(
-        find(&p1["result"]["types"], "tag").get("fields").is_some(),
+        find(&p1["result"]["types"], &all[0])
+            .get("fields")
+            .is_some(),
         "paged full entries keep their detail"
     );
 
-    // The next page.
-    let p2 = h
-        .client
-        .query(&json!({ "read": "types", "limit": 2, "offset": base + 2 }))
-        .unwrap();
-    assert_eq!(ordered_names(&p2["result"]["types"]), vec!["task", "thing"]);
-
     // Past the end is an empty page, the done signal (a consumer pages until a
     // short page).
-    let p3 = h
+    let past = h
         .client
-        .query(&json!({ "read": "types", "limit": 2, "offset": base + 4 }))
+        .query(&json!({ "read": "types", "limit": 2, "offset": all.len() }))
         .unwrap();
-    assert_eq!(p3["result"]["types"].as_array().unwrap().len(), 0);
+    assert_eq!(past["result"]["types"].as_array().unwrap().len(), 0);
 
     // Paging composes with summary.
     let s = h
         .client
-        .query(&json!({ "read": "types", "summary": true, "limit": 1, "offset": base + 1 }))
+        .query(&json!({ "read": "types", "summary": true, "limit": 1, "offset": 1 }))
         .unwrap();
-    assert_eq!(ordered_names(&s["result"]["types"]), vec!["tag"]);
+    assert_eq!(ordered_names(&s["result"]["types"]), vec![all[1].clone()]);
     assert!(
         s["result"]["types"][0].get("fields").is_none(),
         "summary + paging stays lightweight"
@@ -269,7 +271,7 @@ fn type_counts_totals_reconcile_with_the_types_read() {
         full_len,
         "total reconciles with the full types read"
     );
-    // The au-engine builtin repo (and, in a real workspace, every mounted dependency) contributes its own by_repo entry here too; assert the knowledge base's own repos. On-demand hiding is tracked in the todo.
+    // The tb-engine builtin repo (and, in a real workspace, every mounted dependency) contributes its own by_repo entry here too; assert the knowledge base's own repos. On-demand hiding is tracked in the todo.
     assert_eq!(counts["result"]["type_counts"]["by_repo"]["app"], json!(3));
     assert_eq!(counts["result"]["type_counts"]["by_repo"]["base"], json!(1));
 
@@ -504,13 +506,13 @@ fn type_tree_is_a_cross_repo_adjacency_forest_handling_multi_parent() {
     let tree = &resp["result"]["type_tree"];
 
     // Roots are the parentless types, name-sorted: `tag` and `thing`.
-    // The au.engine.* builtin schema types (and, in a real workspace, every mounted dependency) are surfaced here too as their own parentless roots; filtered to the knowledge base's own types. On-demand hiding is tracked in the todo.
+    // The tb.engine.* builtin schema types (and, in a real workspace, every mounted dependency) are surfaced here too as their own parentless roots; filtered to the knowledge base's own types. On-demand hiding is tracked in the todo.
     let own_roots: Vec<String> = tree["roots"]
         .as_array()
         .unwrap()
         .iter()
         .map(|r| r.as_str().unwrap().to_string())
-        .filter(|n| !n.starts_with("au.engine."))
+        .filter(|n| !n.starts_with("tb.engine."))
         .collect();
     assert_eq!(
         own_roots,
@@ -545,12 +547,12 @@ fn type_tree_is_a_cross_repo_adjacency_forest_handling_multi_parent() {
     assert_eq!(node("tag")["children"], json!(["audited-task"]));
 
     // Exactly four of the knowledge base's own nodes: no duplication of the multi-parent
-    // node. The au.engine.* builtin schema nodes are surfaced alongside them.
+    // node. The tb.engine.* builtin schema nodes are surfaced alongside them.
     let own_nodes = tree["nodes"]
         .as_array()
         .unwrap()
         .iter()
-        .filter(|n| !n["name"].as_str().unwrap().starts_with("au.engine."))
+        .filter(|n| !n["name"].as_str().unwrap().starts_with("tb.engine."))
         .count();
     assert_eq!(own_nodes, 4);
 }
@@ -627,7 +629,7 @@ fn type_tree_keeps_the_cross_repo_edge_for_a_peer_extended_leaf() {
     assert_eq!(node("thing")["children"], json!(["leaf"]));
     assert_eq!(node("leaf")["repo"], "app");
     // `thing` is the sole root; `leaf` has an in-set parent so it is not a root.
-    // The au.engine.* builtin schema types are surfaced here too as their own
+    // The tb.engine.* builtin schema types are surfaced here too as their own
     // roots; filtered to the knowledge base's own types. On-demand hiding is tracked in
     // the todo.
     let own_roots: Vec<String> = tree["roots"]
@@ -635,7 +637,7 @@ fn type_tree_keeps_the_cross_repo_edge_for_a_peer_extended_leaf() {
         .unwrap()
         .iter()
         .map(|r| r.as_str().unwrap().to_string())
-        .filter(|n| !n.starts_with("au.engine."))
+        .filter(|n| !n.starts_with("tb.engine."))
         .collect();
     assert_eq!(own_roots, vec!["thing"]);
 }

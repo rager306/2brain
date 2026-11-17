@@ -1,0 +1,46 @@
+---
+source: crates/tb-cli/tests/it/scenarios.rs
+assertion_line: 219
+expression: rendered
+---
+{
+  "diagnostics": [],
+  "instance_counts": {
+    "aborted_at_load": false,
+    "by_type": [
+      {
+        "count": 1,
+        "hash": "4ea225359874ea0f",
+        "name": "display-meta",
+        "type_owners": [
+          "instance-counts-meta"
+        ]
+      },
+      {
+        "count": 1,
+        "hash": "5e0e7832792eff4c",
+        "name": "note",
+        "type_owners": [
+          "instance-counts-meta"
+        ]
+      },
+      {
+        "count": 1,
+        "hash": "1dbd0d8e39215cf3",
+        "name": "tb.engine.meta",
+        "type_owners": [
+          "tb-engine"
+        ]
+      },
+      {
+        "count": 1,
+        "hash": "03336d678cabc4dd",
+        "name": "tb.engine.repo",
+        "type_owners": [
+          "tb-engine"
+        ]
+      }
+    ],
+    "total": 3
+  }
+}

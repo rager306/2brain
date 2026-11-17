@@ -625,8 +625,8 @@ mod tests {
         let rg = app(&v).expect("repo.yaml imports au.engine.repo, so app folds it");
         assert!(
             rg.resolve_authored(
-                &tb_core::TypeName("au.engine.repo".into()),
-                Some("au-engine")
+                &tb_core::TypeName("tb.engine.repo".into()),
+                Some("tb-engine")
             )
             .is_some(),
             "the builtin engine schema is folded"
@@ -1088,8 +1088,8 @@ mod tests {
         assert!(
             imports.contains(&(
                 app.clone(),
-                TypeName("au.engine.repo".into()),
-                "au-engine".to_string()
+                TypeName("tb.engine.repo".into()),
+                "tb-engine".to_string()
             )),
             "the stamped repo.yaml surfaces au.engine.repo::au-engine as an import: {imports:?}"
         );
@@ -1229,7 +1229,7 @@ mod tests {
         // au.engine.workspace.
         let repo_schema: Vec<_> = imports
             .iter()
-            .filter(|i| i.name == "au.engine.repo")
+            .filter(|i| i.name == "tb.engine.repo")
             .collect();
         assert_eq!(
             repo_schema.len(),
@@ -1239,12 +1239,12 @@ mod tests {
         assert!(
             repo_schema
                 .iter()
-                .all(|i| i.owner == "au-engine" && !i.hash.is_empty())
+                .all(|i| i.owner == "tb-engine" && !i.hash.is_empty())
         );
         assert!(
             imports
                 .iter()
-                .any(|i| i.name == "au.engine.workspace" && i.importer == "v"),
+                .any(|i| i.name == "tb.engine.workspace" && i.importer == "v"),
             "the entry `v`'s workspace.yaml imports au.engine.workspace"
         );
     }
@@ -3005,7 +3005,7 @@ mod qualified_demand_tests {
     // base owns a meta type `dm` with two required fields.
     const DM: (&str, &str) = (
         "type/dm.type.yaml",
-        "extends: au.engine.meta::au-engine\nfields:\n  k: String\n  n: Number\n",
+        "extends: tb.engine.meta::tb-engine\nfields:\n  k: String\n  n: Number\n",
     );
 
     #[test]

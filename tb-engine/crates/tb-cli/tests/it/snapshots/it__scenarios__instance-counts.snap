@@ -1,5 +1,5 @@
 ---
-source: crates/au-cli/tests/it/scenarios.rs
+source: crates/tb-cli/tests/it/scenarios.rs
 expression: rendered
 ---
 {
@@ -16,19 +16,19 @@ expression: rendered
         ]
       },
       {
-        "count": 1,
-        "hash": "a6b6604679d2eeaf",
-        "name": "au.engine.repo",
-        "type_owners": [
-          "au-engine"
-        ]
-      },
-      {
         "count": 3,
         "hash": "5e0e7832792eff4c",
         "name": "note",
         "type_owners": [
           "instance-counts"
+        ]
+      },
+      {
+        "count": 1,
+        "hash": "03336d678cabc4dd",
+        "name": "tb.engine.repo",
+        "type_owners": [
+          "tb-engine"
         ]
       }
     ],

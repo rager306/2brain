@@ -1,0 +1,198 @@
+---
+source: crates/tb-cli/tests/it/scenarios.rs
+assertion_line: 219
+expression: rendered
+---
+{
+  "diagnostics": [],
+  "instances": {
+    "aborted_at_load": false,
+    "count": 2,
+    "entries": [
+      {
+        "body_events": null,
+        "claim": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "closure": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "deps",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "tb.engine.dep::tb-engine[]"
+              }
+            ],
+            "required": false,
+            "shape": "tb.engine.dep::tb-engine[]"
+          },
+          {
+            "divergent": false,
+            "field": "description",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "name",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": true,
+                "shape": "String"
+              }
+            ],
+            "required": true,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "remote",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 19,
+                        "line_col": {
+                          "end": {
+                            "col": 20,
+                            "line": 1
+                          },
+                          "start": {
+                            "col": 7,
+                            "line": 1
+                          }
+                        },
+                        "start": 6
+                      },
+                      "file": "<root>/scenarios/def-ref-clean/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "def-ref-clean"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "def-ref-clean"
+                }
+              }
+            ],
+            "field": "name"
+          }
+        ],
+        "file": "<root>/scenarios/def-ref-clean/.arsumbris/repo.yaml",
+        "section_presence": null
+      },
+      {
+        "body_events": [],
+        "claim": [
+          "mode"
+        ],
+        "closure": [
+          "mode"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "propose-tool",
+            "origins": [
+              {
+                "name": "mode",
+                "origin_path": "<root>/scenarios/def-ref-clean/type/mode.type.yaml",
+                "required": true,
+                "shape": "type<mcp.tool>*"
+              }
+            ],
+            "required": true,
+            "shape": "type<mcp.tool>*"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 51,
+                        "line_col": {
+                          "end": {
+                            "col": 37,
+                            "line": 3
+                          },
+                          "start": {
+                            "col": 15,
+                            "line": 3
+                          }
+                        },
+                        "start": 29
+                      },
+                      "file": "<root>/scenarios/def-ref-clean/an-induction-mode.md"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "anchor": null,
+                      "block_id": null,
+                      "kind": "reference",
+                      "target": "mcp.tool.propose"
+                    }
+                  }
+                ],
+                "value": {
+                  "anchor": null,
+                  "block_id": null,
+                  "kind": "reference",
+                  "target": "mcp.tool.propose"
+                }
+              }
+            ],
+            "field": "propose-tool"
+          }
+        ],
+        "file": "<root>/scenarios/def-ref-clean/an-induction-mode.md",
+        "section_presence": null
+      }
+    ]
+  }
+}

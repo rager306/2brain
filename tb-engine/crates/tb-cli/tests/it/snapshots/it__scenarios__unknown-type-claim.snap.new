@@ -1,0 +1,150 @@
+---
+source: crates/tb-cli/tests/it/scenarios.rs
+assertion_line: 219
+expression: rendered
+---
+{
+  "diagnostics": [
+    {
+      "code": "unknown-type-claim",
+      "message": "type-def 'nonexistent' is not present in the type graph",
+      "severity": "error",
+      "span": {
+        "file": "<root>/scenarios/unknown-type-claim/ghost.md",
+        "line_col": {
+          "end": {
+            "col": 18,
+            "line": 2
+          },
+          "start": {
+            "col": 7,
+            "line": 2
+          }
+        },
+        "range": {
+          "end": 21,
+          "start": 10
+        }
+      }
+    }
+  ],
+  "instances": {
+    "aborted_at_load": false,
+    "count": 2,
+    "entries": [
+      {
+        "body_events": null,
+        "claim": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "closure": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "deps",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "tb.engine.dep::tb-engine[]"
+              }
+            ],
+            "required": false,
+            "shape": "tb.engine.dep::tb-engine[]"
+          },
+          {
+            "divergent": false,
+            "field": "description",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "name",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": true,
+                "shape": "String"
+              }
+            ],
+            "required": true,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "remote",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 24,
+                        "line_col": {
+                          "end": {
+                            "col": 25,
+                            "line": 1
+                          },
+                          "start": {
+                            "col": 7,
+                            "line": 1
+                          }
+                        },
+                        "start": 6
+                      },
+                      "file": "<root>/scenarios/unknown-type-claim/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "unknown-type-claim"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "unknown-type-claim"
+                }
+              }
+            ],
+            "field": "name"
+          }
+        ],
+        "file": "<root>/scenarios/unknown-type-claim/.arsumbris/repo.yaml",
+        "section_presence": null
+      }
+    ]
+  }
+}

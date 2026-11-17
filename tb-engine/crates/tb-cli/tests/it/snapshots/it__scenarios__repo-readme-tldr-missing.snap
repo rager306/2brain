@@ -1,15 +1,15 @@
 ---
-source: crates/au-cli/tests/it/scenarios.rs
+source: crates/tb-cli/tests/it/scenarios.rs
 expression: rendered
 ---
 {
   "diagnostics": [
     {
       "code": "required-field-absent",
-      "message": "instance is missing required field 'tldr' (declared on 'au.engine.readme')",
+      "message": "instance is missing required field 'tldr' (declared on 'tb.engine.readme')",
       "related": [
         {
-          "file": "<au-engine-builtin>/au.engine.readme.type.yaml",
+          "file": "<au-engine-builtin>/tb.engine.readme.type.yaml",
           "range": {
             "end": 404,
             "start": 400
@@ -43,10 +43,10 @@ expression: rendered
       {
         "body_events": null,
         "claim": [
-          "au.engine.repo::au-engine"
+          "tb.engine.repo::tb-engine"
         ],
         "closure": [
-          "au.engine.repo::au-engine"
+          "tb.engine.repo::tb-engine"
         ],
         "effective_shape": [
           {
@@ -54,24 +54,24 @@ expression: rendered
             "field": "deps",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
-                "shape": "au.engine.dep::au-engine[]"
+                "shape": "tb.engine.dep::tb-engine[]"
               }
             ],
             "required": false,
-            "shape": "au.engine.dep::au-engine[]"
+            "shape": "tb.engine.dep::tb-engine[]"
           },
           {
             "divergent": false,
             "field": "description",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
               }
@@ -84,9 +84,9 @@ expression: rendered
             "field": "name",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": true,
                 "shape": "String"
               }
@@ -99,9 +99,9 @@ expression: rendered
             "field": "remote",
             "origins": [
               {
-                "name": "au.engine.repo",
-                "origin_path": "<au-engine-builtin>/au.engine.repo.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
               }
@@ -233,10 +233,10 @@ expression: rendered
           }
         ],
         "claim": [
-          "au.engine.readme::au-engine"
+          "tb.engine.readme::tb-engine"
         ],
         "closure": [
-          "au.engine.readme::au-engine"
+          "tb.engine.readme::tb-engine"
         ],
         "effective_shape": [
           {
@@ -244,9 +244,9 @@ expression: rendered
             "field": "tldr",
             "origins": [
               {
-                "name": "au.engine.readme",
-                "origin_path": "<au-engine-builtin>/au.engine.readme.type.yaml",
-                "repo": "au-engine",
+                "name": "tb.engine.readme",
+                "origin_path": "<au-engine-builtin>/tb.engine.readme.type.yaml",
+                "repo": "tb-engine",
                 "required": true,
                 "shape": "String"
               }

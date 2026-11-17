@@ -1,0 +1,575 @@
+---
+source: crates/tb-cli/tests/it/scenarios.rs
+assertion_line: 219
+expression: rendered
+---
+{
+  "diagnostics": [],
+  "instances": {
+    "aborted_at_load": false,
+    "count": 4,
+    "entries": [
+      {
+        "body_events": null,
+        "claim": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "closure": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "deps",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "tb.engine.dep::tb-engine[]"
+              }
+            ],
+            "required": false,
+            "shape": "tb.engine.dep::tb-engine[]"
+          },
+          {
+            "divergent": false,
+            "field": "description",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "name",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": true,
+                "shape": "String"
+              }
+            ],
+            "required": true,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "remote",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 41,
+                        "line_col": {
+                          "end": {
+                            "col": 42,
+                            "line": 1
+                          },
+                          "start": {
+                            "col": 7,
+                            "line": 1
+                          }
+                        },
+                        "start": 6
+                      },
+                      "file": "<root>/scenarios/qualified-parent-same-name-no-cycle/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "qualified-parent-same-name-no-cycle"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "qualified-parent-same-name-no-cycle"
+                }
+              }
+            ],
+            "field": "name"
+          }
+        ],
+        "file": "<root>/scenarios/qualified-parent-same-name-no-cycle/.arsumbris/repo.yaml",
+        "section_presence": null
+      },
+      {
+        "body_events": null,
+        "claim": [
+          "tb.engine.workspace::tb-engine"
+        ],
+        "closure": [
+          "tb.engine.workspace::tb-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "disabled",
+            "origins": [
+              {
+                "name": "tb.engine.workspace",
+                "origin_path": "<au-engine-builtin>/tb.engine.workspace.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String[]"
+              }
+            ],
+            "required": false,
+            "shape": "String[]"
+          },
+          {
+            "divergent": false,
+            "field": "discover",
+            "origins": [
+              {
+                "name": "tb.engine.workspace",
+                "origin_path": "<au-engine-builtin>/tb.engine.workspace.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String[]"
+              }
+            ],
+            "required": false,
+            "shape": "String[]"
+          },
+          {
+            "divergent": false,
+            "field": "edit",
+            "origins": [
+              {
+                "name": "tb.engine.workspace",
+                "origin_path": "<au-engine-builtin>/tb.engine.workspace.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String[]"
+              }
+            ],
+            "required": false,
+            "shape": "String[]"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 45,
+                        "line_col": {
+                          "end": {
+                            "col": 40,
+                            "line": 2
+                          },
+                          "start": {
+                            "col": 5,
+                            "line": 2
+                          }
+                        },
+                        "start": 10
+                      },
+                      "file": "<root>/scenarios/qualified-parent-same-name-no-cycle/.arsumbris/workspace.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "qualified-parent-same-name-no-cycle"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "qualified-parent-same-name-no-cycle"
+                }
+              },
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 54,
+                        "line_col": {
+                          "end": {
+                            "col": 9,
+                            "line": 3
+                          },
+                          "start": {
+                            "col": 5,
+                            "line": 3
+                          }
+                        },
+                        "start": 50
+                      },
+                      "file": "<root>/scenarios/qualified-parent-same-name-no-cycle/.arsumbris/workspace.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "base"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "base"
+                }
+              },
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 62,
+                        "line_col": {
+                          "end": {
+                            "col": 8,
+                            "line": 4
+                          },
+                          "start": {
+                            "col": 5,
+                            "line": 4
+                          }
+                        },
+                        "start": 59
+                      },
+                      "file": "<root>/scenarios/qualified-parent-same-name-no-cycle/.arsumbris/workspace.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "app"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "app"
+                }
+              }
+            ],
+            "field": "edit"
+          }
+        ],
+        "file": "<root>/scenarios/qualified-parent-same-name-no-cycle/.arsumbris/workspace.yaml",
+        "section_presence": null
+      },
+      {
+        "body_events": null,
+        "claim": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "closure": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "deps",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "tb.engine.dep::tb-engine[]"
+              }
+            ],
+            "required": false,
+            "shape": "tb.engine.dep::tb-engine[]"
+          },
+          {
+            "divergent": false,
+            "field": "description",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "name",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": true,
+                "shape": "String"
+              }
+            ],
+            "required": true,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "remote",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 31,
+                        "line_col": {
+                          "end": {
+                            "col": 1,
+                            "line": 4
+                          },
+                          "start": {
+                            "col": 5,
+                            "line": 3
+                          }
+                        },
+                        "start": 20
+                      },
+                      "file": "<root>/scenarios/qualified-parent-same-name-no-cycle/app/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "fields": [
+                        {
+                          "field": "name",
+                          "values": [
+                            {
+                              "kind": "scalar",
+                              "value": "base"
+                            }
+                          ]
+                        }
+                      ],
+                      "kind": "inline_record"
+                    }
+                  }
+                ],
+                "value": {
+                  "fields": [
+                    {
+                      "field": "name",
+                      "values": [
+                        {
+                          "kind": "scalar",
+                          "value": "base"
+                        }
+                      ]
+                    }
+                  ],
+                  "kind": "inline_record"
+                }
+              }
+            ],
+            "field": "deps"
+          },
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 9,
+                        "line_col": {
+                          "end": {
+                            "col": 10,
+                            "line": 1
+                          },
+                          "start": {
+                            "col": 7,
+                            "line": 1
+                          }
+                        },
+                        "start": 6
+                      },
+                      "file": "<root>/scenarios/qualified-parent-same-name-no-cycle/app/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "app"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "app"
+                }
+              }
+            ],
+            "field": "name"
+          }
+        ],
+        "file": "<root>/scenarios/qualified-parent-same-name-no-cycle/app/.arsumbris/repo.yaml",
+        "section_presence": null
+      },
+      {
+        "body_events": null,
+        "claim": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "closure": [
+          "tb.engine.repo::tb-engine"
+        ],
+        "effective_shape": [
+          {
+            "divergent": false,
+            "field": "deps",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "tb.engine.dep::tb-engine[]"
+              }
+            ],
+            "required": false,
+            "shape": "tb.engine.dep::tb-engine[]"
+          },
+          {
+            "divergent": false,
+            "field": "description",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "name",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": true,
+                "shape": "String"
+              }
+            ],
+            "required": true,
+            "shape": "String"
+          },
+          {
+            "divergent": false,
+            "field": "remote",
+            "origins": [
+              {
+                "name": "tb.engine.repo",
+                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "repo": "tb-engine",
+                "required": false,
+                "shape": "String"
+              }
+            ],
+            "required": false,
+            "shape": "String"
+          }
+        ],
+        "effective_values": [
+          {
+            "containers": [
+              {
+                "contributions": [
+                  {
+                    "location": {
+                      "byte_range": {
+                        "end": 10,
+                        "line_col": {
+                          "end": {
+                            "col": 11,
+                            "line": 1
+                          },
+                          "start": {
+                            "col": 7,
+                            "line": 1
+                          }
+                        },
+                        "start": 6
+                      },
+                      "file": "<root>/scenarios/qualified-parent-same-name-no-cycle/base/.arsumbris/repo.yaml"
+                    },
+                    "section_path": [],
+                    "surface": "frontmatter",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "base"
+                    }
+                  }
+                ],
+                "value": {
+                  "kind": "scalar",
+                  "value": "base"
+                }
+              }
+            ],
+            "field": "name"
+          }
+        ],
+        "file": "<root>/scenarios/qualified-parent-same-name-no-cycle/base/.arsumbris/repo.yaml",
+        "section_presence": null
+      }
+    ]
+  }
+}

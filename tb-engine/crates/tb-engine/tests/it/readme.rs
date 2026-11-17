@@ -20,7 +20,7 @@ fn write(root: &Path, rel: &str, body: &str) {
     fs::write(p, body).unwrap();
 }
 
-const CONFORMANT_README: &str = "---\ntype: au.engine.readme::au-engine\ntldr: t\n---\n\n# Repo Overview\n\n## What this is\n\nt\n\n## How to use this\n\nt\n\n## How to extend this\n\nt\n";
+const CONFORMANT_README: &str = "---\ntype: tb.engine.readme::tb-engine\ntldr: t\n---\n\n# Repo Overview\n\n## What this is\n\nt\n\n## How to use this\n\nt\n\n## How to extend this\n\nt\n";
 
 #[test]
 fn an_entry_repo_with_no_readme_warns() {
@@ -29,7 +29,7 @@ fn an_entry_repo_with_no_readme_warns() {
     write(
         &root,
         ".arsumbris/repo.yaml",
-        "name: v\ntype: au.engine.repo::au-engine\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     // No README.md at the root.
     assert!(
@@ -46,7 +46,7 @@ fn a_conformant_readme_clears_the_obligation() {
     write(
         &root,
         ".arsumbris/repo.yaml",
-        "name: v\ntype: au.engine.repo::au-engine\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     write(&root, "README.md", CONFORMANT_README);
     let cs = codes(&root);
@@ -64,14 +64,14 @@ fn a_readme_without_a_tldr_field_fires_required_field_absent() {
     write(
         &root,
         ".arsumbris/repo.yaml",
-        "name: v\ntype: au.engine.repo::au-engine\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     // Self-declares the type and carries every section, but omits the required
     // `tldr` field, so it validates like any instance missing a required field.
     write(
         &root,
         "README.md",
-        "---\ntype: au.engine.readme::au-engine\n---\n\n# Repo Overview\n\n## What this is\n\nt\n\n## How to use this\n\nt\n\n## How to extend this\n\nt\n",
+        "---\ntype: tb.engine.readme::tb-engine\n---\n\n# Repo Overview\n\n## What this is\n\nt\n\n## How to use this\n\nt\n\n## How to extend this\n\nt\n",
     );
     let cs = codes(&root);
     assert!(
@@ -87,7 +87,7 @@ fn a_root_readme_without_a_type_claim_warns_undeclared() {
     write(
         &root,
         ".arsumbris/repo.yaml",
-        "name: v\ntype: au.engine.repo::au-engine\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     // A plain README, no frontmatter type.
     write(&root, "README.md", "# What this is\n\nt\n");
@@ -109,7 +109,7 @@ fn a_readme_claim_off_the_root_warns_misplaced() {
     write(
         &root,
         ".arsumbris/repo.yaml",
-        "name: v\ntype: au.engine.repo::au-engine\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     write(&root, "README.md", CONFORMANT_README);
     // A second file claiming the readme type, off the root, conformant body so
@@ -129,16 +129,16 @@ fn a_readme_is_queryable_via_instances_of() {
     write(
         &root,
         ".arsumbris/repo.yaml",
-        "name: v\ntype: au.engine.repo::au-engine\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     write(&root, "README.md", CONFORMANT_README);
     let kb = tb_engine::build(&root, &RealFileSystem).expect("build");
     // The README is a first-class node, so it is queryable like any instance; no
     // dedicated read is needed.
-    let recs = tb_engine::wire::introspect_instances_of(&kb, "au.engine.readme", None);
+    let recs = tb_engine::wire::introspect_instances_of(&kb, "tb.engine.readme", None);
     assert!(
         recs.iter().any(|r| r.path.ends_with("README.md")),
-        "the README is queryable via instances_of(au.engine.readme), got {:?}",
+        "the README is queryable via instances_of(tb.engine.readme), got {:?}",
         recs.iter().map(|r| r.path.as_str()).collect::<Vec<_>>()
     );
 }
@@ -152,19 +152,19 @@ fn a_non_editable_member_without_a_readme_is_exempt() {
     write(
         &root,
         ".arsumbris/repo.yaml",
-        "name: home\ntype: au.engine.repo::au-engine\n",
+        "name: home\ntype: tb.engine.repo::tb-engine\n",
     );
     write(
         &root,
         ".arsumbris/workspace.yaml",
-        "edit:\n  - home\ndiscover:\n  - sub\ntype: au.engine.workspace::au-engine\n",
+        "edit:\n  - home\ndiscover:\n  - sub\ntype: tb.engine.workspace::tb-engine\n",
     );
     write(&root, "README.md", CONFORMANT_README);
     // The discover member, no README of its own.
     write(
         &root,
         "sub/.arsumbris/repo.yaml",
-        "name: sub\ntype: au.engine.repo::au-engine\n",
+        "name: sub\ntype: tb.engine.repo::tb-engine\n",
     );
     let cs = codes(&root);
     assert!(
