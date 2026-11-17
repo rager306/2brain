@@ -541,6 +541,43 @@ Four artifacts now decide what a ranking claim means, and each one changed a pla
   unanswerable tops, and `matched_terms` does not discriminate (4.75 against 5.32). Those two measurements killed the two
   obvious candidates for a confidence signal before anyone built them.
 
+### What shipped after the research lanes, and what it cost
+
+Five changes landed from the research rather than from the plan, each with a measurement attached:
+
+| change | measured effect |
+|---|---|
+| **concise is the tool surface default** (`30a0c88`) | 59 127 → 19 404 bytes: **−9 931 tokens per session, −67 %**, with the validation contract intact (`required` identical on 36/36) and `tb_describe_tool` byte-identical across profiles |
+| **the one-line description cuts on a clause** (`fb5b973`) | eight descriptions stopped splitting mid-phrase; `lib.rs` went 4564 → 4556 production lines and the ratchet followed down |
+| **a URL query is a source-identity lookup** (`2577be2`) | `z08` absent → rank 4, 159 of 160 rows byte-identical, golden unchanged |
+| **abstention did not ship** (`419ab8b`) | twelve observables, best two-feature rule 6/8 in-sample, **0/8 under leave-one-out** — so `confidence` stays unimplemented |
+| **the measurement doctrine** (`d120804`) | five rules, each paid for by a defect this session produced |
+
+Two of those are worth more than the code: the surface default improves **every future session's cost**, and the abstention
+refusal removed a feature that would have shipped as a coin flip.
+
+### The plan after them
+
+The research produced three concrete transfers that need no engine change, and they are now the queue:
+
+1. **The claim register as typed notes** (arscontexta's `claim-map`): `type: claim` with an `evidence:` link to a key in
+   `tools/cards/metrics.json`, and `type: decision-note` with `backed_by:`/`supersedes:`. It is what lets the base answer
+   "what backs this claim" instead of only "which note mentions it" — the difference between a memory and a search index.
+2. **The answer contract as an MCP prompt** (arscontexta's `ask`): we ship neither `prompts` nor `resources`, and both cost
+   zero schema bytes. The six-part answer shape and the honesty standard are text, and text is what the protocol has a slot
+   for. Our tools return inputs to an answer; nothing in the product is under contract to produce one.
+3. **Condition thresholds surfaced as tasks** (`graph_health` fires → a queue entry, not a report line).
+
+Two things stay blocked and both are the user's to open: the nine-change deploy window, and the vault migration while other
+sessions hold uncommitted paths.
+
+### What the second opinion changed about how we state things
+
+No MDE from this stack is quotable — the σ was of the wrong type, taken from another corpus and from one contaminated pair.
+The method survives (declare σ, derive n, name it with the claim); the constants do not. The same review withdrew the
+"factorial" framing of the 160-question axes (two axes have no contrast), and the claim that a graded metric makes ranking
+arguments decidable. What replaced them is duller and true: the set names a mechanism and shows the row it moved.
+
 ### What that changes in the stages
 
 - **Stage 1** is done except the deploy window; #4 is the one remaining piece of design debt it created. The window
