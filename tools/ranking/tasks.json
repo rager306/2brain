@@ -178,6 +178,15 @@
       ],
       "expect": "any",
       "why": "The English note says what the Russian question asks: every edge carries four timestamps, so validity in the world is tracked separately from ingestion time. There is no shared token, so the row measures the bilingual gap; the Russian sibling knowledge/bitemporal-valid-transaction-time.md ranks third and is a different note (the general model, not the edge model)."
+    },
+    {
+      "query": "SoT",
+      "class": "alias",
+      "evidence": [
+        "knowledge/ontology-as-single-source-of-truth-code-never-primary.md"
+      ],
+      "expect": "hit",
+      "why": "`SoT` is the acronym the corpus uses for \"source of truth\", and this note states the expansion without ever writing the acronym (measured by tools/kb/alias_audit.py: 2 943 acronym-shaped tokens, 285 same-note expansion pairs). A query on the acronym cannot reach it through the tokenizer, so the row measures the alias class rather than a ranking weight; if it is accepted as a defect, the fix is a query-time alias map, not a third index field (task-set section 4)."
     }
   ],
   "counts": {
@@ -191,6 +200,7 @@
     "exact-and": 1,
     "mixed-language": 2,
     "hub-vs-atomic": 1,
-    "bilingual": 1
+    "bilingual": 1,
+    "alias": 1
   }
 }

@@ -1,6 +1,6 @@
 # The task-level set, and the three defects it found on its first run
 
-`tools/ranking/tasks.json` holds eighteen hand-written tasks in eleven classes: exact identifiers, paraphrases, a
+`tools/ranking/tasks.json` holds nineteen hand-written tasks in twelve classes: exact identifiers, paraphrases, a
 Russian question about English material, multi-note questions, one ambiguous query, three the base should **not**
 answer, and five classes added from the coverage audit (section *The five failure classes*, below).
 `tools/ranking/tasks_eval.py` scores them. The synthetic set (`labelled-queries.json`) measures rank stability; this
@@ -21,7 +21,7 @@ The misses are the useful part.
 
 ## The decision rule this table supports, and the one it does not
 
-The table answers "does this class still pass", not "how much better is this build". Eighteen rows over eleven
+The table answers "does this class still pass", not "how much better is this build". Nineteen rows over twelve
 classes give one to three rows per class, so a single row is 33–100% of its class and no percentage has a
 sampling error behind it; a bootstrap over eighteen non-independent hand-written rows would be arithmetic
 without a model. The rule is therefore per row and fixed before the run:
@@ -419,6 +419,21 @@ corpus-side: an English `description:` on the note (that field is weighted 3× t
 indexed with it. The task stays in the set as the measurement of that convention rather than of a ranker change: it
 passes when the note enters the page, whatever the mechanism.
 
+### 6. alias — **defect**, the acronym and the expansion are different tokens
+
+`SoT` is the corpus's own shorthand for "source of truth". The expected note,
+`knowledge/ontology-as-single-source-of-truth-code-never-primary.md`, states the expansion and never writes
+the acronym. The query returns 15 notes, every one of which contains the acronym literally; the expected note
+is not among them at any rank. `tools/kb/alias_audit.py` sizes the class: 2 943 acronym-shaped tokens, 1 222
+in two or more notes, 285 same-note expansion pairs, 272 with divergence ≥ 0.5, and nine of the fifteen
+most-used pairs read as real — the class is real, and automatic pairing is about six in ten precise.
+
+**Verdict: a defect whose fix is a mechanism decision, not a weight.** A third indexed field is closed
+(section 4). What remains is a curated alias map applied at query time (expand `SoT` to `source of truth`
+before scoring) or corpus-side wording. The row is registered before either: it must pass without moving
+another row. The same evidence weakens the `aliases:` field suggested for the bilingual note above — that
+field would change `matched` exactly as the title field did.
+
 ### What a fix has to preserve
 
 In the shape the earlier experiments used, written down before the change:
@@ -788,7 +803,7 @@ the same rows, take the paired-delta σ, and only then state the n a given effec
   support at 1 and answer at 2 is 0.860. That is a value judgement about recall, not a fact about relevance,
   and exponential gain would say the opposite.
 - **Generality.** The rows are a hand-built diagnostic set, not a sample of a population. Everything above
-  is true of these eighteen questions; the MDE says how far it is from a claim about questions in general.
+  is true of these nineteen questions; the MDE says how far it is from a claim about questions in general.
 
 ### Reproduction
 
