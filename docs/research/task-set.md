@@ -371,7 +371,10 @@ ranked path answers a question and a hub there is a pointer, not evidence. Gate 
 
 **Run 2026-11-17 — rejected, the wire flag is the wrong boundary.** `ReasoningBank` stayed at rank 6: the task is
 called `exact` because its expected note states the term exactly, not because the request sets `exact: true`.
-The query is one token, and the map it should find is the answer.
+The query is one token, and the map it should find is the answer. (The first attempt at this run measured the
+previous binary: a failed `cargo build` piped through `tail` printed no error, and the copy that followed copied
+the stale artifact. The run was discarded and repeated; every number above names a binary whose build exit code
+was checked.)
 
 **Next registration, same day — the map yield only for a multi-term query.** A one- or two-term query is a
 lookup; at three distinct terms the read answers a question, and a hub there is a pointer. The rule counts the
