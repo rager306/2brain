@@ -64,6 +64,32 @@ human finds a real relation.
 - `knowledge/vendor-doctrine-converges-on-atomic-judgments.md` — best candidate `inbox/sermakarevich-sixty-ai-code-reviewers.md` at 2 matched term(s)
 - `manual/manual.md` — best candidate `inbox/allspark-research-tool-descriptions-learn-from-gitnexus-and-codebase-memory-mcp.md` at 1 matched term(s)
 
-**Decision.** No writes. Every accepted row is a one-line edit in the source note, and a pattern
-note with one inbound edge is better than a hub that cites every pattern mechanically. The next
-pass takes the 24 rows in order and either links the orphan or records why not.
+**Decision.** The first pass applied nine notes (`/root/vault` commit `850e89f`), each as one added
+topic in the source note, only where the source states the target's distinctive subject in its own
+words:
+
+| target that gained an inbound edge | source |
+|---|---|
+| `pattern-adversarial-verifier-role` | `inbox/gemini-4-carbon-swarm-antigravity.md` |
+| `pattern-zero-token-idle-message-board` | `inbox/gemini-4-carbon-swarm-antigravity.md` |
+| `pattern-agents-remove-apparatus-freely` | `inbox/exact-discipline-deep.md` |
+| `pattern-defeasible-norm-conflicts` | `inbox/law-ai-nlp-landscape.md` |
+| `pattern-option-attention-choice-head` | `inbox/jevlike-open-option-attention-starter.md` |
+| `pattern-policy-change-from-monitor-state` | `inbox/policy-change-treelike-monitors.md` |
+| `pattern-static-embedding-hybrid-search` | `knowledge/mnemosyne-hybrid-search-three-component.md` |
+| `decision-models-crowned-by-calibration-commodity` | `inbox/openai-decisions-api-validates-decision-model-category.md` and `inbox/decision-models-become-a-product-category.md` |
+| `pattern-memory-anchored-to-code-symbols` | `inbox/graphicle-rust-code-graph-agent-memory.md` |
+
+Effect on the live graph: edges 4 730 → 4 740, no-inbound 379 → 370, isolated unchanged at 197,
+diagnostics 0.
+
+The other fifteen of the 24 stay open. Their best candidate matched three or more terms but on
+generic vocabulary (`pattern`, `agent`, `runtime`, `hybrid search`, `message board`), and the shared
+phrase is a description of a category, not a statement about the orphan: `pattern-agent-first-runtime`
+against a note about Expo's runtime, `pattern-forward-budget-keep-best-edit` against a note that only
+says "keep best". A link there would be a guess dressed as structure, so each is recorded as a
+refusal rather than written.
+
+A pattern note with one inbound edge is better than a hub that cites every pattern mechanically;
+the next pass starts from the fifteen, and the ones that need a real relation are the ones where a
+human has to say what the relation is.
