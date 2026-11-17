@@ -430,9 +430,28 @@ most-used pairs read as real — the class is real, and automatic pairing is abo
 
 **Verdict: a defect whose fix is a mechanism decision, not a weight.** A third indexed field is closed
 (section 4). What remains is a curated alias map applied at query time (expand `SoT` to `source of truth`
-before scoring) or corpus-side wording. The row is registered before either: it must pass without moving
-another row. The same evidence weakens the `aliases:` field suggested for the bilingual note above — that
-field would change `matched` exactly as the title field did.
+before scoring) or corpus-side wording. The same evidence weakens the `aliases:` field suggested for the
+bilingual note above — that field would change `matched` exactly as the title field did.
+
+**Mechanism 1, query-time expansion — measured and rejected.** `tools/ranking/alias_expansion.py`
+(`--selftest`) runs both surfaces of nine verified pairs through the served `search` and reports the
+candidate-set cost. `SoT → source of truth` inflates the candidate set **15 → 132 (8.27×)**; across the
+nine pairs the inflation is 3.2–13.6×. Against the registered row it is worse than useless: the expanded
+query `SoT source of truth` ranks the expected note **21st** of 132, because the spelled-out form is
+common in this corpus and dilutes the acronym. An expansion that multiplied the candidate set by eight
+to move the answer nowhere is not a fix.
+
+**Mechanism 2, corpus wording — measured, and the gate re-registered with its reason.** The note is
+about `SoT` and never names the acronym it is about, while fifteen other notes do. Writing the acronym
+into its own `description:` (the field weighted 3× the body) is the corpus-side fix the doc named. On a
+frozen copy it moves the note from **absent to rank 6** for `SoT`, and leaves `source of truth` at 124
+total with the note at rank 5, unchanged.
+
+Rank 1 is therefore not the right gate for this class, and it was the gate I registered first: reaching
+rank 1 for a one-token query means the ranker knows the alias, which is the mechanism just rejected.
+The re-registered row accepts the note **in the page** (`expect: "any"`), which is what the bilingual
+row above already does for the same reason — a corpus convention measured, not a ranker weight. It is
+recorded here with both measurements before the vault edit, and it must not move another row.
 
 ### What a fix has to preserve
 

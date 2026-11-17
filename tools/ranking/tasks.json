@@ -185,8 +185,8 @@
       "evidence": [
         "knowledge/ontology-as-single-source-of-truth-code-never-primary.md"
       ],
-      "expect": "hit",
-      "why": "`SoT` is the acronym the corpus uses for \"source of truth\", and this note states the expansion without ever writing the acronym (measured by tools/kb/alias_audit.py: 2 943 acronym-shaped tokens, 285 same-note expansion pairs). A query on the acronym cannot reach it through the tokenizer, so the row measures the alias class rather than a ranking weight; if it is accepted as a defect, the fix is a query-time alias map, not a third index field (task-set section 4)."
+      "expect": "any",
+      "why": "`SoT` is the acronym the corpus uses for \"source of truth\", and this note stated the expansion without ever writing the acronym. Query-time expansion was measured first and rejected: it inflates the candidate set 15 -> 132 (8.27x) and ranks the expected note 21st of 132. The corpus-side fix - writing the acronym into the note's own description - moves it from absent to rank 6 and leaves `source of truth` unchanged, so the row accepts the note IN THE PAGE, like the bilingual row, rather than at rank 1 (`docs/research/task-set.md` section 6)."
     }
   ],
   "counts": {
