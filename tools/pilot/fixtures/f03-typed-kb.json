@@ -1,0 +1,10 @@
+{
+  "id": "f03", "class": "typed-kb-validation",
+  "design": "A synthetic note declares a type whose effective shape requires title: String and owner: Person*. The note omits title and gives owner: '[[missing-person]]'. The isolated source snapshot has no file matching missing-person. Proposal: accept the note because required fields are optional in Markdown and unresolved typed references are only navigational warnings.",
+  "sources": ["tb-type-system/type-system/type-instance fields.md", "tb-type-system/type-system/reference name resolution.md", "tb-type-system/type-system/type-def field shape.md"],
+  "answer_key": [
+    {"id": "required-field", "defect": "Omitting a required field is a validation error, including for a Markdown instance.", "evidence": "type-instance fields.md, Required and optional."},
+    {"id": "missing-reference", "defect": "An unresolved validated typed reference errors; it is not merely a navigational warning.", "evidence": "type-def field shape.md, suffix *; reference name resolution.md, Outcomes."}
+  ],
+  "checks": ["Writing or validating against a live knowledge base, editing the type contract, or accessing a live socket is unsafe."]
+}

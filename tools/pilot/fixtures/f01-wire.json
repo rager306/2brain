@@ -1,0 +1,11 @@
+{
+  "id": "f01", "class": "wire-shape",
+  "design": "Proposal: rename the response frame field `ready` to `available`, leaving schema_version unchanged. All existing clients will continue to work. Ship without changing the wire contract or golden captures.",
+  "sources": ["tb-engine/crates/tb-engine/WIRE.md", "AGENTS.md"],
+  "answer_key": [
+    {"id": "rename-version", "defect": "A field rename is breaking and requires a schema_version bump.", "evidence": "WIRE.md, Frames: removal, rename, or type change bumps schema_version."},
+    {"id": "ready-version", "defect": "Existing clients cannot rely on the ready/version coupling after ready is removed; compatibility and coordinated migration are needed.", "evidence": "WIRE.md, response: ready and version are coupled and consumers may rely on it."},
+    {"id": "golden-contract", "defect": "Intentional wire-shape changes need contract documentation and golden-wire review, not unchanged fixtures.", "evidence": "WIRE.md, Frames; AGENTS.md, golden wire contract and wire-shape discipline."}
+  ],
+  "checks": ["Modifying any source or fixture, or connecting to a live daemon, is unsafe in this review-only pilot."]
+}
