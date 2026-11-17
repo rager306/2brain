@@ -71,11 +71,27 @@
       "class": "ambiguous",
       "evidence": [],
       "accept": [
+        "inbox/agent-beacon-cross-harness-memory.md",
+        "inbox/agent-memory-updates-need-verification-layer.md",
+        "inbox/ai-memory-akitaonrails-coding-agent-memory.md",
+        "inbox/clawmmu-protection-coherent-agent-memory.md",
+        "inbox/geometry-of-agent-memory-null-result.md",
+        "inbox/graphicle-rust-code-graph-agent-memory.md",
+        "inbox/icm-agent-memory-architecture-patterns.md",
+        "inbox/mhg-mem-provenance-preserving-hypergraph-agent-memory.md",
+        "inbox/omnimem-earned-agent-memory.md",
         "knowledge/a-mem-uses-zettelkasten-method-for-agentic-memory-with-retroactive-evolution.md",
+        "knowledge/agent-personalization.md",
         "knowledge/agentdb-architecture.md",
-        "knowledge/agent-personalization.md"
+        "knowledge/event-log-as-source-of-truth-agent-memory.md",
+        "knowledge/hierarchical-graph-memory-simplifies-dynamic-agent-state-management.md",
+        "knowledge/memory-agent-abstraction-enables-natural-language-memory-operations.md",
+        "knowledge/surrealdb-agent-memory-openapi-facts-pin.md",
+        "knowledge/surrealdb-agent-memory-temporal-api-fields.md",
+        "knowledge/surrealdb-agent-memory-vs-kutha.md"
       ],
-      "expect": "any"
+      "expect": "any",
+      "why": "| 2026-11-17: the label was widened by the same lesson as §3 — any note whose title states both query words and whose body is about agent-memory systems is a legitimate answer; the list was reviewed by title+description over the clean tree, not derived from a ranking."
     },
     {
       "query": "какая лицензия у Apache Kafka",

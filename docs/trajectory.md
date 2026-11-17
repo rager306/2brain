@@ -87,13 +87,14 @@ name its experiment does not start.
 | **S3** `tb_context` | open — only if it beats 1 call / 2.44 KB | `serve.rs`, `lib.rs` | the twelve-task pack | P2, after S1 |
 | **G1** graph fragility: bridges and articulation points | **landed 2026-11-17** — additive `graph_health` fields on the undirected projection; the sparx-derived idea that is a new diagnostic, not a new engine. On the 1 228-node / 4 730-edge snapshot: **37 bridges, 57 articulation points** | `serve.rs`, `schemas.rs`, `WIRE.md` | unit test (path+triangle, lone node); synthetic fixture and golden `graph_health` re-captured; engine fmt/clippy green, lib 741/1 and `it` 734/3 (the documented root-only fixtures); adapter fmt/clippy/tests green | P2 (engine, serial with the adapter) |
 | **G2** graph weaving: triangles and transitivity | **landed 2026-11-17** — `graph_health.clustering = {triangles, transitivity}` on the same projection; snapshot: **3 123 triangles, transitivity 0.1816** | `serve.rs`, `schemas.rs`, `WIRE.md` | unit test (triangle + pendant edges → 1, 0.5; empty/one edge → 0.0); fixtures re-captured; same gates as G1 | P2 (engine, serial) |
+| **G3** structural centrality, offline | **landed 2026-11-17** — `tools/graph_centrality.py` (PageRank + Brandes betweenness, `--selftest`); not wired into the engine or ranking | `tools/` | selftest on known graphs; comparison with `graph_health.central` still to be run | P1 (tooling, no cargo) |
 | **M1** task-set thresholds and graded gating | open | `tools/ranking/`, `docs/research/task-set.md` | σ and n stated before a claim; a bootstrap WORSE is a veto | P1 |
-| **C1** `family:` semantics | open — owner | type defs, `intake-decisions` | a decision note that separates provenance from topic | P1 |
-| **C2** `claim` type collision | open — owner | `type/claim.type.yaml` | `instances_of claim` needs no `evidence` filter | P1 |
+| **C1** `family:` semantics | **brief written 2026-11-17** (`docs/research/family-field-2026-11-17.md`); hybrid recommended, decision pending | type defs, `intake-decisions` | the hybrid rule accepted, then a first `family_audit` run | P1 |
+| **C2** `claim` type collision | **brief written 2026-11-17** (`docs/research/claim-type-2026-11-17.md`); rename the queue item to `ingest-task`, decision pending | `type/claim.type.yaml` | `instances_of claim` needs no `evidence` filter | P1 |
 | **C3** intake edges that point AT isolated notes | open | vault links | zero-inbound 32 → target; every refusal listed | P3 |
 | **C4** aliases | open — measure first | `docs/research/`, `tools/kb/` | the vocabulary class sized on 1 032 notes | P1 |
-| **C5** tier-C vault migration | blocked on a clean tree | `au migrate identity --apply` | diagnostics 0, `broken_links` 0 | P4 |
-| **D** the deploy window | blocked on the owner | binaries, deploy doc | capture, diff, rollback | P5 |
+| **C5** tier-C vault migration | **done 2026-11-17** — `.2brain/`, two claim lines, commit `a8aba4b`, 0 diagnostics | `au migrate identity --apply` | diagnostics 0, `broken_links` 0 | P4 |
+| **D** the deploy window | **done 2026-11-17** — engine `869f0ed9` + adapter `0.1.0+020d0de`; run log `docs/internal/deploy-2026-11-17.md` | binaries, deploy doc | capture, diff, rollback | P5 |
 | **H** release hygiene (Stage 2) | open | `install.sh`, CI, `tools/cards/` | a clean machine installs, runs `doctor`, one read and one write; `metrics.json` re-measured (it is a 2026-11-16 snapshot: later lanes saw 256 adapter and 730 engine-lib tests) and the cards re-rendered | P1 |
 
 ### Parallel execution: what may overlap
@@ -121,13 +122,14 @@ free to move while a cargo lane compiles.
 
 ### Decisions only the owner can take
 
-| decision | why it blocks | what deferring costs |
+| decision | state 2026-11-17 | what is left |
 |---|---|---|
-| the deploy window | changes are in the tree and not in the served binary; every "landed" claim in the vault is provisional until it runs | the vault keeps describing source instead of production (`cross-agent-handoff`) |
-| the vault migration window | migrating `/root/vault` to `.2brain/` needs a clean tree; other sessions hold uncommitted paths | tier C cannot close, so the legacy spelling stays in the format |
-| `family:` semantics | one field is both provenance and topic; 350 of 433 values have exactly one member | every intake pass that trusts `family` trusts a field with two meanings |
-| `claim` type | `claim` is both a proposition with `evidence` and an ingest work item | every query over `claim` must filter on `evidence` |
-| `grep` exact `total` vs an early exit | a whole-corpus byte scan is what an exact total costs (slope 1.00) | the one read whose cost is its contract |
+| the deploy window | **done** — engine `869f0ed9`, adapter `0.1.0+020d0de`; evidence in `docs/internal/deploy-2026-11-17.md` | nothing, except a client restart to pick the adapter up |
+| the vault migration | **done** — `.2brain/`, two claim lines, commit `a8aba4b`, 0 diagnostics | release 2 (drop the legacy spelling) remains a later step |
+| `family:` semantics | brief written: `docs/research/family-field-2026-11-17.md`; measured 429 values, 345 single-member, 191 provenance-like vs 238 topic-like | a yes/no on the hybrid rule (family = series/provenance, topics = subject) and a first run of the audit |
+| `claim` type | brief written: `docs/research/claim-type-2026-11-17.md`; 11 notes, 6 propositions and 5 queue items | a yes/no on renaming the queue item to `ingest-task`, with the pipeline change in the same step |
+| the `ambiguous` label | **resolved** — the accept set was widened 3 → 18 on a title+description predicate reviewed by hand; live run 1/1 at rank 1 | the `status` enum collision inside `claim` stays open |
+| `grep` exact `total` vs an early exit | open | owner: is the exact whole-corpus total part of the contract? |
 
 ## The open queue, in order of payoff per unit of risk
 

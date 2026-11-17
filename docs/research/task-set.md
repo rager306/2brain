@@ -57,6 +57,14 @@ and `ru-cross` keep their rank". The second half of that sentence is what makes 
 term. Both are legitimate evidence. The task schema now allows `accept` (any of several correct paths) beside
 `evidence` (the minimal set), because a single-path label measures the label as much as the search.
 
+**The same lesson, applied to `ambiguous` on 2026-11-17.** The query `agent memory` accepted three paths, and a
+title-match experiment moved notes literally titled after the query above all three — which read as a regression but
+was the label being narrower than the question. The accepted set is now **18**: the three definition notes plus the
+fifteen notes whose filename states both query words and whose description is an agent-memory system or method. The
+candidates were enumerated by a title predicate over a clean tree and reviewed by hand; no ranking was consulted, and
+the `why` field records the rule. Measured against the live server (new engine, adapter `0.1.0+020d0de`): `ambiguous` **1/1 at
+rank 1**, with the top hit `knowledge/memory-agent-abstraction-enables-natural-language-memory-operations.md`.
+
 ## What this set is for
 
 Stage 3 of the plan needs a threshold written down **before** the next ranking change. With eighteen tasks, one
