@@ -64,6 +64,7 @@ def cards(metrics: dict) -> dict[str, tuple[str, list[tuple[str, str]], str]]:
     ranking = metrics["ranking"]
     memory = metrics["memory"]
     kb = metrics["knowledge_base"]
+    graph_metrics = metrics["graph"]
     known = sum(gate.get("known_environment_failures", 0) for gate in gates.values())
     return {
         "gates": (
@@ -96,6 +97,17 @@ def cards(metrics: dict) -> dict[str, tuple[str, list[tuple[str, str]], str]]:
                 ("no link at all / nothing points at it", f'{kb["notes_without_links"]} / {kb["zero_inbound"]}'),
             ],
             "measured by tools/kb/census.py, weekly",
+        ),
+        "graph": (
+            "The graph's shape",
+            [
+                ("nodes / edges", f'{graph_metrics["nodes"]} / {graph_metrics["edges"]}'),
+                ("bridges", f'{graph_metrics["bridges"]}'),
+                ("articulation points", f'{graph_metrics["articulation_points"]}'),
+                ("triangles, transitivity", f'{graph_metrics["triangles"]} · {graph_metrics["transitivity"]:.3f}'),
+                ("isolated / sources", f'{graph_metrics["isolated"]} / {graph_metrics["sources"]}'),
+            ],
+            f'taken {graph_metrics["date"]}, after the .2brain migration',
         ),
         "memory": (
             "One vault, held in memory",

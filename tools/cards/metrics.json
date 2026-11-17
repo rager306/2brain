@@ -81,5 +81,19 @@
     "links": 4887,
     "zero_inbound": 32,
     "dead_ends": 19
+  },
+  "graph": {
+    "nodes": 1227,
+    "edges": 4730,
+    "bridges": 37,
+    "articulation_points": 57,
+    "triangles": 3123,
+    "transitivity": 0.1816,
+    "isolated": 197,
+    "sources": 182,
+    "cycles": 29,
+    "command": "2brain mcp /root/vault then tb_graph_health {\"limit\": 200}; or engine_probe.py --verb tb_graph_health on the live socket",
+    "date": "2026-11-17",
+    "source": "engine 869f0ed9, adapter 0.1.0+020d0de, vault a8aba4b (post-migration)"
   }
 }

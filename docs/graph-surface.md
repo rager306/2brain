@@ -27,9 +27,9 @@ is 29 and the change is additive.
 1. **An agent's read.** One `tb_graph_health` call answers "what is fragile here". The long description
    names the fields so `tools/list`, `tb_search_tools` and `tb_describe_tool` can route to it; the
    concise profile keeps the first sentence only, so the payload does the talking.
-2. **The card.** Add to `tools/cards/metrics.json`, each with its command and date:
-   `graph.bridges`, `graph.articulation_points`, `graph.triangles`, `graph.transitivity`,
-   `graph.isolated`, `graph.zero_inbound`. `render.py --check` then keeps the README honest. A weekly
+2. **The card.** `tools/cards/metrics.json` carries a `graph` section with its command and date
+   (nodes, edges, bridges, articulation points, triangles, transitivity, isolated, sources, cycles),
+   and `render.py` draws it in light and dark; `render.py --check` keeps the README honest. A weekly
    delta is the point: transitivity and zero-inbound are the two numbers an intake pass is supposed to
    move.
 3. **The evidence.** `docs/research/sparx-2026-11-17.md` holds the definition, the source of the idea

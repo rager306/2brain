@@ -59,6 +59,10 @@ number.
   <source media="(prefers-color-scheme: dark)" srcset="assets/cards/knowledge_base-dark.svg">
   <img src="assets/cards/knowledge_base-light.svg" width="410" alt="The knowledge base itself">
 </picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/cards/graph-dark.svg">
+  <img src="assets/cards/graph-light.svg" width="410" alt="The graph's shape: bridges, articulation points, triangles">
+</picture>
 </p>
 
 ## Quickstart
