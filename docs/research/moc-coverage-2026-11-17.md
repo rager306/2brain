@@ -57,9 +57,24 @@ a content decision — which of 372 notes belong under a human-curated heading �
 one, and the alternative to a link is not "nothing": `references_in` gives any client the exact
 reverse list, one read.
 
-**Next step, registered.** Take the top three maps in one pass and file the rest. A note whose
-placement under a map is unclear gets no link; a note that clearly belongs gets one line. The gate is
-`moc_links.py --check` reaching zero for the maps touched, not for the vault.
+**Pass 1, done 2026-11-17 (vault `620ffba`).** The three largest maps now link every note that names
+them — `agentic-architecture` 52 → **0 of 66**, `memory-systems` 50 → **0 of 71**, `jev` 39 → **0 of 61**
+— with each note placed under an existing heading rather than appended in one list. The vault total
+fell 372 → **232** unlinked, maps with a gap 31 → **28**, edges 4 754 → **4 895**, components
+207 → 206, diagnostics 0.
 
-**Not measured here.** Whether a reader is helped by the section an editor would write. The count
-says how many links are missing, not whether the map's headings would hold them.
+Two cases the pass had to handle rather than skip:
+
+- `codeactinstruct-enables-agent-training-without-general-capability-degradation` names **two** archive
+  files, so a bare link is ambiguous and the engine says so (`navigational-target-ambiguous`); the
+  map now carries the path-qualified form;
+- `jev-applications` was already listed twice under `jev`'s Related Topic Maps, so the generated row
+  would have been a third — the map keeps its two.
+
+**Next, in order of payload.** `agent-security` (21 of 21), `rust-ecosystem-kb-map` (16 of 18),
+`rust-ai-systems` (15 of 31), `self-improvement` (12 of 15), `search-patterns` (10 of 11),
+`zeroclaw-decisions` (20 of 66). The first five are small enough to finish in one pass each; the last
+is a judgement pass. A note whose placement is unclear gets no link.
+
+The gate stays `moc_links.py --check` over the maps touched, not the vault: the remaining 232 include
+maps whose gap is deliberate (a hub that should link only the notes it narrates).
