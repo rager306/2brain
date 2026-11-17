@@ -27,10 +27,11 @@ pub const IDENTITY_MARKER: &str = "repo.yaml";
 
 /// The identity directory a writer creates when the root holds neither spelling.
 ///
-/// Release 1 creates the legacy name, so a previous-release binary still reads what this one
-/// writes; release 2 flips it to [`IDENTITY_DIR`] (tier C step 7). A writer that finds an
-/// existing directory never consults this — it follows that directory instead.
-pub const CREATE_IDENTITY_DIR: &str = LEGACY_IDENTITY_DIR;
+/// Release 2 creates the new name (2026-11-17, tier C step 7). Release 1 created the legacy one so
+/// a previous binary could read what it wrote; readers still accept both spellings, so a tree
+/// written by release 1 is read unchanged and the migration window stays open. A writer that finds
+/// an existing directory never consults this — it follows that directory instead.
+pub const CREATE_IDENTITY_DIR: &str = IDENTITY_DIR;
 
 /// Whether `name` is an identity directory under either spelling.
 ///
@@ -139,12 +140,12 @@ mod tests {
     }
 
     #[test]
-    fn a_writer_creates_the_previous_release_can_still_read() {
+    fn a_writer_creates_the_new_spelling_for_a_new_root() {
         let root = Path::new("/repo");
-        assert_eq!(CREATE_IDENTITY_DIR, LEGACY_IDENTITY_DIR);
+        assert_eq!(CREATE_IDENTITY_DIR, IDENTITY_DIR);
         assert_eq!(
             identity_dir_for_write_with(root, present(&[])),
-            root.join(".arsumbris")
+            root.join(".2brain")
         );
     }
 

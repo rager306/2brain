@@ -78,6 +78,9 @@ tracked locks, and 11 more `extends: au.engine.meta::au-engine` lines (8 in `tb-
 repo cannot yield two markers; the probe is a closure because the walk must ask a `MemoryFileSystem` (a key map), not
 `std::fs`. **Write rule.** Follow the existing directory; if neither exists create `CREATE_IDENTITY_DIR` (`.arsumbris`
 in release 1, `.2brain` in release 2), which keeps the previous binary reading every tree release 1 writes.
+**Flipped 2026-11-17:** `CREATE_IDENTITY_DIR` is now `IDENTITY_DIR`, so a root holding neither spelling gets
+`.2brain`; readers still accept both, so every release-1 tree is read unchanged. The rest of step 7 — the `DEFS`
+rename, `BUILTIN_ENGINE_REPO = "tb-engine"`, the claim canonicalizer, and the snapshot re-bless — is not in this change.
 
 **The seam the inventory missed: a predicate cannot make a claim resolve.** `type: au.engine.repo::au-engine`
 resolves by name against the builtin graph (`crossref.rs:267` `peer_type_id` → `repo.rs:437` `by_name`). Rename `DEFS`

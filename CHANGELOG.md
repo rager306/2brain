@@ -12,6 +12,14 @@ source.
 
 ## [Unreleased]
 
+### Changed
+
+- **A new repository gets `.2brain/`, not `.arsumbris/`** (engine). `CREATE_IDENTITY_DIR` is now
+`IDENTITY_DIR`, so a root that holds neither spelling is created with the new name. Release 1 wrote the legacy
+one so a previous binary could read what it wrote; readers still accept both spellings, so no existing tree
+changes meaning and the migration window stays open. This is the first piece of tier C step 7; the `DEFS` rename,
+the builtin repo name and the claim canonicalizer remain.
+
 ### Added
 
 - **`search` lifts a note whose title states the query's rare terms, and a topic map yields to a note** (engine).

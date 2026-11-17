@@ -40,8 +40,8 @@ pub fn identity_dir(root: &Path) -> PathBuf {
 /// release creates.
 ///
 /// A repository keeps one identity directory for its whole life; only a root holding neither
-/// spelling is new, and [`tb_parser::CREATE_IDENTITY_DIR`] decides what a new one is called (the
-/// legacy name in release 1, so a previous-release binary still reads what this one writes).
+/// spelling is new, and [`tb_parser::CREATE_IDENTITY_DIR`] decides what a new one is called (the new
+/// name since release 2; release 1 wrote the legacy one so a previous binary could read it).
 pub fn identity_dir_for_write(root: &Path) -> PathBuf {
     identity_dir_for_write_with(root, |p| p.is_dir())
 }
@@ -4609,7 +4609,11 @@ packages:
     #[test]
     fn repo_lock_path_sits_beside_repo_yaml() {
         let p = repo_lock_path(Path::new("/repos/notes"));
-        assert_eq!(p, PathBuf::from("/repos/notes/.arsumbris/repo.lock"));
+        assert_eq!(
+            p,
+            PathBuf::from("/repos/notes/.2brain/repo.lock"),
+            "a root that holds neither spelling follows the creation default"
+        );
     }
 
     #[test]
