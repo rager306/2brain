@@ -14,6 +14,17 @@ source.
 
 ### Added
 
+- **`graph_health` names the graph's fragile joints** (engine, adapter). A bridge is an edge whose removal
+disconnects its ends; an articulation point is a node whose removal does. Both are computed on the undirected
+projection of the same resolved in-scope edges, with parallel edges collapsed for the structure but never reported
+as a bridge (removing one leaves the other) and self-loops ignored. The read gains `bridges` (`{a, b}`, smaller path
+first, sorted) and `articulation_points` (`{path, in, out, total}`), each capped by `limit`, plus the two counts.
+`clustering` reports how tightly that projection is woven: `{triangles, transitivity}`, the triangle count and the
+closed-over-all-triples ratio (`0.0` when the projection has no triple). Additive: `schema_version` stays 29; the synthetic fixture and the golden `graph_health` capture are re-captured in
+the same change because the payload gained keys. The idea comes from sparx's biconnectivity diagnostics
+(`docs/research/sparx-2026-11-17.md`), not from its library, and the algorithm is an iterative Tarjan lowlink so a
+deep chain cannot overflow the serving stack.
+
 - **A query term the index never saw is retried as a word form of itself** (engine). `capsules` returned
   nothing while `capsule` returned two notes, because the tokenizer keeps a plural and the corpus has only the
   singular. After an exact miss the index now also looks up `-s`/`-es`/`-ies` and their reverses, so a plural
@@ -161,6 +172,11 @@ source.
 Recorded because a rejected change is a result, and a changelog that lists only what shipped teaches the
 next reader nothing:
 
+- **A title field in the search index.** Six builds were measured on one frozen vault copy. A weight large enough
+to lift `hub-vs-atomic` (rank 8 → 1) also moves `exact-and` from 1/1 to 0/1, and any third field flips `ambiguous`
+from 1/1 to 0/1, because a title term counts as matched evidence even when its score weight is zero — it changes
+the `min_should_match` floor and the coverage factor, not only the score. A rarity gate repairs `exact-and` and
+moves the `exact` `ReasoningBank` task from rank 2 to 6. Variants and numbers: `docs/research/task-set.md` §4.
 - **A compact term map** in the search index: 4 703 → 4 695 bytes per document, against ~840 predicted. The
   arithmetic was wrong about what dominates the index; reverted.
 - **A freshness prior**, twice: at `c = 0.10` it lifts durable hit@1 0.538 → 0.654 and drops literal hit@1

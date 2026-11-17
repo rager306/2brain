@@ -1007,7 +1007,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Report what is wrong with the graph in one answer: directed cycles (strongly connected components, shortest first), dead ends (nothing links onward), sources (nothing points at them), isolated files, broken links (reference diagnostics: target missing, ambiguous, or outside the repo), and the most central nodes by total degree. Counts cover the whole in-scope graph; each list is capped by limit (default 20, max 200). A dangling link is only diagnosed on a file that claims a type, so an untyped note's broken link is not listed.",
+        description = "Report what is wrong with the graph in one answer: directed cycles (strongly connected components, shortest first), dead ends (nothing links onward), sources (nothing points at them), isolated files, broken links (reference diagnostics: target missing, ambiguous, or outside the repo), and the most central nodes by total degree. It also names the graph's fragile joints on the undirected projection of the same edges: bridges (an edge whose removal disconnects its ends) and articulation points (a node whose removal does); a pair joined by more than one edge is never a bridge. It also reports how tightly that projection is woven: its triangle count and global transitivity. Counts cover the whole in-scope graph; each list is capped by limit (default 20, max 200). A dangling link is only diagnosed on a file that claims a type, so an untyped note's broken link is not listed.",
         annotations(
             read_only_hint = true,
             destructive_hint = false,

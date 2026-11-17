@@ -15435,6 +15435,14 @@ struct GraphHealthView {
     sources: Vec<HealthNode>,
     /// Reference diagnostics: a target that does not resolve or is ambiguous.
     broken_links: Vec<BrokenLink>,
+    /// Undirected bridges: a link whose removal separates its ends. A pair joined
+    /// by more than one edge is never a bridge, and a self-loop never is.
+    bridges: Vec<BridgeView>,
+    /// Nodes whose removal disconnects some of their neighbours.
+    articulation_points: Vec<HealthNode>,
+    /// How tightly the undirected projection is woven: triangles and global
+    /// transitivity (closed triples over all triples).
+    clustering: ClusteringView,
     /// Highest total degree, the navigational crossroads.
     central: Vec<HealthNode>,
     /// Whether any list was cut by `limit`.
@@ -15453,12 +15461,31 @@ struct GraphHealthCounts {
     /// Nodes inside a cycle, which is what a reader weighs, not the components.
     nodes_in_cycles: usize,
     broken_links: usize,
+    /// Edges whose removal disconnects the undirected projection.
+    bridges: usize,
+    /// Nodes whose removal disconnects the undirected projection.
+    articulation_points: usize,
 }
 
 #[derive(Debug, Serialize)]
 struct CycleView {
     length: usize,
     nodes: Vec<String>,
+}
+
+/// One undirected bridge: the two ends, the smaller path first.
+#[derive(Debug, Serialize)]
+struct BridgeView {
+    a: String,
+    b: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ClusteringView {
+    /// Triangles in the undirected simple projection.
+    triangles: usize,
+    /// Closed triples over all triples, `0.0` when the graph holds none.
+    transitivity: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -15501,6 +15528,9 @@ fn graph_health_view(
     let mut out_degree = vec![0usize; n];
     let mut uf = UnionFind::new(n);
     let mut edges = 0usize;
+    // The same edges with direction dropped, and how many parallel edges join
+    // each pair: the projection the fragility pass reads.
+    let mut undirected_pairs: std::collections::HashMap<(usize, usize), usize> = Default::default();
     for (target, backlinks) in kb.backlinks.iter() {
         let Some(&ti) = index.get(target.as_path()) else {
             continue;
@@ -15514,6 +15544,11 @@ fn graph_health_view(
             out_degree[si] += 1;
             uf.union(si, ti);
             edges += 1;
+            if si != ti {
+                *undirected_pairs
+                    .entry((si.min(ti), si.max(ti)))
+                    .or_default() += 1;
+            }
         }
     }
 
@@ -15522,10 +15557,11 @@ fn graph_health_view(
         *comp_size.entry(uf.find(i)).or_default() += 1;
     }
     // Instrumentation: one node scan plus one edge walk over the whole in-scope
-    // graph, and the SCC pass below walks the same adjacency once more. The answer
-    // is corpus-wide by definition, so the count growing with the corpus is the
+    // graph, the SCC pass below walks the same adjacency once more, and the
+    // fragility pass builds the undirected projection and walks it. The answer is
+    // corpus-wide by definition, so the count growing with the corpus is the
     // contract; the counter keeps it visible beside the request count.
-    crate::verb_metrics::note_documents((n + edges + edges) as u64);
+    crate::verb_metrics::note_documents((n + edges + edges + edges) as u64);
 
     let mut isolated = Vec::new();
     let mut dead_ends = Vec::new();
@@ -15583,6 +15619,51 @@ fn graph_health_view(
     cycles.sort_by(|a, b| a.length.cmp(&b.length).then_with(|| a.nodes.cmp(&b.nodes)));
     let cycle_count = cycles.len();
 
+    // Fragility of the undirected projection: the same resolved edges with
+    // direction dropped. Parallel edges collapse for the structure (removing a
+    // node takes all of them), but a pair joined by more than one edge is never
+    // a bridge — removing one leaves the other — so those are filtered out.
+    let mut undirected: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for &(left, right) in undirected_pairs.keys() {
+        undirected[left].push(right);
+        undirected[right].push(left);
+    }
+    let (triangles, transitivity) = triangles_and_transitivity(&mut undirected);
+    let (bridge_ends, articulations) = bridges_and_articulation(&undirected);
+    let mut bridges: Vec<BridgeView> = bridge_ends
+        .into_iter()
+        .filter(|&(left, right)| {
+            undirected_pairs
+                .get(&(left.min(right), left.max(right)))
+                .copied()
+                .unwrap_or(0)
+                == 1
+        })
+        .map(|(left, right)| {
+            let (first, second) = if nodes[left] <= nodes[right] {
+                (left, right)
+            } else {
+                (right, left)
+            };
+            BridgeView {
+                a: nodes[first].display().to_string(),
+                b: nodes[second].display().to_string(),
+            }
+        })
+        .collect();
+    bridges.sort_by(|left, right| left.a.cmp(&right.a).then_with(|| left.b.cmp(&right.b)));
+    let bridge_count = bridges.len();
+    let articulation_count = articulations.len();
+    let mut articulation_points: Vec<HealthNode> = articulations
+        .into_iter()
+        .map(|node| HealthNode {
+            path: nodes[node].display().to_string(),
+            r#in: in_degree[node],
+            out: out_degree[node],
+            total: in_degree[node] + out_degree[node],
+        })
+        .collect();
+
     let mut broken: Vec<BrokenLink> = kb
         .diagnostics()
         .filter(|d| is_broken_link_code(d.code.as_str()))
@@ -15602,6 +15683,7 @@ fn graph_health_view(
     let broken_count = broken.len();
 
     isolated.sort_by(|a, b| a.path.cmp(&b.path));
+    articulation_points.sort_by(|a, b| b.total.cmp(&a.total).then_with(|| a.path.cmp(&b.path)));
     dead_ends.sort_by(|a, b| a.total.cmp(&b.total).then_with(|| a.path.cmp(&b.path)));
     sources.sort_by(|a, b| a.total.cmp(&b.total).then_with(|| a.path.cmp(&b.path)));
     central.sort_by(|a, b| b.total.cmp(&a.total).then_with(|| a.path.cmp(&b.path)));
@@ -15611,7 +15693,9 @@ fn graph_health_view(
         || sources.len() > limit
         || broken.len() > limit
         || central.len() > limit
-        || cycles.len() > limit;
+        || cycles.len() > limit
+        || bridges.len() > limit
+        || articulation_points.len() > limit;
 
     GraphHealthView {
         repo: repo.map(str::to_owned),
@@ -15626,12 +15710,20 @@ fn graph_health_view(
             cycles: cycle_count,
             nodes_in_cycles,
             broken_links: broken_count,
+            bridges: bridge_count,
+            articulation_points: articulation_count,
         },
         cycles: cycles.into_iter().take(limit).collect(),
         isolated: isolated.into_iter().take(limit).collect(),
         dead_ends: dead_ends.into_iter().take(limit).collect(),
         sources: sources.into_iter().take(limit).collect(),
         broken_links: broken.into_iter().take(limit).collect(),
+        bridges: bridges.into_iter().take(limit).collect(),
+        articulation_points: articulation_points.into_iter().take(limit).collect(),
+        clustering: ClusteringView {
+            triangles,
+            transitivity,
+        },
         central: central.into_iter().take(limit).collect(),
         truncated,
     }
@@ -15647,6 +15739,124 @@ fn is_broken_link_code(code: &str) -> bool {
             | "reference-path-escapes-repo"
             | "navigational-target-not-found"
     )
+}
+
+/// Triangle count and global transitivity of an undirected simple graph.
+///
+/// The neighbours are sorted once here, so the edge sweep below can intersect two
+/// sorted lists; the sort also leaves the adjacency in the order the Tarjan pass
+/// prefers. A triangle is counted once per edge (`left < right`, common neighbour in
+/// both lists), so the sweep's total is three per triangle and `triangles` divides
+/// it. Transitivity is closed triples over all triples: `3T / Σ C(deg, 2)`, `0.0` when
+/// the graph has no triple at all — the one place where a ratio of zero is the answer
+/// rather than a division by zero.
+fn triangles_and_transitivity(adjacency: &mut [Vec<usize>]) -> (usize, f64) {
+    for neighbours in adjacency.iter_mut() {
+        neighbours.sort_unstable();
+    }
+    let mut triangle_edges = 0usize;
+    for left in 0..adjacency.len() {
+        for &right in &adjacency[left] {
+            if right <= left {
+                continue;
+            }
+            let (mut at_left, mut at_right) = (0usize, 0usize);
+            while at_left < adjacency[left].len() && at_right < adjacency[right].len() {
+                match adjacency[left][at_left].cmp(&adjacency[right][at_right]) {
+                    std::cmp::Ordering::Less => at_left += 1,
+                    std::cmp::Ordering::Greater => at_right += 1,
+                    std::cmp::Ordering::Equal => {
+                        triangle_edges += 1;
+                        at_left += 1;
+                        at_right += 1;
+                    }
+                }
+            }
+        }
+    }
+    let mut triples = 0usize;
+    for neighbours in adjacency.iter() {
+        let degree = neighbours.len();
+        triples += degree * degree.saturating_sub(1) / 2;
+    }
+    let transitivity = match triples {
+        0 => 0.0,
+        count => triangle_edges as f64 / count as f64,
+    };
+    (triangle_edges / 3, transitivity)
+}
+
+/// Bridges and articulation points of an undirected simple graph, iterative Tarjan.
+///
+/// A bridge is an edge whose removal disconnects its ends; an articulation point is
+/// a node whose removal disconnects some of its neighbours. The graph must be simple
+/// (no duplicate neighbours, no self-loops) — the caller builds it from a multiplicity
+/// map, so a pair joined twice is one edge here and its bridge is filtered by the
+/// caller, which still holds the count.
+fn bridges_and_articulation(adjacency: &[Vec<usize>]) -> (Vec<(usize, usize)>, Vec<usize>) {
+    let n = adjacency.len();
+    let mut discovered = vec![usize::MAX; n];
+    let mut low = vec![0usize; n];
+    let mut parent = vec![usize::MAX; n];
+    let mut is_articulation = vec![false; n];
+    let mut bridges = Vec::new();
+    let mut time = 0usize;
+    let mut frames: Vec<(usize, usize)> = Vec::new();
+    for start in 0..n {
+        if discovered[start] != usize::MAX {
+            continue;
+        }
+        discovered[start] = time;
+        low[start] = time;
+        time += 1;
+        let mut root_children = 0usize;
+        frames.push((start, 0));
+        while let Some(&(node, next_child)) = frames.last() {
+            if next_child < adjacency[node].len() {
+                frames.last_mut().expect("frame").1 += 1;
+                let next = adjacency[node][next_child];
+                if next == parent[node] {
+                    continue;
+                }
+                if discovered[next] == usize::MAX {
+                    if node == start {
+                        root_children += 1;
+                    }
+                    parent[next] = node;
+                    discovered[next] = time;
+                    low[next] = time;
+                    time += 1;
+                    frames.push((next, 0));
+                } else {
+                    low[node] = low[node].min(discovered[next]);
+                }
+            } else {
+                frames.pop();
+                if let Some(&(up, _)) = frames.last() {
+                    low[up] = low[up].min(low[node]);
+                    if low[node] > discovered[up] {
+                        bridges.push((up, node));
+                    }
+                    if up != start && low[node] >= discovered[up] {
+                        is_articulation[up] = true;
+                    }
+                }
+            }
+        }
+        if root_children > 1 {
+            is_articulation[start] = true;
+        }
+    }
+    // A node with no edges is not an articulation point: removing it disconnects
+    // nothing, and the root rule above would otherwise mark a lone node with a
+    // self-loop-free empty neighbourhood.
+    let articulation_points = is_articulation
+        .iter()
+        .enumerate()
+        .filter(|&(node, marked)| *marked && !adjacency[node].is_empty())
+        .map(|(node, _)| node)
+        .collect();
+    (bridges, articulation_points)
 }
 
 /// Strongly connected components, iterative Tarjan.
@@ -18516,6 +18726,51 @@ mod verb_tests {
             ..Default::default()
         };
         assert!(grepped.scope().own_only());
+    }
+
+    /// Bridges and articulation points answer the definitions they claim: a path
+    /// edge whose removal splits the graph, and a node whose removal does, on the
+    /// undirected projection; a cycle contributes neither, and a lone node is not
+    /// an articulation point.
+    #[test]
+    fn bridges_and_articulation_points_match_their_definitions() {
+        // 0—1—2 plus the triangle 2—3—4—2: both path edges are bridges, and 1 and
+        // 2 are the articulation points.
+        let adjacency = vec![vec![1], vec![0, 2], vec![1, 3, 4], vec![2, 4], vec![2, 3]];
+        let (mut bridges, mut articulation) = bridges_and_articulation(&adjacency);
+        bridges.sort_unstable();
+        articulation.sort_unstable();
+        assert_eq!(bridges, vec![(0, 1), (1, 2)]);
+        assert_eq!(articulation, vec![1, 2]);
+
+        // A lone node: no bridge, no articulation point.
+        let (bridges, articulation) = bridges_and_articulation(&[Vec::<usize>::new()]);
+        assert!(bridges.is_empty() && articulation.is_empty());
+
+        // A cycle contributes neither. The two-node case is NOT this test's: the
+        // projection gives one undirected edge with multiplicity two, and the
+        // multiplicity filter that keeps it from being a bridge lives in
+        // `graph_health_view`, not in this simple-graph helper.
+        let triangle = vec![vec![1, 2], vec![0, 2], vec![0, 1]];
+        let (bridges, articulation) = bridges_and_articulation(&triangle);
+        assert!(bridges.is_empty() && articulation.is_empty());
+    }
+
+    /// The triangle count and transitivity read the same projection the fragility
+    /// pass does: one triangle and its two pendant edges give one triangle, six
+    /// triples, and the ratio between the closed and all triples.
+    #[test]
+    fn triangles_and_transitivity_count_the_same_projection() {
+        let mut adjacency = vec![vec![1], vec![0, 2], vec![1, 3, 4], vec![2, 4], vec![2, 3]];
+        let (triangles, transitivity) = triangles_and_transitivity(&mut adjacency);
+        assert_eq!(triangles, 1);
+        assert!((transitivity - 0.5).abs() < 1e-12, "{transitivity}");
+
+        // No triple at all: the ratio is zero, not undefined.
+        let (triangles, transitivity) = triangles_and_transitivity(&mut Vec::new());
+        assert_eq!((triangles, transitivity), (0, 0.0));
+        let (triangles, transitivity) = triangles_and_transitivity(&mut [vec![1], vec![0]]);
+        assert_eq!((triangles, transitivity), (0, 0.0));
     }
 
     /// A process-wide lock: these tests share the process-global counters and a

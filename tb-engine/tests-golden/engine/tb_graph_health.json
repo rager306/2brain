@@ -1,5 +1,209 @@
 {
  "graph_health": {
+  "articulation_points": [
+   {
+    "in": 133,
+    "out": 34,
+    "path": "$VAULT/knowledge/memory-systems.md",
+    "total": 167
+   },
+   {
+    "in": 126,
+    "out": 32,
+    "path": "$VAULT/knowledge/agentic-architecture.md",
+    "total": 158
+   },
+   {
+    "in": 92,
+    "out": 28,
+    "path": "$VAULT/knowledge/jev.md",
+    "total": 120
+   },
+   {
+    "in": 62,
+    "out": 22,
+    "path": "$VAULT/knowledge/tool-use.md",
+    "total": 84
+   },
+   {
+    "in": 38,
+    "out": 44,
+    "path": "$VAULT/knowledge/hermes-user-stories.md",
+    "total": 82
+   },
+   {
+    "in": 42,
+    "out": 4,
+    "path": "$VAULT/knowledge/rust-perf-optimization-canonical.md",
+    "total": 46
+   },
+   {
+    "in": 36,
+    "out": 4,
+    "path": "$VAULT/inbox/recursive-self-improvement-survey-nine-design-dimensions-and-the-acceptance-criterion-that-cannot-see-infrastructure.md",
+    "total": 40
+   },
+   {
+    "in": 28,
+    "out": 9,
+    "path": "$VAULT/inbox/pattern-preregistered-quality-gates.md",
+    "total": 37
+   },
+   {
+    "in": 15,
+    "out": 14,
+    "path": "$VAULT/knowledge/search-patterns.md",
+    "total": 29
+   },
+   {
+    "in": 13,
+    "out": 14,
+    "path": "$VAULT/inbox/lavrov-start-doing-graph-theory.md",
+    "total": 27
+   },
+   {
+    "in": 10,
+    "out": 11,
+    "path": "$VAULT/knowledge/blackbox-qa-agents.md",
+    "total": 21
+   },
+   {
+    "in": 15,
+    "out": 4,
+    "path": "$VAULT/inbox/xferagent-reconcile-heterogeneous-experience-with-a-margin-or-dont-merge-and-route-by-others-outcomes.md",
+    "total": 19
+   },
+   {
+    "in": 12,
+    "out": 4,
+    "path": "$VAULT/inbox/jevagentharness-decision-models-share-control-with-llms.md",
+    "total": 16
+   },
+   {
+    "in": 10,
+    "out": 6,
+    "path": "$VAULT/knowledge/mnemosyne-hybrid-search-weights-fts5-20-percent-plus-graph-10-percent-plus-vector-70-percent-for-sub-2ms-latency.md",
+    "total": 16
+   },
+   {
+    "in": 9,
+    "out": 4,
+    "path": "$VAULT/inbox/jevact-contracts-for-pa-jev.md",
+    "total": 13
+   },
+   {
+    "in": 8,
+    "out": 4,
+    "path": "$VAULT/inbox/arsumbris-improvement-backlog-from-the-memory-echo-wave.md",
+    "total": 12
+   },
+   {
+    "in": 8,
+    "out": 3,
+    "path": "$VAULT/inbox/decision-models-become-a-product-category.md",
+    "total": 11
+   },
+   {
+    "in": 6,
+    "out": 4,
+    "path": "$VAULT/inbox/gdpevo-rule-hybridization-makes-self-evolution-measurable-and-a-naive-skill-creator-beats-the-fancy-ones.md",
+    "total": 10
+   },
+   {
+    "in": 5,
+    "out": 4,
+    "path": "$VAULT/inbox/arsumbris-fork-backlog.md",
+    "total": 9
+   },
+   {
+    "in": 3,
+    "out": 6,
+    "path": "$VAULT/inbox/sheaf-laplacian-diagnostics-for-subagent-contradictions-in-allspark.md",
+    "total": 9
+   }
+  ],
+  "bridges": [
+   {
+    "a": "$VAULT/CLAUDE.md",
+    "b": "$VAULT/README.md"
+   },
+   {
+    "a": "$VAULT/f/patterns/pattern-adversarial-verifier-role.md",
+    "b": "$VAULT/inbox/gemini-4-carbon-swarm-antigravity.md"
+   },
+   {
+    "a": "$VAULT/f/patterns/pattern-alignment-collapse-eval.md",
+    "b": "$VAULT/inbox/hiddenpathqa-alignment-collapse.md"
+   },
+   {
+    "a": "$VAULT/f/patterns/pattern-describe-dont-render.md",
+    "b": "$VAULT/f/patterns/pattern-uniform-capability-boundary.md"
+   },
+   {
+    "a": "$VAULT/f/patterns/pattern-filesystem-as-agent-environment.md",
+    "b": "$VAULT/inbox/docfs-filesystem-agent-environment.md"
+   },
+   {
+    "a": "$VAULT/f/patterns/pattern-frbr-point-in-time-norm-versioning.md",
+    "b": "$VAULT/f/patterns/pattern-immutable-published-schema-current-alias.md"
+   },
+   {
+    "a": "$VAULT/f/patterns/pattern-persistent-incremental-computation.md",
+    "b": "$VAULT/inbox/peach-local-first-media-system.md"
+   },
+   {
+    "a": "$VAULT/f/patterns/pattern-uniform-capability-boundary.md",
+    "b": "$VAULT/inbox/gitmanual-setup-manuals.md"
+   },
+   {
+    "a": "$VAULT/f/patterns/pattern-zero-token-idle-message-board.md",
+    "b": "$VAULT/inbox/gemini-4-carbon-swarm-antigravity.md"
+   },
+   {
+    "a": "$VAULT/inbox/advantage-guidance-rl.md",
+    "b": "$VAULT/inbox/mpt-market-based-post-training.md"
+   },
+   {
+    "a": "$VAULT/inbox/annas-archive-shadow-library-infrastructure.md",
+    "b": "$VAULT/inbox/awesome-reverse-engineered-index.md"
+   },
+   {
+    "a": "$VAULT/inbox/arsumbris-fork-backlog.md",
+    "b": "$VAULT/inbox/second-brain-v2-bm25-minin.md"
+   },
+   {
+    "a": "$VAULT/inbox/awesome-reverse-engineered-catalog-automation.md",
+    "b": "$VAULT/inbox/awesome-reverse-engineered-index.md"
+   },
+   {
+    "a": "$VAULT/inbox/awesome-reverse-engineered-index.md",
+    "b": "$VAULT/inbox/firecrawl-alexandria-a-tool-marketplace-where-agents-are-the-buyers.md"
+   },
+   {
+    "a": "$VAULT/inbox/bpmn-agentic-workflows-semtalk.md",
+    "b": "$VAULT/inbox/jevact-contracts-for-pa-jev.md"
+   },
+   {
+    "a": "$VAULT/inbox/da-video-84M9nm_N52c.md",
+    "b": "$VAULT/inbox/da-video-KgktK_DfW5U.md"
+   },
+   {
+    "a": "$VAULT/inbox/dcoco-parallel-contextual-correction-speculative-decoding.md",
+    "b": "$VAULT/inbox/flashraw-raw-decoder-speculative-parallel-decode.md"
+   },
+   {
+    "a": "$VAULT/inbox/decision-models-become-a-product-category.md",
+    "b": "$VAULT/inbox/tabular-foundation-models-got-their-jev-moment-xiaomi-catches-google-in-two-months.md"
+   },
+   {
+    "a": "$VAULT/inbox/evorag-feedback-backpropagation-kg-rag.md",
+    "b": "$VAULT/inbox/liquid-ripl-low-latency-inference.md"
+   },
+   {
+    "a": "$VAULT/inbox/gul-retrieval-sequencing-side-access.md",
+    "b": "$VAULT/inbox/open-ontologies-vs-arsumbris.md"
+   }
+  ],
   "broken_links": [],
   "central": [
    {
@@ -15,28 +219,28 @@
     "total": 174
    },
    {
-    "in": 131,
-    "out": 32,
+    "in": 133,
+    "out": 34,
     "path": "$VAULT/knowledge/memory-systems.md",
-    "total": 163
+    "total": 167
    },
    {
-    "in": 123,
-    "out": 29,
+    "in": 126,
+    "out": 32,
     "path": "$VAULT/knowledge/agentic-architecture.md",
-    "total": 152
+    "total": 158
    },
    {
-    "in": 91,
+    "in": 92,
     "out": 28,
     "path": "$VAULT/knowledge/jev.md",
-    "total": 119
+    "total": 120
    },
    {
-    "in": 65,
+    "in": 66,
     "out": 31,
     "path": "$VAULT/knowledge/rust-ai-systems.md",
-    "total": 96
+    "total": 97
    },
    {
     "in": 63,
@@ -51,16 +255,16 @@
     "total": 84
    },
    {
+    "in": 62,
+    "out": 22,
+    "path": "$VAULT/knowledge/tool-use.md",
+    "total": 84
+   },
+   {
     "in": 38,
     "out": 44,
     "path": "$VAULT/knowledge/hermes-user-stories.md",
     "total": 82
-   },
-   {
-    "in": 56,
-    "out": 22,
-    "path": "$VAULT/knowledge/tool-use.md",
-    "total": 78
    },
    {
     "in": 46,
@@ -123,18 +327,73 @@
     "total": 39
    }
   ],
+  "clustering": {
+   "transitivity": 0.18157328630399813,
+   "triangles": 3123
+  },
   "counts": {
+   "articulation_points": 57,
+   "bridges": 37,
    "broken_links": 0,
-   "components": 212,
-   "cycles": 17,
+   "components": 208,
+   "cycles": 29,
    "dead_ends": 20,
-   "edges": 4576,
-   "isolated": 202,
-   "nodes": 1168,
-   "nodes_in_cycles": 664,
-   "sources": 185
+   "edges": 4730,
+   "isolated": 198,
+   "nodes": 1228,
+   "nodes_in_cycles": 708,
+   "sources": 182
   },
   "cycles": [
+   {
+    "length": 2,
+    "nodes": [
+     "$VAULT/f/patterns/pattern-code-only-grows-hotswap.md",
+     "$VAULT/inbox/relax-rust-jit-live-compiler.md"
+    ]
+   },
+   {
+    "length": 2,
+    "nodes": [
+     "$VAULT/f/patterns/pattern-context-engine-coupling-choice.md",
+     "$VAULT/inbox/kidehen-context-engines-voice.md"
+    ]
+   },
+   {
+    "length": 2,
+    "nodes": [
+     "$VAULT/f/patterns/pattern-editorial-two-stage-scoring.md",
+     "$VAULT/f/patterns/pattern-story-clustering-simhash.md"
+    ]
+   },
+   {
+    "length": 2,
+    "nodes": [
+     "$VAULT/f/patterns/pattern-external-verifier-grounded-cot.md",
+     "$VAULT/inbox/pddl-instruct-logical-cot-planning.md"
+    ]
+   },
+   {
+    "length": 2,
+    "nodes": [
+     "$VAULT/f/patterns/pattern-relevance-recall-utility-arbitration.md",
+     "$VAULT/inbox/memcredit-decision-utility-memory.md"
+    ]
+   },
+   {
+    "length": 2,
+    "nodes": [
+     "$VAULT/f/patterns/pattern-semantic-context-tiering.md",
+     "$VAULT/inbox/aws-context-ontology-accelerator.md"
+    ]
+   },
+   {
+    "length": 2,
+    "nodes": [
+     "$VAULT/inbox/arsumbris-fork-backlog.md",
+     "$VAULT/inbox/graphicle-rust-code-graph-agent-memory.md"
+    ]
+   },
    {
     "length": 2,
     "nodes": [
@@ -145,8 +404,22 @@
    {
     "length": 2,
     "nodes": [
+     "$VAULT/inbox/exact-discipline-deep.md",
+     "$VAULT/inbox/expo-exact-runtime.md"
+    ]
+   },
+   {
+    "length": 2,
+    "nodes": [
      "$VAULT/inbox/google-agent-substrate-gvisor-cncf.md",
      "$VAULT/inbox/pattern-actor-state-worker-compute.md"
+    ]
+   },
+   {
+    "length": 2,
+    "nodes": [
+     "$VAULT/inbox/law-ai-nlp-landscape.md",
+     "$VAULT/inbox/law-compiler-deep.md"
     ]
    },
    {
@@ -201,687 +474,17 @@
    {
     "length": 3,
     "nodes": [
-     "$VAULT/f/patterns/pattern-impact-gated-skill-consolidation.md",
-     "$VAULT/inbox/da-video-fYrN5z8TTfQ.md",
-     "$VAULT/inbox/skillduet-model-skill-coevolution-response-feedback.md"
+     "$VAULT/f/patterns/pattern-coverage-balance-seeking.md",
+     "$VAULT/f/patterns/pattern-grounded-figures-quality-report.md",
+     "$VAULT/inbox/muckscraper-story-aggregator.md"
     ]
    },
    {
     "length": 3,
     "nodes": [
-     "$VAULT/inbox/blaze-harness-agent-daemon.md",
-     "$VAULT/inbox/pattern-crash-tested-migration.md",
-     "$VAULT/inbox/pattern-token-efficient-wire-format.md"
-    ]
-   },
-   {
-    "length": 3,
-    "nodes": [
-     "$VAULT/inbox/fd-go-cache-2026-high-priority-actions.md",
-     "$VAULT/inbox/tei-1-9-4-is-latest-qwen3-cpu-has-concat-bug-int8-avx2-needs-s8s8-qdq.md",
-     "$VAULT/inbox/user-bge-m3-stays-fd-default-jina-v5-and-qwen3-0-6b-are-ab-candidates.md"
-    ]
-   },
-   {
-    "length": 3,
-    "nodes": [
-     "$VAULT/manual/configuration.md",
-     "$VAULT/manual/meta-skills.md",
-     "$VAULT/manual/troubleshooting.md"
-    ]
-   },
-   {
-    "length": 3,
-    "nodes": [
-     "$VAULT/self/goals.md",
-     "$VAULT/self/identity.md",
-     "$VAULT/self/methodology.md"
-    ]
-   },
-   {
-    "length": 4,
-    "nodes": [
-     "$VAULT/inbox/cellcanon-agentic-cellular-world-model.md",
-     "$VAULT/inbox/da-video-S6AJuzyoCjU.md",
-     "$VAULT/inbox/da-video-qM-lE9Ovfp8.md",
-     "$VAULT/inbox/da-week-2026-11-06-review.md"
-    ]
-   },
-   {
-    "length": 14,
-    "nodes": [
-     "$VAULT/inbox/lavrov-ch02-isomorphisms-invariants.md",
-     "$VAULT/inbox/lavrov-ch12-dags.md",
-     "$VAULT/inbox/lavrov-ch13-bipartite-matching.md",
-     "$VAULT/inbox/lavrov-ch14-koenig-theorem.md",
-     "$VAULT/inbox/lavrov-ch15-hall-theorem.md",
-     "$VAULT/inbox/lavrov-ch16-general-matchings.md",
-     "$VAULT/inbox/lavrov-ch19-graph-coloring.md",
-     "$VAULT/inbox/lavrov-ch21-planar-euler.md",
-     "$VAULT/inbox/lavrov-ch22-kuratowski-wagner.md",
-     "$VAULT/inbox/lavrov-ch25-connectivity-ears.md",
-     "$VAULT/inbox/lavrov-ch26-connectivity-kappa.md",
-     "$VAULT/inbox/lavrov-ch27-menger.md",
-     "$VAULT/inbox/lavrov-ch28-max-flow.md",
-     "$VAULT/inbox/lavrov-start-doing-graph-theory.md"
-    ]
-   },
-   {
-    "length": 613,
-    "nodes": [
-     "$VAULT/f/patterns/pattern-budget-coupled-self-revision.md",
-     "$VAULT/f/patterns/pattern-enforced-memory.md",
-     "$VAULT/f/patterns/pattern-failure-layer-routing.md",
-     "$VAULT/f/patterns/pattern-querytime-evidence-decisions.md",
-     "$VAULT/f/patterns/pattern-rules-earn-place.md",
-     "$VAULT/inbox/adaptive-skill-granularity-runtime-routing-recovery.md",
-     "$VAULT/inbox/agensh-1024-agents-self-organized.md",
-     "$VAULT/inbox/agent-beacon-cross-harness-memory.md",
-     "$VAULT/inbox/agent-infrastructure-control-plane-convergence.md",
-     "$VAULT/inbox/agent-instruction-rationale-catastrophic-remembering.md",
-     "$VAULT/inbox/agent-plasticity-the-efficiency-of-converting-experience-into-held-out-gains.md",
-     "$VAULT/inbox/agent-scale-multiplies-rust-build-infra-problems-twenty-fold.md",
-     "$VAULT/inbox/agent-shared-state-is-a-channel.md",
-     "$VAULT/inbox/agentic-iteration-beats-sota-when-given-pass-fail-constraints.md",
-     "$VAULT/inbox/agentic-reasoning-survey-uiuc-map.md",
-     "$VAULT/inbox/agentrun-control-plane.md",
-     "$VAULT/inbox/ai-memory-akitaonrails-coding-agent-memory.md",
-     "$VAULT/inbox/akv-cache-engineering-for-agents.md",
-     "$VAULT/inbox/allspark-arsumbris-audit-jev-harness-rsi-60-findings.md",
-     "$VAULT/inbox/allspark-jev-agent-harness-arxiv-2610-21412-decision-thresholds.md",
-     "$VAULT/inbox/allspark-research-graph-auto-build-design-from-cbm-reactivegraph.md",
-     "$VAULT/inbox/allspark-research-mayoi-patterns-for-a-rust-harness-safe-git-wins.md",
-     "$VAULT/inbox/ante-safe-cyclic-mutability-places.md",
-     "$VAULT/inbox/aqueduct-verified-optimization-lean.md",
-     "$VAULT/inbox/arsumbris-improvement-backlog-from-the-memory-echo-wave.md",
-     "$VAULT/inbox/autoresearch-plateaus-come-from-anchoring-forgetting-restarts-from-best-candidate.md",
-     "$VAULT/inbox/avalon-m1-rlcr-agent-organisations.md",
-     "$VAULT/inbox/banking-ai-native-dev-talk.md",
-     "$VAULT/inbox/beacon-cross-harness-session-memory.md",
-     "$VAULT/inbox/beamnxw-four-layer-agent-stack.md",
-     "$VAULT/inbox/blazing-rust-architectural-patterns-week-41.md",
-     "$VAULT/inbox/boxbox-recursive-harness-self-improvement.md",
-     "$VAULT/inbox/breunig-state-of-context-engineering.md",
-     "$VAULT/inbox/bui-blender-ui-library.md",
-     "$VAULT/inbox/cga-finding-panics-monomorphized-mir.md",
-     "$VAULT/inbox/claims-slot-graph-balance-gate-for-proofgate.md",
-     "$VAULT/inbox/claude-single-loop-folds-subagents.md",
-     "$VAULT/inbox/clawmmu-protection-coherent-agent-memory.md",
-     "$VAULT/inbox/cloudflare-branch-predictor-btb.md",
-     "$VAULT/inbox/cloudflare-security-audit-skill.md",
-     "$VAULT/inbox/cobra-skills-spend-evaluation-budget-like-a-bandit-not-like-a-sweep.md",
-     "$VAULT/inbox/commit-or-abstain-legal-decision-models.md",
-     "$VAULT/inbox/cppalliance-rust-rulebook-vs-abr.md",
-     "$VAULT/inbox/creed-belief-guided-vulnerability-detection.md",
-     "$VAULT/inbox/creusot-research-landscape.md",
-     "$VAULT/inbox/crux-shadow-eval-followup.md",
-     "$VAULT/inbox/da-video-9geM_9Wja0o.md",
-     "$VAULT/inbox/da-video-gSjBPIw1WY0.md",
-     "$VAULT/inbox/da-video-yfepTKKhgKg.md",
-     "$VAULT/inbox/darwin-godel-machine-an-archive-of-validated-self-modifications-beats-a-single-chain.md",
-     "$VAULT/inbox/davekiss-agentsmd-rules-earn-place.md",
-     "$VAULT/inbox/decision-models-become-a-product-category.md",
-     "$VAULT/inbox/decisionrag-jev-navigation.md",
-     "$VAULT/inbox/deepseek-superagent-design.md",
-     "$VAULT/inbox/devin-agentic-mapreduce.md",
-     "$VAULT/inbox/digest-pipelines-best-practices-2026.md",
-     "$VAULT/inbox/discoveryrsi-recursive-hypothesis-discovery.md",
-     "$VAULT/inbox/diva-evals-fifteen-point-framework.md",
-     "$VAULT/inbox/drex-2-0-takes-the-decision-crown-from-jev-while-jev-keeps-its-own-benches.md",
-     "$VAULT/inbox/drex-the-first-open-sub-10b-decision-leader-and-a-two-product-platform.md",
-     "$VAULT/inbox/droid-vs-prime-agent-vs-allspark.md",
-     "$VAULT/inbox/dynaflow-freeform-orchestration-dsl.md",
-     "$VAULT/inbox/eat-evolving-agent-teams-berkeley.md",
-     "$VAULT/inbox/ecdysis-only-recurring-failures-across-tasks-deserve-persistent-harness-fixes.md",
-     "$VAULT/inbox/egm-vs-superpowers-vs-compound-engineering.md",
-     "$VAULT/inbox/eog-self-evolving-kg-reasoning-selfplay.md",
-     "$VAULT/inbox/escher-loop-optimizers-that-evolve-themselves-scored-by-the-evolution-they-cause.md",
-     "$VAULT/inbox/evolver-gene-experience-framework.md",
-     "$VAULT/inbox/evoontology-self-evolving-ontology-layer-for-data-agents-served-as-an-mcp-server.md",
-     "$VAULT/inbox/evorag-feedback-backpropagation-kg-rag.md",
-     "$VAULT/inbox/extract-bench-levanto-sage2.md",
-     "$VAULT/inbox/factory-droid-1-0-frontier-harness.md",
-     "$VAULT/inbox/falco-novelist-system.md",
-     "$VAULT/inbox/frontiermemory-v1-benchmark.md",
-     "$VAULT/inbox/fyralabs-tov-benchmark-debunk.md",
-     "$VAULT/inbox/gdpevo-rule-hybridization-makes-self-evolution-measurable-and-a-naive-skill-creator-beats-the-fancy-ones.md",
-     "$VAULT/inbox/gemini-4-carbon-swarm-antigravity.md",
-     "$VAULT/inbox/geometry-of-agent-memory-null-result.md",
-     "$VAULT/inbox/gitai-open-scion-agents.md",
-     "$VAULT/inbox/github-rubicon-git-storage.md",
-     "$VAULT/inbox/google-agents-cli-eval-loop.md",
-     "$VAULT/inbox/gortex-code-intelligence-engine.md",
-     "$VAULT/inbox/graph-mediated-llm-systems-survey.md",
-     "$VAULT/inbox/h5i-verifiable-web-framework.md",
-     "$VAULT/inbox/hamel-decision-model-evals.md",
-     "$VAULT/inbox/harness-adaptation-ac-cards.md",
-     "$VAULT/inbox/harness-adaptation-plan-verdict.md",
-     "$VAULT/inbox/harness-learning-field-map.md",
-     "$VAULT/inbox/harness-learning-subfield-catalog.md",
-     "$VAULT/inbox/harness-scaling-generalizable-agentic-rl.md",
-     "$VAULT/inbox/harness2-contrastive-propose-probe-compose-evolves-harnesses-without-verifiers.md",
-     "$VAULT/inbox/harnessmm-guarded-decision-reuse-rsi.md",
-     "$VAULT/inbox/hermann-stop-mixing-rag-kg-semantic-agents.md",
-     "$VAULT/inbox/hotreload-in-rust-dynamic-libraries.md",
-     "$VAULT/inbox/hunch-systemone-proxy-embeddings-graduate.md",
-     "$VAULT/inbox/huxley-godel-machine-metaproductivity-not-benchmark-score-picks-the-ancestors.md",
-     "$VAULT/inbox/insight-verifiable-artifact-beats-green-gates.md",
-     "$VAULT/inbox/into-the-unknown-agents-followup-papers.md",
-     "$VAULT/inbox/jev-1-14-the-incumbent-answers-the-crowning-wave-with-262k-context-and-vision.md",
-     "$VAULT/inbox/jev-system1-system2-four-beats-video-haystack.md",
-     "$VAULT/inbox/jevact-contracts-for-pa-jev.md",
-     "$VAULT/inbox/jevact-ibm-runtime-decision-gate.md",
-     "$VAULT/inbox/jevagentharness-decision-models-share-control-with-llms.md",
-     "$VAULT/inbox/jevbench-baseline-v1-7-22.md",
-     "$VAULT/inbox/jevbench-independent-board.md",
-     "$VAULT/inbox/lamplit-agent-review-loop-measured.md",
-     "$VAULT/inbox/law-nexus-serialization-traits-applicability.md",
-     "$VAULT/inbox/layerfs-dsh-integration.md",
-     "$VAULT/inbox/leanrea-skill-vs-rea-mcp.md",
-     "$VAULT/inbox/learned-index-lab-pgm-rust-epsilon-guarantees.md",
-     "$VAULT/inbox/legal-agents-evolve-at-test-time-without-training-retrieve-experience-check-rubrics.md",
-     "$VAULT/inbox/ln-legal-intent-bridge.md",
-     "$VAULT/inbox/loco-rust-on-rails.md",
-     "$VAULT/inbox/lsa-latent-sparse-attention.md",
-     "$VAULT/inbox/magic-school-evaluators-cry-wolf.md",
-     "$VAULT/inbox/makarevich-architecture-fixes-failure.md",
-     "$VAULT/inbox/matsakis-agentic-dev-and-rust.md",
-     "$VAULT/inbox/matsakis-agentic-links-deepdive.md",
-     "$VAULT/inbox/matsakis-modular-vs-external-proofs.md",
-     "$VAULT/inbox/mbrotli-mzstd-formal-verification.md",
-     "$VAULT/inbox/memory-echo-repeated-write-back-gives-old-claims-retrieval-votes-and-fpa-stops-it-without-deleting-history.md",
-     "$VAULT/inbox/mercury-decide-decisions-api-wire-sibling-of-systemone.md",
-     "$VAULT/inbox/mercury3-diffusion-scales-inception.md",
-     "$VAULT/inbox/meta-catching-jittests-production.md",
-     "$VAULT/inbox/meta-jitesting-human-on-the-loop.md",
-     "$VAULT/inbox/meta-privacylib-data-access-boundary.md",
-     "$VAULT/inbox/meta-thin-orchestrator.md",
-     "$VAULT/inbox/mintlify-self-updating-docs-architecture.md",
-     "$VAULT/inbox/mirror-harness-vs-allspark.md",
-     "$VAULT/inbox/mirror-reflection-coding-harness-patterns.md",
-     "$VAULT/inbox/mpt-market-based-post-training.md",
-     "$VAULT/inbox/namidsh-deepseek-harness-mini.md",
-     "$VAULT/inbox/netstack-small-crates-gjengset.md",
-     "$VAULT/inbox/news-corpus-synthesis-2026-11-segment.md",
-     "$VAULT/inbox/news-discovery-2026-practices.md",
-     "$VAULT/inbox/nimble-v4-claims-the-decision-index-crown-and-systemone-hardens-into-the-standard.md",
-     "$VAULT/inbox/ocs-rule-sensitivity-audit.md",
-     "$VAULT/inbox/octopus-kernel-patterns-deepdive.md",
-     "$VAULT/inbox/octopus-patterns-for-allspark-mapping.md",
-     "$VAULT/inbox/octopus-si-os-agentic-kernel.md",
-     "$VAULT/inbox/omnimem-earned-agent-memory.md",
-     "$VAULT/inbox/ontographia-intent-to-cypher.md",
-     "$VAULT/inbox/ontosmith-jev-knowledge-graph-builder.md",
-     "$VAULT/inbox/oo-harness-object-oriented-harness-evolution.md",
-     "$VAULT/inbox/opal-reactive-optimizer.md",
-     "$VAULT/inbox/open-ontologies-vs-arsumbris.md",
-     "$VAULT/inbox/openrsi-sglang-omni-harnessed-rsi.md",
-     "$VAULT/inbox/orlp-black-box-hashdos-hashbrown.md",
-     "$VAULT/inbox/parallel-agent-verified-integration-block-optimization.md",
-     "$VAULT/inbox/parallel-decisions-api-web-grounded-systemone.md",
-     "$VAULT/inbox/pattern-ai-native-process-redesign.md",
-     "$VAULT/inbox/pattern-baseline-aware-outliers.md",
-     "$VAULT/inbox/pattern-corpus-parity-replacement.md",
-     "$VAULT/inbox/pattern-crossover-first.md",
-     "$VAULT/inbox/pattern-curriculum-diversity-budget.md",
-     "$VAULT/inbox/pattern-decouple-proven-core.md",
-     "$VAULT/inbox/pattern-differentiate-on-insert.md",
-     "$VAULT/inbox/pattern-distractor-semantic-eval.md",
-     "$VAULT/inbox/pattern-dock-dont-mock.md",
-     "$VAULT/inbox/pattern-earn-the-split.md",
-     "$VAULT/inbox/pattern-experience-governance.md",
-     "$VAULT/inbox/pattern-flat-flame-measured-loop.md",
-     "$VAULT/inbox/pattern-gain-per-cost-ordering.md",
-     "$VAULT/inbox/pattern-headless-verify-loop.md",
-     "$VAULT/inbox/pattern-human-on-loop-aggregate-review.md",
-     "$VAULT/inbox/pattern-internalize-over-scaffold.md",
-     "$VAULT/inbox/pattern-latency-qualified-value.md",
-     "$VAULT/inbox/pattern-llm-emits-intent-not-query.md",
-     "$VAULT/inbox/pattern-mini-mirror-parity.md",
-     "$VAULT/inbox/pattern-mixed-attention-spaces.md",
-     "$VAULT/inbox/pattern-mono-agent-max-context.md",
-     "$VAULT/inbox/pattern-oracle-problem.md",
-     "$VAULT/inbox/pattern-preregistered-quality-gates.md",
-     "$VAULT/inbox/pattern-review-reasoning-not-code.md",
-     "$VAULT/inbox/pattern-role-locus-operation-attribution.md",
-     "$VAULT/inbox/pattern-savings-dashboard.md",
-     "$VAULT/inbox/pattern-spec-eliminates-uncertainty.md",
-     "$VAULT/inbox/pattern-supersede-discipline.md",
-     "$VAULT/inbox/pattern-system-not-model-faults.md",
-     "$VAULT/inbox/pattern-three-anchors-before-tuning.md",
-     "$VAULT/inbox/pattern-tool-uptake-eval.md",
-     "$VAULT/inbox/pattern-top-p-budgets.md",
-     "$VAULT/inbox/pdd-kit-verus-chopin.md",
-     "$VAULT/inbox/perfr-c2rust-performance-regressions.md",
-     "$VAULT/inbox/pi-rs-rust-port-parity-discipline.md",
-     "$VAULT/inbox/pivot-memory-latency-groupby.md",
-     "$VAULT/inbox/powercontext-oceanbase-context-service.md",
-     "$VAULT/inbox/prime-agent-replaces-tool-fragments-with-one-persistent-python-repl-and-a-self-refining-harness.md",
-     "$VAULT/inbox/progressive-misalignment-rsd.md",
-     "$VAULT/inbox/properagent-memory-driven-proactive-assistance.md",
-     "$VAULT/inbox/quality-inheritance-principle.md",
-     "$VAULT/inbox/qwen-office-2-team-agent.md",
-     "$VAULT/inbox/ragflow-knowledge-compilation-claim-evidence.md",
-     "$VAULT/inbox/rapx-ai-generated-rust-guardrail.md",
-     "$VAULT/inbox/rauch-agentic-coding-workflow-seven-practices.md",
-     "$VAULT/inbox/recursive-self-improvement-survey-nine-design-dimensions-and-the-acceptance-criterion-that-cannot-see-infrastructure.md",
-     "$VAULT/inbox/reflection-beam-open-weight-agent-model.md",
-     "$VAULT/inbox/rlm-jev-calibrated-systemone-subcalls-for-rlm.md",
-     "$VAULT/inbox/routed-continual-learning-meta.md",
-     "$VAULT/inbox/rrsi-regularized-harness-self-improvement.md",
-     "$VAULT/inbox/rune-anomaly-gpu-ui.md",
-     "$VAULT/inbox/rust-goal-target-dir-size.md",
-     "$VAULT/inbox/rust-profiling-measured-loop.md",
-     "$VAULT/inbox/rust-rulebook-vs-beautifulrust.md",
-     "$VAULT/inbox/rust-type-layout-padding-2026.md",
-     "$VAULT/inbox/rustbytes-144-digest-delta.md",
-     "$VAULT/inbox/rusteerio-cheerio-api-on-rust-engine.md",
-     "$VAULT/inbox/s-agent-2-spatial-coding-agent.md",
-     "$VAULT/inbox/sag2-embedding-free-retrieval.md",
-     "$VAULT/inbox/sage-a1-5-agentic-vlm.md",
-     "$VAULT/inbox/selfplay-theorem-proving-theory.md",
-     "$VAULT/inbox/serde-rs-serde.md",
-     "$VAULT/inbox/sermakarevich-agent-infra-series-synthesis.md",
-     "$VAULT/inbox/sermakarevich-context-window-thirty-products.md",
-     "$VAULT/inbox/sermakarevich-rag-debug-tutorial.md",
-     "$VAULT/inbox/sermakarevich-sixty-ai-code-reviewers.md",
-     "$VAULT/inbox/sermakarevich-thirty-memory-products-review.md",
-     "$VAULT/inbox/serverbench-agentic-serving-design.md",
-     "$VAULT/inbox/sheaf-laplacian-diagnostics-for-subagent-contradictions-in-allspark.md",
-     "$VAULT/inbox/skilladam-adam-moments-for-discrete-skill-documents-direction-memory-and-volatility-budget.md",
-     "$VAULT/inbox/skillpp-routing-aware-skill-refinement.md",
-     "$VAULT/inbox/slatedb-solves-a-problem-kuthas-manifest-already-solved.md",
-     "$VAULT/inbox/specdlc-fondue-recipe-graph.md",
-     "$VAULT/inbox/specdlc-popperian-acceptance-criteria.md",
-     "$VAULT/inbox/stale-instruction-files-override-code-one-sentence-fix.md",
-     "$VAULT/inbox/surrealkv-1-0-a-commit-ring-beats-a-skiplist-and-the-honest-numbers-are-the-point.md",
-     "$VAULT/inbox/switch-decision-model-harness-framework.md",
-     "$VAULT/inbox/syn-rust-parser-dtolnay.md",
-     "$VAULT/inbox/tald-bench-temporal-applicable-law.md",
-     "$VAULT/inbox/tcr-former-temporal-causal-topology.md",
-     "$VAULT/inbox/thinkrail-jetbrains-pi-host-architecture.md",
-     "$VAULT/inbox/time-as-structure-extract-with-a-model-compute-with-code-and-audit-the-working-not-the-value.md",
-     "$VAULT/inbox/tokeneconomizer-repo-experience-token-saver.md",
-     "$VAULT/inbox/tsrs-bench-patterns-for-grobid-rust-port.md",
-     "$VAULT/inbox/turbopuffer-vectorized-search.md",
-     "$VAULT/inbox/valen-reverse-walking-borrow-checker.md",
-     "$VAULT/inbox/vercel-durable-harness.md",
-     "$VAULT/inbox/verus-pilot-pa-mem-ptr48.md",
-     "$VAULT/inbox/vibelight-falco-crate-outliner.md",
-     "$VAULT/inbox/vk-multihash-temporal-gnn.md",
-     "$VAULT/inbox/webharbor-docked-gui-environments.md",
-     "$VAULT/inbox/what-to-steal-tool-patterns.md",
-     "$VAULT/inbox/xferagent-reconcile-heterogeneous-experience-with-a-margin-or-dont-merge-and-route-by-others-outcomes.md",
-     "$VAULT/inbox/xlnc-binary-vs-continuous-evals.md",
-     "$VAULT/inbox/yoyo-2026-rust-compiler-year.md",
-     "$VAULT/inbox/zetas-place-level-borrow-checking-and-the-hyrums-law-trap-inside-it.md",
-     "$VAULT/inbox/zha-hierarchical-attention-patterns.md",
-     "$VAULT/knowledge/a-22k-line-memory-kernel-compiles-context-into-a-temporal-sqlite-graph-with-decay.md",
-     "$VAULT/knowledge/a-3am-dreaming-job-compiles-the-day-into-tomorrows-context-across-28-cron-jobs.md",
-     "$VAULT/knowledge/a-blind-since-birth-user-shipped-an-nvda-translation-addon.md",
-     "$VAULT/knowledge/a-local-email-gatekeeper-keeps-2fa-codes-out-of-agent-reach.md",
-     "$VAULT/knowledge/a-mem-uses-zettelkasten-method-for-agentic-memory-with-retroactive-evolution.md",
-     "$VAULT/knowledge/adaptive-dag-routing-uses-q-learning-to-optimize-agent-topology.md",
-     "$VAULT/knowledge/agent-personalization.md",
-     "$VAULT/knowledge/agent-security.md",
-     "$VAULT/knowledge/agent-skills-go-unused-in-56-percent-of-cases-when-invocation-is-left-to-agent-discretion.md",
-     "$VAULT/knowledge/agentdb-architecture.md",
-     "$VAULT/knowledge/agentdb-auto-selects-backend-from-ruvector-rust-down-to-wasm-sqlite-for-universal-runtime.md",
-     "$VAULT/knowledge/agentdb-causal-memory-tracks-interventional-causality-via-doubly-robust-estimation.md",
-     "$VAULT/knowledge/agentdb-explainable-recall-provides-cryptographic-merkle-proofs-for-every-retrieval.md",
-     "$VAULT/knowledge/agentdb-mcp-server-exposes-32-tools-across-vector-ops-reasoning-learning-and-frontier-memory.md",
-     "$VAULT/knowledge/agentdb-nightly-learner-runs-automated-causal-discovery-with-doubly-robust-learning-in-background.md",
-     "$VAULT/knowledge/agentdb-quic-sync-enables-real-time-delta-compressed-memory-sharing-across-distributed-agents.md",
-     "$VAULT/knowledge/agentdb-reasoningbank-has-four-components-pattern-matcher-experience-curator-memory-optimizer-context-synthesizer.md",
-     "$VAULT/knowledge/agentdb-reflexion-memory-stores-episodes-with-self-critique-for-experience-replay-learning.md",
-     "$VAULT/knowledge/agentdb-ships-12-rl-algorithms-from-decision-transformer-to-hierarchical-rl-via-plugin-wizard.md",
-     "$VAULT/knowledge/agentdb-skill-library-auto-consolidates-successful-patterns-into-parameterized-composable-skills.md",
-     "$VAULT/knowledge/agentic-architecture.md",
-     "$VAULT/knowledge/agentic-flow-agent-booster-handles-trivial-edits-via-wasm-plus-ast-at-zero-cost-and-sub-millisecond-latency.md",
-     "$VAULT/knowledge/agentic-flow-architecture.md",
-     "$VAULT/knowledge/agentic-flow-attention-coordinator-uses-five-mechanisms-for-sub-0-1ms-multi-agent-consensus.md",
-     "$VAULT/knowledge/agentic-flow-deploys-66-specialized-agents-across-seven-categories-each-with-reasoningbank-self-learning.md",
-     "$VAULT/knowledge/agentic-flow-exposes-213-mcp-tools-for-swarm-memory-neural-github-and-performance-operations.md",
-     "$VAULT/knowledge/agentic-flow-hooks-learn-from-development-patterns-via-four-step-retrieve-judge-distill-consolidate-pipeline.md",
-     "$VAULT/knowledge/agentic-flow-init-scaffolds-complete-claude-directory-with-80-agents-100-commands-and-hooks.md",
-     "$VAULT/knowledge/agentic-flow-is-the-cost-optimization-hub-routing-agents-to-cheaper-models-via-sona-self-learning.md",
-     "$VAULT/knowledge/agentic-flow-runs-six-background-workers-for-learning-optimization-audit-docs-refactor-and-testing.md",
-     "$VAULT/knowledge/agentic-flow-smart-routing-cascades-from-zero-cost-wasm-through-haiku-sonnet-to-opus-swarm.md",
-     "$VAULT/knowledge/agentic-flow-supports-five-llm-providers-with-automatic-failover-and-cost-based-routing.md",
-     "$VAULT/knowledge/agentic-qa-two-projects-insight.md",
-     "$VAULT/knowledge/agentic-reasoning-decomposes-into-three-layers-each-optimizable-in-context-or-post-training.md",
-     "$VAULT/knowledge/agenticdb-five-table-schema-for-cognitive-memory.md",
-     "$VAULT/knowledge/agents-of-chaos-circular-verification.md",
-     "$VAULT/knowledge/agents-of-chaos-disproportionate-response.md",
-     "$VAULT/knowledge/agents-of-chaos-emergent-safety-coordination.md",
-     "$VAULT/knowledge/agents-of-chaos-forwarding-reframes-bypass.md",
-     "$VAULT/knowledge/agents-of-chaos-guilt-trip-attack.md",
-     "$VAULT/knowledge/agents-of-chaos-identity-spoofing.md",
-     "$VAULT/knowledge/agents-of-chaos-indirect-injection.md",
-     "$VAULT/knowledge/agents-of-chaos-injection-refused.md",
-     "$VAULT/knowledge/agents-of-chaos-multi-agent-amplification.md",
-     "$VAULT/knowledge/agents-of-chaos-no-private-deliberation.md",
-     "$VAULT/knowledge/agents-of-chaos-no-self-model.md",
-     "$VAULT/knowledge/agents-of-chaos-no-stakeholder-model.md",
-     "$VAULT/knowledge/agents-of-chaos-prompt-injection-structural.md",
-     "$VAULT/knowledge/agents-of-chaos-silent-censorship.md",
-     "$VAULT/knowledge/agents-of-chaos-social-coherence-failure.md",
-     "$VAULT/knowledge/agents-of-chaos-zeroclaw-architecture-implications.md",
-     "$VAULT/knowledge/amem-search-agentic-graph-traversal.md",
-     "$VAULT/knowledge/amem-zettelkasten-retroactive-evolution.md",
-     "$VAULT/knowledge/an-18-agent-kanban-fleet-scores-its-own-work-against-a-rubric-and-shelves-below-65.md",
-     "$VAULT/knowledge/architecture-principles.md",
-     "$VAULT/knowledge/arsumbris-typed-graph-live-test.md",
-     "$VAULT/knowledge/assert-retract-correct-write-ops.md",
-     "$VAULT/knowledge/asymmetric-risk-controller-modulates-updates-by-signal-reliability.md",
-     "$VAULT/knowledge/tb-engine-build-profiling-2026-10.md",
-     "$VAULT/knowledge/batch-query-patterns-improve-graph-retrieval-throughput.md",
-     "$VAULT/knowledge/bitemporal-valid-transaction-time.md",
-     "$VAULT/knowledge/blackbox-qa-agents.md",
-     "$VAULT/knowledge/claude-flow-architecture.md",
-     "$VAULT/knowledge/claude-flow-deploys-15-agent-hierarchical-mesh-with-queen-coordinator-and-three-domain-clusters.md",
-     "$VAULT/knowledge/claude-flow-exposes-171-mcp-tools-across-19-categories-with-multi-transport-stdio-http-websocket.md",
-     "$VAULT/knowledge/claude-flow-hybrid-memory-combines-sqlite-acid-with-agentdb-hnsw-for-150x-to-12500x-search-speedup.md",
-     "$VAULT/knowledge/claude-flow-implements-three-consensus-protocols-raft-byzantine-gossip-with-runtime-factory-selection.md",
-     "$VAULT/knowledge/claude-flow-microkernel-loads-five-named-plugins-hivemind-maestro-neural-verification-enterprise.md",
-     "$VAULT/knowledge/claude-flow-moe-router-cascades-three-tiers-wasm-ast-then-neural-agent-then-claude-llm.md",
-     "$VAULT/knowledge/claude-flow-organizes-64-specialized-agents-in-25-subdirectories-with-yaml-config-and-mcp-integration.md",
-     "$VAULT/knowledge/claude-flow-projects-onnx-embeddings-into-poincare-ball-hyperbolic-space-for-hierarchical-representation.md",
-     "$VAULT/knowledge/claude-flow-runs-12-background-workers-from-ultralearn-to-testgaps-with-daemon-management.md",
-     "$VAULT/knowledge/claude-flow-security-module-passes-444-tests-with-bcrypt-safe-executor-and-zod-validation.md",
-     "$VAULT/knowledge/claude-flow-shares-learned-patterns-via-ipfs-with-four-level-anonymization-and-marketplace.md",
-     "$VAULT/knowledge/claude-flow-sona-neural-provides-five-learning-modes-from-sub-millisecond-realtime-to-deep-research.md",
-     "$VAULT/knowledge/claude-flow-sparc-methodology-orchestrates-five-phases-with-dedicated-agents-and-seven-agent-tdd-swarm.md",
-     "$VAULT/knowledge/clef-cloudflare-decision-models.md",
-     "$VAULT/knowledge/code-actions-outperform-text-json-with-20-percent-higher-success-rate.md",
-     "$VAULT/knowledge/code-execution.md",
-     "$VAULT/knowledge/codeact-vs-cloudflare-code-mode-design-tradeoffs.md",
-     "$VAULT/knowledge/codeactinstruct-agent-training-improves-agent-tasks-without-degrading-general-capabilities.md",
-     "$VAULT/knowledge/codeactinstruct-contains-7k-multi-turn-code-interaction-trajectories-across-5-domains.md",
-     "$VAULT/knowledge/codeactinstruct-mixture-strategy-prevents-agent-capability-cannibalization.md",
-     "$VAULT/knowledge/codeactinstruct-self-improvement-behavior-filtering-improves-dataset-quality.md",
-     "$VAULT/knowledge/command-injection-prevention-blocks-shell-operators-subshells-and-dangerous-arguments.md",
-     "$VAULT/knowledge/compressed-8kb-docs-index-preserves-full-agent-effectiveness-agents-need-pointers-not-content.md",
-     "$VAULT/knowledge/context-window-stuffing-impairs-agent-performance-max-20-to-30-percent-for-retrieved-memories.md",
-     "$VAULT/knowledge/credential-scrubbing-uses-regex-patterns-to-redact-secrets-from-tool-output.md",
-     "$VAULT/knowledge/critique-prediction-enables-self-improvement-without-external-teacher.md",
-     "$VAULT/knowledge/cron-script-no-agent-mode-runs-scheduled-jobs-at-zero-tokens.md",
-     "$VAULT/knowledge/curated-skills-boost-agent-pass-rate-by-16pp-while-self-generated-skills-degrade-by-1pp.md",
-     "$VAULT/knowledge/demand-high-optimality-low-trap-cluster.md",
-     "$VAULT/knowledge/design-to-code-startup-made-an-agent-its-on-call-engineer-with-prs-pending-approval.md",
-     "$VAULT/knowledge/dict-first-agent-interface-pattern.md",
-     "$VAULT/knowledge/dm-approval-gates-put-a-human-before-kid-facing-bot-replies.md",
-     "$VAULT/knowledge/document-comparison-vs-semantic-matching.md",
-     "$VAULT/knowledge/domain-specific-skills-boost-agents-42-to-52pp-in-healthcare-manufacturing-but-only-4-to-6pp-in-software-engineering.md",
-     "$VAULT/knowledge/droppable-materializations-pattern.md",
-     "$VAULT/knowledge/dual-route-memory-combines-vector-similarity-with-hierarchical-graph-traversal.md",
-     "$VAULT/knowledge/dual-stream-ingestion-separates-fast-sync-path-from-async-llm-consolidation.md",
-     "$VAULT/knowledge/embedding-drift-silent-retrieval-killer.md",
-     "$VAULT/knowledge/embedding-drift-silently-degrades-retrieval-when-models-change.md",
-     "$VAULT/knowledge/entity-resolution-accuracy-below-85-percent-corrupts-graph.md",
-     "$VAULT/knowledge/entity-resolution-accuracy-below-90-percent-corrupts-knowledge-graph-reasoning-chains.md",
-     "$VAULT/knowledge/entity-resolution-below-85-percent-cascades-into-graph-corruption.md",
-     "$VAULT/knowledge/event-log-as-source-of-truth-agent-memory.md",
-     "$VAULT/knowledge/every-ruvnet-project-runs-background-workers-as-the-operational-form-of-self-evolving-intelligence.md",
-     "$VAULT/knowledge/fact-extraction-must-precede-graph-construction-intelligence-before-infrastructure.md",
-     "$VAULT/knowledge/fin-crime-agent-rewrote-2500-rule-scenarios-so-client-config-skips-deploys.md",
-     "$VAULT/knowledge/formal-verification.md",
-     "$VAULT/knowledge/four-agents-share-one-obsidian-vault-to-end-cross-agent-amnesia.md",
-     "$VAULT/knowledge/futuruna-website-autopublish.md",
-     "$VAULT/knowledge/gemini-flash-uses-2x-more-tokens-than-pro-but-costs-47-percent-less-per-task-via-iterative-exploration.md",
-     "$VAULT/knowledge/github-spec-kit-five-phase-workflow-constitution-specify-plan-tasks-implement.md",
-     "$VAULT/knowledge/glyph-protocol-signs-every-tool-card-before-the-agent-calls-it.md",
-     "$VAULT/knowledge/graph-schema-over-engineering-risk.md",
-     "$VAULT/knowledge/graphiti-bitemporal-fact-edges-contrast.md",
-     "$VAULT/knowledge/graphmemory-wraps-existing-backends-as-decorator-not-trait-extension.md",
-     "$VAULT/knowledge/graphrag-underperforms-vanilla-rag-on-simple-queries-benchmark-before-building-graph.md",
-     "$VAULT/knowledge/heisenbugs-require-formal-methods-not-testing.md",
-     "$VAULT/knowledge/hermes-stories-business-ops.md",
-     "$VAULT/knowledge/hermes-stories-content-creation.md",
-     "$VAULT/knowledge/hermes-stories-cost-optimization.md",
-     "$VAULT/knowledge/hermes-stories-creative.md",
-     "$VAULT/knowledge/hermes-stories-dev-workflow.md",
-     "$VAULT/knowledge/hermes-stories-enterprise.md",
-     "$VAULT/knowledge/hermes-stories-general.md",
-     "$VAULT/knowledge/hermes-stories-integrations.md",
-     "$VAULT/knowledge/hermes-stories-marketing.md",
-     "$VAULT/knowledge/hermes-stories-messaging.md",
-     "$VAULT/knowledge/hermes-stories-meta-ecosystem.md",
-     "$VAULT/knowledge/hermes-stories-personal-assistant.md",
-     "$VAULT/knowledge/hermes-stories-privacy-self-hosted.md",
-     "$VAULT/knowledge/hermes-stories-research.md",
-     "$VAULT/knowledge/hermes-stories-trading-markets.md",
-     "$VAULT/knowledge/hermes-user-stories.md",
-     "$VAULT/knowledge/hierarchical-graph-memory-simplifies-dynamic-agent-state-management.md",
-     "$VAULT/knowledge/hierarchical-graph-schema-enables-semantic-abstraction-layers.md",
-     "$VAULT/knowledge/hnsw-memory-bloat-index-requires-ram-residency-100k-vectors-at-1536-dims-needs-600mb-plus.md",
-     "$VAULT/knowledge/hotpath-profiler-analysis.md",
-     "$VAULT/knowledge/human-feedback.md",
-     "$VAULT/knowledge/hybrid-search-combines-cypher-filtering-with-hnsw-in-subgraph.md",
-     "$VAULT/knowledge/hybrid-search-fusion-tuning-risk.md",
-     "$VAULT/knowledge/hyperbolic-geometry-appears-at-every-layer-of-the-ruvnet-stack-from-sql-functions-to-onnx-embeddings.md",
-     "$VAULT/knowledge/hyperparameter-sensitivity-is-low-for-mass-adaptive-parameter-alpha.md",
-     "$VAULT/knowledge/implicit-legal-reference-extraction.md",
-     "$VAULT/knowledge/in-context-learning.md",
-     "$VAULT/knowledge/in-context-plasticity-determines-feedback-integration-ability.md",
-     "$VAULT/knowledge/index.md",
-     "$VAULT/knowledge/isolation-typed-contradiction-operators.md",
-     "$VAULT/knowledge/jev-1-13-has-known-jagged-edges.md",
-     "$VAULT/knowledge/jev-agent-action-selection-pattern.md",
-     "$VAULT/knowledge/jev-applications.md",
-     "$VAULT/knowledge/jev-atomic-questions-beat-composite-reasoning.md",
-     "$VAULT/knowledge/jev-available-via-direct-api-openrouter-and-gateways.md",
-     "$VAULT/knowledge/jev-compaction-beats-summary-on-hermes-transcripts.md",
-     "$VAULT/knowledge/jev-composite-scoring-pattern.md",
-     "$VAULT/knowledge/jev-confidence-gated-routing-pattern.md",
-     "$VAULT/knowledge/jev-confidence-is-a-second-axis-not-a-stronger-answer.md",
-     "$VAULT/knowledge/jev-context-curation-pattern.md",
-     "$VAULT/knowledge/jev-cost-is-not-always-a-win.md",
-     "$VAULT/knowledge/jev-deterministic-first-gating-pattern.md",
-     "$VAULT/knowledge/jev-guardrail-deployment-lessons.md",
-     "$VAULT/knowledge/jev-intent-routing-pattern.md",
-     "$VAULT/knowledge/jev-keep-result-runs-low-on-hermes-transcripts.md",
-     "$VAULT/knowledge/jev-noul-and-choice-can-point-in-opposite-directions.md",
-     "$VAULT/knowledge/jev-noul-probabilities-are-calibrated.md",
-     "$VAULT/knowledge/jev-open-replicas-ecosystem.md",
-     "$VAULT/knowledge/jev-policy-rescoring-is-free.md",
-     "$VAULT/knowledge/jev-questions-evaluate-in-parallel-and-isolation.md",
-     "$VAULT/knowledge/jev-real-world-numbers-2026.md",
-     "$VAULT/knowledge/jev-reranking-pattern.md",
-     "$VAULT/knowledge/jev-rubric-scoring-pattern.md",
-     "$VAULT/knowledge/jev-speculative-fan-out-pattern.md",
-     "$VAULT/knowledge/jev-state-carries-context-64k-tokens.md",
-     "$VAULT/knowledge/jev-system-one-returns-typed-decisions-not-text.md",
-     "$VAULT/knowledge/jev-three-primitives-choice-score-noul.md",
-     "$VAULT/knowledge/jev.md",
-     "$VAULT/knowledge/karl-agentic-synthesis-pipeline-for-training-data.md",
-     "$VAULT/knowledge/karl-multi-task-rl-generalizes-better-than-distillation.md",
-     "$VAULT/knowledge/karl-oapl-off-policy-rl-for-hard-to-verify-agentic-tasks.md",
-     "$VAULT/knowledge/karl-pareto-optimal-vs-claude-46-and-gpt-52.md",
-     "$VAULT/knowledge/karlbench-six-grounded-reasoning-regimes.md",
-     "$VAULT/knowledge/kernel-flusher-throttling-cloud-oltp.md",
-     "$VAULT/knowledge/kutha-graph-project-snapshot.md",
-     "$VAULT/knowledge/kutha-stca-paradigm.md",
-     "$VAULT/knowledge/kutha-temporal-graphs.md",
-     "$VAULT/knowledge/law-as-code-topic-map.md",
-     "$VAULT/knowledge/lawmcp-poland-analysis.md",
-     "$VAULT/knowledge/learning-patterns.md",
-     "$VAULT/knowledge/legal-datasets-jurisdiction-map.md",
-     "$VAULT/knowledge/legal-llms-gpts-repo-map.md",
-     "$VAULT/knowledge/legal-lta-resources-annotation-software-orgs.md",
-     "$VAULT/knowledge/legal-lta-resources-datasets.md",
-     "$VAULT/knowledge/legal-lta-resources-tasks-methods-libs.md",
-     "$VAULT/knowledge/legal-ner-anonymization-dual-use.md",
-     "$VAULT/knowledge/legal-norm-ontology-classification.md",
-     "$VAULT/knowledge/legal-qa-complexity-boundary.md",
-     "$VAULT/knowledge/legal-text-analytics-lli-moc.md",
-     "$VAULT/knowledge/legal-text-analytics.md",
-     "$VAULT/knowledge/linkml-yaml-based-ontology-compiles-to-pydantic-typescript-sql.md",
-     "$VAULT/knowledge/llm-bridges-semantic-gap-between-ontology-and-code.md",
-     "$VAULT/knowledge/llm-compiler-not-executor-principle.md",
-     "$VAULT/knowledge/llm-dependency-write-path-latency-explosion.md",
-     "$VAULT/knowledge/llm-patterns.md",
-     "$VAULT/knowledge/lta-resources-verification-ledger.md",
-     "$VAULT/knowledge/maspo-improves-sample-efficiency-over-grpo-across-model-scales.md",
-     "$VAULT/knowledge/maspo-limitations-include-verifiable-reward-dependence-and-scale-validation.md",
-     "$VAULT/knowledge/mass-adaptive-limiter-scales-trust-region-by-token-probability.md",
-     "$VAULT/knowledge/mcp-servers.md",
-     "$VAULT/knowledge/mcp-tools-as-typescript-api-outperforms-direct-tool-calling.md",
-     "$VAULT/knowledge/memory-agent-abstraction-enables-natural-language-memory-operations.md",
-     "$VAULT/knowledge/memory-evolution-background-jobs.md",
-     "$VAULT/knowledge/memory-systems.md",
-     "$VAULT/knowledge/middle-out-methodology-best-for-agile-ontology-development.md",
-     "$VAULT/knowledge/miroflow-achieves-82-percent-gaia-with-single-rtx-4090.md",
-     "$VAULT/knowledge/miroflow-main-sub-agent-delegation-pattern.md",
-     "$VAULT/knowledge/miroflow-mcp-protocol-uses-xml-tool-calling.md",
-     "$VAULT/knowledge/miroflow-orchestrator-loop-uses-turn-based-execution.md",
-     "$VAULT/knowledge/miroflow-parallel-thinking-uses-voting-for-answer-selection.md",
-     "$VAULT/knowledge/mnemis-dual-route-memory-combines-fast-similarity-with-hierarchical-traversal-for-sota-long-term-recall.md",
-     "$VAULT/knowledge/mnemis-global-selection-uses-llm-guided-top-down-traversal.md",
-     "$VAULT/knowledge/mnemosyne-four-agent-framework-orchestrator-optimizer-reviewer-executor.md",
-     "$VAULT/knowledge/mnemosyne-four-agent-orchestration-ractor.md",
-     "$VAULT/knowledge/mnemosyne-hybrid-search-three-component.md",
-     "$VAULT/knowledge/mnemosyne-hybrid-search-weights-fts5-20-percent-plus-graph-10-percent-plus-vector-70-percent-for-sub-2ms-latency.md",
-     "$VAULT/knowledge/mnemosyne-importance-recalibration-formula-base-30-percent-plus-access-40-percent-plus-recency-20-percent-plus-links-10-percent.md",
-     "$VAULT/knowledge/mnemosyne-memorynote-has-16-types-with-type-factors-from-0-dot-8-to-1-dot-3.md",
-     "$VAULT/knowledge/model-checking-as-ci-gate.md",
-     "$VAULT/knowledge/monad-protocol-solo-developer-odd-workflow.md",
-     "$VAULT/knowledge/multi-parser-resilience-handles-tool-calls-from-openai-anthropic-glm-and-xml-formats.md",
-     "$VAULT/knowledge/nineteen-percent-of-agent-tasks-remain-unsolvable-even-with-curated-skills-defining-current-capability-ceiling.md",
-     "$VAULT/knowledge/no-forgetting-mechanism-anti-pattern.md",
-     "$VAULT/knowledge/no-forgetting-mechanism-causes-self-degradation-agents-using-add-all-strategies-show-decline.md",
-     "$VAULT/knowledge/oasdd-ontology-augmented-spec-driven-development.md",
-     "$VAULT/knowledge/ontology-as-single-source-of-truth-code-never-primary.md",
-     "$VAULT/knowledge/ontology-driven-development.md",
-     "$VAULT/knowledge/openjev-ruvector-pr-1029.md",
-     "$VAULT/knowledge/optimal-skill-count-is-two-to-three-modules-at-1500-tokens-four-plus-causes-cognitive-overload.md",
-     "$VAULT/knowledge/owlready2-adds-python-methods-to-owl-classes.md",
-     "$VAULT/knowledge/pahf-framework-for-continual-agent-personalization.md",
-     "$VAULT/knowledge/passive-context-agents-md-achieves-100-percent-pass-rate-where-on-demand-skills-achieve-53-percent-by-eliminating-invocation-decision.md",
-     "$VAULT/knowledge/premature-graphrag-builds-graph-before-validating-need.md",
-     "$VAULT/knowledge/premature-graphrag-is-the-number-one-risk-benchmark-before-building-graph-infrastructure.md",
-     "$VAULT/knowledge/provider-alias-system-enables-multi-region-and-multi-variant-routing.md",
-     "$VAULT/knowledge/pullenti-decree-model-bridge.md",
-     "$VAULT/knowledge/pullenti-ecosystem-map.md",
-     "$VAULT/knowledge/pullenti-sdk-analysis.md",
-     "$VAULT/knowledge/python-interpreter-enables-multi-turn-self-debugging-in-agents.md",
-     "$VAULT/knowledge/qa-capability-vs-regression-suites-principle.md",
-     "$VAULT/knowledge/qa-judge-ab-gate-pattern.md",
-     "$VAULT/knowledge/qa-judge-drift-frozen-anchors-pattern.md",
-     "$VAULT/knowledge/qa-smoke-suite-state-oracles-pattern.md",
-     "$VAULT/knowledge/qa-task-mining-pattern.md",
-     "$VAULT/knowledge/qa-trace-invariants-pattern.md",
-     "$VAULT/knowledge/razorpay-runs-220-isolated-per-employee-agents-on-kubernetes.md",
-     "$VAULT/knowledge/release-profile-optimizes-for-size-with-z-optlevel-thin-lto-and-single-codegen-unit.md",
-     "$VAULT/knowledge/rem-cycle-dreaming-runs-at-night-for-0-014-on-haiku.md",
-     "$VAULT/knowledge/reverse-engineered-smoker-api-made-the-agent-a-overnight-bbq-watchman.md",
-     "$VAULT/knowledge/rl-training-methods.md",
-     "$VAULT/knowledge/rl2f-consolidation-problem-remains-unsolved.md",
-     "$VAULT/knowledge/rl2f-multi-turn-didactic-dialogues-transform-single-turn-tasks-into-interactive-learning.md",
-     "$VAULT/knowledge/rl2f-outperforms-single-turn-rl-for-cross-domain-transfer.md",
-     "$VAULT/knowledge/rlvr-optimization.md",
-     "$VAULT/knowledge/rollback-restores-destroyed-codebase-and-agent-context-in-one-command.md",
-     "$VAULT/knowledge/ruslawod-corpus-analysis.md",
-     "$VAULT/knowledge/russian-law-mcp-analysis.md",
-     "$VAULT/knowledge/russian-legal-data-landscape.md",
-     "$VAULT/knowledge/russian-legal-nlp.md",
-     "$VAULT/knowledge/russian-legal-verification-ledger.md",
-     "$VAULT/knowledge/rust-ai-systems.md",
-     "$VAULT/knowledge/rust-ecosystem-kb-map.md",
-     "$VAULT/knowledge/rust-modern-algorithms-patterns.md",
-     "$VAULT/knowledge/rust-perf-optimization-canonical.md",
-     "$VAULT/knowledge/rust-simd-2026.md",
-     "$VAULT/knowledge/rust-top20-directions.md",
-     "$VAULT/knowledge/ruvector-agentdb-claude-flow-implement-all-three-agentic-reasoning-layers-in-production.md",
-     "$VAULT/knowledge/ruvector-architecture.md",
-     "$VAULT/knowledge/ruvector-core-hnsw-with-simd-delivers-16m-distance-ops-per-second-across-four-hardware-targets.md",
-     "$VAULT/knowledge/ruvector-exposes-39-attention-mechanisms-as-first-class-postgresql-sql-functions.md",
-     "$VAULT/knowledge/ruvector-gnn-applies-graph-neural-networks-on-hnsw-topology-for-12-percent-recall-improvement.md",
-     "$VAULT/knowledge/ruvector-graph-provides-neo4j-compatible-cypher-with-n-ary-hyperedges-and-acid-transactions.md",
-     "$VAULT/knowledge/ruvector-graph-supports-n-ary-hypergraphs-for-complex-relationships.md",
-     "$VAULT/knowledge/ruvector-hnsw-achieves-52k-ops-sec-with-sub-millisecond-latency.md",
-     "$VAULT/knowledge/ruvector-hnsw-core-validated-but-gnn-experimental.md",
-     "$VAULT/knowledge/ruvector-memory-pool-provides-paged-allocation-lru-eviction-and-multi-tenant-isolation.md",
-     "$VAULT/knowledge/ruvector-offers-five-quantization-schemes-from-4x-scalar-to-32x-binary-compression.md",
-     "$VAULT/knowledge/ruvector-raft-implements-paper-complete-consensus-with-consistent-hashing-for-distributed-deployment.md",
-     "$VAULT/knowledge/ruvector-rejected-for-zeroclaw-due-to-168-downloads-and-single-author-risk.md",
-     "$VAULT/knowledge/ruvector-rvf-container-self-bootstrapping-design.md",
-     "$VAULT/knowledge/ruvector-temporal-tensor-compresses-vectors-3x-to-10x-via-hot-warm-cold-access-pattern-tiers.md",
-     "$VAULT/knowledge/ruvector-wasm-runs-on-two-tracks-browser-bundle-and-sub-8kb-cognitum-microkernel-in-rvf.md",
-     "$VAULT/knowledge/ruvnet-ecosystem-is-four-projects-storage-memory-optimization-orchestration.md",
-     "$VAULT/knowledge/rvf-cognitive-containers-are-executable-knowledge-units-with-cow-and-progressive-indexing.md",
-     "$VAULT/knowledge/rvf-container-is-self-bootstrapping-embedding-vectors-index-wasm-microkernel-and-linux-unikernel.md",
-     "$VAULT/knowledge/sandbox-auto-detection-tries-landlock-bubblewrap-firejail-docker-in-order.md",
-     "$VAULT/knowledge/search-patterns.md",
-     "$VAULT/knowledge/selective-dependency-adoption-over-monolithic-integration.md",
-     "$VAULT/knowledge/self-generated-toolkit-adapts-to-domain-requirements.md",
-     "$VAULT/knowledge/self-improvement.md",
-     "$VAULT/knowledge/semantic-mcp-server-connects-claude-to-ontology-and-tla.md",
-     "$VAULT/knowledge/seventeen-person-startup-runs-team-personalities-on-one-machine-that-dreams-at-night.md",
-     "$VAULT/knowledge/seventy-three-percent-of-every-api-call-is-fixed-overhead.md",
-     "$VAULT/knowledge/six-role-multi-agent-architecture-maps-agentic-reasoning-layers-to-web-research-workflow.md",
-     "$VAULT/knowledge/skill-audit-compile-gate-pattern.md",
-     "$VAULT/knowledge/skills-are-a-reasoning-cache-saving-63-percent-but-rot-needs-management.md",
-     "$VAULT/knowledge/sliding-window-rate-limiter-enforces-max-20-actions-per-hour-and-daily-cost-budget.md",
-     "$VAULT/knowledge/soft-gaussian-gating-preserves-gradients-beyond-trust-region-boundary.md",
-     "$VAULT/knowledge/software-engineering.md",
-     "$VAULT/knowledge/solo-development.md",
-     "$VAULT/knowledge/sona-combines-micro-lora-ewc-plus-plus-and-reasoningbank-for-sub-millisecond-adaptive-learning.md",
-     "$VAULT/knowledge/spec-driven-development.md",
-     "$VAULT/knowledge/specula-framework-derives-tla-plus-from-source-code.md",
-     "$VAULT/knowledge/sqlite-fts5-handled-a-3799-page-manual-where-a-vector-db-was-overkill.md",
-     "$VAULT/knowledge/surrealdb-agent-memory-openapi-facts-pin.md",
-     "$VAULT/knowledge/surrealdb-agent-memory-temporal-api-fields.md",
-     "$VAULT/knowledge/surrealdb-agent-memory-vs-kutha.md",
-     "$VAULT/knowledge/surrealdb-stack-map.md",
-     "$VAULT/knowledge/surrealkv-commit-ring-kutha-adjacency.md",
-     "$VAULT/knowledge/swarms-rs-and-graph-flow-orchestrate-multi-agent-workflows-with-session-persistence.md",
-     "$VAULT/knowledge/synapse-temporal-kg-forgets-on-purpose-to-fix-friday-amnesia.md",
-     "$VAULT/knowledge/temporal-kg-white-space.md",
-     "$VAULT/knowledge/the-cascade-pattern-cheapest-first-escalate-only-when-needed-governs-every-resource-decision-in-ruvnet.md",
-     "$VAULT/knowledge/three-autonomy-levels-govern-agent-action-authority-readonly-supervised-full.md",
-     "$VAULT/knowledge/three-ontology-approaches-reference-vs-model-driven-vs-runtime.md",
-     "$VAULT/knowledge/three-tier-subgraph-structure-separates-episodes-from-entities-from-communities.md",
-     "$VAULT/knowledge/tkg-bi-temporal-edge-model-tracks-four-timestamps-for-non-lossy-history.md",
-     "$VAULT/knowledge/tla-plus-as-dynamic-ontology-for-concurrency-verification.md",
-     "$VAULT/knowledge/tla-plus-prototype-only-for-state-machines-and-concurrency.md",
-     "$VAULT/knowledge/tool-use.md",
-     "$VAULT/knowledge/unilateral-gating-prevents-training-collapse-in-soft-policy-optimization.md",
-     "$VAULT/knowledge/v8-isolates-outperform-containers-for-disposable-sandboxing.md",
-     "$VAULT/knowledge/vertical-horizontal-agent-topologies-enable-flexible-task-delegation.md",
-     "$VAULT/knowledge/wcoj-leapfrog-triejoin-pattern.md",
-     "$VAULT/knowledge/zeroclaw-agent-loop-enforces-max-10-tool-iterations-and-auto-trims-history-at-50-messages.md",
-     "$VAULT/knowledge/zeroclaw-architecture-follows-dual-stream-ingestion-pattern-from-magma.md",
-     "$VAULT/knowledge/zeroclaw-benchmarks.md",
-     "$VAULT/knowledge/zeroclaw-bi-temporal-edge-model-tracks-validity-and-ingestion-separately.md",
-     "$VAULT/knowledge/zeroclaw-command-injection-prevention-pattern.md",
-     "$VAULT/knowledge/zeroclaw-decisions.md",
-     "$VAULT/knowledge/zeroclaw-defense-in-depth-six-independent-security-layers.md",
-     "$VAULT/knowledge/zeroclaw-defense-in-depth-six-layers.md",
-     "$VAULT/knowledge/zeroclaw-defers-gnn-and-raft-as-yagni-until-graph-is-dense-and-deployment-is-distributed.md",
-     "$VAULT/knowledge/zeroclaw-dependencies-use-feature-flags-to-keep-binary-between-12mb-and-100mb.md",
-     "$VAULT/knowledge/zeroclaw-dependency-chain-fact-extraction-enables-semantic-enables-entity-enables-graph.md",
-     "$VAULT/knowledge/zeroclaw-dependency-minimal-bloat-design.md",
-     "$VAULT/knowledge/zeroclaw-fact-extraction.md",
-     "$VAULT/knowledge/zeroclaw-graph-construction.md",
-     "$VAULT/knowledge/zeroclaw-memory-trait-extends-without-breaking-backward-compatibility.md",
-     "$VAULT/knowledge/zeroclaw-phase-3-could-benefit-from-codeactinstruct-style-training.md",
-     "$VAULT/knowledge/zeroclaw-phase-ordering-fact-extraction-before-semantic-before-entity-before-graph.md",
-     "$VAULT/knowledge/zeroclaw-replaced-rten-with-ort-for-embeddings-due-to-performance-gap.md",
-     "$VAULT/knowledge/zeroclaw-research-identified-5-critical-pitfalls-ranked-by-severity.md",
-     "$VAULT/knowledge/zeroclaw-retrieval-uses-mnemis-dual-route-system-1-vector-plus-system-2-graph.md",
-     "$VAULT/knowledge/zeroclaw-retrieval.md",
-     "$VAULT/knowledge/zeroclaw-roadmap.md",
-     "$VAULT/knowledge/zeroclaw-secrets-encryption-migration.md",
-     "$VAULT/knowledge/zeroclaw-semantic-memory.md",
-     "$VAULT/knowledge/zeroclaw-stack-hnsw-rs-plus-tantivy-plus-petgraph-plus-fastembed.md",
-     "$VAULT/knowledge/zeroclaw-stack-validated-hnsw-rs-tantivy-petgraph-fastembed-over-ruvector.md",
-     "$VAULT/knowledge/zeroclaw-tkg-build-order-four-phases-with-llm-dependency-gate.md",
-     "$VAULT/knowledge/zeroclaw-tokio-selective-feature-import.md",
-     "$VAULT/knowledge/zeroclaw-uses-inserted-phases-for-tech-debt-and-integration-fixes.md",
-     "$VAULT/knowledge/zeroclaw-v1-shipped-18-phases-in-13-days-with-38-plans.md",
-     "$VAULT/knowledge/zeroclaw-v2-prioritizes-daemon-singleton-memory-dump-cli-before-agentic-features.md",
-     "$VAULT/knowledge/zhru-political-ner-2024.md"
+     "$VAULT/f/patterns/pattern-hindsight-contribution-scoring.md",
+     "$VAULT/f/patterns/pattern-judge-screening-before-training.md",
+     "$VAULT/inbox/decision-models-actor-judge-teacher.md"
     ]
    }
   ],
@@ -913,6 +516,12 @@
    {
     "in": 1,
     "out": 0,
+    "path": "$VAULT/inbox/awesome-reverse-engineered-catalog-automation.md",
+    "total": 1
+   },
+   {
+    "in": 1,
+    "out": 0,
     "path": "$VAULT/inbox/bpmn-agentic-workflows-semtalk.md",
     "total": 1
    },
@@ -920,6 +529,18 @@
     "in": 1,
     "out": 0,
     "path": "$VAULT/inbox/dcoco-parallel-contextual-correction-speculative-decoding.md",
+    "total": 1
+   },
+   {
+    "in": 1,
+    "out": 0,
+    "path": "$VAULT/inbox/peach-local-first-media-system.md",
+    "total": 1
+   },
+   {
+    "in": 1,
+    "out": 0,
+    "path": "$VAULT/inbox/respan-gateway-universal-ai-adapter-architecture.md",
     "total": 1
    },
    {
@@ -971,12 +592,6 @@
     "total": 2
    },
    {
-    "in": 3,
-    "out": 0,
-    "path": "$VAULT/inbox/hashcat-architecture-and-algorithms.md",
-    "total": 3
-   },
-   {
     "in": 4,
     "out": 0,
     "path": "$VAULT/inbox/blaze-jit-incremental-rust-builds.md",
@@ -989,21 +604,9 @@
     "total": 4
    },
    {
-    "in": 5,
-    "out": 0,
-    "path": "$VAULT/inbox/nachalnik-family-transparent-agent-runtime.md",
-    "total": 5
-   },
-   {
     "in": 6,
     "out": 0,
     "path": "$VAULT/inbox/hardt-recht-patterns-predictions-actions.md",
-    "total": 6
-   },
-   {
-    "in": 6,
-    "out": 0,
-    "path": "$VAULT/inbox/oo-harness-evolving-harness-classes-oop.md",
     "total": 6
    }
   ],
@@ -1147,109 +750,109 @@
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-cache-aligned-context-packs.md",
+    "path": "$VAULT/f/patterns/pattern-zero-token-idle-message-board.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-calibrated-confidence-contract.md",
+    "path": "$VAULT/inbox/advantage-guidance-rl.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-conservative-normalization.md",
+    "path": "$VAULT/inbox/da-video-84M9nm_N52c.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-dashboard-flows-as-mcp-tools.md",
+    "path": "$VAULT/inbox/docfs-filesystem-agent-environment.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-decision-layer-agent-work.md",
+    "path": "$VAULT/inbox/gitmanual-setup-manuals.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-defeasible-norm-conflicts.md",
+    "path": "$VAULT/inbox/gul-retrieval-sequencing-side-access.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-evidence-gates-process-vs-completion.md",
+    "path": "$VAULT/inbox/hiddenpathqa-alignment-collapse.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-forward-budget-keep-best-edit.md",
+    "path": "$VAULT/inbox/instabox-muse-free-agent-cloud.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-frbr-point-in-time-norm-versioning.md",
+    "path": "$VAULT/inbox/iroh-dial-by-public-key.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-handle-based-lazy-outputs.md",
+    "path": "$VAULT/inbox/liquid-ripl-low-latency-inference.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-immutable-published-schema-current-alias.md",
+    "path": "$VAULT/inbox/minimind-64m-from-scratch.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-kernel-gatekeeper-comparator.md",
+    "path": "$VAULT/inbox/mistral-timestral.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-literate-law-code-case-tests.md",
+    "path": "$VAULT/inbox/nielsen-christiansen-non-hierarchical-language-structures.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-memory-anchored-to-code-symbols.md",
+    "path": "$VAULT/inbox/pagerank-eigenvector-bryan-leise.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-option-attention-choice-head.md",
+    "path": "$VAULT/inbox/pattern-gap-constrained-injection.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-parser-preflight-no-invention.md",
+    "path": "$VAULT/inbox/redox-rings-userspace-io-uring.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-persistent-incremental-computation.md",
+    "path": "$VAULT/inbox/rustbytes-source-map.md",
     "total": 1
    },
    {
     "in": 0,
     "out": 1,
-    "path": "$VAULT/f/patterns/pattern-piped-reranker-over-primary-tool.md",
+    "path": "$VAULT/inbox/tabular-foundation-models-got-their-jev-moment-xiaomi-catches-google-in-two-months.md",
     "total": 1
    }
   ],

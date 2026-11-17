@@ -163,10 +163,32 @@ pub(crate) fn graph_health_schema() -> Arc<serde_json::Map<String, Value>> {
                     "additionalProperties": false
                 }
             },
+            "bridges": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "a": {"type": "string"},
+                        "b": {"type": "string"}
+                    },
+                    "required": ["a", "b"],
+                    "additionalProperties": false
+                }
+            },
+            "articulation_points": {"type": "array", "items": node},
+            "clustering": {
+                "type": "object",
+                "properties": {
+                    "triangles": {"type": "integer"},
+                    "transitivity": {"type": "number"}
+                },
+                "required": ["triangles", "transitivity"],
+                "additionalProperties": false
+            },
             "central": {"type": "array", "items": node},
             "truncated": {"type": "boolean"}
         },
-        "required": ["counts", "cycles", "isolated", "dead_ends", "sources", "broken_links", "central", "truncated"],
+        "required": ["counts", "cycles", "isolated", "dead_ends", "sources", "broken_links", "bridges", "articulation_points", "clustering", "central", "truncated"],
         "additionalProperties": false
     });
     Arc::new(
