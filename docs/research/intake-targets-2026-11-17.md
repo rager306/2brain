@@ -64,32 +64,47 @@ human finds a real relation.
 - `knowledge/vendor-doctrine-converges-on-atomic-judgments.md` — best candidate `inbox/sermakarevich-sixty-ai-code-reviewers.md` at 2 matched term(s)
 - `manual/manual.md` — best candidate `inbox/allspark-research-tool-descriptions-learn-from-gitnexus-and-codebase-memory-mcp.md` at 1 matched term(s)
 
-**Decision.** The first pass applied nine notes (`/root/vault` commit `850e89f`), each as one added
-topic in the source note, only where the source states the target's distinctive subject in its own
-words:
+**Decision.** Two passes wrote **19** of the 24 notes, each as one added topic in a source that
+states the target's subject: the first from the source's own words, the second from the pattern
+naming its provenance (expo/exact, subq, dspy/wsp, glancer/ajika, alphaproof/libsignal, ingar30, jev).
+Vault commits `850e89f` and `5fff55d`.
 
-| target that gained an inbound edge | source |
+| target | source |
 |---|---|
 | `pattern-adversarial-verifier-role` | `inbox/gemini-4-carbon-swarm-antigravity.md` |
 | `pattern-zero-token-idle-message-board` | `inbox/gemini-4-carbon-swarm-antigravity.md` |
 | `pattern-agents-remove-apparatus-freely` | `inbox/exact-discipline-deep.md` |
+| `pattern-budgets-as-trades` | `inbox/exact-discipline-deep.md` |
 | `pattern-defeasible-norm-conflicts` | `inbox/law-ai-nlp-landscape.md` |
 | `pattern-option-attention-choice-head` | `inbox/jevlike-open-option-attention-starter.md` |
 | `pattern-policy-change-from-monitor-state` | `inbox/policy-change-treelike-monitors.md` |
 | `pattern-static-embedding-hybrid-search` | `knowledge/mnemosyne-hybrid-search-three-component.md` |
-| `decision-models-crowned-by-calibration-commodity` | `inbox/openai-decisions-api-validates-decision-model-category.md` and `inbox/decision-models-become-a-product-category.md` |
+| `decision-models-crowned-by-calibration-commodity` | `inbox/openai-decisions-api-validates-decision-model-category.md`, `inbox/decision-models-become-a-product-category.md` |
 | `pattern-memory-anchored-to-code-symbols` | `inbox/graphicle-rust-code-graph-agent-memory.md` |
+| `pattern-agent-first-runtime` | `inbox/expo-exact-runtime.md` |
+| `pattern-dashboard-flows-as-mcp-tools` | `inbox/meta-social-technologies-mcp-app-lifecycle.md` |
+| `pattern-decision-layer-agent-work` | `inbox/subq-snap-1-2.md` |
+| `pattern-forward-budget-keep-best-edit` | `inbox/dspy-wsp-weight-space-programming-optimizer.md` |
+| `pattern-handle-based-lazy-outputs` | `inbox/rust-glancer-persistent-incrementality-ajika.md` |
+| `pattern-kernel-gatekeeper-comparator` | `inbox/alphaproof-code-libsignal.md` |
+| `pattern-team-lead-context-management` | `inbox/alphaproof-code-libsignal.md` |
+| `pattern-parser-preflight-no-invention` | `inbox/ingar30-reviewer-economics-paper-panel.md` |
+| `prime-typesafe-jev-comparison-insight` | `knowledge/jev.md` |
 
-Effect on the live graph: edges 4 730 → 4 740, no-inbound 379 → 370, isolated unchanged at 197,
-diagnostics 0.
+Live graph: edges **4 730 → 4 750**, no-inbound **379 → 360**, isolated unchanged at **197**,
+**0 diagnostics**.
 
-The other fifteen of the 24 stay open. Their best candidate matched three or more terms but on
-generic vocabulary (`pattern`, `agent`, `runtime`, `hybrid search`, `message board`), and the shared
-phrase is a description of a category, not a statement about the orphan: `pattern-agent-first-runtime`
-against a note about Expo's runtime, `pattern-forward-budget-keep-best-edit` against a note that only
-says "keep best". A link there would be a guess dressed as structure, so each is recorded as a
-refusal rather than written.
+**Five refusals, with the reason each.** The candidate named the same *category*, not the same claim:
 
-A pattern note with one inbound edge is better than a hub that cites every pattern mechanically;
-the next pass starts from the fifteen, and the ones that need a real relation are the ones where a
-human has to say what the relation is.
+- `pattern-semantic-context-beside-schema` — the only candidate is `.claude/skills/audit/SKILL.md`, tooling
+  rather than a note, and it validates schema instead of carrying semantics beside it;
+- `knowledge/formal-verification-became-agentic-november-2026.md` — `kutha-temporal-graphs.md` mentions
+  formal verification in passing; the claim is about four independent sources converging;
+- `knowledge/internal-planning-tree-in-a-public-repo-buries-the-product-diff.md` — the candidate is about
+  GitHub rewarding a named file set, a different claim about repository contents;
+- `knowledge/secret-capture-without-llm-pattern.md` — the candidate is "no LLM call" for trivial edits, the
+  orphan is masked secret capture; the shared idea is a category;
+- `knowledge/xml-jsonl-vs-json-ld-2026.md` — the candidate is an orchestration DSL, unrelated.
+
+**The nine without a candidate at three terms** stay as they are: a link needs a reason, and the
+ranking had none. The next pass starts from these five plus those nine.
