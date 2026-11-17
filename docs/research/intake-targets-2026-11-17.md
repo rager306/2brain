@@ -64,47 +64,33 @@ human finds a real relation.
 - `knowledge/vendor-doctrine-converges-on-atomic-judgments.md` — best candidate `inbox/sermakarevich-sixty-ai-code-reviewers.md` at 2 matched term(s)
 - `manual/manual.md` — best candidate `inbox/allspark-research-tool-descriptions-learn-from-gitnexus-and-codebase-memory-mcp.md` at 1 matched term(s)
 
-**Decision.** Two passes wrote **19** of the 24 notes, each as one added topic in a source that
-states the target's subject: the first from the source's own words, the second from the pattern
-naming its provenance (expo/exact, subq, dspy/wsp, glancer/ajika, alphaproof/libsignal, ingar30, jev).
-Vault commits `850e89f` and `5fff55d`.
+**Decision.** Three passes wrote **23** of the 33 content notes that had no inbound edge, each as one
+added topic in a source that states the target's subject. Vault commits `850e89f`, `5fff55d`, `6a843e4`.
 
-| target | source |
-|---|---|
-| `pattern-adversarial-verifier-role` | `inbox/gemini-4-carbon-swarm-antigravity.md` |
-| `pattern-zero-token-idle-message-board` | `inbox/gemini-4-carbon-swarm-antigravity.md` |
-| `pattern-agents-remove-apparatus-freely` | `inbox/exact-discipline-deep.md` |
-| `pattern-budgets-as-trades` | `inbox/exact-discipline-deep.md` |
-| `pattern-defeasible-norm-conflicts` | `inbox/law-ai-nlp-landscape.md` |
-| `pattern-option-attention-choice-head` | `inbox/jevlike-open-option-attention-starter.md` |
-| `pattern-policy-change-from-monitor-state` | `inbox/policy-change-treelike-monitors.md` |
-| `pattern-static-embedding-hybrid-search` | `knowledge/mnemosyne-hybrid-search-three-component.md` |
-| `decision-models-crowned-by-calibration-commodity` | `inbox/openai-decisions-api-validates-decision-model-category.md`, `inbox/decision-models-become-a-product-category.md` |
-| `pattern-memory-anchored-to-code-symbols` | `inbox/graphicle-rust-code-graph-agent-memory.md` |
-| `pattern-agent-first-runtime` | `inbox/expo-exact-runtime.md` |
-| `pattern-dashboard-flows-as-mcp-tools` | `inbox/meta-social-technologies-mcp-app-lifecycle.md` |
-| `pattern-decision-layer-agent-work` | `inbox/subq-snap-1-2.md` |
-| `pattern-forward-budget-keep-best-edit` | `inbox/dspy-wsp-weight-space-programming-optimizer.md` |
-| `pattern-handle-based-lazy-outputs` | `inbox/rust-glancer-persistent-incrementality-ajika.md` |
-| `pattern-kernel-gatekeeper-comparator` | `inbox/alphaproof-code-libsignal.md` |
-| `pattern-team-lead-context-management` | `inbox/alphaproof-code-libsignal.md` |
-| `pattern-parser-preflight-no-invention` | `inbox/ingar30-reviewer-economics-paper-panel.md` |
-| `prime-typesafe-jev-comparison-insight` | `knowledge/jev.md` |
+| pass | notes linked | how the source was chosen |
+|---|---|---|
+| 1 | 9 | the source states the target's distinctive subject in its own words |
+| 2 | 10 | the pattern note names its own provenance (expo/exact, subq, dspy/wsp, glancer/ajika, alphaproof, ingar30, jev) |
+| 3 | 4 | the same, read by hand where the ranking found no candidate above two terms (hotpath-rs, oh-my-pi, Creusot, TypeSafe) |
 
-Live graph: edges **4 730 → 4 750**, no-inbound **379 → 360**, isolated unchanged at **197**,
-**0 diagnostics**.
+The 19 from passes 1 and 2 are listed in the table above; pass 3 added
+`hotpath-rs-experiment-insight` ← `knowledge/hotpath-profiler-analysis.md`,
+`omp-tool-steering-insight` ← `knowledge/omp-debugger-architecture-insight.md`,
+`creusot-verdict-insight` ← `inbox/creusot-research-landscape.md`, and
+`vendor-doctrine-converges-on-atomic-judgments` ← `knowledge/jev.md`.
 
-**Five refusals, with the reason each.** The candidate named the same *category*, not the same claim:
+Live graph: edges **4 750 → 4 754**, content notes with no inbound **360 → 356**, isolated unchanged
+at **197**, **0 diagnostics**.
 
-- `pattern-semantic-context-beside-schema` — the only candidate is `.claude/skills/audit/SKILL.md`, tooling
-  rather than a note, and it validates schema instead of carrying semantics beside it;
-- `knowledge/formal-verification-became-agentic-november-2026.md` — `kutha-temporal-graphs.md` mentions
-  formal verification in passing; the claim is about four independent sources converging;
-- `knowledge/internal-planning-tree-in-a-public-repo-buries-the-product-diff.md` — the candidate is about
-  GitHub rewarding a named file set, a different claim about repository contents;
-- `knowledge/secret-capture-without-llm-pattern.md` — the candidate is "no LLM call" for trivial edits, the
-  orphan is masked secret capture; the shared idea is a category;
-- `knowledge/xml-jsonl-vs-json-ld-2026.md` — the candidate is an orchestration DSL, unrelated.
+**Ten remain, and they are refusals with a reason, not a backlog.** Five share only a category with
+their best candidate (`pattern-semantic-context-beside-schema` against a tooling SKILL, the formal
+verification digest against a passing mention, the planning-tree note against GitHub's file-set
+reward, the secret-capture note against "no LLM call", `xml-jsonl` against an orchestration DSL).
+Five have no candidate above two matched terms and no source that names them: `pattern-conservative-normalization`,
+`taste-injection-loop-pattern`, `toolcall-repair-layers-pattern`, `trace-capture-activity-index-pattern`,
+`manual/manual.md`. A link here would be a guess dressed as structure.
 
-**The nine without a candidate at three terms** stay as they are: a link needs a reason, and the
-ranking had none. The next pass starts from these five plus those nine.
+**The larger finding is not in this lane.** A note naming a map is only half the relation; the map
+linking the note is the other half. That is `docs/research/moc-coverage-2026-11-17.md`: 372 of 732
+declarations are not linked from the map's body. Fixing those covers the intake orphans that name a
+map at all, and it is a content job of the same kind.
