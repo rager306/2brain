@@ -8,7 +8,7 @@
       "date": "2026-11-17"
     },
     "engine_lib_tests": {
-      "value": 742,
+      "value": 743,
       "known_environment_failures": 1,
       "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --lib",
       "date": "2026-11-17"
@@ -68,33 +68,33 @@
     "source": "au migrate identity --dry-run --all, then --apply; 2026-11-16"
   },
   "knowledge_base": {
-    "notes": 1032,
-    "drafts": 559,
-    "typed": 1003,
-    "sourced": 896,
-    "described": 1019,
+    "notes": 1047,
+    "drafts": 573,
+    "typed": 1018,
+    "sourced": 905,
+    "described": 1034,
     "outbound_median": 3.0,
-    "notes_without_links": 13,
-    "isolated": 204,
+    "notes_without_links": 71,
+    "isolated": 197,
     "broken_links": 0,
-    "edges": 4689,
-    "source": "tools/kb/census.py --json (engine view); 2026-11-16 after the link pass",
-    "links": 4887,
-    "zero_inbound": 32,
+    "edges": 4750,
+    "source": "tools/kb/census.py --json (frontmatter) + engine graph_shape; 2026-11-17 after the intake pass",
+    "links": 4920,
+    "zero_inbound": 14,
     "dead_ends": 19
   },
   "graph": {
     "nodes": 1227,
-    "edges": 4730,
-    "bridges": 37,
+    "edges": 4750,
+    "bridges": 35,
     "articulation_points": 57,
-    "triangles": 3123,
-    "transitivity": 0.1816,
+    "triangles": 3124,
+    "transitivity": 0.1815,
     "isolated": 197,
-    "sources": 182,
+    "sources": 163,
     "cycles": 29,
     "command": "2brain mcp /root/vault then tb_graph_health {\"limit\": 200}; or engine_probe.py --verb tb_graph_health on the live socket",
     "date": "2026-11-17",
-    "source": "engine 869f0ed9, adapter 0.1.0+020d0de, vault a8aba4b (post-migration)"
+    "source": "engine a6f9a3f4, adapter 0.1.0+020d0de, vault 5fff55d (after the intake pass)"
   }
 }
