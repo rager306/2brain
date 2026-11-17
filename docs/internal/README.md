@@ -17,6 +17,7 @@ The rule that decides what belongs here:
 | `hermes-brief.md` | the standing brief given to Hermes sessions about this vault |
 | `hermes-switch.md` | the switch from the previous MCP bridge to the Rust server |
 | `engine-swap-2026-11-14.md`, `engine-swap-2026-11-16.md` | swap runbooks: preconditions, artifacts, rollback, the measured result |
+| `deploy-2026-11-16-batch.md` | the pending deploy batch: what a client sees, the swap steps, rollback; reconciled 2026-11-17, so the pending set is recomputed before a window |
 | `detach-and-consolidate.md` | the git operations that turned fourteen repositories into one |
 | `serving-parity.md` | the audit of what the retired Node/Python path served versus the Rust one |
 | `w4.1-judgement-run-2026-11-16.md` | the run log of one judgement-layer evaluation |

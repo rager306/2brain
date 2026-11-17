@@ -3,6 +3,11 @@
 The Rust adapter is the serving path; the Node daemon and the Python bridge are retired
 (`docs/internal/detach-and-consolidate.md`). This is the configuration that replaces them.
 
+> **Reconciled 2026-11-17.** Parts of this page describe the 2026-11-16 wiring. At HEAD the adapter advertises 52
+> tools (`tools/cards/metrics.json`, `surface`) and emits `2brain://` resources while still accepting
+> `arsumbris://` on parse (`docs/naming.md`); the installed binary may lag both. Read `2brain --version` and
+> `tools/list` before copying the stanza or the counts below.
+
 ## 1. Install the binary
 
 ```sh

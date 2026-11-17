@@ -84,42 +84,45 @@ home is `scripts/`.
 
 ## Workspace and Rust environment
 
-- This directory is ONE Git repository (`github.com/rager306/2brain`,
-  private). Every `au-*` directory inside it is a plain directory whose history
-  was imported with `git subtree`; there are no nested repositories and no
-  submodules. Run `git status` and `git log` once, at the monorepo root, and
-  scope pathspecs when you mean one project (`git log -- au-engine`).
-- The pre-monorepo sibling checkouts under `/root/2brain/` are untouched and
-  remain readable references. Do not edit them expecting changes to appear
-  here; treat this repository as the working tree.
+- This directory is ONE Git repository (`github.com/rager306/2brain`, public
+  since 2026-11-16). Every `tb-*` directory inside it is a plain directory whose
+  history was imported with `git subtree`; there are no nested repositories and
+  no submodules. Run `git status` and `git log` once, at the monorepo root, and
+  scope pathspecs when you mean one project (`git log -- tb-engine`).
+- The pre-monorepo sibling checkouts (the old `/root/arsumbris` layout) are
+  untouched and remain readable references. Do not edit them expecting changes
+  to appear here; treat this repository as the working tree.
 - Use **Rust 1.99.0 and edition 2024** for Rust work. On this host the complete
   toolchain is under `/root/.rustup`; set `RUSTUP_HOME=/root/.rustup` and use
   `cargo +1.99.0`. The default rustup home has an incomplete 1.99.0 installation.
   Do not silently switch to 1.99.1 or another toolchain if 1.99.0 is unavailable;
-  report the blocker. The `au-engine` workspace manifest currently declares
+  report the blocker. The `tb-engine` workspace manifest currently declares
   `rust-version = "1.85"` (a minimum), while `rust-toolchain.toml` pins 1.99.0;
   the user-required development toolchain remains 1.99.0.
 - Root `.graphignore` excludes local agent tooling, build output, dependencies,
   and caches from the native graph index. Source, tests, scenarios, and contract
   fixtures remain in scope. Individual sibling indexes may need their own rules.
 
-### `au-engine` crates
+### `tb-engine` crates
 
 All paths below are under `tb-engine/crates/`; the workspace is defined in
 `tb-engine/Cargo.toml`.
 
 | Crate | Purpose |
 |---|---|
-| `au-cli` | `au` executable, CLI commands, and daemon management |
-| `au-engine` | Held knowledge-base state, build orchestration, daemon reads, wire protocol, and mutations |
-| `au-core` | Type graph, closure and resolution, validation, and candidate analysis |
-| `au-parser` | Filesystem input, frontmatter, Markdown, YAML and source-span parsing |
-| `au-grammar` | Parser for type-field shape expressions |
-| `au-references` | Wikilink parsing, file indexing, and reference resolution |
-| `au-diagnostics` | Structured diagnostic codes, spans, and suggested fixes |
-| `au-testkit` | Property generators and adversarial fixtures for tests |
+| `tb-cli` | the `au` executable, CLI commands, and daemon management |
+| `tb-engine` | Held knowledge-base state, build orchestration, daemon reads, wire protocol, and mutations |
+| `tb-core` | Type graph, closure and resolution, validation, and candidate analysis |
+| `tb-parser` | Filesystem input, frontmatter, Markdown, YAML and source-span parsing |
+| `tb-grammar` | Parser for type-field shape expressions |
+| `tb-references` | Wikilink parsing, file indexing, and reference resolution |
+| `tb-diagnostics` | Structured diagnostic codes, spans, and suggested fixes |
+| `tb-testkit` | Property generators and adversarial fixtures for tests |
 
-`tb-mcp-rs/` is a separate Cargo package, not an `au-engine` workspace member.
+The engine binary is still named **`au`** (the unit and the scripts name it; it is
+a device layout, not a repository directory — `docs/naming.md`).
+
+`tb-mcp-rs/` is a separate Cargo package, not a `tb-engine` workspace member.
 Its `src/main.rs` uses `rmcp` over stdio and the engine's Unix socket; `tests/`
 contains fake-daemon tests and an opt-in real-engine test on a temporary fixture.
 See `tb-mcp-rs/README.md` and `tb-engine/doc/adr/0001-implementation-plan.md` for
@@ -128,24 +131,25 @@ its current limitations and plan. Do not assume bridge, policy, or client parity
 ## Live-system rules (read before touching anything)
 
 1. This bundle SERVES the production vault at `/root/vault` (hundreds of
-   live notes, every Hermes session reads/writes it through the daemon +
-   bridge). The vault is a git repo — data is protected by history — but
+   live notes; every agent session reads/writes it through the daemon and the
+   MCP server). The vault is a git repo — data is protected by history — but
    an engine bug can still degrade serving.
 2. Never point tests at the live vault. Use a fixture copy:
    `git -C /root/vault worktree add /tmp/vault-fixture` or `cp -r`.
-3. Never kill or restart the engine daemon / bridge processes while Hermes
+3. Never kill or restart the engine daemon or an MCP server process while agent
    sessions are live. Socket: `~/.2brain/au-engine/run/*.sock` (`~/.arsumbris` is a symlink).
 4. Engine swaps to the live daemon require the golden wire contract to pass
    (below) — no exceptions. A swap is a read comparison on a frozen copy of the
    vault working tree first, then the install, then the same reads against the
    live socket; `docs/internal/engine-swap-2026-11-14.md` is a worked example, with the
-   rollback artifact named in it. The served engine is now the fork build from
-   `5625aff`, not the October bundle binary.
+   rollback artifact named in it. The served build is whatever the last swap
+   record in `docs/internal/engine-swap-*.md` names; `2brain --version` and the
+   daemon's own build id are authoritative, not this file.
 
 ## Dev loop
 
 ```sh
-cd au-engine
+cd tb-engine
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 build
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 test -p <crate>  # smallest sufficient scope
 ```
@@ -265,6 +269,6 @@ repository is public and the internal set is the part a second machine would rew
 
 - No git identity in-repo; global config only.
 - Docs and commits in English.
-- `au-type-system` is a contract, not a playground: type changes require a
+- `tb-type-system` is a contract, not a playground: type changes require a
   migration note and vault-rollback reasoning first.
 - When a change alters wire shapes, bump/annotate per `tb-engine/crates/tb-engine/WIRE.md`.

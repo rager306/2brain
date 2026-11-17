@@ -14,16 +14,120 @@ cost, and the evidence it would produce.
 | read contract | one `VERB_SHAPES` table plus typed payloads for the eight hot reads; both checked by the captured fixtures, not by memory |
 | audit | hash-chained `mcp_policy` records on stderr; the tool name is recorded (fixed from the literal `mutation`), the principal comes from `--principal` and Hermes now passes `hermes` |
 | judge | batched: 100 questions per call, 0.76 s, 7.6 ms/question (`docs/research/judge-capabilities.md`) |
-| rebrand | tiers A, B, **D done**; tier C steps 1–3 done (38 identity sites, schema seams, canonicaliser), step 4 is the migration command |
+| rebrand | tiers A, B, D done; tier C steps 1–4 done (identity seam, schema canonicaliser, `au migrate identity --apply`); 16 of 20 in-scope repositories carry `.2brain/`, the vault waits for a clean tree |
 | tool names | **`tb_*`** — 52 tools, renamed from `au_*` on 2026-11-16 without an alias (`docs/naming.md`); the `_meta` key and the docs followed |
 | migration | **16 of 20 in-scope repositories migrated** to `.2brain/`; the two served members moved in a window with byte-identical live reads; the vault waits for a clean tree |
 | FSM run log | done — `tools/fsm/check_run.py`, seven rules, `--selftest` proves each bites |
 | hygiene pass | done and applied — `tools/hygiene/pass.py`, `inbox/hygiene-2026-11-16.md` |
 | ranking | coverage weighting + **proximity** landed and measured; freshness prior rejected, its retry now has a query class and a decision rule |
 
-Gates that must stay green on every change: adapter 207 tests, engine `--lib` 685/1 (the one failure is the
-documented root-runner), `search_read` 6/6, `fmt --check`, `clippy -D warnings` on the adapter, and
-`scripts/live_parity.py` against the installed binary.
+Gates that must stay green on every change: the adapter suite (256 tests on 2026-11-17, the answer-contract
+lane), the engine's `--lib` and `--test it` suites (730 and 729 at the candidate-set lane; three root-only
+permission fixtures are the known environmental failures), `fmt --check` and `clippy --all-targets -D warnings`
+on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
+dated counts; a number quoted without its date is a memory, not a measurement.
+
+## 2026-11-17 — reconciliation: what moved since this page was last revised
+
+The table above and the queue below are the 2026-11-16 state. After them, four lanes landed and one run answered
+the Stage 4 question; the blocker moved with them. What is left is no longer "build the mechanisms" but "ship them
+and decide the four field-level questions the mechanisms exposed". Where this section and a later section disagree,
+this one wins.
+
+### What landed, with the document that proves it
+
+| lane | what shipped | evidence |
+|---|---|---|
+| visit bound | `documents_visited` / `posting_blocks_decoded` per verb, served by `graph_health { verbs: true }` and exposed through the adapter (`GraphHealthArguments.verbs`); `tools/probe/visit_bound.py` at 256 / 512 / 1 066 notes | `docs/research/visit-bound-2026-11-16.md` — no read grows faster than its candidate set; `hubs` is the one outlier (log-log 1.53) and its fix would be a build-time ranking, not a cheaper scan. The "last hop" this page used to name is closed: a client can read the counters |
+| candidate set first | `DocMask` in `search.rs`; `serve.rs` deletes the post-ranking per-hit repo filter | `docs/research/candidate-set-first-2026-11-16.md` — 0.92× median on the served workspace, 0.70× on a 9-member model, answers byte-identical |
+| answer contract | MCP `prompts` `recall` / `intake` / `handoff` and resources `2brain://workflow/{answer-shape,write-gates}`, static `contract.rs` | `docs/research/answer-contract-2026-11-16.md` — `tools/list` byte-identical, `+11` bytes to `capabilities`, adapter 256 tests |
+| claim register | `type: claim` carrying `evidence`, `type: decision` carrying `backed_by`; 13 notes, 20 edges | `docs/research/claim-register-2026-11-16.md` — decision → claims → measurements is a two-hop typed walk |
+| cross-agent handoff | the Stage 4 criterion, run on the live vault: two of three passed | `docs/research/cross-agent-handoff-2026-11-16.md` — the vault caught its author: a decision recorded as landed was not in the served binary |
+
+Two rules came out of these lanes and belong in every later one:
+
+- **a decision recorded before it is deployed is `status: proposed`**, flipped to `accepted` in the same change as the
+deploy — the cross-agent run is what put that in the vault;
+- **a decision about a field is a decision, not another pass over the notes.** `family:` and `claim` each turned out
+to carry two meanings; neither is fixed by writing more notes.
+
+### The reconciliation step that comes before any window
+
+No deploy list assembled from documents should be trusted. `docs/internal/deploy-2026-11-16-batch.md` predates the
+counters, the candidate mask, the rare-term floor and the answer contract, and a swap that runs `swap-engine.sh`
+installs the engine half only.
+
+```sh
+2brain --version                                             # adapter commit
+HOME=/root 2brain info /root/vault                           # engine build id and version
+cd /root/2brain/tb-mcp-rs && python3 scripts/live_parity.py  # exit 2 is "could not compare", not a pass
+git -C /root/2brain log --oneline <served-commit>..HEAD -- tb-engine tb-mcp-rs
+```
+
+The output is a `served | in repo | pending` table, written into the deploy document; the window checklist is
+regenerated from it. A pending item whose behaviour a client can observe needs its verification line written before
+the window, not after.
+
+**Run 2026-11-17.** The served engine behaves as the tree at `1ee2463` (proximity): `search` answers but defaults
+`scope` to `all`, and `weak`, `excerpt`, `verbs` and the word-form lookup are all absent. The served adapter is
+`0.1.0+be4a56aaaa6a` (`be4a56a`). Pending at that moment: **22 engine commits** (`1ee2463..HEAD`) and **20 adapter
+commits** (`be4a56a..HEAD`); the measured table and the per-item evidence are in
+`docs/internal/deploy-2026-11-16-batch.md`.
+
+### The lane register
+
+Group labels are the parallel groups in the next section. A lane names its gate before it starts; a lane that cannot
+name its experiment does not start.
+
+| lane | state | owns | gate | group |
+|---|---|---|---|---|
+| **R** reconcile served ↔ HEAD | **done 2026-11-17** — re-run before the window | `scripts/live_parity.py`, deploy doc | the `served / in repo / pending` table | P0 |
+| **S1** title as a scored field | **rejected 2026-11-17** — six builds measured; a third field changes `matched`, the floor and coverage, so every variant moves a pre-registered task (`docs/research/task-set.md` §4). Next hypothesis: a post-ranking rare-term title bonus that never enters the index; pre-register before it runs | `search.rs`, `tools/ranking/` | `hub-vs-atomic` 1/1 with `exact`, `paraphrase` and `ambiguous` unchanged | P2 |
+| **S2** `search_read` rarity premise | **done** — the test is now `three_distinct_terms_need_two_of_them_unless_the_one_held_is_rare` (`tests/it/search_read.rs:277`) | `tests/it/search_read.rs` | the renamed test states the rule the engine implements | — |
+| **S3** `tb_context` | open — only if it beats 1 call / 2.44 KB | `serve.rs`, `lib.rs` | the twelve-task pack | P2, after S1 |
+| **G1** graph fragility: bridges and articulation points | **landed 2026-11-17** — additive `graph_health` fields on the undirected projection; the sparx-derived idea that is a new diagnostic, not a new engine. On the 1 228-node / 4 730-edge snapshot: **37 bridges, 57 articulation points** | `serve.rs`, `schemas.rs`, `WIRE.md` | unit test (path+triangle, lone node); synthetic fixture and golden `graph_health` re-captured; engine fmt/clippy green, lib 741/1 and `it` 734/3 (the documented root-only fixtures); adapter fmt/clippy/tests green | P2 (engine, serial with the adapter) |
+| **G2** graph weaving: triangles and transitivity | **landed 2026-11-17** — `graph_health.clustering = {triangles, transitivity}` on the same projection; snapshot: **3 123 triangles, transitivity 0.1816** | `serve.rs`, `schemas.rs`, `WIRE.md` | unit test (triangle + pendant edges → 1, 0.5; empty/one edge → 0.0); fixtures re-captured; same gates as G1 | P2 (engine, serial) |
+| **M1** task-set thresholds and graded gating | open | `tools/ranking/`, `docs/research/task-set.md` | σ and n stated before a claim; a bootstrap WORSE is a veto | P1 |
+| **C1** `family:` semantics | open — owner | type defs, `intake-decisions` | a decision note that separates provenance from topic | P1 |
+| **C2** `claim` type collision | open — owner | `type/claim.type.yaml` | `instances_of claim` needs no `evidence` filter | P1 |
+| **C3** intake edges that point AT isolated notes | open | vault links | zero-inbound 32 → target; every refusal listed | P3 |
+| **C4** aliases | open — measure first | `docs/research/`, `tools/kb/` | the vocabulary class sized on 1 032 notes | P1 |
+| **C5** tier-C vault migration | blocked on a clean tree | `au migrate identity --apply` | diagnostics 0, `broken_links` 0 | P4 |
+| **D** the deploy window | blocked on the owner | binaries, deploy doc | capture, diff, rollback | P5 |
+| **H** release hygiene (Stage 2) | open | `install.sh`, CI, `tools/cards/` | a clean machine installs, runs `doctor`, one read and one write; `metrics.json` re-measured (it is a 2026-11-16 snapshot: later lanes saw 256 adapter and 730 engine-lib tests) and the cards re-rendered | P1 |
+
+### Parallel execution: what may overlap
+
+Three resources are the constraint, not the number of lanes:
+
+- **the cargo build lock.** One compile at a time: the shared target directory serialises every Rust lane, and a
+  stale `cargo test` from an earlier session holds the lock (`pgrep -af "cargo test"`). Two Rust lanes do not run
+  beside each other, whatever crates they touch.
+- **the vault writer.** The engine serialises one mutation at a time, but a multi-write pass (intake, migration)
+  must not interleave with another writer.
+- **the deploy window.** One window, after every lane whose binary it must carry; the runbook is a single
+  capture / compare / rollback sequence.
+
+Safe to overlap: docs and decision lanes (read-only) with any Rust lane; measurement lanes (`tools/ranking`,
+`tools/probe`, `tools/kb` — Python only) with one Rust lane; C1, C2 and C4 together, because none of them writes
+code or the vault.
+
+Not safe to overlap: S1 and S3 (both want `search.rs` — S1 lands first, S3 rebases); a vault migration beside an
+intake pass; the deploy window beside anything that rebuilds a binary.
+
+G1 is an engine change and its adapter schema edit is a second crate: they share the target directory, so they run
+one after the other, not beside each other. The brute-force oracle test, the WIRE text and the lane register are
+free to move while a cargo lane compiles.
+
+### Decisions only the owner can take
+
+| decision | why it blocks | what deferring costs |
+|---|---|---|
+| the deploy window | changes are in the tree and not in the served binary; every "landed" claim in the vault is provisional until it runs | the vault keeps describing source instead of production (`cross-agent-handoff`) |
+| the vault migration window | migrating `/root/vault` to `.2brain/` needs a clean tree; other sessions hold uncommitted paths | tier C cannot close, so the legacy spelling stays in the format |
+| `family:` semantics | one field is both provenance and topic; 350 of 433 values have exactly one member | every intake pass that trusts `family` trusts a field with two meanings |
+| `claim` type | `claim` is both a proposition with `evidence` and an ingest work item | every query over `claim` must filter on `evidence` |
+| `grep` exact `total` vs an early exit | a whole-corpus byte scan is what an exact total costs (slope 1.00) | the one read whose cost is its contract |
 
 ## The open queue, in order of payoff per unit of risk
 
@@ -107,9 +211,9 @@ daemon), and writes nothing — including not creating `.2brain` to "check". Run
 The writer is deliberately absent: without `--dry-run` it prints the plan and refuses, because half a migration
 is worse than none.
 
-Step 5, the writer, is in flight: `--apply` performs the rename with `git mv`, splices the claim lines with the
-existing rewriter, and commits once per repository. The order after it: one leaf member, then the monorepo, then
-the vault, then release 2 flips `DEFS` and `BUILTIN_ENGINE_REPO`.
+Step 5 landed: `--apply` performs the rename with `git mv`, splices the claim lines with the existing rewriter,
+and commits once per repository. 16 of 20 in-scope repositories carry `.2brain/` (`tools/cards/metrics.json`
+`migration`); the vault waits for a clean tree, and release 2 flips `DEFS` and `BUILTIN_ENGINE_REPO`.
 
 - **Gate**: a migrated repository opens with 0 diagnostics and the unmigrated tree still opens.
 - **Cost**: the largest single change left, and the only one that touches files on disk.
@@ -154,11 +258,10 @@ The freshness prior was measured, cost 1.9 points of topical hit@1 and was rever
 prior answers "what is *currently true*", which needs queries whose expected answer changes over the note's
 lifecycle.
 
-### 6. Tool names — one decision, then a mechanical commit
+### 7. Tool names — one decision, then a mechanical commit
 
-52 names, 618 occurrences in 81 files, 34 fixtures named after them, 91 vault mentions. The safe form is
-`tb_*`. That decision was taken on 2026-11-16 and executed without an alias; the reasoning is in
-chosen; `docs/naming.md` records the open state.
+52 names were renamed to `tb_*` on 2026-11-16, without an alias; the reasoning is in `docs/naming.md`, which also
+records what stayed open (vault content, not code).
 
 ## The repository is public now, and it shows its own numbers
 

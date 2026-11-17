@@ -309,6 +309,31 @@ note matches **all six** terms and still sits behind notes matching four and fiv
 a title-match boost plus a down-weight for `type: moc` when a non-MOC note matched the same terms. `hub-vs-atomic`
 is the measurement that will say whether it works: it goes 0/1 → 1/1 only when the atomic note is first.
 
+**Experiment, 2026-11-17 — the title field is rejected.** Six builds were measured against one frozen copy of the
+vault (1 080 notes, vault HEAD `9f59787`, `/tmp/s1/vault`) with the same 18-task set; the baseline reproduced this
+page (hub rank 8, 376 candidates against the page's 329, the difference being the notes added since). Every variant
+added a third index field — the title, taken as the file stem with `-`/`_` as spaces — and optionally a `type: moc`
+discount of ×0.4 applied when a non-map note matched at least as many terms:
+
+| variant | hub-vs-atomic | exact-and | ambiguous | exact `ReasoningBank` rank | paraphrase |
+|---|---|---|---|---|---|
+| **baseline**, no title field | 0/1, rank 8 | **1/1**, rank 1 | **1/1**, rank 9 | 2 | 2/3 |
+| title ×3.0 | **1/1** | 0/1, rank 4 | 0/1 | 2 | 2/3 |
+| title ×2.0 | **1/1** | 0/1, rank 3 | 0/1 | 2 | 2/3 |
+| title ×1.0 | 0/1, rank 5 | **1/1** | 0/1 | 2 | 2/3 |
+| title ×1.0 + MOC ×0.4 | 0/1, rank 4 | **1/1** | 0/1 | 5 | 2/3 |
+| title ×3.0 + rare-term gate + MOC ×0.4 | **1/1** | **1/1** | 0/1 | 6 | 2/3 |
+
+The rule written above is what rejects all six: a title weight large enough to lift the atomic note also lifts notes
+whose titles contain `as`/`of` (the `exact-and` task 1/1 → 0/1), and **any** third field flips `ambiguous`, because
+a title term counts as matched evidence even when its score weight is zero — it moves the `min_should_match` floor
+and the coverage factor, not just the score. The rarity gate repairs `exact-and` but then moves the `exact`
+`ReasoningBank` task from rank 2 to 6 through the MOC discount.
+
+What this does not test: a **post-ranking** title bonus that never enters the index, so it cannot change `matched`,
+the floor or the candidate set, gated on the query's rare terms. That is the next hypothesis and it must be
+pre-registered before it runs; the six builds above are kept as the evidence that the indexing route is closed.
+
 ### 5. bilingual — **defect**, in the corpus, not in the ranker
 
 The Russian question — `битемпоральная модель ребра отслеживает валидность и время загрузки отдельно` — asks what

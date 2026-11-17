@@ -1,7 +1,24 @@
 # Deploy checklist: the 2026-11-16 batch
 
-Six changes are in the repository and **not** in the served binary. They land together, so the window is one swap,
-not six.
+> **Measured 2026-11-17** (read-only probe of the live socket and the installed binaries):
+>
+> | half | served | in tree | pending |
+> |---|---|---|---|
+> | engine | `/root/.2brain/bin/au`, sha256 `d83ca6f8…`, mtime 2026-11-16 11:06 — behaviour is the tree at `1ee2463` (proximity) | HEAD `4f87c46` | **22 commits** (`git log 1ee2463..HEAD -- tb-engine/crates`) |
+> | adapter | `2brain 0.1.0+be4a56aaaa6a` (commit `be4a56a`, 13:44) | HEAD `4f87c46` | **20 commits** (`git log be4a56a..HEAD -- tb-mcp-rs`) |
+>
+> What the served engine answers today, and therefore what this window changes: `search` works and defaults `scope`
+> to **all** (a dependency README is returned by a default query, so `b37c156` is not in); no `weak`
+> (`b59f595`); no `excerpt` / `excerpt_chars` (`25ce096`); `graph_health { verbs: true }` is refused with
+> `unknown field verbs` (`8454735`); `wikilinkss` returns 0, so no word-form lookup (`c3c7ee4`); `oracle matrix
+> tests` does not return `f/patterns/pattern-oracle-drift-ci.md`, so no rare-term escape (`006ac0b`). Live
+> workspace: 3 members, 0 diagnostics, engine version counter 115, `2brain-engine.service` active.
+>
+> Re-read the lists before a window: `git log --oneline 1ee2463..HEAD -- tb-engine/crates` and
+> `git log --oneline be4a56a..HEAD -- tb-mcp-rs`. Some commits change both halves, so the window installs both.
+
+The batch below is the 2026-11-16 slice of that pending set; the lists above are authoritative. It lands as one
+swap, not six.
 
 ## What changes when the new binary runs
 
