@@ -24,3 +24,16 @@ coverage/
 
 # The one shared target directory (see .cargo/config.toml).
 /.cargo-target/
+
+# repowise: the decisions manifest is meant to be committed
+!/.repowise/
+/.repowise/*
+!/.repowise/decisions.yaml
+
+# repowise's own editor scaffolding is generated per machine and carries this
+# host's absolute path in .vscode/mcp.json, so it stays out of the repository.
+# The decisions manifest IS tracked (see the repowise block above): it is the
+# source of truth, and the index beside it is a cache.
+/.claude/
+/.vscode/
+/.github/copilot-instructions.md

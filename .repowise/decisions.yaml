@@ -1,0 +1,96 @@
+# Accepted architectural decisions for this repository.
+#
+# Generated and rewritten by repowise; edits survive, comments do not.
+# Commit this file: it is the source of truth, and the index is a copy.
+# Candidates and evidence stay out of it on purpose.
+version: 1
+decisions:
+- id: 1d0b8bda2889ffa021020354acd7a724
+  title: A measurement names its instrument, and a rejected change is recorded
+  decision: Every metric states what it counts, the command that produced it, and the date. A change that
+    was measured and refused is written down with its numbers rather than deleted.
+  reason: The record of a refusal stops the same idea being re-tried every month, and it is the only defence
+    against a plausible number that measures nothing.
+  scope:
+  - docs/research/measurement-doctrine.md
+  - tools/cards/metrics.json
+  - tools/cards/render.py
+  currency: active
+  source: agent
+  accepted_at: '2026-11-18T09:08:15.860795'
+  accepted_by: commandcode
+  evidence:
+  - d659ece
+  - docs/research/measurement-doctrine.md
+  - tools/cards/metrics.json
+- id: 4b38743c80b4b46ccf0664cd271c9bd3
+  title: Mutations go through one gate that names the stage that refused
+  decision: Every mutation passes ordered stages (arguments, path_scope, member_grant, prior_read, freshness,
+    editability, capacity) and a failure names its stage as policy/<stage>, in the tool's own words.
+  reason: The gate's order and answers are a pure reduction over data the process already holds, so they
+    are testable without a socket, and a caller can act on the message.
+  scope:
+  - docs/research/write-contracts.md
+  - tb-mcp-rs/src/gate.rs
+  - tb-mcp-rs/src/policy.rs
+  currency: active
+  source: agent
+  accepted_at: '2026-11-18T09:08:13.612495'
+  accepted_by: commandcode
+  evidence:
+  - d659ece
+  - docs/research/write-contracts.md
+  - tb-mcp-rs/src/gate.rs
+- id: 7688c303cd37c7cf4db7da10262a5e89
+  title: Rust is the only language on the serving path
+  decision: 'The serving path is Rust end to end: tb-engine, tb-cli and tb-mcp-rs. No script, notebook
+    or prototype sits on the request path.'
+  reason: 'Tooling may drive the product but never be driven by it. A model that something other than
+    a human reads has graduated: it is rewritten in the product''s language or moved into tooling with
+    tests.'
+  scope:
+  - tb-engine
+  - tb-mcp-rs
+  currency: active
+  source: agent
+  accepted_at: '2026-11-18T09:08:09.544098'
+  accepted_by: commandcode
+  evidence:
+  - AGENTS.md
+  - d659ece
+  - docs/internal/detach-and-consolidate.md
+- id: 9242aa1915a02d0749797c35c516bbd9
+  title: Files are authoritative; the graph is derived and rebuildable
+  decision: Markdown files in Git are the truth. The typed graph is derived from them at build time and
+    rebuilt from scratch when the engine restarts or a file changes.
+  reason: Deleting the graph loses nothing. It also makes the format reviewable in a pull request and
+    editable in any editor.
+  scope:
+  - tb-engine
+  currency: active
+  source: agent
+  accepted_at: '2026-11-18T09:08:11.673118'
+  accepted_by: commandcode
+  evidence:
+  - d659ece
+  - docs/architecture.md
+  - tb-engine/crates/tb-engine/WIRE.md
+- id: f509edacf6f943ac4629b9399e676ec5
+  title: The engine schema is tb.engine.*, and the legacy spelling is accepted but named
+  decision: Writers emit tb.engine.*; readers accept au.engine.* and canonicalize it; a claim written
+    in the legacy spelling carries one hint (engine-schema-legacy-spelling) whose fix names the canonical
+    form.
+  reason: The window has to be open for reading and visible for editing. Refusing it outright is a release
+    decision, not a code one, and the advisory is what makes that decision safe.
+  scope:
+  - docs/research/release-2-window-2026-11-17.md
+  - tb-engine/crates/tb-engine/src/engine_schema.rs
+  - tb-engine/crates/tb-engine/src/wire.rs
+  currency: active
+  source: agent
+  accepted_at: '2026-11-18T09:08:17.834955'
+  accepted_by: commandcode
+  evidence:
+  - docs/research/release-2-window-2026-11-17.md
+  - fa45472
+  - tb-engine/crates/tb-engine/src/engine_schema.rs
