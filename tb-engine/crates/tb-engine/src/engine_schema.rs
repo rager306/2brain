@@ -3,7 +3,7 @@
 //! Every engine-schema file is a typed instance of one of these compiled-in
 //! defs, owned by a reserved `au-engine` repo identity, never authored in a
 //! knowledge base: the in-repo `repo.yaml`, the per-user `repos.yaml` / `workspaces.yaml`,
-//! the in-repo `.arsumbris/workspace.yaml`, and the `.arsumbris/` locks. The
+//! the in-repo `.2brain/workspace.yaml`, and the `.2brain/` locks. The
 //! type-def IS the schema, self-documenting and `(name, hash)`-comparable like
 //! any cross-repo type. See
 //! [[spec - cross-repo resolution - in-repo identity and deps over a per-user repo registry]]
@@ -402,7 +402,7 @@ pub(crate) fn engine_name_shadow_drift_diag(
 /// No walked file sits under it, so `RepoMap::repo_of` never routes a real file
 /// to the builtin repo, and `RepoMap::root()` skips it via the `builtin` flag.
 /// The builtin's defs are seeded straight into its graph, never read from disk.
-pub(crate) const BUILTIN_ROOT: &str = "<au-engine-builtin>";
+pub(crate) const BUILTIN_ROOT: &str = "<tb-engine-builtin>";
 
 /// The hardwired defs as `(type-name, source)`. The source is the schema:
 /// seven file types, the record element types their list fields reference, and
@@ -417,7 +417,7 @@ const DEFS: &[(&str, &str)] = &[
     (
         "tb.engine.repo",
         "\
-#: A repo's committed identity and dependency set, `.arsumbris/repo.yaml`.
+#: A repo's committed identity and dependency set, `.2brain/repo.yaml`.
 fields:
   name: String
   remote?: String
@@ -428,7 +428,7 @@ fields:
     (
         "tb.engine.repos",
         "\
-#: The per-user registry, `~/.arsumbris/au-engine/config/repos.yaml`, name to remote+path.
+#: The per-user registry, `the device-state `au-engine/config` (see `repo::state_dir_in`)/repos.yaml`, name to remote+path.
 fields:
   repos?: tb.engine.registry-entry[]
 ",
@@ -436,7 +436,7 @@ fields:
     (
         "tb.engine.workspaces",
         "\
-#: The per-user workspaces index, `~/.arsumbris/au-engine/config/workspaces.yaml`.
+#: The per-user workspaces index, `the device-state `au-engine/config` (see `repo::state_dir_in`)/workspaces.yaml`.
 fields:
   workspaces?: tb.engine.workspace-entry[]
 ",
@@ -444,7 +444,7 @@ fields:
     (
         "tb.engine.workspace",
         "\
-#: The optional workspace composition, `.arsumbris/workspace.yaml`, edit + discover members. `disabled:` overlays the role lists, a member declared but intentionally not mounted.
+#: The optional workspace composition, `.2brain/workspace.yaml`, edit + discover members. `disabled:` overlays the role lists, a member declared but intentionally not mounted.
 fields:
   edit?: String[]
   discover?: String[]

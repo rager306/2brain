@@ -7,9 +7,9 @@
       {
         "code": "engine-schema-type-unwritten",
         "fix": {
-          "description": "add `type: au.engine.repo::au-engine` so the file self-describes"
+          "description": "add `type: tb.engine.repo::tb-engine` so the file self-describes"
         },
-        "message": "engine-schema file carries no written `type:`; the kind assigns the floor `au.engine.repo::au-engine` regardless, but the file does not self-describe on disk",
+        "message": "engine-schema file carries no written `type:`; the kind assigns the floor `tb.engine.repo::tb-engine` regardless, but the file does not self-describe on disk",
         "severity": "drift",
         "span": {
           "file": "$FIXTURE/fixture/.arsumbris/repo.yaml",
@@ -32,7 +32,7 @@
       {
         "code": "repo-missing-readme",
         "fix": {
-          "description": "add a README.md at the repo root declaring `type: au.engine.readme::au-engine`, a `tldr:` field, and a `# Repo Overview` section holding `## What this is`, `## How to use this`, `## How to extend this`"
+          "description": "add a README.md at the repo root declaring `type: tb.engine.readme::tb-engine`, a `tldr:` field, and a `# Repo Overview` section holding `## What this is`, `## How to use this`, `## How to extend this`"
         },
         "message": "repo 'fixture' has no README.md at its root; a repo self-describes through a root README.md",
         "severity": "warning",

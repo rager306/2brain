@@ -27,6 +27,38 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-19 — the tests nobody ran, and the identity directory a mutation invented
+
+Started from a question about stubs rather than a plan: are there `todo!()`s, dead handlers, declared
+arguments that do nothing? There are none — the `not-yet-implemented-shape-feature` diagnostic is a real
+answer for syntax the grammar does not recognise, not a placeholder. What the search did find was worse,
+because it was invisible: **`tb-mcp-rs/tests/real_engine.rs` is `#[ignore]`d, and all three of its tests
+were failing.** CI never ran them, so nothing reported it, and the failures were unrelated:
+
+- they called the tools as `au_overview`, a name the adapter has not had since the `tb_` rename — every
+  call answered "unknown tool";
+- they joined `$HOME/.arsumbris/au-engine/run` to find the private engine's socket, which a fresh `$HOME`
+  stopped using in the previous wave;
+- their recorded read fixtures still carried `au.engine.*`, from before the schema rename.
+
+Each is the same shape of mistake the last two waves kept finding: a test asserting *how* the engine
+answers instead of *what* it promises. The run directory is now found rather than spelled, the tools are
+called by their real names, and the fixtures are re-captured; capture and verification agree in one run.
+The same literal in `tb-cli`'s `daemon.rs` was the last failing scenario test there — 33/36 before, 36/36
+after — which also showed that my gate set had been missing `cargo test -p tb-cli --test it` entirely.
+
+The stub search then paid for itself twice more. `saga_marker_dir` joined a literal `.arsumbris`, so the
+first mutation of a repository whose identity directory is `.2brain` created a *second* identity
+directory inside it. The write rule already existed (`identity_dir_for_write_with`: follow what is there,
+else the current name) and was simply not used at this one call site. And `<au-engine-builtin>`, the
+sentinel every builtin type-def reports as its `origin_path`, was the last `au` name on the wire; renaming
+it re-blessed 210 `tb-cli` snapshots, whose diff is that string plus insta's `assertion_line` header,
+removed by the script so the repository keeps its snapshot shape.
+
+Measured after the wave: engine `--lib` **752** / 1 known root-only, `--test it` 741 / 3 known,
+`tb-cli --test it` **36 / 0**, adapter 262 / 46 suites, and the three ignored real-engine tests pass on
+demand. `fmt` and `clippy -D warnings` clean in both halves, links 808/0.
+
 ## 2026-11-18 — `require_clean` reaches `batch`, and three copies become one
 
 ADR-0002's last verb. The blocker was stated in `WIRE.md` as a missing report: a batch refusal must name the

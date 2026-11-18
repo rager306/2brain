@@ -9,7 +9,7 @@ expression: rendered
       "message": "instance is missing required field 'tldr' (declared on 'tb.engine.readme')",
       "related": [
         {
-          "file": "<au-engine-builtin>/tb.engine.readme.type.yaml",
+          "file": "<tb-engine-builtin>/tb.engine.readme.type.yaml",
           "range": {
             "end": 404,
             "start": 400
@@ -55,7 +55,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": false,
                 "shape": "tb.engine.dep::tb-engine[]"
@@ -70,7 +70,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
@@ -85,7 +85,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": true,
                 "shape": "String"
@@ -100,7 +100,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
@@ -245,7 +245,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.readme",
-                "origin_path": "<au-engine-builtin>/tb.engine.readme.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.readme.type.yaml",
                 "repo": "tb-engine",
                 "required": true,
                 "shape": "String"

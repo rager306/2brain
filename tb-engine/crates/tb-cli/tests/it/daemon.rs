@@ -17,8 +17,8 @@ use serde_json::json;
 use tb_engine::{Client, socket_file_name};
 
 /// A minimal repo, plus a fake `$HOME` the daemon derives its hashed socket
-/// under. Both live in tempdirs, so the test never touches the real
-/// `~/.arsumbris/au-engine/run/` and never reads the developer's registry.
+/// under. Both live in tempdirs, so the test never touches the real device
+/// run directory and never reads the developer's registry.
 struct Fixture {
     repo: tempfile::TempDir,
     home: tempfile::TempDir,
@@ -53,7 +53,10 @@ fn fixture() -> Fixture {
 /// The socket path the daemon binds under a given fake `$HOME`, mirroring
 /// `tb_engine::socket_path` with the home overridden.
 fn socket_under(home: &Path, entry: &Path) -> std::path::PathBuf {
-    home.join(".arsumbris")
+    // Which name the state root carries is the engine's rule (`state_dir_in`), not this
+    // test's: a fresh `$HOME` is `.2brain`, a migrated one `.arsumbris`. Joining a literal
+    // name asserts the rule instead of testing the daemon.
+    tb_engine::repo::state_dir_in(home)
         .join("au-engine")
         .join("run")
         .join(socket_file_name(entry))

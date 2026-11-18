@@ -19,102 +19,6 @@
         "sealed": null
       },
       {
-        "doc": "One dependency entry in a repo's `deps`.",
-        "hash": "689bfc84c3a7eb06",
-        "name": "au.engine.dep",
-        "parents": [],
-        "repo": "au-engine",
-        "sealed": null
-      },
-      {
-        "doc": "One pinned dependency in a repo lock: a name, its remote, and the sha.",
-        "hash": "39d4f912afe94a83",
-        "name": "au.engine.locked-package",
-        "parents": [],
-        "repo": "au-engine",
-        "sealed": null
-      },
-      {
-        "doc": "The nominal meta marker. A type-def is legal in a `meta:` position only if\nits resolved closure mixes this in, via `au.engine.meta::au-engine`. Abstract,\nnever claimed directly, a block names a concrete subtype that carries it.",
-        "hash": "0f5ba88b639e8bcb",
-        "name": "au.engine.meta",
-        "parents": [],
-        "repo": "au-engine",
-        "sealed": null
-      },
-      {
-        "doc": "A repo's self-description at its root, `README.md`. Self-declared, its\nsections say what the repo is, how to use it, and how to extend it.",
-        "hash": "6edb95375b131792",
-        "name": "au.engine.readme",
-        "parents": [],
-        "repo": "au-engine",
-        "sealed": null
-      },
-      {
-        "doc": "One entry in the per-user registry: a name's remote and local path.",
-        "hash": "73e7b49bb8135160",
-        "name": "au.engine.registry-entry",
-        "parents": [],
-        "repo": "au-engine",
-        "sealed": null
-      },
-      {
-        "doc": "A repo's committed identity and dependency set, `.arsumbris/repo.yaml`.",
-        "hash": "a6b6604679d2eeaf",
-        "name": "au.engine.repo",
-        "parents": [],
-        "repo": "au-engine",
-        "sealed": null
-      },
-      {
-        "doc": "The per-repo dependency lock, `.arsumbris/repo.lock`, engine-written.",
-        "hash": "d4a0069076906ff5",
-        "name": "au.engine.repo-lock",
-        "parents": [],
-        "repo": "au-engine",
-        "sealed": null
-      },
-      {
-        "doc": "The per-user registry, `~/.arsumbris/au-engine/config/repos.yaml`, name to remote+path.",
-        "hash": "f929f74971168348",
-        "name": "au.engine.repos",
-        "parents": [],
-        "repo": "au-engine",
-        "sealed": null
-      },
-      {
-        "doc": "The optional workspace composition, `.arsumbris/workspace.yaml`, edit + discover members. `disabled:` overlays the role lists, a member declared but intentionally not mounted.",
-        "hash": "27a9e86cb304025c",
-        "name": "au.engine.workspace",
-        "parents": [],
-        "repo": "au-engine",
-        "sealed": null
-      },
-      {
-        "doc": "One entry in the workspaces index: a workspace file and an optional alias.",
-        "hash": "d03e0776699e2bb0",
-        "name": "au.engine.workspace-entry",
-        "parents": [],
-        "repo": "au-engine",
-        "sealed": null
-      },
-      {
-        "doc": "The per-workspace discover lock, `.arsumbris/workspace.lock`, engine-written.",
-        "hash": "7fdb1e00dcd30336",
-        "name": "au.engine.workspace-lock",
-        "parents": [],
-        "repo": "au-engine",
-        "sealed": null
-      },
-      {
-        "doc": "The per-user workspaces index, `~/.arsumbris/au-engine/config/workspaces.yaml`.",
-        "hash": "08f9318a7dae8195",
-        "name": "au.engine.workspaces",
-        "parents": [],
-        "repo": "au-engine",
-        "sealed": null
-      },
-      {
         "hash": "488157cb2f9ed3aa",
         "name": "note",
         "parents": [],
@@ -135,6 +39,102 @@
           "peer::base"
         ],
         "repo": "fixture",
+        "sealed": null
+      },
+      {
+        "doc": "One dependency entry in a repo's `deps`.",
+        "hash": "0284c9192042c06a",
+        "name": "tb.engine.dep",
+        "parents": [],
+        "repo": "tb-engine",
+        "sealed": null
+      },
+      {
+        "doc": "One pinned dependency in a repo lock: a name, its remote, and the sha.",
+        "hash": "c69a1d4e0869f4fb",
+        "name": "tb.engine.locked-package",
+        "parents": [],
+        "repo": "tb-engine",
+        "sealed": null
+      },
+      {
+        "doc": "The nominal meta marker. A type-def is legal in a `meta:` position only if\nits resolved closure mixes this in, via `tb.engine.meta::tb-engine`. Abstract,\nnever claimed directly, a block names a concrete subtype that carries it.",
+        "hash": "1dbd0d8e39215cf3",
+        "name": "tb.engine.meta",
+        "parents": [],
+        "repo": "tb-engine",
+        "sealed": null
+      },
+      {
+        "doc": "A repo's self-description at its root, `README.md`. Self-declared, its\nsections say what the repo is, how to use it, and how to extend it.",
+        "hash": "652c53440f16a9c6",
+        "name": "tb.engine.readme",
+        "parents": [],
+        "repo": "tb-engine",
+        "sealed": null
+      },
+      {
+        "doc": "One entry in the per-user registry: a name's remote and local path.",
+        "hash": "5a46f92b04c57d88",
+        "name": "tb.engine.registry-entry",
+        "parents": [],
+        "repo": "tb-engine",
+        "sealed": null
+      },
+      {
+        "doc": "A repo's committed identity and dependency set, `.2brain/repo.yaml`.",
+        "hash": "03336d678cabc4dd",
+        "name": "tb.engine.repo",
+        "parents": [],
+        "repo": "tb-engine",
+        "sealed": null
+      },
+      {
+        "doc": "The per-repo dependency lock, `.arsumbris/repo.lock`, engine-written.",
+        "hash": "33430123ed4a81d6",
+        "name": "tb.engine.repo-lock",
+        "parents": [],
+        "repo": "tb-engine",
+        "sealed": null
+      },
+      {
+        "doc": "The per-user registry, `the device-state `au-engine/config` (see `repo::state_dir_in`)/repos.yaml`, name to remote+path.",
+        "hash": "3f35862c245ce57b",
+        "name": "tb.engine.repos",
+        "parents": [],
+        "repo": "tb-engine",
+        "sealed": null
+      },
+      {
+        "doc": "The optional workspace composition, `.2brain/workspace.yaml`, edit + discover members. `disabled:` overlays the role lists, a member declared but intentionally not mounted.",
+        "hash": "fb089ae9ddde20a4",
+        "name": "tb.engine.workspace",
+        "parents": [],
+        "repo": "tb-engine",
+        "sealed": null
+      },
+      {
+        "doc": "One entry in the workspaces index: a workspace file and an optional alias.",
+        "hash": "0bd5998c62e1fb28",
+        "name": "tb.engine.workspace-entry",
+        "parents": [],
+        "repo": "tb-engine",
+        "sealed": null
+      },
+      {
+        "doc": "The per-workspace discover lock, `.arsumbris/workspace.lock`, engine-written.",
+        "hash": "d008d9835b7b76db",
+        "name": "tb.engine.workspace-lock",
+        "parents": [],
+        "repo": "tb-engine",
+        "sealed": null
+      },
+      {
+        "doc": "The per-user workspaces index, `the device-state `au-engine/config` (see `repo::state_dir_in`)/workspaces.yaml`.",
+        "hash": "a8fc56f3d7bfc445",
+        "name": "tb.engine.workspaces",
+        "parents": [],
+        "repo": "tb-engine",
         "sealed": null
       },
       {

@@ -43,6 +43,33 @@ fn engine_read_request(socket: &Path, request: Value) -> std::io::Result<Value> 
     serde_json::from_slice(&response).map_err(std::io::Error::other)
 }
 
+/// The directory a private engine's sockets live in, found rather than spelled.
+///
+/// Which name the state root carries is the engine's decision (`$2BRAIN_HOME`, an existing
+/// `.2brain`, an existing `.arsumbris`, else `.2brain`), so a test that joins a literal name
+/// asserts that decision instead of the behaviour it means to test: it passes while the rule
+/// holds and fails when the rule changes and the engine is right. This walks `$HOME` for any
+/// `<root>/au-engine/run` and returns the first, which is the same directory either way.
+fn state_run_dir(home: &Path) -> PathBuf {
+    let deadline = Instant::now() + STARTUP_TIMEOUT;
+    loop {
+        if let Ok(entries) = fs::read_dir(home) {
+            for entry in entries.flatten() {
+                let run = entry.path().join("au-engine").join("run");
+                if run.is_dir() {
+                    return run;
+                }
+            }
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the engine created no au-engine/run directory under {}",
+            home.display()
+        );
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
 fn wait_ready(run: &Path, daemon: &mut Child) -> PathBuf {
     let deadline = Instant::now() + STARTUP_TIMEOUT;
     loop {
@@ -362,7 +389,7 @@ fn synthetic_read_fixtures_match_the_engine() {
             .spawn()
             .expect("start private engine"),
     );
-    let socket = wait_ready(&home.join(".arsumbris/au-engine/run"), &mut daemon.0);
+    let socket = wait_ready(&state_run_dir(&home), &mut daemon.0);
     let mut mcp = OwnedChild(
         Command::new(env!("CARGO_BIN_EXE_2brain"))
             .arg("mcp")
@@ -557,7 +584,7 @@ fn rename_type_refuses_a_cascade_outside_the_member_grant() {
             .spawn()
             .expect("start private engine"),
     );
-    let socket = wait_ready(&home.join(".arsumbris/au-engine/run"), &mut daemon.0);
+    let socket = wait_ready(&state_run_dir(&home), &mut daemon.0);
 
     let def = entry.join("base/type/widget.type.yaml");
     let note = entry.join("app/holder.md");
@@ -692,7 +719,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
             .spawn()
             .expect("start private engine"),
     );
-    let socket = wait_ready(&home.join(".arsumbris/au-engine/run"), &mut daemon.0);
+    let socket = wait_ready(&state_run_dir(&home), &mut daemon.0);
     let mut mcp = OwnedChild(
         Command::new(env!("CARGO_BIN_EXE_2brain"))
             .arg("mcp")
@@ -731,7 +758,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         assert_eq!(direct["ready"], true, "{direct}");
         send(
             &mut input,
-            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":format!("au_{verb}"),"arguments":{}}}),
+            json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":format!("tb_{verb}"),"arguments":{}}}),
         );
         let reply = receive(&rx);
         assert_ne!(reply["result"]["isError"], true, "{reply}");

@@ -2,7 +2,7 @@
 //! remote }` entry into the per-user registry (`repos.yaml`), a DEVICE-GLOBAL
 //! file (no git commit), then rebuilds so a newly-registered scattered member
 //! mounts. The registry path comes from the engine's INJECTED `config_dir`, so
-//! the test never touches the developer's real `~/.arsumbris/au-engine/config`.
+//! the test never touches the developer's real device config.
 //!
 //! See [[spec - cross-repo resolution - in-repo identity and deps over a per-user repo registry]].
 
@@ -108,7 +108,7 @@ fn register_writes_the_entry_and_mounts_the_scattered_member() {
     assert_eq!(resp["id"], "reg-1", "the response echoes the request id");
     assert_eq!(resp["name"], "lib");
 
-    // The entry landed in the INJECTED registry, not the real `~/.arsumbris/au-engine/config`.
+    // The entry landed in the INJECTED registry, not the real device config.
     let registry = h.config_dir.join("au-engine/config/repos.yaml");
     let written = fs::read_to_string(&registry).expect("repos.yaml written");
     assert!(

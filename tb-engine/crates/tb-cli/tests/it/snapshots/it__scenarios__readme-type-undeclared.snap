@@ -7,9 +7,9 @@ expression: rendered
     {
       "code": "readme-type-undeclared",
       "fix": {
-        "description": "add `type: au.engine.readme::au-engine` to the README frontmatter"
+        "description": "add `type: tb.engine.readme::tb-engine` to the README frontmatter"
       },
-      "message": "README.md does not declare `type: au.engine.readme::au-engine`; the canonical README self-declares its type",
+      "message": "README.md does not declare `type: tb.engine.readme::tb-engine`; the canonical README self-declares its type",
       "severity": "warning",
       "span": {
         "file": "<root>/scenarios/readme-type-undeclared/README.md",
@@ -49,7 +49,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": false,
                 "shape": "tb.engine.dep::tb-engine[]"
@@ -64,7 +64,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
@@ -79,7 +79,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": true,
                 "shape": "String"
@@ -94,7 +94,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": false,
                 "shape": "String"

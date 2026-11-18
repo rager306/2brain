@@ -7,9 +7,9 @@ expression: rendered
     {
       "code": "readme-misplaced",
       "fix": {
-        "description": "move this to the repo root as README.md, or drop the `au.engine.readme` claim"
+        "description": "move this to the repo root as README.md, or drop the `tb.engine.readme` claim"
       },
-      "message": "file claims `au.engine.readme` but is not the repo's root README.md; the readme type is a singleton at `<root>/README.md`",
+      "message": "file claims `tb.engine.readme` but is not the repo's root README.md; the readme type is a singleton at `<root>/README.md`",
       "severity": "warning",
       "span": {
         "file": "<root>/scenarios/readme-misplaced/docs/overview.md",
@@ -49,7 +49,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": false,
                 "shape": "tb.engine.dep::tb-engine[]"
@@ -64,7 +64,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
@@ -79,7 +79,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": true,
                 "shape": "String"
@@ -94,7 +94,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
@@ -239,7 +239,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.readme",
-                "origin_path": "<au-engine-builtin>/tb.engine.readme.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.readme.type.yaml",
                 "repo": "tb-engine",
                 "required": true,
                 "shape": "String"
@@ -480,7 +480,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.readme",
-                "origin_path": "<au-engine-builtin>/tb.engine.readme.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.readme.type.yaml",
                 "repo": "tb-engine",
                 "required": true,
                 "shape": "String"

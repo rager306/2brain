@@ -43,6 +43,29 @@ and a `.2brain` repository identity produce, so the newest layout was the one co
 it now compares both spellings. Nothing moves on a migrated machine: existence still decides. Found by the
 install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
 
+### Fixed
+
+- **The ignored real-engine tests were dead, and nothing said so** (server + engine). `real_engine.rs`
+is `#[ignore]`d, so CI never ran it, and it had drifted in three ways at once: it called tools as
+`au_overview`, a name the adapter has not had since the `tb_` rename; it joined
+`$HOME/.arsumbris/au-engine/run` to find the private engine's socket, which a fresh `$HOME` no longer
+uses; and its recorded read fixtures predated the schema rename and still carried `au.engine.*`. Three
+tests, three independent silent failures. They now find the run directory instead of spelling it, call
+the tools by their real names, and the fixtures are re-captured — capture and verification agree in one
+run. `tb-cli`'s `it` suite had the same literal in `daemon.rs` and failed for it; it is green (36/36).
+
+- **The engine wrote its saga markers into the legacy identity directory of a NEW repository** (engine).
+`saga_marker_dir` joined the literal `.arsumbris`, so a repository whose identity directory is `.2brain`
+got a second one, `.arsumbris/au-engine/run/`, as a side effect of its first mutation — exactly the
+foreign body the reserved-root check and the identity migration then have to reason about. It now
+resolves through `identity_dir_for_write_with`, the rule that already says "follow what exists, else the
+current name". Three cases are pinned: new, legacy, and neither.
+
+- **`<au-engine-builtin>` was the last wire-visible `au` name** (engine). Every builtin type-def's
+`origin_path` carried it. It is `<tb-engine-builtin>` now, and 210 `tb-cli` scenario snapshots were
+re-blessed; their diff is that string and insta's `assertion_line` header line, which the re-bless
+scripted away so the repository keeps its existing snapshot shape.
+
 ### Added
 
 - **`require_clean` reaches `batch` (ADR-0002)** (engine + server). The last verb without the rider. The refusal

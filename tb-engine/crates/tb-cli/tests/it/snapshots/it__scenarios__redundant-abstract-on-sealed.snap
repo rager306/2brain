@@ -60,7 +60,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": false,
                 "shape": "tb.engine.dep::tb-engine[]"
@@ -75,7 +75,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": false,
                 "shape": "String"
@@ -90,7 +90,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": true,
                 "shape": "String"
@@ -105,7 +105,7 @@ expression: rendered
             "origins": [
               {
                 "name": "tb.engine.repo",
-                "origin_path": "<au-engine-builtin>/tb.engine.repo.type.yaml",
+                "origin_path": "<tb-engine-builtin>/tb.engine.repo.type.yaml",
                 "repo": "tb-engine",
                 "required": false,
                 "shape": "String"

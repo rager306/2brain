@@ -5,19 +5,19 @@
       "value": 262,
       "known_environment_failures": 0,
       "command": "cd tb-mcp-rs && cargo +1.99.0 test --offline; value is the sum of `passed` across the 46 suites the log recorded",
-      "date": "2026-11-18"
+      "date": "2026-11-19"
     },
     "engine_lib_tests": {
-      "value": 749,
+      "value": 752,
       "known_environment_failures": 1,
       "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --lib; value is the sum of `passed` across the 1 suites the log recorded",
-      "date": "2026-11-18"
+      "date": "2026-11-19"
     },
     "engine_it_tests": {
       "value": 741,
       "known_environment_failures": 3,
       "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --test it; value is the sum of `passed` across the 1 suites the log recorded",
-      "date": "2026-11-18"
+      "date": "2026-11-19"
     }
   },
   "surface": {

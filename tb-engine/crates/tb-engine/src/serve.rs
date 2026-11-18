@@ -5322,12 +5322,69 @@ fn committed_moves(
 const INTENT_MARKER_NAME: &str = "saga.intent";
 
 /// The engine's saga-recovery directory under the launch entry root,
-/// `<root>/.arsumbris/au-engine/run/`. Holds the `saga.intent` marker and the
+/// `<root>/<identity dir>/au-engine/run/`. Holds the `saga.intent` marker and the
 /// `saga.failed.<id>` sentinels: ephemeral run-state, owner-namespaced under the
 /// engine, see
 /// [[spec - 2brain layout - a reserved multi-tenant device root, owner-namespaced with a category sublayer]].
+///
+/// The identity directory is resolved by the WRITE rule, not spelled: a repository keeps the
+/// spelling it already has, and a repository that has neither is new, so it gets the current
+/// name. Spelling the legacy name here created a second identity directory inside a new
+/// repository — a `.arsumbris/au-engine/` beside its `.2brain/repo.yaml` — which the engine's
+/// own reserved-root and migration checks then have to treat as a foreign body.
 fn saga_marker_dir(root: &Path) -> PathBuf {
-    root.join(".arsumbris").join("au-engine").join("run")
+    tb_parser::identity_dir_for_write_with(root, |dir| dir.exists())
+        .join("au-engine")
+        .join("run")
+}
+
+#[cfg(test)]
+mod saga_marker_dir_tests {
+    use super::*;
+
+    /// A new repository writes the current identity directory, so its run-state belongs there.
+    /// Spelling the legacy name would leave a `.arsumbris/au-engine/` inside a repository whose
+    /// only identity directory is `.2brain`.
+    #[test]
+    fn a_new_repository_keeps_its_run_state_in_the_new_identity_directory() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join(tb_parser::IDENTITY_DIR)).unwrap();
+        assert_eq!(
+            saga_marker_dir(root),
+            root.join(tb_parser::IDENTITY_DIR)
+                .join("au-engine")
+                .join("run")
+        );
+    }
+
+    /// A repository that already has the legacy spelling keeps it: the write rule follows what
+    /// exists rather than migrating a repository as a side effect of a mutation.
+    #[test]
+    fn a_legacy_repository_keeps_its_run_state_where_it_already_is() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join(tb_parser::LEGACY_IDENTITY_DIR)).unwrap();
+        assert_eq!(
+            saga_marker_dir(root),
+            root.join(tb_parser::LEGACY_IDENTITY_DIR)
+                .join("au-engine")
+                .join("run")
+        );
+    }
+
+    /// A root with neither spelling is new, so the current name wins.
+    #[test]
+    fn a_root_with_neither_spelling_gets_the_current_name() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert_eq!(
+            saga_marker_dir(tmp.path()),
+            tmp.path()
+                .join(tb_parser::CREATE_IDENTITY_DIR)
+                .join("au-engine")
+                .join("run")
+        );
+    }
 }
 
 /// The saga intent marker present for `root` under either identity spelling, when a mutation is
