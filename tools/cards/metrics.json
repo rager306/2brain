@@ -8,7 +8,7 @@
       "date": "2026-11-17"
     },
     "engine_lib_tests": {
-      "value": 744,
+      "value": 745,
       "known_environment_failures": 1,
       "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --lib",
       "date": "2026-11-17"
@@ -95,7 +95,7 @@
     "cycles": 29,
     "command": "2brain mcp /root/vault then tb_graph_health {\"limit\": 200}; or engine_probe.py --verb tb_graph_health on the live socket",
     "date": "2026-11-17",
-    "source": "engine 8736c9fc (release 2), adapter 0.1.0+020d0de, vault 1bf9c92",
+    "source": "engine fa45472 (release 2 + window advisory), adapter 0.1.0+020d0de, vault 1bf9c92",
     "components": 206
   }
 }
