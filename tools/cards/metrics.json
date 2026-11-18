@@ -77,7 +77,7 @@
     "notes_without_links": 71,
     "isolated": 196,
     "broken_links": 0,
-    "edges": 4937,
+    "edges": 4970,
     "source": "tools/kb/census.py --json (frontmatter) + engine graph_shape; 2026-11-17 after two MOC passes",
     "links": 4920,
     "zero_inbound": 10,
@@ -85,7 +85,7 @@
   },
   "graph": {
     "nodes": 1227,
-    "edges": 4937,
+    "edges": 4970,
     "bridges": 35,
     "articulation_points": 57,
     "triangles": 3124,
@@ -95,7 +95,7 @@
     "cycles": 29,
     "command": "2brain mcp /root/vault then tb_graph_health {\"limit\": 200}; or engine_probe.py --verb tb_graph_health on the live socket",
     "date": "2026-11-17",
-    "source": "engine 8736c9fc (release 2), adapter 0.1.0+020d0de, vault 3172c2d",
+    "source": "engine 8736c9fc (release 2), adapter 0.1.0+020d0de, vault d009c9f",
     "components": 206
   }
 }
