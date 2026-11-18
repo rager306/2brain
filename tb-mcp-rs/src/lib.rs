@@ -1248,14 +1248,18 @@ impl Server {
             args.path,
             args.expected_hash,
             |target| {
-                json!({
+                let mut request = json!({
                     "mutate": "edit_file",
                     "id": 1,
                     "path": target,
                     "old_string": args.old_string,
                     "new_string": args.new_string,
                     "replace_all": args.replace_all,
-                })
+                });
+                if args.require_clean {
+                    request["require_clean"] = json!(true);
+                }
+                request
             },
         )
         .await
@@ -1409,12 +1413,15 @@ impl Server {
         let ArmedFile { key, target } = prepared;
         // The read above is this process's view; the engine's create is the
         // race-free half, because it takes the path inside the serialized write.
-        let request = json!({
+        let mut request = json!({
             "mutate": "create_file",
             "id": 1,
             "path": target,
             "content": args.content,
         });
+        if args.require_clean {
+            request["require_clean"] = json!(true);
+        }
         self.finish_mutation("tb_create_file", &repo, request, [key])
             .await
     }
@@ -3649,6 +3656,10 @@ struct EditArguments {
     /// Hash returned by the tb_content read that this edit is based on.
     #[schemars(length(min = 1))]
     expected_hash: String,
+    /// Refuse instead of writing when the state this edit would produce carries an
+    /// ERROR-severity diagnostic. Off by default: a draft may be inconsistent.
+    #[serde(default)]
+    require_clean: bool,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -3715,6 +3726,10 @@ struct CreateArguments {
     path: String,
     /// Full file text.
     content: String,
+    /// Refuse instead of creating when the state this create would produce carries an
+    /// ERROR-severity diagnostic.
+    #[serde(default)]
+    require_clean: bool,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]

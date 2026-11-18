@@ -6565,3 +6565,101 @@ fn rename_type_refuses_a_cascade_outside_the_grant() {
         "the referrer was rewritten once it was inside the grant"
     );
 }
+
+/// ADR-0002, second slice: the clean check rides `edit_file` and `create_file` too.
+/// The refusal is a precondition, so an edit leaves the file's bytes and a create leaves
+/// no file at all; without the rider the same request lands and reports.
+#[test]
+fn require_clean_refuses_an_edit_that_would_introduce_an_error() {
+    let mut h = started();
+    let path = h.root.join("a.md");
+    let before = fs::read_to_string(&path).unwrap();
+
+    let refused = h
+        .client
+        .query(&json!({
+            "mutate": "edit_file",
+            "path": "a.md",
+            "old_string": "type: note",
+            "new_string": "type: note::ghost",
+            "require_clean": true,
+        }))
+        .unwrap();
+    assert_eq!(refused["type"], "error", "{refused}");
+    let message = refused["error"].as_str().unwrap();
+    assert!(message.contains("policy/diagnostics"), "{message}");
+    assert!(message.contains("type-repo-unknown"), "{message}");
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        before,
+        "a refused edit writes nothing"
+    );
+
+    let landed = h
+        .client
+        .query(&json!({
+            "mutate": "edit_file",
+            "path": "a.md",
+            "old_string": "type: note",
+            "new_string": "type: note2",
+        }))
+        .unwrap();
+    assert_eq!(landed["ready"], true, "{landed}");
+
+    // A clean edit carries no refusal at all.
+    fs::write(
+        h.root.join("type/note2.type.yaml"),
+        "fields:\n  description: String\n",
+    )
+    .unwrap();
+    h.engine.rebuild();
+    let clean = h
+        .client
+        .query(&json!({
+            "mutate": "edit_file",
+            "path": "a.md",
+            "old_string": "description: original",
+            "new_string": "description: edited under the check",
+            "require_clean": true,
+        }))
+        .unwrap();
+    assert_eq!(clean["ready"], true, "{clean}");
+}
+
+#[test]
+fn require_clean_refuses_a_create_that_would_introduce_an_error() {
+    let mut h = started();
+    let refused = h
+        .client
+        .query(&json!({
+            "mutate": "create_file",
+            "path": "ghost.md",
+            "content": "---\ntype: note::ghost\ndescription: x\n---\n",
+            "require_clean": true,
+        }))
+        .unwrap();
+    assert_eq!(refused["type"], "error", "{refused}");
+    assert!(
+        refused["error"]
+            .as_str()
+            .unwrap()
+            .contains("policy/diagnostics"),
+        "{refused}"
+    );
+    assert!(
+        !h.root.join("ghost.md").exists(),
+        "a refused create leaves no file"
+    );
+
+    let clean = h
+        .client
+        .query(&json!({
+            "mutate": "create_file",
+            "path": "clean.md",
+            "content": "---\ntype: note\ndescription: created under the check\n---\n",
+            "require_clean": true,
+        }))
+        .unwrap();
+    assert_eq!(clean["ready"], true, "{clean}");
+    assert!(h.root.join("clean.md").is_file());
+}

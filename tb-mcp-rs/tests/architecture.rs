@@ -91,7 +91,10 @@ const ALLOWED: [(&str, &str); 17] = [
 // its reason; the engine side of the same rider is in `serve.rs`, not here.
 // 4526 on 2026-11-18: `tb_rename_type` sends its policy's allowlist with the mutation (ADR-0003) — eight
 // lines, one of them the comment saying why the list travels and why an absent policy sends nothing.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4526;
+// 4541 on 2026-11-18: `require_clean` reaches `tb_edit_file` and `tb_create_file` (ADR-0002) — a field with
+// its doc on each argument struct, and the conditional send on each request, the same shape `tb_write_file`
+// already paid for.
+const LIB_RS_PRODUCTION_BUDGET: usize = 4541;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")

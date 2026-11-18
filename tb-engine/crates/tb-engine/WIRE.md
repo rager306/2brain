@@ -1249,10 +1249,10 @@ Attribution rider: `write_file`, `edit_file`, and `delete_file` accept an option
 - default `false`, and absent means false: the advisory contract is unchanged, and diagnostics still ride a successful write's result. The check costs one preview build, and only when requested.
 - the pipeline lock is held across the check and the write, so both observe one held state; an adapter cannot reproduce that with two calls.
 - a preview that rejects for its own reason (an absent target, a stamp on a non-list field) leaves the refusal to the write, which answers with that same reason — one failure, one answer.
-- additive optional input, no `schema_version` bump. `edit_file`, `create_file` and `batch` do not accept it yet; they gain it in the same change or are named as missing (ADR-0002).
+- additive optional input, no `schema_version` bump. `write_file`, `edit_file` and `create_file` carry it; `batch` does not yet — a batch is a multi-file saga whose refusal must name the operation that would introduce the error, and that report does not exist.
 
 **create_file.**
-- args: `path`, `content`, optional `stamps` (the Stamps rider above), optional `ensure_mixins` / `ensure_mixins_strict` (the Ensure-mixins rider above), optional `attribution` (the Attribution rider above). The same riders `write_file` takes, except `require_clean`: a create is a first write, so it has no prior accepted state to promote. (ADR-0002 names the create as a follow-up if a caller needs the check there.)
+- args: `path`, `content`, optional `stamps` (the Stamps rider above), optional `ensure_mixins` / `ensure_mixins_strict` (the Ensure-mixins rider above), optional `attribution` (the Attribution rider above), optional `require_clean` (the Clean-check rider below). A create is checked like a write: the question is what the file would make true, not whether it existed before.
 - full-content write of a path that MUST NOT EXIST YET, parent directories created.
 - `write_file`'s read-before-write guard rejects a STALE previous version; `create_file`'s rejects ANY previous version. Absence is the precondition, and it is checked where the write happens: the create takes the path in one exclusive-create step (`O_CREAT | O_EXCL`) inside the serialized mutation, so the check and the write cannot interleave. Two writers of one path — two connections, two consumer processes, or a consumer racing a human editor — yield one success and one conflict, never a silent overwrite.
 - an existing path rejects and nothing is written. `detail.reason` is `"already_exists"`, the machine-usable discriminator a consumer maps to its own conflict wording, and `detail.current_hash` is the incumbent's content hash (null when the path is not a readable file, e.g. a directory). A consumer that finds that hash equal to its own has learned the work is already done.
@@ -1262,7 +1262,7 @@ Attribution rider: `write_file`, `edit_file`, and `delete_file` accept an option
 - additive: a NEW mutation verb, no `schema_version` bump.
 
 **edit_file.**
-- args: `path`, `old_string`, `new_string`, optional `replace_all` (default false), optional `stamps` (the Stamps rider above), optional `ensure_mixins` (the Ensure-mixins rider above), optional `attribution` (the Attribution rider above).
+- args: `path`, `old_string`, `new_string`, optional `replace_all` (default false), optional `stamps` (the Stamps rider above), optional `ensure_mixins` (the Ensure-mixins rider above), optional `attribution` (the Attribution rider above), optional `require_clean` (the Clean-check rider below).
 - exact string replacement; `old_string` must match exactly and be unique, `replace_all` lifts uniqueness.
 - a non-unique match rejects naming the count (`detail.occurrences`); a miss rejects — the exact match is its own read-before-write precondition, no hash arg exists.
 - identical `old_string`/`new_string` and unreadable files reject.

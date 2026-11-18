@@ -83,13 +83,15 @@ Scope for the first implementation slice: `write_file` only. `edit_file`, `creat
 same change or are named as still missing — an argument that exists on a tool and does nothing is the stub this
 decision exists to avoid.
 
-**Progress 2026-11-18.** `write_file` is implemented and tested: `require_clean` is parsed by the engine's
-`WriteFileArgs`, the check runs in `handle_mutation` before the saga, and the two tests named below cover the
-refusal (bytes unchanged, `policy/diagnostics: … type-repo-unknown`) and the clean write. Gate part 3 — the
-measurement that the default path did not slow down — is **not done**, so the record stays `Proposed`.
-`edit_file`, `create_file` and `batch` do not accept the rider yet and `WIRE.md` says so. The adapter sends the
-key only when a caller asks for it: the engine refuses unknown fields, so an explicit `false` would break a caller
-paired with an engine that predates this record.
+**Progress 2026-11-18.** `write_file`, `edit_file` and `create_file` are implemented and tested: each parses
+`require_clean`, and the check runs in `handle_mutation` before its saga through one helper over the preview's
+`PreviewOp` (write, edit, write-for-create). The tests cover the refusal for all three (bytes unchanged for a
+write and an edit, no file at all for a create, `policy/diagnostics: … type-repo-unknown`), the clean write, and
+an edit that lands once its target type exists. `batch` is the one verb left: it is a multi-file saga whose
+refusal must name the operation that would introduce the error, and that report does not exist yet — `WIRE.md`
+says so. Gate part 3 (the default path did not slow down) is still a measurement nobody has taken, so the record
+stays `Proposed`. The adapter sends the key only when a caller asks for it: the engine refuses unknown fields, so
+an explicit `false` would break a caller paired with an engine that predates this record.
 
 ## Acceptance gate
 

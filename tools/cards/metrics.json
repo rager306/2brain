@@ -14,7 +14,7 @@
       "date": "2026-11-18"
     },
     "engine_it_tests": {
-      "value": 737,
+      "value": 739,
       "known_environment_failures": 3,
       "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --test it; value is the sum of `passed` across the 1 suites the log recorded",
       "date": "2026-11-18"

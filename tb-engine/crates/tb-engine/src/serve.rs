@@ -1477,6 +1477,10 @@ struct CreateFileArgs {
     /// Caller attribution trailers folded into this create's commit.
     #[serde(default)]
     attribution: Vec<TrailerInput>,
+    /// ADR-0002: refuse before creating when the state this create would produce
+    /// carries an ERROR-severity diagnostic. Default `false`.
+    #[serde(default)]
+    require_clean: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1496,6 +1500,10 @@ struct EditFileArgs {
     /// Caller attribution trailers folded into this edit's commit.
     #[serde(default)]
     attribution: Vec<TrailerInput>,
+    /// ADR-0002: refuse before writing when the state this edit would produce
+    /// carries an ERROR-severity diagnostic. Default `false`.
+    #[serde(default)]
+    require_clean: bool,
 }
 
 /// One operation inside a batch. The tag names the same file-level verbs the
@@ -5772,22 +5780,17 @@ fn mixin_outcomes_extra(
 /// happen here. A preview that rejects for its own reason (an absent target, a stamp on
 /// a non-list field) leaves the verdict to the write, which refuses with that same
 /// reason: one failure, one answer.
-async fn require_clean_refusal(
+async fn clean_check_refusal(
     handle: &EngineHandle,
     target: &Path,
-    args: &WriteFileArgs,
+    op: crate::mutate::PreviewOp,
+    riders: crate::engine::PreviewRiders,
 ) -> Option<serde_json::Value> {
     let handle = handle.clone();
     let input = crate::engine::PreviewInput::File {
         target: target.to_path_buf(),
-        op: crate::mutate::PreviewOp::Write {
-            content: args.content.clone(),
-        },
-        riders: preview_riders(
-            args.stamps.clone(),
-            args.ensure_mixins.clone(),
-            args.ensure_mixins_strict,
-        ),
+        op,
+        riders,
     };
     let read = tokio::task::spawn_blocking(move || {
         handle.preview(input, |outcome| match outcome {
@@ -5816,7 +5819,7 @@ async fn require_clean_refusal(
     }
     Some(mutation_reject_frame(crate::mutate::MutationReject::new(
         format!(
-            "policy/diagnostics: this write would introduce {} error(s); fix them or write \
+            "policy/diagnostics: this mutation would introduce {} error(s); fix them or write \
              without `require_clean`: {}",
             errors.len(),
             errors.join(", ")
@@ -5860,7 +5863,19 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 Err(frame) => return frame,
             };
             if args.require_clean
-                && let Some(frame) = require_clean_refusal(handle, &write_path, &args).await
+                && let Some(frame) = clean_check_refusal(
+                    handle,
+                    &write_path,
+                    crate::mutate::PreviewOp::Write {
+                        content: args.content.clone(),
+                    },
+                    preview_riders(
+                        args.stamps.clone(),
+                        args.ensure_mixins.clone(),
+                        args.ensure_mixins_strict,
+                    ),
+                )
+                .await
             {
                 return frame;
             }
@@ -5925,6 +5940,23 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 Ok(a) => a,
                 Err(frame) => return frame,
             };
+            if args.require_clean
+                && let Some(frame) = clean_check_refusal(
+                    handle,
+                    &write_path,
+                    crate::mutate::PreviewOp::Write {
+                        content: args.content.clone(),
+                    },
+                    preview_riders(
+                        args.stamps.clone(),
+                        args.ensure_mixins.clone(),
+                        args.ensure_mixins_strict,
+                    ),
+                )
+                .await
+            {
+                return frame;
+            }
             let mut plan = saga_plan_off_thread(handle, vec![write_path.clone()]).await;
             plan.attribution = attribution;
             let marker_dir = saga_marker_dir(handle.root());
@@ -5980,6 +6012,25 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 Ok(a) => a,
                 Err(frame) => return frame,
             };
+            if args.require_clean
+                && let Some(frame) = clean_check_refusal(
+                    handle,
+                    &write_path,
+                    crate::mutate::PreviewOp::Edit {
+                        old_string: args.old_string.clone(),
+                        new_string: args.new_string.clone(),
+                        replace_all: args.replace_all,
+                    },
+                    preview_riders(
+                        args.stamps.clone(),
+                        args.ensure_mixins.clone(),
+                        args.ensure_mixins_strict,
+                    ),
+                )
+                .await
+            {
+                return frame;
+            }
             let mut plan = saga_plan_off_thread(handle, vec![write_path.clone()]).await;
             plan.attribution = attribution;
             let marker_dir = saga_marker_dir(handle.root());

@@ -52,6 +52,11 @@ the builtin repo name and the claim canonicalizer remain.
   the halves deploy in a window of their own. Two engine tests cover the refusal (bytes unchanged, the code named)
   and the clean write; an adapter test asserts the key is forwarded. `edit_file`, `create_file` and `batch` do not
   accept it yet, `WIRE.md` says so, and ADR-0002 stays `proposed` until the default path is measured.
+- **The clean-check rider now covers `edit_file` and `create_file`** (engine + server). The check moved into one
+  helper over the preview's `PreviewOp`, so an edit refuses before its fragment lands and a create refuses before
+  the file exists. Tests: a refused edit leaves the bytes untouched, a refused create leaves no file, and a clean
+  edit lands once its target type exists. `batch` is the one verb left, and the reason is in `WIRE.md`: a batch
+  refusal must name the operation that would introduce the error.
 - **`tools/cards/gates.py`** (tooling). `cargo test` prints one `test result:` line per suite and no grand total,
   and the adapter count had been typed by hand three ways — 211 in the card, 256 in the trajectory, 260 from a
   run. The script reads a saved log, sums `passed`, counts `failed`, and writes the value, the failure count, the

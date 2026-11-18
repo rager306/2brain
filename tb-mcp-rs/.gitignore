@@ -1,1 +1,6 @@
 /target/
+# The `target` entry itself without a trailing slash: it is a symlink into the shared
+# `.cargo-target`, and a directory-only pattern does not match a symlink. It was tracked
+# until 2026-11-18, which put a build-output path in the repository; `install.sh` no
+# longer depends on it (it asks cargo for the target directory).
+/target
