@@ -6399,3 +6399,81 @@ fn two_concurrent_creates_of_one_path_produce_one_success_and_one_conflict() {
         );
     }
 }
+
+/// ADR-0002, first slice: a write can demand that the state it would produce is free
+/// of ERROR diagnostics. The refusal is a precondition, so nothing reaches the disk and
+/// the file keeps its bytes; without the rider the same write still lands and reports.
+#[test]
+fn require_clean_refuses_a_write_that_would_introduce_an_error() {
+    let mut h = started();
+    let path = h.root.join("a.md");
+    let before = fs::read_to_string(&path).unwrap();
+    let unclean = "---\ntype: note::ghost\ndescription: x\n---\n";
+
+    let refused = h
+        .client
+        .query(&json!({
+            "mutate": "write_file",
+            "path": "a.md",
+            "content": unclean,
+            "require_clean": true,
+        }))
+        .unwrap();
+    assert_eq!(refused["type"], "error", "{refused}");
+    let message = refused["error"].as_str().unwrap();
+    assert!(
+        message.contains("policy/diagnostics"),
+        "the refusal names its stage: {message}"
+    );
+    assert!(
+        message.contains("type-repo-unknown"),
+        "the refusal names the code a caller must fix: {message}"
+    );
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        before,
+        "a refused promotion writes nothing"
+    );
+
+    // The default path is unchanged: the same content lands and the diagnostic rides
+    // the result, which is what a draft needs.
+    let landed = h
+        .client
+        .query(&json!({
+            "mutate": "write_file",
+            "path": "a.md",
+            "content": unclean,
+        }))
+        .unwrap();
+    assert_eq!(landed["ready"], true, "{landed}");
+    let diagnostics = landed["result"]["diagnostics"].as_array().unwrap();
+    assert!(
+        diagnostics.iter().any(|d| d["code"] == "type-repo-unknown"),
+        "the advisory path reports the same code: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn require_clean_lets_a_clean_write_land() {
+    let mut h = started();
+    let landed = h
+        .client
+        .query(&json!({
+            "mutate": "write_file",
+            "path": "clean.md",
+            "content": "---\ntype: note\ndescription: promoted\n---\n",
+            "require_clean": true,
+        }))
+        .unwrap();
+    assert_eq!(landed["ready"], true, "{landed}");
+    assert!(
+        landed["result"]["hash"].is_string(),
+        "a landed write answers with the hash the next write needs: {landed}"
+    );
+    assert_eq!(
+        landed["result"]["diagnostics"].as_array().unwrap().len(),
+        0,
+        "{landed}"
+    );
+    assert!(h.root.join("clean.md").is_file());
+}

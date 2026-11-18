@@ -84,7 +84,12 @@ const ALLOWED: [(&str, &str); 17] = [
 // from `capability::CAPABILITIES` instead of saying "three mutating tools" while the router
 // advertised sixteen. 39 lines left lib.rs with the const; the ratchet follows DOWN, and the
 // `--help`/`--info` cross-check in `tests/cli.rs` is what keeps the sentence true.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4507;
+// 4518 on 2026-11-18: `tb_write_file` gained `require_clean` (ADR-0002) — one field with its doc, one
+// sentence in the tool text, and a request builder that adds the key only when the rider is asked for
+// (an explicit `false` would be an unknown field to an engine that predates the rider, and the halves
+// deploy in a window of their own). A feature pays its own lines once, and the number is recorded with
+// its reason; the engine side of the same rider is in `serve.rs`, not here.
+const LIB_RS_PRODUCTION_BUDGET: usize = 4518;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")

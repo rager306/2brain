@@ -1189,7 +1189,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Write one member's file text after a successful tb_content read of the same path. expected_hash is required and must equal the hash returned by that read; a stale or missing read is rejected without writing. The member must be editable. A transport failure after the request is sent is reported as outcome_unknown and must not be retried blindly; an engine rejection means nothing was written. Writing invalidates the recorded read, so read again before another write.",
+        description = "Write one member's file text after a successful tb_content read of the same path. expected_hash is required and must equal the hash returned by that read; a stale or missing read is rejected without writing. The member must be editable. require_clean refuses before writing when the state the write would produce carries an ERROR-severity diagnostic, naming the codes — use it to promote a draft into accepted knowledge, not for ordinary drafting. A transport failure after the request is sent is reported as outcome_unknown and must not be retried blindly; an engine rejection means nothing was written. Writing invalidates the recorded read, so read again before another write.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1209,13 +1209,20 @@ impl Server {
             args.path,
             args.expected_hash,
             move |target| {
-                json!({
+                // The rider is sent only when asked for: the engine refuses unknown fields, so an
+                // explicit `false` would break a caller paired with an engine that predates ADR-0002,
+                // and the deployed halves move in a window of their own.
+                let mut request = json!({
                     "mutate": "write_file",
                     "id": 1,
                     "path": target,
                     "content": args.content,
                     "expected_hash": expected_hash,
-                })
+                });
+                if args.require_clean {
+                    request["require_clean"] = json!(true);
+                }
+                request
             },
         )
         .await
@@ -3609,6 +3616,10 @@ struct WriteArguments {
     /// Hash returned by the tb_content read that this write is based on.
     #[schemars(length(min = 1))]
     expected_hash: String,
+    /// Refuse instead of writing when the state this write would produce carries an
+    /// ERROR-severity diagnostic. Off by default: a draft may be inconsistent.
+    #[serde(default)]
+    require_clean: bool,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]

@@ -359,3 +359,65 @@ fn preview_sends_the_op_and_returns_the_engine_product() {
     }
     daemon.join().unwrap();
 }
+
+/// ADR-0002: the adapter forwards the clean-check rider, and only when a caller asks for it.
+/// Omission is the point: the engine refuses unknown fields, so a caller paired with an older
+/// engine keeps working, and a caller who asks for the rider gets a refusal that names the field.
+#[test]
+fn write_forwards_the_clean_check_rider_when_asked() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("ws");
+    let socket = temp.path().join("engine.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let root_string = root.to_str().unwrap().to_owned();
+    let daemon = thread::spawn(move || {
+        let (mut members, _) = listener.accept().unwrap();
+        assert_eq!(
+            read_request(&mut members),
+            json!({"read":"members","id":1,"repo":"fixture"})
+        );
+        write_frame(&mut members, members_frame(&root_string, 5, true));
+        let (mut content, _) = listener.accept().unwrap();
+        assert_eq!(
+            read_request(&mut content),
+            json!({"read":"content","id":1,"path":format!("{root_string}/notes/a.md")})
+        );
+        write_frame(
+            &mut content,
+            json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":6,
+                "result":{"content":{"text":"old","hash":"hash-1","commit":null}}}),
+        );
+        let (mut members2, _) = listener.accept().unwrap();
+        assert_eq!(
+            read_request(&mut members2),
+            json!({"read":"members","id":1,"repo":"fixture"})
+        );
+        write_frame(&mut members2, members_frame(&root_string, 5, true));
+        let (mut mutate, _) = listener.accept().unwrap();
+        assert_eq!(
+            read_request(&mut mutate),
+            json!({"mutate":"write_file","id":1,"path":format!("{root_string}/notes/a.md"),
+                "content":"new text","expected_hash":"hash-1","require_clean":true})
+        );
+        write_frame(
+            &mut mutate,
+            json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":7,
+                "result":{"path":format!("{root_string}/notes/a.md"),"hash":"hash-2",
+                    "diagnostics":[],"reflected":true,"commit":null,"commits":{},"untracked_files":[]}}),
+        );
+    });
+    let mut client = Client::start_with(&socket, &["--allow-mutations"]);
+    let read = client.call(
+        2,
+        "tb_content",
+        json!({"repo":"fixture","path":"notes/a.md"}),
+    );
+    assert_ne!(read["result"]["isError"], true, "{read}");
+    let write = client.call(
+        3,
+        "tb_write_file",
+        json!({"repo":"fixture","path":"notes/a.md","content":"new text","expected_hash":"hash-1","require_clean":true}),
+    );
+    assert_ne!(write["result"]["isError"], true, "{write}");
+    daemon.join().unwrap();
+}

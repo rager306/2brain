@@ -34,6 +34,15 @@ the builtin repo name and the claim canonicalizer remain.
 
 ### Added
 
+- **`tb_write_file` can refuse instead of advising: the first slice of ADR-0002** (engine + server). An optional
+  `require_clean` rider makes the write a preconditioned promotion: the engine builds the state the write would
+  produce through the preview it already serves, and refuses with `policy/diagnostics` naming every ERROR code
+  when that state has one — no file write, no commit, no rebuild. Default off, so the advisory contract and every
+  existing frame are unchanged. The adapter sends the key **only when a caller asks for it**: the engine refuses
+  unknown fields, so an explicit `false` would break a caller paired with an engine that predates the rider, and
+  the halves deploy in a window of their own. Two engine tests cover the refusal (bytes unchanged, the code named)
+  and the clean write; an adapter test asserts the key is forwarded. `edit_file`, `create_file` and `batch` do not
+  accept it yet, `WIRE.md` says so, and ADR-0002 stays `proposed` until the default path is measured.
 - **`tools/cards/gates.py`** (tooling). `cargo test` prints one `test result:` line per suite and no grand total,
   and the adapter count had been typed by hand three ways — 211 in the card, 256 in the trajectory, 260 from a
   run. The script reads a saved log, sums `passed`, counts `failed`, and writes the value, the failure count, the

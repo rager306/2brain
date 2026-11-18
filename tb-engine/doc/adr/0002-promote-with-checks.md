@@ -83,11 +83,22 @@ Scope for the first implementation slice: `write_file` only. `edit_file`, `creat
 same change or are named as still missing — an argument that exists on a tool and does nothing is the stub this
 decision exists to avoid.
 
+**Progress 2026-11-18.** `write_file` is implemented and tested: `require_clean` is parsed by the engine's
+`WriteFileArgs`, the check runs in `handle_mutation` before the saga, and the two tests named below cover the
+refusal (bytes unchanged, `policy/diagnostics: … type-repo-unknown`) and the clean write. Gate part 3 — the
+measurement that the default path did not slow down — is **not done**, so the record stays `Proposed`.
+`edit_file`, `create_file` and `batch` do not accept the rider yet and `WIRE.md` says so. The adapter sends the
+key only when a caller asks for it: the engine refuses unknown fields, so an explicit `false` would break a caller
+paired with an engine that predates this record.
+
 ## Acceptance gate
 
 1. A two-process test: one write with `require_clean: true` that produces an error is **refused**, the refusal
    names the code, and the file's bytes are unchanged; the same write with the error fixed **succeeds** and
-   commits.
+   commits. **Done** for a single process (`require_clean_refuses_a_write_that_would_introduce_an_error`); the
+   two-process shape needs the rider exposed through the adapter, which it is, so a client-level test is the
+   remaining half of this item.
 2. A default-path test: the same write without the rider still succeeds with the diagnostic in its result.
+   **Done** — the same test asserts the advisory path lands and reports `type-repo-unknown`.
 3. A measurement, not a claim: ordinary mutations are no slower within noise on the fixture corpus, with the
    number and the command recorded next to the change.

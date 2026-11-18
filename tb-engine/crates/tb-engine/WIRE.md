@@ -1238,13 +1238,21 @@ Attribution rider: `write_file`, `edit_file`, and `delete_file` accept an option
 - the other write verbs (the refactors, `assign_block_id`, the record edits) do not accept `attribution` yet; they gain it consumer-driven.
 
 **write_file.**
-- args: `path`, `content`, optional `expected_hash`, optional `stamps` (the Stamps rider above), optional `ensure_mixins` (the Ensure-mixins rider above), optional `attribution` (the Attribution rider above).
+- args: `path`, `content`, optional `expected_hash`, optional `stamps` (the Stamps rider above), optional `ensure_mixins` (the Ensure-mixins rider above), optional `attribution` (the Attribution rider above), optional `require_clean` (the Clean-check rider below).
 - full-content write, parent directories created.
 - `expected_hash` is the read-before-write guard: the hash of the content the caller last read. A mismatch rejects without writing; `detail.current_hash` carries the current one.
 - absent `expected_hash` means overwrite-regardless; creating a new file needs none.
 
+**The clean-check rider (`require_clean`).** ADR-0002.
+- `require_clean: true` makes the write a preconditioned promotion: the engine builds the state the write WOULD produce through the same preview the `preview_mutation` verb serves, and refuses when that state carries any `error`-severity diagnostic. Nothing reaches the disk: no file write, no commit, no rebuild.
+- refusal: an `error` frame whose message starts `policy/diagnostics:` and names every ERROR code with its file, so a caller knows what to fix. It carries no `hash`, because no write landed.
+- default `false`, and absent means false: the advisory contract is unchanged, and diagnostics still ride a successful write's result. The check costs one preview build, and only when requested.
+- the pipeline lock is held across the check and the write, so both observe one held state; an adapter cannot reproduce that with two calls.
+- a preview that rejects for its own reason (an absent target, a stamp on a non-list field) leaves the refusal to the write, which answers with that same reason — one failure, one answer.
+- additive optional input, no `schema_version` bump. `edit_file`, `create_file` and `batch` do not accept it yet; they gain it in the same change or are named as missing (ADR-0002).
+
 **create_file.**
-- args: `path`, `content`, optional `stamps` (the Stamps rider above), optional `ensure_mixins` / `ensure_mixins_strict` (the Ensure-mixins rider above), optional `attribution` (the Attribution rider above). The same riders `write_file` takes.
+- args: `path`, `content`, optional `stamps` (the Stamps rider above), optional `ensure_mixins` / `ensure_mixins_strict` (the Ensure-mixins rider above), optional `attribution` (the Attribution rider above). The same riders `write_file` takes, except `require_clean`: a create is a first write, so it has no prior accepted state to promote. (ADR-0002 names the create as a follow-up if a caller needs the check there.)
 - full-content write of a path that MUST NOT EXIST YET, parent directories created.
 - `write_file`'s read-before-write guard rejects a STALE previous version; `create_file`'s rejects ANY previous version. Absence is the precondition, and it is checked where the write happens: the create takes the path in one exclusive-create step (`O_CREAT | O_EXCL`) inside the serialized mutation, so the check and the write cannot interleave. Two writers of one path — two connections, two consumer processes, or a consumer racing a human editor — yield one success and one conflict, never a silent overwrite.
 - an existing path rejects and nothing is written. `detail.reason` is `"already_exists"`, the machine-usable discriminator a consumer maps to its own conflict wording, and `detail.current_hash` is the incumbent's content hash (null when the path is not a readable file, e.g. a directory). A consumer that finds that hash equal to its own has learned the work is already done.

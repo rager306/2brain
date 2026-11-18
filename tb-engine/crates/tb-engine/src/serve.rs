@@ -1420,7 +1420,7 @@ struct AppendRecordArgs {
 /// [[spec - stamp injection - a write rider idempotently ensures a frontmatter record folded into the write's commit]].
 /// Every stamp targets the verb's primary file only; the spec's `path` (another
 /// file in the write set) is deferred.
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Stamp {
     /// The frontmatter sequence key the record is ensured in.
@@ -1451,6 +1451,11 @@ struct WriteFileArgs {
     /// Caller attribution trailers folded into this write's commit.
     #[serde(default)]
     attribution: Vec<TrailerInput>,
+    /// ADR-0002: refuse before writing when the state this write would produce carries
+    /// an ERROR-severity diagnostic. Default `false`, which is the advisory contract
+    /// every draft relies on.
+    #[serde(default)]
+    require_clean: bool,
 }
 
 /// Args for `create_file`, the absence-preconditioned sibling of
@@ -5752,6 +5757,68 @@ fn mixin_outcomes_extra(
     extra
 }
 
+/// ADR-0002: the refusal when the state after this write would carry an ERROR-severity
+/// diagnostic, or `None` when it would be clean.
+///
+/// The check is the preview build the `preview_mutation` verb already performs, so it
+/// costs a build only when a caller asks for it. `handle_mutation` holds the write
+/// pipeline's lock for its whole body, so the preview and the write that follows
+/// observe one held state — the two-call race the ADR refuses in the adapter cannot
+/// happen here. A preview that rejects for its own reason (an absent target, a stamp on
+/// a non-list field) leaves the verdict to the write, which refuses with that same
+/// reason: one failure, one answer.
+async fn require_clean_refusal(
+    handle: &EngineHandle,
+    target: &Path,
+    args: &WriteFileArgs,
+) -> Option<serde_json::Value> {
+    let handle = handle.clone();
+    let input = crate::engine::PreviewInput::File {
+        target: target.to_path_buf(),
+        op: crate::mutate::PreviewOp::Write {
+            content: args.content.clone(),
+        },
+        riders: preview_riders(
+            args.stamps.clone(),
+            args.ensure_mixins.clone(),
+            args.ensure_mixins_strict,
+        ),
+    };
+    let read = tokio::task::spawn_blocking(move || {
+        handle.preview(input, |outcome| match outcome {
+            crate::engine::PreviewOutcome::Built { preview, .. } => preview
+                .diagnostics()
+                .filter(|diagnostic| diagnostic.severity == Severity::Error)
+                .map(|diagnostic| {
+                    format!(
+                        "{} in {}",
+                        diagnostic.code.as_str(),
+                        diagnostic.span.file.display()
+                    )
+                })
+                .collect::<Vec<String>>(),
+            crate::engine::PreviewOutcome::Reject(_) => Vec::new(),
+        })
+    })
+    .await
+    .expect("the clean check never panics");
+    // A state that is not ready is the write path's answer to give, not this check's.
+    let Read::Ready { value: errors, .. } = read else {
+        return None;
+    };
+    if errors.is_empty() {
+        return None;
+    }
+    Some(mutation_reject_frame(crate::mutate::MutationReject::new(
+        format!(
+            "policy/diagnostics: this write would introduce {} error(s); fix them or write \
+             without `require_clean`: {}",
+            errors.len(),
+            errors.join(", ")
+        ),
+    )))
+}
+
 /// Run one mutation: resolve and guard the path, execute the write, drive
 /// the synchronous rebuild, then answer with fresh state — the post-mutation
 /// version, the file's catalog hash, and its diagnostics. A rejection is an
@@ -5787,6 +5854,11 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 Ok(a) => a,
                 Err(frame) => return frame,
             };
+            if args.require_clean
+                && let Some(frame) = require_clean_refusal(handle, &write_path, &args).await
+            {
+                return frame;
+            }
             let mut plan = saga_plan_off_thread(handle, vec![write_path.clone()]).await;
             plan.attribution = attribution;
             let marker_dir = saga_marker_dir(handle.root());
