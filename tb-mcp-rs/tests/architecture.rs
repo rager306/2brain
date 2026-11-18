@@ -89,7 +89,9 @@ const ALLOWED: [(&str, &str); 17] = [
 // (an explicit `false` would be an unknown field to an engine that predates the rider, and the halves
 // deploy in a window of their own). A feature pays its own lines once, and the number is recorded with
 // its reason; the engine side of the same rider is in `serve.rs`, not here.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4518;
+// 4526 on 2026-11-18: `tb_rename_type` sends its policy's allowlist with the mutation (ADR-0003) — eight
+// lines, one of them the comment saying why the list travels and why an absent policy sends nothing.
+const LIB_RS_PRODUCTION_BUDGET: usize = 4526;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")

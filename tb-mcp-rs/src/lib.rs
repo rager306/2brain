@@ -1734,12 +1734,20 @@ impl Server {
                 policy::rename_type_cascade_denial(&args.old_name, &owner, &outside).text(),
             );
         }
-        let request = json!({
+        let mut request = json!({
             "mutate": "rename_type",
             "id": 1,
             "old_name": args.old_name,
             "new_name": args.new_name,
         });
+        // ADR-0003: the allowlist travels WITH the mutation, so the engine checks the
+        // cascade it is about to write instead of the one a preview saw earlier. Sent
+        // only when the policy has an allowlist: an absent policy permits every member,
+        // and an engine that predates the argument refuses an unknown field rather than
+        // running the write unguarded.
+        if let Some(members) = self.policy.member_allowlist() {
+            request["allowed_members"] = json!(members);
+        }
         match read_mutation_with_timeout(self.transport.as_ref(), request, ENGINE_READ_TIMEOUT)
             .await
         {

@@ -6477,3 +6477,91 @@ fn require_clean_lets_a_clean_write_land() {
     );
     assert!(h.root.join("clean.md").is_file());
 }
+
+/// ADR-0003: the grant is checked against the cascade the mutation plans, not against a
+/// preview from an earlier request. Here the cascade reaches `sub` while the caller's
+/// allowlist names only `v`, so the whole rename is refused and nothing moves.
+#[test]
+fn rename_type_refuses_a_cascade_outside_the_grant() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    crate::seed_repo(&root);
+    fs::write(
+        root.join(".arsumbris/workspace.yaml"),
+        "edit:\n  - v\n  - sub\ntype: tb.engine.workspace::tb-engine\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("sub/.arsumbris")).unwrap();
+    fs::write(root.join("sub/.arsumbris/repo.yaml"), "name: sub\n").unwrap();
+    crate::seed_readme(&root.join("sub"));
+    fs::create_dir_all(root.join("type")).unwrap();
+    fs::write(
+        root.join("type/note.type.yaml"),
+        "fields:\n  description: String\n",
+    )
+    .unwrap();
+    // A bare `note` in `sub` would be sub's OWN type (type graphs are per-repo), so the
+    // referrer that makes the cascade cross the grant has to name the owner too.
+    fs::write(
+        root.join("sub/b.md"),
+        "---\ntype: note::v\ndescription: outside the grant\n---\n",
+    )
+    .unwrap();
+    git(&root, &["init", "-q", "-b", "main"]);
+    git(&root, &["config", "user.name", "Tester"]);
+    git(&root, &["config", "user.email", "tester@example.com"]);
+    git(&root, &["add", "."]);
+    git(&root, &["commit", "-q", "-m", "seed"]);
+
+    let mut h = start(dir, root);
+    let refused = h
+        .client
+        .query(&json!({
+            "mutate": "rename_type",
+            "old_name": "note",
+            "new_name": "note2",
+            "allowed_members": ["v"],
+        }))
+        .unwrap();
+    assert_eq!(refused["type"], "error", "{refused}");
+    let message = refused["error"].as_str().unwrap();
+    assert!(message.contains("policy/member_grant"), "{message}");
+    assert!(
+        message.contains("sub"),
+        "the refusal names the member: {message}"
+    );
+    assert!(
+        message.contains("outside the grant"),
+        "the refusal says what the rule is: {message}"
+    );
+    assert!(
+        h.root.join("type/note.type.yaml").exists(),
+        "a refused cascade writes nothing"
+    );
+    assert!(
+        fs::read_to_string(h.root.join("sub/b.md"))
+            .unwrap()
+            .contains("type: note::v"),
+        "the referrer outside the grant is untouched"
+    );
+
+    // The same rename with both members inside the grant lands, so the refusal was the
+    // grant and not the rename.
+    let landed = h
+        .client
+        .query(&json!({
+            "mutate": "rename_type",
+            "old_name": "note",
+            "new_name": "note2",
+            "allowed_members": ["v", "sub"],
+        }))
+        .unwrap();
+    assert_eq!(landed["ready"], true, "{landed}");
+    assert!(h.root.join("type/note2.type.yaml").exists());
+    assert!(
+        fs::read_to_string(h.root.join("sub/b.md"))
+            .unwrap()
+            .contains("type: note2"),
+        "the referrer was rewritten once it was inside the grant"
+    );
+}

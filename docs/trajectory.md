@@ -27,6 +27,21 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-18 — the external review's findings, checked in code
+
+A review of `93bcaae` made four claims that could be checked rather than argued, and each is now settled:
+
+| claim | what the code showed | what changed |
+|---|---|---|
+| the cascade grant is checked by the adapter, not by the write | true — `rename_type` sent only `old_name`/`new_name`, so the engine re-planned on a state nobody had checked | **ADR-0003**: the mutation carries `allowed_members` and the engine refuses under the write lock; a two-member test forces the cascade across the grant |
+| CI is red because `init` still writes the release-1 schema | true at that SHA — `tests/init.rs` and `tests/doctor.rs` were failing, exactly as the review read them | fixed earlier in this same session (`89486f4`), with a template walk that fails on any `au.engine.` |
+| `install.sh` looks in a directory a clean clone does not have | true — `tb-engine/target` is ignored by `tb-engine/.gitignore`, and the build writes to `.cargo-target` | the script asks `cargo metadata` for the target directory; verified on a fresh worktree |
+| `yield_maps` demotes the map on the wrong inequality | true — the code is `map >= best`, the sentence says `<=` | the measured case was a tie, so no run distinguished them; the rule is now one function with both unequal cases pinned, the comment states the implemented rule, and `docs/research/map-yield-contract-2026-11-18.md` records the correction |
+
+Two of the review's judgement calls are worth keeping in the register: a context pack should be measured by whether
+its fragments can support the answer, not by whether the right file names came back; and `promote-with-checks`
+should not be confused with the existing `tb_promote`, which lifts an inline record into its own file.
+
 ## 2026-11-18 — the debt wave: what a failing suite found
 
 Four thin slices, each red first: the `--help` surface sentence counts the capability table instead of typing

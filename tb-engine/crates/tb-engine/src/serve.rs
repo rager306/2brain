@@ -1578,6 +1578,11 @@ struct RenameTypeArgs {
     new_name: String,
     #[serde(default)]
     stamps: Vec<Stamp>,
+    /// The members the caller's grant covers, checked against the cascade this
+    /// mutation plans, under the write lock. Empty means unrestricted: a direct
+    /// caller with no policy, which is the pre-existing contract.
+    #[serde(default)]
+    allowed_members: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -6267,6 +6272,53 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                         .expect("response serializes");
                 }
             };
+            // ADR-0003: the grant is checked against the cascade THIS mutation plans, under the
+            // write lock, instead of against a preview taken by an earlier request. A referrer
+            // added between the two was rewritten outside the caller's grant.
+            if !args.allowed_members.is_empty() {
+                let mut outside: Vec<(String, String)> = Vec::new();
+                // The def's destination is the same member as its source and has no `repos`
+                // entry of its own (the file does not exist yet), so the check walks the
+                // paths the cascade writes: the def and every referrer.
+                let written = std::iter::once(&gather.from).chain(gather.referrers.iter());
+                for path in written {
+                    let member = gather.repos.get(path);
+                    match member {
+                        Some(member)
+                            if args
+                                .allowed_members
+                                .iter()
+                                .any(|allowed| allowed == member.as_str()) => {}
+                        Some(member) => {
+                            outside.push((member.as_str().to_string(), path.display().to_string()))
+                        }
+                        // A path with no owning member cannot be shown to be inside the
+                        // grant, so it is outside it: this is the fail-closed direction.
+                        None => outside.push((String::new(), path.display().to_string())),
+                    }
+                }
+                if !outside.is_empty() {
+                    outside.sort();
+                    let named: Vec<String> = outside
+                        .iter()
+                        .map(|(member, path)| {
+                            if member.is_empty() {
+                                format!("an undeclared member holding {path}")
+                            } else {
+                                format!("member {member} ({path})")
+                            }
+                        })
+                        .collect();
+                    return mutation_reject_frame(crate::mutate::MutationReject::new(format!(
+                        "policy/member_grant: rename_type {} -> {} rewrites {} path(s) outside the \
+                         grant: {}",
+                        args.old_name,
+                        args.new_name,
+                        named.len(),
+                        named.join(", ")
+                    )));
+                }
+            }
             let touched = gather.touched();
             let planned = {
                 let h = handle.clone();
@@ -14676,8 +14728,21 @@ fn is_map(kb: &KnowledgeBase, path: &std::path::Path) -> bool {
     })
 }
 
-/// A map yields to a note that matched at least as many terms, so a hub cannot outrank the note
-/// it exists to point at. Silent when the page holds no note that matched as many terms.
+/// Whether a map yields to the best non-map hit in the page.
+///
+/// The rule is `map >= best`, not `<=`: a map that matched **at least as many** query terms as
+/// every ordinary note is the hub case this discount exists for — its breadth is why it matched
+/// them, not evidence that it answers. A map that matched fewer terms than a note is already
+/// behind on terms and is left alone. `docs/research/map-yield-contract-2026-11-18.md` records
+/// why the sentence in `task-set.md` reads the other way: the registration's measured case was a
+/// tie (six terms each), so no run distinguished the directions, and the code is the rule that
+/// fixes the multi-term hub. Changing the sign needs a new measurement, not a reading.
+fn map_yields(map_terms: usize, best_note_terms: usize) -> bool {
+    map_terms >= best_note_terms
+}
+
+/// A map yields to the notes under it, so a hub cannot outrank the note it exists to point at.
+/// Silent when the page holds no note at all.
 fn yield_maps(kb: &KnowledgeBase, hits: &mut Vec<crate::search::SearchHit<'_>>) {
     let Some(best) = hits
         .iter()
@@ -14689,7 +14754,7 @@ fn yield_maps(kb: &KnowledgeBase, hits: &mut Vec<crate::search::SearchHit<'_>>) 
     };
     let mut moved = false;
     for hit in hits.iter_mut() {
-        if hit.matched_terms >= best && is_map(kb, hit.path) {
+        if map_yields(hit.matched_terms, best) && is_map(kb, hit.path) {
             hit.score *= MAP_WEIGHT;
             moved = true;
         }
@@ -19120,5 +19185,24 @@ mod verb_tests {
             "the verb that answers must itself be counted: {}",
             verbs["graph_health"]
         );
+    }
+}
+
+#[cfg(test)]
+mod map_yield_tests {
+    use super::map_yields;
+
+    /// The rule is `map >= best`, and the unequal cases pin it.
+    ///
+    /// A map that matched more terms than every note is the hub this discount exists for: its
+    /// breadth is why it matched, not evidence that it answers. A map that matched fewer terms
+    /// is already behind and is left alone. The registration in `task-set.md` measured a tie, so
+    /// no run has ever distinguished the two directions — this test is what stops a later reader
+    /// "fixing" the sign and silently undoing the multi-term case.
+    #[test]
+    fn a_map_yields_when_it_matched_at_least_as_many_terms_as_the_best_note() {
+        assert!(map_yields(3, 2), "the hub case yields");
+        assert!(map_yields(2, 2), "a tie yields");
+        assert!(!map_yields(1, 2), "a weaker map is already behind");
     }
 }

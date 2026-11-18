@@ -43,10 +43,17 @@ command -v cargo >/dev/null 2>&1 || die "cargo is not on PATH; install Rust 1.99
 # silently build with another edition's compiler.
 cargo_command=(cargo +1.99.0)
 
-# One target directory for the whole monorepo (`.cargo/config.toml`); both crates'
-# `target/` are symlinks into it, so these two paths are the same build.
-engine_target=$here/tb-engine/target/release
-server_target=$here/tb-mcp-rs/target/release
+# One target directory for the whole monorepo (`.cargo/config.toml`), and the only
+# honest way to learn which one is to ask cargo: `tb-mcp-rs/target` is a tracked
+# symlink into it, but `tb-engine/target` is ignored by `tb-engine/.gitignore`, so a
+# clean clone has no such path and a hard-coded `tb-engine/target/release` made the
+# install fail after a successful build. `CARGO_TARGET_DIR` and the config are both
+# honoured because the answer comes from cargo itself.
+target_root=$(cd "$here/tb-mcp-rs" && "${cargo_command[@]}" metadata --no-deps --format-version 1 2>/dev/null |
+  sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')
+[[ -n $target_root ]] || target_root=$here/.cargo-target
+engine_target=$target_root/release
+server_target=$target_root/release
 
 printf 'install.sh: building 2brain and the engine (release)\n'
 (cd "$here/tb-engine" && "${cargo_command[@]}" build --release -p tb-cli --bin au)

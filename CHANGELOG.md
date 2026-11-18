@@ -34,6 +34,15 @@ the builtin repo name and the claim canonicalizer remain.
 
 ### Added
 
+- **The cascade grant travels with `rename_type` (ADR-0003)** (engine + server). The adapter previewed the
+  cascade, checked every rewritten member against its policy, then sent the mutation with `old_name` and
+  `new_name` only — so the engine planned again on whatever state it held. A referrer added between the two
+  requests was rewritten outside the grant. `rename_type` now takes an optional `allowed_members`, and the engine
+  checks the plan it is about to execute, under the write lock: a path outside the list refuses the whole
+  mutation with `policy/member_grant: rename_type … rewrites N path(s) outside the grant: member <name> (<path>)`,
+  and nothing is written, moved or committed. A path with no owning member counts as outside. The adapter sends
+  its allowlist only when the policy has one. An engine that predates the argument refuses the unknown field
+  rather than running the write unguarded.
 - **`tb_write_file` can refuse instead of advising: the first slice of ADR-0002** (engine + server). An optional
   `require_clean` rider makes the write a preconditioned promotion: the engine builds the state the write would
   produce through the preview it already serves, and refuses with `policy/diagnostics` naming every ERROR code
@@ -206,6 +215,18 @@ deep chain cannot overflow the serving stack.
 
 ### Fixed
 
+- **`install.sh` finds the binaries it just built** (tooling). The script looked for the engine at
+  `tb-engine/target/release`, but that path is a symlink ignored by `tb-engine/.gitignore` — a clean clone has
+  no such directory, and the build writes to `.cargo-target` through `.cargo/config.toml`. It now asks cargo for
+  the target directory (`cargo metadata`), so the config, `CARGO_TARGET_DIR` and a plain checkout all resolve.
+  Verified on a fresh `git worktree`: the old path is absent there and cargo reports
+  `<checkout>/.cargo-target`.
+- **The map-yield rule is stated as it is implemented** (engine). The function halves a `type: moc` hit when it
+  matched **at least as many** terms as the best non-map hit; the doc comment, the commit that introduced it and
+  the registration in `task-set.md` all said the opposite inequality. The measured case was a tie (six terms
+  each), so no run ever distinguished the two directions. `serve.rs` now states the implemented rule,
+  `map_yields` holds it as one function, and `map_yield_tests` pins both unequal cases. The correction is
+  recorded in `docs/research/map-yield-contract-2026-11-18.md`; changing the direction needs a new measurement.
 - **`2brain init` writes the canonical engine schema, so a fresh workspace opens with zero diagnostics**
   (server). The starter spelled `au.engine.repo::au-engine` in `.2brain/repo.yaml` and
   `au.engine.readme::au-engine` in the root `README.md`, so every new workspace carried two

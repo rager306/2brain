@@ -145,6 +145,16 @@ impl Policy {
             None => true,
         }
     }
+
+    /// The allowlist as the engine should enforce it, or `None` when the policy
+    /// permits every member.
+    ///
+    /// A cascade mutation sends this so the engine checks the grant against the plan it
+    /// actually executes (ADR-0003), instead of trusting a preview the adapter took in an
+    /// earlier request. `None` is not an empty allowlist: it is the absence of one.
+    pub fn member_allowlist(&self) -> Option<&[String]> {
+        self.members.as_deref()
+    }
 }
 
 /// The ordered gate a mutation passes before the engine is contacted.
