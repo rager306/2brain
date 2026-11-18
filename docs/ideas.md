@@ -13,8 +13,10 @@ number that refused it is the only thing that stops it.
 | **refused** | measured or reasoned against; a number or a rule is quoted, and re-proposing it needs a new number |
 | **unknown** | studied, not decided |
 
-Two rules make the table usable. **A refusal quotes its number** (or names the rule it breaks). **A deferral
-names its dependency** — "later" is not a status.
+Three rules make the table usable. **A refusal quotes its number** (or names the rule it breaks). **A deferral
+names its dependency** — "later" is not a status. **An idea nobody argued against is `unknown`, not `refused`**:
+two rows below were once "refused" here with no document behind the refusal, and this pass demoted both rather
+than keep a confident sentence that cited nothing.
 
 Anything here that gets picked up moves to the roadmap and leaves a `shipped` row with a date.
 
@@ -35,6 +37,12 @@ Anything here that gets picked up moves to the roadmap and leaves a `shipped` ro
 | a Cursor model turn in the client matrix | blocked — an API key this host does not have | [`../tb-mcp-rs/docs/roadmap.md`](../tb-mcp-rs/docs/roadmap.md) | the matrix is otherwise complete | one recorded Cursor read |
 | a scripted live A/B | ready | [`../tb-mcp-rs/docs/verification.md`](../tb-mcp-rs/docs/verification.md) | the eleven byte-identical reads of 2026-11-13 were a manual session, so the next person cannot re-run them | a script that repeats exactly those eleven reads |
 | a golden capture for the file listing | deferred — the payload is size-heavy | [`../tb-mcp-rs/docs/roadmap.md`](../tb-mcp-rs/docs/roadmap.md) | four engine reads are golden; `files` is not | a size-bounded slice with its own fixture |
+| the `--payload text` default for every tool | refused | [`research/payload-modes.md`](research/payload-modes.md), [`research/hermes-log-findings.md`](research/hermes-log-findings.md) §1 | six calls failed in 46 s: a tool that declares `outputSchema` must return `structuredContent`, and the client's circuit breaker reported the server unreachable | — |
+| the engine inside the adapter, connection pooling, a generic `au_call` passthrough | refused | [`research/mcp-engine-path.md`](research/mcp-engine-path.md) §what not to do | 72.6 MiB of IR duplicated per session plus a second writer; pooling measured 1.14 vs 1.24 ms; a passthrough moves schema errors from build time to runtime | — |
+| a `Prepared` mutation as a serializable value, and `allowed_next` in denials | refused, measured out | [`architecture-plan.md`](architecture-plan.md) P2.2–P2.3 | the refusal text already names the step that clears it; the value would be a struct nothing reads | — |
+| the audit record carrying `repo:path@hash` | deferred — changes a hash-chained log format | [`architecture-plan.md`](architecture-plan.md) §2e, wave 3 P2.2 | it is the one consumer that would justify `Prepared`, so it needs its own decision | one record shape and a verifier over an existing chain |
+| a full onion (domain/ports crates), a `serve.rs` split, TLA+ for the gate | deferred | [`architecture-plan.md`](architecture-plan.md) §6, [`architecture-assessment.md`](architecture-assessment.md) §5B | each is worth it only on a second adapter or transport, or past ~10 gate stages; `serve.rs` is 16 k lines and its split is a project, not a task | a second transport actually scheduled |
+| one `schemas::for_tool(name)` table | refused | [`architecture-plan.md`](architecture-plan.md) P1.4 | the 15 functions carry genuinely different shapes; the invariant that matters is `tests/architecture.rs` | — |
 
 ## Retrieval and ranking
 
@@ -56,6 +64,13 @@ Anything here that gets picked up moves to the roadmap and leaves a `shipped` ro
 | the 160-question set as an instrument | shipped as a baseline, not as the task set | [`research/question-set-baseline-2026-11-16.md`](research/question-set-baseline-2026-11-16.md) | keyword strings beat questions and half the noise returns nothing — which is why the task set is task-level | — |
 | the judge (`subq`) as an acceptance gate | refused; kept as a triage filter | [`research/judge-capabilities.md`](research/judge-capabilities.md) | staleness accuracy **0.884 at recall 0.333** — a filter, not an acceptance gate | — |
 | a study with 8–12 external users | not executable here, dropped | [`trajectory.md`](trajectory.md) §what changes in this trajectory | it cannot be run from this host, and a soft promise is worse than a refusal | dogfooding records the same numbers a user would be told |
+| a frozen 150-question set with machine grades and a 40-question kappa slice | deferred — needs hand labels and a measured paired σ | [`research/semantic-eval-practices-2026-11-16.md`](research/semantic-eval-practices-2026-11-16.md) §5–6 | every minimum detectable effect in this repository is arithmetic over an assumed σ, and the second opinion withdrew the first set's σ as the wrong type | one graded run on two builds replaces the assumption |
+| a graded metric, or an MDE, as a shipping gate | refused as a gate, kept as description | [`trajectory.md`](trajectory.md) §measurement lane (MDE 0.23 at n=18, 0.077 at n=160; the shipped change was +0.033), [`research/second-opinion-2026-11-16.md`](research/second-opinion-2026-11-16.md) O1–O2 | a change below every effect the set can certify makes the metric a veto, not a gate | — |
+| token accounting (`tokens_per_answer`) instead of bytes | ready | [`research/intelligence-axes-2026-11-16.md`](research/intelligence-axes-2026-11-16.md) §Axis 2 (baseline 610 tokens, 1.00 call) | we optimise the number we count and the client pays a different one | one probe extension reporting tokens beside calls |
+| `hubs` ranked at build time rather than per read | ready | [`research/visit-bound-2026-11-16.md`](research/visit-bound-2026-11-16.md) (linear 0.92, log-log **1.53**) | the only read that grows faster than its candidate set; a cheaper scan would not fix it | one build-time ranking compared on the 20-query set |
+| dropping `offset`/`limit` from the ten non-paging read schemas | ready | [`research/intelligence-axes-2026-11-16.md`](research/intelligence-axes-2026-11-16.md) §fixed-cost table (≈3 KB) | saves bytes without touching the validation contract | one schema diff, `tests/architecture.rs` green |
+| condensing an over-long query engine-side | deferred — needs a measured BM25 description-dilution rate | [`research/arscontexta-methodology-2026-11-16.md`](research/arscontexta-methodology-2026-11-16.md) §4 | condensation is a fix for a dilution rate nobody has measured on our own 1 032 descriptions | the dilution measurement, then an A/B on the same queries |
+| 1-hop link expansion as a second ranking mode | deferred — lexical-only nDCG@5 must first underperform expansion | [`research/arscontexta-methodology-2026-11-16.md`](research/arscontexta-methodology-2026-11-16.md) T8 | the comparison has not been run, so the mode has no gap to close | the comparison on the frozen copy |
 | a source-URL identity lookup | shipped | [`research/source-url-lookup-2026-11-16.md`](research/source-url-lookup-2026-11-16.md) | a pasted URL finds the note that carries it; the absent-id row moved to rank 4 | — |
 
 ## The knowledge base
@@ -76,7 +91,16 @@ Anything here that gets picked up moves to the roadmap and leaves a `shipped` ro
 | the last 10 intake refusals | deferred — each was refused for a stated reason | [`research/intake-targets-2026-11-17.md`](research/intake-targets-2026-11-17.md) | five share only a category; five have no candidate and no source that names them | re-run when a source that names the target arrives |
 | scheduled connectors (GitHub events, mail) | deferred — only on an observed context loss | `/root/vault/inbox/arsumbris-fork-backlog.md` P2⑧ | GitHub already reaches the vault through the digest path | one recorded loss that the digest missed |
 | a dashboard or graph visualisation | refused | `/root/vault/inbox/arsumbris-fork-backlog.md` P2⑨ | `overview`/`hubs`/`type_tree` answer the structural question; a picture solves no observed problem | — |
-| a TUI | refused | — | no consumer measured, and it is a second surface to keep honest | — |
+| a TUI | unknown (unargued) | a scan of this repository's documents finds no record that states the refusal; the only text was an earlier draft of this page | a TUI is not refused here, it is simply not proposed with a consumer; an idea whose refusal cannot be quoted is not a refusal | a consumer that names the interface it is missing |
+
+## The graph
+
+| idea | status | evidence | why / what decides it | next measurable step |
+|---|---|---|---|---|
+| community detection (label propagation) to propose merges | deferred — needs the consolidation pass as its consumer | [`research/graph-algorithms.md`](research/graph-algorithms.md) §clustering | "clusters without a consumer" are decoration; the pass that would act on them does not exist | the consolidation pass named as the consumer |
+| a declarative traversal object behind one read verb | deferred | [`graph-engine-assessment.md`](graph-engine-assessment.md) §4, §7 | it is the one genuinely new product capability agents ask for in Cypher terms, but it needs a shape and a fail-closed typing story | one traversal that replaces two composed reads |
+| migrating the graph to a store (HelixDB, Samyama) | refused | [`graph-engine-assessment.md`](graph-engine-assessment.md) §6; [`retrieval-spike.md`](retrieval-spike.md) (hub ranking 103.5 ms vs 9.8 ms) | the engine is text-search-bound, not storage-bound, and a store makes the graph a second authority | — |
+| GPU or approximate centrality (HyperBall) | refused | [`research/sparx-2026-11-17.md`](research/sparx-2026-11-17.md) §do not adopt | runtime and approximation cost with no demonstrated bottleneck or relevance gain | — |
 
 ## The agent layer and the ontology
 
@@ -91,6 +115,8 @@ Anything here that gets picked up moves to the roadmap and leaves a `shipped` ro
 | the arscontexta operational skills layer | deferred — the MCP successor lacks it, and demand is unmeasured | [`research/arscontexta-skills-2026-11-16.md`](research/arscontexta-skills-2026-11-16.md) | the three arscontexta studies are a pattern source, not a port list | port one skill and measure its use |
 | kutha's twenty mechanisms | deferred — ranked, none in the queue | [`research/kutha-ideas-2026-11-16.md`](research/kutha-ideas-2026-11-16.md) | a mechanism enters the queue only against a measured gap | pick the one that answers a failing task-set class |
 | pogocache's patterns | deferred | [`research/pogocache-patterns.md`](research/pogocache-patterns.md) | the cache is a derived structure here, and the engine already holds the graph in memory | a measured read-latency gap |
+| per-claim staleness through a generative claim extractor | deferred — the unit must be the claim | [`research/judge-capabilities.md`](research/judge-capabilities.md) (0.884 accuracy at 0.333 recall per note) | a note with one stale claim of four reads as fresh, so note-level freshness cannot express the defect | a claim extractor plus a labelled per-claim sample |
+| plugin loading, or jobs as MCP sampling hooks | refused | [`phase-d.md`](phase-d.md) §the plugin question (measured 2026-11-15: no workspace declares a plugin) | a compiled binary cannot load TypeScript modules, and nothing declares one; process-per-plugin is the shape if it ever matters | — |
 | sparx's static graph analytics | shipped, as two diagnostics | [`research/sparx-2026-11-17.md`](research/sparx-2026-11-17.md) | bridges and articulation points (`G1`) and triangles/transitivity (`G2`) are additive `graph_health` fields; 37 bridges, 57 articulation points on the snapshot | — |
 
 ## Distribution and scope
@@ -99,8 +125,8 @@ Anything here that gets picked up moves to the roadmap and leaves a `shipped` ro
 |---|---|---|---|---|
 | a published binary artifact, and `install.sh` that uses it | ready (roadmap #2) | [`internal/clean-host-gate-2026-11-17.md`](internal/clean-host-gate-2026-11-17.md) | the binaries are self-contained and the clean-host gate passed, but `install.sh` builds with `cargo +1.99.0` | install from the artifact on a host without cargo, then `doctor` |
 | macOS binaries | ready, unproven | [`internal/clean-host-gate-2026-11-17.md`](internal/clean-host-gate-2026-11-17.md) | the clean-host gate ran on Linux x86_64 only | build, `doctor`, one read and one write |
-| collapsing the 52 tools into 6 | refused | [`research/tool-surface-tokens-2026-11-16.md`](research/tool-surface-tokens-2026-11-16.md) | the surface is a discovery ladder already, and the concise profile was measured; 36 tools are advertised without a grant | — |
-| a Hopfield-style selector before labelled data | refused | [`research/intelligence-axes-2026-11-16.md`](research/intelligence-axes-2026-11-16.md) | a selector cannot be evaluated without labels, and the labels are the task set | — |
+| collapsing the surface into seven entries with a mode | refused — but the routing test was never run | [`research/intelligence-axes-2026-11-16.md`](research/intelligence-axes-2026-11-16.md) §Axis 1 ("seven entries against thirty-six"); [`research/tool-surface-tokens-2026-11-16.md`](research/tool-surface-tokens-2026-11-16.md) (concise profile 59 127 → 19 404 B, −67 %, `required` identical 36/36) | the surface costs bytes, not count, and the cheap part is already shipped; what the collapse would save is unmeasured | a 24-task routing test measuring the wrong-tool rate before any collapse |
+| a Hopfield-style / learned selector before labelled data | unknown (unargued) | no document in this repository states the refusal; a scan of 1 874 markdown files finds zero mentions of the mechanism outside this page | a selector cannot be evaluated without labels, but that is an argument, not a recorded measurement — so it is not a refusal | a labelled set first, then a selector measured against it |
 | a hosted, multi-tenant service | refused | [`../LICENSE.md`](../LICENSE.md), [`README.md`](../README.md) | Sustainable Use 1.0 forbids paid hosting of the server; the trust boundary is one operator | — |
 | the Node/Python stack on the request path | removed | [`phase-d.md`](phase-d.md) | retired 2026-11-16; the serving path is one Rust binary | — |
 

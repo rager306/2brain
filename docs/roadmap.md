@@ -141,7 +141,11 @@ to propose again:
 | a confidence/abstention score | best rule 6/8 in-sample, **0/8 under leave-one-out** (`docs/research/abstention-2026-11-16.md`) |
 | a freshness prior in ranking | rejected twice, the second time for a new reason (`docs/research/`, `task-set.md` §5) |
 | a generated "Named by" section in maps | it is a second copy of the frontmatter index; written, measured, reverted (`moc-coverage-2026-11-17.md`) |
-| a TUI, and a Hopfield selector before labelled data | no consumer measured; a selector before labels cannot be evaluated |
+
+Two ideas that are often treated as refusals are **not** refusals here: a TUI, and a Hopfield-style selector
+before labelled data. Nothing in this repository argues against either — the register itself carried both as
+"refused" until this pass found no document behind the sentence, and demoted them to `unknown`. That correction
+is the rule in action: an argued refusal has a number; an unargued one is a gap.
 
 ## 7. How this page stays honest
 
