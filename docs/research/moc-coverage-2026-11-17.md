@@ -71,10 +71,34 @@ Two cases the pass had to handle rather than skip:
 - `jev-applications` was already listed twice under `jev`'s Related Topic Maps, so the generated row
   would have been a third — the map keeps its two.
 
-**Next, in order of payload.** `agent-security` (21 of 21), `rust-ecosystem-kb-map` (16 of 18),
-`rust-ai-systems` (15 of 31), `self-improvement` (12 of 15), `search-patterns` (10 of 11),
-`zeroclaw-decisions` (20 of 66). The first five are small enough to finish in one pass each; the last
-is a judgement pass. A note whose placement is unclear gets no link.
+**Pass 2, done 2026-11-17 (vault `3172c2d`).** Five more maps link every note that names them:
+`agent-security` 21 → **0 of 21**, `rust-ai-systems` 15 → **0 of 31**, `rust-ecosystem-kb-map`
+16 → **0 of 18**, `self-improvement` 12 → **0 of 15**, `search-patterns` 10 → **0 of 11**. The vault
+total fell 232 → **155**, maps with a gap 28 → **23**, diagnostics 0.
 
-The gate stays `moc_links.py --check` over the maps touched, not the vault: the remaining 232 include
-maps whose gap is deliberate (a hub that should link only the notes it narrates).
+Two placements worth naming, because both are structure rather than a list:
+
+- `search-patterns` gained a **Claims** section: four `claim` notes name it as their topic and state
+  the decision a measured insight below supports, so the map shows finding and decision together
+  instead of leaving the claim unreachable;
+- `agent-security` and `self-improvement` each gained a **Harness Research (allspark/prime-agent)**
+  section, which is where the twelve allspark notes that name them actually belong.
+
+**What remains: 155 declarations across 23 maps, and the head is now a decision, not a gap.**
+
+| map | unlinked / namers | why it may stay |
+|---|---|---|
+| `index` | 63 / 63 | the entry map: a curated front page, not an exhaustive index. Making it complete would make it useless. |
+| `tool-use` | 32 / 42 | a real gap; the next pass. |
+| `zeroclaw-decisions` | 17 / 59 | a decision log; the missing ones are recent ingest the log has not absorbed. |
+| the other 20 | ≤ 5 each | mostly one or two notes each, below the cost of a judgement pass. |
+
+**The rule the two passes earned.** A note earns a link when the map has a heading whose name is true
+of it. When it does not, the choice is to add a heading that names the reason — which is what the two
+harness sections are — or to leave the note unlinked. What is never acceptable is a link with no
+heading, and it is why the generated-section version was rejected: it produced exactly that, 372 times.
+
+**Next.** `tool-use` is the only remaining map with a large gap, and it is a genuine content pass.
+`index` should be decided rather than measured: either it is a curated front page (and 63/63 is
+correct), or it is meant to be the full map and its job should move to a generated view the engine
+already serves (`references_in`).
