@@ -116,12 +116,12 @@ fn crossed() -> (Harness, PathBuf) {
     };
     write(
         "base/.arsumbris/repo.yaml",
-        "name: base\ntype: au.engine.repo::au-engine\n",
+        "name: base\ntype: tb.engine.repo::tb-engine\n",
     );
     crate::seed_readme(&root.join("base"));
     write(
         "app/.arsumbris/repo.yaml",
-        "name: app\ntype: au.engine.repo::au-engine\ndeps:\n  - name: base\n",
+        "name: app\ntype: tb.engine.repo::tb-engine\ndeps:\n  - name: base\n",
     );
     crate::seed_readme(&root.join("app"));
     write("base/type/widget.type.yaml", "fields:\n  label: String\n");

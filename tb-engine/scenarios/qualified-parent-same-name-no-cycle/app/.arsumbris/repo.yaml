@@ -1,4 +1,4 @@
 name: app
 deps:
   - name: base
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine

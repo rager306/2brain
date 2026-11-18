@@ -1,5 +1,5 @@
 name: engine-schema-type-mixin
 type:
-  - au.engine.repo::au-engine
+  - tb.engine.repo::tb-engine
   - my-config
 flavor: spicy

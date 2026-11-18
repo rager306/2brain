@@ -35,7 +35,7 @@ fn fixture() -> (tempfile::TempDir, PathBuf) {
     );
     w(
         "type/runtime-meta.type.yaml",
-        "extends: au.engine.meta::au-engine\nfields:\n  entry: String\n",
+        "extends: tb.engine.meta::tb-engine\nfields:\n  entry: String\n",
     );
     w(
         "type/tagged.type.yaml",

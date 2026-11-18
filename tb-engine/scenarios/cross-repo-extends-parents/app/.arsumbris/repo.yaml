@@ -3,4 +3,4 @@ remote: git@example.com:acme/app.git
 deps:
   - name: base
     remote: git@example.com:acme/base.git
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine

@@ -1,5 +1,5 @@
 ---
-type: au.engine.readme::au-engine
+type: tb.engine.readme::tb-engine
 tldr: A second README claim off the root. The readme type is a singleton. Move or drop it.
 ---
 

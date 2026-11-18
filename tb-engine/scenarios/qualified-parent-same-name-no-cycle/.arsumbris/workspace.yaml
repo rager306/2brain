@@ -2,4 +2,4 @@ edit:
   - qualified-parent-same-name-no-cycle
   - base
   - app
-type: au.engine.workspace::au-engine
+type: tb.engine.workspace::tb-engine

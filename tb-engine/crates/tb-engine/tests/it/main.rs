@@ -15,7 +15,7 @@ pub fn seed_repo(root: &std::path::Path) {
     // drift, matching the engine-writer norm.
     std::fs::write(
         root.join(".arsumbris/repo.yaml"),
-        "name: v\ntype: au.engine.repo::au-engine\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\n",
     )
     .unwrap();
     // Self-describe through a root README too, so the seeded repo carries no
@@ -23,7 +23,7 @@ pub fn seed_repo(root: &std::path::Path) {
     seed_readme(root);
 }
 
-/// Write a conformant root `README.md`: self-declares `au.engine.readme` and
+/// Write a conformant root `README.md`: self-declares `tb.engine.readme` and
 /// carries the `Repo Overview` section with its three required sub-sections.
 /// Used by [`seed_repo`] and by multi-repo fixtures for their member roots
 /// (each an `edit` member on the hook for one).
@@ -32,7 +32,7 @@ pub fn seed_readme(root: &std::path::Path) {
     std::fs::create_dir_all(root).unwrap();
     std::fs::write(
         root.join("README.md"),
-        "---\ntype: au.engine.readme::au-engine\ntldr: t\n---\n\n# Repo Overview\n\n## What this is\n\nt\n\n## How to use this\n\nt\n\n## How to extend this\n\nt\n",
+        "---\ntype: tb.engine.readme::tb-engine\ntldr: t\n---\n\n# Repo Overview\n\n## What this is\n\nt\n\n## How to use this\n\nt\n\n## How to extend this\n\nt\n",
     )
     .unwrap();
 }
@@ -48,7 +48,7 @@ pub fn seed_workspace(root: &std::path::Path, members: &[&str]) {
     for m in members {
         edit.push_str(&format!("  - {m}\n"));
     }
-    edit.push_str("type: au.engine.workspace::au-engine\n");
+    edit.push_str("type: tb.engine.workspace::tb-engine\n");
     std::fs::write(root.join(".arsumbris/workspace.yaml"), edit).unwrap();
 }
 

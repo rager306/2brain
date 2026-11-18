@@ -47,13 +47,13 @@ fn migrated_repo() -> (tempfile::TempDir, PathBuf) {
     fs::create_dir_all(root.join(".2brain")).unwrap();
     fs::write(
         root.join(".2brain/repo.yaml"),
-        "name: v\ntype: au.engine.repo::au-engine\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\n",
     )
     .unwrap();
     fs::write(root.join(".2brain/.auignore"), "docs/\n").unwrap();
     fs::write(
         root.join("README.md"),
-        "---\ntype: au.engine.readme::au-engine\ntldr: t\n---\n\n# Repo Overview\n\n## What this is\n\nt\n\n## How to use this\n\nt\n\n## How to extend this\n\nt\n",
+        "---\ntype: tb.engine.readme::tb-engine\ntldr: t\n---\n\n# Repo Overview\n\n## What this is\n\nt\n\n## How to use this\n\nt\n\n## How to extend this\n\nt\n",
     )
     .unwrap();
     fs::write(

@@ -313,11 +313,11 @@ fn cross_repo() -> (tempfile::TempDir, PathBuf) {
     // Entry `v`, editing itself and `app`; `app` depends on `base`.
     w(
         ".arsumbris/repo.yaml",
-        "name: v\ntype: au.engine.repo::au-engine\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     w(
         ".arsumbris/workspace.yaml",
-        "edit:\n  - v\n  - app\ntype: au.engine.workspace::au-engine\n",
+        "edit:\n  - v\n  - app\ntype: tb.engine.workspace::tb-engine\n",
     );
     w(
         "app/.arsumbris/repo.yaml",
@@ -349,11 +349,11 @@ fn cross_repo_slot_pinned_block() -> (tempfile::TempDir, PathBuf) {
     };
     w(
         ".arsumbris/repo.yaml",
-        "name: v\ntype: au.engine.repo::au-engine\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     w(
         ".arsumbris/workspace.yaml",
-        "edit:\n  - v\n  - app\ntype: au.engine.workspace::au-engine\n",
+        "edit:\n  - v\n  - app\ntype: tb.engine.workspace::tb-engine\n",
     );
     w(
         "app/.arsumbris/repo.yaml",

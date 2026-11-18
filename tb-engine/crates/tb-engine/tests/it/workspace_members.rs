@@ -95,7 +95,7 @@ fn add_member_creates_a_self_complete_workspace_and_switches_mode() {
     // edit:, the new member appended, plus the type: claim (no drift).
     assert_eq!(
         ws_yaml(&h),
-        "type: au.engine.workspace::au-engine\nedit:\n  - v\n  - notes\n"
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - v\n  - notes\n"
     );
 
     // The engine switched into workspace mode on the rebuild: `notes` is now a
@@ -115,7 +115,7 @@ fn add_discover_member_seeds_containing_in_edit() {
         .unwrap();
     assert_eq!(
         ws_yaml(&h),
-        "type: au.engine.workspace::au-engine\nedit:\n  - v\ndiscover:\n  - shared\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - v\ndiscover:\n  - shared\n",
         "the containing repo is seeded into edit, the member into discover"
     );
 }
@@ -131,7 +131,7 @@ fn add_member_appends_to_the_existing_list() {
         .unwrap();
     assert_eq!(
         ws_yaml(&h),
-        "type: au.engine.workspace::au-engine\nedit:\n  - v\n  - a\n  - b\n"
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - v\n  - a\n  - b\n"
     );
 }
 
@@ -188,7 +188,7 @@ fn remove_member_drops_it_from_its_list() {
     assert_eq!(resp["ready"], true, "{resp}");
     assert_eq!(
         ws_yaml(&h),
-        "type: au.engine.workspace::au-engine\nedit:\n  - v\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - v\n",
         "the member is removed, the containing repo stays"
     );
 }
@@ -267,7 +267,7 @@ fn remove_member_also_drops_it_from_the_disabled_overlay() {
     let mut h = started();
     seed_ws_yaml(
         &h,
-        "type: au.engine.workspace::au-engine\nedit:\n  - v\n  - a\ndisabled:\n  - a\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - v\n  - a\ndisabled:\n  - a\n",
     );
     let resp = h
         .client
@@ -276,7 +276,7 @@ fn remove_member_also_drops_it_from_the_disabled_overlay() {
     assert_eq!(resp["ready"], true, "{resp}");
     assert_eq!(
         ws_yaml(&h),
-        "type: au.engine.workspace::au-engine\nedit:\n  - v\ndisabled: []\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - v\ndisabled: []\n",
         "the member left edit and disabled in one splice"
     );
     let diags = h.client.query(&json!({ "read": "diagnostics" })).unwrap();
@@ -315,7 +315,7 @@ fn remove_member_leaves_every_role_list_holding_it() {
     // declared in `discover:` with the overlay gone, a silent re-mount.
     seed_ws_yaml(
         &h,
-        "type: au.engine.workspace::au-engine\nedit:\n  - v\n  - a\ndiscover:\n  - a\ndisabled:\n  - a\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - v\n  - a\ndiscover:\n  - a\ndisabled:\n  - a\n",
     );
     let resp = h
         .client
@@ -324,7 +324,7 @@ fn remove_member_leaves_every_role_list_holding_it() {
     assert_eq!(resp["ready"], true, "{resp}");
     assert_eq!(
         ws_yaml(&h),
-        "type: au.engine.workspace::au-engine\nedit:\n  - v\ndiscover: []\ndisabled: []\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - v\ndiscover: []\ndisabled: []\n",
         "the name left both role lists and the overlay in one commit"
     );
 }
@@ -350,7 +350,7 @@ fn set_disabled_switches_a_declared_member_off_and_back_on() {
     assert!(off["result"]["commit"].is_string(), "one commit: {off}");
     assert_eq!(
         ws_yaml(&h),
-        "type: au.engine.workspace::au-engine\nedit:\n  - ws\n  - peer\ndisabled:\n  - peer\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - ws\n  - peer\ndisabled:\n  - peer\n",
         "the role list is untouched, the overlay gains the name"
     );
     assert!(member_disabled(&mut h, "peer"), "the rebuild unmounted it");
@@ -362,7 +362,7 @@ fn set_disabled_switches_a_declared_member_off_and_back_on() {
     assert_eq!(on["ready"], true, "{on}");
     assert_eq!(
         ws_yaml(&h),
-        "type: au.engine.workspace::au-engine\nedit:\n  - ws\n  - peer\ndisabled: []\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - ws\n  - peer\ndisabled: []\n",
         "re-enabling the last one leaves an empty list"
     );
     assert!(!member_disabled(&mut h, "peer"), "mounted again");
@@ -429,7 +429,7 @@ fn set_role_moves_a_member_between_lists() {
     assert_eq!(resp["ready"], true, "{resp}");
     assert_eq!(
         ws_yaml(&h),
-        "type: au.engine.workspace::au-engine\nedit:\n  - v\ndiscover:\n  - a\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - v\ndiscover:\n  - a\n",
         "the member moved from edit to discover in one commit"
     );
 }
@@ -492,7 +492,7 @@ fn an_absent_root_authors_the_served_entry_beside_sibling_members() {
 
     assert_eq!(
         ws_yaml(&h),
-        "type: au.engine.workspace::au-engine\nedit:\n  - ws\n  - peer\n  - other\ndiscover: []\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - ws\n  - peer\n  - other\ndiscover: []\n",
         "every verb authored the entry's workspace.yaml"
     );
     let base = h.root.parent().unwrap();
@@ -529,7 +529,7 @@ fn a_root_argument_resolves_by_canonical_path() {
     );
     assert_eq!(
         ws_yaml(&h),
-        "type: au.engine.workspace::au-engine\nedit:\n  - ws\n  - peer\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - ws\n  - peer\n",
         "the write landed in the entry the link points at"
     );
 }

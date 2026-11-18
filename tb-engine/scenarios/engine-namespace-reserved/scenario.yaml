@@ -1,4 +1,4 @@
-title: "A repo type-def in the reserved au.engine.* namespace coexists with the hardwired set as a distinct identity: a hardwired name is engine-name-live-shadow (plus engine-name-shadow-drift when its fields diverge from the engine's), an unclaimed reserved name is engine-name-forward-reserved, neither annihilates the repo def"
+title: "A repo type-def in the reserved tb.engine.* namespace coexists with the hardwired set as a distinct identity: a hardwired name is engine-name-live-shadow (plus engine-name-shadow-drift when its fields diverge from the engine's), an unclaimed reserved name is engine-name-forward-reserved, neither annihilates the repo def"
 spec_ref: "[[spec - cross-repo resolution - in-repo identity and deps over a per-user repo registry]]"
 command: validate
 expected:

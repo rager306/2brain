@@ -462,54 +462,68 @@ fn a_mixed_in_extra_types_required_field_is_checked() {
     );
 }
 
-/// The future spelling is ACCEPTED, not merely parsed. A `repo.yaml` written
-/// `type: tb.engine.repo::tb-engine` (what release 2 and `au migrate identity`
-/// write) resolves against the builtin the way its legacy spelling does: the
-/// file is clean, the claim is recorded canonically, and the member it describes
-/// is discovered as a real repo. Without the canonicalizer the claim finds no def
-/// (`unknown-type-claim`), while the floor check sees an empty closure and skips,
-/// so the failure would be silent exactly where the migration gate looks.
+/// The canonical spelling resolves, and so does the legacy one.
+///
+/// Release 2 renamed the namespace, so `tb.engine.repo::tb-engine` is what a
+/// writer emits and `au.engine.repo::au-engine` is what a release-1 tree holds.
+/// Both are ACCEPTED, not merely parsed: the file is clean, the claim is held
+/// canonically, and the member it describes is discovered as a real repo. Without
+/// the canonicalizer the legacy claim would find no def (`unknown-type-claim`),
+/// while the floor check sees an empty closure and skips, so the failure would be
+/// silent exactly where the migration gate looks. The two halves below are the
+/// same fixture with only the written spelling changed, which is what makes this
+/// a test of the migration window rather than of one spelling.
 #[test]
-fn a_future_spelled_engine_schema_claim_resolves_and_its_member_is_discovered() {
-    let dir = tempfile::tempdir().unwrap();
-    let root = fs::canonicalize(dir.path()).unwrap();
-    crate::seed_workspace(&root, &["member"]);
-    write(
-        &root,
-        "member/.arsumbris/repo.yaml",
-        "type: tb.engine.repo::tb-engine\nname: member\n",
-    );
-    // A conformant member README, so the only thing this fixture could be
-    // complaining about is the claim spelling under test.
-    crate::seed_readme(&root.join("member"));
-    let kb = build(&root, &RealFileSystem).expect("build");
+fn an_engine_schema_claim_resolves_in_either_spelling() {
+    for written in ["tb.engine.repo::tb-engine", "au.engine.repo::au-engine"] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        crate::seed_workspace(&root, &["member"]);
+        write(
+            &root,
+            "member/.arsumbris/repo.yaml",
+            &format!("type: {written}\nname: member\n"),
+        );
+        // A conformant member README, so the only thing this fixture could be
+        // complaining about is the claim spelling under test.
+        crate::seed_readme(&root.join("member"));
+        let kb = build(&root, &RealFileSystem).expect("build");
 
-    let member_yaml = root.join("member/.arsumbris/repo.yaml");
-    let codes = codes_for(&kb, &member_yaml);
-    assert!(
-        codes.is_empty(),
-        "a future-spelled engine-schema claim is clean: {codes:?}"
-    );
-    // RESOLVED, not merely accepted: the claim is held as the builtin's type.
-    let FileParse::Instance {
-        instance: Some(inst),
-        ..
-    } = kb.file_parse(&member_yaml).expect("catalogued")
-    else {
-        panic!("the repo.yaml is a parsed instance");
-    };
-    let claims: Vec<String> = inst.type_claim.iter().map(|c| c.authored()).collect();
-    assert_eq!(claims, vec!["tb.engine.repo::tb-engine".to_string()]);
-    // And discovery mounted the member, so its files are served as its own.
-    assert!(
-        kb.repos.by_name("member").is_some(),
-        "the member is discovered: {:?}",
-        kb.repos
-            .repos()
-            .iter()
-            .map(|r| r.name.as_str())
-            .collect::<Vec<_>>()
-    );
+        let member_yaml = root.join("member/.arsumbris/repo.yaml");
+        let codes = codes_for(&kb, &member_yaml);
+        if written.starts_with("tb.") {
+            assert!(
+                codes.is_empty(),
+                "'{written}' is the canonical spelling, so it is clean: {codes:?}"
+            );
+        } else {
+            // Accepted, and NAMED: the data is right and the bytes are stale.
+            assert_eq!(
+                codes,
+                vec!["engine-schema-legacy-spelling".to_string()],
+                "the legacy spelling reads correctly and earns exactly one advisory"
+            );
+        }
+        // RESOLVED, not merely accepted: either spelling is held canonically.
+        let FileParse::Instance {
+            instance: Some(inst),
+            ..
+        } = kb.file_parse(&member_yaml).expect("catalogued")
+        else {
+            panic!("the repo.yaml is a parsed instance");
+        };
+        let claims: Vec<String> = inst.type_claim.iter().map(|c| c.authored()).collect();
+        assert_eq!(
+            claims,
+            vec!["tb.engine.repo::tb-engine".to_string()],
+            "'{written}' lands on the builtin's canonical identity"
+        );
+        // And discovery mounted the member, so its files are served as its own.
+        assert!(
+            kb.repos.by_name("member").is_some(),
+            "'{written}': the member is discovered"
+        );
+    }
 }
 
 /// An UNQUALIFIED hardwired name in either spelling lands on ONE node identity.

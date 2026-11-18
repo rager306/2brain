@@ -7529,7 +7529,7 @@ async fn add_workspace_member(
                 // (the containing repo in edit:), then add the member to its role.
                 None => {
                     let mut seed = format!(
-                        "type: au.engine.workspace::au-engine\n{}",
+                        "type: tb.engine.workspace::tb-engine\n{}",
                         crate::yaml_render::field(
                             "edit",
                             &serde_json::Value::Array(vec![serde_json::Value::String(

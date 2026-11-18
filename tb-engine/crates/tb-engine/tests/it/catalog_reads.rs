@@ -56,7 +56,7 @@ fn instances_read_returns_per_instance_introspection() {
     let result = &resp["result"];
     assert_eq!(result["aborted_at_load"], false);
     // Three instances: the user's `doc.md`, the folder-repo's `.arsumbris/repo.yaml`
-    // (an au.engine.repo node), and its root `README.md` (an au.engine.readme node).
+    // (an tb.engine.repo node), and its root `README.md` (an tb.engine.readme node).
     assert_eq!(result["count"], 3);
 
     let entries = result["instances"].as_array().unwrap();
@@ -147,7 +147,7 @@ fn candidates_summary_projects_names_and_paging_bounds_the_file_list() {
     assert_eq!(s["result"]["aborted_at_load"], false);
     let files = s["result"]["candidates"].as_array().unwrap();
     // Five scanned files: the three docs, the folder-repo's repo.yaml node
-    // (au.engine.repo), and its root README.md node (au.engine.readme), the two
+    // (tb.engine.repo), and its root README.md node (tb.engine.readme), the two
     // engine nodes carrying no candidates of their own.
     assert_eq!(
         files.len(),
@@ -247,7 +247,7 @@ fn candidate_counts_summarize_the_scan_without_materializing_it() {
     let r = &resp["result"]["candidate_counts"];
     assert_eq!(r["aborted_at_load"], false);
     // Four scanned instances: the two docs, the folder-repo's repo.yaml node
-    // (au.engine.repo), and its root README.md node (au.engine.readme), neither
+    // (tb.engine.repo), and its root README.md node (tb.engine.readme), neither
     // engine node with candidates of its own.
     assert_eq!(
         r["total_files"], 4,

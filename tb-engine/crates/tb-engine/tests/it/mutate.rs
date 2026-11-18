@@ -842,7 +842,7 @@ fn write_file_into_a_nested_non_git_subrepo_commits_to_the_parent_tree() {
     crate::seed_repo(&root);
     fs::write(
         root.join(".arsumbris/workspace.yaml"),
-        "edit:\n  - v\n  - sub\ntype: au.engine.workspace::au-engine\n",
+        "edit:\n  - v\n  - sub\ntype: tb.engine.workspace::tb-engine\n",
     )
     .unwrap();
     fs::create_dir_all(root.join("sub/.arsumbris")).unwrap();

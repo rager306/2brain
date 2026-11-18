@@ -94,7 +94,7 @@ fn add_dep_seeds_deps_commits_and_the_peer_surfaces_unmounted() {
 
     assert_eq!(
         repo_yaml(&h),
-        "name: v\ntype: au.engine.repo::au-engine\ndeps:\n  - name: lib\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\ndeps:\n  - name: lib\n",
         "the deps field is seeded with the entry"
     );
 
@@ -132,7 +132,7 @@ fn add_dep_appends_a_second_keeping_the_first() {
         .unwrap();
     assert_eq!(
         repo_yaml(&h),
-        "name: v\ntype: au.engine.repo::au-engine\ndeps:\n  - name: one\n  - name: two\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\ndeps:\n  - name: one\n  - name: two\n",
         "the second appends after the first"
     );
 }
@@ -166,7 +166,7 @@ fn remove_dep_removes_the_sole_entry_leaving_empty_list() {
     assert!(resp["result"]["commit"].is_string(), "{resp}");
     assert_eq!(
         repo_yaml(&h),
-        "name: v\ntype: au.engine.repo::au-engine\ndeps: []\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\ndeps: []\n",
         "the sole element removal collapses deps to []"
     );
 }
@@ -184,7 +184,7 @@ fn remove_dep_keeps_the_other_entries() {
         .unwrap();
     assert_eq!(
         repo_yaml(&h),
-        "name: v\ntype: au.engine.repo::au-engine\ndeps:\n  - name: one\n  - name: three\n",
+        "name: v\ntype: tb.engine.repo::tb-engine\ndeps:\n  - name: one\n  - name: three\n",
         "only the named dep is removed"
     );
 }

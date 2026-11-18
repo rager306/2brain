@@ -1,4 +1,4 @@
-extends: au.engine.meta::au-engine
+extends: tb.engine.meta::tb-engine
 fields:
   tldr: String
   icon?: String

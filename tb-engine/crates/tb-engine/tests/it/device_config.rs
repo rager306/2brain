@@ -1,6 +1,6 @@
 //! The `device_config` read over the socket: the per-user device-global
 //! engine-schema files (`repos.yaml`, `workspaces.yaml`) surface their path,
-//! content, and field-shape diagnostics against their hardwired `au.engine.*`
+//! content, and field-shape diagnostics against their hardwired `tb.engine.*`
 //! def. These files sit OUTSIDE every knowledge base, so the diagnostics land on this
 //! read, not on the workspace `diagnostics` read, and their spans point at the
 //! real file. The per-user device root is the engine's INJECTED `config_dir`, a
@@ -28,8 +28,8 @@ struct Harness {
 }
 
 /// A one-repo tree workspace plus an injected config dir. The knowledge base carries the
-/// builtin `au-engine` graph (every build does), so `au.engine.repos` /
-/// `au.engine.workspaces` resolve for the device-global field-shape check.
+/// builtin `tb-engine` graph (every build does), so `tb.engine.repos` /
+/// `tb.engine.workspaces` resolve for the device-global field-shape check.
 fn started() -> Harness {
     let ws_dir = tempfile::tempdir().unwrap();
     let ws = fs::canonicalize(ws_dir.path()).unwrap();

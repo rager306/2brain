@@ -35,7 +35,7 @@ fn kb() -> (tempfile::TempDir, std::path::PathBuf) {
     write(
         &root,
         "type/display-meta.type.yaml",
-        "extends: au.engine.meta::au-engine\nfields:\n  icon?: String\n",
+        "extends: tb.engine.meta::tb-engine\nfields:\n  icon?: String\n",
     );
     write(
         &root,
@@ -564,7 +564,7 @@ fn instance_docstrings_surface_on_file_nested_and_meta() {
     write(
         &root,
         "type/display-meta.type.yaml",
-        "extends: au.engine.meta::au-engine\nfields:\n  icon?: String\n",
+        "extends: tb.engine.meta::tb-engine\nfields:\n  icon?: String\n",
     );
     write(
         &root,

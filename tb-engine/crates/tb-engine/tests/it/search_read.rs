@@ -628,7 +628,7 @@ fn a_default_search_answers_from_the_own_workspace_not_a_mounted_dependency() {
     crate::seed_readme(&root.join("dep"));
     fs::write(
         root.join(".arsumbris/workspace.yaml"),
-        "edit:\n  - v\ndiscover:\n  - dep\ntype: au.engine.workspace::au-engine\n",
+        "edit:\n  - v\ndiscover:\n  - dep\ntype: tb.engine.workspace::tb-engine\n",
     )
     .unwrap();
     write(

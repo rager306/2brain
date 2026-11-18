@@ -411,7 +411,7 @@ fn a_wrong_typed_cross_repo_reference_in_a_meta_body_is_reported() {
     write(
         &root,
         "app/type/stamp.type.yaml",
-        "extends: au.engine.meta::au-engine\nfields:\n  by: person::base*\n",
+        "extends: tb.engine.meta::tb-engine\nfields:\n  by: person::base*\n",
     );
     write(
         &root,

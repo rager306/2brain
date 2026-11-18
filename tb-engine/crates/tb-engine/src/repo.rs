@@ -1090,12 +1090,12 @@ pub fn load_user_registry(config: &ConfigSource, fs: &impl FileSystem) -> UserRe
 pub fn serialize_user_registry(reg: &UserRegistry) -> String {
     // Self-describe so the engine-written device file carries no
     // `engine-schema-type-unwritten` drift. A device file validates in the
-    // builtin `au-engine` graph's OWN scope, so the claim is BARE (a `::au-engine`
+    // builtin `tb-engine` graph's OWN scope, so the claim is BARE (a `::tb-engine`
     // self-qualifier there would be a redundant `type-repo-self` hint), unlike an
     // in-repo file's qualified form. The reader ignores the key, see
     // [`parse_user_registry`]. See
     // [[spec - engine-schema file claims - the kind assigns a floor, a written type self-describes and mixes in more]].
-    let mut out = String::from("type: au.engine.repos\nrepos:\n");
+    let mut out = String::from("type: tb.engine.repos\nrepos:\n");
     for (name, loc) in reg {
         out.push_str(&format!("  - name: {}\n", name.0));
         if let Some(remote) = &loc.remote {

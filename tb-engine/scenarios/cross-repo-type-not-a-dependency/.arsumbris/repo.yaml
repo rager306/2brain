@@ -1,2 +1,2 @@
 name: cross-repo-type-not-a-dependency
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine

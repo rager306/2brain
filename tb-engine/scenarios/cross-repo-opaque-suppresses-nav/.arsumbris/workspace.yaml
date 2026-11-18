@@ -2,4 +2,4 @@ edit:
   - cross-repo-opaque-suppresses-nav
   - base
   - app
-type: au.engine.workspace::au-engine
+type: tb.engine.workspace::tb-engine

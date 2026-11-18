@@ -31,7 +31,7 @@ fn fixture() -> (tempfile::TempDir, PathBuf) {
     w("base/.arsumbris/repo.yaml", "name: base\n");
     w(
         "base/type/arity-meta.type.yaml",
-        "extends: au.engine.meta::au-engine\nfields:\n  arity: Number\n",
+        "extends: tb.engine.meta::tb-engine\nfields:\n  arity: Number\n",
     );
     w(
         "base/type/frame-container.type.yaml",
@@ -320,7 +320,7 @@ fn an_in_sync_meta_type_lists_every_owner() {
     let mut h = started_with(|root| {
         fs::write(
             root.join("app/type/arity-meta.type.yaml"),
-            "extends: au.engine.meta::au-engine\nfields:\n  arity: Number\n",
+            "extends: tb.engine.meta::tb-engine\nfields:\n  arity: Number\n",
         )
         .unwrap();
     });

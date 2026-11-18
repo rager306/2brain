@@ -1,4 +1,4 @@
-//! The hardwired `au.engine.*` schema type-defs.
+//! The hardwired `tb.engine.*` schema type-defs.
 //!
 //! Every engine-schema file is a typed instance of one of these compiled-in
 //! defs, owned by a reserved `au-engine` repo identity, never authored in a
@@ -17,11 +17,11 @@
 //! consumer's mirror, both without a rework.
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use tb_core::{Instance, TypeClaim, TypeDef, TypeName, TypeNameClaim};
-use tb_diagnostics::{ByteRange, Diagnostic, DiagnosticCode, Severity, Span};
+use tb_diagnostics::{ByteRange, Diagnostic, DiagnosticCode, Severity, Span, SuggestedFix};
 
 use crate::parse::{FileParse, parse_file};
 use crate::repo::{Repo, RepoName};
@@ -237,6 +237,50 @@ pub(crate) fn canonical_schema_claim(claim: TypeNameClaim) -> TypeNameClaim {
     }
 }
 
+/// A written claim that still spells the release-1 namespace or repo.
+///
+/// Release 2 flipped the canonical spelling, and the legacy one stays ACCEPTED so
+/// a release-1 tree keeps reading. Accepted is not the same as current: a file
+/// that writes `au.engine.repo::au-engine` is rewritten in memory to the canonical
+/// identity, and the author cannot tell from any read that the bytes on disk are
+/// stale. This note makes the window observable, which is what lets it be closed:
+/// a migration pass reads the vault, takes every file this fires on, and rewrites
+/// exactly those.
+///
+/// Advisory (`hint`), never blocks. The fix names the canonical spelling so an
+/// editor can apply it without consulting this module.
+pub const ENGINE_SCHEMA_LEGACY_SPELLING: DiagnosticCode =
+    DiagnosticCode::from_static("engine-schema-legacy-spelling");
+
+/// The legacy-spelling note for one written claim, or `None` when the claim is
+/// already canonical.
+pub(crate) fn legacy_spelling_diag(source: &Path, claim: &TypeNameClaim) -> Option<Diagnostic> {
+    let name_is_legacy = claim
+        .name
+        .0
+        .strip_prefix(LEGACY_ENGINE_NAMESPACE)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'));
+    let repo_is_legacy = claim.repo.as_deref() == Some(LEGACY_BUILTIN_ENGINE_REPO);
+    if !name_is_legacy && !repo_is_legacy {
+        return None;
+    }
+    let canonical = canonical_query_name(&claim.authored());
+    Some(Diagnostic {
+        code: ENGINE_SCHEMA_LEGACY_SPELLING,
+        severity: Severity::Hint,
+        span: Span::new(source.to_path_buf(), claim.span),
+        message: format!(
+            "engine-schema claim spells the release-1 form '{}'; it reads as '{canonical}', so the \
+             data is correct and the bytes are stale",
+            claim.authored()
+        ),
+        related: vec![],
+        fix: Some(SuggestedFix::advisory(format!(
+            "write '{canonical}' instead; `au migrate identity` applies this for a whole tree"
+        ))),
+    })
+}
+
 /// Canonicalize the claims a parsed type-def yields: its own path-derived name
 /// and every claim it carries. Called by the tb-engine parse wrapper, never by
 /// tb-core, which stays domain-pure and knows no engine-schema names.
@@ -247,12 +291,32 @@ pub(crate) fn canonical_schema_type_def(td: &mut TypeDef) {
     canonicalize_claims(&mut td.required_meta);
 }
 
-/// Canonicalize the `type:` claim of a parsed instance, bare or list.
-pub(crate) fn canonical_schema_instance(inst: &mut Instance) {
+/// Canonicalize the `type:` claim of a parsed instance, bare or list, returning
+/// one advisory per claim that was written in the release-1 spelling.
+///
+/// The note is what makes the migration window observable: the claim already reads
+/// correctly, so without it a stale file is indistinguishable from a current one
+/// in every read.
+pub(crate) fn canonical_schema_instance(inst: &mut Instance) -> Vec<Diagnostic> {
+    let source = inst.source_path.clone();
+    let mut notes = Vec::new();
     match &mut inst.type_claim {
-        TypeClaim::Bare(claim) => *claim = canonical_schema_claim(claim.clone()),
-        TypeClaim::List { items, .. } => canonicalize_claims(items),
+        TypeClaim::Bare(claim) => {
+            if let Some(note) = legacy_spelling_diag(&source, claim) {
+                notes.push(note);
+            }
+            *claim = canonical_schema_claim(claim.clone());
+        }
+        TypeClaim::List { items, .. } => {
+            for claim in items.iter() {
+                if let Some(note) = legacy_spelling_diag(&source, claim) {
+                    notes.push(note);
+                }
+            }
+            canonicalize_claims(items);
+        }
     }
+    notes
 }
 
 fn canonicalize_claims(claims: &mut [TypeNameClaim]) {
@@ -780,10 +844,35 @@ mod tests {
                     vec!["tb.engine.repo::tb-engine".to_string()],
                     "a legacy-spelled claim reads forward"
                 );
+                // The claim is CORRECT, and the bytes are stale: exactly one
+                // advisory says so, and its fix names the canonical spelling.
+                assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+                assert_eq!(diagnostics[0].code, ENGINE_SCHEMA_LEGACY_SPELLING);
+                assert_eq!(diagnostics[0].severity, Severity::Hint);
                 assert!(
-                    diagnostics.is_empty(),
-                    "a legacy-spelled floor claim is clean: {diagnostics:?}"
+                    diagnostics[0]
+                        .fix
+                        .as_ref()
+                        .is_some_and(|f| f.description.contains("tb.engine.repo::tb-engine")),
+                    "the fix names the canonical spelling: {diagnostics:?}"
                 );
+            }
+            other => panic!("expected an instance, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_canonical_engine_schema_file_earns_no_spelling_note() {
+        let path = PathBuf::from("repo.yaml");
+        let src = b"type: tb.engine.repo::tb-engine\nname: r\n";
+        match crate::parse::parse_engine_schema_instance(
+            &path,
+            src,
+            "tb.engine.repo",
+            Some(BUILTIN_ENGINE_REPO),
+        ) {
+            FileParse::Instance { diagnostics, .. } => {
+                assert!(diagnostics.is_empty(), "{diagnostics:?}");
             }
             other => panic!("expected an instance, got {other:?}"),
         }

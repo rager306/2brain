@@ -26,7 +26,7 @@ fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
     write(
         &root,
         "type/pm.type.yaml",
-        "extends: au.engine.meta::au-engine\nfields:\n  text?: String\n",
+        "extends: tb.engine.meta::tb-engine\nfields:\n  text?: String\n",
     );
     write(&root, "type/pm.plus.type.yaml", "extends: pm\nfields: {}\n");
     // An abstract base obligating every concrete subtype to carry `pm`.
@@ -131,7 +131,7 @@ fn cross_repo_fixture() -> (tempfile::TempDir, std::path::PathBuf) {
     write(
         &root,
         "base/type/pm.type.yaml",
-        "extends: au.engine.meta::au-engine\nfields:\n  text?: String\n",
+        "extends: tb.engine.meta::tb-engine\nfields:\n  text?: String\n",
     );
     write(
         &root,

@@ -480,7 +480,7 @@ pub(crate) fn parse_engine_schema_instance(
     // resolves against the builtin this release canonicalizes to. See
     // `docs/research/tier-c-seams.md` "The seam the inventory missed".
     if let Some(inst) = res.instance.as_mut() {
-        crate::engine_schema::canonical_schema_instance(inst);
+        diagnostics.extend(crate::engine_schema::canonical_schema_instance(inst));
     }
     diagnostics.extend(res.diagnostics);
     FileParse::Instance {
@@ -600,7 +600,7 @@ fn parse_instance_file(path: &Path, bytes: &[u8]) -> FileParse {
     // directions of the release window; a knowledge base type keeps its own
     // identity. See `docs/research/tier-c-seams.md` "The seam the inventory missed".
     if let Some(inst) = parsed.instance.as_mut() {
-        crate::engine_schema::canonical_schema_instance(inst);
+        diagnostics.extend(crate::engine_schema::canonical_schema_instance(inst));
     }
     diagnostics.extend(parsed.diagnostics);
 

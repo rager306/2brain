@@ -1,5 +1,5 @@
 ---
-type: au.engine.readme::au-engine
+type: tb.engine.readme::tb-engine
 tldr: A demo repo. Read its sections in order. Fork it and add your own type-defs.
 ---
 

@@ -47,7 +47,7 @@ fn started() -> Harness {
     // all-edit workspace.yaml that seed_repo/seed_workspace would write.
     fs::write(
         root.join(".arsumbris/workspace.yaml"),
-        "type: au.engine.workspace::au-engine\nedit:\n  - v\ndiscover:\n  - dep\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - v\ndiscover:\n  - dep\n",
     )
     .unwrap();
     // A type and an instance in the editable entry, so the entry-write control
@@ -69,7 +69,7 @@ fn started() -> Harness {
     fs::create_dir_all(dep.join(".arsumbris")).unwrap();
     fs::write(
         dep.join(".arsumbris/repo.yaml"),
-        "name: dep\ntype: au.engine.repo::au-engine\n",
+        "name: dep\ntype: tb.engine.repo::tb-engine\n",
     )
     .unwrap();
     crate::seed_readme(&dep);
@@ -194,7 +194,7 @@ fn composition_verbs_to_a_discover_member_reject_without_touching_disk() {
     // workspace.yaml was created by a rejected write.
     assert_eq!(
         fs::read_to_string(h.root.join("dep/.arsumbris/repo.yaml")).unwrap(),
-        "name: dep\ntype: au.engine.repo::au-engine\n",
+        "name: dep\ntype: tb.engine.repo::tb-engine\n",
         "a rejected composition write leaves the consumed member's repo.yaml"
     );
     assert!(
@@ -340,7 +340,7 @@ fn a_rename_whose_referrer_is_in_a_consumed_member_rejects_with_the_blocking_lis
     // same rename succeeds and rewrites the (now editable) referrer.
     fs::write(
         h.root.join(".arsumbris/workspace.yaml"),
-        "type: au.engine.workspace::au-engine\nedit:\n  - v\n  - dep\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - v\n  - dep\n",
     )
     .unwrap();
     h.engine.rebuild();
