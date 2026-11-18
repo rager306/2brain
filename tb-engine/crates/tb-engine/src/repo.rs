@@ -901,11 +901,13 @@ pub const STATE_DIR: &str = ".2brain";
 pub const LEGACY_STATE_DIR: &str = ".arsumbris";
 
 /// The state directory under `home`: `$2BRAIN_HOME` wins (tests, non-standard installs),
-/// then an existing `.2brain`, then the legacy `.arsumbris`.
+/// then an existing `.2brain`, then an existing legacy `.arsumbris`, else `.2brain`.
 ///
-/// Existence decides, not a version flag: after the migration the new directory is there and
-/// the old name is a symlink to it, so both spellings reach the same inode and neither an old
-/// client nor a new one has to be told which world it is in.
+/// Existence decides which world `home` is in, not a version flag: after the migration the new
+/// directory is there and the old name is a symlink to it, so both spellings reach the same
+/// inode and neither an old client nor a new one has to be told which world it is. A home with
+/// NEITHER spelling is new, and a new home is [`STATE_DIR`]'s to name — the same write rule
+/// [`crate::repo::identity_dir_for_write_with`] applies to a repository.
 pub fn state_dir_in(home: &Path) -> PathBuf {
     match std::env::var_os("2BRAIN_HOME") {
         Some(explicit) if !explicit.is_empty() => PathBuf::from(explicit),
@@ -914,7 +916,8 @@ pub fn state_dir_in(home: &Path) -> PathBuf {
             if new.exists() {
                 new
             } else {
-                home.join(LEGACY_STATE_DIR)
+                let legacy = home.join(LEGACY_STATE_DIR);
+                if legacy.exists() { legacy } else { new }
             }
         }
     }
@@ -931,14 +934,16 @@ fn device_root_from(home: Option<std::ffi::OsString>) -> Result<PathBuf, HomeUns
     }
 }
 
-/// Whether `root` is the reserved device root: a repo rooting there would make its
-/// `.arsumbris/` BE the device config/data area.
+/// Whether `root` is the reserved device root: a repo rooting there would make its identity
+/// directory — either spelling — BE the device config/data area.
 ///
-/// EQUALITY, never a subtree test. The package cache lives UNDER `~/.arsumbris`,
-/// so a prefix test would refuse every cache-mounted member. Both sides are
-/// canonical ([`device_root`] canonicalizes `$HOME`, this canonicalizes `root`),
-/// so a symlinked or case-differing home cannot slip past. `false` when `$HOME` is
-/// unset, there is then no device area to collide with. See
+/// EQUALITY, never a subtree test. The package cache lives UNDER the device root, so a prefix
+/// test would refuse every cache-mounted member. Both identity spellings are compared, because a
+/// new repository writes `.2brain` and a fresh home writes `.2brain` too: matching only the
+/// legacy name would let exactly the newest pairing collide unnoticed. Both sides are canonical
+/// ([`device_root`] canonicalizes `$HOME`, this canonicalizes `root`), so a symlinked or
+/// case-differing home cannot slip past. `false` when `$HOME` is unset, there is then no device
+/// area to collide with. See
 /// [[spec - 2brain layout - a reserved multi-tenant device root, owner-namespaced with a category sublayer]].
 pub(crate) fn is_reserved_root(root: &Path) -> bool {
     device_root().is_ok_and(|dev| reserved_against(root, &dev))
@@ -946,7 +951,10 @@ pub(crate) fn is_reserved_root(root: &Path) -> bool {
 
 /// [`is_reserved_root`] against an explicit device root, the determinism seam.
 fn reserved_against(root: &Path, device_root: &Path) -> bool {
-    canonical_root(root).join(".arsumbris") == device_root
+    let root = canonical_root(root);
+    [STATE_DIR, LEGACY_STATE_DIR]
+        .iter()
+        .any(|name| root.join(name) == device_root)
 }
 
 /// Where the per-user config (`repos.yaml`, `workspaces.yaml`) is read from.
@@ -3606,13 +3614,45 @@ mod tests {
     fn device_root_requires_home() {
         // A set, non-empty HOME resolves to `<home>/.arsumbris`. A path that does
         // not exist canonicalizes to itself, so the join is deterministic.
+        // A home with neither spelling is new, and a new home is named by the write rule.
         assert_eq!(
             device_root_from(Some("/no/such/home".into())),
-            Ok(PathBuf::from("/no/such/home/.arsumbris"))
+            Ok(PathBuf::from("/no/such/home/.2brain"))
         );
         // Unset or empty HOME is a loud refusal, not a fallback.
         assert_eq!(device_root_from(None), Err(HomeUnset));
         assert_eq!(device_root_from(Some("".into())), Err(HomeUnset));
+    }
+
+    #[test]
+    fn a_fresh_home_writes_the_new_state_dir_and_an_old_one_keeps_its_own() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let fresh = tmp.path().join("fresh");
+        std::fs::create_dir(&fresh).unwrap();
+        assert_eq!(state_dir_in(&fresh), fresh.join(STATE_DIR));
+
+        let legacy = tmp.path().join("legacy");
+        std::fs::create_dir(&legacy).unwrap();
+        std::fs::create_dir(legacy.join(LEGACY_STATE_DIR)).unwrap();
+        assert_eq!(state_dir_in(&legacy), legacy.join(LEGACY_STATE_DIR));
+
+        let both = tmp.path().join("both");
+        std::fs::create_dir_all(both.join(STATE_DIR)).unwrap();
+        std::fs::create_dir_all(both.join(LEGACY_STATE_DIR)).unwrap();
+        assert_eq!(state_dir_in(&both), both.join(STATE_DIR));
+    }
+
+    #[test]
+    fn a_new_spelling_device_root_is_reserved_too() {
+        // A fresh home writes `.2brain`; a repo rooting there would make its own identity
+        // directory BE the device area, which the check must refuse.
+        let dev = PathBuf::from("/no/such/home/.2brain");
+        assert!(reserved_against(Path::new("/no/such/home"), &dev));
+        assert!(!reserved_against(Path::new("/no/such/home/repo"), &dev));
+        assert!(!reserved_against(
+            Path::new("/no/such/home/.2brain/au-engine/cache/packages/abc"),
+            &dev
+        ));
     }
 
     #[test]

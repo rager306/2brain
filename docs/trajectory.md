@@ -27,6 +27,30 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-18 — the installer on a clean checkout, and the state root a fresh home gets
+
+`install.sh` was repaired earlier today to ask `cargo metadata` for the target directory, and nothing had
+run it on a tree with no build output. A detached worktree at `b376e86` was that tree: no `.cargo-target`,
+no `tb-engine/target`. The script installed both binaries and five templates, and the acceptance on an
+isolated `$HOME` passed — `init`, a daemon, `doctor` with **7 ok / 0 warn**, and one MCP session that read,
+created, re-read the hash, wrote under it, and was refused once by `require_clean` with `policy/diagnostics`
+and its code. That session is now `tools/probe/mcp_smoke.py`; the run is
+`docs/internal/install-from-checkout-2026-11-18.md`.
+
+The run also caught what the earlier checks could not. On a **fresh** home the daemon wrote
+`~/.arsumbris/au-engine`, because the state root's rule had an existence rule and no write rule: an
+existing `.2brain` won, an existing `.arsumbris` won next, and a home with neither fell back to the legacy
+name. So a new installation would have been spelled the old way forever, and the tier-B recipe in
+`docs/rebrand-plan.md` only ever worked because an operator ran its `mv` by hand. The fix is one branch:
+neither spelling means the home is new, and a new home is `STATE_DIR`. The reserved-root check had the same
+gap from the other side — it compared only `<root>/.arsumbris` against the device root, which is precisely
+the pairing a `.2brain` device root and a `.2brain` repository identity produce, so the newest layout was
+the one collision it could not refuse. Both spellings are compared now.
+
+Measured after the change: engine `--lib` 749 passed / 1 known root-only failure, `--test it` 739 / 3 known,
+`fmt` and `clippy -D warnings` clean, and a fresh `$HOME` end to end — `2brain init`, `au daemon start`,
+`2brain doctor` — resolving `~/.2brain/au-engine/run/…` with 7 ok and no legacy directory created.
+
 ## 2026-11-18 — history rewrite: the bot co-author trailer is gone
 
 The owner asked that no commit in this repository carry a `Co-authored-by: CommandCodeBot` trailer. Sixty-one

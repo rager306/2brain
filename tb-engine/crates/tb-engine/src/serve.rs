@@ -142,7 +142,8 @@ const MAX_FRAME: usize = 16 << 20;
 /// never interleave a partial frame on the socket.
 type FrameTx = mpsc::Sender<Vec<u8>>;
 
-/// The per-entry socket path, `~/.arsumbris/au-engine/run/<hash>.sock`.
+/// The per-entry socket path, `<state dir>/au-engine/run/<hash>.sock` — `~/.2brain` on a
+/// migrated or fresh home, `~/.arsumbris` on one that has not been migrated.
 ///
 /// One endpoint per entry point, derivable by both the daemon and a consumer
 /// from the entry path alone, no configuration. `entry` is the absolute path the
@@ -174,7 +175,7 @@ pub fn socket_file_name(entry: &Path) -> String {
     format!("{:016x}.sock", hash.0)
 }
 
-/// The directory holding per-entry daemon sockets, `~/.arsumbris/au-engine/run`.
+/// The directory holding per-entry daemon sockets, `<state dir>/au-engine/run`.
 ///
 /// Read from RAW `$HOME`, not the canonicalized [`crate::device_root`], because
 /// this path is a wire contract mirrored byte-for-byte by the SDK, which reads
@@ -366,21 +367,19 @@ mod socket_path_tests {
         assert_ne!(manifest_a, manifest_b);
     }
 
-    /// The socket lives outside the knowledge base, under the device-global
-    /// `.arsumbris/au-engine/run/`, so it never sits in a watched member tree.
+    /// The socket lives outside the knowledge base, under the device state dir's
+    /// `au-engine/run/`, so it never sits in a watched member tree. Which spelling that
+    /// directory has is [`crate::repo::state_dir_in`]'s decision, not this test's.
     #[test]
     fn socket_is_under_state_run() {
-        let p = socket_path(Path::new("/repo/kb"));
-        assert!(
-            p.ends_with(
-                Path::new("au-engine")
-                    .join("run")
-                    .join(socket_file_name(Path::new("/repo/kb")))
-            ),
-            "under .arsumbris/au-engine/run: {}",
-            p.display()
-        );
-        assert!(p.to_str().unwrap().contains(".arsumbris"));
+        let home = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir);
+        let expected = crate::repo::state_dir_in(&home)
+            .join("au-engine")
+            .join("run")
+            .join(socket_file_name(Path::new("/repo/kb")));
+        assert_eq!(socket_path(Path::new("/repo/kb")), expected);
     }
 }
 

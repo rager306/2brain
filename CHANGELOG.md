@@ -32,7 +32,24 @@ one so a previous binary could read what it wrote; readers still accept both spe
 changes meaning and the migration window stays open. This is the first piece of tier C step 7; the `DEFS` rename,
 the builtin repo name and the claim canonicalizer remain.
 
+### Changed
+
+- **A fresh home gets `.2brain` as its device root, and the reserved-root check knows both spellings**
+(engine). `state_dir_in` preferred an existing `.2brain`, then an existing `.arsumbris`, then — with neither
+there — the legacy name, so a new installation wrote the old spelling forever; the third step is now
+`STATE_DIR`, the same write rule a repository already follows for its identity directory. `reserved_against`
+compared only `<root>/.arsumbris` with the device root, which is exactly the pairing a `.2brain` device root
+and a `.2brain` repository identity produce, so the newest layout was the one collision it could not refuse;
+it now compares both spellings. Nothing moves on a migrated machine: existence still decides. Found by the
+install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
+
 ### Added
+
+- **`tools/probe/mcp_smoke.py`** (tooling). One MCP session over stdio against any installed binary:
+a read, a clean create, the hash a read returns, a gated write, and a `require_clean` create that must be
+refused with `policy/diagnostics` naming its code. Exit code 1 on the first failure, so an install script can
+end with it. The run that motivated it — a binary installed from a clean checkout, 8 checks, doctor 7 ok
+— is `docs/internal/install-from-checkout-2026-11-18.md`.
 
 - **The cascade grant travels with `rename_type` (ADR-0003)** (engine + server). The adapter previewed the
   cascade, checked every rewritten member against its policy, then sent the mutation with `old_name` and

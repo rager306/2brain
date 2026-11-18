@@ -102,9 +102,11 @@ layout*, and the two are recognised by what reads them, not by their spelling.
 
 ### Tier B — state root and unit — **executed 2026-11-16**
 
-The engine now resolves the state root as: `$2BRAIN_HOME` → an existing `$HOME/.2brain` → the legacy
-`$HOME/.arsumbris`, so a machine that has not been migrated keeps working, and after the move both
-spellings reach the same inode through a symlink.
+The engine now resolves the state root as: `$2BRAIN_HOME` → an existing `$HOME/.2brain` → an existing
+legacy `$HOME/.arsumbris` → `$HOME/.2brain`, so a machine that has not been migrated keeps working, and
+after the move both spellings reach the same inode through a symlink. The last step is the write rule
+for a home that holds neither name: such a home is new, and a new home is spelled `.2brain`. Without it
+the first step of the recipe below was never needed — a fresh install wrote the legacy name forever.
 
 ```sh
 systemctl stop arsumbris-engine.service
