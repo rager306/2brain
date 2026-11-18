@@ -34,6 +34,11 @@ the builtin repo name and the claim canonicalizer remain.
 
 ### Added
 
+- **`tools/cards/gates.py`** (tooling). `cargo test` prints one `test result:` line per suite and no grand total,
+  and the adapter count had been typed by hand three ways — 211 in the card, 256 in the trajectory, 260 from a
+  run. The script reads a saved log, sums `passed`, counts `failed`, and writes the value, the failure count, the
+  method and the date into `metrics.json`; `--selftest` proves the tally on a synthetic log, and a real run over
+  the 46-suite log reproduced 260 with the cards still matching.
 - **`2brain migrate identity`** (server). `au migrate identity` was the one engine subcommand the installed
   binary did not re-export, so a workspace owner needed a second binary they were never told about. The
   subcommand forwards to `tb_cli::migrate::identity` unchanged, and a test runs it against a legacy fixture in

@@ -4,7 +4,7 @@
     "adapter_tests": {
       "value": 260,
       "known_environment_failures": 0,
-      "command": "cd tb-mcp-rs && cargo +1.99.0 test --offline; value is the sum of `passed` across the 46 suites (unit and integration), which is the only total cargo prints",
+      "command": "cd tb-mcp-rs && cargo +1.99.0 test --offline; value is the sum of `passed` across the 46 suites the log recorded",
       "date": "2026-11-18"
     },
     "engine_lib_tests": {

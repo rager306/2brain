@@ -165,7 +165,7 @@ discipline violation.
 4. **A decision that governs change belongs in `.repowise/decisions.yaml`**, not only in prose. That store is
    queryable (`repowise decision list`, `repowise why`) and `repowise decision health` names the stale ones.
 5. **Two checks keep this map honest.** `tools/docs/links.py --check` resolves every relative link and heading
-   anchor in the repository (804 documents, 0 broken on 2026-11-18; `--selftest` proves each rule bites), and
+   anchor in the repository (805 documents, 0 broken on 2026-11-18; `--selftest` proves each rule bites), and
    `repowise doc-drift --check --baseline tools/docs/doc-drift-baseline.txt` reports a document the code no
    longer matches. The baseline is not a list of lies: it records the three kinds of finding that are correct as
    written — a citation of a path in **another repository** (`/root/samyama-graph`, kutha, ruvector), a

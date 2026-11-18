@@ -158,6 +158,8 @@ is the rule in action: an argued refusal has a number; an unargued one is a gap.
 5. **Four checks keep it from drifting**: `repowise doc-drift` (a document the code no longer matches),
    `repowise decision health` (a stale or conflicting record), `tools/cards/render.py --check` (a card that
    disagrees with `metrics.json`), and `tools/docs/links.py --check` (every relative link and heading anchor;
-   804 documents, 0 broken on 2026-11-18).
+   805 documents, 0 broken on 2026-11-18).
 6. **A count in prose is a summary.** The instrument is `tools/cards/metrics.json`, which carries the command
-   and the date; a prose number that disagrees with it is a stale sentence, not a second source of truth.
+   and the date; a prose number that disagrees with it is a stale sentence, not a second source of truth. The
+   gate counts are written by `tools/cards/gates.py --from-log <cargo log> --suite <name>`, so they are read
+   from the run rather than typed.
