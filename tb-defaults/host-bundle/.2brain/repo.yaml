@@ -1,4 +1,4 @@
-# The host UI composition bundle — a pure AGGREGATOR node (au.engine.repo). Its `deps` ARE the host's
+# The host UI composition bundle — a pure AGGREGATOR node (tb.engine.repo). Its `deps` ARE the host's
 # full UI projection + framework closure: naming `host-bundle` in a workspace's `discover:` pulls the
 # whole set in (deps travel transitively; type-side safe — declaring unreferenced deps folds no types).
 #

@@ -1,4 +1,4 @@
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine
 name: au-weave-template
 description: Turn source material into connected notes. Includes the standard app layout with tools for ingestion, research, writing guidance and building a knowledge graph.
 deps:

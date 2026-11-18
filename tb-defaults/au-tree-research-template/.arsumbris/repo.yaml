@@ -1,4 +1,4 @@
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine
 name: au-tree-research-template
 description: Build a research tree around a question. Includes the standard app layout and the research package for defining a premise, investigating questions and choosing what to explore next.
 deps:

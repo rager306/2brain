@@ -36,6 +36,57 @@ fn help_lists_the_contract_without_a_socket() {
     assert!(output.stderr.is_empty(), "{output:?}");
 }
 
+/// `--help` and `--info` describe one surface, so their counts must be the same counts.
+///
+/// The help text used to state "three mutating tools" in prose while the router advertised
+/// sixteen: a hand-typed count drifts, and a reader has no way to notice. This cross-checks
+/// the two views instead of pinning a number, so it keeps holding when the surface changes.
+#[test]
+fn help_and_info_agree_on_the_surface() {
+    let info = binary().arg("--info").output().unwrap();
+    assert!(info.status.success(), "{info:?}");
+    let info = String::from_utf8(info.stdout).unwrap();
+    let line = info
+        .lines()
+        .find(|line| line.contains("registered,") && line.contains("mutating"))
+        .unwrap_or_else(|| panic!("--info no longer states the surface:\n{info}"));
+    let registered: usize = line
+        .split_whitespace()
+        .find_map(|word| word.parse().ok())
+        .expect("the info line starts with the registered count");
+    let mutating: usize = line
+        .split("mutating")
+        .next()
+        .and_then(|head| {
+            head.split_whitespace()
+                .next_back()
+                .and_then(|word| word.trim_end_matches(',').parse().ok())
+        })
+        .expect("the info line states the mutating count");
+    assert!(registered > mutating, "{line}");
+
+    let help = binary().arg("--help").output().unwrap();
+    assert!(help.status.success(), "{help:?}");
+    let help = String::from_utf8(help.stdout).unwrap();
+    let surface = help
+        .split("SURFACE")
+        .nth(1)
+        .unwrap_or_else(|| panic!("help has no SURFACE section:\n{help}"));
+    let surface = surface.split("PROTOCOL").next().unwrap();
+    assert!(
+        surface.contains(&format!("{registered} tools")),
+        "help must name {registered} tools:\n{surface}"
+    );
+    assert!(
+        surface.contains(&format!("{mutating} mutating")),
+        "help must name {mutating} mutating:\n{surface}"
+    );
+    assert!(
+        !surface.contains("three mutating"),
+        "help still carries the hand-typed count:\n{surface}"
+    );
+}
+
 #[test]
 fn version_is_one_line() {
     let output = binary().arg("--version").output().unwrap();

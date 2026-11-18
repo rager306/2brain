@@ -4,6 +4,7 @@ pub mod cli;
 mod contract;
 mod describe;
 mod gate;
+mod help;
 mod ledger;
 mod policy;
 mod resources;
@@ -4350,46 +4351,6 @@ pub fn build_lines() -> Vec<String> {
 }
 
 const USAGE: &str = "usage: tb-mcp-rs <engine-unix-socket> [--policy <file>] [--allow-mutations] [--allow-composition] [--allow-workspace-shape] [--principal <name>] [--tools full|concise] [--payload both|text|structured]";
-
-const HELP: &str = "\
-tb-mcp-rs — MCP stdio server for the 2brain engine
-
-USAGE
-    tb-mcp-rs <engine-socket> [OPTIONS]
-    tb-mcp-rs --help | --version | --info [<engine-socket>]
-
-ARGUMENT
-    <engine-socket>   Unix socket of a running `au` engine daemon,
-                      usually ~/.arsumbris/au-engine/run/<hash>.sock
-
-OPTIONS
-    --policy <file>          JSON policy: allow_mutations, members, audit
-    --allow-mutations        Grant the mutating tools (off by default)
-    --allow-composition      Also grant dependency edits; implies --allow-mutations
-    --allow-workspace-shape  Also grant member add/remove/role; implies --allow-mutations
-    --principal <name>       Label for audit records; not authentication
-    --tools full|concise     Definition detail in tools/list (default concise)
-    --payload both|text|structured
-                             Result representation (default both)
-    --info                   Print MCP and launch information, then exit
-    -h, --help               Print this help, then exit
-    -V, --version            Print the version, then exit
-
-SURFACE
-    Engine reads, two discovery helpers (tb_search_tools, tb_describe_tool), and
-    three mutating tools that exist only with a grant. Run --info for the live
-    counts.
-
-PROTOCOL
-    Legacy: 2024-11-05, 2025-03-26, 2025-06-18, 2025-11-25 (initialize first)
-    Modern: 2026-07-28 (version in _meta, no initialize)
-
-DOCS
-    docs/connecting.md   client registration and troubleshooting
-    docs/tools.md        every tool and its failure modes
-
-";
-
 /// Parse the launch arguments. Mutations need an explicit grant: either a
 /// policy file that allows them or `--allow-mutations`.
 fn parse_args(
@@ -4514,7 +4475,7 @@ pub async fn run(arguments: Vec<std::ffi::OsString>) -> Result<(), Box<dyn std::
         reset_sigpipe();
     }
     if flags.iter().any(|flag| matches!(*flag, "--help" | "-h")) {
-        print!("{HELP}");
+        print!("{}", help::text());
         return Ok(());
     }
     if flags.iter().any(|flag| matches!(*flag, "--version" | "-V")) {

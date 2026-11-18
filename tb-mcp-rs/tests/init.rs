@@ -45,10 +45,25 @@ fn init_creates_a_workspace_the_engine_opens_with_no_diagnostics() {
 
     let identity = fs::read_to_string(workspace.join(".2brain/repo.yaml")).unwrap();
     assert!(
-        identity.contains("type: au.engine.repo::au-engine"),
+        identity.contains("type: tb.engine.repo::tb-engine"),
         "{identity}"
     );
     assert!(identity.contains("name: my-vault"), "{identity}");
+
+    // The starter must not open the migration window it exists to avoid: every file it
+    // writes carries the canonical spelling, so a fresh workspace reports zero diagnostics
+    // instead of two `engine-schema-legacy-spelling` hints.
+    let readme = fs::read_to_string(workspace.join("README.md")).unwrap();
+    assert!(
+        readme.contains("type: tb.engine.readme::tb-engine"),
+        "{readme}"
+    );
+    for (path, text) in [(".2brain/repo.yaml", &identity), ("README.md", &readme)] {
+        assert!(
+            !text.contains("au.engine."),
+            "{path} still spells the release-1 name: {text}"
+        );
+    }
     assert!(
         workspace.join("README.md").is_file(),
         "a repo self-describes"
@@ -216,6 +231,60 @@ fn init_adopts_a_template_identity_and_renames_only_it() {
         "a rename keeps the rest of the line: {manifest}"
     );
     assert!(manifest.contains("- bundle"), "{manifest}");
+}
+
+/// A starter is a workspace someone will open first, so no shipped template may carry the
+/// release-1 type spelling: `init` would reproduce the migration window it exists to close.
+/// The list is the templates on disk, not a hand-kept set, so a new template is covered the
+/// day it lands.
+#[test]
+fn no_shipped_template_carries_the_release_one_spelling() {
+    let templates = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tb-defaults");
+    let mut checked = 0;
+    for entry in fs::read_dir(&templates).unwrap().flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let root = entry.path();
+        let is_workspace = root.join(".2brain/repo.yaml").is_file()
+            || root.join(".arsumbris/repo.yaml").is_file()
+            || root.join("README.md").is_file();
+        if !root.is_dir() || !is_workspace {
+            continue;
+        }
+        checked += 1;
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("copied");
+        let created = init(&workspace, &["--template", &name]);
+        assert!(created.status.success(), "{name}: {}", stderr(&created));
+        for file in walk(&workspace) {
+            let text = fs::read_to_string(&file).unwrap_or_default();
+            assert!(
+                !text.contains("au.engine."),
+                "{name} ships {} with the release-1 spelling",
+                file.display()
+            );
+        }
+    }
+    assert!(checked >= 5, "only {checked} templates were checked");
+}
+
+fn walk(root: &Path) -> Vec<std::path::PathBuf> {
+    // Depth-first, and `.git` is skipped: a copied template carries its own work tree, and
+    // its objects are not workspace text.
+    let mut files = Vec::new();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(&directory).into_iter().flatten().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if path.file_name().is_some_and(|name| name != ".git") {
+                    pending.push(path);
+                }
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    files
 }
 
 /// The project-memory starter is the one template that ships TYPES, so its value is

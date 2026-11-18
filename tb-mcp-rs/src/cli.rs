@@ -398,7 +398,7 @@ fn workspace_name(root: &Path) -> String {
 }
 
 fn identity_yaml(name: &str) -> String {
-    format!("type: au.engine.repo::au-engine\nname: {name}\n")
+    format!("type: tb.engine.repo::tb-engine\nname: {name}\n")
 }
 
 /// The identity directory `root` holds, under either spelling.
@@ -484,13 +484,14 @@ fn adopt_identity(marker: &Path, name: &str) -> Result<bool, String> {
 }
 
 /// The README the engine expects at an editable repo's root: it declares
-/// `au.engine.readme`, carries the one required field, and holds the one body
-/// template, so a fresh workspace reports no `repo-missing-readme`.
+/// `tb.engine.readme`, carries the one required field, and holds the one body
+/// template, so a fresh workspace reports no `repo-missing-readme` and no
+/// `engine-schema-legacy-spelling`.
 fn readme_markdown(name: &str) -> String {
     format!(
         "\
 ---
-type: au.engine.readme::au-engine
+type: tb.engine.readme::tb-engine
 tldr: A 2brain workspace named {name}, holding typed markdown that the engine serves and agents read over MCP.
 ---
 

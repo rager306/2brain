@@ -27,6 +27,20 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-18 — the debt wave: what a failing suite found
+
+Four thin slices, each red first: the `--help` surface sentence counts the capability table instead of typing
+"three mutating tools"; the mutation half of the catalogue test exists (`NOT_EXPOSED_MUTATIONS`, eight rows with
+reasons); `2brain init` writes the canonical schema, so a fresh workspace opens with zero diagnostics; and the
+README diagnostics no longer advise the release-1 spelling.
+
+The find is the part worth keeping: **`tests/init.rs` and `tests/doctor.rs` were red at `93bcaae`**, and nobody
+saw it because the window advisory landed after the last full adapter run. A fresh workspace carried two
+`engine-schema-legacy-spelling` hints, and `doctor` reported a warn on it. Five shipped templates spelled the
+same names. This is what the roadmap's "no writer emits it any more" line claimed and the tests disproved; the
+line is corrected in CHANGELOG, and the template *directories* (still `.arsumbris/`, which the engine reads) are
+queue item 10 rather than a silent rewrite.
+
 ## 2026-11-17 — reconciliation: what moved since this page was last revised
 
 The table above and the queue below are the 2026-11-16 state. After them, four lanes landed and one run answered

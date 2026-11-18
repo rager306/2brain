@@ -34,6 +34,11 @@ the builtin repo name and the claim canonicalizer remain.
 
 ### Added
 
+- **A `NOT_EXPOSED_MUTATIONS` registry, the mutation half of the catalogue test** (server). `WIRE.md` documents
+  24 mutations and the adapter sends 16; the eight it does not send had no pin, so a documented mutation could
+  appear or vanish without a failing test. `tests/wire_catalog.rs` now names each with its reason, fails when a new
+  documented mutation has neither a tool nor a row, and fails when a listed mutation becomes exposed. The read side
+  has worked this way since the file was written.
 - **`search` lifts a note whose title states the query's rare terms, and a topic map yields to a note** (engine).
 Two post-ranking multipliers, neither an index field, so neither can change `matched_terms`, the
 `min_should_match` floor or the candidate set: a hit whose file stem states a query term with `idf >= RARE_IDF`
@@ -169,6 +174,24 @@ deep chain cannot overflow the serving stack.
 
 ### Fixed
 
+- **`2brain init` writes the canonical engine schema, so a fresh workspace opens with zero diagnostics**
+  (server). The starter spelled `au.engine.repo::au-engine` in `.2brain/repo.yaml` and
+  `au.engine.readme::au-engine` in the root `README.md`, so every new workspace carried two
+  `engine-schema-legacy-spelling` hints and `2brain doctor` reported a warn. Two tests were red at that commit —
+  `tests/init.rs` asked for zero diagnostics and `tests/doctor.rs` asked for "no diagnostics" — and neither was
+  noticed because the window advisory landed after the last full adapter run. Both pass now, and
+  `no_shipped_template_carries_the_release_one_spelling` walks every template `init` can copy and fails on any
+  `au.engine.` in the result. Five starters were repaired the same way: `au-arscontexta-template`,
+  `au-tree-research-template`, `au-weave-template`, `studio`, and the two bundle comments.
+- **The README diagnostics stop advising the release-1 spelling** (engine). Three advisories told a writer to
+  declare `au.engine.readme::au-engine` — guidance that sends them back into the window the schema rename exists
+  to close. They now name `tb.engine.readme::tb-engine`, and a unit test asserts that no README message or fix
+  description carries `au.engine.` while every fix names the canonical type.
+- **`--help` counts its surface instead of typing it** (server). The SURFACE paragraph said "three mutating
+  tools" while the router advertised sixteen — a reader had no way to notice. The text moved out of `lib.rs` to
+  `src/help.rs`, where the sentence is built from `capability::CAPABILITIES`, and `tests/cli.rs` now cross-checks
+  `--help` against `--info` (both count the catalogue) instead of pinning a number. `lib.rs` lost 39 production
+  lines and the ratchet followed down, 4546 → 4507.
 - **A rare matched term satisfies `min_should_match` on its own** (engine). The floor was a count applied after
   scoring, so it dropped notes the ranking had already placed. `oracle matrix tests` returned five notes that
   mention the words and not `f/patterns/pattern-oracle-drift-ci.md`, which is about the thing asked; the same

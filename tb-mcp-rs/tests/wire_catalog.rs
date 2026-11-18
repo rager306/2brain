@@ -262,6 +262,45 @@ fn every_documented_read_has_an_adapter_tool() {
     }
 }
 
+/// Mutations `WIRE.md` documents that no adapter tool sends: pinned decisions, not
+/// oversights. The read side has carried such a list since this file was written; the
+/// mutation side did not, so a documented mutation could appear or vanish without a
+/// failing test. A new engine mutation fails the test below until this list names it, and
+/// an entry that becomes exposed fails it too.
+#[rustfmt::skip]
+const NOT_EXPOSED_MUTATIONS: [(&str, &str); 8] = [
+    ("append_record",        "inline-record frontmatter stamp; `tb_promote`/`tb_inline` move a record, neither edits its fields"),
+    ("delete_dir",           "directory-level; `tb_delete_file` removes one file and `tb_batch` composes files"),
+    ("edit_record",          "inline-record frontmatter stamp, the sibling of `append_record`"),
+    ("move_dir",             "directory-level; `tb_rename` moves one file and rewrites its inbound references"),
+    ("register",             "`workspaces.yaml` is user-authored; members are declared through the workspace-shape tools"),
+    ("set_config",           "one consumer config file outside the knowledge base: host state, like the `config` read"),
+    ("set_ignores",          "`.auignore` rules: host configuration, like its writer"),
+    ("set_workspace_member_disabled", "the `disabled:` overlay; `tb_set_workspace_member_role` moves a member between lists and nothing disables one"),
+];
+
+#[test]
+fn every_documented_mutation_has_an_adapter_tool_or_a_reason() {
+    let catalog = catalog();
+    let exposed: BTreeSet<String> = tools().into_iter().flat_map(|tool| tool.mutates).collect();
+    let not_exposed: BTreeMap<&str, &str> = NOT_EXPOSED_MUTATIONS.into_iter().collect();
+    for verb in &catalog.mutations {
+        if !exposed.contains(verb) && !not_exposed.contains_key(verb.as_str()) {
+            panic!("WIRE.md documents the mutation {verb:?} and no adapter tool sends it");
+        }
+    }
+    for verb in not_exposed.keys() {
+        assert!(
+            catalog.mutations.contains(*verb),
+            "NOT_EXPOSED_MUTATIONS lists {verb:?}, undocumented"
+        );
+        assert!(
+            !exposed.contains(*verb),
+            "NOT_EXPOSED_MUTATIONS lists {verb:?}, now exposed: drop it"
+        );
+    }
+}
+
 #[test]
 fn every_fixture_names_an_exposed_read() {
     let catalog = catalog();

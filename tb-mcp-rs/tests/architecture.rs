@@ -29,15 +29,17 @@ const LEAVES: [&str; 5] = [
 
 /// Every module dependency that is allowed today. Adding one is a decision, so it needs a
 /// line here and a reason in the message.
-const ALLOWED: [(&str, &str); 15] = [
+const ALLOWED: [(&str, &str); 17] = [
     ("cli", "transport"),
     ("describe", "capability"), // tb_search_tools filters by the capability class it ranks
     ("gate", "policy"),
+    ("help", "capability"), // the `--help` surface sentence counts the capability table
     ("lib", "bounded_stdio"),
     ("lib", "capability"),
     ("lib", "contract"), // the answer contract: prompts and workflow resources are its own module
     ("lib", "describe"), // one-line descriptions: the cut every default surface carries
     ("lib", "gate"),
+    ("lib", "help"), // the `--help` text; the counts it prints live in `help.rs`
     ("lib", "ledger"),
     ("lib", "policy"),
     ("lib", "resources"),
@@ -78,7 +80,11 @@ const ALLOWED: [(&str, &str); 15] = [
 // moving the task-word ranking (`search_tools`, `tokenize`) into `describe.rs`, where the
 // one-line cut already lived. The ratchet only moves DOWN on a refactor; a feature must
 // pay for itself, and this one did.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4546;
+// 4507 on 2026-11-18: the `--help` text moved out to `help.rs` and its SURFACE sentence now counts
+// from `capability::CAPABILITIES` instead of saying "three mutating tools" while the router
+// advertised sixteen. 39 lines left lib.rs with the const; the ratchet follows DOWN, and the
+// `--help`/`--info` cross-check in `tests/cli.rs` is what keeps the sentence true.
+const LIB_RS_PRODUCTION_BUDGET: usize = 4507;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")

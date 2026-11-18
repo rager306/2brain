@@ -130,7 +130,7 @@ fn missing_readme_diag(name: &RepoName, root: &Path) -> Diagnostic {
             name.as_str()
         ),
         related: vec![],
-        fix: Some(SuggestedFix::advisory("add a README.md at the repo root declaring `type: au.engine.readme::au-engine`, a `tldr:` field, and a `# Repo Overview` section holding `## What this is`, `## How to use this`, `## How to extend this`"
+        fix: Some(SuggestedFix::advisory("add a README.md at the repo root declaring `type: tb.engine.readme::tb-engine`, a `tldr:` field, and a `# Repo Overview` section holding `## What this is`, `## How to use this`, `## How to extend this`"
                 .to_string())),
     }
 }
@@ -141,10 +141,10 @@ fn type_undeclared_diag(readme: &Path) -> Diagnostic {
         severity: Severity::Warning,
         span: Span::new(readme.to_path_buf(), ByteRange::new(0, 0)),
         message:
-            "README.md does not declare `type: au.engine.readme::au-engine`; the canonical README self-declares its type"
+            "README.md does not declare `type: tb.engine.readme::tb-engine`; the canonical README self-declares its type"
                 .to_string(),
         related: vec![],
-        fix: Some(SuggestedFix::advisory("add `type: au.engine.readme::au-engine` to the README frontmatter"
+        fix: Some(SuggestedFix::advisory("add `type: tb.engine.readme::tb-engine` to the README frontmatter"
                 .to_string())),
     }
 }
@@ -155,10 +155,53 @@ fn misplaced_diag(path: &Path, span: ByteRange) -> Diagnostic {
         severity: Severity::Warning,
         span: Span::new(path.to_path_buf(), span),
         message:
-            "file claims `au.engine.readme` but is not the repo's root README.md; the readme type is a singleton at `<root>/README.md`"
+            "file claims `tb.engine.readme` but is not the repo's root README.md; the readme type is a singleton at `<root>/README.md`"
                 .to_string(),
         related: vec![],
-        fix: Some(SuggestedFix::advisory("move this to the repo root as README.md, or drop the `au.engine.readme` claim"
+        fix: Some(SuggestedFix::advisory("move this to the repo root as README.md, or drop the `tb.engine.readme` claim"
                 .to_string())),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A fix that names the release-1 spelling sends the writer back into the migration
+    /// window the schema rename exists to close, so no advisory may carry `au.engine.`.
+    /// This is a rule about the guidance, not a copy of one message.
+    #[test]
+    fn no_advisory_sends_a_writer_to_the_release_one_spelling() {
+        let root = Path::new("/tmp/readme-diagnostic-rule");
+        let name = RepoName("rule".to_string());
+        let diagnostics = [
+            missing_readme_diag(&name, root),
+            type_undeclared_diag(Path::new("/tmp/readme-diagnostic-rule/README.md")),
+            misplaced_diag(
+                Path::new("/tmp/readme-diagnostic-rule/notes/README.md"),
+                ByteRange::new(0, 1),
+            ),
+        ];
+        for diagnostic in diagnostics {
+            let fix = diagnostic
+                .fix
+                .as_ref()
+                .expect("each README diagnostic suggests a fix");
+            for text in [&diagnostic.message, &fix.description] {
+                assert!(
+                    !text.contains("au.engine."),
+                    "{:?} sends a writer to the release-1 spelling: {text}",
+                    diagnostic.code
+                );
+            }
+            // A missing README is diagnosed by its absence, but every fix says what to
+            // declare, and that name has to be the canonical one.
+            assert!(
+                fix.description.contains("tb.engine.readme"),
+                "{:?} does not name the canonical type: {}",
+                diagnostic.code,
+                fix.description
+            );
+        }
     }
 }

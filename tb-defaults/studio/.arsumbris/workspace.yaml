@@ -1,4 +1,4 @@
-type: au.engine.workspace::au-engine
+type: tb.engine.workspace::tb-engine
 edit:
   - studio
 discover:

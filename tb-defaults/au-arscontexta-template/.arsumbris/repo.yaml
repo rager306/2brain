@@ -1,4 +1,4 @@
-type: au.engine.repo::au-engine
+type: tb.engine.repo::tb-engine
 name: au-arscontexta-template
 description: An experimental workspace for developing knowledge and the guidance your agents use alongside it. Includes the standard app layout, a working profile and an initialization skill.
 deps:

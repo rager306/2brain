@@ -108,7 +108,7 @@ for promoting one into accepted knowledge. That is why it is first in the queue.
 | 7 | `claim` → `ingest-task` | one name, two records; the queue item is not a proposition | `instances_of claim` needs no `evidence` filter | **blocked** on the external queue writer, which is not in this repository | — |
 | 8 | the map residue — 102 declarations across 21 maps | the last 27% of a measured 372; everything left is ≤4 notes per map | `tools/kb/moc_links.py --check` passes for the maps touched | one vault writer | **D** |
 | 9 | semantic retrieval | **not a queue item until candidate generation proves to be the bottleneck** | recall of the candidate set measured first; selection measured separately | — | — |
-| 10 | pin the 8 unexposed wire mutations in a `NOT_EXPOSED` registry, and fix two stale sentences | `tests/wire_catalog.rs` pins the read side in both directions; nothing would fail if a documented mutation appeared or vanished. `tb-mcp-rs --help` says "three mutating tools" (there are 16) | the test fails when the registry and the wire diverge; `--help` names the right count | one Rust lane | **B** |
+| 10 | the five shipped templates still keep `/.arsumbris/` as their identity directory | the engine reads both spellings, so nothing breaks today — but a workspace created from a template is legacy-shaped on disk, which is where the schema rename started | a template copied by `init --template` holds `.2brain/` and `existing_identity` still opens an old tree | content change; no cargo | **C** |
 | 11 | `2brain` does not re-export `au migrate identity` | a consumer that only has `2brain` cannot reach the identity migration the engine documents | the subcommand is reachable from the one installed binary, or the doc says why it is not | one Rust lane | **B** |
 
 ## 5. How work runs in parallel
@@ -159,6 +159,6 @@ is the rule in action: an argued refusal has a number; an unargued one is a gap.
 5. **Four checks keep it from drifting**: `repowise doc-drift` (a document the code no longer matches),
    `repowise decision health` (a stale or conflicting record), `tools/cards/render.py --check` (a card that
    disagrees with `metrics.json`), and `tools/docs/links.py --check` (every relative link and heading anchor;
-   802 documents, 0 broken on 2026-11-18).
+   804 documents, 0 broken on 2026-11-18).
 6. **A count in prose is a summary.** The instrument is `tools/cards/metrics.json`, which carries the command
    and the date; a prose number that disagrees with it is a stale sentence, not a second source of truth.
