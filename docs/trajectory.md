@@ -34,12 +34,21 @@ Four thin slices, each red first: the `--help` surface sentence counts the capab
 reasons); `2brain init` writes the canonical schema, so a fresh workspace opens with zero diagnostics; and the
 README diagnostics no longer advise the release-1 spelling.
 
+A second wave closed the two debt rows that wave left and recorded the shape of the one it could not:
+queue item 10 (the four starters still shipping a `.arsumbris/` identity directory) is shipped, with the
+template test now asking both questions — no `au.engine.*` and no legacy directory; item 11 (`2brain` did not
+re-export `au migrate identity`) is shipped with a dry-run test on a legacy fixture. The ADR directory lost its
+three-`0001-` collision: the plan and the inventory moved to `tb-engine/doc/plans/`, and the index stopped
+calling ADR-0001 proposed. **ADR-0002** fixes promote-with-checks as an optional `require_clean` rider refused
+inside the engine, and stays `proposed` until its three-part gate passes — the write contract does not move on a
+sentence.
+
 The find is the part worth keeping: **`tests/init.rs` and `tests/doctor.rs` were red at `93bcaae`**, and nobody
 saw it because the window advisory landed after the last full adapter run. A fresh workspace carried two
 `engine-schema-legacy-spelling` hints, and `doctor` reported a warn on it. Five shipped templates spelled the
 same names. This is what the roadmap's "no writer emits it any more" line claimed and the tests disproved; the
-line is corrected in CHANGELOG, and the template *directories* (still `.arsumbris/`, which the engine reads) are
-queue item 10 rather than a silent rewrite.
+line is corrected in CHANGELOG, and the template *directories* followed in the second wave once the test asked
+about them too.
 
 ## 2026-11-17 — reconciliation: what moved since this page was last revised
 

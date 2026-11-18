@@ -91,6 +91,16 @@ enum Command {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         arguments: Vec<String>,
     },
+    /// Migrate a tree to the current on-disk identity (same as `au migrate identity`).
+    ///
+    /// Rewrites the identity directory to `.2brain/` and the release-1 `au.engine.*` claims to
+    /// their canonical names, one commit per repository. Prints the plan and writes nothing
+    /// unless `--apply` is given. This is the one engine subcommand the binary re-exports,
+    /// because a workspace owner who has only `2brain` cannot reach it otherwise.
+    Migrate {
+        #[command(subcommand)]
+        command: MigrateCommand,
+    },
     /// Describe the MCP surface, and probe an engine when a target is given.
     Info {
         /// A `.sock` path, or a workspace entry whose socket is derived.
@@ -105,6 +115,25 @@ enum Command {
         /// Everything after the binary name, passed through unchanged.
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         arguments: Vec<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum MigrateCommand {
+    /// The on-disk identity: `.arsumbris/` to `.2brain/`, `au.engine.*` to `tb.engine.*`.
+    Identity {
+        /// Print the plan and write nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Perform the plan, one commit per repository.
+        #[arg(long)]
+        apply: bool,
+        /// One repository to consider. Defaults to the current directory.
+        #[arg(long, value_name = "PATH")]
+        root: Option<PathBuf>,
+        /// Every repository in the user's registry.
+        #[arg(long)]
+        all: bool,
     },
 }
 
@@ -171,6 +200,14 @@ fn main() -> ExitCode {
         Command::Doctor { target } => tb_mcp_rs::cli::doctor(&target),
         Command::Open { name } => tb_cli::daemon::open(&name),
         Command::Members { entry, json } => tb_cli::members::members(&entry, json),
+        Command::Migrate { command } => match command {
+            MigrateCommand::Identity {
+                dry_run,
+                apply,
+                root,
+                all,
+            } => tb_cli::migrate::identity(dry_run, apply, root, all),
+        },
         Command::Mcp { arguments } => {
             // The target is the first argument unless that argument is itself an option
             // (`--help`, `--info`, …), in which case the server answers it directly.

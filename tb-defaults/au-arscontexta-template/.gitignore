@@ -1,4 +1,4 @@
 .DS_Store
 operations/
-.arsumbris/*.sock
-.arsumbris/au-engine/logs/
+.2brain/*.sock
+.2brain/au-engine/logs/

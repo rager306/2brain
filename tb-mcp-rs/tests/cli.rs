@@ -87,6 +87,67 @@ fn help_and_info_agree_on_the_surface() {
     );
 }
 
+/// A consumer who has only the installed binary must be able to reach the migration the
+/// engine documents. `au migrate identity` was the one engine subcommand `2brain` did not
+/// re-export, so a workspace owner had to know a second binary existed.
+#[test]
+fn migrate_identity_is_reachable_from_the_installed_binary() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    let repo = temp.path().join("legacy");
+    std::fs::create_dir_all(repo.join(".arsumbris")).unwrap();
+    let identity = repo.join(".arsumbris/repo.yaml");
+    let legacy = "type: au.engine.repo::au-engine\nname: legacy\n";
+    std::fs::write(&identity, legacy).unwrap();
+    for args in [
+        vec!["init", "-q", "-b", "main"],
+        vec!["config", "user.email", "migrate@example.test"],
+        vec!["config", "user.name", "migrate test"],
+        vec!["add", "-A"],
+        vec!["commit", "-q", "-m", "legacy"],
+    ] {
+        let git = Command::new("git")
+            .args(&args)
+            .current_dir(&repo)
+            .output()
+            .expect("git runs");
+        assert!(git.status.success(), "git {args:?}: {git:?}");
+    }
+
+    let run = unified()
+        .args(["migrate", "identity"])
+        .arg("--root")
+        .arg(&repo)
+        .arg("--dry-run")
+        .env("HOME", &home)
+        .output()
+        .expect("run 2brain migrate identity");
+    let stdout = String::from_utf8_lossy(&run.stdout);
+    assert!(
+        run.status.success(),
+        "{stdout}{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert!(
+        stdout.contains("plan for 1 repository"),
+        "the plan names what it will do: {stdout}"
+    );
+    assert!(
+        stdout.contains("legacy"),
+        "the plan names the repo: {stdout}"
+    );
+    assert!(
+        stdout.contains("dry run, nothing was written"),
+        "a dry run says so: {stdout}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&identity).unwrap(),
+        legacy,
+        "a dry run must not touch the tree"
+    );
+}
+
 #[test]
 fn version_is_one_line() {
     let output = binary().arg("--version").output().unwrap();

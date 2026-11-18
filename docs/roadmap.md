@@ -75,8 +75,8 @@ The counts, and the command behind each: `tools/cards/metrics.json` (`surface`, 
 
 The MCP surface is deliberately a **subset** of the engine: 34 of the 51 wire reads and 16 of the 24 wire
 mutations have a tool. The 17 unexposed reads and the 8 unexposed mutations are a decision, not an oversight —
-`tests/wire_catalog.rs` pins the read side with a reason per verb, and the mutation side has no such registry yet
-(queue item 10).
+`tests/wire_catalog.rs` pins both sides with a reason per verb (`NOT_EXPOSED` and `NOT_EXPOSED_MUTATIONS`), and
+the test fails when a documented verb is neither exposed nor explained.
 
 ## 3. The five stages, and what "finished" means
 
@@ -99,7 +99,7 @@ for promoting one into accepted knowledge. That is why it is first in the queue.
 
 | # | item | why now | exit / gate | needs | group |
 |---|---|---|---|---|---|
-| 1 | **promote-with-checks** — a mutation mode that refuses on diagnostics instead of advising | closes stage 1 and unblocks stage 5's acceptance gate; the only open write-path gap | a two-process test where the promotion is refused with the diagnostic code named, and one where it passes; `WIRE.md` and the tool text updated | one Rust lane | **B** |
+| 1 | **promote-with-checks** — a mutation rider that refuses on ERROR diagnostics instead of advising | closes stage 1 and unblocks stage 5's acceptance gate; the only open write-path gap. **ADR-0002 fixes the shape** (an optional `require_clean` rider on four mutations, engine-side, scratch build, `policy/diagnostics`) and is `proposed` until its gate passes | the gate ADR-0002 names: a two-process refusal that leaves the bytes unchanged, a clean write that commits, and a measurement that the default path did not slow down | one Rust lane | **B** |
 | 2 | **a published artifact**, and `install.sh` that uses it | a toolchain-less host can run the binaries but cannot install them | `install.sh` from the artifact on a host without cargo, then `doctor` | packaging; no cargo | **C** |
 | 3 | **the task set to 40 rows** | 1–3 rows per class is not a sample; a percentage over it is arithmetic without a model | a pre-registered threshold per class, written before the next ranking change | `tools/ranking/`, no cargo | **C** |
 | 4 | **the two-agent transcript** | stage 4's exit is a recorded run, not a template | the six-step scenario on a published SHA, transcript committed | live vault, one writer | **D** |
@@ -108,8 +108,7 @@ for promoting one into accepted knowledge. That is why it is first in the queue.
 | 7 | `claim` → `ingest-task` | one name, two records; the queue item is not a proposition | `instances_of claim` needs no `evidence` filter | **blocked** on the external queue writer, which is not in this repository | — |
 | 8 | the map residue — 102 declarations across 21 maps | the last 27% of a measured 372; everything left is ≤4 notes per map | `tools/kb/moc_links.py --check` passes for the maps touched | one vault writer | **D** |
 | 9 | semantic retrieval | **not a queue item until candidate generation proves to be the bottleneck** | recall of the candidate set measured first; selection measured separately | — | — |
-| 10 | the five shipped templates still keep `/.arsumbris/` as their identity directory | the engine reads both spellings, so nothing breaks today — but a workspace created from a template is legacy-shaped on disk, which is where the schema rename started | a template copied by `init --template` holds `.2brain/` and `existing_identity` still opens an old tree | content change; no cargo | **C** |
-| 11 | `2brain` does not re-export `au migrate identity` | a consumer that only has `2brain` cannot reach the identity migration the engine documents | the subcommand is reachable from the one installed binary, or the doc says why it is not | one Rust lane | **B** |
+
 
 ## 5. How work runs in parallel
 

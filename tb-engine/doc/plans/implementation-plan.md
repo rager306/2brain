@@ -1,7 +1,8 @@
 # Implementation plan: Rust-native, agent-neutral MCP serving
 
-This plan accompanies [ADR-0001](0001-rust-native-agent-mcp.md). The ADR is
-proposed; this document authorizes no live deployment or vault migration.
+This plan accompanies [ADR-0001](../adr/0001-rust-native-agent-mcp.md). It was written while the ADR was
+proposed; the ADR is accepted since 2026-11-16 and the path it describes is the served one. This document
+authorizes no live deployment or vault migration of its own — a swap follows the runbook, not a plan.
 
 ## Scope and milestones
 

@@ -2,9 +2,9 @@
   "generated_for": "2brain",
   "gates": {
     "adapter_tests": {
-      "value": 212,
+      "value": 260,
       "known_environment_failures": 0,
-      "command": "cd tb-mcp-rs && cargo +1.99.0 test --offline",
+      "command": "cd tb-mcp-rs && cargo +1.99.0 test --offline; value is the sum of `passed` across the 46 suites (unit and integration), which is the only total cargo prints",
       "date": "2026-11-18"
     },
     "engine_lib_tests": {

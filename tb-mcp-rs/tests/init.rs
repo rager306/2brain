@@ -234,11 +234,11 @@ fn init_adopts_a_template_identity_and_renames_only_it() {
 }
 
 /// A starter is a workspace someone will open first, so no shipped template may carry the
-/// release-1 type spelling: `init` would reproduce the migration window it exists to close.
-/// The list is the templates on disk, not a hand-kept set, so a new template is covered the
-/// day it lands.
+/// release-1 shape: neither the `au.engine.*` type spelling nor the `.arsumbris/` identity
+/// directory, both of which `init` exists to stop producing. The list is the templates on
+/// disk, not a hand-kept set, so a new template is covered the day it lands.
 #[test]
-fn no_shipped_template_carries_the_release_one_spelling() {
+fn every_shipped_template_copies_into_a_current_workspace() {
     let templates = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tb-defaults");
     let mut checked = 0;
     for entry in fs::read_dir(&templates).unwrap().flatten() {
@@ -255,11 +255,24 @@ fn no_shipped_template_carries_the_release_one_spelling() {
         let workspace = temp.path().join("copied");
         let created = init(&workspace, &["--template", &name]);
         assert!(created.status.success(), "{name}: {}", stderr(&created));
+        assert!(
+            workspace.join(".2brain/repo.yaml").is_file(),
+            "{name} copies without a `.2brain/repo.yaml`"
+        );
+        assert!(
+            !workspace.join(".arsumbris").exists(),
+            "{name} still ships a `.arsumbris/` identity directory"
+        );
         for file in walk(&workspace) {
             let text = fs::read_to_string(&file).unwrap_or_default();
             assert!(
                 !text.contains("au.engine."),
                 "{name} ships {} with the release-1 spelling",
+                file.display()
+            );
+            assert!(
+                !text.contains(".arsumbris"),
+                "{name} ships {} naming the release-1 identity directory",
                 file.display()
             );
         }

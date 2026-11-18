@@ -34,6 +34,17 @@ the builtin repo name and the claim canonicalizer remain.
 
 ### Added
 
+- **`2brain migrate identity`** (server). `au migrate identity` was the one engine subcommand the installed
+  binary did not re-export, so a workspace owner needed a second binary they were never told about. The
+  subcommand forwards to `tb_cli::migrate::identity` unchanged, and a test runs it against a legacy fixture in
+  `--dry-run` and asserts the plan is printed, the repo is named, and the tree is byte-identical.
+- **ADR-0002 fixes the shape of promote-with-checks** (engine, proposed). An optional `require_clean` rider on
+  `write_file`, `edit_file`, `create_file` and `batch`: default false and unchanged, and when true the engine
+  applies the change to a scratch copy of the held IR, computes the diagnostics, and refuses with
+  `policy/diagnostics` naming every ERROR code before anything reaches the disk. Rejected alternatives are
+  recorded: the adapter previewing then writing (two calls are not one precondition), a new `promote` verb
+  (promotion is a status change), and write-then-revert (a crash between the two leaves the tree in the state the
+  check exists to prevent). None of it is implemented; the ADR names the gate that must pass first.
 - **A `NOT_EXPOSED_MUTATIONS` registry, the mutation half of the catalogue test** (server). `WIRE.md` documents
   24 mutations and the adapter sends 16; the eight it does not send had no pin, so a documented mutation could
   appear or vanish without a failing test. `tests/wire_catalog.rs` now names each with its reason, fails when a new
@@ -133,6 +144,13 @@ deep chain cannot overflow the serving stack.
 
 ### Changed
 
+- **Every shipped template copies into a current workspace** (content). The four starters that still kept a
+  `.arsumbris/` identity directory now ship `.2brain/`, and their `.gitignore` entries follow the rename. The
+  template test asks both questions at once — no `au.engine.*` spelling and no legacy identity directory — and
+  walks every template `init` can resolve, so a new starter is covered the day it lands.
+- **The ADR directory holds records only** (engine). `0001-implementation-plan.md` and
+  `0001-tool-inventory.md` moved to `tb-engine/doc/plans/`, so no three files share one id; the ADR index also
+  stopped calling ADR-0001 proposed, which it had been since the record was accepted on 2026-11-16.
 - **BREAKING for callers who relied on the default: `tb_search` and `tb_grep` read the workspace, not its
   dependencies.** Both reads defaulted `scope` to `all`, so a question the served vault could not answer came back
   answered by a dependency repository's README — measured, not hypothesised: *"the exact number of stars on the

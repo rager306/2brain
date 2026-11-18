@@ -41,7 +41,7 @@ a device layout, not a repository directory — `docs/naming.md`).
 `tb-mcp-rs/` is a separate Cargo package, not a `tb-engine` workspace member.
 Its `src/main.rs` uses `rmcp` over stdio and the engine's Unix socket; `tests/`
 contains fake-daemon tests and an opt-in real-engine test on a temporary fixture.
-See `tb-mcp-rs/README.md` and `tb-engine/doc/adr/0001-implementation-plan.md` for
+See `tb-mcp-rs/README.md` and `tb-engine/doc/plans/implementation-plan.md` for
 its current limitations and plan. Do not assume bridge, policy, or client parity.
 
 
