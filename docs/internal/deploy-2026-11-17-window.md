@@ -12,7 +12,7 @@ Fourth swap of the day, and the smallest: one new diagnostic, no shape change.
 
 ## Artifacts
 
-- Candidate: `/tmp/s1/au-r2c`, sha256 `c9df1cbd…`, built from `fa45472`.
+- Candidate: `/tmp/s1/au-r2c`, sha256 `c9df1cbd…`, built from `74d3c62`.
 - Rollback: `/root/backups/au-20261117-pre-window`, sha256 `8736c9fc…`.
 
 ## Why this swap needed less ceremony than the last three

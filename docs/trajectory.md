@@ -27,9 +27,29 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-18 — history rewrite: the bot co-author trailer is gone
+
+The owner asked that no commit in this repository carry a `Co-authored-by: CommandCodeBot` trailer. Sixty-one
+commits did — nine unpushed ones and fifty-two already on `origin/main` — so the branch was rewritten with
+`git filter-branch --msg-filter`, which strips that line and normalises trailing blank lines. **Content is
+unchanged:** `main^{tree}` is the same hash before and after, and the commit count is the same 472.
+
+Two consequences are recorded here because they are not obvious from the tree:
+
+- **Every rewritten commit has a new SHA.** Ten documents cited an old one as evidence; each citation was
+  remapped to the rewritten commit with the same content, and a scan for stale short hashes now finds none. That
+  includes four `docs/research/*` notes, which are otherwise frozen — a reference that cannot be opened is
+  worse than the freeze.
+- **The old objects exist in a bundle at `/tmp/2brain-pre-trailer-clean.bundle`, outside the repository.** It is
+  the only copy of the pre-rewrite SHAs; delete it when the rewrite is accepted. GitHub keeps the old commits
+  reachable by SHA for a while after a force-push, and nothing here can change that.
+
+Nothing else about authorship changed: author and committer are the repository owner in every commit, before
+and after.
+
 ## 2026-11-18 — the external review's findings, checked in code
 
-A review of `93bcaae` made four claims that could be checked rather than argued, and each is now settled:
+A review of `f5c178f` made four claims that could be checked rather than argued, and each is now settled:
 
 | claim | what the code showed | what changed |
 |---|---|---|
@@ -58,7 +78,7 @@ calling ADR-0001 proposed. **ADR-0002** fixes promote-with-checks as an optional
 inside the engine, and stays `proposed` until its three-part gate passes — the write contract does not move on a
 sentence.
 
-The find is the part worth keeping: **`tests/init.rs` and `tests/doctor.rs` were red at `93bcaae`**, and nobody
+The find is the part worth keeping: **`tests/init.rs` and `tests/doctor.rs` were red at `f5c178f`**, and nobody
 saw it because the window advisory landed after the last full adapter run. A fresh workspace carried two
 `engine-schema-legacy-spelling` hints, and `doctor` reported a warn on it. Five shipped templates spelled the
 same names. This is what the roadmap's "no writer emits it any more" line claimed and the tests disproved; the
@@ -134,10 +154,10 @@ name its experiment does not start.
 | **C3** intake edges that point AT isolated notes | **measured and started 2026-11-17** — `tools/kb/intake_targets.py` (`--selftest`) narrows `graph_shape { orphan_paths }`: **33 content notes with no inbound**, 99 proposals, 24 at ≥3 terms. Three passes applied **23** of the 33 content notes (vault `850e89f`, `5fff55d`, `6a843e4`), each from a source that states the target's subject or whose pattern names it as provenance: edges 4 730 → **4 754**, content no-inbound 379 → **356**, isolated 197, diagnostics 0. Ten are refusals with the reason (five share only a category, five have no candidate and no source naming them), not silent drops | `tools/kb/intake_targets.py`, `docs/research/intake-targets-2026-11-17.md` | 33 → 24 actionable → 9 linked, 15 named refusals | P3 |
 | **C4** aliases | **measured 2026-11-17, not adopted** — `tools/kb/alias_audit.py` (`--selftest`) pairs an acronym with a same-note expansion whose initials spell it: 2 943 acronym-shaped tokens, 1 222 in ≥2 notes, **285 candidate pairs, 272 divergent**; nine of the top fifteen read as real (`SoT`/source of truth: 15 vs 24 notes, 4 shared). Automatic pairing is at best six-in-ten precise, so no `aliases:` field and no query expansion yet; the task is in the set (`alias`, `SoT` → `knowledge/ontology-as-single-source-of-truth-code-never-primary.md`) and **passes 1/1**: query-time expansion was measured and rejected (15 → 132 candidates, expected note 21st), the corpus-side fix — the acronym in the note's own description — moved it from absent to rank 6 (vault `c85ec01`), and the row was re-registered to accept the page (`expect: any`, the bilingual precedent) with both measurements recorded before the edit | `tools/kb/alias_audit.py`, `docs/research/alias-field-2026-11-17.md` | the class is sized and the mechanism is a decision, not a guess | P1 |
 | **C5** tier-C vault migration | **done 2026-11-17** — `.2brain/`, two claim lines, commit `a8aba4b`, 0 diagnostics | `au migrate identity --apply` | diagnostics 0, `broken_links` 0 | P4 |
-| **D** the deploy window | **done 2026-11-17, two swaps** — morning: engine `869f0ed9` + adapter `0.1.0+020d0de`; afternoon: engine `a6f9a3f4` (S1 ranking), adapter unchanged because the wire shape did not move. Logs: `deploy-2026-11-17.md`, `deploy-2026-11-17-s1.md` | binaries, deploy docs | 4 of 5 reads identical on a frozen copy, `search` differs only in rank/score/excerpt; live vs candidate copy 0 diffs; live task set `hub` 1/1 | P5 |
+| **D** the deploy window | **done 2026-11-17, two swaps** — morning: engine `869f0ed9` + adapter `0.1.0+55fab3f`; afternoon: engine `a6f9a3f4` (S1 ranking), adapter unchanged because the wire shape did not move. Logs: `deploy-2026-11-17.md`, `deploy-2026-11-17-s1.md` | binaries, deploy docs | 4 of 5 reads identical on a frozen copy, `search` differs only in rank/score/excerpt; live vs candidate copy 0 diffs; live task set `hub` 1/1 | P5 |
 | **DOC** architecture clarity | **done 2026-11-18** — three documents and a decision store: `docs/architecture.md` (one page: invariants, crate layers, request path, write contract, tool groups generated from `#[tool]`), `docs/README.md` (the map of 82 documents in three kinds, 88 links checked), `.repowise/decisions.yaml` (5 accepted decisions with rejected alternatives and evidence; `repowise why` answers from it). The audit corrected two of my own claims: `tb_edit_file`'s `expected_hash` is a span precondition by design, and the write-contract review already existed | `docs/`, `.repowise/decisions.yaml` | `repowise decision list` / `health` / `doc-drift`; every link resolves | P0 |
 | **R2** release 2: the format converges | **shipped 2026-11-17, not deployed** — two steps: `CREATE_IDENTITY_DIR` → `.2brain` (a new root is created with the new name), then the schema flip `au.engine.*`/`::au-engine` → `tb.engine.*`/`::tb-engine` for all 12 defs, every floor name, `ENGINE_META_TYPE` and `BUILTIN_ENGINE_REPO`. Legacy spelling still ACCEPTED on read, and a read ARGUMENT is canonicalized too (`canonical_query_name`) — without that seam `instances_of au.engine.repo::au-engine` answered 0 rows while the same instances were served under the new name. Measured on a copy of the live vault: old and new binaries answer `overview`/`hubs`/`diagnostics`/`graph_health`/`files`/`search` **byte-identically**; 242 snapshots re-blessed (4 480 renames + hashes/sort) | `tb-engine/src/{engine_schema,wire,build,readme,pkgcache,repo}.rs`, `docs/research/release-2-schema-2026-11-17.md` | engine fmt/clippy clean, lib **744/1**, it **734/3** (root-only), adapter 211 green untouched; **deployed 2026-11-17** (`docs/internal/deploy-2026-11-17-r2.md`): 12 reads identical on the frozen copy apart from the renamed names and hashes, live vs candidate 0 diffs in all 12, both spellings answer 3 rows, diagnostics 0, task set unchanged. Rollback `/root/backups/au-20261117-pre-r2`. the window advisory (`engine-schema-legacy-spelling`) is **deployed** (`docs/internal/deploy-2026-11-17-window.md`, engine `c9df1cbd`, live diagnostics 0, eight reads clean, rollback `au-20261117-pre-window`). Refusing the legacy spelling outright is the one thing still open | P1 |
-| **H** release hygiene (Stage 2) | **clean-host gate passed 2026-11-17** — `bkk-edge01` (no Rust, no cargo, no repo): two binaries + a vault copy, `doctor` **6 ok / 1 warn** (the warn is `peer-unmounted` and correct), `search "SoT"` 15 docs, `write_file` reflected with 0 diagnostics, read-back found; `docs/internal/clean-host-gate-2026-11-17.md`. Metrics refreshed (`469d182`). Two findings: `install.sh` builds with cargo, so a toolchain-less host needs a published artifact; a fresh `HOME` still creates `~/.arsumbris/au-engine` by design (`CREATE_IDENTITY_DIR`; release 2 flips that one constant) | `install.sh`, CI, `tools/cards/` | binaries are self-contained; packaged install and the adapter's mutation gate under a policy file remain unproven | P1 |
+| **H** release hygiene (Stage 2) | **clean-host gate passed 2026-11-17** — `bkk-edge01` (no Rust, no cargo, no repo): two binaries + a vault copy, `doctor` **6 ok / 1 warn** (the warn is `peer-unmounted` and correct), `search "SoT"` 15 docs, `write_file` reflected with 0 diagnostics, read-back found; `docs/internal/clean-host-gate-2026-11-17.md`. Metrics refreshed (`4182804`). Two findings: `install.sh` builds with cargo, so a toolchain-less host needs a published artifact; a fresh `HOME` still creates `~/.arsumbris/au-engine` by design (`CREATE_IDENTITY_DIR`; release 2 flips that one constant) | `install.sh`, CI, `tools/cards/` | binaries are self-contained; packaged install and the adapter's mutation gate under a policy file remain unproven | P1 |
 
 ### Parallel execution: what may overlap
 
@@ -166,7 +186,7 @@ free to move while a cargo lane compiles.
 
 | decision | state 2026-11-17 | what is left |
 |---|---|---|
-| the deploy window | **done** — engine `869f0ed9`, adapter `0.1.0+020d0de`; evidence in `docs/internal/deploy-2026-11-17.md` | nothing, except a client restart to pick the adapter up |
+| the deploy window | **done** — engine `869f0ed9`, adapter `0.1.0+55fab3f`; evidence in `docs/internal/deploy-2026-11-17.md` | nothing, except a client restart to pick the adapter up |
 | the vault migration | **done** — `.2brain/`, two claim lines, commit `a8aba4b`, 0 diagnostics | release 2 (drop the legacy spelling) remains a later step |
 | `family:` semantics | brief written: `docs/research/family-field-2026-11-17.md`; measured 429 values, 345 single-member, 191 provenance-like vs 238 topic-like | a yes/no on the hybrid rule (family = series/provenance, topics = subject) and a first run of the audit |
 | `claim` type | brief written: `docs/research/claim-type-2026-11-17.md`; 11 notes, 6 propositions and 5 queue items | a yes/no on renaming the queue item to `ingest-task`, with the pipeline change in the same step |

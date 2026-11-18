@@ -4,7 +4,7 @@
 the opposite of what `yield_maps` does?
 
 **What the sentence says.** Three places state it the same way: the doc comment above the function, the commit
-that introduced it (`1d42e02`), and the registration in [`task-set.md`](task-set.md) §4 — "a `type: moc` hit is
+that introduced it (`c629589`), and the registration in [`task-set.md`](task-set.md) §4 — "a `type: moc` hit is
 halved when a non-map hit matched at least as many terms". Read as a condition on the map, that is
 `map_terms <= best_note_terms`.
 
@@ -32,4 +32,4 @@ re-ranking. `task-set.md` is a dated research note and is not edited; this note 
 was a tie. A future change of direction needs a query where the map and the best note match a different number
 of terms, measured on the task set — a reading of the code is not a measurement.
 
-**Found by** the external review of `93bcaae` (2026-11-18), which read the condition against the contract.
+**Found by** the external review of `f5c178f` (2026-11-18), which read the condition against the contract.

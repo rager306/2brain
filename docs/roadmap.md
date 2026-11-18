@@ -15,7 +15,7 @@ produced it and the date; the cards in the README are rendered from the same fil
 its number disagree (`tools/cards/render.py --check`). The status column below names a commit and a date, and a
 number in prose is a memory.
 
-**Measured at** `c0ad7cd`, 2026-11-18.
+**Measured at** `486b03e`, 2026-11-18.
 
 ---
 
@@ -83,7 +83,7 @@ the test fails when a documented verb is neither exposed nor explained.
 The stages are ordered by what unblocks the next decision, not by what is interesting. Each has an exit
 criterion that a command can check, so "done" is not an opinion.
 
-| stage | goal | exit criterion | status at `c0ad7cd` | evidence |
+| stage | goal | exit criterion | status at `486b03e` | evidence |
 |---|---|---|---|---|
 | **1. The shared-memory contract is a contract** | a write either lands with a stated precondition or is refused; a refusal names why | four tests, each running the two-process case it describes, and `WIRE.md` plus the tool text say what the engine guarantees | **3 of 4** — concurrent create refuses (`create_new`), `expected_hash` is documented as a fragment precondition, a type rename that reaches an ungranted member is refused by `preview_mutation`; **promoting a draft into accepted knowledge is not a mode** | `docs/research/write-contracts.md`, `WIRE.md` |
 | **2. Release hygiene** | a stranger can install it and read the terms | a clean machine installs from the published SHA, runs `doctor`, completes one read and one write | **partial** — CI green on both halves, license and trust boundary stated, clean-host gate passed on a toolchain-less host; **no published artifact** (`install.sh` builds with cargo) and **macOS unproven** | `docs/internal/clean-host-gate-2026-11-17.md` |

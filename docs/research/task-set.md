@@ -79,7 +79,7 @@ title-match experiment moved notes literally titled after the query above all th
 was the label being narrower than the question. The accepted set is now **18**: the three definition notes plus the
 fifteen notes whose filename states both query words and whose description is an agent-memory system or method. The
 candidates were enumerated by a title predicate over a clean tree and reviewed by hand; no ranking was consulted, and
-the `why` field records the rule. Measured against the live server (new engine, adapter `0.1.0+020d0de`): `ambiguous` **1/1 at
+the `why` field records the rule. Measured against the live server (new engine, adapter `0.1.0+55fab3f`): `ambiguous` **1/1 at
 rank 1**, with the top hit `knowledge/memory-agent-abstraction-enables-natural-language-memory-operations.md`.
 
 ## What this set is for

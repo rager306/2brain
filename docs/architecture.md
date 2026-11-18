@@ -5,7 +5,7 @@ else. It states what the system is, what its parts are, which direction dependen
 are, and which documents carry the evidence. Everything here is checkable from the repository at the commit
 below; nothing here is a plan — [`roadmap.md`](roadmap.md) is, and it is the only page that is.
 
-**Measured at** `d659ece`, 2026-11-18. Every claim names its file, and `repowise decision export` carries the
+**Measured at** `bdfc7b2`, 2026-11-18. Every claim names its file, and `repowise decision export` carries the
 ones that govern change.
 
 ---
