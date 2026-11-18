@@ -84,21 +84,21 @@ Two placements worth naming, because both are structure rather than a list:
 - `agent-security` and `self-improvement` each gained a **Harness Research (allspark/prime-agent)**
   section, which is where the twelve allspark notes that name them actually belong.
 
-**What remains: 155 declarations across 23 maps, and the head is now a decision, not a gap.**
+**Pass 3, done 2026-11-17 (vault `d009c9f`).** `tool-use` 32 → **0 of 42**, the last large gap. The
+vault total is **123** unlinked declarations across **22** maps, diagnostics 0. The map's namers were
+grouped by the question they answer — descriptions and discovery, repair and steering, action
+selection, determinism, and the harness block — not appended as one list.
+
+One case the pass had to fix rather than add: `codeactinstruct-…` names two archive files, so a bare
+wikilink made the engine report `navigational-target-ambiguous`. The link is path-qualified.
+
+**What remains: 123 declarations across 22 maps, and none of it is a large gap.**
 
 | map | unlinked / namers | why it may stay |
 |---|---|---|
-| `index` | 63 / 63 | the entry map: a curated front page, not an exhaustive index. Making it complete would make it useless. |
-| `tool-use` | 32 / 42 | a real gap; the next pass. |
-| `zeroclaw-decisions` | 17 / 59 | a decision log; the missing ones are recent ingest the log has not absorbed. |
-| the other 20 | ≤ 5 each | mostly one or two notes each, below the cost of a judgement pass. |
+| `index` | 63 / 63 | the entry map: a curated front page. Completeness would make it useless; the full index is `references_in`. |
+| `zeroclaw-decisions` | 17 / 59 | a decision log that has not absorbed the newest ingest; a judgement pass, not a mechanical one. |
+| `human-feedback` | 5 / 7 | small. |
+| the other 19 | ≤ 4 each | one or two notes each, below the cost of a pass. |
 
-**The rule the two passes earned.** A note earns a link when the map has a heading whose name is true
-of it. When it does not, the choice is to add a heading that names the reason — which is what the two
-harness sections are — or to leave the note unlinked. What is never acceptable is a link with no
-heading, and it is why the generated-section version was rejected: it produced exactly that, 372 times.
-
-**Next.** `tool-use` is the only remaining map with a large gap, and it is a genuine content pass.
-`index` should be decided rather than measured: either it is a curated front page (and 63/63 is
-correct), or it is meant to be the full map and its job should move to a generated view the engine
-already serves (`references_in`).
+**The three passes moved 372 → 123 (67%), and the remainder is a decision list, not a backlog.**
