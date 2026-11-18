@@ -5,9 +5,10 @@
 > deleted, and the served path is `/usr/local/bin/2brain`. The tree it describes no longer exists.
 id: ADR-0001
 title: Rust-native, agent-neutral MCP serving for 2Brain
-status: Proposed
-lifecycle: "[proposed]"
+status: Accepted
+lifecycle: "[validated]"
 date: 2026-11-12
+accepted: 2026-11-16
 supersedes: none
 related: []
 ---
@@ -16,13 +17,19 @@ related: []
 
 ## Status
 
-**Proposed [proposed].** The desired direction is a Rust-native production
-serving path, not an adapter dedicated to Hermes. The architecture, migration
-and release gates below are proposals; none is evidence that an implementation
-exists or is safe to deploy. Acceptance requires review by the project owner.
-This cross-repository decision is recorded in `au-engine` provisionally because
-it is the fork integration repository; ownership of the eventual MCP server
-repository remains open. [proposed]
+**Accepted [validated], 2026-11-16.** The decision is a Rust-native production
+serving path rather than an adapter dedicated to one client, and it is now the
+served path: `/usr/local/bin/2brain` is the only server, and the TypeScript MCP
+layer and the Python bridge are deleted (`docs/phase-d.md`). The gates below
+stopped being proposals when the adapter suite, the engine suites and the live
+parity run became the merge condition.
+
+What stays open is ownership: this cross-repository decision is recorded here
+because the engine is the integration repository, and the eventual home of the
+MCP server crate is still a question rather than a fact.
+
+Read the rest of this record as the reasoning that produced the current path,
+not as a description of a tree that exists — the tree it describes is gone.
 
 Lifecycle tags in this record are `[validated]` for reproducible measurements,
 `[bounded]` for existing behavior within a stated scope, `[smoke]` for a limited

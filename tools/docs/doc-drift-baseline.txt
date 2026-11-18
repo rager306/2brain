@@ -1,0 +1,210 @@
+{
+  "version": 1,
+  "basis": "Documentation drift accepted as known. A listed finding does not fail the gate; it is keyed on document, kind and target, not line.",
+  "entries": [
+    {
+      "fingerprint": "4b112987358dbf3892db176c276e9c7b",
+      "file_path": "AGENTS.md",
+      "kind": "path",
+      "target": "tb-mcp-rs/src/procedure.rs"
+    },
+    {
+      "fingerprint": "7a19ae0c7d363661d42a1087dae1efa7",
+      "file_path": "docs/architecture-plan.md",
+      "kind": "path",
+      "target": "tb-mcp-rs/src/procedure.rs"
+    },
+    {
+      "fingerprint": "d1f963aeabcaae7294c0a75bb9b7e35e",
+      "file_path": "docs/graph-engine-assessment.md",
+      "kind": "path",
+      "target": "docs/BENCHMARKS.md"
+    },
+    {
+      "fingerprint": "05854b390c6beb9b0a42fb10e65aac9c",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-010-event-log-runtime-quantum.md"
+    },
+    {
+      "fingerprint": "2a6ca4dd3e6468c29d4b94baa59467e7",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-011-lean-event-schema-lineage.md"
+    },
+    {
+      "fingerprint": "8e1c64335e5dd6f9109abf62dc7f6db1",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-012-snapshots-tiers-vacuum.md"
+    },
+    {
+      "fingerprint": "d00102e41c33085cf286f3c01c487600",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-013-bitemporal-facts-invalidation.md"
+    },
+    {
+      "fingerprint": "ddf79312624e8f9901c4987712fdbdc2",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-014-cascade-budgets-quantum-receipts.md"
+    },
+    {
+      "fingerprint": "ab1a85fb67c6ba66af32f0165c3bb5d7",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-021-pack-plugin-lifecycle.md"
+    },
+    {
+      "fingerprint": "4be60f301d9a2307f75c7ccee6135670",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-022-vertical-slice-module-conventions.md"
+    },
+    {
+      "fingerprint": "3ee124f331bde20b7b22fde1f1c602ba",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-023-test-strategy-and-oracle-matrix.md"
+    },
+    {
+      "fingerprint": "005c91ba165c245e4734fc0ca88a0f61",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-031-pack-scheduling-under-v.md"
+    },
+    {
+      "fingerprint": "33c843497c5d14f16a0dd63a0fdf902f",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-040-materialization-plugin-protocol.md"
+    },
+    {
+      "fingerprint": "a98c69172c1290dffa1435dc353312aa",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-041-csr-graphblas-hot-path.md"
+    },
+    {
+      "fingerprint": "9a56a63f1e80bd6a58ea915e78764e24",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-050-meta-prompt-dictionaries.md"
+    },
+    {
+      "fingerprint": "5e0e7996efab7617307f0ac692b54426",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-051-capability-security.md"
+    },
+    {
+      "fingerprint": "00dc23444031fc773a5b5792d73a7fea",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-052-genai-enrichment-pack.md"
+    },
+    {
+      "fingerprint": "f8a4326db760d3861d70734bc47c1221",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-060-strict-replay.md"
+    },
+    {
+      "fingerprint": "4ebdf09b12f0ecaf7741acf309609ccd",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-061-fork-and-diff.md"
+    },
+    {
+      "fingerprint": "b972f42af08a87d3cecbf958caaa3b58",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-062-regimes-gated-loop.md"
+    },
+    {
+      "fingerprint": "c58e8234ce8a4e428d29c9b867ef4dcf",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-070-cypher-temporal-as-of.md"
+    },
+    {
+      "fingerprint": "0f01df1929214c780536c9f908799394",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-080-abac-multi-tenant-slices.md"
+    },
+    {
+      "fingerprint": "ee29f6ad9eb5ff0eb7a5625057f41fa0",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-090-legal-reference-pack.md"
+    },
+    {
+      "fingerprint": "a5f30bf0393c2b2c850869430e967bc2",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-091-rvf-portable-capsules.md"
+    },
+    {
+      "fingerprint": "2395290190e586f65166160175fe8f51",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/ADR/ADR-092-naming-and-license.md"
+    },
+    {
+      "fingerprint": "e4677bba7dde0f5bb2bb8617c341c756",
+      "file_path": "docs/research/kutha-ideas-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/architecture/semantic-gap-review.md"
+    },
+    {
+      "fingerprint": "e7bafea8493b733c92abcff8feab944f",
+      "file_path": "docs/research/ruvector-adr-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/adr/INDEX.md"
+    },
+    {
+      "fingerprint": "9c4f9d77fe9076831ca8a8dd0fdca5df",
+      "file_path": "docs/research/ruvector-adr-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/claims.md"
+    },
+    {
+      "fingerprint": "8f8926b16c96162bbe744b370ea1c1f9",
+      "file_path": "docs/research/ruvector-adr-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/plans/bet4-ivf-pruning/PRE-REGISTRATION.md"
+    },
+    {
+      "fingerprint": "906d363f29b76dbe1f75a77ea1781cc9",
+      "file_path": "docs/research/ruvector-agent-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/METAHARNESS-ARCHITECTURE-SUMMARY.md"
+    },
+    {
+      "fingerprint": "66b54ba44fdb7767c8774ea5f95a066f",
+      "file_path": "docs/research/ruvector-agent-2026-11-16.md",
+      "kind": "path",
+      "target": "docs/adr/ADR-265-ruvector-comprehensive-benchmark-suite.md"
+    },
+    {
+      "fingerprint": "3cbb37d52296e671378f3f382df540d0",
+      "file_path": "docs/research/semantic-eval-practices-2026-11-16.md",
+      "kind": "path",
+      "target": "tools/ranking/sufficiency.py"
+    },
+    {
+      "fingerprint": "bdb4e5b4f60975ac7030953efa7c8b18",
+      "file_path": "tb-type-system/type-system/repos yaml.md",
+      "kind": "path",
+      "target": "tb-engine/config/repos.yaml"
+    },
+    {
+      "fingerprint": "e1de9836ce33de6ef61de298b0073f94",
+      "file_path": "tb-type-system/type-system/workspaces yaml.md",
+      "kind": "path",
+      "target": "tb-engine/config/workspaces.yaml"
+    }
+  ]
+}

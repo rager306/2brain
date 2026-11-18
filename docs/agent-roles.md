@@ -10,8 +10,10 @@ Product form, when a workspace instance exists, is an `agent-profile` instance
 context, and the field's **presence** is the restriction. Until then this file is the definition of
 record, and the scripts in `scripts/` are its executable half.
 
-The tool names below are the 51 advertised by `au-mcp-rs`; the class after each name is the
-capability from `src/capability.rs` (32 read, 16 mutate, 2 discover, 1 watch).
+The tool names below are drawn from the 52 advertised by `2brain` (`tb-mcp-rs`); the class after each name
+is the capability from `tb-mcp-rs/src/capability.rs` (33 read, 16 mutate, 2 discover, 1 watch — the counts
+are `tools/cards/metrics.json`, `surface`). A role lists only the tools it needs; the router's total is the
+surface, not the whitelist.
 
 ## librarian — bring a note into the vault
 
