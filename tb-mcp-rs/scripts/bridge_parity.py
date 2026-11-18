@@ -77,9 +77,9 @@ def build_workspace(root: Path) -> Path:
         shutil.copytree(BUNDLE / name, target, ignore=shutil.ignore_patterns(".git", "node_modules"))
         commit(target)
     repo = root / "fixture"
-    (repo / ".arsumbris").mkdir(parents=True)
+    (repo / ".2brain").mkdir(parents=True)
     (repo / "notes").mkdir()
-    (repo / ".arsumbris/repo.yaml").write_text(
+    (repo / ".2brain/repo.yaml").write_text(
         "name: fixture\ndeps:\n  - name: au-mcp-core\n  - name: au-mcp-sdk\n"
     )
     (repo / "notes/a.md").write_text("---\ntype: note\n---\n")
@@ -136,7 +136,7 @@ def main() -> int:
             stderr=subprocess.DEVNULL,
         )
         processes.append(engine)
-        engine_socket = wait_for(home / ".arsumbris/au-engine/run", time.monotonic() + TIMEOUT)
+        engine_socket = wait_for(home / ".2brain/au-engine/run", time.monotonic() + TIMEOUT)
         if engine_socket is None:
             raise SystemExit("the disposable engine never became ready")
 

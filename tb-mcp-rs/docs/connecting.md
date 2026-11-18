@@ -35,7 +35,7 @@ directory).
 2brain info                         # MCP surface and launch defaults, no engine
 2brain info <engine.sock>           # the same, plus ready/schema/version/workspace
 2brain daemon status <entry>        # engine side, same as `au daemon status`
-au-mcp-rs --help / --version / --info  # the MCP half alone
+2brain --help / --version / --info  # the MCP half alone
 ```
 
 `--info` never needs a running daemon; with a socket it adds the probe result and
@@ -111,7 +111,7 @@ allowlist narrow:
 
 ```json
 "args": ["mcp", "/root/.2brain/au-engine/run/adcfe8680a485529.sock",
-         "--policy", "/etc/au-mcp-policy.json",
+         "--policy", "/etc/2brain-policy.json",
          "--principal", "allspark"]
 ```
 

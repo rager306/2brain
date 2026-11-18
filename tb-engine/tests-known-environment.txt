@@ -1,13 +1,13 @@
-# au-engine — known environment failures on THIS host
+# tb-engine — known environment failures on THIS host
 #
-# Measured 2026-11-14 on /root/arsumbris/tb-engine with RUSTUP_HOME=/root/.rustup
+# Measured 2026-11-14 (re-measured 2026-11-19: 752 lib / 741 it) with RUSTUP_HOME=/root/.rustup
 # and the pinned toolchain (cargo +1.99.0), after removing an empty /tmp/.git that
 # had been making every tempfile() fixture look like a git working tree (that
 # single directory produced 40 of the 43 failures a run used to show).
 #
 # Commands and their counts on this baseline (re-measured 2026-11-16, same host):
-#   cargo +1.99.0 test -p tb-engine --offline --lib     -> 716 passed, 1 failed, 2 ignored
-#   cargo +1.99.0 test -p tb-engine --offline --test it -> 729 passed, 3 failed, 1 ignored
+#   cargo +1.99.0 test -p tb-engine --offline --lib     -> 752 passed, 1 failed, 2 ignored
+#   cargo +1.99.0 test -p tb-engine --offline --test it -> 741 passed, 3 failed, 1 ignored
 #   cargo +1.99.0 fmt --check -p tb-engine              -> exit 0
 #   cargo +1.99.0 clippy --workspace --all-targets -- -D warnings -> exit 0 since
 #       2026-11-16, when the engine job gained that gate (.github/workflows/ci.yml).

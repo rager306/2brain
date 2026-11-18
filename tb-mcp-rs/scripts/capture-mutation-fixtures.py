@@ -53,7 +53,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "lib"))
-from mcp_stdio import StdioMcp  # noqa: E402
+from mcp_stdio import StdioMcp, newest_socket  # noqa: E402
 
 CRATE = HERE.parent
 ENGINE = os.environ.get("AU_ENGINE_BIN", str(CRATE.parent / "tb-engine/target/release/au"))
@@ -63,8 +63,8 @@ REPO = "fixture"
 # The fixture, one file per capture so the captures stay independent. The two types and
 # the record slot are the minimum a promote/inline/rename_block_id needs to succeed.
 FIXTURE = {
-    ".arsumbris/repo.yaml": "type: au.engine.repo::au-engine\nname: fixture\n",
-    "README.md": "---\ntype: au.engine.readme::au-engine\ntldr: a disposable fixture repo\n---\n\n"
+    ".2brain/repo.yaml": "type: tb.engine.repo::tb-engine\nname: fixture\n",
+    "README.md": "---\ntype: tb.engine.readme::tb-engine\ntldr: a disposable fixture repo\n---\n\n"
                  "# Repo Overview\n\n## What this is\n\nA disposable fixture.\n\n"
                  "## How to use this\n\nCapture mutation payloads.\n\n"
                  "## How to extend this\n\nAdd a file and capture again.\n",
@@ -114,7 +114,7 @@ def start_daemon(engine: str, repo: Path, home: Path) -> subprocess.Popen:
 def wait_for_socket(home: Path, timeout: float = 120.0) -> str:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        for candidate in glob.glob(str(home / ".arsumbris/au-engine/run/*.sock")):
+        for candidate in [newest_socket(home)] if newest_socket(home) else []:
             # A socket file can exist before the daemon listens, so connect once.
             try:
                 with socket_module.socket(socket_module.AF_UNIX) as probe:

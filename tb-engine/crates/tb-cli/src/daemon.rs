@@ -730,8 +730,10 @@ fn install_tracing(entry: &Path) -> Option<TraceGuards> {
     use tracing_subscriber::prelude::*;
 
     std::env::var_os("AU_TRACE")?;
-    let dir = entry
-        .join(".arsumbris")
+    // The identity directory is resolved by the write rule, so an entry that already
+    // carries a spelling keeps it and a new one gets the current name -- the same rule
+    // the saga marker directory follows.
+    let dir = tb_parser::identity_dir_for_write_with(entry, |dir| dir.exists())
         .join("au-engine")
         .join("logs")
         .join("trace");

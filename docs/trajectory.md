@@ -27,6 +27,40 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-19 — what is left of the old name, measured
+
+Asked to check for leftover `arsumbris` / `.arsumbris` / `au_` traces, I measured rather than grepped and
+sorted the hits. The result is a clean split between three things that look alike and are not.
+
+**Legitimate and staying.** `LEGACY_STATE_DIR` / `LEGACY_IDENTITY_DIR` / `LEGACY_ENGINE_NAMESPACE` exist so
+a machine that has not migrated keeps working — that is the point of a release window, not a leftover. The
+hard floor lists both directory spellings, the migration command's messages name both by definition, and
+`arsumbris://` is accepted on parse while `2brain://` is what the adapter emits (tier D). Historical
+records — `CHANGELOG.md`, this file, `docs/internal/`, `docs/research/`, `upstream/` — describe what was
+true then and are not edited.
+
+**Broken, and now fixed.** The verification scripts joined `$HOME/.arsumbris/au-engine/run` by hand. A
+fresh `$HOME` writes `.2brain`, so each of the five would have missed the daemon it had just started — and
+one of them, `capture-mutation-fixtures.py`, was still authoring `au.engine.repo::au-engine` claims, making
+it the last writer of the legacy schema after the roadmap said there were none. `lib/mcp_stdio.py` now owns
+`state_run_dir` and `newest_socket`, which find the run directory instead of spelling it, and the fixtures
+are authored in the current spelling. `scripts/run-known-root-tests.sh` had the sibling bug: it globbed
+`au_engine-*` for the test binary, which has been `tb_engine-*` since the rename, so it never ran a test and
+always exited "binaries not found".
+
+**Not this wave, by design.** Twelve repositories in this tree carry `tb-*` directories whose `repo.yaml`
+still says `name: au-*`, and 1,052 wikilinks (1052) target those names — `[[type-def::au-type-system]]` and
+its siblings. Renaming them is a *format* migration of the live vault, not a spelling fix: the live
+workspace mounts `tb-mcp-sdk` as `au-mcp-sdk`, so the identity tree, the registry entries and every link
+move together under one window. That is tier C's remaining step, and doing it as a drive-by edit would
+break every address at once.
+
+Documents that stated the legacy path as the current fact were corrected: `WIRE.md` (the socket path, the
+device config path, the identity-directory write guard), `tb-engine/README.md`, both crate READMEs, and
+`docs/build-layout.md` / `tb-mcp-rs/docs/{connecting,verification}.md`, which still named `au-engine`,
+`au-cli`, `au-mcp-rs` as the crate names. `WIRE.md` now states the state-root rule once, by reference to
+`repo::state_dir_in`, instead of repeating a literal path in twenty places.
+
 ## 2026-11-19 — the tests nobody ran, and the identity directory a mutation invented
 
 Started from a question about stubs rather than a plan: are there `todo!()`s, dead handlers, declared

@@ -27,6 +27,9 @@ import tempfile
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from mcp_stdio import newest_socket  # noqa: E402
+
 ENGINE = os.environ.get("AU_ENGINE_BIN", "/root/2brain/tb-engine/target/release/au")
 ADAPTER = os.environ.get(
     "AU_MCP_RS_BIN", str(Path(__file__).resolve().parent.parent / "target/release/2brain"))
@@ -35,9 +38,9 @@ ADAPTER = os.environ.get(
 def disposable() -> tuple[str, dict, str]:
     root = tempfile.mkdtemp(prefix="au-strict-")
     home, repo = os.path.join(root, "home"), os.path.join(root, "repo")
-    for directory in (home, os.path.join(repo, ".arsumbris"), os.path.join(repo, "notes")):
+    for directory in (home, os.path.join(repo, ".2brain"), os.path.join(repo, "notes")):
         os.makedirs(directory, exist_ok=True)
-    Path(repo, ".arsumbris/repo.yaml").write_text("name: fixture\n")
+    Path(repo, ".2brain/repo.yaml").write_text("name: fixture\n")
     Path(repo, "notes/a.md").write_text("---\ntype: note\ntitle: t\n---\n\nplain\n")
     git = ["git", "-c", "user.name=f", "-c", "user.email=f@x", "-c", "commit.gpgsign=false"]
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
@@ -56,7 +59,7 @@ async def main() -> int:
     try:
         socket = None
         for _ in range(100):
-            found = glob.glob(home + "/.arsumbris/au-engine/run/*.sock")
+            found = [newest_socket(home)] if newest_socket(home) else []
             if found:
                 socket = found[0]
                 break

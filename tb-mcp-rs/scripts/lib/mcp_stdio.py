@@ -11,6 +11,7 @@ frame over a pipe can arrive in pieces.
 from __future__ import annotations
 
 import contextlib
+import glob
 import json
 import os
 import select
@@ -22,6 +23,36 @@ from collections import deque
 
 class StdioMcpError(RuntimeError):
     """A session that could not produce the answer its request asked for."""
+
+
+STATE_DIR_NAMES = (".2brain", ".arsumbris")
+
+
+def state_run_dir(home: str | os.PathLike[str]) -> "os.PathLike[str] | None":
+    """The engine's socket directory under a `$HOME`, whichever spelling the engine used.
+
+    Which name the state root carries is the engine's decision: `$2BRAIN_HOME`, an existing
+    `.2brain`, an existing `.arsumbris`, else `.2brain`. A script that joins a literal name
+    therefore asserts that decision instead of finding the daemon, and it silently stops
+    finding it the day the rule changes. This asks the filesystem instead: the first
+    `<home>/<name>/au-engine/run` that exists wins, so both worlds work.
+    """
+    for name in STATE_DIR_NAMES:
+        run = os.path.join(os.fspath(home), name, "au-engine", "run")
+        if os.path.isdir(run):
+            return run
+    return None
+
+
+def newest_socket(home: str | os.PathLike[str]) -> "str | None":
+    """The newest `.sock` in the engine's run directory under `home`, or None."""
+    run = state_run_dir(home)
+    if run is None:
+        return None
+    candidates = glob.glob(os.path.join(run, "*.sock"))
+    if not candidates:
+        return None
+    return max(candidates, key=os.path.getmtime)
 
 
 def is_error(reply: dict) -> bool:

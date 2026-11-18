@@ -32,8 +32,8 @@ prepare_fixture() {
   reap_orphaned_fixtures
 
   repo=$root/fixture
-  mkdir -p "$repo/.arsumbris" "$repo/type" "$repo/notes"
-  printf 'name: fixture\n' >"$repo/.arsumbris/repo.yaml"
+  mkdir -p "$repo/.2brain" "$repo/type" "$repo/notes"
+  printf 'name: fixture\n' >"$repo/.2brain/repo.yaml"
   printf 'fields:\n  title: String\n' >"$repo/type/note.type.yaml"
   printf 'fields:\n  title: String\n  body: String\n' >"$repo/type/task.type.yaml"
   printf -- '---\ntype: note\ntitle: marker\n---\n\nfind me: unique-marker-7f3a\n' \
@@ -50,7 +50,15 @@ prepare_fixture() {
 
   socket=
   for _ in $(seq 1 200); do
-    socket=$(ls "$HOME"/.arsumbris/au-engine/run/*.sock 2>/dev/null | head -1 || true)
+    # Which spelling the state root has is the engine's decision, so ask the filesystem:
+# a fresh $HOME gets .2brain, a migrated one keeps .arsumbris.
+socket=""
+for state in .2brain .arsumbris; do
+  if [[ -d $HOME/$state/au-engine/run ]]; then
+    socket=$(ls "$HOME/$state/au-engine/run"/*.sock 2>/dev/null | head -1 || true)
+    [[ -n $socket ]] && break
+  fi
+done
     # A socket file can exist before the daemon listens on it, so connect once:
     # `test -S` alone has produced "connection refused" races in these scripts.
     [[ -n $socket ]] && python3 -c '

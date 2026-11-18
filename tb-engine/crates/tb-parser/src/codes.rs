@@ -44,13 +44,13 @@ pub const FILE_TOO_LARGE: DiagnosticCode = DiagnosticCode::from_static("file-too
 /// and continues so a single bad path doesn't void the whole validation.
 pub const REPO_WALK_ERROR: DiagnosticCode = DiagnosticCode::from_static("repo-walk-error");
 
-/// A member's `.arsumbris/.auignore` exists but could not be applied (the read
+/// A member's identity-directory `.auignore` exists but could not be applied (the read
 /// failed, or a pattern is malformed). The member falls back to the default
 /// excludes, as if the file were absent, so scoping degrades loudly rather
 /// than silently dropping or over-including files.
 pub const AUIGNORE_LOAD_ERROR: DiagnosticCode = DiagnosticCode::from_static("auignore-load-error");
 
-/// A member's `.arsumbris/.auignore` applied cleanly but excluded every file
+/// A member's identity-directory `.auignore` applied cleanly but excluded every file
 /// under the member, so it contributes nothing to the graph. Almost always an
 /// over-broad pattern (`*`, `**`, a stray `/`); surfaced so an accidental
 /// empty scope is loud rather than a silently missing subtree.

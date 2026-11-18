@@ -7,8 +7,8 @@ cache can never serve.
 
 ## One target directory, two workspaces
 
-`au-engine` and `au-mcp-rs` are separate Cargo workspaces over one dependency graph
-(`au-mcp-rs` → `au-cli` → `au-engine`). `.cargo/config.toml` points both at
+`tb-engine` and `tb-mcp-rs` are separate Cargo workspaces over one dependency graph
+(`tb-mcp-rs` → `tb-cli` → `tb-engine`). `.cargo/config.toml` points both at
 `/root/2brain/.cargo-target`, and `tb-engine/target` / `tb-mcp-rs/target` are
 symlinks to it, so documented paths keep working. Before that unification the same
 graph was compiled twice: 10.6 GiB.
@@ -25,7 +25,7 @@ directory — the most expensive duplicate there is.
 | `incremental` (dev, test) | `false`, workspace-wide | an incremental unit is never cacheable, so the compiler cache cannot serve it. Its redirected `incremental.kache-auto` directory had grown to 2.5 GiB |
 | `release` (engine) | `opt-level = 3`, `lto = "thin"`, `codegen-units = 1` | release builds run the verification scripts; built rarely, run often |
 
-Before these, `au-engine` had `line-tables-only` and `au-mcp-rs` did not, and
+Before these, `tb-engine` had `line-tables-only` and `tb-mcp-rs` did not, and
 incremental was off only for dependencies (`[profile.dev.package."*"]`).
 
 ## Before and after

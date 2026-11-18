@@ -45,6 +45,19 @@ install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
 
 ### Fixed
 
+- **The verification scripts looked for the engine under the legacy state root** (tooling). Five scripts
+(`live_parity.py`, `strict-client.py`, `capture-mutation-fixtures.py`, `rollback_rehearsal.py`,
+`lib/disposable-fixture.sh`) joined `$HOME/.arsumbris/au-engine/run` by hand, and their fixtures wrote
+`.arsumbris/repo.yaml` with an `au.engine.repo::au-engine` claim. A fresh `$HOME` writes `.2brain`, so every
+one of them would miss the daemon it had just started, and the fixture writer was the last writer still
+emitting the legacy schema. They now ask `lib/mcp_stdio.py`'s `state_run_dir`/`newest_socket`, which find the
+run directory instead of spelling it, and the fixtures are authored in the current spelling.
+
+- **`scripts/run-known-root-tests.sh` looked for `au_engine-*`** (tooling). The test binary is
+`tb_engine-<hash>`, so the glob matched nothing but stale `.d` files and the script exited "test binaries not
+found" before running a test. Fixed, and the recorded baseline's header and counts now match the measured
+suite (752 lib / 741 it).
+
 - **The ignored real-engine tests were dead, and nothing said so** (server + engine). `real_engine.rs`
 is `#[ignore]`d, so CI never ran it, and it had drifted in three ways at once: it called tools as
 `au_overview`, a name the adapter has not had since the `tb_` rename; it joined

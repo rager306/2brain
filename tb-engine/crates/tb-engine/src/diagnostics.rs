@@ -65,7 +65,7 @@ pub fn file_too_large_diag(file: &Path, size: u64, cap: u64) -> Diagnostic {
         ),
         related: vec![],
         fix: Some(tb_diagnostics::SuggestedFix::advisory(
-            "split the file, or exclude it from the graph via `.arsumbris/.auignore`".to_string(),
+            "split the file, or exclude it from the graph via `.2brain/.auignore`".to_string(),
         )),
     }
 }

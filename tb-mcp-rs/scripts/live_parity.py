@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from mcp_stdio import StdioMcp, StdioMcpError, tool_payload  # noqa: E402
+from mcp_stdio import StdioMcp, StdioMcpError, newest_socket, tool_payload  # noqa: E402
 
 CRATE = Path(__file__).resolve().parent.parent
 # Both are the unified binary (`2brain mcp <target>`), so the argv is identical and the only difference
@@ -47,13 +47,6 @@ FACTS = [
     ("diagnostics", "tb_diagnostics", {"limit": 200}, "path:code:severity"),
     ("search", "tb_search", {"query": "wikilink", "limit": 10}, "path"),
 ]
-
-
-def newest_socket(directory: Path) -> Path | None:
-    if not directory.is_dir():
-        return None
-    sockets = sorted(directory.glob("*.sock"), key=lambda p: p.stat().st_mtime, reverse=True)
-    return sockets[0] if sockets else None
 
 
 def rows(payload) -> list[dict]:
@@ -103,8 +96,13 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="machine-readable result")
     args = parser.parse_args()
 
-    socket = Path(args.socket) if args.socket else newest_socket(
-        Path.home() / ".arsumbris" / "au-engine" / "run")
+    # The run directory is found, not spelled: the engine names its state root, and a script
+    # that joins a literal name stops finding the daemon the day that rule changes.
+    if args.socket:
+        socket: Path | None = Path(args.socket)
+    else:
+        found = newest_socket(Path.home())
+        socket = Path(found) if found else None
     if socket is None or not socket.exists():
         print("no engine socket: nothing to read", file=sys.stderr)
         return 2

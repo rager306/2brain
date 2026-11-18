@@ -36,7 +36,7 @@ type graph, validate every instance, index references, then serve reads.
   frame is tagged by `type` and carries a schema version; a read's `response`
   carries the readiness and, when ready, the observed version.
 - `socket_path(entry)` derives the per-entry endpoint
-  (`~/.arsumbris/au-engine/run/<hash>.sock`, the FNV-1a of the absolute entry path), so
+  (`~/.2brain/au-engine/run/<hash>.sock` on a migrated or fresh home, `~/.arsumbris` otherwise; the FNV-1a of the absolute entry path), so
   the daemon and any consumer reach it from the entry path alone, off a deep
   knowledge base path that could overrun the socket-path limit.
 - Reads: diagnostics (whole-knowledge-base, or scoped by path / path-prefix / severity /

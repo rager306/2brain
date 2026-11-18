@@ -26,7 +26,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from mcp_stdio import StdioMcp, is_error, tool_payload
+from mcp_stdio import StdioMcp, is_error, state_run_dir, tool_payload
 
 ENGINE = os.environ.get("AU_ENGINE_BIN", "../tb-engine/target/debug/au")
 ADAPTER = os.environ.get("AU_MCP_RS_BIN", "target/debug/tb-mcp-rs")
@@ -57,9 +57,9 @@ def main() -> int:
     home = root / "home"
     repo = root / "fixture"
     home.mkdir()
-    for directory in (".arsumbris", "type", "notes"):
+    for directory in (".2brain", "type", "notes"):
         (repo / directory).mkdir(parents=True)
-    (repo / ".arsumbris/repo.yaml").write_text("name: fixture\n")
+    (repo / ".2brain/repo.yaml").write_text("name: fixture\n")
     (repo / "type/note.type.yaml").write_text("fields:\n  title: String\n")
     original = "---\ntype: note\ntitle: before\n---\n"
     (repo / "notes/a.md").write_text(original)
@@ -87,7 +87,7 @@ def main() -> int:
         stderr=subprocess.DEVNULL,
     )
     try:
-        run_dir = home / ".arsumbris/au-engine/run"
+        run_dir = state_run_dir(home)
         deadline = time.monotonic() + TIMEOUT
         socket_path = None
         while time.monotonic() < deadline:

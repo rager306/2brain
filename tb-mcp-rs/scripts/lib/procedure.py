@@ -97,7 +97,9 @@ def check_one_commit(context: dict) -> str | None:
 
 
 # The engine keeps its own state inside the repo it serves; that is not the turn's work.
-IGNORED_STATE = (".arsumbris/", ".arscontexta/", ".claude/")
+# Both identity spellings are listed: a repository migrated to `.2brain` must not look like
+# stray work, and an un-migrated one must keep working.
+IGNORED_STATE = (".2brain/", ".arsumbris/", ".arscontexta/", ".claude/")
 
 
 def check_no_stray_files(context: dict) -> str | None:

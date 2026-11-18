@@ -9,7 +9,7 @@ See [[moc - type system::au-type-system]] for the type-system spec (in the sibli
 | Crate | Role |
 |---|---|
 | `au-cli` | the `au` binary: `au daemon start/stop/status` runs the per-repo daemon, `au members` resolves an entry's members without one. Consumers speak the wire themselves (`crates/tb-engine/WIRE.md`) |
-| `au-engine` | the continuously-held analysis: `build` produces the held IR (catalog with per-file parse, type graph, resolved instances, backlink index, diagnostics); `parse_file` is the single per-file parse entry; `Engine` watches the knowledge base and rebuilds on change with a monotonic version; the `wire` module holds the serializable read shapes; a Unix-socket serving surface answers framed JSON reads and live subscriptions at `~/.arsumbris/au-engine/run/<hash>.sock`, keyed by the entry folder |
+| `tb-engine` | the continuously-held analysis: `build` produces the held IR (catalog with per-file parse, type graph, resolved instances, backlink index, diagnostics); `parse_file` is the single per-file parse entry; `Engine` watches the knowledge base and rebuilds on change with a monotonic version; the `wire` module holds the serializable read shapes; a Unix-socket serving surface answers framed JSON reads and live subscriptions at `~/.arsumbris/au-engine/run/<hash>.sock`, keyed by the entry folder |
 | `au-core` | type-def + instance ASTs, type-graph, load-time checks, closure walks, validator, body-typing v5 (`body` template AST, `provenance` ValueContainer model, `body_validate` per-instance checks) |
 | `au-parser` | filesystem port, frontmatter splitter, YAML AST with byte-offset spans, file-kind classifier, markdown body scanner (`scan_body` emitting Heading / FencedBlock / InlineCode / Wikilink / BlockIdMarker events) |
 | `au-grammar` | slot-expression mini-language → `Shape` AST; primitives, inline closed enums, bare-name records (`rationale`), typed refs (`name*`), inline-or-reference (`name&`), list suffix (`[]` / non-empty `[+]`), and compound expressions (`<X \| Y>`, `<X & Y>`, with `*`/`&`/`[]`/`[+]` suffixes) recognized today |
@@ -52,7 +52,7 @@ au daemon stop <repo>      # ask the daemon to shut down
 au members <repo> --json   # which members would mount, and how, without a daemon
 ```
 
-Consumers start a daemon and speak the wire over the Unix socket at `~/.arsumbris/au-engine/run/<hash>.sock`, keyed by the entry folder. The contract is `crates/tb-engine/WIRE.md`: framed JSON, a closed read catalog (diagnostics, the type graph, per-instance introspection, the candidate scan, references, the knowledge base), and live subscriptions. `examples/watch.py` is a reference external consumer. Schema is additive under `schema_version: 29`; consumers ignore unknown fields.
+Consumers start a daemon and speak the wire over the Unix socket under the engine's state root (`~/.2brain/au-engine/run/<hash>.sock`; a machine that has not been migrated keeps `~/.arsumbris`), keyed by the entry folder. The contract is `crates/tb-engine/WIRE.md`: framed JSON, a closed read catalog (diagnostics, the type graph, per-instance introspection, the candidate scan, references, the knowledge base), and live subscriptions. `examples/watch.py` is a reference external consumer. Schema is additive under `schema_version: 29`; consumers ignore unknown fields.
 
 ## Status
 

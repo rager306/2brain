@@ -1,4 +1,4 @@
-# au-cli
+# tb-cli
 
 The `au` binary: the per-workspace daemon and its management commands.
 
@@ -13,11 +13,11 @@ The `au` binary: the per-workspace daemon and its management commands.
 | `au open <name>` | resolve a named workspace folder, then serve it like `daemon start <folder>` |
 | `au members <entry> [--json]` | resolve the entry's declared members without a daemon: role, resolution tier, path, unmounted cause |
 
-The `<entry>` is a folder-repo: a directory carrying a valid, named `.arsumbris/repo.yaml`. A non-repo directory is refused (exit 5). An optional `.arsumbris/workspace.yaml` beside it composes `edit` and `discover` members; without one, the workspace is the entry repo plus its own `deps`.
+The `<entry>` is a folder-repo: a directory carrying a valid, named identity manifest (`.2brain/repo.yaml`; `.arsumbris/repo.yaml` before migration). A non-repo directory is refused (exit 5). An optional `.2brain/workspace.yaml` beside it composes `edit` and `discover` members; without one, the workspace is the entry repo plus its own `deps`.
 
-`au open <name>` resolves `<name>` through the per-user workspaces index, `~/.arsumbris/au-engine/config/workspaces.yaml` (a user-authored list of `- path: <folder>` entries, each named by an optional `name` alias or the folder's basename), to its workspace-repo folder, then enters it exactly as `au daemon start <folder>`. The index only points at folders; the committed `.arsumbris/workspace.yaml` is the composition. An unknown name is a usage error (exit 2) that lists the known workspaces.
+`au open <name>` resolves `<name>` through the per-user workspaces index, `~/.2brain/au-engine/config/workspaces.yaml` (a user-authored list of `- path: <folder>` entries, each named by an optional `name` alias or the folder's basename), to its workspace-repo folder, then enters it exactly as `au daemon start <folder>`. The index only points at folders; the committed `.2brain/workspace.yaml` is the composition. An unknown name is a usage error (exit 2) that lists the known workspaces.
 
-`au daemon start` boots the engine, watches every member tree, and serves over a Unix socket at a short hashed path outside the knowledge base, `~/.arsumbris/au-engine/run/<hash-of-abs-entry-folder-path>.sock`, until stopped; a consumer spawns and owns it as a child process. The out-of-knowledge base location keeps a deep knowledge base path from overrunning the socket-path limit. One daemon per entry: a second `start` is refused while one is live, and a stale socket from an ungraceful exit is reclaimed. `stop` connects and asks it to shut down; `status` reports liveness and lifecycle.
+`au daemon start` boots the engine, watches every member tree, and serves over a Unix socket at a short hashed path outside the knowledge base, `<state root>/au-engine/run/<hash-of-abs-entry-folder-path>.sock` (the state root is `~/.2brain` on a migrated or fresh home, `~/.arsumbris` otherwise), until stopped; a consumer spawns and owns it as a child process. The out-of-knowledge base location keeps a deep knowledge base path from overrunning the socket-path limit. One daemon per entry: a second `start` is refused while one is live, and a stale socket from an ungraceful exit is reclaimed. `stop` connects and asks it to shut down; `status` reports liveness and lifecycle.
 
 The socket binds only after the cold build, so a daemon that is still booting (or wedged) holds its entry without answering the socket. To reach it, `start` records its pid in a `<hash>.pid` file beside the socket the instant it begins (removed on a clean stop). `status` reads it to report a booting daemon ("present but not yet serving", exit 0) rather than "no daemon running"; `stop --force` reads it to reclaim a booting or wedged daemon by signalling the pid (a graceful window, then SIGTERM, then SIGKILL). Plain `stop` stays socket-only, so it never signals a mid-build daemon.
 
@@ -30,7 +30,7 @@ Beyond that one topology check, the binary carries no read capabilities of its o
 `AU_TRACE=1 au daemon start <repo>` records per-operation timing.
 
 - off by default. Unset, no subscriber runs and the engine pays nothing.
-- two outputs land under `<repo>/.arsumbris/au-engine/logs/trace/`, per run, named by start time.
+- two outputs land under `<repo>/<identity dir>/au-engine/logs/trace/`, per run, named by start time.
 - the trace directory ignores itself in git (a `.gitignore` holding `*`), so traces are never committed.
   - `trace-<stamp>.json`, a Chrome/Perfetto trace, open it at [ui.perfetto.dev](https://ui.perfetto.dev) or `chrome://tracing`.
   - `timing-<stamp>.log`, one line per operation close with its wall-clock busy/idle split.
