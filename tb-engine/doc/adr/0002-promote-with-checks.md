@@ -65,6 +65,24 @@ working tree, and a retry after the caller fixes the note is an ordinary retry.
 - Accepted knowledge is now enforceable at its edge, which is what the knowledge-base maintenance lanes need: a
   proposal can be checked before it is accepted instead of after.
 
+## Implementation note (2026-11-18, no code written)
+
+The "scratch copy" this record asks for already exists: `PreviewOutcome::Built { preview: &KnowledgeBase, .. }`
+in `src/engine.rs` holds the **would-be** knowledge base for a single-file op, so
+`preview.diagnostics()` answers the check without a second build mechanism. The seam is therefore
+`serve.rs::handle_mutation`: for a flagged write, run the same `PreviewInput::File` the preview verb builds,
+keep the ERROR-severity diagnostics, and refuse with `policy/diagnostics` before the saga starts. Two facts the
+implementation must respect:
+
+- the refusal must be the preview's reject when the preview itself rejects (an absent file, a stamp on a
+  non-list field), so one failure is not reported twice with two different shapes;
+- the check and the write must read the same held version. A preview taken, then a mutation run against a newer
+  version, is exactly the two-call race this ADR refuses in the adapter.
+
+Scope for the first implementation slice: `write_file` only. `edit_file`, `create_file` and `batch` follow in the
+same change or are named as still missing — an argument that exists on a tool and does nothing is the stub this
+decision exists to avoid.
+
 ## Acceptance gate
 
 1. A two-process test: one write with `require_clean: true` that produces an error is **refused**, the refusal
