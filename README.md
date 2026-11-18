@@ -154,6 +154,8 @@ This repository is meant to be read by agents, not only by people. Start here, i
 
 | entry point | what it answers |
 |---|---|
+| [`docs/architecture.md`](docs/architecture.md) | the system in one page: invariants, crate layers, the request path, the write contract |
+| [`docs/README.md`](docs/README.md) | the map of all 82 documents, and what each kind may claim |
 | [`llms.txt`](llms.txt) | the same map in the `llms.txt` format: what this is, where the detailed documents are |
 | [`AGENTS.md`](AGENTS.md) | how to work in this repository: the layers, the live-system rules, the gates |
 | [`tb-mcp-rs/skills/2brain/SKILL.md`](tb-mcp-rs/skills/2brain/SKILL.md) | how to *use* the server: the tool ladder, the result envelope, the read-then-write loop, the recovery path |
