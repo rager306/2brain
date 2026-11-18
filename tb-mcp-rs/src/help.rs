@@ -79,7 +79,7 @@ USAGE
 
 ARGUMENT
     <engine-socket>   Unix socket of a running `au` engine daemon,
-                      usually ~/.arsumbris/au-engine/run/<hash>.sock
+                      usually ~/.2brain/au-engine/run/<hash>.sock
 
 OPTIONS
     --policy <file>          JSON policy: allow_mutations, members, audit

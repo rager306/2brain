@@ -43,17 +43,23 @@ fn the_first_failed_connection_names_the_state_root_and_the_socket() {
 
     let lines = stderr_lines(&client);
     let reported = lines.join("\n");
-    // The state root an empty `$HOME` yields: the engine falls back to the legacy
-    // spelling when the new one does not exist. The socket file itself is hashed
-    // from the workspace, so it is read out of the message and checked where it
-    // lives, rather than re-derived here against this test's own `$HOME`.
-    let state_root = home.join(".arsumbris");
-    let run_dir = state_root.join("au-engine").join("run");
+    // Which spelling an empty `$HOME` yields is the engine's decision, not this
+    // test's: it names the state root under `$HOME`, and the socket must live in that
+    // root's run directory. A hardcoded spelling would pass on one engine and fail on
+    // the next without either being wrong.
     let socket = lines
         .iter()
         .find_map(|line| line.split_once("socket  "))
         .and_then(|(_, rest)| rest.split(" — ").next())
         .unwrap_or_else(|| panic!("no socket line: {reported}"));
+    let state_root = [".2brain", ".arsumbris"]
+        .iter()
+        .map(|spelling| home.join(spelling))
+        .find(|root| reported.contains(&root.display().to_string()))
+        .unwrap_or_else(|| {
+            panic!("the diagnosis must name a state root under {home:?}: {reported}")
+        });
+    let run_dir = state_root.join("au-engine").join("run");
 
     assert!(
         reported.contains(&state_root.display().to_string()),

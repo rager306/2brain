@@ -281,6 +281,11 @@ struct BatchArguments {
     /// Operations, applied in order and committed once.
     #[schemars(length(min = 1, max = 50))]
     ops: Vec<BatchOperation>,
+    /// Refuse before writing when the state the whole set would produce carries an
+    /// ERROR-severity diagnostic, naming the operation that would introduce it. The
+    /// whole batch is compensated, so a refused set leaves every file as it was.
+    #[serde(default)]
+    require_clean: bool,
 }
 
 #[derive(serde::Deserialize, schemars::JsonSchema)]
@@ -1209,9 +1214,6 @@ impl Server {
             args.path,
             args.expected_hash,
             move |target| {
-                // The rider is sent only when asked for: the engine refuses unknown fields, so an
-                // explicit `false` would break a caller paired with an engine that predates ADR-0002,
-                // and the deployed halves move in a window of their own.
                 let mut request = json!({
                     "mutate": "write_file",
                     "id": 1,
@@ -1219,9 +1221,7 @@ impl Server {
                     "content": args.content,
                     "expected_hash": expected_hash,
                 });
-                if args.require_clean {
-                    request["require_clean"] = json!(true);
-                }
+                crate::wire::with_clean_rider(&mut request, args.require_clean);
                 request
             },
         )
@@ -1256,9 +1256,7 @@ impl Server {
                     "new_string": args.new_string,
                     "replace_all": args.replace_all,
                 });
-                if args.require_clean {
-                    request["require_clean"] = json!(true);
-                }
+                crate::wire::with_clean_rider(&mut request, args.require_clean);
                 request
             },
         )
@@ -1298,7 +1296,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Apply 1 to 50 file operations (write_file, edit_file, delete_file) as one all-or-nothing saga: every op passed the same gate it would pass alone (prior tb_content read of that path, matching expected_hash, editable member), the engine commits the whole set once per touched member, and any rejection leaves every file as it was. Use it when a change spans files and half of it landing would be worse than none. A lost reply is outcome_unknown and must not be retried blindly.",
+        description = "Apply 1 to 50 file operations (write_file, edit_file, delete_file) as one all-or-nothing saga: every op passed the same gate it would pass alone (prior tb_content read of that path, matching expected_hash, editable member), the engine commits the whole set once per touched member, and any rejection leaves every file as it was. Use it when a change spans files and half of it landing would be worse than none. require_clean refuses the whole set before anything is written when the state it would produce carries an ERROR-severity diagnostic, naming the operation that would introduce it — use it to promote a set of drafts into accepted knowledge, not for ordinary drafting. A lost reply is outcome_unknown and must not be retried blindly.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1379,7 +1377,8 @@ impl Server {
                 }),
             })
             .collect();
-        let request = json!({"mutate": "batch", "id": 1, "ops": ops});
+        let mut request = json!({"mutate": "batch", "id": 1, "ops": ops});
+        crate::wire::with_clean_rider(&mut request, args.require_clean);
         self.finish_mutation("tb_batch", &repo, request, keys).await
     }
 
@@ -1419,15 +1418,13 @@ impl Server {
             "path": target,
             "content": args.content,
         });
-        if args.require_clean {
-            request["require_clean"] = json!(true);
-        }
+        crate::wire::with_clean_rider(&mut request, args.require_clean);
         self.finish_mutation("tb_create_file", &repo, request, [key])
             .await
     }
 
     #[tool(
-        description = "Declare a member in one workspace's .arsumbris/workspace.yaml, in the edit or discover list. Changing which members a workspace serves needs the workspace-shape grant on top of mutations; a member already declared in either list is refused. Nothing is fetched or mounted by this.",
+        description = "Declare a member in one workspace's .2brain/workspace.yaml, in the edit or discover list. Changing which members a workspace serves needs the workspace-shape grant on top of mutations; a member already declared in either list is refused. Nothing is fetched or mounted by this.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1779,7 +1776,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Declare a dependency in one member's .arsumbris/repo.yaml, as a byte splice that keeps comments and order. Nothing is fetched: the peer stays unmounted until a resolve. Requires both the mutation grant and the composition grant; expected_hash is a compare-and-set on that file.",
+        description = "Declare a dependency in one member's .2brain/repo.yaml, as a byte splice that keeps comments and order. Nothing is fetched: the peer stays unmounted until a resolve. Requires both the mutation grant and the composition grant; expected_hash is a compare-and-set on that file.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -1814,7 +1811,7 @@ impl Server {
     }
 
     #[tool(
-        description = "Remove a dependency from one member's .arsumbris/repo.yaml, as a byte splice that keeps siblings and comments; a sole entry collapses deps to []. Requires both the mutation grant and the composition grant.",
+        description = "Remove a dependency from one member's .2brain/repo.yaml, as a byte splice that keeps siblings and comments; a sole entry collapses deps to []. Requires both the mutation grant and the composition grant.",
         annotations(
             read_only_hint = false,
             destructive_hint = true,
@@ -3061,7 +3058,7 @@ impl Server {
         CallToolResponse::Complete(result)
     }
 
-    /// A workspace-shape mutation: it authors a workspace's `.arsumbris/
+    /// A workspace-shape mutation: it authors a workspace's `.2brain/
     /// workspace.yaml`, so it needs the third grant on top of mutations.
     async fn workspace_mutation(
         &self,
@@ -3115,7 +3112,7 @@ impl Server {
         }
     }
 
-    /// A composition mutation: it authors a member's `.arsumbris/repo.yaml`, so
+    /// A composition mutation: it authors a member's `.2brain/repo.yaml`, so
     /// it needs the composition grant on top of the mutation grant.
     async fn composition_mutation(
         &self,
@@ -3735,7 +3732,7 @@ struct CreateArguments {
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct AddWorkspaceMemberArguments {
-    /// Editable member whose `.arsumbris/workspace.yaml` gains the entry.
+    /// Editable member whose `.2brain/workspace.yaml` gains the entry.
     #[schemars(length(min = 1))]
     repo: String,
     /// Name of the member to declare.
@@ -3750,7 +3747,7 @@ struct AddWorkspaceMemberArguments {
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RemoveWorkspaceMemberArguments {
-    /// Editable member whose `.arsumbris/workspace.yaml` loses the entry.
+    /// Editable member whose `.2brain/workspace.yaml` loses the entry.
     #[schemars(length(min = 1))]
     repo: String,
     /// Name of the member to remove.
@@ -3763,7 +3760,7 @@ struct RemoveWorkspaceMemberArguments {
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct SetWorkspaceMemberRoleArguments {
-    /// Editable member whose `.arsumbris/workspace.yaml` is authored.
+    /// Editable member whose `.2brain/workspace.yaml` is authored.
     #[schemars(length(min = 1))]
     repo: String,
     /// Name of the declared member whose role changes.
@@ -3844,7 +3841,7 @@ struct RenameTypeArguments {
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct AddDepArguments {
-    /// Editable member whose `.arsumbris/repo.yaml` gains the entry.
+    /// Editable member whose `.2brain/repo.yaml` gains the entry.
     #[schemars(length(min = 1))]
     repo: String,
     /// Name of the dependency to declare.
@@ -3862,7 +3859,7 @@ struct AddDepArguments {
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct RemoveDepArguments {
-    /// Editable member whose `.arsumbris/repo.yaml` loses the entry.
+    /// Editable member whose `.2brain/repo.yaml` loses the entry.
     #[schemars(length(min = 1))]
     repo: String,
     /// Name of the dependency to remove.

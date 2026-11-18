@@ -1249,7 +1249,7 @@ Attribution rider: `write_file`, `edit_file`, and `delete_file` accept an option
 - default `false`, and absent means false: the advisory contract is unchanged, and diagnostics still ride a successful write's result. The check costs one preview build, and only when requested.
 - the pipeline lock is held across the check and the write, so both observe one held state; an adapter cannot reproduce that with two calls.
 - a preview that rejects for its own reason (an absent target, a stamp on a non-list field) leaves the refusal to the write, which answers with that same reason — one failure, one answer.
-- additive optional input, no `schema_version` bump. `write_file`, `edit_file` and `create_file` carry it; `batch` does not yet — a batch is a multi-file saga whose refusal must name the operation that would introduce the error, and that report does not exist.
+- additive optional input, no `schema_version` bump. `write_file`, `edit_file`, `create_file` and `batch` carry it. For `batch` the refusal names the operation, which is the report the earlier version of this note said did not exist: the preview knows every op's target, so a diagnostic's file maps to the last op that touched it and an untouched file is said to be elsewhere.
 
 **create_file.**
 - args: `path`, `content`, optional `stamps` (the Stamps rider above), optional `ensure_mixins` / `ensure_mixins_strict` (the Ensure-mixins rider above), optional `attribution` (the Attribution rider above), optional `require_clean` (the Clean-check rider below). A create is checked like a write: the question is what the file would make true, not whether it existed before.
@@ -1268,7 +1268,7 @@ Attribution rider: `write_file`, `edit_file`, and `delete_file` accept an option
 - identical `old_string`/`new_string` and unreadable files reject.
 
 **batch.**
-- args: `ops`, a non-empty array of at most 50 operations. Each is internally tagged by `op`:
+- args: `ops`, a non-empty array of at most 50 operations, optional `require_clean` (the Clean-check rider below). Each op is internally tagged by `op`:
   - `{"op": "write_file", "path", "content", "expected_hash"?}`
   - `{"op": "edit_file", "path", "old_string", "new_string", "replace_all"?}` — the exact-match guard is the file's own; a batch edit takes no hash, exactly like the single verb.
   - `{"op": "delete_file", "path", "expected_hash"?}`
@@ -1278,6 +1278,7 @@ Attribution rider: `write_file`, `edit_file`, and `delete_file` accept an option
   - `diagnostics`: the union over every touched path after the rebuild. `reflected`: every written hash the held catalog now agrees with.
 - ALL OR NOTHING, one saga: every op is planned first (one out-of-workspace path rejects the batch before anything is written), the ops apply in order on disk, each touched member commits once, and ANY rejection — a stale hash, a missing `old_string`, a commit failure — compensates the whole set and commits nothing. The intent marker and its preimages make the compensation survive a crash, the same machinery the multi-file `inline` / `promote` sagas use.
 - ops apply in ORDER, so two ops on one path compose (write then edit). A no-op write makes no commit, as everywhere.
+- `require_clean` previews the composed set the way the single verbs do: the ops are folded in request order through the same pure edit transform the committing op uses, the would-be state is built once, and any `error`-severity diagnostic refuses the batch before the saga starts. The refusal names the operation that would introduce each error — `batch op N (write_file <path>): <code> in <path>` — with a diagnostic on a path no op touched named `elsewhere in the tree`. Nothing is written, moved or committed.
 - rejects an empty `ops` (a batch with nothing to do is not a mutation) and a list above 50: beyond that the caller wants a script, not one atomic commit.
 - additive: a NEW mutation verb, no `schema_version` bump.
 

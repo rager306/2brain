@@ -40,7 +40,7 @@ pub const MUTATION_TOOLS: [&str; 16] = [
 
 /// Tools that change what the workspace contains, not just a file in it.
 ///
-/// They author `.arsumbris/repo.yaml`, so they are a second grant on top of
+/// They author `.2brain/repo.yaml`, so they are a second grant on top of
 /// `allow_mutations`: a launch may trust writes to notes and still refuse to
 /// reshape the workspace's dependency graph.
 pub const COMPOSITION_TOOLS: [&str; 2] = ["tb_add_dep", "tb_remove_dep"];

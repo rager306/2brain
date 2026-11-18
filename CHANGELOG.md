@@ -45,6 +45,16 @@ install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
 
 ### Added
 
+- **`require_clean` reaches `batch` (ADR-0002)** (engine + server). The last verb without the rider. The refusal
+names the operation that would introduce the error — `batch op 2 (write_file <path>): <code> in <path>` — which is
+the report the earlier `WIRE.md` note said did not exist: the composed change set is built in request order
+through `mutate::compute_edit`, the same pure transform the committing op uses, so previewing it answers the
+question; a diagnostic's file maps to the LAST op that touched it, and a file no op touched is named `elsewhere
+in the tree` rather than blamed on an innocent op. Preview and write read the same held version, because the set
+is previewed and then applied inside one `handle_mutation` under the write lock. An optional flag, so it travels
+only when a caller sets it: a new adapter paired with an engine that predates this record still answers, and the
+flag needs a deploy window to be usable end to end.
+
 - **`tools/probe/mcp_smoke.py`** (tooling). One MCP session over stdio against any installed binary:
 a read, a clean create, the hash a read returns, a gated write, and a `require_clean` create that must be
 refused with `policy/diagnostics` naming its code. Exit code 1 on the first failure, so an install script can

@@ -27,6 +27,33 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-18 — `require_clean` reaches `batch`, and three copies become one
+
+ADR-0002's last verb. The blocker was stated in `WIRE.md` as a missing report: a batch refusal must name the
+operation that would introduce the error, and no such report existed. It turned out to be one indirection away.
+`mutate::compute_edit` is the pure transform behind `edit_file`, already shared with the preview, so a batch's
+would-be set can be composed in request order through it — an edit sees the content an earlier op would have
+left — and previewed through `PreviewInput::Set`, the seam the move and folder ops already use. A diagnostic's
+file then maps to the LAST op that touched it, which gives the attribution: `batch op 2 (write_file <path>):
+<code> in <path>`, and a diagnostic on a file no op touched is named `elsewhere in the tree` instead of being
+blamed on an innocent op. Preview and write read the same held version because both happen inside one
+`handle_mutation` under the write lock — the two-call race the ADR refuses does not exist here.
+
+The second half of the wave was the adapter. Four tool handlers each spelled out "add `require_clean` when the
+caller set it", three of them with the same comment. That is one rule in four places, so it became
+`wire::with_clean_rider`. The architecture ratchet caught the duplication before I did — `lib.rs` grew eight
+lines and the budget refused it — and after the dedup the same ratchet passed with the budget untouched.
+
+The wave also surfaced three stale spellings that the earlier state-root fix made wrong: the adapter's `--help`
+named `~/.arsumbris`, eleven tool descriptions named `.arsumbris/repo.yaml` and `workspace.yaml`, and the launch
+diagnosis test asserted the legacy name outright. The last one is the interesting failure: a test that hardcodes
+which spelling the engine chooses cannot survive the engine choosing differently, and it was asserting the very
+behaviour the previous wave removed. It now reads the root the diagnosis names and checks the socket lives in
+that root, which is the invariant either way.
+
+Measured after the wave: engine `--lib` 749 / 1 known root-only, `--test it` **741** / 3 known (two new), adapter
+**262** / 46 suites, `fmt` and `clippy -D warnings` clean in both halves, links 808/0.
+
 ## 2026-11-18 — the installer on a clean checkout, and the state root a fresh home gets
 
 `install.sh` was repaired earlier today to ask `cargo metadata` for the target directory, and nothing had

@@ -15,6 +15,17 @@ use serde_json::{Value, json};
 
 use crate::transport::{EngineTransport, MutationFailure, ReadResult, WireError};
 
+/// Attach the ADR-0002 clean-check rider to a mutation request, only when asked.
+///
+/// An optional flag travels only when a caller sets it: the engine refuses unknown fields, so an
+/// explicit `false` would break a caller paired with an engine that predates the rider, and the
+/// deployed halves move in a window of their own.
+pub(crate) fn with_clean_rider(request: &mut Value, require_clean: bool) {
+    if require_clean {
+        request["require_clean"] = json!(true);
+    }
+}
+
 /// Wait for the next file change the engine reports, or for the deadline.
 ///
 /// A watch is a SUBSCRIPTION, not a read: the transport opens its own

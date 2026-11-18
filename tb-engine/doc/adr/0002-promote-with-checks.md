@@ -83,14 +83,23 @@ Scope for the first implementation slice: `write_file` only. `edit_file`, `creat
 same change or are named as still missing — an argument that exists on a tool and does nothing is the stub this
 decision exists to avoid.
 
-**Progress 2026-11-18.** `write_file`, `edit_file` and `create_file` are implemented and tested: each parses
-`require_clean`, and the check runs in `handle_mutation` before its saga through one helper over the preview's
-`PreviewOp` (write, edit, write-for-create). The tests cover the refusal for all three (bytes unchanged for a
-write and an edit, no file at all for a create, `policy/diagnostics: … type-repo-unknown`), the clean write, and
-an edit that lands once its target type exists. `batch` is the one verb left: it is a multi-file saga whose
-refusal must name the operation that would introduce the error, and that report does not exist yet — `WIRE.md`
-says so. Gate part 3 (the default path did not slow down) is still a measurement nobody has taken, so the record
-stays `Proposed`. The adapter sends the key only when a caller asks for it: the engine refuses unknown fields, so
+**Progress 2026-11-18.** All four verbs are implemented and tested: each parses `require_clean`, and the check
+runs before its saga — through one helper over the preview's single-file `PreviewOp` for `write_file`,
+`edit_file` and `create_file`, and through a composed `PreviewInput::Set` for `batch`. The tests cover the refusal
+for all four (bytes unchanged for a write and an edit, no file at all for a create, `policy/diagnostics: …
+type-repo-unknown`), the clean cases, and an edit that lands once its target type exists.
+
+`batch` needed the report this record's earlier paragraph said did not exist, and it turned out to be one
+indirection away: the composed change set is built in request order through `mutate::compute_edit`, the same pure
+transform the committing op uses, so a preview of it answers the question directly; a diagnostic's file maps to
+the LAST op that touched it, so the refusal reads `batch op 2 (write_file <path>): <code> in <path>`, and a
+diagnostic on a path no op touched is named `elsewhere in the tree` instead of being blamed on an innocent op.
+
+Two facts the implementation respected, as this record required: a rejecting preview is reported once, through
+the preview's own reject, not twice in two shapes; and the check and the write read the same held version,
+because the composed set is previewed and then applied inside the same `handle_mutation` with the write lock
+held across both. Gate part 3 (the default path did not slow down) is still a measurement nobody has taken, so
+the record stays `Proposed`. The adapter sends the key only when a caller asks for it: the engine refuses unknown fields, so
 an explicit `false` would break a caller paired with an engine that predates this record.
 
 ## Acceptance gate

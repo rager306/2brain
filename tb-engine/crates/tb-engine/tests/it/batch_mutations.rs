@@ -206,6 +206,69 @@ fn batch_refuses_an_empty_or_oversized_list_and_an_unknown_op() {
 }
 
 #[test]
+fn require_clean_refuses_a_batch_and_names_the_op_that_would_dirty_it() {
+    let (_dir, root) = seeded();
+    let mut h = harness(&root);
+    let before = (head(&root), commit_count(&root));
+    let one_before = fs::read_to_string(root.join("notes/one.md")).unwrap();
+    let resp = h
+        .client
+        .query(&json!({
+            "mutate": "batch",
+            "require_clean": true,
+            "ops": [
+                {"op": "write_file", "path": format!("{}/notes/one.md", root.display()),
+                 "content": "---\ntitle: one\n---\n\nclean, revised\n"},
+                {"op": "write_file", "path": format!("{}/notes/bad.md", root.display()),
+                 "content": "---\ntype: note::ghost\ndescription: must not land\n---\n"},
+            ]
+        }))
+        .unwrap();
+    assert_eq!(resp["type"], "error", "{resp}");
+    let message = resp["error"].as_str().unwrap();
+    assert!(message.contains("policy/diagnostics"), "{message}");
+    assert!(
+        message.contains("batch op 2 (write_file"),
+        "the refusal names the op that would dirty the state: {message}"
+    );
+    assert!(message.contains("type-repo-unknown"), "{message}");
+    assert!(!root.join("notes/bad.md").exists(), "nothing landed");
+    assert_eq!(
+        fs::read_to_string(root.join("notes/one.md")).unwrap(),
+        one_before,
+        "the clean op ahead of it is compensated too"
+    );
+    assert_eq!(head(&root), before.0, "nothing was committed");
+    assert_eq!(commit_count(&root), before.1);
+}
+
+#[test]
+fn require_clean_lets_a_clean_batch_land() {
+    let (_dir, root) = seeded();
+    let mut h = harness(&root);
+    let resp = h
+        .client
+        .query(&json!({
+            "mutate": "batch",
+            "require_clean": true,
+            "ops": [
+                {"op": "write_file", "path": format!("{}/notes/one.md", root.display()),
+                 "content": "---\ntitle: one\n---\n\nclean, revised\n"},
+                {"op": "edit_file", "path": format!("{}/notes/two.md", root.display()),
+                 "old_string": "second", "new_string": "second, revised"},
+            ]
+        }))
+        .unwrap();
+    assert_eq!(resp["type"], "response", "{resp}");
+    assert_eq!(resp["ready"], true, "{resp}");
+    assert!(
+        fs::read_to_string(root.join("notes/two.md"))
+            .unwrap()
+            .contains("second, revised")
+    );
+}
+
+#[test]
 fn a_delete_inside_a_batch_uses_its_own_hash_guard() {
     let (_dir, root) = seeded();
     let mut h = harness(&root);

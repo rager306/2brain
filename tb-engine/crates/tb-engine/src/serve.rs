@@ -1548,6 +1548,11 @@ enum BatchOp {
 #[serde(deny_unknown_fields)]
 struct BatchArgs {
     ops: Vec<BatchOp>,
+    /// ADR-0002 for a whole batch: refuse before writing when the state the set would
+    /// produce carries an ERROR-severity diagnostic, naming the op that would introduce it.
+    /// Default `false`, the advisory contract every draft relies on.
+    #[serde(default)]
+    require_clean: bool,
 }
 
 /// The largest batch a caller may send. Beyond this the caller wants a script,
@@ -5822,6 +5827,144 @@ async fn clean_check_refusal(
              without `require_clean`: {}",
             errors.len(),
             errors.join(", ")
+        ),
+    )))
+}
+
+/// The change set a batch would produce, composed in the caller's order through the same
+/// pure edit transform the committing op uses ([`crate::mutate::compute_edit`]), so the
+/// preview and the write cannot disagree about what an op yields.
+///
+/// The net effect is what matters: two ops on one path collapse to the last one, and an
+/// edit reads the running content an earlier op would have left, not the bytes on disk.
+fn batch_change_set(
+    ops: &[BatchOp],
+    resolved: &[PathBuf],
+) -> Result<crate::engine::ChangeSet, crate::mutate::MutationReject> {
+    use crate::overlay::Override;
+    use std::collections::BTreeMap;
+    let mut touched: BTreeMap<PathBuf, Option<Vec<u8>>> = BTreeMap::new();
+    for (op, target) in ops.iter().zip(resolved) {
+        match op {
+            BatchOp::Write { content, .. } => {
+                touched.insert(target.clone(), Some(content.clone().into_bytes()));
+            }
+            BatchOp::Edit {
+                old_string,
+                new_string,
+                replace_all,
+                ..
+            } => {
+                let base = match touched.get(target) {
+                    Some(Some(bytes)) => String::from_utf8(bytes.clone()).map_err(|_| {
+                        MutationReject::new(format!(
+                            "{} is not UTF-8 after an earlier op",
+                            target.display()
+                        ))
+                    })?,
+                    Some(None) => {
+                        return Err(MutationReject::new(format!(
+                            "{} is deleted earlier in the batch and cannot be edited after",
+                            target.display()
+                        )));
+                    }
+                    None => std::fs::read_to_string(target).map_err(|e| {
+                        MutationReject::new(format!("cannot read {}: {e}", target.display()))
+                    })?,
+                };
+                let updated =
+                    crate::mutate::compute_edit(&base, old_string, new_string, *replace_all)?;
+                touched.insert(target.clone(), Some(updated.into_bytes()));
+            }
+            BatchOp::Delete { .. } => {
+                touched.insert(target.clone(), None);
+            }
+        }
+    }
+    let mut overrides = Vec::with_capacity(touched.len());
+    let mut gone = Vec::new();
+    for (path, state) in touched {
+        match state {
+            Some(content) => overrides.push(Override::Replace { path, content }),
+            None => {
+                gone.push(path.clone());
+                overrides.push(Override::Remove { path });
+            }
+        }
+    }
+    Ok(crate::engine::ChangeSet {
+        target: resolved[0].clone(),
+        overrides,
+        also_dirty: resolved.to_vec(),
+        gone,
+    })
+}
+
+/// [`clean_check_refusal`] for a batch: preview the composed set, attribute every ERROR
+/// diagnostic to the last op that touched its file, and refuse with that attribution.
+/// A path no op touched (a referrer, say) is named as `elsewhere` rather than blamed on
+/// an innocent op.
+async fn clean_check_batch(
+    handle: &EngineHandle,
+    set: crate::engine::ChangeSet,
+    ops: &[BatchOp],
+    resolved: &[PathBuf],
+) -> Option<serde_json::Value> {
+    let handle = handle.clone();
+    let read = tokio::task::spawn_blocking(move || {
+        handle.preview(
+            crate::engine::PreviewInput::Set(set),
+            |outcome| match outcome {
+                crate::engine::PreviewOutcome::Built { preview, .. } => preview
+                    .diagnostics()
+                    .filter(|diagnostic| diagnostic.severity == Severity::Error)
+                    .map(|diagnostic| {
+                        (
+                            diagnostic.span.file.clone(),
+                            diagnostic.code.as_str().to_string(),
+                        )
+                    })
+                    .collect::<Vec<(PathBuf, String)>>(),
+                crate::engine::PreviewOutcome::Reject(_) => Vec::new(),
+            },
+        )
+    })
+    .await
+    .expect("the clean check never panics");
+    let Read::Ready { value: errors, .. } = read else {
+        return None;
+    };
+    if errors.is_empty() {
+        return None;
+    }
+    let blamed = errors
+        .iter()
+        .map(|(file, code)| {
+            let last = resolved.iter().rposition(|target| target == file);
+            match last {
+                Some(index) => {
+                    let verb = match &ops[index] {
+                        BatchOp::Write { .. } => "write_file",
+                        BatchOp::Edit { .. } => "edit_file",
+                        BatchOp::Delete { .. } => "delete_file",
+                    };
+                    format!(
+                        "batch op {} ({verb} {}): {code} in {}",
+                        index + 1,
+                        file.display(),
+                        file.display()
+                    )
+                }
+                None => format!("elsewhere in the tree: {code} in {}", file.display()),
+            }
+        })
+        .collect::<Vec<String>>();
+    Some(mutation_reject_frame(crate::mutate::MutationReject::new(
+        format!(
+            "policy/diagnostics: this batch would introduce {} error(s); fix them or write \
+             without `require_clean`: {}",
+            errors.len(),
+            blamed.join(", ")
         ),
     )))
 }
@@ -11180,6 +11323,15 @@ async fn batch_mutation(handle: &EngineHandle, args: BatchArgs) -> serde_json::V
         match resolve_mutation_target(handle, path) {
             Ok(t) => targets.push(t),
             Err(frame) => return frame,
+        }
+    }
+    if args.require_clean {
+        let set = match batch_change_set(&args.ops, &targets) {
+            Ok(set) => set,
+            Err(reject) => return mutation_reject_frame(reject),
+        };
+        if let Some(frame) = clean_check_batch(handle, set, &args.ops, &targets).await {
+            return frame;
         }
     }
     let plan = saga_plan_off_thread(handle, targets.clone()).await;
