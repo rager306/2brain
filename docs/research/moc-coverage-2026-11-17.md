@@ -105,12 +105,19 @@ is a note whose only home is the front page.
 That is the answer to the earlier question: `index` stays a curated front page. A complete index would
 duplicate `references_in`, which the engine already serves in one read.
 
-**What remains: 107 declarations across 22 maps.**
+**Pass 5, done 2026-11-17.** `human-feedback` 5 → **0 of 7**. The vault is at **102** unlinked
+declarations across **21** maps; everything left is four notes or fewer per map, except `index`, which
+is deliberate.
 
-| map | unlinked / namers | why it stays |
+| map | unlinked / namers | reading |
 |---|---|---|
-| `index` | 63 / 63 | deliberate: every namer also names a real map, so nothing is stranded. |
-| `human-feedback` | 5 / 7 | small content pass. |
-| the other 20 | ≤ 4 each | one to four notes each. |
+| `index` | 63 / 63 | deliberate (every namer also names a real map) |
+| 20 others | **≤ 4 each** | one to four notes per map |
 
-**Four passes moved 372 → 107 (71%), and every remaining item is a named, small decision.**
+**Five passes moved 372 → 102 (73%).** What is left costs more per link than it returns: each
+remaining map needs a judgement about four unrelated notes, and the maps themselves are fine.
+
+**The rule, unchanged and now exercised five times.** A note earns a link when a heading's name is
+true of it; a heading may be added to name the reason (this pass added two); a note with no true
+heading stays unlinked. The engine's `references_in` answers the reverse direction for any client,
+which is why an incomplete map body is a reading choice rather than a missing index.
