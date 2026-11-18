@@ -3,7 +3,7 @@
 **What this page is.** The single entry point a new reader — human or agent — needs before touching anything
 else. It states what the system is, what its parts are, which direction dependencies run, where the boundaries
 are, and which documents carry the evidence. Everything here is checkable from the repository at the commit
-below; nothing here is a plan.
+below; nothing here is a plan — [`roadmap.md`](roadmap.md) is, and it is the only page that is.
 
 **Measured at** `d659ece`, 2026-11-18. Every claim names its file, and `repowise decision export` carries the
 ones that govern change.
@@ -183,7 +183,9 @@ so this page cannot drift from the surface it describes.
 
 | question | document |
 |---|---|
-| what is true now | **this page**, and `docs/trajectory.md` for the lane register |
+| what is true now | **this page** |
+| what happens next | `docs/roadmap.md`, and `docs/ideas.md` for what was refused |
+| what landed, dated | `docs/trajectory.md` |
 | which decisions govern change | `.repowise/decisions.yaml` (`repowise decision list`) |
 | the wire contract | `tb-engine/crates/tb-engine/WIRE.md` |
 | the write contract, read from code | `docs/research/write-contracts.md` |
@@ -194,6 +196,6 @@ so this page cannot drift from the surface it describes.
 
 ## 7. What this page deliberately does not cover
 
-Diagnostics catalogue, ranking formula, graph algorithms, intake pipeline, and the roadmap live in their own
+Diagnostics catalogue, ranking formula, graph algorithms, the intake pipeline, and the plan live in their own
 documents, linked from `docs/README.md`. This page stops at "what the parts are and how a request flows",
 because a page that grows to cover everything stops being the page a reader finishes.

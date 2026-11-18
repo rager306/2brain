@@ -1,4 +1,9 @@
-# Roadmap
+# Roadmap (closed) — the adapter's completion record
+
+**This page is a completion record, not a plan.** It says what the adapter set out to do and which item closed
+with which evidence. What happens next is [`docs/roadmap.md`](../../docs/roadmap.md); a second forward-looking
+page would be a defect. The gaps at the end of this file are carried in that roadmap's idea register
+([`docs/ideas.md`](../../docs/ideas.md)) where they are still open.
 
 Status on 2026-11-16, HEAD `3706515`. **The roadmap is closed**: the adapter is the only serving path
 (`/usr/local/bin/2brain`), 52 tools are registered — 36 advertised without a grant, 47 with mutations,

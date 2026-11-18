@@ -41,6 +41,25 @@ decisions:
   - d659ece
   - docs/research/write-contracts.md
   - tb-mcp-rs/src/gate.rs
+- id: 7561c9b6ddbcca00364004f8a4c2c778
+  title: Agent instructions live in the closest AGENTS.md; the root file is a map
+  decision: 'The root file keeps what applies everywhere: the layer split, live-system rules, gates, documentation
+    kinds, and a pointer. Engine toolchain, crate map and build/test loop live in tb-engine/AGENTS.md;
+    the adapter keeps a short pointer in tb-mcp-rs/AGENTS.md. The closest file wins.'
+  reason: A merged instruction file has a hard budget and its accuracy falls as it grows; the code that
+    needs the detail is also the directory whose file is read automatically.
+  scope:
+  - AGENTS.md
+  - tb-engine/AGENTS.md
+  - tb-mcp-rs/AGENTS.md
+  currency: active
+  source: agent
+  accepted_at: '2026-11-18T09:44:33.408075'
+  kind: agreement
+  accepted_by: commandcode
+  evidence:
+  - AGENTS.md
+  - tb-engine/AGENTS.md
 - id: 7688c303cd37c7cf4db7da10262a5e89
   title: Rust is the only language on the serving path
   decision: 'The serving path is Rust end to end: tb-engine, tb-cli and tb-mcp-rs. No script, notebook
@@ -59,6 +78,25 @@ decisions:
   - AGENTS.md
   - d659ece
   - docs/internal/detach-and-consolidate.md
+- id: 86a36bdebc5c654a0362780d9a3c3fbf
+  title: 'One forward view: the roadmap plans, the trajectory logs'
+  decision: docs/roadmap.md is the only page that says what happens next, with stages, exit criteria and
+    the parallel groups. docs/trajectory.md keeps the dated log of what landed and why. A design page
+    that once carried a plan keeps its reasoning and points at the roadmap for the plan.
+  reason: A forward view that exists twice drifts once; the reader then has to diff two documents to learn
+    the truth.
+  scope:
+  - docs/architecture-plan.md
+  - docs/roadmap.md
+  - docs/trajectory.md
+  currency: active
+  source: agent
+  accepted_at: '2026-11-18T09:32:12.906817'
+  kind: agreement
+  accepted_by: commandcode
+  evidence:
+  - c0ad7cd
+  - docs/README.md
 - id: 9242aa1915a02d0749797c35c516bbd9
   title: Files are authoritative; the graph is derived and rebuildable
   decision: Markdown files in Git are the truth. The typed graph is derived from them at build time and

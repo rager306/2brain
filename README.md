@@ -154,14 +154,16 @@ This repository is meant to be read by agents, not only by people. Start here, i
 
 | entry point | what it answers |
 |---|---|
+| [`docs/roadmap.md`](docs/roadmap.md) | why it exists, what exists today, the stages and their exit criteria, and what comes next |
 | [`docs/architecture.md`](docs/architecture.md) | the system in one page: invariants, crate layers, the request path, the write contract |
-| [`docs/README.md`](docs/README.md) | the map of all 82 documents, and what each kind may claim |
+| [`docs/README.md`](docs/README.md) | the map of all 84 documents, and what each kind may claim |
 | [`llms.txt`](llms.txt) | the same map in the `llms.txt` format: what this is, where the detailed documents are |
 | [`AGENTS.md`](AGENTS.md) | how to work in this repository: the layers, the live-system rules, the gates |
 | [`tb-mcp-rs/skills/2brain/SKILL.md`](tb-mcp-rs/skills/2brain/SKILL.md) | how to *use* the server: the tool ladder, the result envelope, the read-then-write loop, the recovery path |
 | [`tb-engine/crates/tb-engine/WIRE.md`](tb-engine/crates/tb-engine/WIRE.md) | the engine wire protocol, verb by verb |
 | [`tb-mcp-rs/docs/verification.md`](tb-mcp-rs/docs/verification.md) | the evidence index: every claim here, the command that re-measures it, the date |
-| [`docs/trajectory.md`](docs/trajectory.md) | what is done, what is open, and what was measured and rejected |
+| [`docs/ideas.md`](docs/ideas.md) | what was deferred or refused, and the measurement behind each refusal |
+| [`docs/trajectory.md`](docs/trajectory.md) | the dated log: what landed and what was measured and rejected |
 
 ## Layout
 

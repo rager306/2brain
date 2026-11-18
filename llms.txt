@@ -11,6 +11,11 @@ of a website.
 ## Start here
 
 - [README.md](README.md): what the project is and is not, quickstart, the MCP surface, development gates.
+- [docs/README.md](docs/README.md): the map of all 84 documents in four kinds, and what each kind may claim.
+- [docs/architecture.md](docs/architecture.md): the system in one page — invariants, crate layers, the request
+  path, the write contract, and the 52 tools grouped by what they answer.
+- [docs/roadmap.md](docs/roadmap.md): why the project exists, what exists today, five stages with checkable exit
+  criteria, the order of what comes next, and which work may run in parallel.
 - [AGENTS.md](AGENTS.md): how to work *in* this repository — the three layers, the live-system rules, the
   gates that must stay green, the docs split between design and operations.
 - [CHANGELOG.md](CHANGELOG.md): what changed, including the changes that were measured and rejected.
@@ -21,8 +26,8 @@ of a website.
   envelope, the read-then-write loop, the recovery path for an unclear mutation.
 - [tb-mcp-rs/skills/2brain/references/tool-map.md](tb-mcp-rs/skills/2brain/references/tool-map.md): every
   tool with its arguments, generated from the running binary.
-- [tb-mcp-rs/docs/roadmap.md](tb-mcp-rs/docs/roadmap.md): what the MCP surface does not do yet, stated
-  plainly.
+- [tb-mcp-rs/docs/roadmap.md](tb-mcp-rs/docs/roadmap.md): the adapter's closed completion record — what it set
+  out to do and the evidence for each item; not a plan.
 
 ## The contracts
 
@@ -38,8 +43,10 @@ of a website.
 
 - [tb-mcp-rs/docs/verification.md](tb-mcp-rs/docs/verification.md): every property this repository claims,
   the command that re-measures it, and the date it was last measured.
-- [docs/trajectory.md](docs/trajectory.md): what is done, what is open, the gate for each open item, and
-  what was measured and reverted.
+- [docs/trajectory.md](docs/trajectory.md): the dated log — what landed, what it cost, and what was measured and
+  reverted. It records history; [docs/roadmap.md](docs/roadmap.md) is the plan.
+- [docs/ideas.md](docs/ideas.md): every idea that is not in the queue, with its status and the measurement that
+  decided it — so a refused idea is not re-proposed every month.
 - [docs/research/](docs/research/): the measurements behind the ranking, the payload modes, the judge layer,
   the tier-C migration, and the engine-to-server path.
 - [tools/cards/metrics.json](tools/cards/metrics.json): the numbers on the README cards, each with the

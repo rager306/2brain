@@ -1,13 +1,17 @@
 # Documentation map
 
-**Read this first.** The repository has 80 documents and three kinds. They answer different questions, and
-mixing them is how a design page ends up describing one host's systemd unit.
+**Read this first.** The repository has 84 documents and four kinds, plus one log. They answer different
+questions, and mixing them is how a design page ends up describing one host's systemd unit.
 
 | kind | where | answers | does not answer |
 |---|---|---|---|
-| **design** | `docs/*.md` | what the system is, why it is shaped this way, what was measured | anything about this machine |
+| **design** | `docs/*.md` | what the system is, why it is shaped this way, what was measured | anything about this machine, and anything about the future |
+| **plan** | `roadmap.md`, `ideas.md` | what happens next, in what order, and what was refused with what number | how the system is built |
 | **research** | `docs/research/*.md` | one question, one measurement, one verdict — dated and never edited afterwards | what the current system does |
 | **operations** | `docs/internal/*.md` | this host: paths, units, sockets, deploy logs, one operator's run | what the system is |
+
+`trajectory.md` is the one **log**: the dated record of what landed and what it cost. It is not a plan and not a
+design page — a status cell in the roadmap summarizes a line here, and the detail stays here.
 
 The split is a rule, not a habit. A document that names `/root/vault`, a systemd unit, a socket path or a client
 config belongs in `docs/internal/`. `docs/internal/README.md` holds the reasoning, and design documents never
@@ -19,8 +23,10 @@ require an internal one to be understood — the repository is public.
 
 | if you want to… | read |
 |---|---|
+| know why it exists and what happens next | [`roadmap.md`](roadmap.md) |
+| see what was refused, and the number behind it | [`ideas.md`](ideas.md) |
 | understand the system in one page | [`architecture.md`](architecture.md) |
-| see what is done, open, or rejected | [`trajectory.md`](trajectory.md) |
+| see what landed, dated | [`trajectory.md`](trajectory.md) |
 | know which decisions govern change | `repowise decision list` — records in `.repowise/decisions.yaml` |
 | use it as an agent | [`../tb-mcp-rs/docs/agent-interface.md`](../tb-mcp-rs/docs/agent-interface.md), then [`progressive-disclosure.md`](../tb-mcp-rs/docs/progressive-disclosure.md) |
 | connect a client | [`../tb-mcp-rs/docs/connecting.md`](../tb-mcp-rs/docs/connecting.md) |
@@ -29,7 +35,19 @@ require an internal one to be understood — the repository is public.
 
 ---
 
-## Design documents (14)
+## Plan (2)
+
+Two pages, and no others. A third forward-looking page is a defect: two plans drift once, and the reader has to
+diff them to learn the truth.
+
+- [`roadmap.md`](roadmap.md) — why it exists, what exists, the five stages with exit criteria, the queue, the
+  parallel groups, and the refusals a reader is most likely to propose again
+- [`ideas.md`](ideas.md) — the register of every idea that is not in the roadmap, with its status and the
+  measurement that decided it
+
+The log behind them is [`trajectory.md`](trajectory.md).
+
+## Design documents (13)
 
 - [`agent-roles.md`](agent-roles.md) — Agent roles
 - [`agents-and-decisions-assessment.md`](agents-and-decisions-assessment.md) — Agents, FSM roles, and a typed decision layer (subq / jev / ruVector)
@@ -44,7 +62,6 @@ require an internal one to be understood — the repository is public.
 - [`rebrand-plan.md`](rebrand-plan.md) — Rebrand plan: from `arsumbris` to `2brain`
 - [`repo-inventory.md`](repo-inventory.md) — Repository inventory: what each directory is, and what happens to it
 - [`retrieval-spike.md`](retrieval-spike.md) — Retrieval spike (R1): a bundled engine against the current one
-- [`trajectory.md`](trajectory.md) — Trajectory after the rebrand — what stands, what is open, what runs in parallel
 
 ## Research notes (52)
 
@@ -143,8 +160,14 @@ discipline violation.
 2. **A rejected change is recorded, not deleted.** The note that says "measured, refused, because…" is the
    most valuable kind in this tree: it stops the same idea being re-tried every month.
 3. **Design documents are edited in place; research notes are not.** When a design page stops being true, the
-   history is in Git and the note it superseded keeps its date.
+   history is in Git and the note it superseded keeps its date. A plan page is edited the same way, and the
+   log gains a dated line instead of being rewritten.
 4. **A decision that governs change belongs in `.repowise/decisions.yaml`**, not only in prose. That store is
    queryable (`repowise decision list`, `repowise why`) and `repowise decision health` names the stale ones.
-5. **`repowise doc-drift` reports a document the code no longer matches.** It is the check that this map stays
-   honest.
+5. **Two checks keep this map honest.** `tools/docs/links.py --check` resolves every relative link and heading
+   anchor in the repository (802 documents, 0 broken on 2026-11-18; `--selftest` proves each rule bites), and
+   `repowise doc-drift --check --baseline tools/docs/doc-drift-baseline.txt` reports a document the code no
+   longer matches. The baseline is not a list of lies: it records the three kinds of finding that are correct as
+   written — a citation of a path in **another repository** (`/root/samyama-graph`, kutha, ruvector), a
+   **hypothetical** future location (`"if … it moves to tb-mcp-rs/src/procedure.rs"`), and a **dated research
+   note**, which is frozen by rule 3 below. A new entry above the baseline is the signal.
