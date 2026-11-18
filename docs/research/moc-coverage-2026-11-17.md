@@ -92,13 +92,25 @@ selection, determinism, and the harness block — not appended as one list.
 One case the pass had to fix rather than add: `codeactinstruct-…` names two archive files, so a bare
 wikilink made the engine report `navigational-target-ambiguous`. The link is path-qualified.
 
-**What remains: 123 declarations across 22 maps, and none of it is a large gap.**
+**Pass 4, done 2026-11-17 (vault `1bf9c92`).** `zeroclaw-decisions` 17 → **0 of 59**, and the `index`
+question was settled by measurement rather than by argument.
 
-| map | unlinked / namers | why it may stay |
+**`index` is 63/63 for a reason that is not a gap.** Of its 63 namers, **53 name a real topic map as
+well** — `index` is a legitimate second topic for them, the entry point. Only **10** named it as their
+ONLY topic, which files a note where no reader browses. Eight of those ten are `agentic-flow` notes
+whose map already exists; they keep `index` and gain `agentic-flow-architecture`, and the other two
+gain `agentic-architecture` and `memory-systems`. So `index` keeps all 63 declarations and none of them
+is a note whose only home is the front page.
+
+That is the answer to the earlier question: `index` stays a curated front page. A complete index would
+duplicate `references_in`, which the engine already serves in one read.
+
+**What remains: 107 declarations across 22 maps.**
+
+| map | unlinked / namers | why it stays |
 |---|---|---|
-| `index` | 63 / 63 | the entry map: a curated front page. Completeness would make it useless; the full index is `references_in`. |
-| `zeroclaw-decisions` | 17 / 59 | a decision log that has not absorbed the newest ingest; a judgement pass, not a mechanical one. |
-| `human-feedback` | 5 / 7 | small. |
-| the other 19 | ≤ 4 each | one or two notes each, below the cost of a pass. |
+| `index` | 63 / 63 | deliberate: every namer also names a real map, so nothing is stranded. |
+| `human-feedback` | 5 / 7 | small content pass. |
+| the other 20 | ≤ 4 each | one to four notes each. |
 
-**The three passes moved 372 → 123 (67%), and the remainder is a decision list, not a backlog.**
+**Four passes moved 372 → 107 (71%), and every remaining item is a named, small decision.**
