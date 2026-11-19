@@ -25,20 +25,18 @@ class StdioMcpError(RuntimeError):
     """A session that could not produce the answer its request asked for."""
 
 
-STATE_DIR_NAMES = (".2brain", ".2brain")
+STATE_DIR_NAMES = (".2brain",)
 
 
 def state_run_dir(home: str | os.PathLike[str]) -> "os.PathLike[str] | None":
     """The engine's socket directory under a `$HOME`, whichever spelling the engine used.
 
-    Which name the state root carries is the engine's decision: `$2BRAIN_HOME`, an existing
-    `.2brain`, an existing `.2brain`, else `.2brain`. A script that joins a literal name
-    therefore asserts that decision instead of finding the daemon, and it silently stops
-    finding it the day the rule changes. This asks the filesystem instead: the first
-    `<home>/<name>/tb-engine/run` that exists wins, so both worlds work.
+    The state root is `$2BRAIN_HOME` else `<home>/.2brain` (`repo::state_dir_in`). A script
+    that joins a literal name asserts that decision instead of finding the daemon; this asks
+    the filesystem instead, so a configured `$2BRAIN_HOME` is found too.
     """
     for name in STATE_DIR_NAMES:
-        run = os.path.join(os.fspath(home), name, "tb-engine", "run")
+        run = os.path.join(os.fspath(home), name, "engine", "run")
         if os.path.isdir(run):
             return run
     return None

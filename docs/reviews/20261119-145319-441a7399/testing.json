@@ -1,0 +1,82 @@
+{
+  "reviewer": "testing",
+  "findings": [
+    {
+      "title": "Isolate the real-engine tests from 2BRAIN_HOME",
+      "severity": "P2",
+      "file": "tb-mcp-rs/tests/real_engine.rs",
+      "line": 385,
+      "why_it_matters": "Developers who have 2BRAIN_HOME set cannot run the real-engine suite successfully: the child inherits that override, puts its socket outside the temporary HOME, and the test waits for an engine/run directory that never appears there. It can also create runtime state in the developer's real state directory. Clearing the override or setting it to an explicit temporary state directory for every child restores isolation.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Set 2BRAIN_HOME to a test-owned directory, or remove it, on every spawned daemon and MCP process; add a regression exercising the suite with an inherited override.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/tests/real_engine.rs:385:             .env(\"HOME\", &home)",
+        "tb-mcp-rs/tests/real_engine.rs:392:     let socket = wait_ready(&state_run_dir(&home), &mut daemon.0);",
+        "tb-engine/crates/tb-engine/src/repo.rs:900-902: state_dir_in uses a nonempty inherited 2BRAIN_HOME before home.join(STATE_DIR).",
+        "tb-mcp-rs/tests/real_engine.rs:580,715: both other daemon spawns likewise only set HOME."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Replay the search fixture against the real engine",
+      "severity": "P2",
+      "file": "tb-mcp-rs/tests/real_engine.rs",
+      "line": 265,
+      "why_it_matters": "The committed tb_search fixture is never captured or compared with a real engine, so search response or adapter deserialization regressions can pass the newly enabled end-to-end fixture gate. The non-ignored wire test feeds the same static fixture into a simulated response, which cannot detect drift from the real engine. Including search in the real fixture cases checks the actual producer-consumer contract.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Add tb_search with the committed fixture's arguments to fixture_cases, update the case count, and regenerate and verify its recorded payload against the current engine.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/tests/real_engine.rs:265: fn fixture_cases() -> [(&'static str, Value); 32] {",
+        "tb-mcp-rs/tests/real_engine.rs:266-335: the complete case list has no tb_search entry.",
+        "tb-mcp-rs/tests/fixtures/synthetic-reads/tb_search.json:1-28: a committed search fixture exists with query addressability.",
+        "tb-mcp-rs/src/wire.rs:1159-1164: the search wire test supplies the captured payload itself."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Exercise grant enforcement for every refactor verb",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 6997,
+      "why_it_matters": "The new member-grant checks for promote, inline and rename_block_id have no end-to-end denial cases, so an omission in any verb's plan or in adapter grant propagation could allow a restricted caller to rewrite another member while CI still passes. The existing cross-member tests exercise rename and rename_type, not these independently assembled refactor plans. A denied and fully granted case for each verb would test the actual authorization boundary and confirm nothing is changed on refusal.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Add multi-member tests for promote, inline and rename_block_id that send restricted and complete grants, assert the member_grant denial and unchanged files for the former, and assert the rewrite for the latter; cover grant propagation through the MCP adapter as well.",
+      "confidence": 75,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:6997:             if let Some(reject) = grant_refusal(&plan, &args.allowed_members, \"promote\") {",
+        "tb-engine/crates/tb-engine/src/serve.rs:7443,7730: inline and rename_block_id call the same guard on independently built plans.",
+        "tb-engine/crates/tb-engine/tests/it/mutate.rs:4976-5016,6529-6610: the only allowed_members integration cases exercise rename and rename_type.",
+        "tb-mcp-rs/tests/policy.rs:370-438 and tests/real_engine.rs:569-699: grant propagation and end-to-end tests exercise rename and rename_type respectively."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Make compensation failure injection work under root",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/tests/it/mutate.rs",
+      "line": 5097,
+      "why_it_matters": "The integration suite fails when run by a privileged user with CAP_DAC_OVERRIDE: making the referrer read-only does not prevent that user from writing it, so the rename succeeds where the test expects an error. This also means the test does not exercise rollback in that environment. A deterministic injected write failure independent of filesystem permission bypass would exercise compensation on both privileged and unprivileged hosts.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Replace the chmod-based fault with deterministic failure injection at the referrer write or saga boundary, preserving the assertions on all repositories after compensation.",
+      "confidence": 75,
+      "evidence": [
+        "tb-engine/crates/tb-engine/tests/it/mutate.rs:5097:     perms.set_readonly(true);",
+        "tb-engine/crates/tb-engine/tests/it/mutate.rs:5108:     assert_eq!(resp[\"type\"], \"error\", \"the saga should reject: {resp:?}\");",
+        "tb-engine/crates/tb-engine/src/serve.rs:6567: the referrer rewrite uses std::fs::write, which a process with CAP_DAC_OVERRIDE can perform despite read-only mode bits."
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

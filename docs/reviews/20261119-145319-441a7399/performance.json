@@ -1,0 +1,84 @@
+{
+  "reviewer": "performance",
+  "findings": [
+    {
+      "title": "Ignore empty dictionary entries when resolving word forms",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/search.rs",
+      "line": 1256,
+      "why_it_matters": "After an incremental edit removes the last occurrence of a spelling, searches for it return no hits even when a live singular or plural form exists. The dictionary retains the removed spelling with an empty posting block, so resolution treats it as an exact match and never tries its live alternatives; rebuilding the index changes the answer. Rejecting empty postings for both exact and alternate lookup makes incremental answers agree with a fresh index.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "During exact and alternate term resolution, accept a dictionary entry only when its posting count is nonzero; add an incremental edit versus fresh rebuild parity test with singular and plural terms.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/search.rs:1256 --         if let Some(&id) = self.term_ids.get(term) {",
+        "tb-engine/crates/tb-engine/src/search.rs:917-919 -- the vocabulary retains a term whose last document leaves while its block drops to no allocation.",
+        "tb-engine/crates/tb-engine/src/search.rs:1257-1261 -- an exact dictionary hit returns immediately, otherwise word-form dictionary hits are returned without checking their postings.",
+        "tb-engine/crates/tb-engine/src/search.rs:1361-1363 -- SearchIndex::update removes the old document and adds its new fields."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Apply instance pagination before engine projection",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2426,
+      "why_it_matters": "Even limit=1 makes the daemon project and transmit every resolved instance before the adapter discards the rest, so enumerating pages repeats the full expensive scan and transfer. The documented live unpaged MCP answer is 18.9 MB in both mode; if the single engine response crosses its 16 MiB frame cap, no page can be fetched at all. Applying the offset and limit inside the engine bounds each page before transport.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Forward limit and offset to the engine instances read, page the resolved instances before projecting their full bodies, and return total and continuation metadata to the adapter.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2426 --         let result = self.read(json!({\"id\": 1}), \"tb_instances\", ctx).await;",
+        "tb-mcp-rs/src/lib.rs:2427-2435 -- page_array is applied only after the unparameterized engine read completes.",
+        "tb-engine/crates/tb-engine/src/wire.rs:1333-1350 -- introspect_kb_instances iterates every resolved instance and scans each body.",
+        "docs/research/payload-modes.md:43-44 -- the live tb_instances response was 18.9 MB in both mode; this measurement is the MCP response, not the engine frame.",
+        "tb-engine/crates/tb-engine/src/serve.rs:138 -- const MAX_FRAME: usize = 16 << 20;"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Account transport-generated rejections against outbound slots",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/bounded_stdio.rs",
+      "line": 183,
+      "why_it_matters": "A client sending rejected pings or malformed frames can bypass the transport's backpressure and stall the server indefinitely when it stops draining stdout. Rejections enter the queue without acquiring a slot, yet the writer adds a slot for every rejection it flushes; additionally the receive loop awaits a full rejection queue without the advertised timeout. Routing all responses through the same bounded, timed admission path preserves the slot invariant and connection timeout.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Make transport-generated rejections acquire a slot and obey outbound_wait just like regular responses, and ensure every writer permit release corresponds to an acquired slot; test repeated rejected frames with stdout blocked.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/bounded_stdio.rs:183 --                             && sender.send(rejection).await.is_err()",
+        "tb-mcp-rs/src/bounded_stdio.rs:116 --                 writer_slots.add_permits(1);",
+        "tb-mcp-rs/src/bounded_stdio.rs:148-154 -- regular sends acquire and forget a slot before enqueueing, unlike rejections.",
+        "tb-mcp-rs/src/bounded_stdio.rs:158-173,187-198 -- outbound_wait is checked once outside the loop, while rejected pings and unreadable frames enqueue inside it."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Center excerpts on the resolved query spelling",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 15261,
+      "why_it_matters": "When search finds a note through singular/plural fallback, its excerpt can show only the beginning of the note instead of the matching passage, even if the hit is far later in the body. Ranking uses the resolved spelling, but excerpting receives only the original query terms. Passing the actual resolved indexed terms to excerpting restores the contextual evidence users need to judge a hit.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Expose the live dictionary terms resolved for the query and use them to locate excerpts for ranked hits; test a plural query whose singular match is beyond the opening excerpt window.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:15261 --     let terms = crate::search::distinct_terms(query);",
+        "tb-engine/crates/tb-engine/src/serve.rs:15274 --                 excerpt: excerpt_of(kb, hit.path, &terms),",
+        "tb-engine/crates/tb-engine/src/search.rs:1255-1261 -- query scoring resolves a missing exact term using alternate word forms.",
+        "tb-engine/crates/tb-engine/src/search.rs:1610-1612 -- when the supplied terms do not occur in the body, excerpting starts at the body's opening."
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

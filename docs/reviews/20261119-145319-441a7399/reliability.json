@@ -1,0 +1,151 @@
+{
+  "reviewer": "reliability",
+  "findings": [
+    {
+      "title": "Verify daemon identity before signaling recorded PID",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-cli/src/daemon.rs",
+      "line": 510,
+      "why_it_matters": "After a daemon crashes, its PID file remains. If the OS reuses that PID, start and status mistake the unrelated process for a booting daemon, and the recommended stop --force sends it SIGTERM and potentially SIGKILL. Checking only whether the PID exists does not establish ownership; a lifetime lock plus process-instance identity prevents stale state from targeting another process.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Hold an exclusive lifetime lock for each entry and record a process-instance identity such as PID plus kernel start time; verify the same identity before each signal and treat a stale unlocked record as absent.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/daemon.rs:510:     let _ = signal_pid(pid, libc::SIGTERM);",
+        "tb-engine/crates/tb-cli/src/daemon.rs:144-150 states that signal death leaves a PID file and PID reuse can name an unrelated process.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:288-300 and 561-569 treat any live recorded PID as this daemon."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Report failed force stops without deleting their PID record",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-cli/src/daemon.rs",
+      "line": 513,
+      "why_it_matters": "If signaling fails or a daemon remains alive after the final wait, stop --force nevertheless removes its PID file, prints that it stopped, and exits successfully. Operators lose the handle needed to retry and subsequent starts can race a still-running boot. Retaining the record and returning an error unless termination is confirmed makes failure observable and recoverable.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Handle SIGTERM and SIGKILL errors, check the final wait result, and only remove the matching PID file and return success after confirming the identified daemon has exited.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/daemon.rs:513:         let _ = wait_for_exit(pid, FORCE_STOP_WINDOW);",
+        "tb-engine/crates/tb-cli/src/daemon.rs:510-520 ignores both signal results, removes the PID file and returns success unconditionally."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Account for internally generated stdio rejections",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/bounded_stdio.rs",
+      "line": 183,
+      "why_it_matters": "A stream of rejected pings or malformed frames bypasses outbound slot acquisition while the writer adds a permit for each response. This inflates the semaphore beyond its configured bound; if the client stops reading, the receive loop can also block forever on its unbounded-wait rejection send rather than closing after five seconds. All outbound messages must use the same accounting and bounded backpressure path.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Route both rejection cases through a shared timeout-bounded enqueue that reserves a slot for every queued frame and returns it exactly once on completion or send failure; apply the timeout on each loop iteration.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/bounded_stdio.rs:183:                             && sender.send(rejection).await.is_err()",
+        "tb-mcp-rs/src/bounded_stdio.rs:112-116 adds one permit after every frame; lines 193-200 also enqueue rejections without reserving a permit.",
+        "tb-mcp-rs/src/bounded_stdio.rs:159-173 runs the backpressure timeout before, not inside, the rejection loop."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Bound mutation preflight reads while holding the mutation slot",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 1687,
+      "why_it_matters": "When the engine accepts a connection but stops answering, rename_type waits forever for its preliminary type read while holding the sole mutation permit. Every later mutation is then refused as already in progress, even though the normal mutation exchange has a 30-second timeout. Other preflight reads also lack a deadline, leaving their callers hung indefinitely.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Apply the existing engine-read timeout to all mutation preflight exchanges, including the rename type lookup and grant preview, so timeout returns a denial and drops the owned permit.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:1687:         let read = read_engine(",
+        "tb-mcp-rs/src/lib.rs:1682 acquires the only mutation permit before this read, and 1729-1735 awaits a second preflight while retaining it.",
+        "tb-mcp-rs/src/wire.rs:692-695 awaits transport.exchange without a timeout; tb-mcp-rs/src/transport.rs:139-143 awaits the reply without a transport deadline."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Do not declare reconciliation before in-flight mutation settles",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2806,
+      "why_it_matters": "After a mutation times out, the engine may still be processing it on its separate connection. A concurrent reconcile can read the old bytes and report not_applied, rearming the guard, after which the original write can still commit; callers may then retry a mutation falsely believed not to have landed. A conclusive verdict requires an engine-side barrier or durable mutation status, not an unsynchronized content snapshot.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Have the engine provide a mutation-ID-based settled outcome, or a reconciliation operation serialized behind the relevant mutation, and return outcome unknown until settlement is proven.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2806:             \"outcome\": if applied { \"applied\" } else { \"not_applied\" },",
+        "tb-mcp-rs/src/wire.rs:808-810 returns outcome unknown when the client-side mutation timeout expires.",
+        "tb-engine/crates/tb-engine/src/serve.rs:6142-6146 says reads never take the mutation write lock; lines 12960-12965 read content from disk independently."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Distinguish unreadable files from absent files during reconciliation",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 13666,
+      "why_it_matters": "A file that still exists but cannot be read, or contains non-UTF-8 bytes, is returned as null just like a missing file. Reconciliation with expect_absent then reports the delete as applied, hiding an unsuccessful deletion from the caller. Propagating read and decoding errors while reserving null for a confirmed missing path prevents a false success.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Return a typed content read result that distinguishes NotFound from I/O and UTF-8 errors, propagate the latter as engine errors, and let reconcile treat only confirmed NotFound as absent.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:13666:     let bytes = std::fs::read(target).ok()?;",
+        "tb-engine/crates/tb-engine/src/serve.rs:13675 also converts UTF-8 errors to None, and 12963-12970 serializes None as null.",
+        "tb-mcp-rs/src/lib.rs:2792-2794 treats null content as an applied delete."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Preserve preimages when saga rollback fails",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 5087,
+      "why_it_matters": "When restoring a git-ignored file fails during saga compensation, the only copy of its original bytes is still discarded immediately after the failure sentinel is written. Startup recovery likewise sweeps every preimage even when restoration fails, so the operator asked to repair the saga cannot recover those bytes from git or the backup. Keeping the marker and parked copies until rollback succeeds preserves the data needed for repair or retry.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Make settlement and recovery expose whether compensation completed; retain the marker and parked copies on any restoration or sentinel failure, and sweep only proven orphaned or successfully settled preimages.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5087:     drop_preimages(marker_dir, &plan.mutation_id);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5113-5124 records restore_preimages failures but returns to unconditional cleanup at 5086-5087.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5646-5649 sweeps preimages after recovery even when restore_preimages reported failures at 5700-5705.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5240-5246 explains that these paths are outside git and their prior bytes exist in the parked copies."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Read numeric-prefixed environment variable safely in installer",
+      "severity": "P2",
+      "file": "install.sh",
+      "line": 79,
+      "why_it_matters": "When installing tb-engine into the chosen bin directory fails, the fallback aborts with a Bash bad-substitution error rather than installing into the engine state root. Bash variable expansion cannot use a name beginning with a digit, even though 2BRAIN_HOME can be present in the process environment. Reading it through printenv with the documented default makes the fallback work for both configured and default roots.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Read 2BRAIN_HOME using printenv or another environment lookup that accepts numeric-prefixed names, default empty or absent values to $HOME/.2brain, and test the fallback with and without the override.",
+      "confidence": 100,
+      "evidence": [
+        "install.sh:79:   state_root=${2BRAIN_HOME:-$HOME/.2brain}",
+        "install.sh:75-82 enters this expansion when installing tb-engine in the prefix fails.",
+        "tb-engine/crates/tb-engine/src/repo.rs:900 uses std::env::var_os(\"2BRAIN_HOME\") for the engine state root."
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

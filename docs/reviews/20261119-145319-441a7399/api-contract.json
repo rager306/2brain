@@ -1,0 +1,108 @@
+{
+  "reviewer": "api-contract",
+  "findings": [
+    {
+      "title": "Incomplete rollbacks are reported as clean rejections",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/transport.rs",
+      "line": 200,
+      "why_it_matters": "When a saga write or commit fails and its compensating rollback also fails, some changes can remain on disk or committed. The engine still emits an ordinary error frame with only a textual incomplete-rollback warning, and the adapter classifies every error frame as a rejection that wrote nothing; it keeps the pre-write ledger armed instead of reporting outcome_unknown. A client following the documented rejection contract can retry against partially applied work. Distinguishing incomplete compensation in the wire and invalidating the ledger forces reconciliation before retry.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Give incomplete rollback a machine-readable outcome and mutation ID in the engine error frame, classify it as outcome_unknown in the adapter, and invalidate all affected ledger entries; retain clean rejection only after successful compensation.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/transport.rs:200:            return Err(WireError::Rejected {",
+        "tb-engine/crates/tb-engine/src/serve.rs:5782:    reject.message = format!(",
+        "tb-engine/crates/tb-engine/src/serve.rs:5783:        \"{}; the rollback was incomplete, {} member(s) recorded in {}\",",
+        "tb-engine/crates/tb-engine/src/serve.rs:11674:        \"type\": \"error\",",
+        "tb-mcp-rs/src/lib.rs:2850:            Err(MutationFailure::Rejected { message, .. }) => {",
+        "tb-mcp-rs/src/lib.rs:2857:                self.ledger.forget(&prepared.key);"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Content continuation offsets cannot be supplied",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 571,
+      "why_it_matters": "A truncated tb_content response reports next_offset as the position from which the caller can continue, but the tool accepts no offset argument and rejects unknown fields. Consequently clients cannot retrieve subsequent windows using the advertised continuation; repeating the request always returns the prefix. Accepting an offset and applying it before the limit makes the reported cursor usable.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Add a character offset to ContentArguments, slice from that offset, and return an advancing next_offset or null at the end; preserve the whole-file hash and engine version.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:571:struct ContentArguments {",
+        "tb-mcp-rs/src/lib.rs:570:#[serde(deny_unknown_fields)]",
+        "tb-mcp-rs/src/lib.rs:581:    max_chars: Option<usize>,",
+        "tb-mcp-rs/src/lib.rs:4326:    let window: String = text.chars().take(max).collect();",
+        "tb-mcp-rs/src/lib.rs:4330:    payload[\"content\"][\"next_offset\"] = json!(max);"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Graph health instrumentation violates its output schema",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/schemas.rs",
+      "line": 199,
+      "why_it_matters": "A strict MCP client rejects every tb_graph_health response requested with verbs=true as invalid structured content. The engine adds a top-level verbs sibling, and the adapter forwards it unchanged, but the declared output schema allows only graph_health. Declaring the optional verbs sibling makes the advertised instrumentation usable by schema-validating clients.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Add the optional top-level verbs property, matching the engine's instrumentation shape, to graph_health_schema and test a real verbs=true response against it.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/schemas.rs:199:            \"additionalProperties\": false,",
+        "tb-mcp-rs/src/schemas.rs:197:            \"properties\": {\"graph_health\": report},",
+        "tb-mcp-rs/src/lib.rs:1072:            request[\"verbs\"] = json!(true);",
+        "tb-engine/crates/tb-engine/src/serve.rs:13126:                        \"verbs\".to_owned(),",
+        "tb-mcp-rs/src/wire.rs:721:        payload: Value::Object(result),"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Instance pagination happens after the frame size limit",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2158,
+      "why_it_matters": "When an instances_of response exceeds 16 MiB, even a request for one record fails with response frame too large: the adapter requests the entire result from the engine before applying the caller's limit and offset. The same issue affects tb_instances, so clients cannot use the advertised pagination to recover records once the dataset crosses the transport limit. Paging in the engine before serialization makes each requested page fit independently.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Implement limit and offset in the engine instances_of and instances reads, forward the adapter's paging arguments, and return totals and continuation metadata from the engine before enforcing the response-frame limit.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2158:        let result = self.read(request, \"tb_instances_of\", ctx).await;",
+        "tb-mcp-rs/src/lib.rs:2161:            (limit, offset) => page_instances(result, limit, offset.unwrap_or(0), self.payload),",
+        "tb-mcp-rs/src/lib.rs:2426:        let result = self.read(json!({\"id\": 1}), \"tb_instances\", ctx).await;",
+        "tb-mcp-rs/src/transport.rs:236:    if len > MAX_FRAME_BYTES {",
+        "tb-mcp-rs/src/transport.rs:237:        return Err(WireError::Broken(\"response frame too large\".into()));"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Transport-generated rejections bypass backpressure permits",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/bounded_stdio.rs",
+      "line": 183,
+      "why_it_matters": "A client can send version-rejected pings or unreadable frames while not draining stdout and leave the transport blocked indefinitely in sender.send, bypassing its five-second outbound timeout. Even if the client initially drains responses, each such rejection adds a semaphore permit without acquiring one, so later ordinary requests no longer obey the intended four-response bound. Routing transport-generated rejections through the same permit and timeout accounting restores backpressure and bounded shutdown.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Route internally generated rejection frames through a shared bounded send path that acquires a slot and applies the outbound timeout, and release exactly one permit for each successfully written message.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/bounded_stdio.rs:183:                            && sender.send(rejection).await.is_err()",
+        "tb-mcp-rs/src/bounded_stdio.rs:198:                        if sender.send(rejection).await.is_err() {",
+        "tb-mcp-rs/src/bounded_stdio.rs:116:                writer_slots.add_permits(1);",
+        "tb-mcp-rs/src/bounded_stdio.rs:148:            let Ok(permit) = slots.acquire_owned().await else {",
+        "tb-mcp-rs/src/bounded_stdio.rs:159:        match timeout(self.bounds.outbound_wait, Arc::clone(&self.slots).acquire()).await {"
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

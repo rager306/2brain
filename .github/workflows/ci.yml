@@ -46,6 +46,18 @@ jobs:
             | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')
           TB_ENGINE_BIN="$target/debug/tb-engine" cargo test --test real_engine -- --ignored
 
+  repo-guards:
+    name: Repository guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The rename is only finished if nothing live still spells the old name; the
+      # tool classifies each trace by its reader and fails on a live one (ADR-0005).
+      - name: no live traces of the retired name
+        run: python3 tools/kb/legacy_audit.py --check
+      - name: documentation links
+        run: python3 tools/docs/links.py
+
   engine:
     name: Engine
     runs-on: ubuntu-latest

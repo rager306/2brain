@@ -1,0 +1,103 @@
+{
+  "reviewer": "correctness",
+  "findings": [
+    {
+      "title": "Reject or compensate batches touching non-git members",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 11520,
+      "why_it_matters": "A batch can return an error after its first operation has changed a non-git repository, leaving the change on disk despite the promised all-or-nothing behavior. The batch explicitly permits non-git members, but compensation handles only git members and preimage parking also filters to git members, so a later failing operation cannot undo the earlier one. Either refuse such batches before writing or journal non-git paths so they can be restored.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Pass require_git=true for batches, or extend preimage journaling and recovery to every written non-git path before continuing to permit them; test a successful first operation followed by a rejected second operation.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:11520:         let (applied, commits) = apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {",
+        "tb-engine/crates/tb-engine/src/serve.rs:5018:     let git_members: Vec<&SagaMember> = plan.members.iter().filter(|m| m.git).collect();",
+        "tb-engine/crates/tb-engine/src/serve.rs:5116:             let mut errors = compensate(git, &[], git_members, plan, &mutation_id);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5270:     for m in plan.members.iter().filter(|m| m.git) {",
+        "tb-engine/crates/tb-engine/src/serve.rs:11548:                 let hash = crate::mutate::write_file(target, content, expected_hash.as_deref())?;"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Preserve parked preimages when rollback cannot restore them",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 5087,
+      "why_it_matters": "A failed rollback of an ignored, untracked file can permanently lose its original contents: the failure sentinel records the error, but the only parked copy is deleted before an operator can repair the path and restore it. The same unconditional deletion occurs in the startup sweep after failed recovery. Keep failed preimages and identify them in the sentinel until recovery or manual resolution succeeds.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Retain preimage directories whenever restore_preimages reports an error, record their locations in the failure sentinel, and exclude unresolved preimages from the startup orphan sweep.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5087:     drop_preimages(marker_dir, &plan.mutation_id);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5117:             errors.extend(restore_preimages(preimages));",
+        "tb-engine/crates/tb-engine/src/serve.rs:5319:             errors.push((abs, format!(\"restoring the path outside git failed: {e}\")));",
+        "tb-engine/crates/tb-engine/src/serve.rs:5649:     sweep_preimages(&marker_dir);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5700:     errors.extend(restore_preimages(&preimages));"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Fix invalid Bash expansion in engine fallback",
+      "severity": "P2",
+      "file": "install.sh",
+      "line": 79,
+      "why_it_matters": "When installation of tb-engine into the prefix fails, the documented fallback aborts with Bash's bad substitution instead of installing the engine. Bash identifiers cannot begin with a digit, so the 2BRAIN_HOME environment variable must be read through an environment lookup rather than parameter expansion. This also leaves the already installed 2brain binary without the intended companion executable.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Read 2BRAIN_HOME using an environment lookup such as printenv with an unset-safe fallback, then use the resulting directory for installation and the PATH notice.",
+      "confidence": 100,
+      "evidence": [
+        "install.sh:79:   state_root=${2BRAIN_HOME:-$HOME/.2brain}",
+        "install.sh:75: if ! install -m 0755 -t \"$bin_dir\" \"$engine_target/tb-engine\" 2>/dev/null; then"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Check deletion reflection against catalog absence",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 11415,
+      "why_it_matters": "A successful delete can report reflected=true even while the held catalog still contains the deleted note and its diagnostics. Delete passes None to the response, which treats it as an unconditional no-op, although rebuilds can fail and retain the old knowledge base. Distinguishing deletion from no-op and checking catalog absence prevents clients from trusting stale state.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Represent a deletion separately from an idempotent no-op in mutation_response_extra and set reflected for deletion only when the target is absent from the held catalog.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:11415:         None => true,",
+        "tb-engine/crates/tb-engine/src/serve.rs:6434:                     mutation_response_extra(handle, &response_path, None, commits, extra)",
+        "tb-engine/crates/tb-engine/src/serve.rs:11407:    // disk write is canonical; `rebuild()` is best-effort and can give up on",
+        "tb-engine/crates/tb-engine/src/serve.rs:11390:         let held_hash = v.catalog.get(target).and_then(|e| e.hash);"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Do not report legacy schema claims as current",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-cli/src/migrate.rs",
+      "line": 44,
+      "why_it_matters": "The post-upgrade identity check reports a repository current and exits successfully merely because .2brain/repo.yaml exists, even when it still claims the old au.engine schema or its notes use old schema qualifiers. The engine no longer normalizes those spellings, so the reassuring result hides unresolved type claims. Check the claims the command promises to assess and report legacy spellings rather than labeling the repository current.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Inspect the repository marker and claim-bearing files for legacy builtin schema names and qualifiers, return a nonzero status with affected paths when found, and only report current after the claimed checks pass.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/migrate.rs:44:         if marker.is_file() {",
+        "tb-engine/crates/tb-cli/src/migrate.rs:2: //! whether every repository in scope carries the one identity directory (`.2brain/`) and the",
+        "tb-engine/crates/tb-cli/src/migrate.rs:3: //! current engine-schema spelling (`tb.engine.*::tb-engine`).",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:115: pub(crate) fn canonical_schema_name(name: &str) -> &str {",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:116:     name"
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

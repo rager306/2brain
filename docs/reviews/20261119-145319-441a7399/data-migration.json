@@ -1,0 +1,124 @@
+{
+  "reviewer": "data-migration",
+  "findings": [
+    {
+      "title": "Restore a usable migration for existing vaults",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-cli/src/migrate.rs",
+      "line": 70,
+      "why_it_matters": "An operator following the live-cutover runbook cannot upgrade an existing vault that still has its old identity directory: the new command refuses it rather than migrating it, while the new parser no longer reads the old directory or old built-in type names. The runbook explicitly calls this command on the vault before starting the new daemon, so deleting the migration implementation leaves the cutover without a working conversion step.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Provide a supported offline migration executable or restore the migration command before retiring the old reader; migrate identities and parser-identified builtin claims with preflight, rollback, and preservation of non-claim text, including quoted and flow-list claims. Update the runbook to invoke it with the correct --root argument.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/migrate.rs:70 --         \"tb-engine: migrate identity: {missing} {} missing {IDENTITY_DIR}/repo.yaml; \\",
+        "tb-engine/crates/tb-cli/src/migrate.rs:71 --          there is no automatic rewrite — create the identity directory by hand\",",
+        "tb-engine/doc/adr/0005-final-rename.md:116 -- 2. `systemctl stop 2brain-engine`; run `tb-engine migrate identity --apply /root/vault` on a **copy**",
+        "tb-engine/crates/tb-parser/src/identity.rs:46 -- pub fn identity_dir_with(root: &Path, _exists: impl Fn(&Path) -> bool) -> PathBuf {",
+        "tb-engine/crates/tb-cli/src/main.rs:80 --         #[arg(long, value_name = \"PATH\")]"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Recover journals in the retired runtime directories",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 5645,
+      "why_it_matters": "A daemon upgraded after a crash can start serving with an interrupted cross-repository mutation still partially applied: its old saga.intent and failure sentinels remain under the former identity/runtime directory, but startup checks only the newly named location. Even moving the old directory is insufficient for ignored-file preimages, whose absolute parked paths are recorded in the marker; recovery must process the old location before moving or removing it.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Before serving or migrating identity directories, recover and report each old and current journal location independently, including failure sentinels and preimages, without deleting an unprocessed journal; refuse cutover if safe recovery fails.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5645 --     let marker_dir = saga_marker_dir(root);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5402 --     tb_parser::identity_dir_for_write_with(root, |dir| dir.exists())",
+        "tb-engine/crates/tb-engine/src/serve.rs:5403 --         .join(crate::repo::ENGINE_RUNTIME_DIR)",
+        "tb-engine/crates/tb-engine/src/repo.rs:895 -- pub const ENGINE_RUNTIME_DIR: &str = \"engine\";",
+        "fixwave.diff:55410 -- -        .join(\"au-engine\")",
+        "tb-engine/crates/tb-engine/src/serve.rs:5571 --             body.push_str(&parked.to_string_lossy());"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Move the device registries during the runtime rename",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/repo.rs",
+      "line": 982,
+      "why_it_matters": "After an upgrade, existing registered repositories and workspace aliases disappear from discovery even if the old state root is already symlinked to the new one: the registry lookup now reads engine/config, while the prior installation wrote au-engine/config. The documented cutover does not copy those files, and the identity checker reads only the new location, so dependency resolution and named workspace opening can silently lose their configuration.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Add an offline, conflict-aware migration of the existing device state and config from the old root and au-engine directory to the selected new root and engine directory before starting the new daemon; preserve existing new-state files and fail visibly on conflicts.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/repo.rs:982 --         base.join(ENGINE_RUNTIME_DIR)",
+        "tb-engine/crates/tb-engine/src/repo.rs:984 --             .join(\"repos.yaml\")",
+        "tb-engine/crates/tb-engine/src/repo.rs:895 -- pub const ENGINE_RUNTIME_DIR: &str = \"engine\";",
+        "tb-engine/doc/adr/0005-final-rename.md:106 -- - Socket/config directory `au-engine` -> `engine` under the state root; update `state_dir_in`",
+        "tb-engine/crates/tb-engine/src/repo.rs:1166 --         base.join(ENGINE_RUNTIME_DIR)"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Do not report unchecked registries as fully current",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-cli/src/migrate.rs",
+      "line": 93,
+      "why_it_matters": "The --all check exits successfully with 'nothing to do' when registry files cannot be read, contain malformed YAML, or point to a temporarily inaccessible repository. Those repositories are silently omitted rather than checked, so an operator can mistake an incomplete migration inventory for confirmation that all registered repositories are current.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Treat unreadable or malformed existing registries and unresolvable registered paths as planning failures with their paths in the error; handle genuinely absent optional registries explicitly and do not report an empty or partial inventory as fully checked.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/migrate.rs:93 --             if let Ok(bytes) = std::fs::read(&path) {",
+        "tb-engine/crates/tb-engine/src/repo.rs:815 -- /// Malformed input (bad UTF-8, bad YAML, or no `repos:` list) degrades to an",
+        "tb-engine/crates/tb-cli/src/migrate.rs:122 --             Err(_) => continue,",
+        "tb-engine/crates/tb-cli/src/migrate.rs:54 --     if missing == 0 {"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Check claim spellings before declaring a repository current",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-cli/src/migrate.rs",
+      "line": 44,
+      "why_it_matters": "A repository whose identity directory was renamed but whose notes or type definitions still reference the retired engine types is reported current and exits successfully. The new engine no longer canonicalizes those spellings, so this positive status does not establish the documented engine-schema migration and affected claims fail to resolve.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Inspect parser-identified instance and type-definition claims as part of the current check, including quoted and sequence forms, and return a nonzero result with locations for remaining legacy builtin names or qualifiers.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/migrate.rs:44 --         if marker.is_file() {",
+        "tb-engine/crates/tb-cli/src/migrate.rs:3 -- //! current engine-schema spelling (`tb.engine.*::tb-engine`).",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:115 -- pub(crate) fn canonical_schema_name(name: &str) -> &str {",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:116 --     name"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Use valid Bash expansion for the engine fallback",
+      "severity": "P2",
+      "file": "install.sh",
+      "line": 79,
+      "why_it_matters": "When the server can be installed into the prefix but installing the engine there fails, the advertised per-user fallback aborts with Bash's bad-substitution error instead of installing the engine. Bash parameter names cannot start with a digit, so the state-root expansion fails whether or not the environment override exists.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Read the numeric-prefixed environment key with a mechanism that accepts arbitrary environment names, such as printenv, assign it to a valid shell variable, and apply the $HOME/.2brain default before installing the fallback binary.",
+      "confidence": 100,
+      "evidence": [
+        "install.sh:79 --   state_root=${2BRAIN_HOME:-$HOME/.2brain}",
+        "install.sh:75 -- if ! install -m 0755 -t \"$bin_dir\" \"$engine_target/tb-engine\" 2>/dev/null; then",
+        "install.sh:80 --   engine_bin=$state_root/bin/tb-engine"
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

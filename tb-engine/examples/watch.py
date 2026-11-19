@@ -38,7 +38,7 @@ def socket_path(entry: str) -> Path:
     h = 0xCBF29CE484222325
     for b in abs_entry.encode("utf-8"):
         h = ((h ^ b) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
-    return Path.home() / ".2brain" / "tb-engine" / "run" / f"{h:016x}.sock"
+    return Path.home() / ".2brain" / "engine" / "run" / f"{h:016x}.sock"
 
 
 def send_frame(sock: socket.socket, message: dict) -> None:

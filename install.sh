@@ -64,6 +64,17 @@ for binary in "$server_target/2brain" "$engine_target/tb-engine"; do
   [[ -x $binary ]] || die "the build did not produce $binary"
 done
 
+# A state root from before the rename holds its runtime directory as `au-engine`.
+# Move it once, before anything reads it: the binary looks only at `engine`, and an
+# unmoved registry means an upgraded install silently loses every repository it knows.
+# An existing `engine` is never overwritten; a symlink (the live host's compatibility
+# link) is left alone because the target already exists.
+state_root=${2BRAIN_HOME:-$HOME/.2brain}
+if [[ -d $state_root/au-engine && ! -e $state_root/engine ]]; then
+  mv "$state_root/au-engine" "$state_root/engine"
+  printf 'install.sh: moved %s/au-engine to %s/engine\n' "$state_root" "$state_root"
+fi
+
 bin_dir=$prefix/bin
 mkdir -p "$bin_dir" 2>/dev/null ||
   die "cannot create $bin_dir; run as root, or pass PREFIX=\$HOME/.local"
@@ -73,10 +84,8 @@ install -m 0755 -t "$bin_dir" "$server_target/2brain" 2>/dev/null ||
 
 engine_bin=$bin_dir/tb-engine
 if ! install -m 0755 -t "$bin_dir" "$engine_target/tb-engine" 2>/dev/null; then
-  # The fallback must land in the state root the ENGINE resolves: `$2BRAIN_HOME`, else
-  # `$HOME/.2brain` (`repo::state_dir_in`). Creating a second root would hide the registry,
-  # sockets and logs a running install already has.
-  state_root=${2BRAIN_HOME:-$HOME/.2brain}
+  # The fallback lands in the state root resolved above, so it never hides an existing
+  # registry, socket or log behind a second root.
   engine_bin=$state_root/bin/tb-engine
   mkdir -p "$state_root/bin"
   install -m 0755 -t "$state_root/bin" "$engine_target/tb-engine"

@@ -261,12 +261,10 @@ def start_engine(binary: Path, entry: Path, home: Path, log_path: Path) -> tuple
             raise SystemExit(
                 f"engine for {entry} exited before binding a socket: see {log_path}"
             )
-        # Both spellings of the per-user state directory: `~/.2brain` is the
-        # engine's historical name and `~/.2brain` the served one, and a fresh
-        # HOME holds whichever the binary writes, so the probe follows the binary
-        # rather than assuming one.
-        for state in (".2brain", ".2brain"):
-            for candidate in sorted((home / state / "tb-engine" / "run").glob("*.sock")):
+        # The per-user state root is `$2BRAIN_HOME` else `~/.2brain`; this probe
+        # follows the binary's rule rather than assuming a literal name.
+        for state in (".2brain",):
+            for candidate in sorted((home / state / "engine" / "run").glob("*.sock")):
                 return process, candidate, log
         time.sleep(0.1)
     process.terminate()

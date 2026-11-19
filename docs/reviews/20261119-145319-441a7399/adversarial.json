@@ -1,0 +1,175 @@
+{
+  "reviewer": "adversarial",
+  "findings": [
+    {
+      "title": "Creating through a parent bypasses the nested member grant",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2979,
+      "why_it_matters": "A client granted an editable parent can create a file in an editable nested member that its policy does not grant. Unlike existing-file mutations, create resolves the named parent and sends the absolute child path without checking the engine's deepest owner; the engine then authors the nested member. Applying the same resolved-owner grant check used by arm_file closes this authorization bypass.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "After resolve_editable in prepare_create, call enforce_owner_grant with the resolved target, named repo, and configured allowlist, before acquiring the mutation slot or sending the create.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2979:        let target = resolve_editable(self.transport.as_ref(), repo, path)",
+        "tb-mcp-rs/src/lib.rs:2982-2983 takes the slot and returns without the enforce_owner_grant check present in arm_file at 2892-2895.",
+        "tb-mcp-rs/src/lib.rs:1430-1437 sends the resolved absolute path as create_file without an allowlist rider.",
+        "tb-mcp-rs/src/wire.rs:851-856 explicitly states that the engine assigns paths under nested editable members to the deepest owner."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "A failed marker removal rolls back an acknowledged commit",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 5739,
+      "why_it_matters": "A mutation can return success and then be undone on the next daemon start. If the saga commits but its intent marker cannot be removed, the removal error is ignored; startup sees the stale marker and compensates the already acknowledged commit. Persisting a durable committed state before acknowledging success, and treating marker cleanup failure as a real failure, prevents recovery from interpreting a completed saga as interrupted.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Introduce a durable completion state or equivalent crash-safe commit protocol that recovery recognizes before responding success; check marker removal and directory durability rather than ignoring errors.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5739:    let _ = std::fs::remove_file(path);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5082-5088 removes the marker without checking success and returns outcome, including a successful committed outcome.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5688-5691 reverts a committed mutation when its marker is found at startup.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:325 calls recovery before serving."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Failed compensation deletes the only copy of ignored data",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 5087,
+      "why_it_matters": "An unsuccessful multi-file mutation can permanently destroy the original contents of an ignored file even though the engine parked a backup. If a later write or commit fails and restoring that file fails, for example because its destination directory became unwritable or the filesystem filled, the error is recorded but the only parked preimage is immediately deleted; startup recovery also sweeps preimages after failed restoration. Retaining the marker and parked copies on incomplete compensation leaves an operator able to repair the file.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Retain the intent marker and all parked preimages whenever compensation or recovery is incomplete; clean them only after successful restoration or explicit operator resolution, and exclude retained failed sagas from the startup sweep.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5087:    drop_preimages(marker_dir, &plan.mutation_id);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5113-5124 and 5161-5174 return an error after collecting restore_preimages failures, but the caller drops the parked copies unconditionally.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5242-5246 states that these paths have no Git HEAD and their parked bytes are their rollback source.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5646-5649 also sweeps all parked copies after recovery regardless of restoration errors."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Reconcile reports not applied while the mutation is queued",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2806,
+      "why_it_matters": "A caller recovering from an unknown mutation can be told it was not applied and be given permission to retry while the original request is still waiting to run. A request that times out after reaching the engine can remain queued behind its write lock; reconcile performs an independent read that does not take that lock, sees the old bytes, and reports not_applied even though the queued operation may later commit. Reconciliation needs a settled operation identity or an engine-side barrier, rather than treating an instantaneous content mismatch as a final outcome.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Track mutation IDs and expose a durable settled/applied/rejected result from the engine, or implement an engine-side barrier ordered after the original request; return outcome_unknown and do not re-arm the ledger until settlement is established.",
+      "confidence": 75,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2806:            \"outcome\": if applied { \"applied\" } else { \"not_applied\" },",
+        "tb-mcp-rs/src/wire.rs:803-815 turns a 30-second transport timeout into Unknown, not cancellation of the engine operation.",
+        "tb-engine/crates/tb-engine/src/serve.rs:6141-6146 serializes mutations on write_lock while reads never acquire it; serve.rs:3812-3816 awaits each accepted mutation even if the client later disconnects.",
+        "tb-mcp-rs/src/lib.rs:2782-2801 compares only the current file hash and records it for retry on a mismatch."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Upgrade skips interrupted sagas in the old runtime directory",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 5645,
+      "why_it_matters": "After an upgrade, a workspace with an interrupted pre-rename mutation can start serving a partially written or partially committed saga without warning or rollback. The prior engine placed its intent under the identity directory's au-engine/run path, whereas this startup checks only the new engine/run path and never scans the old marker or failure sentinels. Detecting and recovering or explicitly refusing legacy outstanding sagas before opening the workspace prevents the partial state from being accepted as normal.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Before serving, inspect both legacy identity/runtime locations and the current location; recover legacy intent markers and their preimages using their original paths, or fail closed with a clear repair instruction when automatic recovery is unsafe.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5645:    let marker_dir = saga_marker_dir(root);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5401-5404 builds only the current identity/runtime directory; tb-engine/crates/tb-engine/src/repo.rs:895 sets ENGINE_RUNTIME_DIR to engine.",
+        "Pre-rename source at 05d6bdc, tb-engine/crates/tb-engine/src/serve.rs:5335-5338, used the identity directory joined with au-engine/run.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:325 invokes only recover_crashed_saga before serving."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Force stop can kill an unrelated reused PID",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-cli/src/daemon.rs",
+      "line": 510,
+      "why_it_matters": "Stopping a crashed daemon with --force can terminate an unrelated process and lose that process's work. A signal-killed daemon leaves its PID file behind; once the operating system reuses that PID, the liveness check accepts the unrelated process and the force path sends it SIGTERM and then SIGKILL without establishing its identity. A lifetime lock and process identity verification prevent a stale PID from becoming authority to signal another program.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Use a lifetime lock plus a verified process identity such as PID and creation time, or a retained OS process handle where supported; refuse to signal when identity cannot be established.",
+      "confidence": 75,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/daemon.rs:510:    let _ = signal_pid(pid, libc::SIGTERM);",
+        "tb-engine/crates/tb-cli/src/daemon.rs:144-151 explicitly describes the stale PID and reuse window.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:483-512 reads the PID, tests only pid_alive, then escalates through SIGTERM and SIGKILL."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Installer fallback aborts after replacing the adapter",
+      "severity": "P2",
+      "file": "install.sh",
+      "line": 79,
+      "why_it_matters": "An upgrade whose existing engine binary cannot be replaced leaves the new adapter installed but fails before installing the fallback engine. Bash does not permit a variable name beginning with a digit in the ${2BRAIN_HOME:-...} expansion, so that fallback aborts with bad substitution even when the state override is unset. Reading the unusual environment key through a mechanism that supports it, then defaulting to $HOME/.2brain, makes the fallback follow the engine's actual state-root policy.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Read the 2BRAIN_HOME environment key using a shell-compatible mechanism, such as printenv with a safe empty-value fallback, then assign state_root from that value or $HOME/.2brain.",
+      "confidence": 100,
+      "evidence": [
+        "install.sh:79:  state_root=${2BRAIN_HOME:-$HOME/.2brain}",
+        "install.sh:71 installs the adapter before install.sh:75 enters the engine-install failure fallback.",
+        "tb-engine/crates/tb-engine/src/repo.rs:899-900 reads the literal environment key 2BRAIN_HOME."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Incremental edits suppress valid singular and plural search results",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/search.rs",
+      "line": 1256,
+      "why_it_matters": "After the last note containing a query spelling is edited, searching that spelling can return no hits even though another note contains its supported singular or plural form; a cold rebuild produces a different answer. Incremental removal retains the obsolete dictionary entry with zero postings, so resolve_term treats the dead exact entry as a hit and never tries the live word form. Resolving only terms with live postings restores search consistency after edits.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Treat dictionary terms with zero live postings as absent when resolving exact terms and word-form candidates, or remove empty dictionary entries during incremental removal.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/search.rs:1256:        if let Some(&id) = self.term_ids.get(term) {",
+        "tb-engine/crates/tb-engine/src/search.rs:917-919 documents that removing the last posting retains the dictionary entry.",
+        "tb-engine/crates/tb-engine/src/search.rs:1257-1261 returns the dead exact term before trying word_forms; search.rs:1363-1369 uses incremental remove and add on an edited note."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Internal rejections defeat bounded stdio backpressure",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/bounded_stdio.rs",
+      "line": 183,
+      "why_it_matters": "A client can defeat the adapter's outbound bound by first sending rejected pings or malformed frames while reading their replies and then stopping reads while flooding requests. Internal rejections enter the queue without taking a semaphore permit, but the writer returns a permit for every flushed message, inflating the available credits and allowing spawned response tasks to accumulate beyond the intended bound. Reserving a permit for every queued response and applying the same timeout to internal rejections preserves the backpressure guarantee.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Route internal rejections through the same permit-acquiring send path as normal responses, including bounded waiting, so every writer permit return matches a prior acquisition.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/bounded_stdio.rs:183:                            && sender.send(rejection).await.is_err()",
+        "tb-mcp-rs/src/bounded_stdio.rs:148-154 acquires and forgets a semaphore permit for normal sends, while 181-198 queues internal rejections directly.",
+        "tb-mcp-rs/src/bounded_stdio.rs:112-116 returns a semaphore permit for every queued message, regardless of whether one was acquired.",
+        "tb-mcp-rs/src/bounded_stdio.rs:158-173 applies the outbound wait only once before the loop, so a blocked internal rejection can also bypass that timeout."
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

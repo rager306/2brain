@@ -1,0 +1,82 @@
+{
+  "run_id": "20261119-145319-441a7399",
+  "run_dir": "/tmp/compound-engineering-0/ce-code-review/20261119-145319-441a7399",
+  "skill_dir": "/root/.omp/plugins/cache/plugins/compound-engineering-plugin___compound-engineering___3.38.2/skills/ce-code-review",
+  "docs_root": "docs",
+  "mode": { "agent": false, "apply_local": false, "grouping": "auto", "depth": "auto" },
+  "invocation": {
+    "arguments": "используй codebase-memory-mcp инструменты и проведи перепроверь !! review репозитория",
+    "constraints": ["Use codebase-memory-mcp tools for the review (verbatim user directive: 'используй codebase-memory-mcp инструменты'; honored: index freshly rebuilt before dispatch and reviewers were instructed to navigate with it where available; navigation aid, not a scope limit).", "Report-only: no apply authority was requested or granted."]
+  },
+  "scope": {
+    "mode": "standalone",
+    "base": "7ee72b1f879b09bec1c06bf7a42834f2d673261f",
+    "diff_a": "7ee72b1f879b09bec1c06bf7a42834f2d673261f",
+    "diff_b": null,
+    "pr": { "number": null, "url": null, "title": null, "body": null, "base_ref_name": null, "head_ref_oid": null, "head_ref": null, "base_ref": null, "has_prior_comments": false },
+    "branch": "main",
+    "head_sha": "da676f62b4ff0aab53808ff4940a4e89da643f95",
+    "files": "/tmp/compound-engineering-0/ce-code-review/20261119-145319-441a7399/files.txt",
+    "diff": "/tmp/compound-engineering-0/ce-code-review/20261119-145319-441a7399/full.diff",
+    "tree_is_reviewed_head": true,
+    "untracked_excluded": [".codebase-memory/", ".compound-engineering/", "CODING_STANDARDS.md", "REVIEW.md"]
+  },
+  "intent": {
+    "summary": "Whole-tree external re-review of /root/2brain — a graph-backed knowledge workspace: engine crate tb-engine (daemon, MCP serving over Unix socket, search index, mutation saga with preimage-based rollback), MCP adapter tb-mcp-rs (agent-facing tb_* tools), content repos as workspace members, install/CI/fixture tooling — against root commit 7ee72b1 (whole tree is the reviewed change; head da676f6 plus uncommitted edits to .gitignore and AGENTS.md). Since the previous external review the tree absorbed a fix wave (commits 05d6bdc..da676f6: member-grant checks in rename/inline/promote, read containment, real-engine suite in CI, installer legacy-state shadowing, ingest identity rule) and a repo-wide rename to one spelling 'on disk, on the wire and in every name'. Verify the fixes closed their classes without regressions and review the whole tree for fresh defects.",
+    "confidence": "inferred"
+  },
+  "plan": { "path": null, "source": "none", "requirements": [], "implementation_units": [], "settled_decisions": [] },
+  "roster": {
+    "selected": [
+      { "reviewer": "correctness", "tier": "session", "reason": "always-on" },
+      { "reviewer": "project-standards", "tier": "session", "reason": "applicable criteria file exists (root CODING_STANDARDS.md)" },
+      { "reviewer": "testing", "tier": "session", "reason": "test infra and CI changed; real-engine suite and fixture capture in scope" },
+      { "reviewer": "maintainability", "tier": "session", "reason": "148,659 executable changed lines plus repo-wide rename" },
+      { "reviewer": "agent-native", "tier": "session", "reason": "agent-facing MCP tool surface in tb-mcp-rs" },
+      { "reviewer": "security", "tier": "session", "reason": "member grants, path containment, mutation gate, socket ownership" },
+      { "reviewer": "performance", "tier": "session", "reason": "search hot path, pagination/serialization sizes, permit contention" },
+      { "reviewer": "api-contract", "tier": "session", "reason": "externally consumed MCP wire contract and engine responses" },
+      { "reviewer": "data-migration", "tier": "session", "reason": "migration artifacts: identity_migration.rs, migrate.rs, .arsumbris->.2brain windows" },
+      { "reviewer": "reliability", "tier": "session", "reason": "daemon lifecycle, backpressure, timeouts, recovery" },
+      { "reviewer": "adversarial", "tier": "session", "reason": "in-process fallback after the cross-model peer skipped pre-egress (host serving family unattested); evidenced material-consequence failure scenarios (data loss via false success, authz bypass)" }
+    ],
+    "standards": { "criteria": ["/root/2brain/CODING_STANDARDS.md (root; governs every changed file; untracked but present in the reviewed tree; root AGENTS.md, tb-engine/AGENTS.md, tb-mcp-rs/AGENTS.md displaced as criteria by precedence)"], "fallback_named": false, "not_run_reason": null },
+    "packs": { "roots": [], "errors": [], "warnings": [] }
+  },
+  "collection": {
+    "returns": "/tmp/compound-engineering-0/ce-code-review/20261119-145319-441a7399/raw-returns.json",
+    "unstructured_returns": [],
+    "failed_reviewers": [],
+    "bound_exceeded": [],
+    "fast_pass": {
+      "emitted_preliminary": false,
+      "candidates": [
+        { "note": "One fast-pass candidate (`.2brain/.auignore` looks like a rename leftover) was withdrawn before dispatch: documented intentional naming per tb-engine WIRE.md set_ignores (the ONE sanctioned write under the identity directory). No urgent P0/P1 fast-pass findings were emitted; deep review proceeded." }
+      ]
+    }
+  },
+  "peer": {
+    "selected": true,
+    "target": "codex",
+    "route": "codex",
+    "preference_source": "default",
+    "outcome": "in-process-fallback",
+    "artifact": null,
+    "coverage": "adversarial lens: in-process fallback (cross-model peer not run: host serving family unattested — the worker skipped before any egress because the oh-my-pi session file names no first-party default model for this runtime; nothing was sent to any provider; route codex was resolved and sanctioned, editorial default model at high effort requested). The in-process fallback shares the session model, so its findings carry no independence attestation and no agreement-promotion bonus."
+  },
+  "review_policy": { "path": null, "sources": [] },
+  "coverage_notes": [
+    "Scope: standalone whole-tree vs root commit 7ee72b1f879b09bec1c06bf7a42834f2d673261f (no PR; gh pr view found none for main); reviewed change = the entire tracked tree: 2,668 files, 369,636 changed lines, 148,659 executable non-test lines, size_band large, hard_block_full floor -> full spine; deleted_band none; 79,795 unclassified (non-executable) lines.",
+    "Review policy not applied: REVIEW.md exists only as an untracked file in the reviewed tree; at the review base it does not exist, so the change's own REVIEW.md was not applied (Stage 1d: policy is read from the base).",
+    "Untracked paths excluded from diff scope: .codebase-memory/, .compound-engineering/, CODING_STANDARDS.md, REVIEW.md. CODING_STANDARDS.md was still used as the criteria source (tree-under-review criteria), and reviewers were told it is criteria, not change content.",
+    "Cross-model pass: requested route codex (installed Codex CLI), editorial default model at high reasoning effort; job 20261119T075805Z-c13e4a5d started detached and terminated done with no artifact; worker skip reason from out.log: 'host serving family unattested; oh-my-pi session file names no first-party default model for this runtime'; skip happened before any egress, so no reviewed content left the machine. Job directory deleted after reading out.log. Coverage sentence carried verbatim in peer.coverage.",
+    "Adversarial lens covered by the in-process fallback (same brief and constraints files); it shares the session model, so its findings get no independent-corroboration promotion bonus.",
+    "Host adaptations: omp provides no per-spawn model or effort override; all 11 reviewers and both leaves inherit the session model; any configured review_subagents effort was not applied.",
+    "Plan: none found (docs/plans absent; plan_source none; requirements_completeness null).",
+    "Fast pass: no urgent P0/P1 findings; one candidate withdrawn before emit (`.auignore` intentional per WIRE.md set_ignores) — reported here so the preliminary accounting is explicit.",
+    "User directive honored: codebase-memory-mcp index for root-2brain was rebuilt (23,475 nodes / 90,157 edges, status ready) immediately before dispatch, and every reviewer prompt instructed CBM-based navigation where the subagent kernel exposes the MCP devices, with direct reads as fallback.",
+    "Re-review context: 13 commits landed between the previous external review head (c5afba6) and this run's HEAD (da676f6), including fix-wave commits naming the previous findings and repo-wide rename b58853a; the fixwave.diff staging (1,238 files, ~86k lines) was provided to every reviewer alongside the whole-tree diff.",
+    "Criteria mapping (Stage 1c): root CODING_STANDARDS.md governs every changed file; instruction files (root AGENTS.md, tb-engine/AGENTS.md, tb-mcp-rs/AGENTS.md) are displaced for all changed files; CLAUDE.md absent; search complete, not uncertain.",
+    "11 of 11 dispatched reviewers returned valid compact returns; 0 failed reviewers; 0 bound-exceeded."
+  ]
+}

@@ -91,6 +91,17 @@ install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
 
 ### Fixed
 
+- **Sites the rename left pointing at the old runtime directory, and an upgrade path that keeps the
+  registry.** `tb-mcp-rs/scripts/lib/mcp_stdio.py` joined `.2brain/tb-engine/run` (and listed the state
+  name twice), `tools/probe/visit_bound.py` probed the same tuple, `tb-engine/examples/watch.py` and
+  `tb-engine/scripts/swap-engine.sh` pointed at `tb-engine/run`, and the live skill reference
+  `tb-mcp-rs/skills/2brain/references/tool-map.md` still promised the retired scheme and `.arsumbris/`
+  paths. All now use `<state root>/engine/run` and the one scheme. `install.sh` moves a pre-rename
+  `<state>/au-engine` to `<state>/engine` once, before anything reads it, so an upgraded install keeps
+  its repository registry; an existing `engine` is never overwritten. CI gains a `repo-guards` job that
+  runs `tools/kb/legacy_audit.py --check` and the docs-link check, and the audit no longer treats the
+  live tool map as history.
+
 - **A `shutdown` read could lose its own acknowledgement** (engine). `dispatch` signalled the daemon on
   `Request::Shutdown` before the reply frame reached the writer, so `wait_for_shutdown` woke and dropped
   the runtime, killing the connection before the ack was flushed. A client calling `{ "read": "shutdown" }`

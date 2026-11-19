@@ -1,0 +1,120 @@
+{
+  "reviewer": "agent-native",
+  "findings": [
+    {
+      "title": "Content windows expose an unusable continuation offset",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 4330,
+      "why_it_matters": "An agent that limits a long note with max_chars receives a next_offset but cannot request the remaining text: ContentArguments has no offset and denies unknown fields, and every window starts at the beginning. The only workaround is to fetch the whole note, defeating the promised bounded continuation and potentially exceeding the engine frame limit.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Accept a character offset on tb_content, slice from it, and return the actual next offset or null; test successive windows, Unicode and whole-file hashes.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:4330:     payload[\"content\"][\"next_offset\"] = json!(max);",
+        "tb-mcp-rs/src/lib.rs:569-582: ContentArguments denies unknown fields and exposes repo, path and max_chars, but no offset.",
+        "tb-mcp-rs/src/lib.rs:4326:     let window: String = text.chars().take(max).collect();"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Unread file contents arm the write gate",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 1201,
+      "why_it_matters": "A truncated tb_content response arms the whole-file replacement gate even though the caller has not seen the rest of the file. Likewise, tb_reconcile records a changed file's hash while returning only its hash and commit, so a suggested retry can overwrite intervening changes the agent never saw. The whole-file hash detects later changes, not omissions from the agent's read; requiring a complete caller-visible read before replacement closes that gap.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Only arm whole-file replacement after the complete content has been served to the caller; do not re-arm it from a hash-only reconciliation. Require tb_content again for a changed file and test partial reads and intervening edits.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:1201:                     self.ledger.record(key, hash);",
+        "tb-mcp-rs/src/lib.rs:1203-1205: the recorded response is subsequently truncated by window_content when max_chars is supplied.",
+        "tb-mcp-rs/src/lib.rs:2798-2801: a not-applied reconcile also records the current hash.",
+        "tb-mcp-rs/src/lib.rs:2805-2809: reconcile exposes outcome, current_hash and current_commit, not the current text.",
+        "tb-mcp-rs/docs/tools.md:98-101: tb_write_file replaces the whole file."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Reconcile mistakes later changes for a failed mutation",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2794,
+      "why_it_matters": "If an uncertain write succeeds and another writer subsequently changes the file, tb_reconcile reports not_applied merely because the current hash differs from the expected post-write hash. An agent following that answer may retry an operation that already happened, duplicating an edit or overwriting the later writer. Current state alone cannot distinguish that history from a write that never landed.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Represent a differing current state as indeterminate unless durable mutation or history evidence proves non-application; update the schema and instructions to require inspecting current content and history before retrying.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2794:             Some(expected) => current_hash.as_deref() == Some(expected.as_str()),",
+        "tb-mcp-rs/src/lib.rs:2806:             \"outcome\": if applied { \"applied\" } else { \"not_applied\" },",
+        "tb-mcp-rs/src/lib.rs:2713: the tool says it checks what actually happened and allows the caller to decide whether to retry."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Candidate scans default to an unbounded all-types dump",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2457,
+      "why_it_matters": "A normal tb_candidates call returns full detail for every scanned file and every candidate type, creating a multi-megabyte response on the measured live workspace and exhausting agent context or client output limits. Paging and summary are optional, and no type filter exists for the common task of finding candidates for one type, so agents must fetch and inspect the entire corpus. Bounded defaults and a type filter make this operation usable while preserving access to the rest.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Default to a bounded summary page with continuation metadata, and add an engine-side type-name filter exposed in the adapter schema.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2457:         if let Some(limit) = args.limit {",
+        "tb-mcp-rs/src/lib.rs:404-415: CandidatesArguments defaults summary to false and exposes only summary, limit and offset.",
+        "tb-engine/crates/tb-engine/src/serve.rs:2474-2476: an absent limit returns every scanned file.",
+        "docs/research/payload-modes.md:43-44: the measured unbounded tb_candidates response was 3.1 MB in both mode."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Instance paging occurs after the engine frame limit",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2426,
+      "why_it_matters": "Even limit=1 requires the engine to serialize and transmit every resolved instance before the adapter slices the response. Once the engine response exceeds its 16 MiB frame ceiling, no page can be retrieved, despite the advertised pagination; the measured live unpaged response was already 18.9 MB in both-mode MCP encoding. Paging at the engine avoids the frame bottleneck and repeated full-set transfer.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Implement limit and offset in the engine instances read, forward them from tb_instances, and return total and continuation metadata without transmitting the full set.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2426:         let result = self.read(json!({\"id\": 1}), \"tb_instances\", ctx).await;",
+        "tb-mcp-rs/src/lib.rs:2427-2435: the adapter invokes page_array only after the full engine read.",
+        "tb-mcp-rs/src/transport.rs:28: pub(crate) const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;",
+        "docs/research/payload-modes.md:43-44: the live unpaged tb_instances MCP response measured 18.9 MB in both mode, not the engine-frame size."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Full schemas conflict with text-only payloads",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 4145,
+      "why_it_matters": "A schema-validating client using the full tool profile with text payloads rejects successful calls because outputSchema is advertised but structuredContent is absent. The repository records this exact client error and a circuit breaker treating repeated failures as server unreachability. Making the advertised schema and payload mode consistent restores those calls.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Omit outputSchema for text-only payloads under every profile, or reject the incompatible full/text combination; cover it with a schema-validating client.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:4145:         PayloadMode::Text => {",
+        "tb-mcp-rs/src/lib.rs:4146:             response.content = vec![ContentBlock::text(payload.to_string())];",
+        "tb-mcp-rs/src/lib.rs:3398-3404: schemas are removed only for the concise profile.",
+        "docs/research/payload-modes.md:125-137: a real client reported 'Tool tb_overview has an output schema but did not return structured content' and its circuit breaker marked the server unreachable."
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

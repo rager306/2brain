@@ -1,0 +1,18 @@
+{"phase": "start", "stage": "scope", "ts": "2026-11-19T07:53:19.291976+00:00"}
+{"facts": {"base": "root_commit", "changed_lines": 369636, "deleted_band": "none", "depth": "full", "exec_nontest_lines": 148659, "scope": "standalone-whole-tree", "size_band": "large", "unclassified_lines": 79795}, "phase": "end", "stage": "scope", "ts": "2026-11-19T07:54:53.598894+00:00"}
+{"phase": "start", "stage": "select", "ts": "2026-11-19T07:54:53.598894+00:00"}
+{"facts": {"adversarial_route": "codex", "peer": "job-started"}, "phase": "end", "stage": "select", "ts": "2026-11-19T07:58:05.402514+00:00"}
+{"phase": "start", "stage": "dispatch", "ts": "2026-11-19T07:58:05.402514+00:00"}
+{"facts": {"peer_outcome": "in-process-fallback", "peer_reason": "host family unattested; oh-my-pi session file names no first-party model; skipped pre-egress"}, "phase": "end", "stage": "peer", "ts": "2026-11-19T08:09:15.305171+00:00"}
+{"phase": "start", "stage": "peer-fallback", "ts": "2026-11-19T08:09:15.305171+00:00"}
+{"facts": {"adversarial_fallback_findings": 9}, "phase": "end", "stage": "peer-fallback", "ts": "2026-11-19T08:17:36.358095+00:00"}
+{"candidates": 60, "phase": "end", "reviewers": 11, "stage": "dispatch", "ts": "2026-11-19T08:17:36.431974+00:00"}
+{"phase": "start", "stage": "validate-pending", "ts": "2026-11-19T08:17:36.431974+00:00"}
+{"phase": "start", "stage": "merge", "ts": "2026-11-19T08:19:38.589193+00:00"}
+{"candidates": 39, "phase": "end", "stage": "merge", "ts": "2026-11-19T08:23:37.051083+00:00"}
+{"facts": {"batch": 39, "expanded": "all-p0p1", "skip_count": 0}, "phase": "end", "stage": "validate-pending", "ts": "2026-11-19T08:24:39.048516+00:00"}
+{"phase": "start", "stage": "validate", "ts": "2026-11-19T08:24:39.048516+00:00"}
+{"facts": {"validator_passes": 2, "verdicts_confirmed": 39}, "phase": "end", "stage": "validate", "ts": "2026-11-19T08:39:49.415449+00:00"}
+{"phase": "end", "stage": "validate-pending-2", "ts": "2026-11-19T08:40:00.926315+00:00"}
+{"phase": "start", "stage": "report", "ts": "2026-11-19T08:40:00.926315+00:00"}
+{"phase": "end", "stage": "report", "ts": "2026-11-19T08:42:53.618147+00:00"}

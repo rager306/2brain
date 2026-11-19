@@ -56,8 +56,8 @@ advertises 36; with mutations alone 47; composition adds 2; workspace shape adds
 
 | tool | arguments | answers |
 |---|---|---|
-| `tb_add_dep` | `dep`, `expected_hash`, `ref`, `remote`, `repo` | Declare a dependency in one member's .arsumbris/repo.yaml, as a byte splice that keeps comments and order. |
-| `tb_add_workspace_member` | `expected_hash`, `name`, `repo`, `role` | Declare a member in one workspace's .arsumbris/workspace.yaml, in the edit or discover list. |
+| `tb_add_dep` | `dep`, `expected_hash`, `ref`, `remote`, `repo` | Declare a dependency in one member's .2brain/repo.yaml, as a byte splice that keeps comments and order. |
+| `tb_add_workspace_member` | `expected_hash`, `name`, `repo`, `role` | Declare a member in one workspace's .2brain/workspace.yaml, in the edit or discover list. |
 | `tb_assign_block_id` | `at`, `expected_hash`, `path`, `repo` | Mint a block id for the entity at a byte offset and return the id and its [[target^id]] ref. |
 | `tb_batch` | `ops`, `repo` | Apply 1 to 50 file operations (write_file, edit_file, delete_file) as one all-or-nothing saga: every op passed the same gate it would pass a |
 | `tb_create_file` | `content`, `path`, `repo` | Create a new file in a member. |
@@ -65,7 +65,7 @@ advertises 36; with mutations alone 47; composition adds 2; workspace shape adds
 | `tb_edit_file` | `expected_hash`, `new_string`, `old_string`, `path`, `replace_all`, `repo` | Replace one exact string in a member's file after a successful tb_content read of the same path. |
 | `tb_inline` | `at`, `expected_hash`, `into`, `into_expected_hash`, `path`, `repo` | Fold one file into a referrer as an inline record and delete it, as one saga: the chosen [[path]] becomes the record, other whole-file links |
 | `tb_promote` | `at`, `block_id`, `expected_hash`, `path`, `repo`, `to` | Lift an inline record into its own file and leave a reference where it sat, as one saga: every [[host^id]] referrer follows to the new file, |
-| `tb_remove_dep` | `dep`, `expected_hash`, `repo` | Remove a dependency from one member's .arsumbris/repo.yaml, as a byte splice that keeps siblings and comments; a sole entry collapses deps t |
+| `tb_remove_dep` | `dep`, `expected_hash`, `repo` | Remove a dependency from one member's .2brain/repo.yaml, as a byte splice that keeps siblings and comments; a sole entry collapses deps t |
 | `tb_remove_workspace_member` | `expected_hash`, `name`, `repo` | Remove a member from one workspace's edit and discover lists. |
 | `tb_rename` | `expected_hash`, `path`, `repo`, `to` | Move a file inside its member and rewrite every inbound reference to the new name, preserving each referrer's spelling, fragments, and ::rep |
 | `tb_rename_block_id` | `block_id`, `expected_hash`, `path`, `repo`, `to_block_id` | Rename an inline record's block id and carry every referrer with it: the ^: declaration and each [[host^id]] / [[^id]] rewrite as one mutati |
@@ -95,12 +95,11 @@ refused with `policy/member_grant`.
 
 `2brain://<repo>/<path>` is a catalogued file a client can hold and re-read without a tool call:
 `resources/list` pages the catalogue, `resources/read` returns the text. There is no resource
-subscription — `tb_watch` is the change signal. The scheme moved to `2brain://` on 2026-11-16 with the
-legacy `arsumbris://` still accepted on parse for one release, so a URI a client cached keeps working
-while everything newly emitted carries the current name.
+subscription — `tb_watch` is the change signal. The scheme is `2brain://` only (ADR-0005): the retired scheme is not a
+resource any more, and everything emitted carries the current name.
 
 ## What is not here
 
-The retired Node daemon's surface (`bash`, `glob`, `grep_files`, the four `au_host_*` relays,
-`au_type_system`) is deliberately absent — the reasons are in `docs/internal/serving-parity.md` §2b. `tb_grep`
+The retired Node daemon's surface — its shell/glob/grep tools, the host relays and the
+type-system composer — is deliberately absent — the reasons are in `docs/internal/serving-parity.md` §2b. `tb_grep`
 is literal text over catalogued files; it is not a regex or glob tool.

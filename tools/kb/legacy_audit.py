@@ -45,7 +45,6 @@ FROZEN_FILES = {"CHANGELOG.md", "docs/trajectory.md", "docs/naming.md",
                 # The documents that exist to map old names to new ones.
                 "tb-mcp-rs/docs/live-comparison.md", "tb-mcp-rs/docs/runtime-map.md",
                 "tb-mcp-rs/docs/verification.md",
-                "tb-mcp-rs/skills/2brain/references/tool-map.md",
                 "tb-engine/README-fork.md", "AGENTS.md",
                 "docs/agents-and-decisions-assessment.md", "docs/retrieval-spike.md",
                 "tb-mcp-rs/docs/client-matrix.md",

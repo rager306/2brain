@@ -1,0 +1,109 @@
+{
+  "reviewer": "security",
+  "findings": [
+    {
+      "title": "CWE-862: Create bypasses nested member grants",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2979,
+      "why_it_matters": "A client granted only the parent member can create a file inside an editable nested member by naming the parent and a child-relative path. Unlike ordinary writes, prepare_create never checks the resolved owner against the member allowlist; the engine then resolves the deepest owner and creates the file there. Apply the same owner-grant check used by arm_file before sending the create.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Apply enforce_owner_grant to the resolved create target before taking the slot, and test parent-only grants against creation in an editable nested member.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2979:        let target = resolve_editable(self.transport.as_ref(), repo, path)",
+        "tb-mcp-rs/src/lib.rs:2982:        let permit = self.take_slot()?;",
+        "tb-mcp-rs/src/lib.rs:2893:            crate::wire::enforce_owner_grant(self.transport.as_ref(), &target, repo, allowed)",
+        "tb-engine/crates/tb-engine/src/serve.rs:6232:            let write_path = match resolve_mutation_target(handle, &args.path) {",
+        "tb-engine/crates/tb-engine/src/repo.rs:437:    /// The repo a path belongs to, the deepest repo root that is an ancestor."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "CWE-22: Absent create targets escape through symlink parents",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 13650,
+      "why_it_matters": "An MCP client allowed to create files can create one outside a non-git workspace member by addressing an absent file under an existing in-member symlink to an outside directory. Canonicalizing the complete nonexistent target fails, so the containment check silently allows it; the subsequent exclusive create follows the symlinked parent and non-git saga handling does not reject it. Validate the existing parent chain and enforce containment at the write itself, including for nonexistent targets.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Reject paths whose resolved existing ancestor leaves the owning member and enforce symlink-safe containment when opening mutation targets, including non-git creates.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:13650:    if let Ok(real) = std::fs::canonicalize(&normalized) {",
+        "tb-engine/crates/tb-engine/src/serve.rs:13659:    Ok(normalized)",
+        "tb-mcp-rs/src/lib.rs:2973:        if read.payload.get(\"content\").is_some_and(|c| !c.is_null()) {",
+        "tb-engine/crates/tb-engine/src/mutate.rs:177:        .open(target)",
+        "tb-engine/crates/tb-engine/src/serve.rs:4316:    for m in members.iter().filter(|m| m.git) {",
+        "tb-engine/crates/tb-engine/src/serve.rs:6278:                    apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "CWE-863: Symlink aliases bypass actual-member grants",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/wire.rs",
+      "line": 866,
+      "why_it_matters": "A client granted only a parent can overwrite a file in an ungranted nested child through a parent-owned symlink to that file when the parent is not in a git working tree. The read containment check permits the link because its real target is still under the parent root, but resolve_member checks the lexical alias and reports the parent, while the eventual filesystem write follows the link into the child. Bind authorization and the actual opened target to the same real member, or reject mutation paths containing symlinks.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Reject symlinks on mutation targets or resolve and authorize the actual target owner inside the engine at write time; cover a parent symlink to an ungranted nested member in a non-git workspace.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/wire.rs:866:        json!({\"read\": \"resolve_member\", \"id\": 1, \"path\": absolute}),",
+        "tb-engine/crates/tb-engine/src/wire.rs:2937:    kb.repos.repo_of(path).map(|r| {",
+        "tb-engine/crates/tb-engine/src/serve.rs:13653:        if !real.starts_with(&member_root) {",
+        "tb-engine/crates/tb-engine/src/mutate.rs:148:    std::fs::write(target, content)",
+        "tb-engine/crates/tb-engine/src/serve.rs:4316:    for m in members.iter().filter(|m| m.git) {"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "CWE-22: Grep exposes symlink targets outside members",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 15438,
+      "why_it_matters": "A read-only MCP client can retrieve lines from a file outside the workspace when a catalogued path is a symlink to that file, even though tb_content now rejects the same path. The filesystem walker follows file and directory links and catalogs them, and tb_grep reads those paths directly without the content containment guard. Enforce member containment before indexing and before serving disk-backed search results so the protected bytes cannot enter either surface.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Exclude or safely resolve member-escaping symlinks during catalog construction and use the same containment-safe open for disk-backed grep and other enrichment reads; add read-only MCP regression coverage.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:15438:        let Ok(bytes) = std::fs::read(path) else {",
+        "tb-engine/crates/tb-parser/src/fs.rs:350:                    // metadata() follows symlinks; file_type() does not.",
+        "tb-engine/crates/tb-parser/src/fs.rs:440:                            entries.push(Item::File(path));",
+        "tb-engine/crates/tb-engine/src/build.rs:561:    catalog_remaining_files(&files, &mut catalog);",
+        "tb-engine/crates/tb-engine/src/serve.rs:15397:    kb.catalog",
+        "tb-mcp-rs/src/lib.rs:1120:        self.read(request, \"tb_grep\", ctx).await"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Unwritten referrers incorrectly fail cascade member grants",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 4925,
+      "why_it_matters": "A permitted rename can be refused merely because a reference in an ungranted member is recomputed, even when its bytes would not be changed. The saga deliberately retains such paths in not_written and its member list, but grant_refusal checks every listed repo instead of the owners of written paths. Restrict the authorization comparison to the actual write set, preserving the existing stricter checks for files that are rewritten.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Compute grant coverage from the owners of actual written paths after excluding plan.not_written, including when multiple members share one git working tree.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:4925:        for repo in &member.repo_names {",
+        "tb-engine/crates/tb-engine/src/serve.rs:4249: //" ,
+        "tb-engine/crates/tb-engine/src/serve.rs:4250:/// byte-identical, `not_written`, absolute. They stay members, so the rebuild",
+        "tb-engine/crates/tb-engine/src/serve.rs:6475:            // A move that keeps the name leaves a bare `[[name]]` referrer",
+        "tb-engine/crates/tb-engine/src/serve.rs:6498:                    Ok(resolve_saga_plan_writing(&h, &touched, not_written))"
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

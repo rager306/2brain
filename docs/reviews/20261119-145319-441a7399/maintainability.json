@@ -1,0 +1,108 @@
+{
+  "reviewer": "maintainability",
+  "findings": [
+    {
+      "title": "Candidate harnesses use the wrong runtime directory",
+      "severity": "P2",
+      "file": "tools/ranking/candidate_engine.py",
+      "line": 99,
+      "why_it_matters": "The documented candidate-engine command waits for a socket in a directory the engine never uses, then reports failure even when its daemon started successfully; it also copies registry files into the wrong directory, so member resolution can silently differ from production. The candidate-set probe likewise looks for and seeds the wrong registry, preventing its documented scoped comparisons. These paths were mechanically renamed to tb-engine even though the engine runtime directory is engine.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Update both candidate harnesses' runtime registry and socket paths to .2brain/engine, deriving the socket from the existing socket_path helper where possible; add a disposable-home test proving the copied registry is read and the candidate socket is discovered.",
+      "confidence": 100,
+      "evidence": [
+        "tools/ranking/candidate_engine.py:99:         found = list((home / \".2brain/tb-engine/run\").glob(\"*.sock\"))",
+        "tools/ranking/candidate_engine.py:73:     config = home / \".2brain/tb-engine/config\"",
+        "tools/probe/candidate_set.py:72: STATE_REGISTRY = Path(\"/root/.2brain/tb-engine/config/repos.yaml\")",
+        "tools/probe/candidate_set.py:104:     config = home / \".2brain/tb-engine/config\"",
+        "tb-engine/crates/tb-engine/src/repo.rs:895: pub const ENGINE_RUNTIME_DIR: &str = \"engine\";",
+        "README.md:202: `tools/ranking/candidate_engine.py` runs a second engine over a copy of the vault so a change can be"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Swap and restore probe the wrong socket",
+      "severity": "P2",
+      "file": "tb-engine/scripts/swap-engine.sh",
+      "line": 24,
+      "why_it_matters": "The swap command refuses its preconditions on a correctly configured current engine because it checks a tb-engine/run socket instead of engine/run. More importantly, --restore installs and restarts the backup before probing that same nonexistent path, so it reports a failed recovery even when the restored daemon is healthy. Use the engine's current socket derivation so both preflight and post-restore confirmation inspect the real daemon.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Derive the workspace socket from the current engine or use the current .2brain/engine/run location for both swap and restore, and cover preflight plus restored-daemon probing with a disposable service fixture.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/scripts/swap-engine.sh:24: SOCKET=/root/.2brain/tb-engine/run/adcfe8680a485529.sock",
+        "tb-engine/scripts/swap-engine.sh:54:   [[ -S $SOCKET ]] || problem \"no engine socket at $SOCKET\"",
+        "tb-engine/scripts/swap-engine.sh:108:     \"$PROBE\" --socket \"$SOCKET\" --out /tmp/tb-restore-probe >/dev/null 2>&1 && {",
+        "tb-engine/crates/tb-engine/src/serve.rs:178: /// The directory holding per-entry daemon sockets, `<state dir>/engine/run`."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Live tool map retains removed paths and URI compatibility",
+      "severity": "P2",
+      "file": "tb-mcp-rs/skills/2brain/references/tool-map.md",
+      "line": 99,
+      "why_it_matters": "Agents consulting the linked tool map are told that cached old-scheme resources still work and that composition mutations operate on .arsumbris/repo.yaml, although the adapter now rejects that scheme and uses .2brain. The separate naming page is also linked as current guidance but describes the removed engine binary, identity format, and compatibility readers. Refreshing live references while preserving dated records prevents operators and agents from relying on deleted interfaces.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Regenerate the tool map from the current adapter, replace its obsolete resource compatibility prose, and update docs/naming.md to describe the post-ADR-0005 names and unsupported legacy formats; retain historical claims only in explicitly dated records.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/skills/2brain/references/tool-map.md:99: legacy `arsumbris://` still accepted on parse for one release, so a URI a client cached keeps working",
+        "tb-mcp-rs/skills/2brain/references/tool-map.md:59: | `tb_add_dep` | `dep`, `expected_hash`, `ref`, `remote`, `repo` | Declare a dependency in one member's .arsumbris/repo.yaml, as a byte splice that keeps comments and order. |",
+        "tb-mcp-rs/src/resources.rs:7: //! The scheme is `2brain://` only (ADR-0005): the old name is not a resource any more.",
+        "tb-mcp-rs/src/lib.rs:1794:         description = \"Declare a dependency in one member's .2brain/repo.yaml, as a byte splice that keeps comments and order. Nothing is fetched: the peer stays unmounted until a resolve. Requires both the mutation grant and the composition grant; expected_hash is a compare-and-set on that file.\",",
+        "docs/naming.md:20: | the engine binary | `au` (unchanged: the unit and every script name it; a device layout, not a repository directory) | `~/.2brain/bin/au` |",
+        "tb-mcp-rs/skills/2brain/SKILL.md:24: `references/tool-map.md` lists every tool with its arguments, generated from the running binary."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Rename ratchet omits format regressions and CI",
+      "severity": "P2",
+      "file": "tools/kb/legacy_audit.py",
+      "line": 171,
+      "why_it_matters": "The promised rename ratchet can return success while old identity paths, type namespaces, or resource schemes reappear in live code: these are classified as format, but --check counts only live. The CI workflow does not invoke the audit at all, so even a matching live-name regression does not fail CI. Enforcing the nonhistorical rename classes and running the check in CI closes the gap described by the accepted rename decision.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Make --check reject nonhistorical live, format, and content matches, excluding only documented intentional cases, and run it as a CI step with a regression test for an old format spelling.",
+      "confidence": 100,
+      "evidence": [
+        "tools/kb/legacy_audit.py:171:         live = sum(1 for v in hits.values() for r in v[\"rows\"] if r[\"class\"] == \"live\")",
+        "tools/kb/legacy_audit.py:61:     (\"identity_dot\",re.compile(r\"\\.arsumbris\\b\"),                 \"format\",  \"on-disk identity directory spelling\"),",
+        "tb-engine/doc/adr/0005-final-rename.md:130: `tools/kb/legacy_audit.py --check` runs in CI and fails on any `live` trace. The `format` and `content`",
+        ".github/workflows/ci.yml:82:       - run: python3 tools/cards/render.py --check"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Split the 19,662-line serving module",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 3629,
+      "why_it_matters": "Maintainers changing transport framing, saga recovery, mutation authorization, or read rendering must navigate one 19,662-line source file that contains all of those distinct responsibilities. The reviewed change adds the file at well over the review persona's 1,000-line limit; its independent transport, saga, mutation and view sections give concrete module boundaries that can reduce the amount of unrelated code a change must traverse.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Keep socket transport and dispatch in serve.rs and move saga planning/recovery, mutation handlers, and read-view rendering with their local tests into focused sibling modules, preserving the existing wire and public exports.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:3629: pub fn serve(handle: EngineHandle, socket: impl Into<PathBuf>) -> std::io::Result<ServeHandle> {",
+        "tb-engine/crates/tb-engine/src/serve.rs:5644: pub fn recover_crashed_saga(root: &Path) -> SagaRecoveryReport {",
+        "tb-engine/crates/tb-engine/src/serve.rs:6141: async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Value {",
+        "tb-engine/crates/tb-engine/src/serve.rs:14990: fn anchors_view(kb: &KnowledgeBase, target: &str, origin: Option<&Path>) -> Option<Vec<AnchorDto>> {",
+        "full.diff:218891-218895: new file mode 100644; +++ b/tb-engine/crates/tb-engine/src/serve.rs; @@ -0,0 +1,19662 @@",
+        "provenance: 27e59e9 rager306 2026-11-15 - rebrand: repository, directories and prose move from arsumbris to 2brain (introduced path at 16,937 lines)"
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

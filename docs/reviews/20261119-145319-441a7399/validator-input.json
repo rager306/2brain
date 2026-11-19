@@ -1,0 +1,2355 @@
+{
+  "findings": [
+    {
+      "#": 1,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/daemon.rs:510:     let _ = signal_pid(pid, libc::SIGTERM);",
+        "tb-engine/crates/tb-cli/src/daemon.rs:144-150 states that signal death leaves a PID file and PID reuse can name an unrelated process.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:288-300 and 561-569 treat any live recorded PID as this daemon.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:510:    let _ = signal_pid(pid, libc::SIGTERM);",
+        "tb-engine/crates/tb-cli/src/daemon.rs:144-151 explicitly describes the stale PID and reuse window.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:483-512 reads the PID, tests only pid_alive, then escalates through SIGTERM and SIGKILL."
+      ],
+      "file": "tb-engine/crates/tb-cli/src/daemon.rs",
+      "first_evidence": "tb-engine/crates/tb-cli/src/daemon.rs:510:     let _ = signal_pid(pid, libc::SIGTERM);",
+      "independent_reviewers": [
+        "adversarial",
+        "reliability"
+      ],
+      "line": 510,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "reliability"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Hold a lifetime lock and record process-instance identity; verify it before each signal and treat stale unlocked records as absent.",
+      "title": "Verify daemon identity before signaling recorded PID",
+      "why_it_matters": "Stopping a crashed daemon with --force can terminate an unrelated process and lose that process's work. A signal-killed daemon leaves its PID file behind; once the operating system reuses that PID, the liveness check accepts the unrelated process and the force path sends it SIGTERM and then SIGKILL without establishing its identity. A lifetime lock and process identity verification prevent a stale PID from becoming authority to signal another program."
+    },
+    {
+      "#": 2,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/migrate.rs:70 --         \"tb-engine: migrate identity: {missing} {} missing {IDENTITY_DIR}/repo.yaml; \\",
+        "tb-engine/crates/tb-cli/src/migrate.rs:71 --          there is no automatic rewrite — create the identity directory by hand\",",
+        "tb-engine/doc/adr/0005-final-rename.md:116 -- 2. `systemctl stop 2brain-engine`; run `tb-engine migrate identity --apply /root/vault` on a **copy**",
+        "tb-engine/crates/tb-parser/src/identity.rs:46 -- pub fn identity_dir_with(root: &Path, _exists: impl Fn(&Path) -> bool) -> PathBuf {",
+        "tb-engine/crates/tb-cli/src/main.rs:80 --         #[arg(long, value_name = \"PATH\")]"
+      ],
+      "file": "tb-engine/crates/tb-cli/src/migrate.rs",
+      "first_evidence": "tb-engine/crates/tb-cli/src/migrate.rs:70 --         \"tb-engine: migrate identity: {missing} {} missing {IDENTITY_DIR}/repo.yaml; \\",
+      "independent_reviewers": [
+        "data-migration"
+      ],
+      "line": 70,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "data-migration"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Provide a supported offline migration executable or restore the migration command before retiring the old reader; migrate identities and parser-identified builtin claims with preflight, rollback, and preservation of non-claim text, including quoted and flow-list claims. Update the runbook to invoke it with the correct --root argument.",
+      "title": "Restore a usable migration for existing vaults",
+      "why_it_matters": "An operator following the live-cutover runbook cannot upgrade an existing vault that still has its old identity directory: the new command refuses it rather than migrating it, while the new parser no longer reads the old directory or old built-in type names. The runbook explicitly calls this command on the vault before starting the new daemon, so deleting the migration implementation leaves the cutover without a working conversion step."
+    },
+    {
+      "#": 3,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/repo.rs:982 --         base.join(ENGINE_RUNTIME_DIR)",
+        "tb-engine/crates/tb-engine/src/repo.rs:984 --             .join(\"repos.yaml\")",
+        "tb-engine/crates/tb-engine/src/repo.rs:895 -- pub const ENGINE_RUNTIME_DIR: &str = \"engine\";",
+        "tb-engine/doc/adr/0005-final-rename.md:106 -- - Socket/config directory `au-engine` -> `engine` under the state root; update `state_dir_in`",
+        "tb-engine/crates/tb-engine/src/repo.rs:1166 --         base.join(ENGINE_RUNTIME_DIR)"
+      ],
+      "file": "tb-engine/crates/tb-engine/src/repo.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/repo.rs:982 --         base.join(ENGINE_RUNTIME_DIR)",
+      "independent_reviewers": [
+        "data-migration"
+      ],
+      "line": 982,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "data-migration"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Add an offline, conflict-aware migration of the existing device state and config from the old root and au-engine directory to the selected new root and engine directory before starting the new daemon; preserve existing new-state files and fail visibly on conflicts.",
+      "title": "Move the device registries during the runtime rename",
+      "why_it_matters": "After an upgrade, existing registered repositories and workspace aliases disappear from discovery even if the old state root is already symlinked to the new one: the registry lookup now reads engine/config, while the prior installation wrote au-engine/config. The documented cutover does not copy those files, and the identity checker reads only the new location, so dependency resolution and named workspace opening can silently lose their configuration."
+    },
+    {
+      "#": 4,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:11520:         let (applied, commits) = apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {",
+        "tb-engine/crates/tb-engine/src/serve.rs:5018:     let git_members: Vec<&SagaMember> = plan.members.iter().filter(|m| m.git).collect();",
+        "tb-engine/crates/tb-engine/src/serve.rs:5116:             let mut errors = compensate(git, &[], git_members, plan, &mutation_id);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5270:     for m in plan.members.iter().filter(|m| m.git) {",
+        "tb-engine/crates/tb-engine/src/serve.rs:11548:                 let hash = crate::mutate::write_file(target, content, expected_hash.as_deref())?;"
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:11520:         let (applied, commits) = apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {",
+      "independent_reviewers": [
+        "correctness"
+      ],
+      "line": 11520,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "correctness"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Require git for batches, or journal and restore every written non-git path; test a successful first operation followed by a rejected second operation.",
+      "title": "Reject or compensate batches touching non-git members",
+      "why_it_matters": "A batch can return an error after its first operation has changed a non-git repository, leaving the change on disk despite the promised all-or-nothing behavior. The batch explicitly permits non-git members, but compensation handles only git members and preimage parking also filters to git members, so a later failing operation cannot undo the earlier one. Either refuse such batches before writing or journal non-git paths so they can be restored."
+    },
+    {
+      "#": 5,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:13650:    if let Ok(real) = std::fs::canonicalize(&normalized) {",
+        "tb-engine/crates/tb-engine/src/serve.rs:13659:    Ok(normalized)",
+        "tb-mcp-rs/src/lib.rs:2973:        if read.payload.get(\"content\").is_some_and(|c| !c.is_null()) {",
+        "tb-engine/crates/tb-engine/src/mutate.rs:177:        .open(target)",
+        "tb-engine/crates/tb-engine/src/serve.rs:4316:    for m in members.iter().filter(|m| m.git) {",
+        "tb-engine/crates/tb-engine/src/serve.rs:6278:                    apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {"
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:13650:    if let Ok(real) = std::fs::canonicalize(&normalized) {",
+      "independent_reviewers": [
+        "security"
+      ],
+      "line": 13650,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "security"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Reject paths whose resolved existing ancestor leaves the owning member and enforce symlink-safe containment when opening mutation targets, including non-git creates.",
+      "title": "CWE-22: Absent create targets escape through symlink parents",
+      "why_it_matters": "An MCP client allowed to create files can create one outside a non-git workspace member by addressing an absent file under an existing in-member symlink to an outside directory. Canonicalizing the complete nonexistent target fails, so the containment check silently allows it; the subsequent exclusive create follows the symlinked parent and non-git saga handling does not reject it. Validate the existing parent chain and enforce containment at the write itself, including for nonexistent targets."
+    },
+    {
+      "#": 6,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:15438:        let Ok(bytes) = std::fs::read(path) else {",
+        "tb-engine/crates/tb-parser/src/fs.rs:350:                    // metadata() follows symlinks; file_type() does not.",
+        "tb-engine/crates/tb-parser/src/fs.rs:440:                            entries.push(Item::File(path));",
+        "tb-engine/crates/tb-engine/src/build.rs:561:    catalog_remaining_files(&files, &mut catalog);",
+        "tb-engine/crates/tb-engine/src/serve.rs:15397:    kb.catalog",
+        "tb-mcp-rs/src/lib.rs:1120:        self.read(request, \"tb_grep\", ctx).await"
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:15438:        let Ok(bytes) = std::fs::read(path) else {",
+      "independent_reviewers": [
+        "security"
+      ],
+      "line": 15438,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "security"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Exclude or safely resolve member-escaping symlinks during catalog construction and use containment-safe opens for disk-backed grep and enrichment reads; add read-only MCP regression coverage.",
+      "title": "CWE-22: Grep exposes symlink targets outside members",
+      "why_it_matters": "A read-only MCP client can retrieve lines from a file outside the workspace when a catalogued path is a symlink to that file, even though tb_content now rejects the same path. The filesystem walker follows file and directory links and catalogs them, and tb_grep reads those paths directly without the content containment guard. Enforce member containment before indexing and before serving disk-backed search results so the protected bytes cannot enter either surface."
+    },
+    {
+      "#": 8,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5087:    drop_preimages(marker_dir, &plan.mutation_id);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5113-5124 and 5161-5174 return an error after collecting restore_preimages failures, but the caller drops the parked copies unconditionally.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5242-5246 states that these paths have no Git HEAD and their parked bytes are their rollback source.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5646-5649 also sweeps all parked copies after recovery regardless of restoration errors.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5087:     drop_preimages(marker_dir, &plan.mutation_id);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5117:             errors.extend(restore_preimages(preimages));",
+        "tb-engine/crates/tb-engine/src/serve.rs:5319:             errors.push((abs, format!(\"restoring the path outside git failed: {e}\")));",
+        "tb-engine/crates/tb-engine/src/serve.rs:5649:     sweep_preimages(&marker_dir);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5700:     errors.extend(restore_preimages(&preimages));",
+        "tb-engine/crates/tb-engine/src/serve.rs:5113-5124 records restore_preimages failures but returns to unconditional cleanup at 5086-5087.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5646-5649 sweeps preimages after recovery even when restore_preimages reported failures at 5700-5705.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5240-5246 explains that these paths are outside git and their prior bytes exist in the parked copies."
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:5087:    drop_preimages(marker_dir, &plan.mutation_id);",
+      "independent_reviewers": [
+        "adversarial",
+        "correctness",
+        "reliability"
+      ],
+      "line": 5087,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "correctness",
+        "reliability"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Retain the intent marker and parked preimages when compensation or recovery is incomplete; exclude retained failed sagas from the startup sweep.",
+      "title": "Failed compensation deletes the only copy of ignored data",
+      "why_it_matters": "An unsuccessful multi-file mutation can permanently destroy the original contents of an ignored file even though the engine parked a backup. If a later write or commit fails and restoring that file fails, for example because its destination directory became unwritable or the filesystem filled, the error is recorded but the only parked preimage is immediately deleted; startup recovery also sweeps preimages after failed restoration. Retaining the marker and parked copies on incomplete compensation leaves an operator able to repair the file."
+    },
+    {
+      "#": 9,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5645 --     let marker_dir = saga_marker_dir(root);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5402 --     tb_parser::identity_dir_for_write_with(root, |dir| dir.exists())",
+        "tb-engine/crates/tb-engine/src/serve.rs:5403 --         .join(crate::repo::ENGINE_RUNTIME_DIR)",
+        "tb-engine/crates/tb-engine/src/repo.rs:895 -- pub const ENGINE_RUNTIME_DIR: &str = \"engine\";",
+        "fixwave.diff:55410 -- -        .join(\"au-engine\")",
+        "tb-engine/crates/tb-engine/src/serve.rs:5571 --             body.push_str(&parked.to_string_lossy());",
+        "tb-engine/crates/tb-engine/src/serve.rs:5645:    let marker_dir = saga_marker_dir(root);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5401-5404 builds only the current identity/runtime directory; tb-engine/crates/tb-engine/src/repo.rs:895 sets ENGINE_RUNTIME_DIR to engine.",
+        "Pre-rename source at 05d6bdc, tb-engine/crates/tb-engine/src/serve.rs:5335-5338, used the identity directory joined with au-engine/run.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:325 invokes only recover_crashed_saga before serving."
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:5645 --     let marker_dir = saga_marker_dir(root);",
+      "independent_reviewers": [
+        "adversarial",
+        "data-migration"
+      ],
+      "line": 5645,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "data-migration"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Before serving or migrating identity directories, recover and report each old and current journal location independently, including failure sentinels and preimages, without deleting an unprocessed journal; refuse cutover if safe recovery fails.",
+      "title": "Recover journals in the retired runtime directories",
+      "why_it_matters": "After an upgrade, a workspace with an interrupted pre-rename mutation can start serving a partially written or partially committed saga without warning or rollback. The prior engine placed its intent under the identity directory's au-engine/run path, whereas this startup checks only the new engine/run path and never scans the old marker or failure sentinels. Detecting and recovering or explicitly refusing legacy outstanding sagas before opening the workspace prevents the partial state from being accepted as normal."
+    },
+    {
+      "#": 10,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5739:    let _ = std::fs::remove_file(path);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5082-5088 removes the marker without checking success and returns outcome, including a successful committed outcome.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5688-5691 reverts a committed mutation when its marker is found at startup.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:325 calls recovery before serving."
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:5739:    let _ = std::fs::remove_file(path);",
+      "independent_reviewers": [
+        "adversarial"
+      ],
+      "line": 5739,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Persist a completion state that recovery recognizes before acknowledging success, and check marker removal and directory durability.",
+      "title": "A failed marker removal rolls back an acknowledged commit",
+      "why_it_matters": "A mutation can return success and then be undone on the next daemon start. If the saga commits but its intent marker cannot be removed, the removal error is ignored; startup sees the stale marker and compensates the already acknowledged commit. Persisting a durable committed state before acknowledging success, and treating marker cleanup failure as a real failure, prevents recovery from interpreting a completed saga as interrupted."
+    },
+    {
+      "#": 11,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/bounded_stdio.rs:183:                             && sender.send(rejection).await.is_err()",
+        "tb-mcp-rs/src/bounded_stdio.rs:112-116 adds one permit after every frame; lines 193-200 also enqueue rejections without reserving a permit.",
+        "tb-mcp-rs/src/bounded_stdio.rs:159-173 runs the backpressure timeout before, not inside, the rejection loop.",
+        "tb-mcp-rs/src/bounded_stdio.rs:183 --                             && sender.send(rejection).await.is_err()",
+        "tb-mcp-rs/src/bounded_stdio.rs:116 --                 writer_slots.add_permits(1);",
+        "tb-mcp-rs/src/bounded_stdio.rs:148-154 -- regular sends acquire and forget a slot before enqueueing, unlike rejections.",
+        "tb-mcp-rs/src/bounded_stdio.rs:158-173,187-198 -- outbound_wait is checked once outside the loop, while rejected pings and unreadable frames enqueue inside it.",
+        "tb-mcp-rs/src/bounded_stdio.rs:183:                            && sender.send(rejection).await.is_err()",
+        "tb-mcp-rs/src/bounded_stdio.rs:148-154 acquires and forgets a semaphore permit for normal sends, while 181-198 queues internal rejections directly.",
+        "tb-mcp-rs/src/bounded_stdio.rs:112-116 returns a semaphore permit for every queued message, regardless of whether one was acquired.",
+        "tb-mcp-rs/src/bounded_stdio.rs:158-173 applies the outbound wait only once before the loop, so a blocked internal rejection can also bypass that timeout.",
+        "tb-mcp-rs/src/bounded_stdio.rs:198:                        if sender.send(rejection).await.is_err() {",
+        "tb-mcp-rs/src/bounded_stdio.rs:116:                writer_slots.add_permits(1);",
+        "tb-mcp-rs/src/bounded_stdio.rs:148:            let Ok(permit) = slots.acquire_owned().await else {",
+        "tb-mcp-rs/src/bounded_stdio.rs:159:        match timeout(self.bounds.outbound_wait, Arc::clone(&self.slots).acquire()).await {"
+      ],
+      "file": "tb-mcp-rs/src/bounded_stdio.rs",
+      "first_evidence": "tb-mcp-rs/src/bounded_stdio.rs:183:                             && sender.send(rejection).await.is_err()",
+      "independent_reviewers": [
+        "adversarial",
+        "api-contract",
+        "performance",
+        "reliability"
+      ],
+      "line": 183,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "api-contract",
+        "performance",
+        "reliability"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Route rejection frames through timeout-bounded enqueueing with the same slot accounting as other outbound messages.",
+      "title": "Account for internally generated stdio rejections",
+      "why_it_matters": "A client can defeat the adapter's outbound bound by first sending rejected pings or malformed frames while reading their replies and then stopping reads while flooding requests. Internal rejections enter the queue without taking a semaphore permit, but the writer returns a permit for every flushed message, inflating the available credits and allowing spawned response tasks to accumulate beyond the intended bound. Reserving a permit for every queued response and applying the same timeout to internal rejections preserves the backpressure guarantee."
+    },
+    {
+      "#": 12,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:1201:                     self.ledger.record(key, hash);",
+        "tb-mcp-rs/src/lib.rs:1203-1205: the recorded response is subsequently truncated by window_content when max_chars is supplied.",
+        "tb-mcp-rs/src/lib.rs:2798-2801: a not-applied reconcile also records the current hash.",
+        "tb-mcp-rs/src/lib.rs:2805-2809: reconcile exposes outcome, current_hash and current_commit, not the current text.",
+        "tb-mcp-rs/docs/tools.md:98-101: tb_write_file replaces the whole file."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:1201:                     self.ledger.record(key, hash);",
+      "independent_reviewers": [
+        "agent-native"
+      ],
+      "line": 1201,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "agent-native"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Only arm whole-file replacement after the complete content has been served to the caller; do not re-arm it from a hash-only reconciliation. Require tb_content again for a changed file and test partial reads and intervening edits.",
+      "title": "Unread file contents arm the write gate",
+      "why_it_matters": "A truncated tb_content response arms the whole-file replacement gate even though the caller has not seen the rest of the file. Likewise, tb_reconcile records a changed file's hash while returning only its hash and commit, so a suggested retry can overwrite intervening changes the agent never saw. The whole-file hash detects later changes, not omissions from the agent's read; requiring a complete caller-visible read before replacement closes that gap."
+    },
+    {
+      "#": 13,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:1687:         let read = read_engine(",
+        "tb-mcp-rs/src/lib.rs:1682 acquires the only mutation permit before this read, and 1729-1735 awaits a second preflight while retaining it.",
+        "tb-mcp-rs/src/wire.rs:692-695 awaits transport.exchange without a timeout; tb-mcp-rs/src/transport.rs:139-143 awaits the reply without a transport deadline."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:1687:         let read = read_engine(",
+      "independent_reviewers": [
+        "reliability"
+      ],
+      "line": 1687,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "reliability"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Apply the existing engine-read timeout to mutation preflight exchanges, including rename lookup and grant preview.",
+      "title": "Bound mutation preflight reads while holding the mutation slot",
+      "why_it_matters": "When the engine accepts a connection but stops answering, rename_type waits forever for its preliminary type read while holding the sole mutation permit. Every later mutation is then refused as already in progress, even though the normal mutation exchange has a 30-second timeout. Other preflight reads also lack a deadline, leaving their callers hung indefinitely."
+    },
+    {
+      "#": 14,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2457:         if let Some(limit) = args.limit {",
+        "tb-mcp-rs/src/lib.rs:404-415: CandidatesArguments defaults summary to false and exposes only summary, limit and offset.",
+        "tb-engine/crates/tb-engine/src/serve.rs:2474-2476: an absent limit returns every scanned file.",
+        "docs/research/payload-modes.md:43-44: the measured unbounded tb_candidates response was 3.1 MB in both mode."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:2457:         if let Some(limit) = args.limit {",
+      "independent_reviewers": [
+        "agent-native"
+      ],
+      "line": 2457,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "agent-native"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Default to a bounded summary page with continuation metadata, and add an engine-side type-name filter exposed in the adapter schema.",
+      "title": "Candidate scans default to an unbounded all-types dump",
+      "why_it_matters": "A normal tb_candidates call returns full detail for every scanned file and every candidate type, creating a multi-megabyte response on the measured live workspace and exhausting agent context or client output limits. Paging and summary are optional, and no type filter exists for the common task of finding candidates for one type, so agents must fetch and inspect the entire corpus. Bounded defaults and a type filter make this operation usable while preserving access to the rest."
+    },
+    {
+      "#": 15,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2794:             Some(expected) => current_hash.as_deref() == Some(expected.as_str()),",
+        "tb-mcp-rs/src/lib.rs:2806:             \"outcome\": if applied { \"applied\" } else { \"not_applied\" },",
+        "tb-mcp-rs/src/lib.rs:2713: the tool says it checks what actually happened and allows the caller to decide whether to retry."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:2794:             Some(expected) => current_hash.as_deref() == Some(expected.as_str()),",
+      "independent_reviewers": [
+        "agent-native"
+      ],
+      "line": 2794,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "agent-native"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Represent a differing current state as indeterminate unless durable mutation or history evidence proves non-application; update the schema and instructions to require inspecting current content and history before retrying.",
+      "title": "Reconcile mistakes later changes for a failed mutation",
+      "why_it_matters": "If an uncertain write succeeds and another writer subsequently changes the file, tb_reconcile reports not_applied merely because the current hash differs from the expected post-write hash. An agent following that answer may retry an operation that already happened, duplicating an edit or overwriting the later writer. Current state alone cannot distinguish that history from a write that never landed."
+    },
+    {
+      "#": 16,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2806:             \"outcome\": if applied { \"applied\" } else { \"not_applied\" },",
+        "tb-mcp-rs/src/wire.rs:808-810 returns outcome unknown when the client-side mutation timeout expires.",
+        "tb-engine/crates/tb-engine/src/serve.rs:6142-6146 says reads never take the mutation write lock; lines 12960-12965 read content from disk independently.",
+        "tb-mcp-rs/src/lib.rs:2806:            \"outcome\": if applied { \"applied\" } else { \"not_applied\" },",
+        "tb-mcp-rs/src/wire.rs:803-815 turns a 30-second transport timeout into Unknown, not cancellation of the engine operation.",
+        "tb-engine/crates/tb-engine/src/serve.rs:6141-6146 serializes mutations on write_lock while reads never acquire it; serve.rs:3812-3816 awaits each accepted mutation even if the client later disconnects.",
+        "tb-mcp-rs/src/lib.rs:2782-2801 compares only the current file hash and records it for retry on a mismatch."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:2806:             \"outcome\": if applied { \"applied\" } else { \"not_applied\" },",
+      "independent_reviewers": [
+        "adversarial",
+        "reliability"
+      ],
+      "line": 2806,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "reliability"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Use an engine-side mutation-ID outcome or a reconciliation barrier serialized behind the relevant mutation; remain unknown until settlement is proven.",
+      "title": "Do not declare reconciliation before in-flight mutation settles",
+      "why_it_matters": "A caller recovering from an unknown mutation can be told it was not applied and be given permission to retry while the original request is still waiting to run. A request that times out after reaching the engine can remain queued behind its write lock; reconcile performs an independent read that does not take that lock, sees the old bytes, and reports not_applied even though the queued operation may later commit. Reconciliation needs a settled operation identity or an engine-side barrier, rather than treating an instantaneous content mismatch as a final outcome."
+    },
+    {
+      "#": 17,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2979:        let target = resolve_editable(self.transport.as_ref(), repo, path)",
+        "tb-mcp-rs/src/lib.rs:2982-2983 takes the slot and returns without the enforce_owner_grant check present in arm_file at 2892-2895.",
+        "tb-mcp-rs/src/lib.rs:1430-1437 sends the resolved absolute path as create_file without an allowlist rider.",
+        "tb-mcp-rs/src/wire.rs:851-856 explicitly states that the engine assigns paths under nested editable members to the deepest owner.",
+        "tb-mcp-rs/src/lib.rs:2982:        let permit = self.take_slot()?;",
+        "tb-mcp-rs/src/lib.rs:2893:            crate::wire::enforce_owner_grant(self.transport.as_ref(), &target, repo, allowed)",
+        "tb-engine/crates/tb-engine/src/serve.rs:6232:            let write_path = match resolve_mutation_target(handle, &args.path) {",
+        "tb-engine/crates/tb-engine/src/repo.rs:437:    /// The repo a path belongs to, the deepest repo root that is an ancestor."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:2979:        let target = resolve_editable(self.transport.as_ref(), repo, path)",
+      "independent_reviewers": [
+        "adversarial",
+        "security"
+      ],
+      "line": 2979,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "security"
+      ],
+      "severity": "P1",
+      "suggested_fix": "After resolve_editable in prepare_create, enforce the resolved owner's grant before acquiring the mutation slot or sending the create.",
+      "title": "Creating through a parent bypasses the nested member grant",
+      "why_it_matters": "A client granted an editable parent can create a file in an editable nested member that its policy does not grant. Unlike existing-file mutations, create resolves the named parent and sends the absolute child path without checking the engine's deepest owner; the engine then authors the nested member. Applying the same resolved-owner grant check used by arm_file closes this authorization bypass."
+    },
+    {
+      "#": 18,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:4330:     payload[\"content\"][\"next_offset\"] = json!(max);",
+        "tb-mcp-rs/src/lib.rs:569-582: ContentArguments denies unknown fields and exposes repo, path and max_chars, but no offset.",
+        "tb-mcp-rs/src/lib.rs:4326:     let window: String = text.chars().take(max).collect();",
+        "tb-mcp-rs/src/lib.rs:571:struct ContentArguments {",
+        "tb-mcp-rs/src/lib.rs:570:#[serde(deny_unknown_fields)]",
+        "tb-mcp-rs/src/lib.rs:581:    max_chars: Option<usize>,",
+        "tb-mcp-rs/src/lib.rs:4326:    let window: String = text.chars().take(max).collect();",
+        "tb-mcp-rs/src/lib.rs:4330:    payload[\"content\"][\"next_offset\"] = json!(max);"
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:4330:     payload[\"content\"][\"next_offset\"] = json!(max);",
+      "independent_reviewers": [
+        "agent-native",
+        "api-contract"
+      ],
+      "line": 4330,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "agent-native",
+        "api-contract"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Accept a character offset on tb_content, slice from it, and return the actual next offset or null; test successive windows, Unicode and whole-file hashes.",
+      "title": "Content windows expose an unusable continuation offset",
+      "why_it_matters": "A truncated tb_content response reports next_offset as the position from which the caller can continue, but the tool accepts no offset argument and rejects unknown fields. Consequently clients cannot retrieve subsequent windows using the advertised continuation; repeating the request always returns the prefix. Accepting an offset and applying it before the limit makes the reported cursor usable."
+    },
+    {
+      "#": 19,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/transport.rs:200:            return Err(WireError::Rejected {",
+        "tb-engine/crates/tb-engine/src/serve.rs:5782:    reject.message = format!(",
+        "tb-engine/crates/tb-engine/src/serve.rs:5783:        \"{}; the rollback was incomplete, {} member(s) recorded in {}\",",
+        "tb-engine/crates/tb-engine/src/serve.rs:11674:        \"type\": \"error\",",
+        "tb-mcp-rs/src/lib.rs:2850:            Err(MutationFailure::Rejected { message, .. }) => {",
+        "tb-mcp-rs/src/lib.rs:2857:                self.ledger.forget(&prepared.key);"
+      ],
+      "file": "tb-mcp-rs/src/transport.rs",
+      "first_evidence": "tb-mcp-rs/src/transport.rs:200:            return Err(WireError::Rejected {",
+      "independent_reviewers": [
+        "api-contract"
+      ],
+      "line": 200,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "api-contract"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Give incomplete rollback a machine-readable outcome and mutation ID, classify it as outcome_unknown, and invalidate affected ledger entries.",
+      "title": "Incomplete rollbacks are reported as clean rejections",
+      "why_it_matters": "When a saga write or commit fails and its compensating rollback also fails, some changes can remain on disk or committed. The engine still emits an ordinary error frame with only a textual incomplete-rollback warning, and the adapter classifies every error frame as a rejection that wrote nothing; it keeps the pre-write ledger armed instead of reporting outcome_unknown. A client following the documented rejection contract can retry against partially applied work. Distinguishing incomplete compensation in the wire and invalidating the ledger forces reconciliation before retry."
+    },
+    {
+      "#": 20,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/wire.rs:866:        json!({\"read\": \"resolve_member\", \"id\": 1, \"path\": absolute}),",
+        "tb-engine/crates/tb-engine/src/wire.rs:2937:    kb.repos.repo_of(path).map(|r| {",
+        "tb-engine/crates/tb-engine/src/serve.rs:13653:        if !real.starts_with(&member_root) {",
+        "tb-engine/crates/tb-engine/src/mutate.rs:148:    std::fs::write(target, content)",
+        "tb-engine/crates/tb-engine/src/serve.rs:4316:    for m in members.iter().filter(|m| m.git) {"
+      ],
+      "file": "tb-mcp-rs/src/wire.rs",
+      "first_evidence": "tb-mcp-rs/src/wire.rs:866:        json!({\"read\": \"resolve_member\", \"id\": 1, \"path\": absolute}),",
+      "independent_reviewers": [
+        "security"
+      ],
+      "line": 866,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "security"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Reject symlinks on mutation targets or resolve and authorize the actual target owner inside the engine at write time; cover a parent symlink to an ungranted nested member in a non-git workspace.",
+      "title": "CWE-863: Symlink aliases bypass actual-member grants",
+      "why_it_matters": "A client granted only a parent can overwrite a file in an ungranted nested child through a parent-owned symlink to that file when the parent is not in a git working tree. The read containment check permits the link because its real target is still under the parent root, but resolve_member checks the lexical alias and reports the parent, while the eventual filesystem write follows the link into the child. Bind authorization and the actual opened target to the same real member, or reject mutation paths containing symlinks."
+    },
+    {
+      "#": 21,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "install.sh:79:   state_root=${2BRAIN_HOME:-$HOME/.2brain}",
+        "install.sh:75: if ! install -m 0755 -t \"$bin_dir\" \"$engine_target/tb-engine\" 2>/dev/null; then",
+        "install.sh:79:  state_root=${2BRAIN_HOME:-$HOME/.2brain}",
+        "install.sh:71 installs the adapter before install.sh:75 enters the engine-install failure fallback.",
+        "tb-engine/crates/tb-engine/src/repo.rs:899-900 reads the literal environment key 2BRAIN_HOME.",
+        "install.sh:75-82 enters this expansion when installing tb-engine in the prefix fails.",
+        "tb-engine/crates/tb-engine/src/repo.rs:900 uses std::env::var_os(\"2BRAIN_HOME\") for the engine state root.",
+        "install.sh:79 --   state_root=${2BRAIN_HOME:-$HOME/.2brain}",
+        "install.sh:75 -- if ! install -m 0755 -t \"$bin_dir\" \"$engine_target/tb-engine\" 2>/dev/null; then",
+        "install.sh:80 --   engine_bin=$state_root/bin/tb-engine"
+      ],
+      "file": "install.sh",
+      "first_evidence": "install.sh:79:   state_root=${2BRAIN_HOME:-$HOME/.2brain}",
+      "independent_reviewers": [
+        "adversarial",
+        "correctness",
+        "data-migration",
+        "reliability"
+      ],
+      "line": 79,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "correctness",
+        "data-migration",
+        "reliability"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Read 2BRAIN_HOME through an unset-safe environment lookup and use the resulting directory for installation and the PATH notice.",
+      "title": "Fix invalid Bash expansion in engine fallback",
+      "why_it_matters": "An upgrade whose existing engine binary cannot be replaced leaves the new adapter installed but fails before installing the fallback engine. Bash does not permit a variable name beginning with a digit in the ${2BRAIN_HOME:-...} expansion, so that fallback aborts with bad substitution even when the state override is unset. Reading the unusual environment key through a mechanism that supports it, then defaulting to $HOME/.2brain, makes the fallback follow the engine's actual state-root policy."
+    },
+    {
+      "#": 22,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/daemon.rs:513:         let _ = wait_for_exit(pid, FORCE_STOP_WINDOW);",
+        "tb-engine/crates/tb-cli/src/daemon.rs:510-520 ignores both signal results, removes the PID file and returns success unconditionally."
+      ],
+      "file": "tb-engine/crates/tb-cli/src/daemon.rs",
+      "first_evidence": "tb-engine/crates/tb-cli/src/daemon.rs:513:         let _ = wait_for_exit(pid, FORCE_STOP_WINDOW);",
+      "independent_reviewers": [
+        "reliability"
+      ],
+      "line": 513,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "reliability"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Handle signal errors and the final wait result; remove the matching PID record and return success only after confirming exit.",
+      "title": "Report failed force stops without deleting their PID record",
+      "why_it_matters": "If signaling fails or a daemon remains alive after the final wait, stop --force nevertheless removes its PID file, prints that it stopped, and exits successfully. Operators lose the handle needed to retry and subsequent starts can race a still-running boot. Retaining the record and returning an error unless termination is confirmed makes failure observable and recoverable."
+    },
+    {
+      "#": 23,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/migrate.rs:44 --         if marker.is_file() {",
+        "tb-engine/crates/tb-cli/src/migrate.rs:3 -- //! current engine-schema spelling (`tb.engine.*::tb-engine`).",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:115 -- pub(crate) fn canonical_schema_name(name: &str) -> &str {",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:116 --     name",
+        "tb-engine/crates/tb-cli/src/migrate.rs:44:         if marker.is_file() {",
+        "tb-engine/crates/tb-cli/src/migrate.rs:2: //! whether every repository in scope carries the one identity directory (`.2brain/`) and the",
+        "tb-engine/crates/tb-cli/src/migrate.rs:3: //! current engine-schema spelling (`tb.engine.*::tb-engine`).",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:115: pub(crate) fn canonical_schema_name(name: &str) -> &str {",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:116:     name"
+      ],
+      "file": "tb-engine/crates/tb-cli/src/migrate.rs",
+      "first_evidence": "tb-engine/crates/tb-cli/src/migrate.rs:44 --         if marker.is_file() {",
+      "independent_reviewers": [
+        "correctness",
+        "data-migration"
+      ],
+      "line": 44,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "correctness",
+        "data-migration"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Inspect parser-identified instance and type-definition claims as part of the current check, including quoted and sequence forms, and return a nonzero result with locations for remaining legacy builtin names or qualifiers.",
+      "title": "Check claim spellings before declaring a repository current",
+      "why_it_matters": "The post-upgrade identity check reports a repository current and exits successfully merely because .2brain/repo.yaml exists, even when it still claims the old au.engine schema or its notes use old schema qualifiers. The engine no longer normalizes those spellings, so the reassuring result hides unresolved type claims. Check the claims the command promises to assess and report legacy spellings rather than labeling the repository current."
+    },
+    {
+      "#": 24,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/migrate.rs:93 --             if let Ok(bytes) = std::fs::read(&path) {",
+        "tb-engine/crates/tb-engine/src/repo.rs:815 -- /// Malformed input (bad UTF-8, bad YAML, or no `repos:` list) degrades to an",
+        "tb-engine/crates/tb-cli/src/migrate.rs:122 --             Err(_) => continue,",
+        "tb-engine/crates/tb-cli/src/migrate.rs:54 --     if missing == 0 {"
+      ],
+      "file": "tb-engine/crates/tb-cli/src/migrate.rs",
+      "first_evidence": "tb-engine/crates/tb-cli/src/migrate.rs:93 --             if let Ok(bytes) = std::fs::read(&path) {",
+      "independent_reviewers": [
+        "data-migration"
+      ],
+      "line": 93,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "data-migration"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Treat unreadable or malformed existing registries and unresolvable registered paths as planning failures with their paths in the error; handle genuinely absent optional registries explicitly and do not report an empty or partial inventory as fully checked.",
+      "title": "Do not report unchecked registries as fully current",
+      "why_it_matters": "The --all check exits successfully with 'nothing to do' when registry files cannot be read, contain malformed YAML, or point to a temporarily inaccessible repository. Those repositories are silently omitted rather than checked, so an operator can mistake an incomplete migration inventory for confirmation that all registered repositories are current."
+    },
+    {
+      "#": 25,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/search.rs:1256 --         if let Some(&id) = self.term_ids.get(term) {",
+        "tb-engine/crates/tb-engine/src/search.rs:917-919 -- the vocabulary retains a term whose last document leaves while its block drops to no allocation.",
+        "tb-engine/crates/tb-engine/src/search.rs:1257-1261 -- an exact dictionary hit returns immediately, otherwise word-form dictionary hits are returned without checking their postings.",
+        "tb-engine/crates/tb-engine/src/search.rs:1361-1363 -- SearchIndex::update removes the old document and adds its new fields.",
+        "tb-engine/crates/tb-engine/src/search.rs:1256:        if let Some(&id) = self.term_ids.get(term) {",
+        "tb-engine/crates/tb-engine/src/search.rs:917-919 documents that removing the last posting retains the dictionary entry.",
+        "tb-engine/crates/tb-engine/src/search.rs:1257-1261 returns the dead exact term before trying word_forms; search.rs:1363-1369 uses incremental remove and add on an edited note."
+      ],
+      "file": "tb-engine/crates/tb-engine/src/search.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/search.rs:1256 --         if let Some(&id) = self.term_ids.get(term) {",
+      "independent_reviewers": [
+        "adversarial",
+        "performance"
+      ],
+      "line": 1256,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "performance"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Accept exact and alternate dictionary entries only when their posting count is nonzero; test incremental edits against a fresh rebuild.",
+      "title": "Ignore empty dictionary entries when resolving word forms",
+      "why_it_matters": "After the last note containing a query spelling is edited, searching that spelling can return no hits even though another note contains its supported singular or plural form; a cold rebuild produces a different answer. Incremental removal retains the obsolete dictionary entry with zero postings, so resolve_term treats the dead exact entry as a hit and never tries the live word form. Resolving only terms with live postings restores search consistency after edits."
+    },
+    {
+      "#": 26,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:11415:         None => true,",
+        "tb-engine/crates/tb-engine/src/serve.rs:6434:                     mutation_response_extra(handle, &response_path, None, commits, extra)",
+        "tb-engine/crates/tb-engine/src/serve.rs:11407:    // disk write is canonical; `rebuild()` is best-effort and can give up on",
+        "tb-engine/crates/tb-engine/src/serve.rs:11390:         let held_hash = v.catalog.get(target).and_then(|e| e.hash);"
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:11415:         None => true,",
+      "independent_reviewers": [
+        "correctness"
+      ],
+      "line": 11415,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "correctness"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Represent deletion separately from a no-op and set reflected for deletion only when the target is absent from the held catalog.",
+      "title": "Check deletion reflection against catalog absence",
+      "why_it_matters": "A successful delete can report reflected=true even while the held catalog still contains the deleted note and its diagnostics. Delete passes None to the response, which treats it as an unconditional no-op, although rebuilds can fail and retain the old knowledge base. Distinguishing deletion from no-op and checking catalog absence prevents clients from trusting stale state."
+    },
+    {
+      "#": 27,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:13666:     let bytes = std::fs::read(target).ok()?;",
+        "tb-engine/crates/tb-engine/src/serve.rs:13675 also converts UTF-8 errors to None, and 12963-12970 serializes None as null.",
+        "tb-mcp-rs/src/lib.rs:2792-2794 treats null content as an applied delete."
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:13666:     let bytes = std::fs::read(target).ok()?;",
+      "independent_reviewers": [
+        "reliability"
+      ],
+      "line": 13666,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "reliability"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Distinguish NotFound from I/O and UTF-8 errors; propagate errors and treat only confirmed absence as an applied delete.",
+      "title": "Distinguish unreadable files from absent files during reconciliation",
+      "why_it_matters": "A file that still exists but cannot be read, or contains non-UTF-8 bytes, is returned as null just like a missing file. Reconciliation with expect_absent then reports the delete as applied, hiding an unsuccessful deletion from the caller. Propagating read and decoding errors while reserving null for a confirmed missing path prevents a false success."
+    },
+    {
+      "#": 28,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:15261 --     let terms = crate::search::distinct_terms(query);",
+        "tb-engine/crates/tb-engine/src/serve.rs:15274 --                 excerpt: excerpt_of(kb, hit.path, &terms),",
+        "tb-engine/crates/tb-engine/src/search.rs:1255-1261 -- query scoring resolves a missing exact term using alternate word forms.",
+        "tb-engine/crates/tb-engine/src/search.rs:1610-1612 -- when the supplied terms do not occur in the body, excerpting starts at the body's opening."
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:15261 --     let terms = crate::search::distinct_terms(query);",
+      "independent_reviewers": [
+        "performance"
+      ],
+      "line": 15261,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "performance"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Use resolved indexed terms to locate ranked-hit excerpts; test a plural query whose singular match is beyond the opening window.",
+      "title": "Center excerpts on the resolved query spelling",
+      "why_it_matters": "When search finds a note through singular/plural fallback, its excerpt can show only the beginning of the note instead of the matching passage, even if the hit is far later in the body. Ranking uses the resolved spelling, but excerpting receives only the original query terms. Passing the actual resolved indexed terms to excerpting restores the contextual evidence users need to judge a hit."
+    },
+    {
+      "#": 29,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:4925:        for repo in &member.repo_names {",
+        "tb-engine/crates/tb-engine/src/serve.rs:4249: //",
+        "tb-engine/crates/tb-engine/src/serve.rs:4250:/// byte-identical, `not_written`, absolute. They stay members, so the rebuild",
+        "tb-engine/crates/tb-engine/src/serve.rs:6475:            // A move that keeps the name leaves a bare `[[name]]` referrer",
+        "tb-engine/crates/tb-engine/src/serve.rs:6498:                    Ok(resolve_saga_plan_writing(&h, &touched, not_written))"
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:4925:        for repo in &member.repo_names {",
+      "independent_reviewers": [
+        "security"
+      ],
+      "line": 4925,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "security"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Compute grant coverage from the owners of actual written paths after excluding plan.not_written, including when multiple members share one git working tree.",
+      "title": "Unwritten referrers incorrectly fail cascade member grants",
+      "why_it_matters": "A permitted rename can be refused merely because a reference in an ungranted member is recomputed, even when its bytes would not be changed. The saga deliberately retains such paths in not_written and its member list, but grant_refusal checks every listed repo instead of the owners of written paths. Restrict the authorization comparison to the actual write set, preserving the existing stricter checks for files that are rewritten."
+    },
+    {
+      "#": 30,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/scripts/swap-engine.sh:24: SOCKET=/root/.2brain/tb-engine/run/adcfe8680a485529.sock",
+        "tb-engine/scripts/swap-engine.sh:54:   [[ -S $SOCKET ]] || problem \"no engine socket at $SOCKET\"",
+        "tb-engine/scripts/swap-engine.sh:108:     \"$PROBE\" --socket \"$SOCKET\" --out /tmp/tb-restore-probe >/dev/null 2>&1 && {",
+        "tb-engine/crates/tb-engine/src/serve.rs:178: /// The directory holding per-entry daemon sockets, `<state dir>/engine/run`."
+      ],
+      "file": "tb-engine/scripts/swap-engine.sh",
+      "first_evidence": "tb-engine/scripts/swap-engine.sh:24: SOCKET=/root/.2brain/tb-engine/run/adcfe8680a485529.sock",
+      "independent_reviewers": [
+        "maintainability"
+      ],
+      "line": 24,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "maintainability"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Derive the workspace socket from the current engine or use .2brain/engine/run for swap and restore, and test both paths.",
+      "title": "Swap and restore probe the wrong socket",
+      "why_it_matters": "The swap command refuses its preconditions on a correctly configured current engine because it checks a tb-engine/run socket instead of engine/run. More importantly, --restore installs and restarts the backup before probing that same nonexistent path, so it reports a failed recovery even when the restored daemon is healthy. Use the engine's current socket derivation so both preflight and post-restore confirmation inspect the real daemon."
+    },
+    {
+      "#": 31,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/skills/2brain/references/tool-map.md:99: legacy `arsumbris://` still accepted on parse for one release, so a URI a client cached keeps working",
+        "tb-mcp-rs/skills/2brain/references/tool-map.md:59: | `tb_add_dep` | `dep`, `expected_hash`, `ref`, `remote`, `repo` | Declare a dependency in one member's .arsumbris/repo.yaml, as a byte splice that keeps comments and order. |",
+        "tb-mcp-rs/src/resources.rs:7: //! The scheme is `2brain://` only (ADR-0005): the old name is not a resource any more.",
+        "tb-mcp-rs/src/lib.rs:1794:         description = \"Declare a dependency in one member's .2brain/repo.yaml, as a byte splice that keeps comments and order. Nothing is fetched: the peer stays unmounted until a resolve. Requires both the mutation grant and the composition grant; expected_hash is a compare-and-set on that file.\",",
+        "docs/naming.md:20: | the engine binary | `au` (unchanged: the unit and every script name it; a device layout, not a repository directory) | `~/.2brain/bin/au` |",
+        "tb-mcp-rs/skills/2brain/SKILL.md:24: `references/tool-map.md` lists every tool with its arguments, generated from the running binary."
+      ],
+      "file": "tb-mcp-rs/skills/2brain/references/tool-map.md",
+      "first_evidence": "tb-mcp-rs/skills/2brain/references/tool-map.md:99: legacy `arsumbris://` still accepted on parse for one release, so a URI a client cached keeps working",
+      "independent_reviewers": [
+        "maintainability"
+      ],
+      "line": 99,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "maintainability"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Regenerate the tool map, correct its resource compatibility prose, and update docs/naming.md for the post-ADR-0005 names and unsupported legacy formats.",
+      "title": "Live tool map retains removed paths and URI compatibility",
+      "why_it_matters": "Agents consulting the linked tool map are told that cached old-scheme resources still work and that composition mutations operate on .arsumbris/repo.yaml, although the adapter now rejects that scheme and uses .2brain. The separate naming page is also linked as current guidance but describes the removed engine binary, identity format, and compatibility readers. Refreshing live references while preserving dated records prevents operators and agents from relying on deleted interfaces."
+    },
+    {
+      "#": 32,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2158:        let result = self.read(request, \"tb_instances_of\", ctx).await;",
+        "tb-mcp-rs/src/lib.rs:2161:            (limit, offset) => page_instances(result, limit, offset.unwrap_or(0), self.payload),",
+        "tb-mcp-rs/src/lib.rs:2426:        let result = self.read(json!({\"id\": 1}), \"tb_instances\", ctx).await;",
+        "tb-mcp-rs/src/transport.rs:236:    if len > MAX_FRAME_BYTES {",
+        "tb-mcp-rs/src/transport.rs:237:        return Err(WireError::Broken(\"response frame too large\".into()));"
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:2158:        let result = self.read(request, \"tb_instances_of\", ctx).await;",
+      "independent_reviewers": [
+        "api-contract"
+      ],
+      "line": 2158,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "api-contract"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Forward tb_instances_of pagination to the engine and page before serialization, returning total and continuation metadata.",
+      "title": "Instance pagination happens after the frame size limit",
+      "why_it_matters": "For tb_instances_of, the adapter requests the full engine response before applying limit and offset. If that response exceeds the transport frame limit, even a one-record page cannot be fetched. The related tb_instances path is tracked separately."
+    },
+    {
+      "#": 33,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2426 --         let result = self.read(json!({\"id\": 1}), \"tb_instances\", ctx).await;",
+        "tb-mcp-rs/src/lib.rs:2427-2435 -- page_array is applied only after the unparameterized engine read completes.",
+        "tb-engine/crates/tb-engine/src/wire.rs:1333-1350 -- introspect_kb_instances iterates every resolved instance and scans each body.",
+        "docs/research/payload-modes.md:43-44 -- the live tb_instances response was 18.9 MB in both mode; this measurement is the MCP response, not the engine frame.",
+        "tb-engine/crates/tb-engine/src/serve.rs:138 -- const MAX_FRAME: usize = 16 << 20;",
+        "tb-mcp-rs/src/lib.rs:2426:         let result = self.read(json!({\"id\": 1}), \"tb_instances\", ctx).await;",
+        "tb-mcp-rs/src/lib.rs:2427-2435: the adapter invokes page_array only after the full engine read.",
+        "tb-mcp-rs/src/transport.rs:28: pub(crate) const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;",
+        "docs/research/payload-modes.md:43-44: the live unpaged tb_instances MCP response measured 18.9 MB in both mode, not the engine-frame size."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:2426 --         let result = self.read(json!({\"id\": 1}), \"tb_instances\", ctx).await;",
+      "independent_reviewers": [
+        "agent-native",
+        "performance"
+      ],
+      "line": 2426,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "agent-native",
+        "performance"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Forward limit and offset to the engine, page before projecting instances, and return total and continuation metadata.",
+      "title": "Apply instance pagination before engine projection",
+      "why_it_matters": "Even limit=1 makes the daemon project and transmit every resolved instance before the adapter discards the rest, so enumerating pages repeats the full expensive scan and transfer. The documented live unpaged MCP answer is 18.9 MB in both mode; if the single engine response crosses its 16 MiB frame cap, no page can be fetched at all. Applying the offset and limit inside the engine bounds each page before transport."
+    },
+    {
+      "#": 34,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:4145:         PayloadMode::Text => {",
+        "tb-mcp-rs/src/lib.rs:4146:             response.content = vec![ContentBlock::text(payload.to_string())];",
+        "tb-mcp-rs/src/lib.rs:3398-3404: schemas are removed only for the concise profile.",
+        "docs/research/payload-modes.md:125-137: a real client reported 'Tool tb_overview has an output schema but did not return structured content' and its circuit breaker marked the server unreachable."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:4145:         PayloadMode::Text => {",
+      "independent_reviewers": [
+        "agent-native"
+      ],
+      "line": 4145,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "agent-native"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Omit outputSchema for text-only payloads under every profile, or reject the incompatible full/text combination; cover it with a schema-validating client.",
+      "title": "Full schemas conflict with text-only payloads",
+      "why_it_matters": "A schema-validating client using the full tool profile with text payloads rejects successful calls because outputSchema is advertised but structuredContent is absent. The repository records this exact client error and a circuit breaker treating repeated failures as server unreachability. Making the advertised schema and payload mode consistent restores those calls."
+    },
+    {
+      "#": 35,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/schemas.rs:199:            \"additionalProperties\": false,",
+        "tb-mcp-rs/src/schemas.rs:197:            \"properties\": {\"graph_health\": report},",
+        "tb-mcp-rs/src/lib.rs:1072:            request[\"verbs\"] = json!(true);",
+        "tb-engine/crates/tb-engine/src/serve.rs:13126:                        \"verbs\".to_owned(),",
+        "tb-mcp-rs/src/wire.rs:721:        payload: Value::Object(result),"
+      ],
+      "file": "tb-mcp-rs/src/schemas.rs",
+      "first_evidence": "tb-mcp-rs/src/schemas.rs:199:            \"additionalProperties\": false,",
+      "independent_reviewers": [
+        "api-contract"
+      ],
+      "line": 199,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "api-contract"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Declare the optional top-level verbs property and validate a real verbs=true response against the schema.",
+      "title": "Graph health instrumentation violates its output schema",
+      "why_it_matters": "A strict MCP client rejects every tb_graph_health response requested with verbs=true as invalid structured content. The engine adds a top-level verbs sibling, and the adapter forwards it unchanged, but the declared output schema allows only graph_health. Declaring the optional verbs sibling makes the advertised instrumentation usable by schema-validating clients."
+    },
+    {
+      "#": 37,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/tests/real_engine.rs:385:             .env(\"HOME\", &home)",
+        "tb-mcp-rs/tests/real_engine.rs:392:     let socket = wait_ready(&state_run_dir(&home), &mut daemon.0);",
+        "tb-engine/crates/tb-engine/src/repo.rs:900-902: state_dir_in uses a nonempty inherited 2BRAIN_HOME before home.join(STATE_DIR).",
+        "tb-mcp-rs/tests/real_engine.rs:580,715: both other daemon spawns likewise only set HOME.",
+        "tb-mcp-rs/tests/real_engine.rs:56-58: if let Ok(entries) = fs::read_dir(home) { for entry in entries.flatten() { let run = entry.path().join(\"engine\").join(\"run\");",
+        "tb-engine/crates/tb-engine/src/repo.rs:899-902: pub fn state_dir_in(home: &Path) -> PathBuf { match std::env::var_os(\"2BRAIN_HOME\") { Some(explicit) if !explicit.is_empty() => PathBuf::from(explicit), _ => home.join(STATE_DIR),",
+        "CODING_STANDARDS.md:10-13: The name and home of an engine state directory are defined in one place."
+      ],
+      "file": "tb-mcp-rs/tests/real_engine.rs",
+      "first_evidence": "tb-mcp-rs/tests/real_engine.rs:385:             .env(\"HOME\", &home)",
+      "independent_reviewers": [
+        "project-standards",
+        "testing"
+      ],
+      "line": 385,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "project-standards",
+        "testing"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Set 2BRAIN_HOME to a test-owned directory, or remove it, on every spawned daemon and MCP process; add a regression exercising the suite with an inherited override.",
+      "title": "Isolate the real-engine tests from 2BRAIN_HOME",
+      "why_it_matters": "When the caller has 2BRAIN_HOME configured, the real-engine suite starts its supposedly private daemon under that external state root, but waits only under its temporary HOME. Each test then waits until startup timeout instead of exercising the real engine, and its daemon can read the caller's registry. CODING_STANDARDS.md:10-13 requires the home of engine state to follow its single definition; replacing HOME without clearing or overriding 2BRAIN_HOME ignores that definition."
+    },
+    {
+      "#": 38,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tools/kb/legacy_audit.py:171:         live = sum(1 for v in hits.values() for r in v[\"rows\"] if r[\"class\"] == \"live\")",
+        "tools/kb/legacy_audit.py:61:     (\"identity_dot\",re.compile(r\"\\.arsumbris\\b\"),                 \"format\",  \"on-disk identity directory spelling\"),",
+        "tb-engine/doc/adr/0005-final-rename.md:130: `tools/kb/legacy_audit.py --check` runs in CI and fails on any `live` trace. The `format` and `content`",
+        ".github/workflows/ci.yml:82:       - run: python3 tools/cards/render.py --check"
+      ],
+      "file": "tools/kb/legacy_audit.py",
+      "first_evidence": "tools/kb/legacy_audit.py:171:         live = sum(1 for v in hits.values() for r in v[\"rows\"] if r[\"class\"] == \"live\")",
+      "independent_reviewers": [
+        "maintainability"
+      ],
+      "line": 171,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "maintainability"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Run the existing legacy audit --check in CI and add a focused regression for a live-name violation; handle other audit classes according to ADR-0005.",
+      "title": "Run the rename ratchet in CI",
+      "why_it_matters": "ADR-0005 promises the legacy audit as a CI ratchet, but the current workflow does not run it, so live old-name regressions can be merged undetected. The ADR specifies that --check fails on live traces; requiring format and content matches in that command is not established by that contract."
+    },
+    {
+      "#": 39,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tools/kb/moc_links.py:73:             if other != stem and stem in LINK.findall(frontmatter(other_text))",
+        "tools/kb/moc_links.py:4-6: A note declares membership with `topics: [[some-map]]`, and the engine resolves that edge both ways (`references_in` on the map returns every note that names it, with `slot: topics` and `surface: frontmatter`).",
+        "tools/kb/moc_links.py:30-31: TYPE_MOC = re.compile(r\"^type:\\s*moc\\s*$\", re.MULTILINE); LINK = re.compile(r\"\\[\\[([^\\]|#]+)\")",
+        "CODING_STANDARDS.md:17-22: Code that needs engine state or a count asks the engine, not a regex or text scan over files. A metric measures exactly one defined thing."
+      ],
+      "file": "tools/kb/moc_links.py",
+      "first_evidence": "tools/kb/moc_links.py:73:             if other != stem and stem in LINK.findall(frontmatter(other_text))",
+      "independent_reviewers": [
+        "project-standards"
+      ],
+      "line": 73,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "project-standards"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Query resolved incoming references, retain topic-slot references, and compare resolved member identities with resolved body references. Add unrelated-field and path-qualified link cases.",
+      "title": "Use engine references for topic-map membership counts",
+      "why_it_matters": "The topic-map gap report counts every frontmatter wikilink to a map as a topic membership, including links from unrelated fields, so its missing-membership counts and --check result can be wrong. Its regex and filename-stem matching also bypass the engine's actual link resolution. CODING_STANDARDS.md:17-22 explicitly requires code needing engine state or a count to ask the engine rather than scrape files, and requires each metric to measure one defined thing."
+    },
+    {
+      "#": 40,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tools/probe/visit_bound.py:269:             for candidate in sorted((home / state / \"tb-engine\" / \"run\").glob(\"*.sock\")):",
+        "tb-engine/crates/tb-engine/src/repo.rs:895: pub const ENGINE_RUNTIME_DIR: &str = \"engine\";",
+        "tb-engine/crates/tb-engine/src/serve.rs:190-192: crate::repo::state_dir_in(&home).join(crate::repo::ENGINE_RUNTIME_DIR).join(\"run\")",
+        "tools/ranking/candidate_engine.py:99:         found = list((home / \".2brain/tb-engine/run\").glob(\"*.sock\"))",
+        "tools/probe/candidate_set.py:72: STATE_REGISTRY = Path(\"/root/.2brain/tb-engine/config/repos.yaml\")",
+        "CODING_STANDARDS.md:10-13: The name and home of an engine state directory are defined in one place. A rename or relocation updates every check that validates layout",
+        "tools/ranking/candidate_engine.py:73:     config = home / \".2brain/tb-engine/config\"",
+        "tools/probe/candidate_set.py:104:     config = home / \".2brain/tb-engine/config\"",
+        "README.md:202: `tools/ranking/candidate_engine.py` runs a second engine over a copy of the vault so a change can be"
+      ],
+      "file": "tools/probe/visit_bound.py",
+      "first_evidence": "tools/probe/visit_bound.py:269:             for candidate in sorted((home / state / \"tb-engine\" / \"run\").glob(\"*.sock\")):",
+      "independent_reviewers": [
+        "maintainability",
+        "project-standards"
+      ],
+      "line": 269,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "maintainability",
+        "project-standards"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Derive socket and registry paths from the configured engine state root, including 2BRAIN_HOME, across the affected probe and ranking launchers; reap a spawned candidate on startup failure.",
+      "title": "Update benchmark probes to the current engine state layout",
+      "why_it_matters": "The visit-bound and candidate-set benchmarks never find the socket of a current daemon, so they time out rather than measure search behavior. The ranking candidate launcher makes the same mistake and can leave its spawned daemon running after reporting failure; the candidate-set probe also reads and writes a registry under the obsolete directory. These independent hard-coded layouts violate CODING_STANDARDS.md:10-13, which requires the state directory and home to be defined in one place and all layout checks updated on relocation."
+    },
+    {
+      "#": 42,
+      "autofix_class": "gated_auto",
+      "confidence": 75,
+      "evidence": [
+        "tb-engine/crates/tb-engine/tests/it/mutate.rs:5097:     perms.set_readonly(true);",
+        "tb-engine/crates/tb-engine/tests/it/mutate.rs:5108:     assert_eq!(resp[\"type\"], \"error\", \"the saga should reject: {resp:?}\");",
+        "tb-engine/crates/tb-engine/src/serve.rs:6567: the referrer rewrite uses std::fs::write, which a process with CAP_DAC_OVERRIDE can perform despite read-only mode bits."
+      ],
+      "file": "tb-engine/crates/tb-engine/tests/it/mutate.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/tests/it/mutate.rs:5097:     perms.set_readonly(true);",
+      "independent_reviewers": [
+        "testing"
+      ],
+      "line": 5097,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "testing"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Replace the chmod-based fault with deterministic failure injection at the referrer write or saga boundary, preserving the compensation assertions.",
+      "title": "Make compensation failure injection work under root",
+      "why_it_matters": "The integration suite fails when run by a privileged user with CAP_DAC_OVERRIDE: making the referrer read-only does not prevent that user from writing it, so the rename succeeds where the test expects an error. This also means the test does not exercise rollback in that environment. A deterministic injected write failure independent of filesystem permission bypass would exercise compensation on both privileged and unprivileged hosts."
+    }
+  ],
+  "selected_findings": [
+    {
+      "#": 1,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/daemon.rs:510:     let _ = signal_pid(pid, libc::SIGTERM);",
+        "tb-engine/crates/tb-cli/src/daemon.rs:144-150 states that signal death leaves a PID file and PID reuse can name an unrelated process.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:288-300 and 561-569 treat any live recorded PID as this daemon.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:510:    let _ = signal_pid(pid, libc::SIGTERM);",
+        "tb-engine/crates/tb-cli/src/daemon.rs:144-151 explicitly describes the stale PID and reuse window.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:483-512 reads the PID, tests only pid_alive, then escalates through SIGTERM and SIGKILL."
+      ],
+      "file": "tb-engine/crates/tb-cli/src/daemon.rs",
+      "first_evidence": "tb-engine/crates/tb-cli/src/daemon.rs:510:     let _ = signal_pid(pid, libc::SIGTERM);",
+      "independent_reviewers": [
+        "adversarial",
+        "reliability"
+      ],
+      "line": 510,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "reliability"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Hold a lifetime lock and record process-instance identity; verify it before each signal and treat stale unlocked records as absent.",
+      "title": "Verify daemon identity before signaling recorded PID",
+      "why_it_matters": "Stopping a crashed daemon with --force can terminate an unrelated process and lose that process's work. A signal-killed daemon leaves its PID file behind; once the operating system reuses that PID, the liveness check accepts the unrelated process and the force path sends it SIGTERM and then SIGKILL without establishing its identity. A lifetime lock and process identity verification prevent a stale PID from becoming authority to signal another program."
+    },
+    {
+      "#": 2,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/migrate.rs:70 --         \"tb-engine: migrate identity: {missing} {} missing {IDENTITY_DIR}/repo.yaml; \\",
+        "tb-engine/crates/tb-cli/src/migrate.rs:71 --          there is no automatic rewrite — create the identity directory by hand\",",
+        "tb-engine/doc/adr/0005-final-rename.md:116 -- 2. `systemctl stop 2brain-engine`; run `tb-engine migrate identity --apply /root/vault` on a **copy**",
+        "tb-engine/crates/tb-parser/src/identity.rs:46 -- pub fn identity_dir_with(root: &Path, _exists: impl Fn(&Path) -> bool) -> PathBuf {",
+        "tb-engine/crates/tb-cli/src/main.rs:80 --         #[arg(long, value_name = \"PATH\")]"
+      ],
+      "file": "tb-engine/crates/tb-cli/src/migrate.rs",
+      "first_evidence": "tb-engine/crates/tb-cli/src/migrate.rs:70 --         \"tb-engine: migrate identity: {missing} {} missing {IDENTITY_DIR}/repo.yaml; \\",
+      "independent_reviewers": [
+        "data-migration"
+      ],
+      "line": 70,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "data-migration"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Provide a supported offline migration executable or restore the migration command before retiring the old reader; migrate identities and parser-identified builtin claims with preflight, rollback, and preservation of non-claim text, including quoted and flow-list claims. Update the runbook to invoke it with the correct --root argument.",
+      "title": "Restore a usable migration for existing vaults",
+      "why_it_matters": "An operator following the live-cutover runbook cannot upgrade an existing vault that still has its old identity directory: the new command refuses it rather than migrating it, while the new parser no longer reads the old directory or old built-in type names. The runbook explicitly calls this command on the vault before starting the new daemon, so deleting the migration implementation leaves the cutover without a working conversion step."
+    },
+    {
+      "#": 3,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/repo.rs:982 --         base.join(ENGINE_RUNTIME_DIR)",
+        "tb-engine/crates/tb-engine/src/repo.rs:984 --             .join(\"repos.yaml\")",
+        "tb-engine/crates/tb-engine/src/repo.rs:895 -- pub const ENGINE_RUNTIME_DIR: &str = \"engine\";",
+        "tb-engine/doc/adr/0005-final-rename.md:106 -- - Socket/config directory `au-engine` -> `engine` under the state root; update `state_dir_in`",
+        "tb-engine/crates/tb-engine/src/repo.rs:1166 --         base.join(ENGINE_RUNTIME_DIR)"
+      ],
+      "file": "tb-engine/crates/tb-engine/src/repo.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/repo.rs:982 --         base.join(ENGINE_RUNTIME_DIR)",
+      "independent_reviewers": [
+        "data-migration"
+      ],
+      "line": 982,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "data-migration"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Add an offline, conflict-aware migration of the existing device state and config from the old root and au-engine directory to the selected new root and engine directory before starting the new daemon; preserve existing new-state files and fail visibly on conflicts.",
+      "title": "Move the device registries during the runtime rename",
+      "why_it_matters": "After an upgrade, existing registered repositories and workspace aliases disappear from discovery even if the old state root is already symlinked to the new one: the registry lookup now reads engine/config, while the prior installation wrote au-engine/config. The documented cutover does not copy those files, and the identity checker reads only the new location, so dependency resolution and named workspace opening can silently lose their configuration."
+    },
+    {
+      "#": 4,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:11520:         let (applied, commits) = apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {",
+        "tb-engine/crates/tb-engine/src/serve.rs:5018:     let git_members: Vec<&SagaMember> = plan.members.iter().filter(|m| m.git).collect();",
+        "tb-engine/crates/tb-engine/src/serve.rs:5116:             let mut errors = compensate(git, &[], git_members, plan, &mutation_id);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5270:     for m in plan.members.iter().filter(|m| m.git) {",
+        "tb-engine/crates/tb-engine/src/serve.rs:11548:                 let hash = crate::mutate::write_file(target, content, expected_hash.as_deref())?;"
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:11520:         let (applied, commits) = apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {",
+      "independent_reviewers": [
+        "correctness"
+      ],
+      "line": 11520,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "correctness"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Require git for batches, or journal and restore every written non-git path; test a successful first operation followed by a rejected second operation.",
+      "title": "Reject or compensate batches touching non-git members",
+      "why_it_matters": "A batch can return an error after its first operation has changed a non-git repository, leaving the change on disk despite the promised all-or-nothing behavior. The batch explicitly permits non-git members, but compensation handles only git members and preimage parking also filters to git members, so a later failing operation cannot undo the earlier one. Either refuse such batches before writing or journal non-git paths so they can be restored."
+    },
+    {
+      "#": 5,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:13650:    if let Ok(real) = std::fs::canonicalize(&normalized) {",
+        "tb-engine/crates/tb-engine/src/serve.rs:13659:    Ok(normalized)",
+        "tb-mcp-rs/src/lib.rs:2973:        if read.payload.get(\"content\").is_some_and(|c| !c.is_null()) {",
+        "tb-engine/crates/tb-engine/src/mutate.rs:177:        .open(target)",
+        "tb-engine/crates/tb-engine/src/serve.rs:4316:    for m in members.iter().filter(|m| m.git) {",
+        "tb-engine/crates/tb-engine/src/serve.rs:6278:                    apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {"
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:13650:    if let Ok(real) = std::fs::canonicalize(&normalized) {",
+      "independent_reviewers": [
+        "security"
+      ],
+      "line": 13650,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "security"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Reject paths whose resolved existing ancestor leaves the owning member and enforce symlink-safe containment when opening mutation targets, including non-git creates.",
+      "title": "CWE-22: Absent create targets escape through symlink parents",
+      "why_it_matters": "An MCP client allowed to create files can create one outside a non-git workspace member by addressing an absent file under an existing in-member symlink to an outside directory. Canonicalizing the complete nonexistent target fails, so the containment check silently allows it; the subsequent exclusive create follows the symlinked parent and non-git saga handling does not reject it. Validate the existing parent chain and enforce containment at the write itself, including for nonexistent targets."
+    },
+    {
+      "#": 6,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:15438:        let Ok(bytes) = std::fs::read(path) else {",
+        "tb-engine/crates/tb-parser/src/fs.rs:350:                    // metadata() follows symlinks; file_type() does not.",
+        "tb-engine/crates/tb-parser/src/fs.rs:440:                            entries.push(Item::File(path));",
+        "tb-engine/crates/tb-engine/src/build.rs:561:    catalog_remaining_files(&files, &mut catalog);",
+        "tb-engine/crates/tb-engine/src/serve.rs:15397:    kb.catalog",
+        "tb-mcp-rs/src/lib.rs:1120:        self.read(request, \"tb_grep\", ctx).await"
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:15438:        let Ok(bytes) = std::fs::read(path) else {",
+      "independent_reviewers": [
+        "security"
+      ],
+      "line": 15438,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "security"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Exclude or safely resolve member-escaping symlinks during catalog construction and use containment-safe opens for disk-backed grep and enrichment reads; add read-only MCP regression coverage.",
+      "title": "CWE-22: Grep exposes symlink targets outside members",
+      "why_it_matters": "A read-only MCP client can retrieve lines from a file outside the workspace when a catalogued path is a symlink to that file, even though tb_content now rejects the same path. The filesystem walker follows file and directory links and catalogs them, and tb_grep reads those paths directly without the content containment guard. Enforce member containment before indexing and before serving disk-backed search results so the protected bytes cannot enter either surface."
+    },
+    {
+      "#": 8,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5087:    drop_preimages(marker_dir, &plan.mutation_id);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5113-5124 and 5161-5174 return an error after collecting restore_preimages failures, but the caller drops the parked copies unconditionally.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5242-5246 states that these paths have no Git HEAD and their parked bytes are their rollback source.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5646-5649 also sweeps all parked copies after recovery regardless of restoration errors.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5087:     drop_preimages(marker_dir, &plan.mutation_id);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5117:             errors.extend(restore_preimages(preimages));",
+        "tb-engine/crates/tb-engine/src/serve.rs:5319:             errors.push((abs, format!(\"restoring the path outside git failed: {e}\")));",
+        "tb-engine/crates/tb-engine/src/serve.rs:5649:     sweep_preimages(&marker_dir);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5700:     errors.extend(restore_preimages(&preimages));",
+        "tb-engine/crates/tb-engine/src/serve.rs:5113-5124 records restore_preimages failures but returns to unconditional cleanup at 5086-5087.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5646-5649 sweeps preimages after recovery even when restore_preimages reported failures at 5700-5705.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5240-5246 explains that these paths are outside git and their prior bytes exist in the parked copies."
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:5087:    drop_preimages(marker_dir, &plan.mutation_id);",
+      "independent_reviewers": [
+        "adversarial",
+        "correctness",
+        "reliability"
+      ],
+      "line": 5087,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "correctness",
+        "reliability"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Retain the intent marker and parked preimages when compensation or recovery is incomplete; exclude retained failed sagas from the startup sweep.",
+      "title": "Failed compensation deletes the only copy of ignored data",
+      "why_it_matters": "An unsuccessful multi-file mutation can permanently destroy the original contents of an ignored file even though the engine parked a backup. If a later write or commit fails and restoring that file fails, for example because its destination directory became unwritable or the filesystem filled, the error is recorded but the only parked preimage is immediately deleted; startup recovery also sweeps preimages after failed restoration. Retaining the marker and parked copies on incomplete compensation leaves an operator able to repair the file."
+    },
+    {
+      "#": 9,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5645 --     let marker_dir = saga_marker_dir(root);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5402 --     tb_parser::identity_dir_for_write_with(root, |dir| dir.exists())",
+        "tb-engine/crates/tb-engine/src/serve.rs:5403 --         .join(crate::repo::ENGINE_RUNTIME_DIR)",
+        "tb-engine/crates/tb-engine/src/repo.rs:895 -- pub const ENGINE_RUNTIME_DIR: &str = \"engine\";",
+        "fixwave.diff:55410 -- -        .join(\"au-engine\")",
+        "tb-engine/crates/tb-engine/src/serve.rs:5571 --             body.push_str(&parked.to_string_lossy());",
+        "tb-engine/crates/tb-engine/src/serve.rs:5645:    let marker_dir = saga_marker_dir(root);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5401-5404 builds only the current identity/runtime directory; tb-engine/crates/tb-engine/src/repo.rs:895 sets ENGINE_RUNTIME_DIR to engine.",
+        "Pre-rename source at 05d6bdc, tb-engine/crates/tb-engine/src/serve.rs:5335-5338, used the identity directory joined with au-engine/run.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:325 invokes only recover_crashed_saga before serving."
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:5645 --     let marker_dir = saga_marker_dir(root);",
+      "independent_reviewers": [
+        "adversarial",
+        "data-migration"
+      ],
+      "line": 5645,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "data-migration"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Before serving or migrating identity directories, recover and report each old and current journal location independently, including failure sentinels and preimages, without deleting an unprocessed journal; refuse cutover if safe recovery fails.",
+      "title": "Recover journals in the retired runtime directories",
+      "why_it_matters": "After an upgrade, a workspace with an interrupted pre-rename mutation can start serving a partially written or partially committed saga without warning or rollback. The prior engine placed its intent under the identity directory's au-engine/run path, whereas this startup checks only the new engine/run path and never scans the old marker or failure sentinels. Detecting and recovering or explicitly refusing legacy outstanding sagas before opening the workspace prevents the partial state from being accepted as normal."
+    },
+    {
+      "#": 10,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5739:    let _ = std::fs::remove_file(path);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5082-5088 removes the marker without checking success and returns outcome, including a successful committed outcome.",
+        "tb-engine/crates/tb-engine/src/serve.rs:5688-5691 reverts a committed mutation when its marker is found at startup.",
+        "tb-engine/crates/tb-cli/src/daemon.rs:325 calls recovery before serving."
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:5739:    let _ = std::fs::remove_file(path);",
+      "independent_reviewers": [
+        "adversarial"
+      ],
+      "line": 5739,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Persist a completion state that recovery recognizes before acknowledging success, and check marker removal and directory durability.",
+      "title": "A failed marker removal rolls back an acknowledged commit",
+      "why_it_matters": "A mutation can return success and then be undone on the next daemon start. If the saga commits but its intent marker cannot be removed, the removal error is ignored; startup sees the stale marker and compensates the already acknowledged commit. Persisting a durable committed state before acknowledging success, and treating marker cleanup failure as a real failure, prevents recovery from interpreting a completed saga as interrupted."
+    },
+    {
+      "#": 11,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/bounded_stdio.rs:183:                             && sender.send(rejection).await.is_err()",
+        "tb-mcp-rs/src/bounded_stdio.rs:112-116 adds one permit after every frame; lines 193-200 also enqueue rejections without reserving a permit.",
+        "tb-mcp-rs/src/bounded_stdio.rs:159-173 runs the backpressure timeout before, not inside, the rejection loop.",
+        "tb-mcp-rs/src/bounded_stdio.rs:183 --                             && sender.send(rejection).await.is_err()",
+        "tb-mcp-rs/src/bounded_stdio.rs:116 --                 writer_slots.add_permits(1);",
+        "tb-mcp-rs/src/bounded_stdio.rs:148-154 -- regular sends acquire and forget a slot before enqueueing, unlike rejections.",
+        "tb-mcp-rs/src/bounded_stdio.rs:158-173,187-198 -- outbound_wait is checked once outside the loop, while rejected pings and unreadable frames enqueue inside it.",
+        "tb-mcp-rs/src/bounded_stdio.rs:183:                            && sender.send(rejection).await.is_err()",
+        "tb-mcp-rs/src/bounded_stdio.rs:148-154 acquires and forgets a semaphore permit for normal sends, while 181-198 queues internal rejections directly.",
+        "tb-mcp-rs/src/bounded_stdio.rs:112-116 returns a semaphore permit for every queued message, regardless of whether one was acquired.",
+        "tb-mcp-rs/src/bounded_stdio.rs:158-173 applies the outbound wait only once before the loop, so a blocked internal rejection can also bypass that timeout.",
+        "tb-mcp-rs/src/bounded_stdio.rs:198:                        if sender.send(rejection).await.is_err() {",
+        "tb-mcp-rs/src/bounded_stdio.rs:116:                writer_slots.add_permits(1);",
+        "tb-mcp-rs/src/bounded_stdio.rs:148:            let Ok(permit) = slots.acquire_owned().await else {",
+        "tb-mcp-rs/src/bounded_stdio.rs:159:        match timeout(self.bounds.outbound_wait, Arc::clone(&self.slots).acquire()).await {"
+      ],
+      "file": "tb-mcp-rs/src/bounded_stdio.rs",
+      "first_evidence": "tb-mcp-rs/src/bounded_stdio.rs:183:                             && sender.send(rejection).await.is_err()",
+      "independent_reviewers": [
+        "adversarial",
+        "api-contract",
+        "performance",
+        "reliability"
+      ],
+      "line": 183,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "api-contract",
+        "performance",
+        "reliability"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Route rejection frames through timeout-bounded enqueueing with the same slot accounting as other outbound messages.",
+      "title": "Account for internally generated stdio rejections",
+      "why_it_matters": "A client can defeat the adapter's outbound bound by first sending rejected pings or malformed frames while reading their replies and then stopping reads while flooding requests. Internal rejections enter the queue without taking a semaphore permit, but the writer returns a permit for every flushed message, inflating the available credits and allowing spawned response tasks to accumulate beyond the intended bound. Reserving a permit for every queued response and applying the same timeout to internal rejections preserves the backpressure guarantee."
+    },
+    {
+      "#": 12,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:1201:                     self.ledger.record(key, hash);",
+        "tb-mcp-rs/src/lib.rs:1203-1205: the recorded response is subsequently truncated by window_content when max_chars is supplied.",
+        "tb-mcp-rs/src/lib.rs:2798-2801: a not-applied reconcile also records the current hash.",
+        "tb-mcp-rs/src/lib.rs:2805-2809: reconcile exposes outcome, current_hash and current_commit, not the current text.",
+        "tb-mcp-rs/docs/tools.md:98-101: tb_write_file replaces the whole file."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:1201:                     self.ledger.record(key, hash);",
+      "independent_reviewers": [
+        "agent-native"
+      ],
+      "line": 1201,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "agent-native"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Only arm whole-file replacement after the complete content has been served to the caller; do not re-arm it from a hash-only reconciliation. Require tb_content again for a changed file and test partial reads and intervening edits.",
+      "title": "Unread file contents arm the write gate",
+      "why_it_matters": "A truncated tb_content response arms the whole-file replacement gate even though the caller has not seen the rest of the file. Likewise, tb_reconcile records a changed file's hash while returning only its hash and commit, so a suggested retry can overwrite intervening changes the agent never saw. The whole-file hash detects later changes, not omissions from the agent's read; requiring a complete caller-visible read before replacement closes that gap."
+    },
+    {
+      "#": 13,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:1687:         let read = read_engine(",
+        "tb-mcp-rs/src/lib.rs:1682 acquires the only mutation permit before this read, and 1729-1735 awaits a second preflight while retaining it.",
+        "tb-mcp-rs/src/wire.rs:692-695 awaits transport.exchange without a timeout; tb-mcp-rs/src/transport.rs:139-143 awaits the reply without a transport deadline."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:1687:         let read = read_engine(",
+      "independent_reviewers": [
+        "reliability"
+      ],
+      "line": 1687,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "reliability"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Apply the existing engine-read timeout to mutation preflight exchanges, including rename lookup and grant preview.",
+      "title": "Bound mutation preflight reads while holding the mutation slot",
+      "why_it_matters": "When the engine accepts a connection but stops answering, rename_type waits forever for its preliminary type read while holding the sole mutation permit. Every later mutation is then refused as already in progress, even though the normal mutation exchange has a 30-second timeout. Other preflight reads also lack a deadline, leaving their callers hung indefinitely."
+    },
+    {
+      "#": 14,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2457:         if let Some(limit) = args.limit {",
+        "tb-mcp-rs/src/lib.rs:404-415: CandidatesArguments defaults summary to false and exposes only summary, limit and offset.",
+        "tb-engine/crates/tb-engine/src/serve.rs:2474-2476: an absent limit returns every scanned file.",
+        "docs/research/payload-modes.md:43-44: the measured unbounded tb_candidates response was 3.1 MB in both mode."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:2457:         if let Some(limit) = args.limit {",
+      "independent_reviewers": [
+        "agent-native"
+      ],
+      "line": 2457,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "agent-native"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Default to a bounded summary page with continuation metadata, and add an engine-side type-name filter exposed in the adapter schema.",
+      "title": "Candidate scans default to an unbounded all-types dump",
+      "why_it_matters": "A normal tb_candidates call returns full detail for every scanned file and every candidate type, creating a multi-megabyte response on the measured live workspace and exhausting agent context or client output limits. Paging and summary are optional, and no type filter exists for the common task of finding candidates for one type, so agents must fetch and inspect the entire corpus. Bounded defaults and a type filter make this operation usable while preserving access to the rest."
+    },
+    {
+      "#": 15,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2794:             Some(expected) => current_hash.as_deref() == Some(expected.as_str()),",
+        "tb-mcp-rs/src/lib.rs:2806:             \"outcome\": if applied { \"applied\" } else { \"not_applied\" },",
+        "tb-mcp-rs/src/lib.rs:2713: the tool says it checks what actually happened and allows the caller to decide whether to retry."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:2794:             Some(expected) => current_hash.as_deref() == Some(expected.as_str()),",
+      "independent_reviewers": [
+        "agent-native"
+      ],
+      "line": 2794,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "agent-native"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Represent a differing current state as indeterminate unless durable mutation or history evidence proves non-application; update the schema and instructions to require inspecting current content and history before retrying.",
+      "title": "Reconcile mistakes later changes for a failed mutation",
+      "why_it_matters": "If an uncertain write succeeds and another writer subsequently changes the file, tb_reconcile reports not_applied merely because the current hash differs from the expected post-write hash. An agent following that answer may retry an operation that already happened, duplicating an edit or overwriting the later writer. Current state alone cannot distinguish that history from a write that never landed."
+    },
+    {
+      "#": 16,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2806:             \"outcome\": if applied { \"applied\" } else { \"not_applied\" },",
+        "tb-mcp-rs/src/wire.rs:808-810 returns outcome unknown when the client-side mutation timeout expires.",
+        "tb-engine/crates/tb-engine/src/serve.rs:6142-6146 says reads never take the mutation write lock; lines 12960-12965 read content from disk independently.",
+        "tb-mcp-rs/src/lib.rs:2806:            \"outcome\": if applied { \"applied\" } else { \"not_applied\" },",
+        "tb-mcp-rs/src/wire.rs:803-815 turns a 30-second transport timeout into Unknown, not cancellation of the engine operation.",
+        "tb-engine/crates/tb-engine/src/serve.rs:6141-6146 serializes mutations on write_lock while reads never acquire it; serve.rs:3812-3816 awaits each accepted mutation even if the client later disconnects.",
+        "tb-mcp-rs/src/lib.rs:2782-2801 compares only the current file hash and records it for retry on a mismatch."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:2806:             \"outcome\": if applied { \"applied\" } else { \"not_applied\" },",
+      "independent_reviewers": [
+        "adversarial",
+        "reliability"
+      ],
+      "line": 2806,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "reliability"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Use an engine-side mutation-ID outcome or a reconciliation barrier serialized behind the relevant mutation; remain unknown until settlement is proven.",
+      "title": "Do not declare reconciliation before in-flight mutation settles",
+      "why_it_matters": "A caller recovering from an unknown mutation can be told it was not applied and be given permission to retry while the original request is still waiting to run. A request that times out after reaching the engine can remain queued behind its write lock; reconcile performs an independent read that does not take that lock, sees the old bytes, and reports not_applied even though the queued operation may later commit. Reconciliation needs a settled operation identity or an engine-side barrier, rather than treating an instantaneous content mismatch as a final outcome."
+    },
+    {
+      "#": 17,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2979:        let target = resolve_editable(self.transport.as_ref(), repo, path)",
+        "tb-mcp-rs/src/lib.rs:2982-2983 takes the slot and returns without the enforce_owner_grant check present in arm_file at 2892-2895.",
+        "tb-mcp-rs/src/lib.rs:1430-1437 sends the resolved absolute path as create_file without an allowlist rider.",
+        "tb-mcp-rs/src/wire.rs:851-856 explicitly states that the engine assigns paths under nested editable members to the deepest owner.",
+        "tb-mcp-rs/src/lib.rs:2982:        let permit = self.take_slot()?;",
+        "tb-mcp-rs/src/lib.rs:2893:            crate::wire::enforce_owner_grant(self.transport.as_ref(), &target, repo, allowed)",
+        "tb-engine/crates/tb-engine/src/serve.rs:6232:            let write_path = match resolve_mutation_target(handle, &args.path) {",
+        "tb-engine/crates/tb-engine/src/repo.rs:437:    /// The repo a path belongs to, the deepest repo root that is an ancestor."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:2979:        let target = resolve_editable(self.transport.as_ref(), repo, path)",
+      "independent_reviewers": [
+        "adversarial",
+        "security"
+      ],
+      "line": 2979,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "security"
+      ],
+      "severity": "P1",
+      "suggested_fix": "After resolve_editable in prepare_create, enforce the resolved owner's grant before acquiring the mutation slot or sending the create.",
+      "title": "Creating through a parent bypasses the nested member grant",
+      "why_it_matters": "A client granted an editable parent can create a file in an editable nested member that its policy does not grant. Unlike existing-file mutations, create resolves the named parent and sends the absolute child path without checking the engine's deepest owner; the engine then authors the nested member. Applying the same resolved-owner grant check used by arm_file closes this authorization bypass."
+    },
+    {
+      "#": 18,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:4330:     payload[\"content\"][\"next_offset\"] = json!(max);",
+        "tb-mcp-rs/src/lib.rs:569-582: ContentArguments denies unknown fields and exposes repo, path and max_chars, but no offset.",
+        "tb-mcp-rs/src/lib.rs:4326:     let window: String = text.chars().take(max).collect();",
+        "tb-mcp-rs/src/lib.rs:571:struct ContentArguments {",
+        "tb-mcp-rs/src/lib.rs:570:#[serde(deny_unknown_fields)]",
+        "tb-mcp-rs/src/lib.rs:581:    max_chars: Option<usize>,",
+        "tb-mcp-rs/src/lib.rs:4326:    let window: String = text.chars().take(max).collect();",
+        "tb-mcp-rs/src/lib.rs:4330:    payload[\"content\"][\"next_offset\"] = json!(max);"
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:4330:     payload[\"content\"][\"next_offset\"] = json!(max);",
+      "independent_reviewers": [
+        "agent-native",
+        "api-contract"
+      ],
+      "line": 4330,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "agent-native",
+        "api-contract"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Accept a character offset on tb_content, slice from it, and return the actual next offset or null; test successive windows, Unicode and whole-file hashes.",
+      "title": "Content windows expose an unusable continuation offset",
+      "why_it_matters": "A truncated tb_content response reports next_offset as the position from which the caller can continue, but the tool accepts no offset argument and rejects unknown fields. Consequently clients cannot retrieve subsequent windows using the advertised continuation; repeating the request always returns the prefix. Accepting an offset and applying it before the limit makes the reported cursor usable."
+    },
+    {
+      "#": 19,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/transport.rs:200:            return Err(WireError::Rejected {",
+        "tb-engine/crates/tb-engine/src/serve.rs:5782:    reject.message = format!(",
+        "tb-engine/crates/tb-engine/src/serve.rs:5783:        \"{}; the rollback was incomplete, {} member(s) recorded in {}\",",
+        "tb-engine/crates/tb-engine/src/serve.rs:11674:        \"type\": \"error\",",
+        "tb-mcp-rs/src/lib.rs:2850:            Err(MutationFailure::Rejected { message, .. }) => {",
+        "tb-mcp-rs/src/lib.rs:2857:                self.ledger.forget(&prepared.key);"
+      ],
+      "file": "tb-mcp-rs/src/transport.rs",
+      "first_evidence": "tb-mcp-rs/src/transport.rs:200:            return Err(WireError::Rejected {",
+      "independent_reviewers": [
+        "api-contract"
+      ],
+      "line": 200,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "api-contract"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Give incomplete rollback a machine-readable outcome and mutation ID, classify it as outcome_unknown, and invalidate affected ledger entries.",
+      "title": "Incomplete rollbacks are reported as clean rejections",
+      "why_it_matters": "When a saga write or commit fails and its compensating rollback also fails, some changes can remain on disk or committed. The engine still emits an ordinary error frame with only a textual incomplete-rollback warning, and the adapter classifies every error frame as a rejection that wrote nothing; it keeps the pre-write ledger armed instead of reporting outcome_unknown. A client following the documented rejection contract can retry against partially applied work. Distinguishing incomplete compensation in the wire and invalidating the ledger forces reconciliation before retry."
+    },
+    {
+      "#": 20,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/wire.rs:866:        json!({\"read\": \"resolve_member\", \"id\": 1, \"path\": absolute}),",
+        "tb-engine/crates/tb-engine/src/wire.rs:2937:    kb.repos.repo_of(path).map(|r| {",
+        "tb-engine/crates/tb-engine/src/serve.rs:13653:        if !real.starts_with(&member_root) {",
+        "tb-engine/crates/tb-engine/src/mutate.rs:148:    std::fs::write(target, content)",
+        "tb-engine/crates/tb-engine/src/serve.rs:4316:    for m in members.iter().filter(|m| m.git) {"
+      ],
+      "file": "tb-mcp-rs/src/wire.rs",
+      "first_evidence": "tb-mcp-rs/src/wire.rs:866:        json!({\"read\": \"resolve_member\", \"id\": 1, \"path\": absolute}),",
+      "independent_reviewers": [
+        "security"
+      ],
+      "line": 866,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "security"
+      ],
+      "severity": "P1",
+      "suggested_fix": "Reject symlinks on mutation targets or resolve and authorize the actual target owner inside the engine at write time; cover a parent symlink to an ungranted nested member in a non-git workspace.",
+      "title": "CWE-863: Symlink aliases bypass actual-member grants",
+      "why_it_matters": "A client granted only a parent can overwrite a file in an ungranted nested child through a parent-owned symlink to that file when the parent is not in a git working tree. The read containment check permits the link because its real target is still under the parent root, but resolve_member checks the lexical alias and reports the parent, while the eventual filesystem write follows the link into the child. Bind authorization and the actual opened target to the same real member, or reject mutation paths containing symlinks."
+    },
+    {
+      "#": 21,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "install.sh:79:   state_root=${2BRAIN_HOME:-$HOME/.2brain}",
+        "install.sh:75: if ! install -m 0755 -t \"$bin_dir\" \"$engine_target/tb-engine\" 2>/dev/null; then",
+        "install.sh:79:  state_root=${2BRAIN_HOME:-$HOME/.2brain}",
+        "install.sh:71 installs the adapter before install.sh:75 enters the engine-install failure fallback.",
+        "tb-engine/crates/tb-engine/src/repo.rs:899-900 reads the literal environment key 2BRAIN_HOME.",
+        "install.sh:75-82 enters this expansion when installing tb-engine in the prefix fails.",
+        "tb-engine/crates/tb-engine/src/repo.rs:900 uses std::env::var_os(\"2BRAIN_HOME\") for the engine state root.",
+        "install.sh:79 --   state_root=${2BRAIN_HOME:-$HOME/.2brain}",
+        "install.sh:75 -- if ! install -m 0755 -t \"$bin_dir\" \"$engine_target/tb-engine\" 2>/dev/null; then",
+        "install.sh:80 --   engine_bin=$state_root/bin/tb-engine"
+      ],
+      "file": "install.sh",
+      "first_evidence": "install.sh:79:   state_root=${2BRAIN_HOME:-$HOME/.2brain}",
+      "independent_reviewers": [
+        "adversarial",
+        "correctness",
+        "data-migration",
+        "reliability"
+      ],
+      "line": 79,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "correctness",
+        "data-migration",
+        "reliability"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Read 2BRAIN_HOME through an unset-safe environment lookup and use the resulting directory for installation and the PATH notice.",
+      "title": "Fix invalid Bash expansion in engine fallback",
+      "why_it_matters": "An upgrade whose existing engine binary cannot be replaced leaves the new adapter installed but fails before installing the fallback engine. Bash does not permit a variable name beginning with a digit in the ${2BRAIN_HOME:-...} expansion, so that fallback aborts with bad substitution even when the state override is unset. Reading the unusual environment key through a mechanism that supports it, then defaulting to $HOME/.2brain, makes the fallback follow the engine's actual state-root policy."
+    },
+    {
+      "#": 22,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/daemon.rs:513:         let _ = wait_for_exit(pid, FORCE_STOP_WINDOW);",
+        "tb-engine/crates/tb-cli/src/daemon.rs:510-520 ignores both signal results, removes the PID file and returns success unconditionally."
+      ],
+      "file": "tb-engine/crates/tb-cli/src/daemon.rs",
+      "first_evidence": "tb-engine/crates/tb-cli/src/daemon.rs:513:         let _ = wait_for_exit(pid, FORCE_STOP_WINDOW);",
+      "independent_reviewers": [
+        "reliability"
+      ],
+      "line": 513,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "reliability"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Handle signal errors and the final wait result; remove the matching PID record and return success only after confirming exit.",
+      "title": "Report failed force stops without deleting their PID record",
+      "why_it_matters": "If signaling fails or a daemon remains alive after the final wait, stop --force nevertheless removes its PID file, prints that it stopped, and exits successfully. Operators lose the handle needed to retry and subsequent starts can race a still-running boot. Retaining the record and returning an error unless termination is confirmed makes failure observable and recoverable."
+    },
+    {
+      "#": 23,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/migrate.rs:44 --         if marker.is_file() {",
+        "tb-engine/crates/tb-cli/src/migrate.rs:3 -- //! current engine-schema spelling (`tb.engine.*::tb-engine`).",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:115 -- pub(crate) fn canonical_schema_name(name: &str) -> &str {",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:116 --     name",
+        "tb-engine/crates/tb-cli/src/migrate.rs:44:         if marker.is_file() {",
+        "tb-engine/crates/tb-cli/src/migrate.rs:2: //! whether every repository in scope carries the one identity directory (`.2brain/`) and the",
+        "tb-engine/crates/tb-cli/src/migrate.rs:3: //! current engine-schema spelling (`tb.engine.*::tb-engine`).",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:115: pub(crate) fn canonical_schema_name(name: &str) -> &str {",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:116:     name"
+      ],
+      "file": "tb-engine/crates/tb-cli/src/migrate.rs",
+      "first_evidence": "tb-engine/crates/tb-cli/src/migrate.rs:44 --         if marker.is_file() {",
+      "independent_reviewers": [
+        "correctness",
+        "data-migration"
+      ],
+      "line": 44,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "correctness",
+        "data-migration"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Inspect parser-identified instance and type-definition claims as part of the current check, including quoted and sequence forms, and return a nonzero result with locations for remaining legacy builtin names or qualifiers.",
+      "title": "Check claim spellings before declaring a repository current",
+      "why_it_matters": "The post-upgrade identity check reports a repository current and exits successfully merely because .2brain/repo.yaml exists, even when it still claims the old au.engine schema or its notes use old schema qualifiers. The engine no longer normalizes those spellings, so the reassuring result hides unresolved type claims. Check the claims the command promises to assess and report legacy spellings rather than labeling the repository current."
+    },
+    {
+      "#": 24,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/migrate.rs:93 --             if let Ok(bytes) = std::fs::read(&path) {",
+        "tb-engine/crates/tb-engine/src/repo.rs:815 -- /// Malformed input (bad UTF-8, bad YAML, or no `repos:` list) degrades to an",
+        "tb-engine/crates/tb-cli/src/migrate.rs:122 --             Err(_) => continue,",
+        "tb-engine/crates/tb-cli/src/migrate.rs:54 --     if missing == 0 {"
+      ],
+      "file": "tb-engine/crates/tb-cli/src/migrate.rs",
+      "first_evidence": "tb-engine/crates/tb-cli/src/migrate.rs:93 --             if let Ok(bytes) = std::fs::read(&path) {",
+      "independent_reviewers": [
+        "data-migration"
+      ],
+      "line": 93,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "data-migration"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Treat unreadable or malformed existing registries and unresolvable registered paths as planning failures with their paths in the error; handle genuinely absent optional registries explicitly and do not report an empty or partial inventory as fully checked.",
+      "title": "Do not report unchecked registries as fully current",
+      "why_it_matters": "The --all check exits successfully with 'nothing to do' when registry files cannot be read, contain malformed YAML, or point to a temporarily inaccessible repository. Those repositories are silently omitted rather than checked, so an operator can mistake an incomplete migration inventory for confirmation that all registered repositories are current."
+    },
+    {
+      "#": 25,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/search.rs:1256 --         if let Some(&id) = self.term_ids.get(term) {",
+        "tb-engine/crates/tb-engine/src/search.rs:917-919 -- the vocabulary retains a term whose last document leaves while its block drops to no allocation.",
+        "tb-engine/crates/tb-engine/src/search.rs:1257-1261 -- an exact dictionary hit returns immediately, otherwise word-form dictionary hits are returned without checking their postings.",
+        "tb-engine/crates/tb-engine/src/search.rs:1361-1363 -- SearchIndex::update removes the old document and adds its new fields.",
+        "tb-engine/crates/tb-engine/src/search.rs:1256:        if let Some(&id) = self.term_ids.get(term) {",
+        "tb-engine/crates/tb-engine/src/search.rs:917-919 documents that removing the last posting retains the dictionary entry.",
+        "tb-engine/crates/tb-engine/src/search.rs:1257-1261 returns the dead exact term before trying word_forms; search.rs:1363-1369 uses incremental remove and add on an edited note."
+      ],
+      "file": "tb-engine/crates/tb-engine/src/search.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/search.rs:1256 --         if let Some(&id) = self.term_ids.get(term) {",
+      "independent_reviewers": [
+        "adversarial",
+        "performance"
+      ],
+      "line": 1256,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "adversarial",
+        "performance"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Accept exact and alternate dictionary entries only when their posting count is nonzero; test incremental edits against a fresh rebuild.",
+      "title": "Ignore empty dictionary entries when resolving word forms",
+      "why_it_matters": "After the last note containing a query spelling is edited, searching that spelling can return no hits even though another note contains its supported singular or plural form; a cold rebuild produces a different answer. Incremental removal retains the obsolete dictionary entry with zero postings, so resolve_term treats the dead exact entry as a hit and never tries the live word form. Resolving only terms with live postings restores search consistency after edits."
+    },
+    {
+      "#": 26,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:11415:         None => true,",
+        "tb-engine/crates/tb-engine/src/serve.rs:6434:                     mutation_response_extra(handle, &response_path, None, commits, extra)",
+        "tb-engine/crates/tb-engine/src/serve.rs:11407:    // disk write is canonical; `rebuild()` is best-effort and can give up on",
+        "tb-engine/crates/tb-engine/src/serve.rs:11390:         let held_hash = v.catalog.get(target).and_then(|e| e.hash);"
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:11415:         None => true,",
+      "independent_reviewers": [
+        "correctness"
+      ],
+      "line": 11415,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "correctness"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Represent deletion separately from a no-op and set reflected for deletion only when the target is absent from the held catalog.",
+      "title": "Check deletion reflection against catalog absence",
+      "why_it_matters": "A successful delete can report reflected=true even while the held catalog still contains the deleted note and its diagnostics. Delete passes None to the response, which treats it as an unconditional no-op, although rebuilds can fail and retain the old knowledge base. Distinguishing deletion from no-op and checking catalog absence prevents clients from trusting stale state."
+    },
+    {
+      "#": 27,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:13666:     let bytes = std::fs::read(target).ok()?;",
+        "tb-engine/crates/tb-engine/src/serve.rs:13675 also converts UTF-8 errors to None, and 12963-12970 serializes None as null.",
+        "tb-mcp-rs/src/lib.rs:2792-2794 treats null content as an applied delete."
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:13666:     let bytes = std::fs::read(target).ok()?;",
+      "independent_reviewers": [
+        "reliability"
+      ],
+      "line": 13666,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "reliability"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Distinguish NotFound from I/O and UTF-8 errors; propagate errors and treat only confirmed absence as an applied delete.",
+      "title": "Distinguish unreadable files from absent files during reconciliation",
+      "why_it_matters": "A file that still exists but cannot be read, or contains non-UTF-8 bytes, is returned as null just like a missing file. Reconciliation with expect_absent then reports the delete as applied, hiding an unsuccessful deletion from the caller. Propagating read and decoding errors while reserving null for a confirmed missing path prevents a false success."
+    },
+    {
+      "#": 28,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:15261 --     let terms = crate::search::distinct_terms(query);",
+        "tb-engine/crates/tb-engine/src/serve.rs:15274 --                 excerpt: excerpt_of(kb, hit.path, &terms),",
+        "tb-engine/crates/tb-engine/src/search.rs:1255-1261 -- query scoring resolves a missing exact term using alternate word forms.",
+        "tb-engine/crates/tb-engine/src/search.rs:1610-1612 -- when the supplied terms do not occur in the body, excerpting starts at the body's opening."
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:15261 --     let terms = crate::search::distinct_terms(query);",
+      "independent_reviewers": [
+        "performance"
+      ],
+      "line": 15261,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "performance"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Use resolved indexed terms to locate ranked-hit excerpts; test a plural query whose singular match is beyond the opening window.",
+      "title": "Center excerpts on the resolved query spelling",
+      "why_it_matters": "When search finds a note through singular/plural fallback, its excerpt can show only the beginning of the note instead of the matching passage, even if the hit is far later in the body. Ranking uses the resolved spelling, but excerpting receives only the original query terms. Passing the actual resolved indexed terms to excerpting restores the contextual evidence users need to judge a hit."
+    },
+    {
+      "#": 29,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:4925:        for repo in &member.repo_names {",
+        "tb-engine/crates/tb-engine/src/serve.rs:4249: //",
+        "tb-engine/crates/tb-engine/src/serve.rs:4250:/// byte-identical, `not_written`, absolute. They stay members, so the rebuild",
+        "tb-engine/crates/tb-engine/src/serve.rs:6475:            // A move that keeps the name leaves a bare `[[name]]` referrer",
+        "tb-engine/crates/tb-engine/src/serve.rs:6498:                    Ok(resolve_saga_plan_writing(&h, &touched, not_written))"
+      ],
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/src/serve.rs:4925:        for repo in &member.repo_names {",
+      "independent_reviewers": [
+        "security"
+      ],
+      "line": 4925,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "security"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Compute grant coverage from the owners of actual written paths after excluding plan.not_written, including when multiple members share one git working tree.",
+      "title": "Unwritten referrers incorrectly fail cascade member grants",
+      "why_it_matters": "A permitted rename can be refused merely because a reference in an ungranted member is recomputed, even when its bytes would not be changed. The saga deliberately retains such paths in not_written and its member list, but grant_refusal checks every listed repo instead of the owners of written paths. Restrict the authorization comparison to the actual write set, preserving the existing stricter checks for files that are rewritten."
+    },
+    {
+      "#": 30,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/scripts/swap-engine.sh:24: SOCKET=/root/.2brain/tb-engine/run/adcfe8680a485529.sock",
+        "tb-engine/scripts/swap-engine.sh:54:   [[ -S $SOCKET ]] || problem \"no engine socket at $SOCKET\"",
+        "tb-engine/scripts/swap-engine.sh:108:     \"$PROBE\" --socket \"$SOCKET\" --out /tmp/tb-restore-probe >/dev/null 2>&1 && {",
+        "tb-engine/crates/tb-engine/src/serve.rs:178: /// The directory holding per-entry daemon sockets, `<state dir>/engine/run`."
+      ],
+      "file": "tb-engine/scripts/swap-engine.sh",
+      "first_evidence": "tb-engine/scripts/swap-engine.sh:24: SOCKET=/root/.2brain/tb-engine/run/adcfe8680a485529.sock",
+      "independent_reviewers": [
+        "maintainability"
+      ],
+      "line": 24,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "maintainability"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Derive the workspace socket from the current engine or use .2brain/engine/run for swap and restore, and test both paths.",
+      "title": "Swap and restore probe the wrong socket",
+      "why_it_matters": "The swap command refuses its preconditions on a correctly configured current engine because it checks a tb-engine/run socket instead of engine/run. More importantly, --restore installs and restarts the backup before probing that same nonexistent path, so it reports a failed recovery even when the restored daemon is healthy. Use the engine's current socket derivation so both preflight and post-restore confirmation inspect the real daemon."
+    },
+    {
+      "#": 31,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/skills/2brain/references/tool-map.md:99: legacy `arsumbris://` still accepted on parse for one release, so a URI a client cached keeps working",
+        "tb-mcp-rs/skills/2brain/references/tool-map.md:59: | `tb_add_dep` | `dep`, `expected_hash`, `ref`, `remote`, `repo` | Declare a dependency in one member's .arsumbris/repo.yaml, as a byte splice that keeps comments and order. |",
+        "tb-mcp-rs/src/resources.rs:7: //! The scheme is `2brain://` only (ADR-0005): the old name is not a resource any more.",
+        "tb-mcp-rs/src/lib.rs:1794:         description = \"Declare a dependency in one member's .2brain/repo.yaml, as a byte splice that keeps comments and order. Nothing is fetched: the peer stays unmounted until a resolve. Requires both the mutation grant and the composition grant; expected_hash is a compare-and-set on that file.\",",
+        "docs/naming.md:20: | the engine binary | `au` (unchanged: the unit and every script name it; a device layout, not a repository directory) | `~/.2brain/bin/au` |",
+        "tb-mcp-rs/skills/2brain/SKILL.md:24: `references/tool-map.md` lists every tool with its arguments, generated from the running binary."
+      ],
+      "file": "tb-mcp-rs/skills/2brain/references/tool-map.md",
+      "first_evidence": "tb-mcp-rs/skills/2brain/references/tool-map.md:99: legacy `arsumbris://` still accepted on parse for one release, so a URI a client cached keeps working",
+      "independent_reviewers": [
+        "maintainability"
+      ],
+      "line": 99,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "maintainability"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Regenerate the tool map, correct its resource compatibility prose, and update docs/naming.md for the post-ADR-0005 names and unsupported legacy formats.",
+      "title": "Live tool map retains removed paths and URI compatibility",
+      "why_it_matters": "Agents consulting the linked tool map are told that cached old-scheme resources still work and that composition mutations operate on .arsumbris/repo.yaml, although the adapter now rejects that scheme and uses .2brain. The separate naming page is also linked as current guidance but describes the removed engine binary, identity format, and compatibility readers. Refreshing live references while preserving dated records prevents operators and agents from relying on deleted interfaces."
+    },
+    {
+      "#": 32,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2158:        let result = self.read(request, \"tb_instances_of\", ctx).await;",
+        "tb-mcp-rs/src/lib.rs:2161:            (limit, offset) => page_instances(result, limit, offset.unwrap_or(0), self.payload),",
+        "tb-mcp-rs/src/lib.rs:2426:        let result = self.read(json!({\"id\": 1}), \"tb_instances\", ctx).await;",
+        "tb-mcp-rs/src/transport.rs:236:    if len > MAX_FRAME_BYTES {",
+        "tb-mcp-rs/src/transport.rs:237:        return Err(WireError::Broken(\"response frame too large\".into()));"
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:2158:        let result = self.read(request, \"tb_instances_of\", ctx).await;",
+      "independent_reviewers": [
+        "api-contract"
+      ],
+      "line": 2158,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "api-contract"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Forward tb_instances_of pagination to the engine and page before serialization, returning total and continuation metadata.",
+      "title": "Instance pagination happens after the frame size limit",
+      "why_it_matters": "For tb_instances_of, the adapter requests the full engine response before applying limit and offset. If that response exceeds the transport frame limit, even a one-record page cannot be fetched. The related tb_instances path is tracked separately."
+    },
+    {
+      "#": 33,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2426 --         let result = self.read(json!({\"id\": 1}), \"tb_instances\", ctx).await;",
+        "tb-mcp-rs/src/lib.rs:2427-2435 -- page_array is applied only after the unparameterized engine read completes.",
+        "tb-engine/crates/tb-engine/src/wire.rs:1333-1350 -- introspect_kb_instances iterates every resolved instance and scans each body.",
+        "docs/research/payload-modes.md:43-44 -- the live tb_instances response was 18.9 MB in both mode; this measurement is the MCP response, not the engine frame.",
+        "tb-engine/crates/tb-engine/src/serve.rs:138 -- const MAX_FRAME: usize = 16 << 20;",
+        "tb-mcp-rs/src/lib.rs:2426:         let result = self.read(json!({\"id\": 1}), \"tb_instances\", ctx).await;",
+        "tb-mcp-rs/src/lib.rs:2427-2435: the adapter invokes page_array only after the full engine read.",
+        "tb-mcp-rs/src/transport.rs:28: pub(crate) const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;",
+        "docs/research/payload-modes.md:43-44: the live unpaged tb_instances MCP response measured 18.9 MB in both mode, not the engine-frame size."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:2426 --         let result = self.read(json!({\"id\": 1}), \"tb_instances\", ctx).await;",
+      "independent_reviewers": [
+        "agent-native",
+        "performance"
+      ],
+      "line": 2426,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "agent-native",
+        "performance"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Forward limit and offset to the engine, page before projecting instances, and return total and continuation metadata.",
+      "title": "Apply instance pagination before engine projection",
+      "why_it_matters": "Even limit=1 makes the daemon project and transmit every resolved instance before the adapter discards the rest, so enumerating pages repeats the full expensive scan and transfer. The documented live unpaged MCP answer is 18.9 MB in both mode; if the single engine response crosses its 16 MiB frame cap, no page can be fetched at all. Applying the offset and limit inside the engine bounds each page before transport."
+    },
+    {
+      "#": 34,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:4145:         PayloadMode::Text => {",
+        "tb-mcp-rs/src/lib.rs:4146:             response.content = vec![ContentBlock::text(payload.to_string())];",
+        "tb-mcp-rs/src/lib.rs:3398-3404: schemas are removed only for the concise profile.",
+        "docs/research/payload-modes.md:125-137: a real client reported 'Tool tb_overview has an output schema but did not return structured content' and its circuit breaker marked the server unreachable."
+      ],
+      "file": "tb-mcp-rs/src/lib.rs",
+      "first_evidence": "tb-mcp-rs/src/lib.rs:4145:         PayloadMode::Text => {",
+      "independent_reviewers": [
+        "agent-native"
+      ],
+      "line": 4145,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "agent-native"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Omit outputSchema for text-only payloads under every profile, or reject the incompatible full/text combination; cover it with a schema-validating client.",
+      "title": "Full schemas conflict with text-only payloads",
+      "why_it_matters": "A schema-validating client using the full tool profile with text payloads rejects successful calls because outputSchema is advertised but structuredContent is absent. The repository records this exact client error and a circuit breaker treating repeated failures as server unreachability. Making the advertised schema and payload mode consistent restores those calls."
+    },
+    {
+      "#": 35,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/schemas.rs:199:            \"additionalProperties\": false,",
+        "tb-mcp-rs/src/schemas.rs:197:            \"properties\": {\"graph_health\": report},",
+        "tb-mcp-rs/src/lib.rs:1072:            request[\"verbs\"] = json!(true);",
+        "tb-engine/crates/tb-engine/src/serve.rs:13126:                        \"verbs\".to_owned(),",
+        "tb-mcp-rs/src/wire.rs:721:        payload: Value::Object(result),"
+      ],
+      "file": "tb-mcp-rs/src/schemas.rs",
+      "first_evidence": "tb-mcp-rs/src/schemas.rs:199:            \"additionalProperties\": false,",
+      "independent_reviewers": [
+        "api-contract"
+      ],
+      "line": 199,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "api-contract"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Declare the optional top-level verbs property and validate a real verbs=true response against the schema.",
+      "title": "Graph health instrumentation violates its output schema",
+      "why_it_matters": "A strict MCP client rejects every tb_graph_health response requested with verbs=true as invalid structured content. The engine adds a top-level verbs sibling, and the adapter forwards it unchanged, but the declared output schema allows only graph_health. Declaring the optional verbs sibling makes the advertised instrumentation usable by schema-validating clients."
+    },
+    {
+      "#": 37,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/tests/real_engine.rs:385:             .env(\"HOME\", &home)",
+        "tb-mcp-rs/tests/real_engine.rs:392:     let socket = wait_ready(&state_run_dir(&home), &mut daemon.0);",
+        "tb-engine/crates/tb-engine/src/repo.rs:900-902: state_dir_in uses a nonempty inherited 2BRAIN_HOME before home.join(STATE_DIR).",
+        "tb-mcp-rs/tests/real_engine.rs:580,715: both other daemon spawns likewise only set HOME.",
+        "tb-mcp-rs/tests/real_engine.rs:56-58: if let Ok(entries) = fs::read_dir(home) { for entry in entries.flatten() { let run = entry.path().join(\"engine\").join(\"run\");",
+        "tb-engine/crates/tb-engine/src/repo.rs:899-902: pub fn state_dir_in(home: &Path) -> PathBuf { match std::env::var_os(\"2BRAIN_HOME\") { Some(explicit) if !explicit.is_empty() => PathBuf::from(explicit), _ => home.join(STATE_DIR),",
+        "CODING_STANDARDS.md:10-13: The name and home of an engine state directory are defined in one place."
+      ],
+      "file": "tb-mcp-rs/tests/real_engine.rs",
+      "first_evidence": "tb-mcp-rs/tests/real_engine.rs:385:             .env(\"HOME\", &home)",
+      "independent_reviewers": [
+        "project-standards",
+        "testing"
+      ],
+      "line": 385,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "project-standards",
+        "testing"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Set 2BRAIN_HOME to a test-owned directory, or remove it, on every spawned daemon and MCP process; add a regression exercising the suite with an inherited override.",
+      "title": "Isolate the real-engine tests from 2BRAIN_HOME",
+      "why_it_matters": "When the caller has 2BRAIN_HOME configured, the real-engine suite starts its supposedly private daemon under that external state root, but waits only under its temporary HOME. Each test then waits until startup timeout instead of exercising the real engine, and its daemon can read the caller's registry. CODING_STANDARDS.md:10-13 requires the home of engine state to follow its single definition; replacing HOME without clearing or overriding 2BRAIN_HOME ignores that definition."
+    },
+    {
+      "#": 38,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tools/kb/legacy_audit.py:171:         live = sum(1 for v in hits.values() for r in v[\"rows\"] if r[\"class\"] == \"live\")",
+        "tools/kb/legacy_audit.py:61:     (\"identity_dot\",re.compile(r\"\\.arsumbris\\b\"),                 \"format\",  \"on-disk identity directory spelling\"),",
+        "tb-engine/doc/adr/0005-final-rename.md:130: `tools/kb/legacy_audit.py --check` runs in CI and fails on any `live` trace. The `format` and `content`",
+        ".github/workflows/ci.yml:82:       - run: python3 tools/cards/render.py --check"
+      ],
+      "file": "tools/kb/legacy_audit.py",
+      "first_evidence": "tools/kb/legacy_audit.py:171:         live = sum(1 for v in hits.values() for r in v[\"rows\"] if r[\"class\"] == \"live\")",
+      "independent_reviewers": [
+        "maintainability"
+      ],
+      "line": 171,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "maintainability"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Run the existing legacy audit --check in CI and add a focused regression for a live-name violation; handle other audit classes according to ADR-0005.",
+      "title": "Run the rename ratchet in CI",
+      "why_it_matters": "ADR-0005 promises the legacy audit as a CI ratchet, but the current workflow does not run it, so live old-name regressions can be merged undetected. The ADR specifies that --check fails on live traces; requiring format and content matches in that command is not established by that contract."
+    },
+    {
+      "#": 39,
+      "autofix_class": "manual",
+      "confidence": 100,
+      "evidence": [
+        "tools/kb/moc_links.py:73:             if other != stem and stem in LINK.findall(frontmatter(other_text))",
+        "tools/kb/moc_links.py:4-6: A note declares membership with `topics: [[some-map]]`, and the engine resolves that edge both ways (`references_in` on the map returns every note that names it, with `slot: topics` and `surface: frontmatter`).",
+        "tools/kb/moc_links.py:30-31: TYPE_MOC = re.compile(r\"^type:\\s*moc\\s*$\", re.MULTILINE); LINK = re.compile(r\"\\[\\[([^\\]|#]+)\")",
+        "CODING_STANDARDS.md:17-22: Code that needs engine state or a count asks the engine, not a regex or text scan over files. A metric measures exactly one defined thing."
+      ],
+      "file": "tools/kb/moc_links.py",
+      "first_evidence": "tools/kb/moc_links.py:73:             if other != stem and stem in LINK.findall(frontmatter(other_text))",
+      "independent_reviewers": [
+        "project-standards"
+      ],
+      "line": 73,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "project-standards"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Query resolved incoming references, retain topic-slot references, and compare resolved member identities with resolved body references. Add unrelated-field and path-qualified link cases.",
+      "title": "Use engine references for topic-map membership counts",
+      "why_it_matters": "The topic-map gap report counts every frontmatter wikilink to a map as a topic membership, including links from unrelated fields, so its missing-membership counts and --check result can be wrong. Its regex and filename-stem matching also bypass the engine's actual link resolution. CODING_STANDARDS.md:17-22 explicitly requires code needing engine state or a count to ask the engine rather than scrape files, and requires each metric to measure one defined thing."
+    },
+    {
+      "#": 40,
+      "autofix_class": "gated_auto",
+      "confidence": 100,
+      "evidence": [
+        "tools/probe/visit_bound.py:269:             for candidate in sorted((home / state / \"tb-engine\" / \"run\").glob(\"*.sock\")):",
+        "tb-engine/crates/tb-engine/src/repo.rs:895: pub const ENGINE_RUNTIME_DIR: &str = \"engine\";",
+        "tb-engine/crates/tb-engine/src/serve.rs:190-192: crate::repo::state_dir_in(&home).join(crate::repo::ENGINE_RUNTIME_DIR).join(\"run\")",
+        "tools/ranking/candidate_engine.py:99:         found = list((home / \".2brain/tb-engine/run\").glob(\"*.sock\"))",
+        "tools/probe/candidate_set.py:72: STATE_REGISTRY = Path(\"/root/.2brain/tb-engine/config/repos.yaml\")",
+        "CODING_STANDARDS.md:10-13: The name and home of an engine state directory are defined in one place. A rename or relocation updates every check that validates layout",
+        "tools/ranking/candidate_engine.py:73:     config = home / \".2brain/tb-engine/config\"",
+        "tools/probe/candidate_set.py:104:     config = home / \".2brain/tb-engine/config\"",
+        "README.md:202: `tools/ranking/candidate_engine.py` runs a second engine over a copy of the vault so a change can be"
+      ],
+      "file": "tools/probe/visit_bound.py",
+      "first_evidence": "tools/probe/visit_bound.py:269:             for candidate in sorted((home / state / \"tb-engine\" / \"run\").glob(\"*.sock\")):",
+      "independent_reviewers": [
+        "maintainability",
+        "project-standards"
+      ],
+      "line": 269,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "maintainability",
+        "project-standards"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Derive socket and registry paths from the configured engine state root, including 2BRAIN_HOME, across the affected probe and ranking launchers; reap a spawned candidate on startup failure.",
+      "title": "Update benchmark probes to the current engine state layout",
+      "why_it_matters": "The visit-bound and candidate-set benchmarks never find the socket of a current daemon, so they time out rather than measure search behavior. The ranking candidate launcher makes the same mistake and can leave its spawned daemon running after reporting failure; the candidate-set probe also reads and writes a registry under the obsolete directory. These independent hard-coded layouts violate CODING_STANDARDS.md:10-13, which requires the state directory and home to be defined in one place and all layout checks updated on relocation."
+    },
+    {
+      "#": 42,
+      "autofix_class": "gated_auto",
+      "confidence": 75,
+      "evidence": [
+        "tb-engine/crates/tb-engine/tests/it/mutate.rs:5097:     perms.set_readonly(true);",
+        "tb-engine/crates/tb-engine/tests/it/mutate.rs:5108:     assert_eq!(resp[\"type\"], \"error\", \"the saga should reject: {resp:?}\");",
+        "tb-engine/crates/tb-engine/src/serve.rs:6567: the referrer rewrite uses std::fs::write, which a process with CAP_DAC_OVERRIDE can perform despite read-only mode bits."
+      ],
+      "file": "tb-engine/crates/tb-engine/tests/it/mutate.rs",
+      "first_evidence": "tb-engine/crates/tb-engine/tests/it/mutate.rs:5097:     perms.set_readonly(true);",
+      "independent_reviewers": [
+        "testing"
+      ],
+      "line": 5097,
+      "owner": "downstream-resolver",
+      "pre_existing": false,
+      "requires_verification": true,
+      "reviewers": [
+        "testing"
+      ],
+      "severity": "P2",
+      "suggested_fix": "Replace the chmod-based fault with deterministic failure injection at the referrer write or saga boundary, preserving the compensation assertions.",
+      "title": "Make compensation failure injection work under root",
+      "why_it_matters": "The integration suite fails when run by a privileged user with CAP_DAC_OVERRIDE: making the referrer read-only does not prevent that user from writing it, so the rename succeeds where the test expects an error. This also means the test does not exercise rollback in that environment. A deterministic injected write failure independent of filesystem permission bypass would exercise compensation on both privileged and unprivileged hosts."
+    }
+  ],
+  "skip_count": 0,
+  "skip_evidence": "No independent adversarial-<provider> reviewer ran; the in-process fallback shares the session model.",
+  "scope_context": {
+    "mode": "standalone",
+    "base": "7ee72b1f879b09bec1c06bf7a42834f2d673261f",
+    "head_sha": "da676f62b4ff0aab53808ff4940a4e89da643f95",
+    "tree_is_reviewed_head": true,
+    "diff": "/tmp/compound-engineering-0/ce-code-review/20261119-145319-441a7399/full.diff",
+    "intent": {
+      "summary": "Whole-tree external re-review of /root/2brain — a graph-backed knowledge workspace: engine crate tb-engine (daemon, MCP serving over Unix socket, search index, mutation saga with preimage-based rollback), MCP adapter tb-mcp-rs (agent-facing tb_* tools), content repos as workspace members, install/CI/fixture tooling — against root commit 7ee72b1 (whole tree is the reviewed change; head da676f6 plus uncommitted edits to .gitignore and AGENTS.md). Since the previous external review the tree absorbed a fix wave (commits 05d6bdc..da676f6: member-grant checks in rename/inline/promote, read containment, real-engine suite in CI, installer legacy-state shadowing, ingest identity rule) and a repo-wide rename to one spelling 'on disk, on the wire and in every name'. Verify the fixes closed their classes without regressions and review the whole tree for fresh defects.",
+      "confidence": "inferred"
+    },
+    "constraints": [
+      "Use codebase-memory-mcp tools for the review (verbatim user directive: 'используй codebase-memory-mcp инструменты'; honored: index freshly rebuilt before dispatch and reviewers were instructed to navigate with it where available; navigation aid, not a scope limit).",
+      "Report-only: no apply authority was requested or granted."
+    ]
+  },
+  "diff": "/tmp/compound-engineering-0/ce-code-review/20261119-145319-441a7399/full.diff",
+  "run_dir": "/tmp/compound-engineering-0/ce-code-review/20261119-145319-441a7399",
+  "normal_cap": 8,
+  "expanded_for_all_p0_p1": true
+}

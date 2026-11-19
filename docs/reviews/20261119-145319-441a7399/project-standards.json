@@ -1,0 +1,66 @@
+{
+  "reviewer": "project-standards",
+  "findings": [
+    {
+      "title": "Update benchmark probes to the current engine state layout",
+      "severity": "P2",
+      "file": "tools/probe/visit_bound.py",
+      "line": 269,
+      "why_it_matters": "The visit-bound and candidate-set benchmarks never find the socket of a current daemon, so they time out rather than measure search behavior. The ranking candidate launcher makes the same mistake and can leave its spawned daemon running after reporting failure; the candidate-set probe also reads and writes a registry under the obsolete directory. These independent hard-coded layouts violate CODING_STANDARDS.md:10-13, which requires the state directory and home to be defined in one place and all layout checks updated on relocation.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Derive the daemon socket and registry from the engine's configured state root and engine runtime directory, including 2BRAIN_HOME, instead of the tb-engine subdirectory; update the visit-bound, candidate-set, and ranking launchers together, and reap a spawned candidate on startup failure.",
+      "confidence": 100,
+      "evidence": [
+        "tools/probe/visit_bound.py:269:             for candidate in sorted((home / state / \"tb-engine\" / \"run\").glob(\"*.sock\")):",
+        "tb-engine/crates/tb-engine/src/repo.rs:895: pub const ENGINE_RUNTIME_DIR: &str = \"engine\";",
+        "tb-engine/crates/tb-engine/src/serve.rs:190-192: crate::repo::state_dir_in(&home).join(crate::repo::ENGINE_RUNTIME_DIR).join(\"run\")",
+        "tools/ranking/candidate_engine.py:99:         found = list((home / \".2brain/tb-engine/run\").glob(\"*.sock\"))",
+        "tools/probe/candidate_set.py:72: STATE_REGISTRY = Path(\"/root/.2brain/tb-engine/config/repos.yaml\")",
+        "CODING_STANDARDS.md:10-13: The name and home of an engine state directory are defined in one place. A rename or relocation updates every check that validates layout"
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Isolate the real-engine tests from configured state roots",
+      "severity": "P2",
+      "file": "tb-mcp-rs/tests/real_engine.rs",
+      "line": 385,
+      "why_it_matters": "When the caller has 2BRAIN_HOME configured, the real-engine suite starts its supposedly private daemon under that external state root, but waits only under its temporary HOME. Each test then waits until startup timeout instead of exercising the real engine, and its daemon can read the caller's registry. CODING_STANDARDS.md:10-13 requires the home of engine state to follow its single definition; replacing HOME without clearing or overriding 2BRAIN_HOME ignores that definition.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Set 2BRAIN_HOME to a fixture-owned path under the temporary home, or explicitly remove it, for every engine and MCP child in the real-engine fixture; test the suite with a nonempty inherited 2BRAIN_HOME.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/tests/real_engine.rs:385:             .env(\"HOME\", &home)",
+        "tb-mcp-rs/tests/real_engine.rs:56-58: if let Ok(entries) = fs::read_dir(home) { for entry in entries.flatten() { let run = entry.path().join(\"engine\").join(\"run\");",
+        "tb-engine/crates/tb-engine/src/repo.rs:899-902: pub fn state_dir_in(home: &Path) -> PathBuf { match std::env::var_os(\"2BRAIN_HOME\") { Some(explicit) if !explicit.is_empty() => PathBuf::from(explicit), _ => home.join(STATE_DIR),",
+        "CODING_STANDARDS.md:10-13: The name and home of an engine state directory are defined in one place."
+      ],
+      "pre_existing": false
+    },
+    {
+      "title": "Use engine references for topic-map membership counts",
+      "severity": "P2",
+      "file": "tools/kb/moc_links.py",
+      "line": 73,
+      "why_it_matters": "The topic-map gap report counts every frontmatter wikilink to a map as a topic membership, including links from unrelated fields, so its missing-membership counts and --check result can be wrong. Its regex and filename-stem matching also bypass the engine's actual link resolution. CODING_STANDARDS.md:17-22 explicitly requires code needing engine state or a count to ask the engine rather than scrape files, and requires each metric to measure one defined thing.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Query the engine's resolved incoming references for each map, retain only topic-slot references, and compare those resolved member identities with resolved body references; add examples with an unrelated frontmatter link and an aliased or path-qualified link.",
+      "confidence": 100,
+      "evidence": [
+        "tools/kb/moc_links.py:73:             if other != stem and stem in LINK.findall(frontmatter(other_text))",
+        "tools/kb/moc_links.py:4-6: A note declares membership with `topics: [[some-map]]`, and the engine resolves that edge both ways (`references_in` on the map returns every note that names it, with `slot: topics` and `surface: frontmatter`).",
+        "tools/kb/moc_links.py:30-31: TYPE_MOC = re.compile(r\"^type:\\s*moc\\s*$\", re.MULTILINE); LINK = re.compile(r\"\\[\\[([^\\]|#]+)\")",
+        "CODING_STANDARDS.md:17-22: Code that needs engine state or a count asks the engine, not a regex or text scan over files. A metric measures exactly one defined thing."
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

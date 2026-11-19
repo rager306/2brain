@@ -1,0 +1,238 @@
+{
+ "verdicts": [
+  {
+   "#": 1,
+   "status": "confirmed",
+   "protected_subject": null,
+   "reason": "After a daemon is killed and its PID reused, daemon.rs:144-151 acknowledges the stale-record window and daemon.rs:483-520 checks only liveness before signaling the recorded PID; incidence was not measured."
+  },
+  {
+   "#": 2,
+   "status": "confirmed",
+   "protected_subject": "public-contract",
+   "reason": "For a vault retaining the old identity directory, migrate.rs:42-72 refuses rather than converts it, identity.rs:37-48 only reads .2brain, and ADR-0005:116 specifies an --apply cutover command whose positional path is not accepted by main.rs:79-81; incidence was not measured."
+  },
+  {
+   "#": 3,
+   "status": "confirmed",
+   "protected_subject": "public-contract",
+   "reason": "For an installation with registries under the former au-engine/config, repo.rs:895 and 980-985 select only engine/config while ADR-0005:52 and 106 document the former location and rename without a registry-copy step; incidence was not measured."
+  },
+  {
+   "#": 4,
+   "status": "confirmed",
+   "protected_subject": "data-loss",
+   "reason": "For a non-git batch whose later operation fails, serve.rs:11520-11521 permits the batch and executes it in order while 5018 and 5270 restrict compensation and preimages to git members; the non-git fixture at tests/it/mutate.rs:1474-1487 establishes that such writes are supported, but incidence was not measured."
+  },
+  {
+   "#": 5,
+   "status": "confirmed",
+   "protected_subject": "injection",
+   "reason": "An absent create target beneath an in-member symlink can escape a non-git member because serve.rs:13650-13659 accepts failed full-path canonicalization, mutate.rs:58-109 checks only the lexical owner, and mutate.rs:166-177 opens through the parent symlink; incidence was not measured."
+  },
+  {
+   "#": 6,
+   "status": "confirmed",
+   "protected_subject": "injection",
+   "reason": "When a catalogued symlink points outside a member, tb-parser/src/fs.rs:347-355,425-440 follows it, build.rs:559-561 catalogs walked files, and serve.rs:15397-15404,15429-15438 reads the target without the content containment check; incidence was not measured."
+  },
+  {
+   "#": 8,
+   "status": "confirmed",
+   "protected_subject": "data-loss",
+   "reason": "If restoration of an ignored file fails, serve.rs:5113-5124 records the failure but 5086-5087 removes the marker and parked preimage, while startup at 5646-5649 likewise sweeps copies after recovery errors; incidence was not measured."
+  },
+  {
+   "#": 9,
+   "status": "confirmed",
+   "protected_subject": "data-loss",
+   "reason": "An interrupted pre-rename saga remains unrecovered across upgrade because 05d6bdc:serve.rs:5335-5338 used identity/au-engine/run whereas current serve.rs:5401-5404,5644-5650 checks only identity/engine/run and daemon.rs:325 calls only that recovery; incidence was not measured."
+  },
+  {
+   "#": 10,
+   "status": "confirmed",
+   "protected_subject": "data-loss",
+   "reason": "If marker removal fails after a successful commit and a later startup can read the marker, serve.rs:5086-5088 and 5738-5739 ignore the removal failure while 5688-5690 reverts the acknowledged commit; incidence was not measured."
+  },
+  {
+   "#": 11,
+   "status": "confirmed",
+   "protected_subject": "concurrency",
+   "reason": "Rejected pings or malformed frames can inflate outbound semaphore credits because bounded_stdio.rs:181-198 enqueues them without acquiring permits but 112-116 returns a permit for every frame, and the timeout at 159-173 is outside the rejection loop; incidence was not measured."
+  },
+  {
+   "#": 12,
+   "status": "confirmed",
+   "protected_subject": "data-loss",
+   "reason": "A caller replacing a file after a truncated read or hash-only reconciliation may overwrite unseen content because lib.rs:1199-1205 records the hash before truncation and 2792-2808 rearms on a mismatch without returning text; incidence was not measured."
+  },
+  {
+   "#": 13,
+   "status": "confirmed",
+   "protected_subject": "concurrency",
+   "reason": "If the engine accepts but never answers a rename-type preflight, lib.rs:1682-1691 holds the sole mutation permit across an unbounded read and 1729-1735 does the same for cascade preview, while wire.rs:692-695 awaits transport without a deadline; incidence was not measured."
+  },
+  {
+   "#": 14,
+   "status": "confirmed",
+   "protected_subject": null,
+   "reason": "A default candidates call requests full unbounded detail because lib.rs:404-415,2453-2463 omits both summary and limit, serve.rs:2464-2476 defaults to all files, and docs/research/payload-modes.md:43-44 records a 3.1 MB response on the measured workspace."
+  },
+  {
+   "#": 15,
+   "status": "confirmed",
+   "protected_subject": "public-contract",
+   "reason": "If a successful uncertain write is subsequently changed by another writer, lib.rs:2713 promises what actually happened but 2792-2806 reports not_applied solely from the current hash mismatch; the subsequent-change ordering was not measured."
+  },
+  {
+   "#": 16,
+   "status": "confirmed",
+   "protected_subject": "concurrency",
+   "reason": "A timed-out mutation can still be queued when reconciliation reads old bytes because wire.rs:803-815 returns unknown on timeout, serve.rs:3812-3816 continues accepted mutations and 6142-6146 leaves reads outside the write lock, while lib.rs:2792-2806 declares not_applied; incidence was not measured."
+  },
+  {
+   "#": 17,
+   "status": "confirmed",
+   "protected_subject": "authorization-authentication",
+   "reason": "For a granted parent containing an ungranted editable child, lib.rs:2952-2983 resolves the named parent without the owner-grant check used at 2890-2895, and 1430-1437 sends the child path for the engine's deepest-owner write; incidence was not measured."
+  },
+  {
+   "#": 18,
+   "status": "confirmed",
+   "protected_subject": "public-contract",
+   "reason": "When max_chars truncates a file, lib.rs:4322-4330 advertises next_offset but ContentArguments at 569-581 has no offset and denies unknown fields, so the published continuation cannot be used; incidence was not measured."
+  },
+  {
+   "#": 19,
+   "status": "confirmed",
+   "protected_subject": "data-loss",
+   "reason": "If compensation fails, serve.rs:5113-5124,5772-5788 emits a textual warning on an ordinary rejection, transport.rs:190-203 treats it as a clean rejection, and lib.rs:2850-2857 retains the old ledger instead of marking the outcome unknown; incidence was not measured."
+  },
+  {
+   "#": 20,
+   "status": "confirmed",
+   "protected_subject": "authorization-authentication",
+   "reason": "For a parent-owned symlink into an ungranted nested member, serve.rs:13647-13659 allows the real path within the parent, wire.rs:2932-2937 and mutate.rs:82-109 select the lexical owner, and mutate.rs:148 follows the link on overwrite; incidence was not measured."
+  },
+  {
+   "#": 21,
+   "status": "confirmed",
+   "protected_subject": null,
+   "reason": "When installation of tb-engine into the prefix fails, install.sh:71 has already installed the adapter and line 79 evaluates the invalid Bash expansion ${2BRAIN_HOME:-...}, aborting before the fallback at lines 80-82; incidence was not measured."
+  },
+  {
+   "#": 22,
+   "status": "confirmed",
+   "protected_subject": "concurrency",
+   "reason": "If a live recorded PID cannot be signalled or remains alive after the final wait, daemon.rs:105-109 treats EPERM as alive but 510-520 ignores signal and wait results, removes the PID file, and reports success; incidence was not measured."
+  },
+  {
+   "#": 23,
+   "status": "confirmed",
+   "protected_subject": "public-contract",
+   "reason": "For a repository with .2brain/repo.yaml but legacy schema claims, migrate.rs:1-3 promises a current-schema check while 42-56 checks only marker existence and returns success, and engine_schema.rs:94-101,110-123 no longer canonicalizes legacy names; incidence was not measured."
+  },
+  {
+   "#": 24,
+   "status": "confirmed",
+   "protected_subject": "public-contract",
+   "reason": "For an unreadable or malformed registry or an inaccessible registered repository, migrate.rs:88-104 silently omits failed reads and 117-124 skips unresolved optional paths, then 53-58 returns success for the incomplete inventory; incidence was not measured."
+  },
+  {
+   "#": 25,
+   "status": "confirmed",
+   "protected_subject": null,
+   "reason": "After the final document containing an exact spelling is edited, search.rs:913-919,1363-1369 retains its empty dictionary entry and 1255-1261 selects it before a live singular or plural alternative, unlike a fresh index; incidence was not measured."
+  },
+  {
+   "#": 26,
+   "status": "confirmed",
+   "protected_subject": "public-contract",
+   "reason": "If rebuilding after deletion leaves the old catalog held, serve.rs:6406-6411,6434 passes no written hash and 11406-11415 reports reflected=true unconditionally instead of checking that the deleted path disappeared; incidence was not measured."
+  },
+  {
+   "#": 27,
+   "status": "confirmed",
+   "protected_subject": "public-contract",
+   "reason": "For an existing unreadable or non-UTF-8 file, serve.rs:12963-12970,13665-13675 returns null and lib.rs:2792-2794 interprets that null as an applied delete during reconciliation; incidence was not measured."
+  },
+  {
+   "#": 28,
+   "status": "confirmed",
+   "protected_subject": null,
+   "reason": "For a plural query resolved only to a singular term occurring beyond the opening window, search.rs:1255-1261 ranks the alternate but serve.rs:15261-15274 passes only the original query terms to excerpting, which search.rs:1610-1617 starts at the body opening on a miss; incidence was not measured."
+  },
+  {
+   "#": 29,
+   "status": "confirmed",
+   "protected_subject": "authorization-authentication",
+   "reason": "When a rename has an unchanged referrer in an ungranted member, serve.rs:4358-4396,6473-6498 retains that path as not_written but 4915-4931 checks every member name and 6506 refuses the permitted write; incidence was not measured."
+  },
+  {
+   "#": 30,
+   "status": "confirmed",
+   "protected_subject": null,
+   "reason": "With the current engine layout, swap-engine.sh:24,54,108 probes a hard-coded .2brain/tb-engine/run socket while serve.rs:190-192 derives .2brain/engine/run, so preflight or post-restore probing targets the wrong location; incidence was not measured."
+  },
+  {
+   "#": 31,
+   "status": "confirmed",
+   "protected_subject": null,
+   "reason": "When agents consult the linked tool map, tool-map.md:59-61,99 claims legacy identity paths and URI acceptance, but resources.rs:49-60 accepts only 2brain:// and lib.rs:1794 names .2brain/repo.yaml; incidence was not measured."
+  },
+  {
+   "#": 32,
+   "status": "confirmed",
+   "protected_subject": "public-contract",
+   "reason": "When an instances_of engine response exceeds 16 MiB, lib.rs:2141-2161 applies requested pagination only after receiving the full result and transport.rs:27-28,229-237 rejects the frame before any page can be returned; incidence was not measured."
+  },
+  {
+   "#": 33,
+   "status": "confirmed",
+   "protected_subject": "public-contract",
+   "reason": "For a large instance corpus, lib.rs:2421-2435 requests the full set before paging, so each page repeats full projection and can fail at transport.rs:27-28,236-237's frame limit; docs/research/payload-modes.md:43-44 measures 18.9 MB in the duplicated MCP response, not the engine frame."
+  },
+  {
+   "#": 34,
+   "status": "confirmed",
+   "protected_subject": "public-contract",
+   "reason": "With the full tool profile and text payload mode, lib.rs:3397-3405 keeps output schemas while 4137-4147 omits structuredContent, and docs/research/payload-modes.md:125-137 records the resulting schema-validating client failure."
+  },
+  {
+   "#": 35,
+   "status": "confirmed",
+   "protected_subject": "public-contract",
+   "reason": "For graph_health with verbs=true, lib.rs:1071-1074 forwards the option and serve.rs:13123-13129 adds a top-level verbs sibling, but schemas.rs:194-199 forbids every property except graph_health; incidence was not measured."
+  },
+  {
+   "#": 37,
+   "status": "confirmed",
+   "protected_subject": null,
+   "reason": "With 2BRAIN_HOME inherited outside the temporary HOME, real_engine.rs:381-392,576-587,711-722 starts the daemon without clearing that override and searches only under temporary HOME, while repo.rs:899-902 prioritizes the override; incidence was not measured."
+  },
+  {
+   "#": 38,
+   "status": "confirmed",
+   "protected_subject": null,
+   "reason": "ADR-0005:128-132 requires legacy_audit.py --check in CI for live-name regressions, but the complete .github/workflows/ci.yml does not invoke it and legacy_audit.py:168-172 contains the check; actual regressions were not measured."
+  },
+  {
+   "#": 39,
+   "status": "confirmed",
+   "protected_subject": null,
+   "reason": "When a note links a map in a frontmatter field other than topics, moc_links.py:69-77 counts it as a namer anyway, despite the topic-membership definition at lines 2-6 and its stem-based matching; incidence in the vault was not measured."
+  },
+  {
+   "#": 40,
+   "status": "confirmed",
+   "protected_subject": null,
+   "reason": "With a current daemon, visit_bound.py:246-274 and candidate_engine.py:89-106 search the obsolete tb-engine/run path rather than engine/run, while candidate_set.py:72,95-124 also uses the obsolete registry path and the candidate launcher does not reap on timeout; incidence was not measured."
+  },
+  {
+   "#": 42,
+   "status": "confirmed",
+   "protected_subject": null,
+   "reason": "Under a process with CAP_DAC_OVERRIDE, tests/it/mutate.rs:5090-5108 relies on read-only mode bits to force a referrer write to fail even though serve.rs:6567 writes the file, so the expected rejection is not guaranteed; incidence was not measured."
+  }
+ ]
+}
