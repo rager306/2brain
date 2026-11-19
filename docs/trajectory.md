@@ -27,6 +27,35 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-19 — the external review's 39 findings: the plan, and the first durability fix
+
+A whole-tree review against `da676f6` confirmed 39 findings (19 P1) and returned "Not ready". The
+triage lives in `docs/plan-remediation-2026-11-19.md`; the evidence in
+`docs/reviews/20261119-145319-441a7399/`. The review's first action is the right one: saga
+durability before any further cutover.
+
+**Fixed in this wave.** `#10`: `dispatch`-side code closed a saga by removing its intent marker
+best-effort, and ignored the result. A marker that survived a failed removal was read at the next
+start as an *interrupted* saga, so recovery would revert a mutation the client had already been told
+succeeded. The close now writes a durable `settled` line and fsyncs it, removes the marker and fsyncs
+the directory, and recovery treats a settled marker as complete. If neither marking nor removal can
+be completed, a `saga.failed.<id>` sentinel is written and recovery refuses to auto-roll-back an id
+that has one — the documented "recovery does not auto-retry a failure" rule, now enforced before it
+can destroy data. Two tests pin it: a settled marker is not rolled back, and a sentinel-owned saga is
+left for an operator with its committed tree intact.
+
+**Also fixed, from the review's rename fallout** (commit `9c971d5`): `mcp_stdio.py`, `visit_bound.py`,
+`watch.py` and `swap-engine.sh` had all been rewritten to `tb-engine/run` by the blanket pass (the
+runtime directory is `engine`), `tool-map.md` still promised the retired scheme, `install.sh` now
+moves a pre-rename `<state>/au-engine` once so an upgrade keeps the registry and the saga journals,
+and CI runs `legacy_audit.py --check`.
+
+**Open, in wave order:** A — #7 (failed rollback deletes preimages), #4 (non-git batch atomicity);
+B — #5, #6, #16, #17, #19, #20 (boundaries); C — #11, #12, #14, #15, #26, #27 (reconcile); D — #13,
+#18, #32, #33, #34, #35 (payload); E — #25, #28, #38, #40, #42. Three decision gates need an owner:
+the offline identity migration (#2), the non-git batch policy (#4), and the unknown-outcome contract
+(#14/#15).
+
 ## 2026-11-19 — the old name is gone, and the window with it
 
 The finishing pass ADR-0005 called for, executed in one commit because the identity name is a join

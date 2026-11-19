@@ -5080,10 +5080,37 @@ fn apply_saga_with_moves<T>(
         &preimages,
         write,
     );
-    // The marker first, then the parked copies: a crash between the two leaves
+    // Close the marker BEFORE the parked copies: a crash between the two leaves
     // orphaned copies the next startup sweeps, never a marker whose copies are
-    // gone.
-    remove_intent_marker(&marker);
+    // gone. A COMMITTED saga is marked settled durably first, because a marker
+    // that survives a failed removal would otherwise be rolled back at the next
+    // start — reverting a mutation the client was told succeeded.
+    if outcome.is_ok() {
+        match mark_intent_settled(&marker) {
+            Ok(()) => {
+                let _ = remove_intent_marker(&marker);
+            }
+            Err(_) => {
+                // Recording completion failed; removal is the only safe close.
+                if remove_intent_marker(&marker).is_err() {
+                    // Neither close worked. Keep the saga visible as a failure
+                    // sentinel; recovery refuses to auto-roll-back an id that has
+                    // one, so the committed data is never silently reverted.
+                    write_failure_sentinel(
+                        marker_dir,
+                        &plan.mutation_id,
+                        &[(
+                            marker.clone(),
+                            "committed saga could not close its intent marker; it must NOT be rolled back"
+                                .to_string(),
+                        )],
+                    );
+                }
+            }
+        }
+    } else {
+        let _ = remove_intent_marker(&marker);
+    }
     drop_preimages(marker_dir, &plan.mutation_id);
     outcome
 }
@@ -5387,6 +5414,11 @@ fn committed_moves(
 /// single fixed marker file is enough.
 const INTENT_MARKER_NAME: &str = "saga.intent";
 
+/// A line that marks a saga as SETTLED: every write and commit finished (or every
+/// one was compensated). Crash recovery must never roll back a settled saga; it
+/// only removes the marker and any parked copies.
+const SETTLED_LINE: &str = "settled";
+
 /// The engine's saga-recovery directory under the launch entry root,
 /// `<root>/<identity dir>/engine/run/`. Holds the `saga.intent` marker and the
 /// `saga.failed.<id>` sentinels: ephemeral run-state, owner-namespaced under the
@@ -5662,6 +5694,20 @@ fn recover_intent_marker(marker_dir: &Path) -> Option<SagaRecovery> {
     let content = std::fs::read_to_string(&marker_path).ok()?;
     let mut lines = content.lines();
     let mutation_id = lines.next()?.strip_prefix("mutation-id=")?.to_string();
+    // A settled saga is complete, not interrupted: remove the marker and leave
+    // the committed trees alone.
+    if content.lines().any(|line| line == SETTLED_LINE) {
+        let _ = remove_intent_marker(&marker_path);
+        return None;
+    }
+    // A saga that already has a failure sentinel was left for an operator; never
+    // auto-roll it back again (the doc's "recovery does not auto-retry a failure").
+    if marker_dir
+        .join(failure_sentinel_name(&mutation_id))
+        .exists()
+    {
+        return None;
+    }
     let id = MutationId(mutation_id.clone());
 
     let mut reverted = Vec::new();
@@ -5702,7 +5748,7 @@ fn recover_intent_marker(marker_dir: &Path) -> Option<SagaRecovery> {
     if !errors.is_empty() {
         write_failure_sentinel(marker_dir, &mutation_id, &errors);
     }
-    let _ = std::fs::remove_file(&marker_path);
+    let _ = remove_intent_marker(&marker_path);
     Some(SagaRecovery {
         mutation_id,
         reverted,
@@ -5732,11 +5778,37 @@ fn scan_failure_sentinels(marker_dir: &Path) -> Vec<SagaFailure> {
     out
 }
 
-/// Close a saga by removing its intent marker, on settle (commit-all or
-/// compensate-all). Best-effort: a stale marker is detected and handled by crash
-/// recovery, never a correctness hazard.
-fn remove_intent_marker(path: &Path) {
-    let _ = std::fs::remove_file(path);
+/// Append the settled line durably, so a crash before the marker is removed does
+/// not make recovery roll back a mutation that already committed.
+fn mark_intent_settled(path: &Path) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new().append(true).open(path)?;
+    file.write_all(SETTLED_LINE.as_bytes())?;
+    file.write_all(b"\n")?;
+    file.sync_all()?;
+    if let Some(dir) = path.parent() {
+        sync_dir(dir);
+    }
+    Ok(())
+}
+
+/// Remove the intent marker and fsync its directory, so the removal survives a
+/// crash. Returns the IO error instead of hiding it: a marker that stays behind is
+/// a saga recovery would otherwise roll back.
+fn remove_intent_marker(path: &Path) -> std::io::Result<()> {
+    std::fs::remove_file(path)?;
+    if let Some(dir) = path.parent() {
+        sync_dir(dir);
+    }
+    Ok(())
+}
+
+/// fsync a directory entry, best-effort: the rename/create/remove it follows has
+/// already succeeded, and a directory sync failure is not actionable here.
+fn sync_dir(dir: &Path) {
+    if let Ok(handle) = std::fs::File::open(dir) {
+        let _ = handle.sync_all();
+    }
 }
 
 /// The failure sentinel's file name, one per un-rolled-back saga, keyed by
@@ -18210,6 +18282,66 @@ mod saga_tests {
         let report = recover_crashed_saga(ws.path());
         assert!(report.recovered.is_none(), "a clean start finds no marker");
         assert!(report.failures.is_empty(), "and no failure sentinels");
+    }
+
+    #[test]
+    fn a_settled_saga_is_never_rolled_back() {
+        let ws = TempDir::new().unwrap();
+        let ra = init_repo();
+        // The saga committed, then marked itself settled, then crashed before the
+        // marker could be removed.
+        commit_mutation(ra.path(), "m-settled");
+        crashed_marker(ws.path(), "m-settled", &[(ra.path(), "ra")]);
+        let run = ws
+            .path()
+            .join(".2brain")
+            .join(crate::repo::ENGINE_RUNTIME_DIR)
+            .join("run");
+        let marker = run.join(INTENT_MARKER_NAME);
+        mark_intent_settled(&marker).unwrap();
+
+        let report = recover_crashed_saga(ws.path());
+        assert!(
+            report.recovered.is_none(),
+            "a settled saga is complete, not interrupted"
+        );
+        assert!(report.failures.is_empty(), "{:?}", report.failures);
+        assert_eq!(
+            fs::read_to_string(ra.path().join("f.md")).unwrap(),
+            "mutated\n",
+            "the committed write survives"
+        );
+        assert!(!marker.exists(), "the settled marker is removed");
+    }
+
+    #[test]
+    fn a_saga_with_a_failure_sentinel_is_not_auto_rolled_back() {
+        let ws = TempDir::new().unwrap();
+        let ra = init_repo();
+        commit_mutation(ra.path(), "m-stuck");
+        crashed_marker(ws.path(), "m-stuck", &[(ra.path(), "ra")]);
+        let run = ws
+            .path()
+            .join(".2brain")
+            .join(crate::repo::ENGINE_RUNTIME_DIR)
+            .join("run");
+        fs::write(run.join(failure_sentinel_name("m-stuck")), "boom\n").unwrap();
+
+        let report = recover_crashed_saga(ws.path());
+        assert!(
+            report.recovered.is_none(),
+            "an operator-owned saga is left alone"
+        );
+        assert_eq!(report.failures.len(), 1);
+        assert_eq!(
+            fs::read_to_string(ra.path().join("f.md")).unwrap(),
+            "mutated\n",
+            "the committed write is not reverted again"
+        );
+        assert!(
+            run.join(INTENT_MARKER_NAME).exists(),
+            "the marker stays for the operator"
+        );
     }
 
     #[test]

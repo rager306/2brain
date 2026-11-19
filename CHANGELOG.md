@@ -91,6 +91,14 @@ install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
 
 ### Fixed
 
+- **A committed saga could be rolled back by the next start** (engine, review #10). Closing a saga
+  removed its intent marker best-effort and ignored the result, so a marker that survived a failed
+  removal was read at the next start as an *interrupted* saga — recovery would revert a mutation the
+  client had already been told succeeded. The close now appends a durable `settled` line and fsyncs
+  it, removes the marker and fsyncs the directory; recovery treats a settled marker as complete,
+  and refuses to auto-roll-back an id that has a `saga.failed.<id>` sentinel (the documented
+  "recovery does not auto-retry" rule, enforced before it can destroy data). Two tests pin it.
+
 - **Sites the rename left pointing at the old runtime directory, and an upgrade path that keeps the
   registry.** `tb-mcp-rs/scripts/lib/mcp_stdio.py` joined `.2brain/tb-engine/run` (and listed the state
   name twice), `tools/probe/visit_bound.py` probed the same tuple, `tb-engine/examples/watch.py` and
