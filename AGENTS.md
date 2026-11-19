@@ -15,7 +15,7 @@ into allspark/prime-agent.
 It is a fork of the `arsumbris` project (<https://github.com/arsumbris>), which stalled after
 `0.0.2-alpha`; the `0.0.5`-era upstream work is preserved as the tag `archive/upstream-0.0.5`
 (commit `44b32f4`). The only place the upstream name belongs now is the lineage paragraph in
-`README.md`; the engine's file format still spells `au.engine.*` and `.arsumbris/`, which is a format
+`README.md`; the engine's file format still spells `tb.engine.*` and `.arsumbris/`, which is a format
 waiting for its migration (`docs/rebrand-plan.md`, tier C).
 
 ## Layout
@@ -29,6 +29,7 @@ waiting for its migration (`docs/rebrand-plan.md`, tier C).
 | `tb-mcp-sdk/` | the `mcp.*` vocabulary: 17 type definitions (`mcp.tool`, `mcp.skill`, `mcp.inject`, `agent-profile`) that content notes are written in. Its TypeScript was deleted 2026-11-16 |
 | `tb-ingest/`, `tb-govern/` | ingest pipeline, workspace composition (`workspace.yaml` members) |
 | `tb-skills/`, `tb-agent-guides/`, `tb-rules/`, `tb-writing-style/`, `tb-competency/`, `tb-defaults/` | content/knowledge repos |
+| `docs/solutions/` | documented solutions from past work (created on first write) — short notes with YAML frontmatter (`module`, `tags`, `problem_type`); search there when implementing or debugging in an area it covers |
 
 ## Branch model
 
@@ -109,7 +110,7 @@ home is `scripts/`.
 2. Never point tests at the live vault. Use a fixture copy:
    `git -C /root/vault worktree add /tmp/vault-fixture` or `cp -r`.
 3. Never kill or restart the engine daemon or an MCP server process while agent
-   sessions are live. Socket: `~/.2brain/au-engine/run/*.sock` (`~/.arsumbris` is a symlink).
+   sessions are live. Socket: `~/.2brain/engine/run/*.sock` (`~/.arsumbris` is a symlink).
 4. Engine swaps to the live daemon require the golden wire contract to pass
    (below) — no exceptions. A swap is a read comparison on a frozen copy of the
    vault working tree first, then the install, then the same reads against the
@@ -166,6 +167,9 @@ dashboard). Backlog notes cite their source studies.
 - Follow the live-system rules and existing compatibility contracts throughout.
   Proactivity does not authorize production changes, destructive actions, or
   changes outside the user's requested scope.
+- After a solved, verified problem, automatically invoke the `ce-compound` skill with `mode:non-interactive` at the completion checkpoint when the work corrected a wrong belief about how something behaves: an approach that failed, a review finding that exposed a real defect, or an assumption, document, or first diagnosis that turned out wrong. A naming, style, or preference change does not count. Work that went as first planned does not need it. Do not judge whether the lesson deserves a document: `ce-compound` decides whether it qualifies and what holds it (a test, a lint rule, a coding standard, or a learning), and writes nothing when nothing qualifies. Capture at the checkpoint so what it writes can ship in the PR that produced it, and only where the repository treats captured learnings as tracked, committed knowledge.
+- Write every report, summary, or handoff to the user through the `ce-noslop` skill. This applies when you are the top-level agent writing to the user, not when you are a subagent reporting to its caller. Do not apply it to code, config, verbatim quotes, or text the user asked to post as written.
+- Before writing or reviewing code, read `CODING_STANDARDS.md` (the defect classes this repository's code follows) and `REVIEW.md` (how review behaves here). When a change establishes or retires a rule, update those files in the same change.
 
 ## Docs: public design vs \`docs/internal/\`
 

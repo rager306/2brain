@@ -37,3 +37,9 @@ coverage/
 /.claude/
 /.vscode/
 /.github/copilot-instructions.md
+
+# Compound Engineering skills keep local scratch here.
+/.context/compound-engineering/
+
+# Code-intelligence index cache (regenerated per machine).
+/.codebase-memory/
