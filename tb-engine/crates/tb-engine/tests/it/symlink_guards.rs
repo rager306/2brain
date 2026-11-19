@@ -114,7 +114,7 @@ fn a_destination_the_graph_cannot_hold_refuses_move_dir_and_rename() {
                 ("drafts/a.md", &note("a")),
                 ("c.md", &note("see [[drafts/a]]")),
                 ("notes/x.md", &note("x")),
-                ("nest/.arsumbris/repo.yaml", "name: nest\n"),
+                ("nest/.2brain/repo.yaml", "name: nest\n"),
             ],
         );
         assert_refused(

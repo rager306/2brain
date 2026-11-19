@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: choose a skill body structure that makes the task and completion conditions clear
 rule: Order steps when sequence matters. Give fragile operations a check that establishes completion.
 ---

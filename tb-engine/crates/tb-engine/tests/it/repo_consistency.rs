@@ -28,7 +28,7 @@ fn peer_unmounted_when_no_path_on_this_machine() {
     // A declared peer, but no location file for this machine.
     write(
         &root,
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(&root, "doc.md", "x");
@@ -50,13 +50,13 @@ fn dependency_identity_conflict_when_dep_remote_disagrees_with_owner() {
     // own declared remote, the canonical owner.
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n    remote: git@x:me/WRONG.git\n",
     );
     write(&root, "app/note.md", "x");
     write(
         &root,
-        "base/.arsumbris/repo.yaml",
+        "base/.2brain/repo.yaml",
         "name: base\nremote: git@x:me/base.git\n",
     );
     write(&root, "base/note.md", "y");
@@ -79,19 +79,19 @@ fn no_conflict_when_dep_remote_matches_or_is_absent() {
     // a matching remote assertion and a name-only dep are both fine.
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n    remote: git@x:me/base.git\n  - name: lib\n",
     );
     write(&root, "app/note.md", "x");
     write(
         &root,
-        "base/.arsumbris/repo.yaml",
+        "base/.2brain/repo.yaml",
         "name: base\nremote: git@x:me/base.git\n",
     );
     write(&root, "base/note.md", "y");
     write(
         &root,
-        "lib/.arsumbris/repo.yaml",
+        "lib/.2brain/repo.yaml",
         "name: lib\nremote: git@x:me/lib.git\n",
     );
     write(&root, "lib/note.md", "z");

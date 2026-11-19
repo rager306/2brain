@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: write a skill's completion criteria so the agent proves the work, not just claims it
 rule: A model calls a task done when it looks done. Make the completion bar demand evidence, a command run and its output, not "verify it works".
 ---

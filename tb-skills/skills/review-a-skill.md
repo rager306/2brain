@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: review-a-skill
 description: Returns an independent review of an existing agent skill or guide, with supported findings and proposed fixes. Use for review requests and checks before release. For edits, use write-a-skill or write-a-guide. Engine diagnostics alone do not require this skill.
 ---
@@ -14,7 +14,7 @@ Give a fresh reader the artifact, applicable criteria, evidence and neighboring 
 Use [[the-independent-checker]] for that setup.
 Keep delegation within the caller's authorization and report when independent reading is unavailable.
 
-Read supporting guides through `au_agent_guide` using `name::au-skills` as needed.
+Read supporting guides through `tb_agent_guide` using `name::tb-skills` as needed.
 
 ## Assess the artifact
 
@@ -25,7 +25,7 @@ For a skill, check:
 - Does each mandatory restriction protect a requirement? Use [[match-the-degrees-of-freedom]].
 - What does the skill add to the task? Use [[when-a-skill-helps]], [[gotchas-first]] and [[write-less-as-models-improve]].
 
-For a guide, use [[write-a-useful-guide::au-agent-guides]] and [[a-guide-earns-its-slot::au-agent-guides]].
+For a guide, use [[write-a-useful-guide::tb-agent-guides]] and [[a-guide-earns-its-slot::tb-agent-guides]].
 Check that it helps with a distinct decision, explains when its advice applies and supports factual claims with inspectable evidence.
 Distinguish illustrations from observed results and recommendations from runtime enforcement.
 Compare neighboring guides before proposing another entry.

@@ -1,17 +1,17 @@
-//! `au members [entry] [--json]`: which of an entry's declared members mount, where,
+//! `tb-engine members [entry] [--json]`: which of an entry's declared members mount, where,
 //! and through which resolution tier, answered WITHOUT a daemon.
 //!
 //! A launcher checks a workspace before it starts the engine. This runs the
 //! build's own composition over the entry (`tb_engine::members::resolve_members`),
 //! with the inputs a daemon over the same entry would use: the per-user
-//! `~/.arsumbris/au-engine/config/repos.yaml` registry and the device package cache.
-//! So the answer is what `au daemon start` would mount, never a re-derivation.
+//! `<state root>/engine/config/repos.yaml` registry and the device package cache.
+//! So the answer is what `tb-engine daemon start` would mount, never a re-derivation.
 //!
 //! Reads only: no write, no registry change, no fetch.
 //!
-//! Exit codes match `au daemon`: `0` answered (unmounted members included, they
+//! Exit codes match `tb-engine daemon`: `0` answered (unmounted members included, they
 //! are an answer, not a failure), `2` an environment or IO error (`$HOME` unset,
-//! as `au daemon start` refuses too, or a non-UTF-8 path under `--json`), `5` the
+//! as `tb-engine daemon start` refuses too, or a non-UTF-8 path under `--json`), `5` the
 //! entry is not a folder-repo.
 
 use std::path::Path;
@@ -30,15 +30,18 @@ pub fn members(entry: &Path, json: bool) -> ExitCode {
     let entry = match std::fs::canonicalize(entry) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("au: cannot resolve entry {}: {e}", entry.display());
+            eprintln!("tb-engine: cannot resolve entry {}: {e}", entry.display());
             return ExitCode::from(ENV_ERROR);
         }
     };
-    // The same preflight `au daemon start` runs: the registry and the package
+    // The same preflight `tb-engine daemon start` runs: the registry and the package
     // cache both live under `$HOME`, so without it the answer would silently
     // differ from what the daemon mounts.
     if let Err(e) = tb_engine::device_root() {
-        eprintln!("au: cannot resolve members of {}: {e}", entry.display());
+        eprintln!(
+            "tb-engine: cannot resolve members of {}: {e}",
+            entry.display()
+        );
         return ExitCode::from(ENV_ERROR);
     }
     let registry = tb_engine::repo::load_user_registry(&ConfigSource::User, &RealFileSystem);
@@ -47,17 +50,26 @@ pub fn members(entry: &Path, json: bool) -> ExitCode {
         match resolve_members(&entry, &RealFileSystem, &registry, cache_root.as_deref()) {
             Ok(r) => r,
             Err(e @ (BuildError::EntryNotARepo { .. } | BuildError::EntryReserved { .. })) => {
-                eprintln!("au: cannot resolve members of {}: {e}", entry.display());
+                eprintln!(
+                    "tb-engine: cannot resolve members of {}: {e}",
+                    entry.display()
+                );
                 return ExitCode::from(NOT_A_REPO);
             }
             Err(e) => {
-                eprintln!("au: cannot resolve members of {}: {e}", entry.display());
+                eprintln!(
+                    "tb-engine: cannot resolve members of {}: {e}",
+                    entry.display()
+                );
                 return ExitCode::from(ENV_ERROR);
             }
         };
     if json {
         if let Err(e) = print_json(&resolution) {
-            eprintln!("au: cannot serialize members of {}: {e}", entry.display());
+            eprintln!(
+                "tb-engine: cannot serialize members of {}: {e}",
+                entry.display()
+            );
             return ExitCode::from(ENV_ERROR);
         }
     } else {

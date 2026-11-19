@@ -25,7 +25,7 @@ enum TopCommand {
         cmd: DaemonCommand,
     },
     /// Open a named workspace: resolve it through the per-user
-    /// `~/.arsumbris/au-engine/config/workspaces.yaml` index to its workspace-repo folder,
+    /// `<state root>/engine/config/workspaces.yaml` index to its workspace-repo folder,
     /// then serve it in the foreground like `daemon start <folder>`.
     Open {
         /// The workspace name, an entry in `workspaces.yaml` (an explicit `name`,
@@ -51,36 +51,28 @@ enum TopCommand {
         #[arg(default_value = ".")]
         entry: PathBuf,
     },
-    /// Change a repository's on-disk engine identity spelling (tier C).
+    /// Check that repositories carry the identity directory.
     Migrate {
         #[command(subcommand)]
         cmd: MigrateCommand,
     },
 }
 
-/// The tier-C migration: `.arsumbris/` and `au.engine.*` are an on-disk format, so they move by a
-/// migration rather than a rename (`docs/research/tier-c-seams.md`).
+/// The identity check: with one spelling (ADR-0005) there is nothing to migrate, so this
+/// reports whether every repository in scope carries `.2brain/repo.yaml`.
 #[cfg(unix)]
 #[derive(Subcommand)]
 enum MigrateCommand {
-    /// Plan or perform the `.arsumbris` -> `.2brain` and `au.engine.*` -> `tb.engine.*`
-    /// migration.
+    /// Report whether every repository in scope is current.
     ///
     /// Reads the per-user registry and the filesystem only: no daemon, no graph, no
-    /// network. Per repository it reports the directory rename and every `type:` /
-    /// `extends:` line it would rewrite, or refuses with a named reason: a dirty
-    /// working tree, a mutation in flight, or a daemon serving that root.
-    ///
-    /// `--dry-run` prints the plan and writes nothing, and the bare command does the same
-    /// and names `--apply`. `--apply` performs the plan one repository at a time: `git mv
-    /// .arsumbris .2brain`, the claim splices, then one commit per repository. It never
-    /// pushes. Every precondition is re-checked immediately before a repository's first
-    /// write.
+    /// network. A repository with `.2brain/repo.yaml` is `current`; one without is refused.
+    /// `--apply` writes nothing, because there is no legacy spelling left to rewrite.
     Identity {
-        /// Print the plan and write nothing.
+        /// Report and write nothing.
         #[arg(long, conflicts_with = "apply")]
         dry_run: bool,
-        /// Perform the migration: one commit per repository, no push.
+        /// Accepted for compatibility; there is nothing to write.
         #[arg(long)]
         apply: bool,
         /// One repository root to include. Defaults to the current directory when neither
@@ -94,15 +86,15 @@ enum MigrateCommand {
 }
 
 /// Per-workspace daemon lifecycle. The daemon serves the engine's reads and
-/// subscriptions over a Unix socket at a hashed path under `~/.arsumbris/au-engine/run/`.
+/// subscriptions over a Unix socket at a hashed path under `<state root>/engine/run/`.
 #[cfg(unix)]
 #[derive(Subcommand)]
 enum DaemonCommand {
     /// Boot a daemon over the entry and serve in the foreground until stopped.
     Start {
         /// The entry: a folder-repo directory (a repo carrying
-        /// `.arsumbris/repo.yaml`, composed by its optional
-        /// `.arsumbris/workspace.yaml`). Defaults to the current directory.
+        /// `.2brain/repo.yaml`, composed by its optional
+        /// `.2brain/workspace.yaml`). Defaults to the current directory.
         #[arg(default_value = ".")]
         entry: PathBuf,
     },
@@ -152,6 +144,6 @@ fn main() -> ExitCode {
 
 #[cfg(not(unix))]
 fn main() -> ExitCode {
-    eprintln!("au: only Unix is supported — the daemon serves over a Unix domain socket");
+    eprintln!("tb-engine: only Unix is supported — the daemon serves over a Unix domain socket");
     ExitCode::FAILURE
 }

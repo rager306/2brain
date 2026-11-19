@@ -442,7 +442,7 @@ mod tests {
 
     #[test]
     fn audit_cannot_be_disabled_while_mutations_are_allowed() {
-        let dir = std::env::temp_dir().join(format!("au-policy-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("tb-policy-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("p.json");
         std::fs::write(&path, r#"{"allow_mutations":true,"audit":"disabled"}"#).unwrap();
@@ -497,7 +497,7 @@ mod tests {
 
     #[test]
     fn malformed_policy_is_an_error() {
-        let dir = std::env::temp_dir().join(format!("au-policy-bad-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("tb-policy-bad-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("p.json");
         std::fs::write(&path, "{not json").unwrap();

@@ -1,0 +1,2 @@
+type: agent-profile::tb-mcp-sdk
+adapter: "[[mcp.adapter.cc::tb-mcp-adapter-cc]]"

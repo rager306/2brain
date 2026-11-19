@@ -2,12 +2,12 @@
 type: guide.gotcha
 goal: "Replace a note while preserving the identity or reasoning of its previous state."
 rule: "Supersede when the old state must remain independently addressable; edit in place when version history is enough."
-about: "[[supersede::au-base-types]]"
+about: "[[supersede::tb-base-types]]"
 ---
 
 # Choose when to supersede
 
-Use [[supersede::au-base-types]] when an old state must remain independently addressable as a node.
+Use [[supersede::tb-base-types]] when an old state must remain independently addressable as a node.
 Edit in place when git history supplies the historical access the task needs.
 
 **Give the successor a meaningful identity**

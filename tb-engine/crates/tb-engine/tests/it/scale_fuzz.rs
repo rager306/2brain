@@ -124,7 +124,7 @@ fn a_generated_medium_kb_builds_twice_byte_identical_and_clean() {
 
     // Well-formed: the generator emits NO error-severity diagnostics. The
     // cross-repo imports resolve and conform; the local links carry no typed
-    // constraint. This is the generator's real validation (au-testkit cannot
+    // constraint. This is the generator's real validation (tb-testkit cannot
     // build a knowledge base itself).
     let errors: Vec<_> = a
         .diagnostics()
@@ -213,8 +213,8 @@ fn adding_a_docstring_target_clears_the_warning_incrementally() {
     let root = std::fs::canonicalize(dir.path()).unwrap();
     let fs = RealFileSystem;
 
-    std::fs::create_dir_all(root.join(".arsumbris")).unwrap();
-    std::fs::write(root.join(".arsumbris/repo.yaml"), "name: v\n").unwrap();
+    std::fs::create_dir_all(root.join(".2brain")).unwrap();
+    std::fs::write(root.join(".2brain/repo.yaml"), "name: v\n").unwrap();
     std::fs::create_dir_all(root.join("type")).unwrap();
     std::fs::write(root.join("type/note.type.yaml"), "fields:\n  x?: String\n").unwrap();
     // An instance whose head docstring points at a target that does not exist yet.

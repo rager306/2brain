@@ -48,7 +48,7 @@ eleven documents.
 - [x] `tb_follow` — `resolve_target` / `resolve_block_id` / `resolve_anchor`, plus a line peek
 - [x] `tb_children` — `dir_entries`
 - [x] `tb_resolved` — `instance`
-- [-] `au_type_system` — **out of scope**: it reads typed `doc` atoms from the `au-mcp-type-knowledge` content package, not the engine
+- [-] `tb_type_system` — **out of scope**: it reads typed `doc` atoms from the `tb-mcp-type-knowledge` content package, not the engine
 
 Phase A is closed. Three later engine reads also have adapter tools:
 `tb_grep`, `tb_graph_health`, and `tb_rollback_preview` (see the backlog table
@@ -60,7 +60,7 @@ below).
 - [x] `batch` — 1–50 file operations as one engine saga; `tests/batch.rs`
 - [x] `inline`, `promote` — two-file gate: both files armed, one slot for the pair
 - [x] `rename_type` — type-hash gate (the type has no path; its `hash` from tb_type is the freshness check)
-- [x] `add_dep`, `remove_dep` — behind a **second grant** (`allow_composition`, on top of `allow_mutations`), because they author `.arsumbris/repo.yaml`
+- [x] `add_dep`, `remove_dep` — behind a **second grant** (`allow_composition`, on top of `allow_mutations`), because they author `.2brain/repo.yaml`
 - [x] `create_file` — the gate's opposite promise: absence instead of
       read-then-hash, so a create cannot overwrite. Found from the vault backlog
       note P0-C, which recorded a live session falling back to the daemon because
@@ -121,8 +121,8 @@ refusal, recovery, batch, revert), and plugins are moot here — this vault decl
 none, so freezing costs nothing and a process-per-plugin contract is the option if
 extensions return later.
 
-What goes: `au-mcp`, `au-mcp-core`, `au-mcp-sdk`'s **code**, `au-type-codegen`, `au-engine-sdk`,
-`au-mcp-bridge`, and both client adapters — all deleted 2026-11-16; `au-mcp-sdk`'s `type/` stays as the
+What goes: `tb-mcp`, `tb-mcp-core`, `tb-mcp-sdk`'s **code**, `tb-type-codegen`, `tb-engine-sdk`,
+`tb-mcp-bridge`, and both client adapters — all deleted 2026-11-16; `tb-mcp-sdk`'s `type/` stays as the
 `mcp.*` vocabulary. What stays: the engine, and
 successor role is covered by `WIRE.md` plus the adapter's `src/wire.rs`, and the
 vault's content contract is untouched by any of this.
@@ -130,16 +130,16 @@ vault's content contract is untouched by any of this.
 ## Standing checks
 
 Every slice ends with: `cargo fmt --check` (both halves), the full `cargo test
---offline` for `au-mcp-rs`, the engine suite with its recorded baseline diffed
+--offline` for `tb-mcp-rs`, the engine suite with its recorded baseline diffed
 against `tb-engine/tests-known-environment.txt`, `clippy --locked --all-targets
---all-features -- -D warnings` for `au-mcp-rs`, the ignored real-engine test, and a
+--all-features -- -D warnings` for `tb-mcp-rs`, the ignored real-engine test, and a
 regenerated fixture corpus when a wire answer changed.
 
 Two of those are phrased narrowly on purpose, and the reasons are recorded rather
 than implied:
 
-- `clippy -D warnings` gates `au-mcp-rs` only. The engine workspace carries 85
-  upstream style warnings (au-core 43, au-engine 38, au-testkit 4), so a red clippy
+- `clippy -D warnings` gates `tb-mcp-rs` only. The engine workspace carries 85
+  upstream style warnings (tb-core 43, tb-engine 38, tb-testkit 4), so a red clippy
   there says nothing about a fork commit. `fmt --check` **is** a gate for both
   halves: the formatting pass landed on 2026-11-14 (`cargo fmt` over 131 files,
   formatting only; test counts unchanged), so the engine is clean and stays clean.

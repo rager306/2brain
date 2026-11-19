@@ -1,6 +1,6 @@
 type: tb.engine.repo::tb-engine
-name: au-ingest
+name: tb-ingest
 description: Local document and PDF conversion into typed source notes, with a shared converter contract for domain packages.
 deps:
-  - name: au-base-types
-  - name: au-mcp-sdk
+  - name: tb-base-types
+  - name: tb-mcp-sdk

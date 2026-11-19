@@ -9,7 +9,7 @@ Trajectory for the directions ranked in `docs/architecture-assessment.md`. This 
 plan of record; it is re-checked by code and commands, not by its own claims — §7 is a ledger
 that only fills with evidence.
 
-Scope: `au-mcp-rs` (the adapter) and the two dogfood defects. The engine's crate graph, the
+Scope: `tb-mcp-rs` (the adapter) and the two dogfood defects. The engine's crate graph, the
 Node-stack retirement (`docs/phase-d.md`, **executed 2026-11-16**) and anything that changes the wire
 contract are **out of scope** and stay separate decisions.
 
@@ -17,7 +17,7 @@ contract are **out of scope** and stay separate decisions.
 
 These hold after every step, without exception. A step that cannot keep them is not ready.
 
-1. `cargo +1.99.0 test --offline` in `au-mcp-rs`: **39 suites, 173 passed, 0 failed, 2
+1. `cargo +1.99.0 test --offline` in `tb-mcp-rs`: **39 suites, 173 passed, 0 failed, 2
    ignored** (baseline re-measured 2026-11-15), plus whatever the step adds.
 2. `tb-engine/tests-golden/engine/*.json` (4 captures) byte-identical, or an intentional diff
    regenerated in the same commit with the reason in the message.
@@ -25,7 +25,7 @@ These hold after every step, without exception. A step that cannot keep them is 
 4. `scripts/strict-client.py`: PASS on write and delete (the MCP SDK validates
    `structuredContent` against `outputSchema`).
 5. `cargo fmt --check` clean; `clippy --locked --all-targets --all-features -- -D warnings`
-   clean for `au-mcp-rs`.
+   clean for `tb-mcp-rs`.
 6. `--info` still reports 51 registered / 35 advertised / wire schema 29 / 16 MiB frames /
    30 s deadline / 8 in-flight reads.
 7. No new advertised tool and no new grant unless the step says so explicitly.
@@ -187,8 +187,8 @@ functions carry distinct shapes).
 
 | track | work | crate / surface | conflicts with |
 |---|---|---|---|
-| **A** P2 core | `gate.rs`: pure `reduce(stage, ctx) -> Step`, `Prepared` as a value, the stage loop moved out of `lib.rs`; 31 gate tests are the net | `au-mcp-rs` (`lib.rs`, new `gate.rs`) | nothing (B is another crate, C is tooling) |
-| **B** T1 phase 2 | `Request::Search` + args, index on `KnowledgeBase`, build-pass construction, incremental patch, WIRE.md annotation, golden capture, engine tests | `au-engine` | nothing |
+| **A** P2 core | `gate.rs`: pure `reduce(stage, ctx) -> Step`, `Prepared` as a value, the stage loop moved out of `lib.rs`; 31 gate tests are the net | `tb-mcp-rs` (`lib.rs`, new `gate.rs`) | nothing (B is another crate, C is tooling) |
+| **B** T1 phase 2 | `Request::Search` + args, index on `KnowledgeBase`, build-pass construction, incremental patch, WIRE.md annotation, golden capture, engine tests | `tb-engine` | nothing |
 | **C** W4.1 phase 1 | `tools/judgement/`: the labelled 50-note sample with three questions and thresholds, plus a `systemone`-shaped client behind an endpoint/key env var — no vendor call without a key | new `tools/` dir, docs | nothing |
 
 **Why these three in parallel:** A and B are different crates with no shared file; C writes only a
@@ -231,7 +231,7 @@ Three things changed since 2c, and each one changes what to do next.
 | track | work | surface | conflicts with |
 |---|---|---|---|
 | ~~**D** T1 acceptance measurement~~ | **done 2026-11-16** — both clauses met with margin; the table is in `docs/verification.md`. The live daemon still runs the previous engine binary, so promoting `search` to production is a separate decision and needs the golden contract, not a measurement | `/tmp` + fixture | — |
-| **A** P2.2 | `Prepared` as a value: the armed mutation carries its stage and the recorded hash, so it can be described, logged and asserted in a test | `au-mcp-rs` (`gate.rs`, `lib.rs`) | nothing |
+| **A** P2.2 | `Prepared` as a value: the armed mutation carries its stage and the recorded hash, so it can be described, logged and asserted in a test | `tb-mcp-rs` (`gate.rs`, `lib.rs`) | nothing |
 | **B** P3 | two procedures (`mutation-turn.sh`, `recovery-turn.sh`) expressed as states with code transitions and negative cases | `scripts/` | nothing |
 
 **Order:** D first because it is the only one producing evidence about what just shipped; A and B
@@ -248,7 +248,7 @@ the pieces are consequences of the last stretch rather than of the original plan
 | track | work | why now | surface | conflicts with |
 |---|---|---|---|---|
 | ~~**E** fixture hygiene~~ | **done `ea164f9`** — the trap was already there; what was missing is that a killed process group runs no trap. So `prepare_fixture` now reaps daemons whose fixture root no longer exists (proven: one real orphan, killed, `fixtures left: 0`), cleanup asks the engine to stop before signalling, and `TB_KEEP_FIXTURE=1` keeps a failing fixture | found 14 orphans | `scripts/lib/` | — |
-| ~~**F** production parity~~ | **done 2026-11-16** — HEAD and the served binary are byte-identical on a frozen copy for 8/8 reads, so `search` is the whole delta and nothing must be regenerated for a swap | measured | `au-engine` + `/tmp` | — |
+| ~~**F** production parity~~ | **done 2026-11-16** — HEAD and the served binary are byte-identical on a frozen copy for 8/8 reads, so `search` is the whole delta and nothing must be regenerated for a swap | measured | `tb-engine` + `/tmp` | — |
 | ~~**G** P3 procedures~~ | **done `2f8d29f`** — `procedure.py` with two state machines, `--selftest` proving twelve rejection cases, and `mutation-turn.sh` cross-checking its own assertions against the machine. Follow-up: remove the duplicate assertions after one live run confirms they agree | done | `scripts/` | — |
 
 **Order:** F in parallel with E; G after E, because both edit `scripts/`. Promotion of `search` to the
@@ -292,7 +292,7 @@ Four things are **open decisions**, not tasks, and each names its price:
 3. **The audit record gaining `repo:path@hash`.** This is the consumer that would justify a
    `Prepared` value, and it changes a hash-chained log format — its own decision.
 4. **W4.1 in the ingest path.** The duplicates judge is good enough to use; wiring it into
-   `au-ingest` is a feature with a product consumer, and it belongs to that repo's plan.
+   `tb-ingest` is a feature with a product consumer, and it belongs to that repo's plan.
 
 Everything else on the improvement backlog (FTS5 date filters, ingest validation of broken links) is
 engine or ingest work that this trajectory does not touch.
@@ -345,7 +345,7 @@ Pass 2 — both rewrite `lib.rs` widely, so they are sequential: **P1.1** (`tran
 Revised after P1.2/P1.3: the two finished steps removed the `resources -> wire` edge and tightened
 the `lib.rs` ratchet to 4 631 lines, so P1.5 must not spend the headroom it gained — the ledger
 extraction is expected to *lower* the number, and the ratchet moves with it. **T1's engine half
-runs in parallel with pass 1 and pass 2** because it touches `au-engine`, not this crate; its
+runs in parallel with pass 1 and pass 2** because it touches `tb-engine`, not this crate; its
 adapter half is the last item, after P1.4.
 Rule for pass 2: whoever is second rebases onto the first and re-runs the golden set before
 merging; the first must not touch schema declarations.
@@ -363,7 +363,7 @@ for a spike; this is its place in the plan. It ships evidence, not features.
   9.8 / 20.5 / 132.8 ms), and a `tantivy` baseline for the text half.
 - Acceptance: one table in `docs/retrieval-spike.md` with per-engine latency, a capability
   column for the hybrid query, and a go/no-go written against the rule in §7 step 5.
-- Guardrail: no `au-engine` or `au-mcp-rs` file is touched; the export lives under `/tmp`; the
+- Guardrail: no `tb-engine` or `tb-mcp-rs` file is touched; the export lives under `/tmp`; the
   vault is read-only; the engine's own numbers are re-measured in the same session for fairness.
 
 ### Wave 2b — text index (T1), the one measured product gap
@@ -577,7 +577,7 @@ pairs); W4.2 is documentation and runs in parallel with anything.
 | P0.1 capability axis | **done** (`298960c`) | 51 rows: 32 read / 16 mutate / 2 discover / 1 watch; inline test equals the router set and agrees with `policy::MUTATION_TOOLS`; `tests/capability.rs` 4/4; suite 40 suites, 180 passed | 2026-11-15 |
 | P0.2 architecture tests | **done** (`e74dde7`) | `tests/architecture.rs` 4/4; each rule proved to bite (leaf reference, undeclared edge, one line over the ratchet, a removed `output_schema`), files restored by sha256; no cycle beyond the 7 declared edges | 2026-11-15 |
 | P0.3 last-page defect | **done** (`c34879c`) | `next_offset` declared `["integer","null"]`; both new tests failed before the fix with `declared [integer] but holds null`, and the revert-proof was re-run on the final tree | 2026-11-15 |
-| P0.4 vault capture | **done** | vault commit `f26cc54` (`inbox/decision-tool-surface-trajectory.md`, type decision, status current) and `4bcc4f2` (backlog P0 item 4, closed defect with its fix commit); both written and read back through `arsumbris-rs`; `tb_diagnostics` 0, `graph_health.broken_links` 0 | 2026-11-15 |
+| P0.4 vault capture | **done** | vault commit `f26cc54` (`inbox/decision-tool-surface-trajectory.md`, type decision, status current) and `4bcc4f2` (backlog P0 item 4, closed defect with its fix commit); both written and read back through `2brain`; `tb_diagnostics` 0, `graph_health.broken_links` 0 | 2026-11-15 |
 | P1.1 transport port | **done** (`4b66625`) | `transport.rs` 241 lines with `UnixTransport` + `MemoryTransport`; the `wire ↔ lib` cycle is gone (no `crate::SCHEMA_VERSION` in `wire.rs`); ALLOWED is 9 edges; `lib.rs` 4612 → 4561 and the ratchet tightened; `--info` unchanged; 2 new tests (one exchange, no retry) | 2026-11-15 |
 | P1.2 bounded_stdio | **done** (`328baa3`) | `Bounds` parameter + `over(input, output, …)`; two tests on a 16-byte duplex prove the queue blocks a third send and releases it on drain, and that a closed transport refuses; suite 190 passed | 2026-11-15 |
 | P1.3 resources | **done** (`a4228c0`) | `member_roots(payload)` and the new `resource_page` are pure; the `resources -> wire` edge is gone (ALLOWED 7 → 6); `lib.rs` 4659 → 4631 production lines and the ratchet tightened to 4631; 4 inline tests without a socket | 2026-11-15 |

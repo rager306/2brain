@@ -12,7 +12,7 @@
    "message": "peer 'peer' is declared but not mounted on this machine",
    "severity": "warning",
    "span": {
-    "file": "$FIXTURE/.arsumbris/repo.yaml",
+    "file": "$FIXTURE/.2brain/repo.yaml",
     "line_col": {
      "end": {
       "col": 1,
@@ -31,7 +31,7 @@
   }
  ],
  "hash": "f09d1e30afef9904",
- "path": "$FIXTURE/.arsumbris/repo.yaml",
+ "path": "$FIXTURE/.2brain/repo.yaml",
  "reflected": true,
  "untracked_files": []
 }

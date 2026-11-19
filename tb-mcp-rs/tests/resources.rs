@@ -98,7 +98,7 @@ fn read_resource_returns_the_engine_text() {
     let mut client = Client::start(&socket);
     let reply = client.request(json!({
         "jsonrpc":"2.0","id":2,"method":"resources/read",
-        "params":{"uri":"arsumbris://fixture/notes/a.md"}}));
+        "params":{"uri":"2brain://fixture/notes/a.md"}}));
     let contents = reply["result"]["contents"].as_array().unwrap();
     assert_eq!(contents[0]["text"], "# a\n", "{reply}");
     assert_eq!(contents[0]["mimeType"], "text/markdown");

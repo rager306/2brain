@@ -1,4 +1,4 @@
-type: workspace-template-manifest::au-host-sdk
+type: workspace-template-manifest::tb-host-sdk
 templates:
   - path: studio
     name: Blank
@@ -30,12 +30,12 @@ templates:
             - kind: empty
               label: Umbra
     initialComposition: "[[studio]]"
-  - path: au-tree-research-template
+  - path: tb-tree-research-template
     name: Deep research
     description: Build a research tree around a question. Includes the standard app layout and the research package for defining a premise, investigating questions and choosing what to explore next.
     highlights:
       - Start with the research guide in the Reader
-      - Includes au-tree-research and its research workflow
+      - Includes tb-tree-research and its research workflow
       - Create your own premise and questions; no example research is prefilled
     preview:
       axis: row
@@ -60,12 +60,12 @@ templates:
             - kind: empty
               label: Umbra
     initialComposition: "[[workspace-layout]]"
-  - path: au-weave-template
+  - path: tb-weave-template
     name: Weave
     description: Turn source material into connected notes. Includes the standard app layout with tools for ingestion, research, writing guidance and building a knowledge graph.
     highlights:
       - Start with guidance for bringing in documents and research
-      - Includes au-weave, au-ingest, au-tree-research and au-writing-style
+      - Includes tb-weave, tb-ingest, tb-tree-research and tb-writing-style
       - Work through sources with premise, mine, cut, weave and reweave
     preview:
       axis: row
@@ -90,7 +90,7 @@ templates:
             - kind: empty
               label: Umbra
     initialComposition: "[[workspace-layout]]"
-  - path: au-arscontexta-template
+  - path: tb-arscontexta-template
     name: Arscontexta (experimental)
     description: An experimental workspace for developing knowledge and the guidance your agents use alongside it. Includes the standard app layout, a working profile and an initialization skill.
     highlights:

@@ -103,7 +103,7 @@ pub(crate) fn resolve_repo_path(
         .unwrap_or(false)
     {
         return Err(MutationReject::new(
-            "writes under the repository identity directory (.arsumbris/ or .2brain/) are rejected — the cache is the engine's",
+            "writes under the repository identity directory (.2brain/ or .2brain/) are rejected — the cache is the engine's",
         ));
     }
     Ok(normalized)
@@ -459,7 +459,7 @@ pub(crate) fn rename_file(from: &Path, to: &Path) -> Result<ContentHash, Mutatio
 /// Generate a block id for `assign_block_id`: `b-<unix-millis base36>`,
 /// suffixed with a counter when `taken` says the id already appears.
 /// `b-` distinguishes engine-assigned ids; the validity alphabet is
-/// [[type-def legal names::au-type-system]]'s block-id charset.
+/// [[type-def legal names::tb-type-system]]'s block-id charset.
 pub(crate) fn generate_block_id(taken: impl Fn(&str) -> bool) -> String {
     let millis = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -552,7 +552,7 @@ pub(crate) fn insert_record_id(
 
 /// Append a ` ^<id>` marker to the end of the markdown block containing
 /// `at`: the last non-blank line before the next blank line (or EOF) gains
-/// the trailing marker, per [[type block-id::au-type-system]]'s bare-marker form.
+/// the trailing marker, per [[type block-id::tb-type-system]]'s bare-marker form.
 pub(crate) fn insert_markdown_marker(
     content: &str,
     at: usize,
@@ -618,7 +618,7 @@ pub(crate) fn existing_markdown_marker(content: &str, at: usize) -> Option<Strin
 // Nested-record mutations: edit_record / append_record.
 //
 // Pure content transforms (string in, string out): parse the freshly-read
-// bytes, locate the node by `field_path` via au-core, splice at the byte spans.
+// bytes, locate the node by `field_path` via tb-core, splice at the byte spans.
 // Every untouched byte stays identical, so comments and doc comments survive.
 // The CAS guard, the on_invalid validation, and the write live in the serve
 // layer, see [[spec - nested record edits - patch a record and append to a sequence by byte-splice, comments preserved]].
@@ -969,7 +969,7 @@ impl ElementMatch {
 /// sole-element removal collapses the field to an empty `[]`, so it stays a valid
 /// sequence a later [`splice_append_record`] re-seeds.
 ///
-/// Type-agnostic: the composition files (`.arsumbris/workspace.yaml`,
+/// Type-agnostic: the composition files (`.2brain/workspace.yaml`,
 /// `repo.yaml`) carry no `type:` claim, so it parses the frontmatter the way a
 /// stamp does. Rejects loudly (nothing written): an absent or non-sequence field,
 /// a populated flow-style sequence, no matching element, or a splice that would
@@ -1476,7 +1476,7 @@ pub(crate) enum MixinSpliceOutcome {
 }
 
 /// `ensure_mixin`: ensure `mixin` (a `::repo`-qualified type name in authored
-/// form, e.g. `provenance::au-provenance`) is present on a file's top-level
+/// form, e.g. `provenance::tb-provenance`) is present on a file's top-level
 /// `type:` claim, a comment-preserving byte-splice.
 ///
 /// This is the PURE mechanical splice, no graph. It only ensures the NAME is
@@ -1817,9 +1817,9 @@ mod tests {
         );
         assert!(resolve_repo_path(&repos, root, "../outside.md").is_err());
         assert!(resolve_repo_path(&repos, root, "/etc/passwd").is_err());
-        // The `.arsumbris/` guard applies PER MEMBER.
-        assert!(resolve_repo_path(&repos, root, ".arsumbris/cache.db").is_err());
-        assert!(resolve_repo_path(&repos, root, "/scattered/.arsumbris/cache.db").is_err());
+        // The `.2brain/` guard applies PER MEMBER.
+        assert!(resolve_repo_path(&repos, root, ".2brain/cache.db").is_err());
+        assert!(resolve_repo_path(&repos, root, "/scattered/.2brain/cache.db").is_err());
     }
 
     #[test]
@@ -2328,7 +2328,7 @@ mod tests {
 
     // --- ensure_mixin (the pure type-claim splice) ---
 
-    const MIXIN: &str = "provenance::au-provenance";
+    const MIXIN: &str = "provenance::tb-provenance";
 
     fn applied_mixin(outcome: MixinSpliceOutcome) -> String {
         match outcome {
@@ -2345,7 +2345,7 @@ mod tests {
         let out = applied_mixin(splice_ensure_mixin(content, md_path(), MIXIN).unwrap());
         assert_eq!(
             out,
-            "---\ntype: [note, provenance::au-provenance]\ntitle: x\n---\nbody\n"
+            "---\ntype: [note, provenance::tb-provenance]\ntitle: x\n---\nbody\n"
         );
     }
 
@@ -2355,7 +2355,7 @@ mod tests {
         let out = applied_mixin(splice_ensure_mixin(content, md_path(), MIXIN).unwrap());
         assert_eq!(
             out,
-            "---\ntype:\n  - note\n  - task\n  - provenance::au-provenance\n---\n"
+            "---\ntype:\n  - note\n  - task\n  - provenance::tb-provenance\n---\n"
         );
     }
 
@@ -2365,7 +2365,7 @@ mod tests {
         let out = applied_mixin(splice_ensure_mixin(content, md_path(), MIXIN).unwrap());
         assert_eq!(
             out,
-            "---\ntype: [note, task, provenance::au-provenance]\n---\n"
+            "---\ntype: [note, task, provenance::tb-provenance]\n---\n"
         );
     }
 
@@ -2377,7 +2377,7 @@ mod tests {
         let out = applied_mixin(splice_ensure_mixin(content, md_path(), MIXIN).unwrap());
         assert_eq!(
             out,
-            "---\ntype: provenance::au-provenance\ntitle: x\n---\nbody\n"
+            "---\ntype: provenance::tb-provenance\ntitle: x\n---\nbody\n"
         );
     }
 
@@ -2387,7 +2387,7 @@ mod tests {
         let out = applied_mixin(splice_ensure_mixin(content, md_path(), MIXIN).unwrap());
         assert_eq!(
             out,
-            "---\ntype: provenance::au-provenance\n---\n# Heading\n\nprose\n"
+            "---\ntype: provenance::tb-provenance\n---\n# Heading\n\nprose\n"
         );
     }
 
@@ -2395,12 +2395,12 @@ mod tests {
     fn mixin_creates_the_claim_on_a_pure_yaml_note() {
         let content = "title: x\n";
         let out = applied_mixin(splice_ensure_mixin(content, yaml_path(), MIXIN).unwrap());
-        assert_eq!(out, "type: provenance::au-provenance\ntitle: x\n");
+        assert_eq!(out, "type: provenance::tb-provenance\ntitle: x\n");
     }
 
     #[test]
     fn mixin_already_present_is_a_no_op() {
-        let content = "---\ntype:\n  - note\n  - provenance::au-provenance\n---\n";
+        let content = "---\ntype:\n  - note\n  - provenance::tb-provenance\n---\n";
         let outcome = splice_ensure_mixin(content, md_path(), MIXIN).unwrap();
         assert!(
             matches!(outcome, MixinSpliceOutcome::AlreadyPresent),
@@ -2410,7 +2410,7 @@ mod tests {
 
     #[test]
     fn mixin_bare_claim_already_the_mixin_is_a_no_op() {
-        let content = "---\ntype: provenance::au-provenance\n---\n";
+        let content = "---\ntype: provenance::tb-provenance\n---\n";
         let outcome = splice_ensure_mixin(content, md_path(), MIXIN).unwrap();
         assert!(matches!(outcome, MixinSpliceOutcome::AlreadyPresent));
     }

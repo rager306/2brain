@@ -10,12 +10,12 @@ tldr: Check graph meaning through audits and findings, and capture reusable feed
 
 ## What this is
 
-`au-govern` helps agents check the meaning of a graph.
+`tb-govern` helps agents check the meaning of a graph.
 The engine checks its structure.
 
 ## How to use this
 
-Depend on `au-govern` and select its `check` and `fix` skills.
+Depend on `tb-govern` and select its `check` and `fix` skills.
 
 Add [[audit]] recipes for the checks your graph needs.
 Use [[check]] to run them and record findings.
@@ -26,4 +26,4 @@ It captures reusable feedback about agent behavior as corrections.
 
 ## How to extend this
 
-Add `au-competency` to review corrections and develop capability changes.
+Add `tb-competency` to review corrections and develop capability changes.

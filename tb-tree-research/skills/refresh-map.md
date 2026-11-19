@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: refresh-map
 description: Recreate a premise's map of articles and open questions after research or tree changes.
 ---

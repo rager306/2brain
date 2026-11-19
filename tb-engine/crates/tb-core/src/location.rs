@@ -1,5 +1,5 @@
 //! Type-level location constraints: the parsed `location:` block on a
-//! [[type-def::au-type-system]], and the pure string parsers for its `name` template and
+//! [[type-def::tb-type-system]], and the pure string parsers for its `name` template and
 //! `path` glob.
 //!
 //! A [`LocationSpec`] constrains where a type's instances live. It is ADVISORY

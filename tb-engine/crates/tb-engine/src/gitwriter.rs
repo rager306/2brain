@@ -1500,13 +1500,13 @@ fn parse_changed_file(line: &str) -> Option<ChangedFile> {
 /// and the member names that tree holds.
 ///
 /// The `tree` root is the dedup and lane key;
-/// `members` labels a monorepo tree's au-repos. The commit fields ride in
+/// `members` labels a monorepo tree's tb-repos. The commit fields ride in
 /// `record`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RecentCommitRow {
     /// The owning working-tree root, the lane key.
     pub tree: String,
-    /// The au-repo member names living in that tree, sorted.
+    /// The tb-repo member names living in that tree, sorted.
     pub members: Vec<String>,
     /// The commit.
     pub record: RecentCommitRecord,

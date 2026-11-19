@@ -29,4 +29,4 @@ fields:
   #: Use live references to whole question files.
   #: The shape also admits typed blocks, which research callers must reject.
   #: Read this record's own effective values, including body contributions.
-  research?: question::au-tree-research*[]
+  research?: question::tb-tree-research*[]

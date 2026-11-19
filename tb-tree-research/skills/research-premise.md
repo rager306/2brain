@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: research-premise
 description: >-
   Help the user shape a research subject into a premise and starting questions.
@@ -35,8 +35,8 @@ Follow the workspace's note requirements and supplied writing guidance.
 
 **Create the notes**
 
-Save a `research-premise::au-tree-research` with a `tldr` and the two sections.
-Save starting questions as `question.open::au-tree-research`, each with:
+Save a `research-premise::tb-tree-research` with a `tldr` and the two sections.
+Save starting questions as `question.open::tb-tree-research`, each with:
 
 - A `tldr`
 - A self-contained `prompt`

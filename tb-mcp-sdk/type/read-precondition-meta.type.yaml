@@ -13,10 +13,10 @@
 # This is the `file*[+]` form. The clean GENERIC shape (`onFiles<T>: T*[+]` bound per
 # use-site as `read-precondition-meta<guide>`) needs parametric type-defs the engine lacks;
 # filed as [[message - 260702174039 - parametric generic type-defs, a type parameter bound
-# per use-site::au-engine]]. A future `ofType?: type*` lens ("read a file OF this type") is a
+# per use-site::tb-engine]]. A future `ofType?: type*` lens ("read a file OF this type") is a
 # natural growth field — omitted here, no consumer yet.
 #
-# Owned here (au-mcp-sdk, the contract owner). Meta is excluded from the canonical hash.
+# Owned here (tb-mcp-sdk, the contract owner). Meta is excluded from the canonical hash.
 extends: tool-precondition-meta
 fields:
   onFiles: "file*[+]"

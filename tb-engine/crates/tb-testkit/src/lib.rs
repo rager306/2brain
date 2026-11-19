@@ -82,7 +82,7 @@ pub fn arb_enum_literal() -> impl Strategy<Value = String> {
 }
 
 /// Strategy producing 1..=5 unique enum literals in declaration order.
-/// Token-equality (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]) is order-sensitive — the dedupe ensures
+/// Token-equality (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]) is order-sensitive — the dedupe ensures
 /// reordered sequences are actually distinct so the equality invariant
 /// has something to assert against.
 pub fn arb_enum_shape() -> impl Strategy<Value = Vec<String>> {
@@ -263,7 +263,7 @@ fn render_shape(shape: &Shape) -> String {
             let inner = starred.join(&format!(" {} ", op.separator_char()));
             format!("<{}>{}", inner, mode.suffix_char())
         }
-        // [[type-def shape def-ref::au-type-system]], `type*` / `type<T>*`. Mirrors `Shape::Display`.
+        // [[type-def shape def-ref::tb-type-system]], `type*` / `type<T>*`. Mirrors `Shape::Display`.
         Shape::DefReference(bound) => match bound {
             None => "type*".to_string(),
             Some(DefBound::Single(name)) => format!("type<{}>*", name),
@@ -273,7 +273,7 @@ fn render_shape(shape: &Shape) -> String {
                 format!("type<{}>*", inner)
             }
         },
-        // [[type-def shape suffixes::au-type-system]], the `*@` commit-pin postfix. Mirrors `Shape::Display`.
+        // [[type-def shape suffixes::tb-type-system]], the `*@` commit-pin postfix. Mirrors `Shape::Display`.
         Shape::Pinned(inner) => format!("{}@", render_shape(inner)),
         // A tuple renders via its `Display`, which this mirrors.
         Shape::Tuple(_) => shape.to_string(),

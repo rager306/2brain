@@ -115,7 +115,7 @@ expression: rendered
                         },
                         "start": 89
                       },
-                      "file": "<root>/scenarios/engine-schema-type-mixin/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/engine-schema-type-mixin/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -153,7 +153,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/engine-schema-type-mixin/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/engine-schema-type-mixin/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -172,7 +172,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/engine-schema-type-mixin/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/engine-schema-type-mixin/.2brain/repo.yaml",
         "section_presence": null
       }
     ]

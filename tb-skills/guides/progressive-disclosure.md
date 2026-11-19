@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Keep a skill's context cost proportional to the task.
 rule: Keep selection metadata lean and read supporting material when it is needed. Check that the delivery path makes those references available.
 ---
@@ -28,7 +28,7 @@ It refers native authoring and delivery questions to the owning guide.
 This lets a wording edit use less context than a new skill.
 
 In Ars Umbris, native materialization carries the skill's metadata and body.
-Supporting guides remain in mounted packages and can be read through `au_agent_guide` by `name::package`.
+Supporting guides remain in mounted packages and can be read through `tb_agent_guide` by `name::package`.
 Check a separate delivery path before relying on adjacent files or scripts.
 
 Make the required reference easy to reach from the step that uses it.

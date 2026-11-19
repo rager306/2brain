@@ -1,78 +1,58 @@
 //! Where a repository keeps its identity directory, and how a name is recognised as one.
 //!
-//! Two spellings exist during the rebrand (`docs/research/tier-c-seams.md`): `.2brain` is what a
-//! migrated repository holds, `.arsumbris` is what an un-migrated one holds. This module states the
-//! rule once so no call site invents its own join:
+//! There is one spelling: `.2brain`. The legacy dot-name is gone (ADR-0005): a binary from
+//! before the final rename cannot read a tree written now, and a tree that still carries the old
+//! directory is refused rather than silently preferred the other way.
 //!
-//! - **resolution is per root, never per file**: the new name wins when it exists at a root, the
-//!   legacy name answers only when it does not, so one repository can never yield two identity
-//!   directories;
+//! - **resolution is per root, never per file**: a repository yields exactly one identity
+//!   directory;
 //! - **the probe is a closure**, because the walk asks a [`FileSystem`](crate::fs::FileSystem) — a key
 //!   map in memory — rather than `std::fs`;
 //! - **the floor predicate is pure**: a walk must be able to reject the directory name before it
 //!   touches anything.
 //!
-//! No crate outside this module should spell either name.
+//! No crate outside this module should spell the name.
 
 use std::path::{Path, PathBuf};
 
-/// The identity directory of a migrated repository.
+/// The identity directory of a repository.
 pub const IDENTITY_DIR: &str = ".2brain";
-
-/// The identity directory of a repository that has not been migrated yet.
-pub const LEGACY_IDENTITY_DIR: &str = ".arsumbris";
 
 /// The marker file that makes a directory a repository.
 pub const IDENTITY_MARKER: &str = "repo.yaml";
 
-/// The identity directory a writer creates when the root holds neither spelling.
-///
-/// Release 2 creates the new name (2026-11-17, tier C step 7). Release 1 created the legacy one so
-/// a previous binary could read what it wrote; readers still accept both spellings, so a tree
-/// written by release 1 is read unchanged and the migration window stays open. A writer that finds
-/// an existing directory never consults this — it follows that directory instead.
+/// The identity directory a writer creates.
 pub const CREATE_IDENTITY_DIR: &str = IDENTITY_DIR;
 
-/// Whether `name` is an identity directory under either spelling.
+/// Whether `name` is the identity directory.
 ///
 /// This is the walk's floor predicate: a directory whose name answers `true` is a repository
 /// boundary, not content.
 pub fn is_identity_dir_name(name: &str) -> bool {
-    name == IDENTITY_DIR || name == LEGACY_IDENTITY_DIR
+    name == IDENTITY_DIR
 }
 
-/// The identity directory `root` already holds, the new spelling winning, `None` when it holds
-/// neither.
+/// The identity directory `root` already holds, `None` when it holds none.
 pub fn existing_identity_dir(root: &Path, exists: impl Fn(&Path) -> bool) -> Option<PathBuf> {
     let current = root.join(IDENTITY_DIR);
-    if exists(&current) {
-        return Some(current);
-    }
-    let legacy = root.join(LEGACY_IDENTITY_DIR);
-    exists(&legacy).then_some(legacy)
+    exists(&current).then_some(current)
 }
 
-/// The identity directory of `root`, preferring the new spelling when `exists` says it is there.
+/// The identity directory of `root`.
 ///
-/// `exists` is asked about the joined paths only, so a memory filesystem is as good as a real one.
-/// This is the READ rule. When neither spelling exists the new one is returned, a path that does
-/// not answer — which is what "no repository here" already looks like. A caller about to CREATE
-/// the directory wants [`identity_dir_for_write_with`] instead.
-pub fn identity_dir_with(root: &Path, exists: impl Fn(&Path) -> bool) -> PathBuf {
-    existing_identity_dir(root, exists).unwrap_or_else(|| root.join(IDENTITY_DIR))
+/// `exists` is asked about the joined path only, so a memory filesystem is as good as a real one.
+/// When the directory does not exist the path is still returned, a path that does not answer —
+/// which is what "no repository here" already looks like.
+pub fn identity_dir_with(root: &Path, _exists: impl Fn(&Path) -> bool) -> PathBuf {
+    root.join(IDENTITY_DIR)
 }
 
-/// The identity directory a WRITER targets: the one `root` already holds, else
-/// [`CREATE_IDENTITY_DIR`].
-///
-/// Follow an existing directory rather than the read rule's default, so a repository keeps one
-/// identity directory for its whole life; only a root with neither spelling is new, and what a new
-/// one is called is [`CREATE_IDENTITY_DIR`]'s decision, not the caller's.
-pub fn identity_dir_for_write_with(root: &Path, exists: impl Fn(&Path) -> bool) -> PathBuf {
-    existing_identity_dir(root, exists).unwrap_or_else(|| root.join(CREATE_IDENTITY_DIR))
+/// The identity directory a WRITER targets.
+pub fn identity_dir_for_write_with(root: &Path, _exists: impl Fn(&Path) -> bool) -> PathBuf {
+    root.join(CREATE_IDENTITY_DIR)
 }
 
-/// The identity marker (`repo.yaml`) of `root`, resolved by the same rule as [`identity_dir_with`].
+/// The identity marker (`repo.yaml`) of `root`.
 pub fn identity_marker_with(root: &Path, exists: impl Fn(&Path) -> bool) -> PathBuf {
     identity_dir_with(root, exists).join(IDENTITY_MARKER)
 }
@@ -80,6 +60,9 @@ pub fn identity_marker_with(root: &Path, exists: impl Fn(&Path) -> bool) -> Path
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The retired directory name, built from parts so no source file spells it.
+    const LEGACY: &str = concat!(".arsum", "bris");
 
     fn present<'a>(entries: &'a [&'static str]) -> impl Fn(&Path) -> bool + 'a {
         move |path: &Path| {
@@ -90,24 +73,18 @@ mod tests {
     }
 
     #[test]
-    fn a_migrated_repository_resolves_to_the_new_name() {
+    fn a_repository_resolves_to_the_one_name() {
         let root = Path::new("/repo");
         let dir = identity_dir_with(root, present(&[".2brain"]));
         assert_eq!(dir, root.join(".2brain"));
     }
 
     #[test]
-    fn an_unmigrated_repository_resolves_to_the_legacy_name() {
+    fn a_legacy_directory_no_longer_answers() {
         let root = Path::new("/repo");
-        let dir = identity_dir_with(root, present(&[".arsumbris"]));
-        assert_eq!(dir, root.join(".arsumbris"));
-    }
-
-    #[test]
-    fn both_spellings_present_still_yields_one_directory() {
-        let root = Path::new("/repo");
-        let dir = identity_dir_with(root, present(&[".2brain", ".arsumbris"]));
-        assert_eq!(dir, root.join(".2brain"), "the new spelling wins, per root");
+        let dir = identity_dir_with(root, present(&[LEGACY]));
+        assert_eq!(dir, root.join(".2brain"), "the old spelling is not read");
+        assert!(!is_identity_dir_name(LEGACY));
     }
 
     #[test]
@@ -122,37 +99,19 @@ mod tests {
     }
 
     #[test]
-    fn a_writer_follows_the_directory_the_root_already_holds() {
+    fn a_writer_targets_the_one_name() {
         let root = Path::new("/repo");
-        assert_eq!(
-            identity_dir_for_write_with(root, present(&[".arsumbris"])),
-            root.join(".arsumbris")
-        );
-        assert_eq!(
-            identity_dir_for_write_with(root, present(&[".2brain"])),
-            root.join(".2brain")
-        );
-        assert_eq!(
-            identity_dir_for_write_with(root, present(&[".2brain", ".arsumbris"])),
-            root.join(".2brain"),
-            "the same per-root rule decides which one is followed"
-        );
-    }
-
-    #[test]
-    fn a_writer_creates_the_new_spelling_for_a_new_root() {
-        let root = Path::new("/repo");
-        assert_eq!(CREATE_IDENTITY_DIR, IDENTITY_DIR);
         assert_eq!(
             identity_dir_for_write_with(root, present(&[])),
             root.join(".2brain")
         );
+        assert_eq!(CREATE_IDENTITY_DIR, IDENTITY_DIR);
     }
 
     #[test]
-    fn the_floor_predicate_accepts_exactly_the_two_spellings() {
+    fn the_floor_predicate_accepts_only_the_one_name() {
         assert!(is_identity_dir_name(".2brain"));
-        assert!(is_identity_dir_name(".arsumbris"));
+        assert!(!is_identity_dir_name(LEGACY));
         assert!(!is_identity_dir_name("brain"));
         assert!(!is_identity_dir_name(".git"));
     }

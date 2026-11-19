@@ -20,8 +20,8 @@ fn fixture() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
-    write(&root, "app/.arsumbris/repo.yaml", "name: app\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
+    write(&root, "app/.2brain/repo.yaml", "name: app\n");
     write(&root, "base/recovery.md", "Recovery notes.\n");
     // Same-repo link: resolves to base/recovery.md.
     write(&root, "base/intro.md", "See [[recovery]].\n");
@@ -86,10 +86,10 @@ fn a_repo_qualified_link_is_not_a_repo_local_dangle() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(&root, "base/recovery.md", "Recovery.\n");

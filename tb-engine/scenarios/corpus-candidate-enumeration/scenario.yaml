@@ -1,5 +1,5 @@
 title: "Implicit identity candidates — happy-path corpus across orthogonal-overlap, extras-satisfy, nested sequences, and sealed supersedes"
-spec_ref: "[[type candidate scan::au-type-system]], [[type-def shape record::au-type-system]]"
+spec_ref: "[[type candidate scan::tb-type-system]], [[type-def shape record::tb-type-system]]"
 command: candidates
 expected:
   candidates:

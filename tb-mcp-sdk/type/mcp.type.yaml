@@ -1,9 +1,9 @@
 # The harness-owned base for the agent-facing vocabulary.
 # Every agent-facing type extends this (`type: mcp`) and is named under it
-# (`mcp.tool`, ...), the way au-cc's leaves sit under `sessionEvent.cc`.
+# (`mcp.tool`, ...), the way tb-cc's leaves sit under `sessionEvent.cc`.
 # This both avoids name collisions under the engine's global-by-name resolution
 # AND makes the vocabulary enumerable (query the base).
-# See [[decision - 2606101949 - namespace agent-facing types under a harness-owned base type::au-harness]].
+# See [[decision - 2606101949 - namespace agent-facing types under a harness-owned base type::tb-harness]].
 #
 # A tag today (no shared fields). Gains cross-cutting fields if the taxonomy grows them.
 # Base name `mcp` is the working choice.

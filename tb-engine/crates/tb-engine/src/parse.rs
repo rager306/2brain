@@ -174,7 +174,7 @@ pub fn parse_file(path: &Path, bytes: &[u8]) -> FileParse {
 /// sequence and the trailing `[]` / `[+]` has no valid parse, so the whole file
 /// fails to load with a cryptic saphyr message ("did not find expected key").
 /// The shape grammar accepts the string form directly, so quoting is the whole
-/// fix. See [[type-def shape enum::au-type-system]].
+/// fix. See [[type-def shape enum::tb-type-system]].
 ///
 /// The tell is a value that starts with `[` and contains `][]` or `][+]`, two
 /// flow collections back to back, which valid unquoted YAML never produces. The
@@ -255,12 +255,12 @@ fn parse_type_def_file(path: &Path, bytes: &[u8]) -> FileParse {
     }
     diagnostics.extend(res.diagnostics);
     // A duplicate field in the `fields:` map surfaces as `duplicate-field`
-    // (au-core, which knows the fields span). Drop the coinciding generic
+    // (tb-core, which knows the fields span). Drop the coinciding generic
     // `duplicate-key-in-mapping` from the scan above, so the fields case
     // carries one signal, not two, at the same span.
     //
     // The match is EXACT byte-range equality, which holds because both codes
-    // anchor their primary span at the same `dup.duplicate_span` (au-core's
+    // anchor their primary span at the same `dup.duplicate_span` (tb-core's
     // `duplicate-field` and this scan both use it). If either derivation ever
     // moves (e.g. to the key span vs the entry span), this would silently
     // fail into a double signal; the `duplicate-field` scenario snapshot is the
@@ -292,7 +292,7 @@ fn parse_type_def_file(path: &Path, bytes: &[u8]) -> FileParse {
 /// A classified leaf name inside a type-def field shape, spanned into the SOURCE
 /// file.
 ///
-/// The source-aligned twin of au-grammar's [`tb_grammar::ShapeSpan`], which is
+/// The source-aligned twin of tb-grammar's [`tb_grammar::ShapeSpan`], which is
 /// relative to the shape string. Computed in the parse layer, where the file's
 /// bytes and each field's `shape_span` are both in hand, so a QUOTED shape
 /// (`"note*"`) yields correctly-placed leaves like an unquoted one. The held
@@ -319,7 +319,7 @@ fn type_def_shape_leaves(source: &str, def: &TypeDef) -> Vec<ShapeLeafSpan> {
     out
 }
 
-/// Rebase au-grammar's `raw_shape`-relative leaf spans onto the SOURCE file,
+/// Rebase tb-grammar's `raw_shape`-relative leaf spans onto the SOURCE file,
 /// appending them to `out`.
 ///
 /// `raw_shape` is the YAML scalar's normalized value, so it is either byte-equal
@@ -369,7 +369,7 @@ fn push_source_leaf_spans(
 
 /// Whether the top-level YAML document writes a `type:` key. Drives the
 /// `engine-schema-type-unwritten` drift: a stamped floor and a written
-/// `type: au.engine.X::au-engine` yield the same claim, so the written-vs-stamped
+/// `type: tb.engine.X::tb-engine` yield the same claim, so the written-vs-stamped
 /// distinction cannot be recovered from the claim alone, only from key presence.
 fn has_written_type_key(doc: &MarkedYaml<'_>) -> bool {
     let YamlData::Mapping(m) = &doc.data else {
@@ -387,18 +387,18 @@ pub(crate) fn content_declares_type(content: &str) -> bool {
     matches!(parse(content), Ok(docs) if docs.first().is_some_and(has_written_type_key))
 }
 
-/// Parse an engine-schema file (`repo.yaml`, `.arsumbris/workspace.yaml`, the locks,
+/// Parse an engine-schema file (`repo.yaml`, `.2brain/workspace.yaml`, the locks,
 /// a device-config file) as a typed instance. The file KIND assigns the floor
 /// `type_name` claim; a written `type:` is honored and wins, an absent one is
 /// stamped with the floor and drifts (`engine-schema-type-unwritten`), so the
 /// file self-describes on disk yet stays correct by kind either way. `type_name`
-/// is the bare leaf (`au.engine.repo`). These are pure-YAML, so the whole file is
+/// is the bare leaf (`tb.engine.repo`). These are pure-YAML, so the whole file is
 /// the frontmatter and there is no markdown body.
 ///
 /// `owner` qualifies the stamped floor: `Some(repo)` writes `type_name::repo`,
 /// the in-repo case where the file resolves as an importer of the builtin
-/// `au-engine` peer. `None` writes a BARE `type_name`, for a device-global file
-/// validated directly in the `au-engine` graph's own scope, where a `::au-engine`
+/// `tb-engine` peer. `None` writes a BARE `type_name`, for a device-global file
+/// validated directly in the `tb-engine` graph's own scope, where a `::tb-engine`
 /// self-qualifier would only add a redundant `type-repo-self` hint.
 pub(crate) fn parse_engine_schema_instance(
     path: &Path,
@@ -444,14 +444,14 @@ pub(crate) fn parse_engine_schema_instance(
         return empty_instance(diagnostics);
     };
     // An engine-schema file self-describes with a written `type:` (the engine's
-    // own writers emit the qualified `au.engine.X::au-engine`). An ABSENT written
+    // own writers emit the qualified `tb.engine.X::tb-engine`). An ABSENT written
     // type is `drift`: the kind still assigns the floor, so the file stays fully
     // correct, but it does not self-describe on disk. See
     // [[spec - engine-schema file claims - the kind assigns a floor, a written type self-describes and mixes in more]].
     if !has_written_type_key(doc) {
         // The self-describing form follows the file's validation scope: an
         // in-repo file (owner=Some) crosses to the builtin peer, so it is
-        // `::au-engine`-qualified; a device file (owner=None) validates in the
+        // `::tb-engine`-qualified; a device file (owner=None) validates in the
         // builtin's own scope, so its claim is BARE (a self-qualifier would be a
         // redundant `type-repo-self`).
         let written_form = match owner {

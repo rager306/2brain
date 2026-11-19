@@ -118,7 +118,7 @@ with exact membership — the same rule HelixDB implements and the same one our 
   Acceptance: precision ≥ 0.9 on the labelled sample at the chosen threshold, ≤ $0.10 per pass if
   the vendor is used, and no file in the vault modified by the run.
 - **W4.2 role definitions.** The four agent roles from §1.1 written as `agent-profile` instances in
-  `au-mcp-sdk`/vault (documents, not code), each with its tool whitelist and its exit check, so
+  `tb-mcp-sdk`/vault (documents, not code), each with its tool whitelist and its exit check, so
   P3's procedures can name a role instead of a prompt.
 
 **Not in the trajectory:** any judge call inside the read path; any model in the mutation gate; any

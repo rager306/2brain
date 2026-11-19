@@ -103,7 +103,7 @@ fn rewritten_target(original: &str, old_rel: &Path, new_rel: &Path) -> String {
     // type-name (a def file's `.type`-stripped name), then the bare stem.
     //
     // The resolver decides a link's mode by its text alone, a `/`-bearing target
-    // is a path, anything else a name ([[reference name resolution::au-type-system]]).
+    // is a path, anything else a name ([[reference name resolution::tb-type-system]]).
     // So the relpath mode needs the `/`: a top-level file's relpath equals its
     // basename, and `[[a.md]]` there is a basename link, re-rendered as a basename.
     if orig.contains('/') && orig == ci(&old_rel.to_string_lossy()) {
@@ -117,7 +117,7 @@ fn rewritten_target(original: &str, old_rel: &Path, new_rel: &Path) -> String {
         new_basename
     } else if tb_core::type_name_from_path(old_rel).is_some_and(|t| orig == ci(t.as_str())) {
         // A type-def file is reachable by its type-name, the `.type` tail
-        // stripped ([[type reference::au-type-system]] Name Resolution). A `[[mcp.tool]]`
+        // stripped ([[type reference::tb-type-system]] Name Resolution). A `[[mcp.tool]]`
         // def-ref value spells the type-name, neither stem nor basename; without
         // this branch it would normalise to the new stem (`mcp.device.type`).
         // Inert for non-type files, where `type_name_from_path` is `None`; and

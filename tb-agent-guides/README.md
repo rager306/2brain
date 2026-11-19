@@ -10,11 +10,11 @@ tldr: Guides for 2Brain and a skill to write your own in your repo.
 
 ## What this is
 
-`au-agent-guides` provides guides for working with 2Brain.
+`tb-agent-guides` provides guides for working with 2Brain.
 
 ## How to use this
 
-Depend on `au-agent-guides` and enable the `au_agent_guide` tool to browse and read guides.
+Depend on `tb-agent-guides` and enable the `tb_agent_guide` tool to browse and read guides.
 
 ## How to extend this
 

@@ -1,5 +1,5 @@
 title: "T[] field with contributions interleaved across frontmatter + body wikilink + body yaml-block"
-spec_ref: "[[type value container::au-type-system]]"
+spec_ref: "[[type value container::tb-type-system]]"
 command: validate
 expected:
   clean: true

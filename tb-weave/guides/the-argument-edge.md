@@ -1,5 +1,5 @@
 ---
-type: guide.pattern::au-agent-guides
+type: guide.pattern::tb-agent-guides
 goal: model support and tension in the shipped research vocabulary
 rule: Record support and disagreement as reasoned links, adding typed relations when queried and leaving evaluation to the consumer.
 example:
@@ -10,7 +10,7 @@ example:
 Use a reasoned link to record how one idea supports or disagrees with another.
 
 This guide applies to the shipped [[concept]] and [[claim]] kinds.
-They inherit two relations from [[idea::au-base-types:example]]:
+They inherit two relations from [[idea::tb-base-types:example]]:
 
 - `based_on` for support
 - `in_tension_with` for disagreement
@@ -39,7 +39,7 @@ Start with a prose link that explains the relation, following [[the-reasoned-edg
 Use `[[X:in_tension_with]]` or `[[X:based_on]]` when a query needs the relation by name.
 Include the corresponding frontmatter key, such as `based_on:`, and check the resolved field value.
 For example, a design-space map may gather disagreements.
-[[add-structure-when-queried::au-agent-guides]] explains when the field earns its place.
+[[add-structure-when-queried::tb-agent-guides]] explains when the field earns its place.
 
 **Tension is symmetric**
 

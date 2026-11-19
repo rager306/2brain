@@ -99,7 +99,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/wikilink-fragment-no-fragment/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/wikilink-fragment-no-fragment/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -118,7 +118,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/wikilink-fragment-no-fragment/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/wikilink-fragment-no-fragment/.2brain/repo.yaml",
         "section_presence": null
       },
       {

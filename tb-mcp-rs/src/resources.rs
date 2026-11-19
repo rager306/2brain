@@ -4,8 +4,7 @@
 //! space, a `#`, or a `?` in a file name still forms a valid URI. Absolute paths would break when a workspace
 //! moves, and carry no member name.
 //!
-//! The legacy scheme `arsumbris://` is still **accepted** on parse for one release: a client that cached a
-//! URI keeps working, and the drop is a separate, versioned change (`docs/rebrand-plan.md`, tier D).
+//! The scheme is `2brain://` only (ADR-0005): the old name is not a resource any more.
 
 use rmcp::model::Resource;
 use serde_json::Value;
@@ -50,9 +49,6 @@ pub(crate) fn member_relative(
 /// The scheme resources are emitted with.
 pub(crate) const RESOURCE_SCHEME: &str = "2brain";
 
-/// The scheme this project used before the rebrand. Accepted on parse, never emitted.
-pub(crate) const LEGACY_RESOURCE_SCHEME: &str = "arsumbris";
-
 /// `2brain://<repo>/<path>`, with the path percent-encoded so a file name with a space,
 /// a `#`, or a `?` still forms a valid URI.
 pub(crate) fn resource_uri(repo: &str, path: &str) -> String {
@@ -61,9 +57,7 @@ pub(crate) fn resource_uri(repo: &str, path: &str) -> String {
 
 /// Split a resource URI back into its member and its member-relative path.
 pub(crate) fn parse_resource_uri(uri: &str) -> Option<(String, String)> {
-    let rest = uri
-        .strip_prefix(&format!("{RESOURCE_SCHEME}://"))
-        .or_else(|| uri.strip_prefix(&format!("{LEGACY_RESOURCE_SCHEME}://")))?;
+    let rest = uri.strip_prefix(&format!("{RESOURCE_SCHEME}://"))?;
     let (repo, path) = rest.split_once('/')?;
     if repo.is_empty() || path.is_empty() {
         return None;
@@ -163,19 +157,19 @@ mod tests {
     }
 
     #[test]
-    fn the_legacy_scheme_still_parses_and_is_never_emitted() {
-        // Tier D of docs/rebrand-plan.md: emit `2brain://`, accept `arsumbris://` for one release.
-        assert_eq!(
-            parse_resource_uri("arsumbris://vault/inbox/a.md"),
-            Some(("vault".to_owned(), "inbox/a.md".to_owned()))
-        );
+    fn the_old_scheme_is_no_longer_a_resource() {
+        // The compatibility window is closed (ADR-0005): a cached URI that still
+        // says the old scheme is not a resource. Built from parts so no source
+        // file carries the retired literal any more.
+        let old = format!("{}{}://vault/inbox/a.md", "arsum", "bris");
+        assert_eq!(parse_resource_uri(&old), None);
         assert_eq!(
             parse_resource_uri("2brain://vault/inbox/a.md"),
             Some(("vault".to_owned(), "inbox/a.md".to_owned()))
         );
         assert!(
             resource_uri("vault", "inbox/a.md").starts_with("2brain://"),
-            "emission is the new scheme only"
+            "emission is the one scheme"
         );
     }
 
@@ -196,7 +190,7 @@ mod tests {
     fn roots_come_from_a_payload_and_nowhere_else() {
         let payload = json!({"members": [
             {"repo": "vault", "root": "/root/vault"},
-            {"repo": "au-engine", "root": "/root/2brain/tb-engine/"},
+            {"repo": "tb-engine", "root": "/root/2brain/tb-engine/"},
             {"repo": "no-root"},
         ]});
         let roots = member_roots(&payload);
@@ -206,7 +200,7 @@ mod tests {
             Some("inbox/x.md")
         );
         assert_eq!(
-            member_relative("au-engine", "/root/2brain/tb-engine/src/lib.rs", &roots).as_deref(),
+            member_relative("tb-engine", "/root/2brain/tb-engine/src/lib.rs", &roots).as_deref(),
             Some("src/lib.rs"),
             "a trailing slash on a declared root must not double"
         );

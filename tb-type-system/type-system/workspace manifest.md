@@ -1,4 +1,4 @@
-The `.arsumbris/workspace.yaml` file,
+The `.2brain/workspace.yaml` file,
 an optional composition beside a repo's `repo.yaml` that turns its folder into a workspace entry.
 
 See [[cross repo typed graph]] for the general idea of a workspace of repos.
@@ -7,7 +7,7 @@ See [[cross-repo file set]] for the whole file set.
 # Properties
 
 ## A typed node
-A typed instance of the hardwired `au.engine.workspace` def.
+A typed instance of the hardwired `tb.engine.workspace` def.
 - committed with the repo, so its composition travels.
 - see [[engine schema files]].
 
@@ -47,13 +47,13 @@ The entry repo plus its `deps`, plus the `edit` and `discover` members and their
 - a `discover` member unmounted is [[spec - diagnostic codes^discover-member-unmounted]].
 
 ## The lock
-The `discover` closure is pinned in `.arsumbris/workspace.lock`, see [[cross-repo file set]].
-- a hardwired `au.engine.workspace-lock`, parallel to `repo.lock`, engine-written by `resolve`.
+The `discover` closure is pinned in `.2brain/workspace.lock`, see [[cross-repo file set]].
+- a hardwired `tb.engine.workspace-lock`, parallel to `repo.lock`, engine-written by `resolve`.
 - so discover members mount reproducibly and offline, an `edit` member is live and never locked here.
 
 # Structure
 ```yaml
-# <entry-repo>/.arsumbris/workspace.yaml
+# <entry-repo>/.2brain/workspace.yaml
 edit:                     # editable, live
   - my-content            # the containing repo, required
   - some-other-content

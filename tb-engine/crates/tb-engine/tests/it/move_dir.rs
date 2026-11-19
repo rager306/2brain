@@ -340,7 +340,7 @@ fn a_git_ignored_file_moves_with_the_folder_outside_git() {
         "the tree is clean: the ignored file uncommitted, the saga's run state ignored"
     );
     assert!(
-        h.root.join(".arsumbris/au-engine/run/.gitignore").is_file(),
+        h.root.join(".2brain/engine/run/.gitignore").is_file(),
         "the saga's run directory ignores itself"
     );
 }
@@ -352,7 +352,7 @@ fn each_refusal_names_its_cause_and_touches_nothing() {
         (
             "drafts",
             "moved",
-            |r| wr(r, "drafts/inner/.arsumbris/repo.yaml", "name: inner\n"),
+            |r| wr(r, "drafts/inner/.2brain/repo.yaml", "name: inner\n"),
             "drafts/inner (nested repo)",
         ),
         (
@@ -414,7 +414,7 @@ pub(crate) fn two_tree_workspace() -> Harness {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["ra", "rb"]);
-    wr(&root, "ra/.arsumbris/repo.yaml", "name: ra\n");
+    wr(&root, "ra/.2brain/repo.yaml", "name: ra\n");
     wr(
         &root,
         "ra/type/note.type.yaml",
@@ -425,7 +425,7 @@ pub(crate) fn two_tree_workspace() -> Harness {
     fs::create_dir_all(root.join("ra/drafts/empty")).unwrap();
     wr(
         &root,
-        "rb/.arsumbris/repo.yaml",
+        "rb/.2brain/repo.yaml",
         "name: rb\ndeps:\n  - name: ra\n",
     );
     wr(&root, "rb/doc.md", "see [[drafts/sub/b::ra]]\n");

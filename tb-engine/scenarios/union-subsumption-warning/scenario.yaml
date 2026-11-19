@@ -1,5 +1,5 @@
 title: "Slot-union subsumption — `<note* | decision*>` warns at load (decision extends note)"
-spec_ref: "[[type-def shape compound::au-type-system]]"
+spec_ref: "[[type-def shape compound::tb-type-system]]"
 command: graph
 expected:
   codes:

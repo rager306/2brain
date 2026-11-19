@@ -12,7 +12,7 @@ expression: rendered
       "message": "engine-schema file carries no written `type:`; the kind assigns the floor `tb.engine.repo::tb-engine` regardless, but the file does not self-describe on disk",
       "severity": "drift",
       "span": {
-        "file": "<root>/scenarios/engine-schema-type-unwritten/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/engine-schema-type-unwritten/.2brain/repo.yaml",
         "line_col": {
           "end": {
             "col": 1,
@@ -125,7 +125,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/engine-schema-type-unwritten/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/engine-schema-type-unwritten/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -144,7 +144,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/engine-schema-type-unwritten/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/engine-schema-type-unwritten/.2brain/repo.yaml",
         "section_presence": null
       }
     ]

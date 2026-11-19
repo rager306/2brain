@@ -99,7 +99,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/cross-repo-closure-diamond/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-closure-diamond/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -118,7 +118,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-closure-diamond/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/cross-repo-closure-diamond/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -197,7 +197,7 @@ expression: rendered
                         },
                         "start": 10
                       },
-                      "file": "<root>/scenarios/cross-repo-closure-diamond/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/cross-repo-closure-diamond/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -230,7 +230,7 @@ expression: rendered
                         },
                         "start": 41
                       },
-                      "file": "<root>/scenarios/cross-repo-closure-diamond/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/cross-repo-closure-diamond/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -263,7 +263,7 @@ expression: rendered
                         },
                         "start": 50
                       },
-                      "file": "<root>/scenarios/cross-repo-closure-diamond/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/cross-repo-closure-diamond/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -282,7 +282,7 @@ expression: rendered
             "field": "edit"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-closure-diamond/.arsumbris/workspace.yaml",
+        "file": "<root>/scenarios/cross-repo-closure-diamond/.2brain/workspace.yaml",
         "section_presence": null
       },
       {
@@ -376,7 +376,7 @@ expression: rendered
                         },
                         "start": 57
                       },
-                      "file": "<root>/scenarios/cross-repo-closure-diamond/app/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-closure-diamond/app/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -452,7 +452,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/cross-repo-closure-diamond/app/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-closure-diamond/app/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -490,7 +490,7 @@ expression: rendered
                         },
                         "start": 18
                       },
-                      "file": "<root>/scenarios/cross-repo-closure-diamond/app/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-closure-diamond/app/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -509,7 +509,7 @@ expression: rendered
             "field": "remote"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-closure-diamond/app/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/cross-repo-closure-diamond/app/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -686,7 +686,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/cross-repo-closure-diamond/base/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-closure-diamond/base/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -724,7 +724,7 @@ expression: rendered
                         },
                         "start": 19
                       },
-                      "file": "<root>/scenarios/cross-repo-closure-diamond/base/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-closure-diamond/base/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -743,7 +743,7 @@ expression: rendered
             "field": "remote"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-closure-diamond/base/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/cross-repo-closure-diamond/base/.2brain/repo.yaml",
         "section_presence": null
       }
     ]

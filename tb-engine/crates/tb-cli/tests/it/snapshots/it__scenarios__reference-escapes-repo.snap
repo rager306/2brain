@@ -254,7 +254,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/reference-escapes-repo/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/reference-escapes-repo/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -273,7 +273,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/reference-escapes-repo/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/reference-escapes-repo/.2brain/repo.yaml",
         "section_presence": null
       },
       {

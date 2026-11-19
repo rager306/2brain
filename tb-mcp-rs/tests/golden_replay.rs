@@ -27,7 +27,7 @@ fn golden_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../tb-engine/tests-golden")
         .canonicalize()
-        .expect("the golden fixtures must exist next to au-mcp-rs")
+        .expect("the golden fixtures must exist next to tb-mcp-rs")
 }
 
 fn golden(name: &str) -> Value {

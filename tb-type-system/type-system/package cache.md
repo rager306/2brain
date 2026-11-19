@@ -7,7 +7,7 @@ See [[cross-repo file set]] for the whole file set.
 # Properties
 
 ## What it holds
-- device-global, `~/.arsumbris/au-engine/cache/packages/<sha>/`, one immutable snapshot per resolved commit.
+- device-global, `<state root>/engine/cache/packages/<sha>/`, one immutable snapshot per resolved commit.
 - shared across every workspace on the machine, so one commit is fetched once and reused.
 - a monorepo's subpackages share one snapshot, the subpath is applied at mount.
 
@@ -26,7 +26,7 @@ Four steps make a peer's types available.
 - a dependency it cannot deliver is loud, [[spec - diagnostic codes^dependency-resolution-failed]], the rest still resolve.
 
 ## The lock pins the solve
-`resolve` writes each editable repo's `.arsumbris/repo.lock`, and commits it, see [[cross-repo file set]].
+`resolve` writes each editable repo's `.2brain/repo.lock`, and commits it, see [[cross-repo file set]].
 - each repo's lock pins its OWN full transitive fetched closure, one sha per dependency.
 - a re-open with the lock present and the cache populated is reproducible and offline.
 - the lock is the engine's output, never hand-edited, like `package-lock.json`.
@@ -50,7 +50,7 @@ The engine never picks a winner.
 `notes` declares two dependencies.
 
 ```yaml
-# notes/.arsumbris/repo.yaml   —  you declare the dependencies
+# notes/.2brain/repo.yaml   —  you declare the dependencies
 name: notes
 deps:
   - name: library                          # by name, via the registry
@@ -60,7 +60,7 @@ deps:
 ```
 
 ```yaml
-# notes/.arsumbris/repo.lock   —  resolve writes and commits this
+# notes/.2brain/repo.lock   —  resolve writes and commits this
 packages:
   - name: library
     remote: git@github.com:org/library.git

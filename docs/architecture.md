@@ -54,7 +54,7 @@ client (Claude Code, Codex, Hermes, any MCP client)
 2brain mcp <target>            tb-mcp-rs: 52 tools, policy, gate, audit, ledger
    │  Unix socket, length-prefixed frames
    ▼
-au daemon start <root>         tb-engine: held IR, one writer, rebuilds on disk change
+tb-engine daemon start <root>         tb-engine: held IR, one writer, rebuilds on disk change
    │
    ▼
 <root>/**/*.md  +  <root>/.2brain/repo.yaml   ← the authoritative files
@@ -165,14 +165,14 @@ so this page cannot drift from the surface it describes.
 - `tb_delete_file` — Delete one member's file after a successful tb_content read of the same path
 - `tb_batch` — Apply 1 to 50 file operations (write_file, edit_file, delete_file) as one all-or-nothing saga: every
 - `tb_create_file` — Create a new file in a member
-- `tb_add_workspace_member` — Declare a member in one workspace's .arsumbris/workspace.yaml, in the edit or discover list
+- `tb_add_workspace_member` — Declare a member in one workspace's .2brain/workspace.yaml, in the edit or discover list
 - `tb_remove_workspace_member` — Remove a member from one workspace's edit and discover lists
 - `tb_set_workspace_member_role` — Move a declared member between the edit and discover lists in one commit
 - `tb_inline` — Fold one file into a referrer as an inline record and delete it, as one saga: the chosen [[path]] be
 - `tb_promote` — Lift an inline record into its own file and leave a reference where it sat, as one saga: every [[hos
 - `tb_rename_type` — Rename a type-def and carry every reference with it, as one saga: the def file moves and claims, slo
-- `tb_add_dep` — Declare a dependency in one member's .arsumbris/repo.yaml, as a byte splice that keeps comments and order
-- `tb_remove_dep` — Remove a dependency from one member's .arsumbris/repo.yaml, as a byte splice that keeps siblings and
+- `tb_add_dep` — Declare a dependency in one member's .2brain/repo.yaml, as a byte splice that keeps comments and order
+- `tb_remove_dep` — Remove a dependency from one member's .2brain/repo.yaml, as a byte splice that keeps siblings and
 - `tb_assign_block_id` — Mint a block id for the entity at a byte offset and return the id and its [[target^id]] ref
 - `tb_rename_block_id` — Rename an inline record's block id and carry every referrer with it: the ^: declaration and each [[h
 - `tb_rename` — Move a file inside its member and rewrite every inbound reference to the new name, preserving each r

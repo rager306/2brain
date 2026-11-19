@@ -8,11 +8,11 @@
     "candidates": [
       {
         "candidates": [],
-        "file": "$FIXTURE/base/.arsumbris/repo.yaml"
+        "file": "$FIXTURE/base/.2brain/repo.yaml"
       },
       {
         "candidates": [],
-        "file": "$FIXTURE/fixture/.arsumbris/repo.yaml"
+        "file": "$FIXTURE/fixture/.2brain/repo.yaml"
       },
       {
         "candidates": [],

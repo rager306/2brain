@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Help the agent distinguish requests owned by this skill from nearby work.
 rule: Describe the request and expected result, then check ambiguous requests against neighboring skills.
 ---
@@ -7,7 +7,7 @@ rule: Describe the request and expected result, then check ambiguous requests ag
 # Make the task boundary visible
 
 Write the description so a caller can distinguish this skill from the others available in the session.
-Use [[name-the-skill]] for the short name and [[mcp.skill::au-mcp-sdk:example]] for the field contract.
+Use [[name-the-skill]] for the short name and [[mcp.skill::tb-mcp-sdk:example]] for the field contract.
 
 In this package, a request to improve a skill belongs to `write-a-skill`.
 A request for findings about an existing skill belongs to `review-a-skill`.

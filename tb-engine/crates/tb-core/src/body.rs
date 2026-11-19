@@ -1,7 +1,7 @@
 //! Type-def body template AST and parser.
 //!
 //! A type-def's optional `body:` key declares an authoring template for
-//! markdown instances. Per [[type-def body::au-type-system]], the value is an ordered list of items;
+//! markdown instances. Per [[type-def body::tb-type-system]], the value is an ordered list of items;
 //! each item has exactly one discriminating key:
 //! - `use:` — splice another type-def's body inline (top-level only)
 //! - `section:` / `section?:` — declare a named section
@@ -82,11 +82,11 @@ pub struct FieldClaim {
 /// Parsed body template.
 ///
 /// `None` means the `body:` key was absent. `Some(vec![])` means the key was
-/// present but empty (treated like absent for behavior, per [[type-def body::au-type-system]]). A non-empty
-/// vec is a declared template — and per [[type-def body::au-type-system]] makes the type-def markdown-only.
+/// present but empty (treated like absent for behavior, per [[type-def body::tb-type-system]]). A non-empty
+/// vec is a declared template — and per [[type-def body::tb-type-system]] makes the type-def markdown-only.
 pub type BodyTemplate = Vec<BodyItem>;
 
-/// Is the type-def body-declaring per [[type-def body::au-type-system]] — i.e. carries one or more items
+/// Is the type-def body-declaring per [[type-def body::tb-type-system]] — i.e. carries one or more items
 /// (not just an empty `body: []`)?
 pub fn is_body_declaring(body: Option<&BodyTemplate>) -> bool {
     body.is_some_and(|b| !b.is_empty())
@@ -105,7 +105,7 @@ pub fn is_body_declaring(body: Option<&BodyTemplate>) -> bool {
 ///   `body-use-out-of-closure`.
 ///
 /// Repeated `use:` of the same target at sibling positions IS preserved —
-/// per [[type-def body use::au-type-system]] "Repetition is literal." The active-stack semantics push on
+/// per [[type-def body use::tb-type-system]] "Repetition is literal." The active-stack semantics push on
 /// entry into a target and pop on return, so a `use: A` followed by a
 /// second `use: A` at the same level inlines A's body twice.
 pub fn splice_effective_body(
@@ -303,7 +303,7 @@ fn parse_body_item(
                 }
             }
             _ => {
-                // unknown keys are advisory per [[type-def body::au-type-system]] — silently ignored.
+                // unknown keys are advisory per [[type-def body::tb-type-system]] — silently ignored.
             }
         }
     }
@@ -515,7 +515,7 @@ mod tests {
             .collect()
     }
 
-    /// [[type-def body use::au-type-system]] "Repetition is literal." Two `use: A` at sibling positions
+    /// [[type-def body use::tb-type-system]] "Repetition is literal." Two `use: A` at sibling positions
     /// must splice A's body twice, not collapse to once.
     #[test]
     fn repeated_use_at_same_level_splices_twice() {
@@ -567,7 +567,7 @@ mod tests {
     }
 
     /// Without a resolver, a `::repo` use stays unspliced — today's behavior for
-    /// au-core's own (repo-agnostic) callers, no regression.
+    /// tb-core's own (repo-agnostic) callers, no regression.
     #[test]
     fn qualified_use_without_a_resolver_stays_unspliced() {
         let own = build_graph(vec![td_with_body(

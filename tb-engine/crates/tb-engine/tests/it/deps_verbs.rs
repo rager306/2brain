@@ -1,5 +1,5 @@
 //! The `add_dep` / `remove_dep` composition mutations over the socket: author a
-//! repo's `deps:` in `<member>/.arsumbris/repo.yaml`. A guard-bypass like
+//! repo's `deps:` in `<member>/.2brain/repo.yaml`. A guard-bypass like
 //! `set_config`, but the file is a first-class node, so the change re-resolves the
 //! mounted set and rebuilds (a newly-declared peer surfaces `peer-unmounted`).
 //! `add_dep` does NOT fetch; a duplicate name rejects; `remove_dep` of an absent
@@ -65,7 +65,7 @@ fn started() -> Harness {
 }
 
 fn repo_yaml(h: &Harness) -> String {
-    fs::read_to_string(h.root.join(".arsumbris").join("repo.yaml")).unwrap()
+    fs::read_to_string(h.root.join(".2brain").join("repo.yaml")).unwrap()
 }
 
 fn codes(resp: &Value) -> Vec<String> {

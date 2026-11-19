@@ -1,5 +1,5 @@
 title: "`&` suffix — slot accepts inline map OR wikilink, both forms shown"
-spec_ref: "[[type-def shape suffixes::au-type-system]], [[type-def shape record::au-type-system]], [[type reference::au-type-system]]"
+spec_ref: "[[type-def shape suffixes::tb-type-system]], [[type-def shape record::tb-type-system]], [[type reference::tb-type-system]]"
 command: validate
 expected:
   clean: true

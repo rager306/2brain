@@ -1,7 +1,7 @@
 type: tb.engine.repo::tb-engine
-name: au-agent-guides
+name: tb-agent-guides
 description: Typed guides and shared discovery for decisions about using Ars Umbris.
 deps:
-  - name: au-mcp-sdk
-  - name: au-base-types
-  - name: au-host-sdk
+  - name: tb-mcp-sdk
+  - name: tb-base-types
+  - name: tb-host-sdk

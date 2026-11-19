@@ -1,5 +1,5 @@
 #: A source subtype for the external converter fixture.
-extends: source::au-base-types
+extends: source::tb-base-types
 fields:
   id: String
   captured: Date

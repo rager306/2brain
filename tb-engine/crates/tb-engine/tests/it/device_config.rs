@@ -60,7 +60,7 @@ fn started() -> Harness {
 
 /// Write a device-global config file under the injected device root.
 fn write_config(h: &Harness, rel: &str, content: &str) {
-    let p = h.config_dir.join("au-engine").join("config").join(rel);
+    let p = h.config_dir.join("engine").join("config").join(rel);
     fs::create_dir_all(p.parent().unwrap()).unwrap();
     fs::write(p, content).unwrap();
 }
@@ -199,7 +199,7 @@ fn a_non_utf8_file_reports_a_diagnostic_not_content() {
     let mut h = started();
     let p = h
         .config_dir
-        .join("au-engine")
+        .join("engine")
         .join("config")
         .join("repos.yaml");
     fs::create_dir_all(p.parent().unwrap()).unwrap();

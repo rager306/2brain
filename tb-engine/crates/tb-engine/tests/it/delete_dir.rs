@@ -202,7 +202,7 @@ fn each_refusal_names_its_cause_and_touches_nothing() {
     type Setup = fn(&Path);
     let cases: [(Setup, &str); 5] = [
         (
-            |r| wr(r, "drafts/inner/.arsumbris/repo.yaml", "name: inner\n"),
+            |r| wr(r, "drafts/inner/.2brain/repo.yaml", "name: inner\n"),
             "drafts/inner (nested repo)",
         ),
         (

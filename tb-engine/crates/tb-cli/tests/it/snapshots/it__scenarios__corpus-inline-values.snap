@@ -368,7 +368,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/corpus-inline-values/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/corpus-inline-values/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -387,7 +387,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/corpus-inline-values/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/corpus-inline-values/.2brain/repo.yaml",
         "section_presence": null
       },
       {

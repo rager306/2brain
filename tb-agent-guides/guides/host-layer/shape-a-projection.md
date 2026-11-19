@@ -2,7 +2,7 @@
 type: guide.gotcha
 goal: "Implement a projection's mount, configuration, and cleanup responsibilities."
 rule: "Render within the supplied container, use the host's ownership boundaries, and make configuration and cleanup correct across mounts."
-about: "[[projection::au-host-sdk]]"
+about: "[[projection::tb-host-sdk]]"
 example:
 ---
 

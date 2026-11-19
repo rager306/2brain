@@ -1,5 +1,5 @@
 title: "Yaml-only instance of a body-declaring type fires body-required-but-yaml-only-instance"
-spec_ref: "[[type-def body::au-type-system]]"
+spec_ref: "[[type-def body::tb-type-system]]"
 command: validate
 expected:
   codes:

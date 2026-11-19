@@ -3,7 +3,7 @@
 #: Extracts text and supported structure; layout and formatting may differ from the original.
 #: Check the original when exact wording, tables, or number formatting matter.
 #: Use the pdf type for PDFs.
-extends: source::au-base-types
+extends: source::tb-base-types
 fields:
   #: the specific format this note was rendered from (docx, pptx, xlsx, odt, rtf, epub, csv, ...). container variants (docm, xlsm, ...) record as their parser family.
   format: String

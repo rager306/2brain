@@ -12,17 +12,17 @@ Read that discovery contract before choosing how to extend the graph.
 
 **Definitions contribute executable behavior**
 
-[[mcp.tool::au-mcp-sdk:example]] and [[projection::au-host-sdk:example]] use subtype definitions with runtime metadata.
+[[mcp.tool::tb-mcp-sdk:example]] and [[projection::tb-host-sdk:example]] use subtype definitions with runtime metadata.
 Their consumers discover the definitions and resolve code through the owning package.
 An instance alone does not register an implementation.
 
 **Instances contribute content**
 
-[[mcp.skill::au-mcp-sdk:example]] and [[guide::au-agent-guides:example]] use concrete instances.
+[[mcp.skill::tb-mcp-sdk:example]] and [[guide::tb-agent-guides:example]] use concrete instances.
 A new skill or guide usually needs no subtype.
 Derive a type when it adds a useful shared contract.
 
-[[mcp.hook::au-mcp-sdk:example]] uses both levels: definition discovery for executable behavior and typed configuration from a profile.
+[[mcp.hook::tb-mcp-sdk:example]] uses both levels: definition discovery for executable behavior and typed configuration from a profile.
 
 **Choose the contract deliberately**
 

@@ -35,7 +35,7 @@ pub(crate) struct PinnedResolution {
     ///
     /// Relative to the GIT WORKING TREE root, the same basis a `Moved:` trailer
     /// records and the only basis `<rev>:<path>` accepts. For a repo nested in a
-    /// monorepo that is an ANCESTOR of the au-repo root, so the two bases differ
+    /// monorepo that is an ANCESTOR of the tb-repo root, so the two bases differ
     /// and mixing them is silently wrong rather than an error: the trace compares
     /// this against a trailer's `from`, and hands it to `blob_oid_at_commit`,
     /// which resolves against the tree root regardless of `-C`. So the `repo`

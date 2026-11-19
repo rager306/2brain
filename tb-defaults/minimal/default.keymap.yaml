@@ -1,6 +1,6 @@
 # Keyboard shortcuts for the minimal composition. Remove its keymap reference to disable them.
 # `mod` is Command on macOS and Control elsewhere. The composition declares the intent dependency.
-type: keymap::au-host-sdk
+type: keymap::tb-host-sdk
 keybinds:
   - chord:
       - mods: [mod]

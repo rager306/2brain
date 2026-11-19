@@ -37,14 +37,14 @@ target_dir=$(RUSTUP_HOME=$RUSTUP_HOME $CARGO metadata --format-version 1 --no-de
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')
 
 # The crate is `tb-engine`, so its test binary is `tb_engine-<hash>`. This looked for
-# `au_engine-*` and matched nothing but stale `.d` files, failing before it ran a test.
+# `tb_engine-*` and matched nothing but stale `.d` files, failing before it ran a test.
 lib_bin=$(ls -t "$target_dir"/debug/deps/tb_engine-* 2>/dev/null | grep -vE '\.(d|txt)$' | head -1)
 it_bin=$(ls -t "$target_dir"/debug/deps/it-* 2>/dev/null | grep -vE '\.(d|txt)$' | head -1)
 [[ -x $lib_bin && -x $it_bin ]] || { echo "test binaries not found under $target_dir" >&2; exit 1; }
 
 # `nobody` cannot traverse /root on this host, so the binaries are re-run from
 # world-readable scratch space; the tests themselves only use temp directories.
-scratch=$(mktemp -d /tmp/au-root-tests-XXXXXX)
+scratch=$(mktemp -d /tmp/tb-root-tests-XXXXXX)
 chmod 755 "$scratch"
 trap 'rm -rf "$scratch"' EXIT
 cp "$lib_bin" "$it_bin" "$scratch"/

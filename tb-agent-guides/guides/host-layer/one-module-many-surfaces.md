@@ -2,7 +2,7 @@
 type: guide.gotcha
 goal: "Share a build across related projection surfaces without sharing the wrong instance state."
 rule: "Give each surface its own projection definition and select its function from one registered module when shared ownership justifies it."
-about: "[[projection-runtime-meta::au-host-sdk]]"
+about: "[[projection-runtime-meta::tb-host-sdk]]"
 example:
 ---
 

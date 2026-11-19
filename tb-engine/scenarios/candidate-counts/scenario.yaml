@@ -1,5 +1,5 @@
 title: "candidate_counts summarizes the scan — total, files-with-candidates, and the N-files-could-claim-X histogram"
-spec_ref: "[[type candidate scan::au-type-system]]"
+spec_ref: "[[type candidate scan::tb-type-system]]"
 command: candidate_counts
 expected:
   clean: true

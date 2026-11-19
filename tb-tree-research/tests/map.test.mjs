@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { createPlugin } from '../refresh-research-map.mjs'
 
 const root = '/map-test'
-const qualify = name => `${name}::au-tree-research`
+const qualify = name => `${name}::tb-tree-research`
 const id = name => ({ name, hash: name })
 const contribution = { location: { byte_range: { start: 0, end: 1 } } }
 function row(path, kind, parent) {

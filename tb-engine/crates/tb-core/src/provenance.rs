@@ -1,10 +1,10 @@
-//! Per-field effective values with provenance per spec [[type value container::au-type-system]].
+//! Per-field effective values with provenance per spec [[type value container::tb-type-system]].
 //!
 //! Every field on an instance is materialized as a list of `ValueContainer`s.
 //! Each container carries one unique value plus the `Contribution`s that
 //! produced it — frontmatter, wikilink, marked fence, or inline code.
 //! Equal values from multiple surfaces collapse into one container per
-//! [[type value container::au-type-system]]; ordering follows source-position per [[type value container::au-type-system]].
+//! [[type value container::tb-type-system]]; ordering follows source-position per [[type value container::tb-type-system]].
 //!
 //! This module is the value model that body-typing validation consumes (fills
 //! contracts, cardinality across surfaces, frontmatter visibility).
@@ -25,7 +25,7 @@ use crate::validate::{QualifiedKey, parse_qualified_key};
 
 /// Split a body attribution's raw field text (`field` or `field{type}` /
 /// `field{type::repo}`) into its base [`FieldName`] and optional
-/// [`QualifiedOrigin`] ([[type-def fields collision - auto-unify and qualified field::au-type-system]]). The parsers upstream (au-references,
+/// [`QualifiedOrigin`] ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]). The parsers upstream (tb-references,
 /// the inline-marker check) validate well-formedness, so a `Malformed` result
 /// degrades to a bare field name rather than dropping the contribution.
 fn parse_attribution(raw: &str) -> (FieldName, Option<QualifiedOrigin>) {
@@ -112,7 +112,7 @@ pub struct Location {
 }
 
 /// A collision qualifier on a body attribution, `field{type}` / `field{type::repo}`
-/// ([[type-def fields collision - auto-unify and qualified field::au-type-system]]): which divergent origin this contribution fills. `None`
+/// ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]): which divergent origin this contribution fills. `None`
 /// for a bare attribution. INTERNAL for now — not serialized on the wire; the
 /// divergent-fields wire surfacing lands with the schema bump.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -126,7 +126,7 @@ pub struct QualifiedOrigin {
 pub struct Contribution {
     pub surface: Surface,
     pub location: Location,
-    /// Root-to-leaf section chain enclosing the contribution, per [[type value container::au-type-system]].
+    /// Root-to-leaf section chain enclosing the contribution, per [[type value container::tb-type-system]].
     /// Empty for body-preamble and frontmatter contributions.
     pub section_path: Vec<String>,
     pub value: ContributionValue,
@@ -138,7 +138,7 @@ pub struct Contribution {
     /// [[spec - branded types - the shape key names a reusable scalar, enum, union, or tuple]].
     pub brand: Option<String>,
     /// The collision qualifier a body attribution carried, selecting which
-    /// divergent origin it fills ([[type-def fields collision - auto-unify and qualified field::au-type-system]]). `None` for a bare
+    /// divergent origin it fills ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]). `None` for a bare
     /// attribution or a frontmatter contribution (frontmatter keeps the qualified
     /// key verbatim). Internal, not serialized.
     pub qualifier: Option<QualifiedOrigin>,
@@ -177,10 +177,10 @@ pub enum ContributionValue {
         block_id: Option<tb_references::BlockId>,
     },
     /// Inline-record value (a marked fence reading as a record, or a frontmatter inline
-    /// map), carried as the parsed mapping for downstream [[type value container::au-type-system]] validation.
+    /// map), carried as the parsed mapping for downstream [[type value container::tb-type-system]] validation.
     InlineRecord(InstanceValue),
     /// A fixed-arity positional product, the value of a tuple slot or a tuple
-    /// brand ([[type-def shape tuple::au-type-system]]). Recursive, each element is its own
+    /// brand ([[type-def shape tuple::tb-type-system]]). Recursive, each element is its own
     /// value plus its optional written brand. One value, one container, never
     /// the list path.
     Tuple(Vec<TupleElement>),
@@ -195,7 +195,7 @@ pub enum ContributionValue {
 }
 
 /// One element of a [`ContributionValue::Tuple`], its value plus the brand the
-/// author wrote for it, if any ([[type brand constructor::au-type-system]]). The brand sits on
+/// author wrote for it, if any ([[type brand constructor::tb-type-system]]). The brand sits on
 /// the element, the outer tuple's brand rides on the [`ValueContainer`], so
 /// nesting is uniform one level down.
 #[derive(Debug, Clone, PartialEq)]
@@ -224,12 +224,12 @@ pub struct ValueContainer {
 /// - Body wikilinks with `:field` fragments surface as `BodyWikilink`.
 /// - Body inline-code `[:field] value` surfaces as `BodyInlineCode`.
 /// - Body marked fences (` ```[:field] `) surface as `BodyFence`.
-/// - Equal values collapse into one `ValueContainer` per [[type value container::au-type-system]]; container
-///   ordering and intra-container contribution ordering follow [[type value container::au-type-system]].
+/// - Equal values collapse into one `ValueContainer` per [[type value container::tb-type-system]]; container
+///   ordering and intra-container contribution ordering follow [[type value container::tb-type-system]].
 ///
 /// `shape` is the instance's effective shape, used ONLY to decide whether a
 /// whole-value `[[wikilink]]` is a `Reference` value or the literal string —
-/// [[type reference::au-type-system]]'s validated-reference rule, which needs the SLOT.
+/// [[type reference::tb-type-system]]'s validated-reference rule, which needs the SLOT.
 /// `None` (an unresolved claim, so no shape) leaves every wikilink a scalar,
 /// so a consumer cannot read `Scalar` as proof the slot is not a reference.
 pub fn effective_values<'a>(
@@ -276,7 +276,7 @@ pub fn effective_values<'a>(
     // frontmatter and body alike (the shared interpretation site).
     resolve_brands_and_tuples(&mut by_field, shape);
 
-    // Collapse equal values within each field per [[type value container::au-type-system]].
+    // Collapse equal values within each field per [[type value container::tb-type-system]].
     let mut out: BTreeMap<FieldName, Vec<ValueContainer>> = BTreeMap::new();
     for (name, contribs) in by_field {
         out.insert(name, collapse_to_containers(contribs));
@@ -315,7 +315,7 @@ pub fn elaborate_fields(
 /// split per element. The graph-free frontmatter pathway shared by
 /// [`effective_values`] and [`elaborate_fields`].
 ///
-/// [[type-instance body contribution::au-type-system]]: a `key:` with null value marks the field
+/// [[type-instance body contribution::tb-type-system]]: a `key:` with null value marks the field
 /// as "filled by body", a visibility marker, not a value contribution, so it is
 /// skipped rather than surfacing as a distinct `ValueContainer` beside a real
 /// body contribution. The `bool` pushed is `false` for a whole-field value and
@@ -335,7 +335,7 @@ fn push_frontmatter_contributions(
         let admits_ref = slot.is_some_and(tb_grammar::slot_admits_reference);
 
         // A reference slot: a whole-value wikilink is a Reference value, and a
-        // LIST slot yields one contribution PER ELEMENT, per [[type value container::au-type-system]]
+        // LIST slot yields one contribution PER ELEMENT, per [[type value container::tb-type-system]]
         // ("a field's effective value is a list of value containers"). Both are
         // what let a frontmatter reference collapse with a body one naming the
         // same target, which is what keeps a bare slot from falsely tripping
@@ -356,7 +356,7 @@ fn push_frontmatter_contributions(
             InstanceValue::Mapping(_) => {
                 // Normalize spans on the frontmatter mapping so it can
                 // compare equal to a body fence contribution
-                // carrying the same structural value ([[type value container::au-type-system]]).
+                // carrying the same structural value ([[type value container::tb-type-system]]).
                 let mut v = field.value.clone();
                 normalize_value_spans(&mut v);
                 ContributionValue::InlineRecord(v)
@@ -513,7 +513,7 @@ fn build_body_contribution(
         BodyEvent::Wikilink { raw, span } => {
             let parsed = parse_wikilink_inner(raw).ok()?;
             let raw_field = parsed.field.clone()?;
-            // The `:field` may be qualified, `field{type}` ([[type-def fields collision - auto-unify and qualified field::au-type-system]]); split it
+            // The `:field` may be qualified, `field{type}` ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]); split it
             // into base field + origin. The slot that decides reference-ness is
             // the target origin's — the qualified origin for a divergent field.
             let (field_name, qualifier) = parse_attribution(&raw_field);
@@ -550,7 +550,7 @@ fn build_body_contribution(
             ))
         }
         BodyEvent::InlineCode { content, span } => {
-            // Strict [[type-instance body contribution::au-type-system]] shape: `[:fieldName] value` with no whitespace
+            // Strict [[type-instance body contribution::tb-type-system]] shape: `[:fieldName] value` with no whitespace
             // inside the brackets. Anything looser is treated as a
             // malformed-attribution-marker by body_validate and must not
             // also count as a contribution here.
@@ -613,7 +613,7 @@ fn build_body_contribution(
             let (field_name, qualifier) = parse_attribution(field);
             // A marked fence is a MULTI-LINE CHANNEL, not a yaml channel: the
             // declared slot decides how its content reads
-            // ([[type-instance body contribution::au-type-system]]). The language tag carries no
+            // ([[type-instance body contribution::tb-type-system]]). The language tag carries no
             // engine meaning, so it is never consulted.
             let value = read_fence_content(
                 body,
@@ -638,14 +638,14 @@ fn build_body_contribution(
     }
 }
 
-/// Read a marked fence's content per its slot, [[type-instance body contribution::au-type-system]].
+/// Read a marked fence's content per its slot, [[type-instance body contribution::tb-type-system]].
 ///
-/// `slot` is `None` for an unresolved [[type-instance type::au-type-system]] claim, which leaves
+/// `slot` is `None` for an unresolved [[type-instance type::tb-type-system]] claim, which leaves
 /// no effective shape. With no contract to honor, the fence falls back to
 /// VALUE-SHAPE, the same fallback the frontmatter pathway uses: a mapping is
 /// unambiguously structured so it reads as a record, anything else keeps its
 /// text. That symmetry is load-bearing — a frontmatter mapping and a fence of
-/// equal structure must still collapse into one [[type value container::au-type-system]] on an
+/// equal structure must still collapse into one [[type value container::tb-type-system]] on an
 /// unresolved instance, and a text read would split them.
 ///
 /// A reference-only slot admits no fence at all. The content is still captured
@@ -705,7 +705,7 @@ pub(crate) fn read_fence_content(
 /// A compound admitting BOTH forms has no single answer, so the CONTENT
 /// disambiguates: a mapping carrying `type:` takes the record branch, anything
 /// else takes the text branch. The same rule that already makes an inline
-/// `type:` mandatory at a union slot ([[type-def shape record::au-type-system]]).
+/// `type:` mandatory at a union slot ([[type-def shape record::tb-type-system]]).
 ///
 /// With no slot (an unresolved claim) the fallback is value-shape, matching the
 /// frontmatter pathway, see [`read_fence_content`].
@@ -731,7 +731,7 @@ pub(crate) fn fence_reads_as_record(body: &str, slot: Option<&tb_grammar::Shape>
 /// The scanner hands back everything from the end of the open-fence line to the
 /// start of the close-fence line, so that slice carries the open line's
 /// terminator at the front and the last content line's terminator at the back.
-/// Both belong to the delimiters, not the value ([[type-instance body contribution::au-type-system]]).
+/// Both belong to the delimiters, not the value ([[type-instance body contribution::tb-type-system]]).
 /// Nothing else is touched: no trimming, no dedenting, no yaml scalar folding,
 /// so blank lines and a multi-paragraph value survive intact.
 fn fence_text(body: &str) -> String {
@@ -745,7 +745,7 @@ fn fence_text(body: &str) -> String {
 }
 
 /// Does the content read as an inline record, i.e. parse to a YAML mapping that
-/// carries a `type:` key? The union disambiguator, see [[type-def shape record::au-type-system]].
+/// carries a `type:` key? The union disambiguator, see [[type-def shape record::tb-type-system]].
 fn fence_parses_as_typed_mapping(body: &str) -> bool {
     use tb_parser::yaml::{Scalar, YamlData};
     let Ok(docs) = tb_parser::yaml::parse(body) else {
@@ -805,13 +805,13 @@ pub(crate) fn parse_constructor_arg(arg: &str) -> InstanceValue {
     parse_inline_scalar(a)
 }
 
-/// The recursion cap for value elaboration, mirroring au-grammar's
+/// The recursion cap for value elaboration, mirroring tb-grammar's
 /// `MAX_SHAPE_DEPTH`. A pathologically nested value becomes a malformed node, not
 /// a stack overflow ([[spec - value model - one typed value produced once in effective_values and consumed by validation and reads]]).
 const MAX_VALUE_DEPTH: usize = 64;
 
 /// Elaborate one value STRING into a typed value plus its written brand, purely
-/// from syntax ([[type-def shape tuple::au-type-system]], decision A). Used for tuple ELEMENTS:
+/// from syntax ([[type-def shape tuple::tb-type-system]], decision A). Used for tuple ELEMENTS:
 /// each position's TYPE is the def's (validated later), but the value STRUCTURE is
 /// the syntax's — a bare scalar, a `Name(...)` brand or named tuple, or a nameless
 /// `(...)` tuple. Depth-bounded; a value nested past the cap is a malformed node.
@@ -908,7 +908,7 @@ fn parse_yaml_to_instance_value(doc: &tb_parser::yaml::MarkedYaml<'_>) -> Instan
                     YamlData::Value(Scalar::String(s)) => s.to_string(),
                     _ => continue,
                 };
-                // [[type value container::au-type-system]] inline-record equality compares the type claim.
+                // [[type value container::tb-type-system]] inline-record equality compares the type claim.
                 // Body fences carry `type:` declared in the fence;
                 // capture it (spans zeroed for cross-surface equality)
                 // so a body fence can collapse with an equivalent
@@ -918,7 +918,7 @@ fn parse_yaml_to_instance_value(doc: &tb_parser::yaml::MarkedYaml<'_>) -> Instan
                     continue;
                 }
                 // `^:` is addressability of the contribution site, not
-                // part of the value ([[type block-id::au-type-system]]) — excluded from
+                // part of the value ([[type block-id::tb-type-system]]) — excluded from
                 // equality the way spans are zeroed.
                 if key == "^" {
                     continue;
@@ -946,7 +946,7 @@ fn parse_yaml_to_instance_value(doc: &tb_parser::yaml::MarkedYaml<'_>) -> Instan
 /// Extract a `type:` value as a `TypeClaim` with every span zeroed.
 /// Used by both the body-fence parser AND the frontmatter
 /// normalizer so contributions from either surface can compare equal
-/// per [[type value container::au-type-system]].
+/// per [[type value container::tb-type-system]].
 fn extract_type_claim_zeroed(
     val: &tb_parser::yaml::MarkedYaml<'_>,
 ) -> Option<crate::instance::TypeClaim> {
@@ -974,7 +974,7 @@ fn extract_type_claim_zeroed(
 }
 
 /// Recursively zero every byte-range field in an `InstanceValue` tree.
-/// [[type value container::au-type-system]] collapse equality is structural — two surfaces contributing
+/// [[type value container::tb-type-system]] collapse equality is structural — two surfaces contributing
 /// the "same" value differ in where the bytes live in their source
 /// files, and the value-equality compare must ignore that. Mutates
 /// the value in place; safe because the contribution holds its own
@@ -1020,7 +1020,7 @@ fn absolute_span(span: ByteRange, offset: usize) -> ByteRange {
     ByteRange::new(span.start + offset, span.end + offset)
 }
 
-/// Collapse equal-value contributions per [[type value container::au-type-system]]. Source-order within each
+/// Collapse equal-value contributions per [[type value container::tb-type-system]]. Source-order within each
 /// container is preserved (the first-encountered contribution determines
 /// container position; subsequent equals fold in).
 /// The declared shape of `field`'s slot, or `None` when there is no effective
@@ -1041,7 +1041,7 @@ fn slot_shape_for<'s>(
 /// Frontmatter contributions for one field, given its declared slot.
 ///
 /// A LIST slot yields one contribution PER ELEMENT, whatever the element type
-/// ([[type value container::au-type-system]]: "a field's effective value is a list of value
+/// ([[type value container::tb-type-system]]: "a field's effective value is a list of value
 /// containers", with cardinality over THAT list). Splitting only reference
 /// lists would put an arbitrary seam back where this removes one, so every
 /// list splits.
@@ -1110,7 +1110,7 @@ fn slot_contributions(
         }
         // Span-normalize every element, mapping or not, so a list element can
         // still compare equal to a body contribution carrying the same
-        // structural value ([[type value container::au-type-system]]).
+        // structural value ([[type value container::tb-type-system]]).
         let mut owned = v.clone();
         normalize_value_spans(&mut owned);
         match owned {
@@ -1127,7 +1127,7 @@ fn slot_contributions(
             true,
         )),
         // A list slot may also be filled bare with a single entry
-        // ([[type list form::au-type-system]], "single bare, several block").
+        // ([[type list form::tb-type-system]], "single bare, several block").
         (v @ InstanceValue::String(_), true) => Some((vec![element(v, field.value_span)], true)),
         // A bare slot: only a whole-value wikilink in a reference-admitting
         // slot converts; anything else falls through unchanged.
@@ -1138,7 +1138,7 @@ fn slot_contributions(
     }
 }
 
-/// Collapse contributions into containers per [[type value container::au-type-system]].
+/// Collapse contributions into containers per [[type value container::tb-type-system]].
 ///
 /// Equal values share one container — EXCEPT that two elements of one authored
 /// sequence never collapse with each other. A list holds N value SLOTS, so
@@ -1285,7 +1285,7 @@ mod tests {
         // an edge), which `backlinks` / `references_out` already answer
         // correctly and syntactically.
         //
-        // The typed cases live in au-engine's `value_layer_references`, which
+        // The typed cases live in tb-engine's `value_layer_references`, which
         // can build a real graph: a `paper*` slot yields a reference, a
         // `String` slot yields a scalar.
         let src = "---\ntype: decision\ndescription: \"x\"\nrationale:\n---\n\nSee [[paper-a:rationale]] for context.\n";
@@ -1354,7 +1354,7 @@ mod tests {
         }
     }
 
-    /// [[type value container::au-type-system]] regression: a Mapping value contributed from both
+    /// [[type value container::tb-type-system]] regression: a Mapping value contributed from both
     /// frontmatter (as an inline-record `field: { type: T, ... }`) and
     /// a body fence (` ```[:field] ` with the same `type: T`
     /// and body fields) must collapse into one ValueContainer with two
@@ -1446,7 +1446,7 @@ description: divergent\n\
         assert_eq!(body_contrib.section_path, vec!["1 Why".to_string()]);
     }
 
-    // ----- body-fence content-form, [[type-instance body contribution::au-type-system]] -----
+    // ----- body-fence content-form, [[type-instance body contribution::tb-type-system]] -----
 
     fn slot(src: &str) -> tb_grammar::Shape {
         tb_grammar::parse_shape(src).expect("shape parses")
@@ -1502,7 +1502,7 @@ description: divergent\n\
         }
     }
 
-    /// [[type-def shape any::au-type-system]]: an `any` slot imposes no type, so a fence at one is
+    /// [[type-def shape any::tb-type-system]]: an `any` slot imposes no type, so a fence at one is
     /// never parsed into a record even when its content is a mapping.
     #[test]
     fn any_slot_reads_verbatim_not_a_record() {

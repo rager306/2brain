@@ -1,5 +1,5 @@
 title: "body: [use: self] forms a 1-cycle in the splice graph"
-spec_ref: "[[type-def body use::au-type-system]]"
+spec_ref: "[[type-def body use::tb-type-system]]"
 command: graph
 expected:
   codes:

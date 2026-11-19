@@ -1,5 +1,5 @@
 title: "A `#:` comment attached to no declaration warns"
-spec_ref: "[[type docstring::au-type-system]]"
+spec_ref: "[[type docstring::tb-type-system]]"
 command: validate
 expected:
   codes:

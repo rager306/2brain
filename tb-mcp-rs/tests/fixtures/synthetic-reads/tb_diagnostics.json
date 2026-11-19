@@ -12,7 +12,7 @@
         "message": "engine-schema file carries no written `type:`; the kind assigns the floor `tb.engine.repo::tb-engine` regardless, but the file does not self-describe on disk",
         "severity": "drift",
         "span": {
-          "file": "$FIXTURE/fixture/.arsumbris/repo.yaml",
+          "file": "$FIXTURE/fixture/.2brain/repo.yaml",
           "line_col": {
             "end": {
               "col": 1,
@@ -37,7 +37,7 @@
         "message": "repo 'fixture' has no README.md at its root; a repo self-describes through a root README.md",
         "severity": "warning",
         "span": {
-          "file": "$FIXTURE/fixture/.arsumbris/repo.yaml",
+          "file": "$FIXTURE/fixture/.2brain/repo.yaml",
           "line_col": {
             "end": {
               "col": 1,

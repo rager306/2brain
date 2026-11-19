@@ -10,7 +10,7 @@
       "paths": [
         {
           "action": "delete",
-          "path": ".arsumbris/repo.yaml",
+          "path": ".2brain/repo.yaml",
           "state": "clean"
         },
         {

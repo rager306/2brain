@@ -45,7 +45,7 @@ fn main() {
         .or_else(|| git(crate_dir, &["rev-parse", "--short=12", "HEAD"]))
         .unwrap_or_else(|| "unknown".to_owned());
     // Only this crate's own files count: another repository's changes are not
-    // this binary's business, and `au-engine` lives beside it.
+    // this binary's business, and `tb-engine` lives beside it.
     let dirty = match git(
         crate_dir,
         &["status", "--porcelain", "--", ".", ":(exclude)target"],

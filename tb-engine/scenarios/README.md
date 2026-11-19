@@ -25,7 +25,7 @@ Slugs are descriptive (e.g. `url-clean`, `sealed-family`) — no numeric prefix.
 
 ```yaml
 title: "Human-readable one-liner"
-spec_ref: "[[type-def sealed::au-type-system]]"   # atom(s) the scenario illustrates
+spec_ref: "[[type-def sealed::tb-type-system]]"   # atom(s) the scenario illustrates
 command: validate           # validate | graph | candidates | candidate_counts | subtypes | types
 base: note                  # for `command: subtypes` only — the base type
 repo: app                   # optional, for `command: types` — scope to one member

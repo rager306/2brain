@@ -141,7 +141,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/cross-repo-body-slot-mismatch/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-body-slot-mismatch/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -160,7 +160,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-body-slot-mismatch/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/cross-repo-body-slot-mismatch/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -239,7 +239,7 @@ expression: rendered
                         },
                         "start": 10
                       },
-                      "file": "<root>/scenarios/cross-repo-body-slot-mismatch/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/cross-repo-body-slot-mismatch/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -272,7 +272,7 @@ expression: rendered
                         },
                         "start": 44
                       },
-                      "file": "<root>/scenarios/cross-repo-body-slot-mismatch/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/cross-repo-body-slot-mismatch/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -305,7 +305,7 @@ expression: rendered
                         },
                         "start": 53
                       },
-                      "file": "<root>/scenarios/cross-repo-body-slot-mismatch/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/cross-repo-body-slot-mismatch/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -324,7 +324,7 @@ expression: rendered
             "field": "edit"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-body-slot-mismatch/.arsumbris/workspace.yaml",
+        "file": "<root>/scenarios/cross-repo-body-slot-mismatch/.2brain/workspace.yaml",
         "section_presence": null
       },
       {
@@ -418,7 +418,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/cross-repo-body-slot-mismatch/app/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-body-slot-mismatch/app/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -437,7 +437,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-body-slot-mismatch/app/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/cross-repo-body-slot-mismatch/app/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -631,7 +631,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/cross-repo-body-slot-mismatch/base/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-body-slot-mismatch/base/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -650,7 +650,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-body-slot-mismatch/base/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/cross-repo-body-slot-mismatch/base/.2brain/repo.yaml",
         "section_presence": null
       },
       {

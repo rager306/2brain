@@ -10,12 +10,12 @@ side). It is the justification that was written before the change, not a descrip
 ## What "retire" means
 
 Today the production vault is served by two stacks side by side: the engine daemon
-plus the Node `au-mcp` package, reached through the Python `au-mcp-bridge` (this is what
-`~/.hermes/config.yaml` points at), and the Rust adapter `au-mcp-rs` over the same engine
-socket. Phase D removes the Node side: `au-mcp`, `au-mcp-core`, `au-mcp-sdk`,
+plus the Node `tb-mcp` package, reached through the Python `au-mcp-bridge` (this is what
+`~/.hermes/config.yaml` points at), and the Rust adapter `tb-mcp-rs` over the same engine
+socket. Phase D removes the Node side: `tb-mcp`, `tb-mcp-core`, `tb-mcp-sdk`,
 `au-type-codegen`, `au-engine-sdk`, `au-mcp-bridge`, and both client adapters.
 
-The engine is untouched by any of this. `au-engine` is the writer and the authority in
+The engine is untouched by any of this. `tb-engine` is the writer and the authority in
 both worlds; what changes is the door in front of it.
 
 ## What must be true before the first package is deleted
@@ -44,7 +44,7 @@ this document:
    Cheapest, and **measured on 2026-11-15: nothing declares one**. `/root/vault` has no
    `workspace.yaml`, no `plugins:` key in any YAML, and no `*mcp.tool*` or `*plugin*`
    file outside prose in `knowledge/`; `.arsumbris/repo.yaml` composes one dependency
-   (`mcp-bundle`) and no extensions. The `mcp.tool.*` types in `au-mcp-core/src`
+   (`mcp-bundle`) and no extensions. The `mcp.tool.*` types in `tb-mcp-core/src`
    are the daemon's own tool definitions, not workspace plugins.
 2. **Process-per-plugin**: a plugin is an external MCP server the client launches, and
    the workspace declares its command instead of its module. Keeps extensibility,
@@ -64,7 +64,7 @@ Each step is independently revertible, and each is a commit that can be reverted
 2. Run the full verification set against the live vault: the eleven-read A/B, client
    matrix, one model turn per client. This is where "parity" stops being a fixture.
 3. Remove `au-mcp-bridge` from the served path; keep the directory until step 4.
-4. Delete `au-mcp`, `au-mcp-core`, `au-mcp-sdk`, `au-type-codegen`, `au-engine-sdk`,
+4. Delete `tb-mcp`, `tb-mcp-core`, `tb-mcp-sdk`, `au-type-codegen`, `au-engine-sdk`,
    `au-mcp-adapter-*` from the bundle in one commit, with the plugin decision recorded.
 5. Regenerate `docs/runtime-map.md` for the two-module world.
 

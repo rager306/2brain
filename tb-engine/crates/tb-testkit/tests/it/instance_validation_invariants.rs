@@ -132,7 +132,7 @@ fn validate_is_idempotent_on_its_own_input() {
 #[test]
 fn builders_produce_validatable_instances() {
     // Smoke test that the testkit builders themselves don't drift from the
-    // au-core API surface.
+    // tb-core API surface.
     let g = build_graph(vec![type_def_with_fields("note", &[], &["description"])]).graph;
     let inst = instance_bare(
         "note",

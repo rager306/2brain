@@ -8,7 +8,7 @@
 //!
 //! `mcp` and `info` take a *target* rather than a socket: a path ending in
 //! `.sock` is used as given, anything else is a workspace entry, and the socket
-//! is derived exactly as `au daemon start` derives it. A client configuration can
+//! is derived exactly as `tb-engine daemon start` derives it. A client configuration can
 //! therefore say `2brain mcp /root/vault` and never carry a hash that changes
 //! with the entry path.
 
@@ -23,7 +23,7 @@ use clap::{Parser, Subcommand};
     about = "2brain engine daemon, MCP server, workspace init and doctor",
     long_about = "One binary for both halves: serve a typed-markdown workspace over the engine wire, \
 or expose it to agents over MCP. The engine commands behave exactly like `au`; the MCP command \
-behaves exactly like the `au-mcp-rs` binary."
+behaves exactly like the `tb-mcp-rs` binary."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -32,14 +32,14 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Run and manage the per-workspace engine daemon (same as `au daemon`).
+    /// Run and manage the per-workspace engine daemon (same as `tb-engine daemon`).
     Daemon {
         #[command(subcommand)]
         command: DaemonCommand,
     },
-    /// Open a named workspace from the user's workspace index (same as `au open`).
+    /// Open a named workspace from the user's workspace index (same as `tb-engine open`).
     Open {
-        /// The workspace name from `~/.arsumbris/au-engine/config/workspaces.yaml`.
+        /// The workspace name from `<state root>/engine/config/workspaces.yaml`.
         name: String,
     },
     /// Create a workspace here and print the one command that starts it.
@@ -71,7 +71,7 @@ enum Command {
         #[arg(default_value = ".")]
         target: PathBuf,
     },
-    /// Show a workspace's resolved members without a daemon (same as `au members`).
+    /// Show a workspace's resolved members without a daemon (same as `tb-engine members`).
     Members {
         /// The entry: a folder-repo directory. Defaults to the current directory.
         #[arg(default_value = ".")]
@@ -91,9 +91,9 @@ enum Command {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         arguments: Vec<String>,
     },
-    /// Migrate a tree to the current on-disk identity (same as `au migrate identity`).
+    /// Migrate a tree to the current on-disk identity (same as `tb-engine migrate identity`).
     ///
-    /// Rewrites the identity directory to `.2brain/` and the release-1 `au.engine.*` claims to
+    /// Rewrites the identity directory to `.2brain/` and the release-1 `tb.engine.*` claims to
     /// their canonical names, one commit per repository. Prints the plan and writes nothing
     /// unless `--apply` is given. This is the one engine subcommand the binary re-exports,
     /// because a workspace owner who has only `2brain` cannot reach it otherwise.
@@ -106,7 +106,7 @@ enum Command {
         /// A `.sock` path, or a workspace entry whose socket is derived.
         target: Option<PathBuf>,
     },
-    /// Serve over MCP on stdio with the same flags as the `au-mcp-rs` binary.
+    /// Serve over MCP on stdio with the same flags as the `tb-mcp-rs` binary.
     ///
     /// Kept so an existing configuration can point at `2brain` by replacing
     /// only the command name.
@@ -120,7 +120,7 @@ enum Command {
 
 #[derive(Subcommand)]
 enum MigrateCommand {
-    /// The on-disk identity: `.arsumbris/` to `.2brain/`, `au.engine.*` to `tb.engine.*`.
+    /// The on-disk identity: `.2brain/` to `.2brain/`, `tb.engine.*` to `tb.engine.*`.
     Identity {
         /// Print the plan and write nothing.
         #[arg(long)]

@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Decide whether a constraint needs guidance or an enforced check.
 rule: Put a required invariant in the execution path that controls the action. A script named in skill prose still depends on the agent invoking it.
 ---
@@ -24,7 +24,7 @@ A script invoked only at the agent's discretion can be skipped.
 Check the mechanism's scope and failure behavior.
 An observer records events but does not prevent them.
 A successful validation establishes only what its checks cover.
-[[pick-the-vehicle::au-agent-guides]] distinguishes the runtime mechanisms.
+[[pick-the-vehicle::tb-agent-guides]] distinguishes the runtime mechanisms.
 
 **Combine them**
 

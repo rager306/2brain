@@ -2,7 +2,7 @@
 type: guide.gotcha
 goal: "Declare the engine access a tool needs."
 rule: "Request the smallest broker capability the implementation uses, and distinguish that scope from process isolation."
-about: "[[tool-access-meta::au-mcp-sdk]]"
+about: "[[tool-access-meta::tb-mcp-sdk]]"
 example:
 ---
 
@@ -15,7 +15,7 @@ Request the smallest broker capability the implementation needs:
 - Use read-write for governed mutations
 
 The default is none.
-[[mcp.tool.au_agent_guide::au-agent-guides:example]] requests read access to discover and retrieve guides.
+[[mcp.tool.tb_agent_guide::tb-agent-guides:example]] requests read access to discover and retrieve guides.
 Compare the declaration with the implementation.
 
 **Declare potential access accurately**

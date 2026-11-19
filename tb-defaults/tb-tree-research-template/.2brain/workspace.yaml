@@ -1,0 +1,6 @@
+type: tb.engine.workspace::tb-engine
+edit:
+  - tb-tree-research-template
+discover:
+  - mcp-bundle
+  - host-bundle

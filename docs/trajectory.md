@@ -27,6 +27,35 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-19 — the old name is gone, and the window with it
+
+The finishing pass ADR-0005 called for, executed in one commit because the identity name is a join
+key: a `deps: - name:` that does not match a member's `name:` is a build error, and a wikilink that
+does not resolve is a diagnostic, so there is no partial state that compiles.
+
+**What moved.** 16 repository identities (`name: au-*` -> `tb-*`), 79 dependency entries, the three
+`au-*-template` directories, 1 561 wikilinks, 306 `au.engine.*` claims, 288 `.arsumbris/` directories
+(12 identities and 276 scenario fixtures), the state runtime directory (`au-engine` -> `engine`), and
+the engine binary (`au` -> `tb-engine`). The served vault carried **0** `::au-*` links, so the link
+remap touched the repository only.
+
+**What was deleted, which is what makes it irreversible.** `LEGACY_IDENTITY_DIR`,
+`LEGACY_STATE_DIR`, `LEGACY_ENGINE_NAMESPACE`, `LEGACY_BUILTIN_ENGINE_REPO`, `LEGACY_RESOURCE_SCHEME`,
+the schema canonicaliser, the `engine-schema-legacy-spelling` advisory, and the 396-line claim
+rewriter. `migrate identity` is now a check, not a rewrite. Negative tests prove the old spelling
+fails — written with `concat!` so the literal does not survive in the tree.
+
+**Two traps the pass exposed**, both worth remembering. A blanket replace of a legacy literal
+*inverts* a test that asserted its absence (`!contains("au.engine.")` becomes
+`!contains("tb.engine.")`, which contradicts the next assertion); the fix is to build the old string
+from parts, not to delete the test. And renaming the *input* of a published FNV content-hash vector
+changes the expected hash, so the vector must be recomputed, not carried over.
+
+**Measured result.** `tools/kb/legacy_audit.py --check`: 0 live, 0 format, 0 content, 0 `.arsumbris`
+directories; 895 history and 3 lineage remain, by design. Gates: engine `--lib` 744 / 1 known
+root-only, `--test it` 744 / 3 known, `tb-cli --test it` 24 / 0, adapter 267 / 0 in 46 suites, fmt and
+clippy clean in both halves, docs links 815 / 0.
+
 ## 2026-11-19 — the name in the places that are read, and a shutdown ack that raced
 
 The follow-up to the measurement below: the inventory was sorted by **who reads the string**, and the

@@ -12,7 +12,7 @@ expression: rendered
       "message": "nested repo 'pkg' is not a declared member; its subtree is skipped and contributes nothing",
       "severity": "warning",
       "span": {
-        "file": "<root>/scenarios/undeclared-nested-repo/pkg/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/undeclared-nested-repo/pkg/.2brain/repo.yaml",
         "range": {
           "end": 0,
           "start": 0
@@ -115,7 +115,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/undeclared-nested-repo/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/undeclared-nested-repo/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -134,7 +134,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/undeclared-nested-repo/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/undeclared-nested-repo/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -213,7 +213,7 @@ expression: rendered
                         },
                         "start": 10
                       },
-                      "file": "<root>/scenarios/undeclared-nested-repo/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/undeclared-nested-repo/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -232,7 +232,7 @@ expression: rendered
             "field": "edit"
           }
         ],
-        "file": "<root>/scenarios/undeclared-nested-repo/.arsumbris/workspace.yaml",
+        "file": "<root>/scenarios/undeclared-nested-repo/.2brain/workspace.yaml",
         "section_presence": null
       },
       {

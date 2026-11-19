@@ -1,20 +1,20 @@
-//! The au-engine integration suite as one linked binary.
+//! The tb-engine integration suite as one linked binary.
 //!
 //! Every former `tests/<name>.rs` is a submodule here, so a core/engine edit
 //! relinks one binary instead of ~32. Run one former file with
-//! `cargo test -p au-engine --test it <name>::`.
+//! `cargo test -p tb-engine --test it <name>::`.
 
 /// Make a directory a folder-repo: the engine's entry MUST carry a valid, named
-/// `.arsumbris/repo.yaml`, else `build` refuses it. A single-repo fixture seeds
+/// `.2brain/repo.yaml`, else `build` refuses it. A single-repo fixture seeds
 /// its build root with this; a multi-repo fixture also writes a
-/// `.arsumbris/workspace.yaml` composing its members. Idempotent.
+/// `.2brain/workspace.yaml` composing its members. Idempotent.
 #[allow(dead_code)]
 pub fn seed_repo(root: &std::path::Path) {
-    std::fs::create_dir_all(root.join(".arsumbris")).unwrap();
+    std::fs::create_dir_all(root.join(".2brain")).unwrap();
     // Self-describe so the seeded repo.yaml carries no `engine-schema-type-unwritten`
     // drift, matching the engine-writer norm.
     std::fs::write(
-        root.join(".arsumbris/repo.yaml"),
+        root.join(".2brain/repo.yaml"),
         "name: v\ntype: tb.engine.repo::tb-engine\n",
     )
     .unwrap();
@@ -38,7 +38,7 @@ pub fn seed_readme(root: &std::path::Path) {
 }
 
 /// Like [`seed_repo`] but the entry composes the named `members` (each a repo
-/// subdirectory) via `.arsumbris/workspace.yaml`, listing the entry (`v`) plus
+/// subdirectory) via `.2brain/workspace.yaml`, listing the entry (`v`) plus
 /// the members in `edit`. For a multi-repo fixture whose entry is the parent of
 /// its member repos.
 #[allow(dead_code)]
@@ -49,7 +49,7 @@ pub fn seed_workspace(root: &std::path::Path, members: &[&str]) {
         edit.push_str(&format!("  - {m}\n"));
     }
     edit.push_str("type: tb.engine.workspace::tb-engine\n");
-    std::fs::write(root.join(".arsumbris/workspace.yaml"), edit).unwrap();
+    std::fs::write(root.join(".2brain/workspace.yaml"), edit).unwrap();
 }
 
 mod backlinks;

@@ -12,7 +12,7 @@ expression: rendered
       "message": "engine-schema file writes a `type:` whose closure omits the kind's floor `tb.engine.repo::tb-engine`; the written claim names the wrong kind",
       "severity": "error",
       "span": {
-        "file": "<root>/scenarios/engine-schema-type-floor-omitted/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/engine-schema-type-floor-omitted/.2brain/repo.yaml",
         "line_col": {
           "end": {
             "col": 37,
@@ -110,7 +110,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/engine-schema-type-floor-omitted/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/engine-schema-type-floor-omitted/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -129,7 +129,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/engine-schema-type-floor-omitted/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/engine-schema-type-floor-omitted/.2brain/repo.yaml",
         "section_presence": null
       }
     ]

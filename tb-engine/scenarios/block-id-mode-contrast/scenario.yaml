@@ -1,5 +1,5 @@
 title: "Same plain block, two sigils: bare `^` is a clean file-referent, `^^` fires block-id-not-typed"
-spec_ref: "[[type block-id::au-type-system]], [[decision - 2607061142 - bare block-id in a typed slot is navigational, double-caret marks a block-referent value]]"
+spec_ref: "[[type block-id::tb-type-system]], [[decision - 2607061142 - bare block-id in a typed slot is navigational, double-caret marks a block-referent value]]"
 command: validate
 expected:
   codes:

@@ -1,5 +1,5 @@
 title: "Section `fills!: f` with a contribution to a different field fires fills-contract-exceeded"
-spec_ref: "[[type-def body fills::au-type-system]]"
+spec_ref: "[[type-def body fills::tb-type-system]]"
 command: validate
 expected:
   codes:

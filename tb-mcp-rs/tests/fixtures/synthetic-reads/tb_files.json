@@ -7,7 +7,7 @@
     "files": [
       {
         "kind": "instance",
-        "path": "$FIXTURE/fixture/.arsumbris/repo.yaml",
+        "path": "$FIXTURE/fixture/.2brain/repo.yaml",
         "repo": "fixture",
         "stem": "repo"
       },

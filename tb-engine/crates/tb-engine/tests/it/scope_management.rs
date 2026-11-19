@@ -28,7 +28,7 @@ fn fixture() -> (tempfile::TempDir, PathBuf) {
     w("keep.md", "---\ntype: note\ntitle: K\n---\n");
     w("docs/guide.md", "---\ntype: note\ntitle: G\n---\n");
     w("node_modules/pkg/index.js", "x");
-    w(".arsumbris/.auignore", "docs/\n");
+    w(".2brain/.auignore", "docs/\n");
     // A git tree so `set_ignores` commits, the same as the mutation e2e paths.
     git(&root, &["init", "-q"]);
     git(&root, &["config", "user.email", "t@t"]);
@@ -81,7 +81,7 @@ fn ignores_returns_patterns_defaults_and_floor() {
     let resp = h.client.query(&json!({ "read": "ignores" })).unwrap();
     assert_eq!(resp["ready"], true);
     let members = resp["result"]["ignores"].as_array().unwrap();
-    // The au-engine builtin repo (and, in a real workspace, every mounted dependency) surfaces its own ignores member here too; select the knowledge base's own member. On-demand hiding is tracked in the todo.
+    // The tb-engine builtin repo (and, in a real workspace, every mounted dependency) surfaces its own ignores member here too; select the knowledge base's own member. On-demand hiding is tracked in the todo.
     let m = members
         .iter()
         .find(|m| m["root"] == h.root.display().to_string())
@@ -89,7 +89,7 @@ fn ignores_returns_patterns_defaults_and_floor() {
     assert_eq!(m["root"], h.root.display().to_string());
     assert_eq!(m["patterns"], json!(["docs/"]));
     assert_eq!(m["default_excludes"], json!(["node_modules", "target"]));
-    assert_eq!(m["floor"], json!([".git", ".2brain", ".arsumbris"]));
+    assert_eq!(m["floor"], json!([".git", ".2brain"]));
     // No `resolve`, no boundary effect on the wire.
     assert!(m.get("resolved").is_none() || m["resolved"].is_null());
 }
@@ -135,7 +135,7 @@ fn set_ignores_writes_commits_and_rescopes() {
     assert!(resp["result"]["commit"].is_string());
 
     // The file on disk is the new list, one pattern per line.
-    let written = fs::read_to_string(h.root.join(".arsumbris/.auignore")).unwrap();
+    let written = fs::read_to_string(h.root.join(".2brain/.auignore")).unwrap();
     assert_eq!(written, "node_modules/\nkeep.md\n");
 
     // The re-scope took effect: `keep.md` left the graph, `docs/guide.md` is
@@ -168,7 +168,7 @@ fn set_ignores_writes_commits_and_rescopes() {
 #[test]
 fn set_ignores_rejects_a_malformed_pattern_writing_nothing() {
     let mut h = started();
-    let before = fs::read_to_string(h.root.join(".arsumbris/.auignore")).unwrap();
+    let before = fs::read_to_string(h.root.join(".2brain/.auignore")).unwrap();
     // A lone backslash is not a valid gitignore glob; the governed path rejects
     // up front, unlike the file-write path's advisory degradation.
     let resp = h
@@ -181,7 +181,7 @@ fn set_ignores_rejects_a_malformed_pattern_writing_nothing() {
         .unwrap();
     assert_eq!(resp["type"], "error", "resp: {resp}");
     // Nothing was written: the file is byte-for-byte unchanged.
-    let after = fs::read_to_string(h.root.join(".arsumbris/.auignore")).unwrap();
+    let after = fs::read_to_string(h.root.join(".2brain/.auignore")).unwrap();
     assert_eq!(before, after, "a rejected mutation writes nothing");
 }
 
@@ -198,7 +198,7 @@ fn set_ignores_empty_removes_the_file() {
         .unwrap();
     assert_eq!(resp["ready"], true, "resp: {resp}");
     assert!(
-        !h.root.join(".arsumbris/.auignore").exists(),
+        !h.root.join(".2brain/.auignore").exists(),
         "empty patterns remove the file"
     );
     // The member reverts to the default excludes: `docs/` is back in the graph.
@@ -212,13 +212,13 @@ fn set_ignores_empty_removes_the_file() {
 #[test]
 fn raw_write_file_to_auignore_still_rejects() {
     let mut h = started();
-    // The `.arsumbris/` write-guard holds for the generic verbs: only
+    // The `.2brain/` write-guard holds for the generic verbs: only
     // `set_ignores` may write the `.auignore`.
     let resp = h
         .client
         .query(&json!({
             "mutate": "write_file",
-            "path": ".arsumbris/.auignore",
+            "path": ".2brain/.auignore",
             "content": "sneaky/\n",
         }))
         .unwrap();

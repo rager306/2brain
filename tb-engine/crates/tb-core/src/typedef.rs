@@ -40,7 +40,7 @@ impl FieldName {
 /// `::repo` peer qualifier ([[design - cross-repo type vocabulary - reference import and vendor as one spectrum over the repo qualifier]]):
 /// `None` is a name in the authoring repo's own graph (bare `foo`), `Some(r)` a
 /// peer's type (`foo::r`). A name can never legally contain `:`, so the parser
-/// splits on the first `::`. au-core resolves only own (unqualified) claims;
+/// splits on the first `::`. tb-core resolves only own (unqualified) claims;
 /// a qualified claim is deferred to the cross-repo fold, the engine gates its
 /// peer reference. The verbatim repo string is held as-is; the engine validates
 /// it against the declared peers.
@@ -76,14 +76,14 @@ impl TypeNameClaim {
         }
     }
 
-    /// True when the claim carries a `::repo` peer qualifier, so au-core defers
+    /// True when the claim carries a `::repo` peer qualifier, so tb-core defers
     /// its resolution to the cross-repo fold.
     pub fn is_qualified(&self) -> bool {
         self.repo.is_some()
     }
 
     /// The claim in authored form: `name` for an own claim, `name::repo` for a
-    /// qualified one. This is the verbatim served-string form ([[spec - diagnostic codes::au-type-system]]
+    /// qualified one. This is the verbatim served-string form ([[spec - diagnostic codes::tb-type-system]]
     /// aside, WIRE §270-274): a `::repo` type name reaches the wire unstripped,
     /// symmetric with the meta and body-`use` surfaces.
     pub fn authored(&self) -> String {
@@ -116,7 +116,7 @@ pub struct FieldDecl {
     pub name_span: ByteRange,
     pub shape_span: ByteRange,
     pub entry_span: ByteRange,
-    /// au-grammar's parse of `raw_shape`, computed once at parse time. `Err`
+    /// tb-grammar's parse of `raw_shape`, computed once at parse time. `Err`
     /// here does NOT surface at graph load — it is held until the validator
     /// processes an instance field of this declaration (lazy surfacing). The
     /// diagnostic carries the type-def's `shape_span`; the validator wraps it
@@ -124,7 +124,7 @@ pub struct FieldDecl {
     pub parsed_shape: Result<Shape, Diagnostic>,
     /// Optional `#:` docstring on this field declaration, captured by the
     /// docstring side-pass. Advisory, never validated, excluded from the
-    /// canonical hash. See [[type docstring::au-type-system]].
+    /// canonical hash. See [[type docstring::tb-type-system]].
     pub doc: Option<String>,
 }
 
@@ -190,16 +190,16 @@ pub struct MetaBlock {
     /// body-only later if diagnostic precision warrants.
     pub body_span: ByteRange,
     /// The block's own `#:` head docstring, a leading `#:` block before its
-    /// first key, `None` when absent. Advisory, see [[type docstring::au-type-system]].
+    /// first key, `None` when absent. Advisory, see [[type docstring::tb-type-system]].
     pub doc: Option<String>,
     /// Per-field `#:` docstrings of the meta body, keyed by field key. Only
     /// documented fields appear. Advisory.
     pub field_docs: std::collections::BTreeMap<String, String>,
 }
 
-/// `meta_blocks` is `Option<Vec<MetaBlock>>` to distinguish spec [[type-def meta::au-type-system]]'s three
+/// `meta_blocks` is `Option<Vec<MetaBlock>>` to distinguish spec [[type-def meta::tb-type-system]]'s three
 /// states:
-/// - `None` → `meta:` key absent. Consumer walks ([[type-def meta::au-type-system]]) flow to ancestors.
+/// - `None` → `meta:` key absent. Consumer walks ([[type-def meta::tb-type-system]]) flow to ancestors.
 /// - `Some(vec![])` → explicit `meta: []`. Suppression marker — walks halt here.
 /// - `Some(vec![..])` → declared sub-regions.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -213,7 +213,7 @@ pub struct TypeDef {
     /// A brand's underlying shape, `Some` when the def declares `shape:` instead
     /// of `fields:`, naming a scalar, named enum, named union, or tuple as a
     /// reusable type. A def is a brand XOR a record, enforced in `load_checks`.
-    /// See [[type-def::au-type-system]] and
+    /// See [[type-def::tb-type-system]] and
     /// [[spec - branded types - the shape key names a reusable scalar, enum, union, or tuple]].
     pub shape: Option<BrandShape>,
     pub sealed: Vec<TypeNameClaim>,
@@ -231,13 +231,13 @@ pub struct TypeDef {
     /// no `required:` item. Distinct from `meta_blocks`, which holds descriptive
     /// value blocks; a `required:` item carries an obligation, not a value.
     pub required_meta: Vec<TypeNameClaim>,
-    /// Body template per [[type-def body::au-type-system]]. `None` → key absent; `Some(vec![])` → empty
+    /// Body template per [[type-def body::tb-type-system]]. `None` → key absent; `Some(vec![])` → empty
     /// `body: []` (treated like absent for behavior); `Some(non-empty)` →
-    /// declared template, type-def becomes markdown-only per [[type-def body::au-type-system]].
+    /// declared template, type-def becomes markdown-only per [[type-def body::tb-type-system]].
     pub body: Option<crate::body::BodyTemplate>,
     /// Optional `#:` docstring for the type-def itself: a leading `#:` block
     /// before the first top-level key. Advisory, never validated, excluded from
-    /// the canonical hash. See [[type docstring::au-type-system]].
+    /// the canonical hash. See [[type docstring::tb-type-system]].
     pub doc: Option<String>,
     /// Optional `location:` block constraining where this type's instances live
     /// ([[spec - location constraints - a name template and path predicate as an advisory placement meet]]).
@@ -259,7 +259,7 @@ pub struct BrandShape {
     /// Per-enum-member `#:` docstrings, keyed by the member literal. Empty for a
     /// non-enum brand and for a docless enum. Advisory, recovered by a side pass
     /// and excluded from the canonical hash, like every docstring. See
-    /// [[type docstring::au-type-system]].
+    /// [[type docstring::tb-type-system]].
     pub member_docs: BTreeMap<String, String>,
     /// The `shape:` value span, for diagnostics and per-member doc recovery.
     pub span: ByteRange,
@@ -303,7 +303,7 @@ pub struct ParseResult {
 /// `*.type.yaml` / `*.type.yml` file; see [`tb_parser::classify_by_path`]). For a
 /// non-type-def yaml path the result is
 /// just its stem, which callers may rely on — a plain `.yaml` instance's derived
-/// name equals its stem, so au-engine's rename spelling logic reads the same
+/// name equals its stem, so tb-engine's rename spelling logic reads the same
 /// value whether it treats the path as a type-def or not.
 pub fn type_name_from_path(path: &Path) -> Option<TypeName> {
     let file_name = path.file_name()?.to_string_lossy().into_owned();
@@ -364,11 +364,11 @@ pub fn parse_type_def(
     let mut parents: Vec<TypeNameClaim> = Vec::new();
     let mut fields: Vec<FieldDecl> = Vec::new();
     let mut sealed: Vec<TypeNameClaim> = Vec::new();
-    // The `abstract: true` marker; false until seen, see [[type-def sealed::au-type-system]] for
+    // The `abstract: true` marker; false until seen, see [[type-def sealed::tb-type-system]] for
     // the sealed-implies-abstract factoring resolved in the graph predicate.
     let mut declared_abstract = false;
     // `None` until a `meta:` key is seen; `Some(vec![])` for explicit
-    // `meta: []` ([[type-def meta::au-type-system]] suppression marker); `Some(vec![..])` once any
+    // `meta: []` ([[type-def meta::tb-type-system]] suppression marker); `Some(vec![..])` once any
     // sub-region parses. Sub-regions that fail to parse still leave the
     // outer Option populated — the user wrote `meta:`, so absence is wrong.
     let mut meta_blocks: Option<Vec<MetaBlock>> = None;
@@ -381,16 +381,16 @@ pub fn parse_type_def(
     // The `location:` block, `Some` once it parses. Advisory, out of the hash.
     let mut location: Option<crate::location::LocationSpec> = None;
     // First top-level key offset, the boundary for the type-def docstring: a
-    // leading `#:` block before it documents the def, see [[type docstring::au-type-system]].
+    // leading `#:` block before it documents the def, see [[type docstring::tb-type-system]].
     let mut first_key_offset: Option<usize> = None;
     // Byte ranges the docstring side-pass skips. `meta:` and `body:` values
     // hold free-form text a user may write as a YAML block scalar, where a
     // `#:`-looking line is prose, not a doc comment. Docstrings attach only to
     // the type-def head and field declarations, so excluding these ranges keeps
-    // capture correct without block-scalar lexing. See [[type docstring::au-type-system]].
+    // capture correct without block-scalar lexing. See [[type docstring::tb-type-system]].
     let mut doc_skip_ranges: Vec<ByteRange> = Vec::new();
     // Navigational links captured from the type-def's `#:` docstrings, the head
-    // and fields pass plus the separate meta-block pass. See [[type docstring::au-type-system]].
+    // and fields pass plus the separate meta-block pass. See [[type docstring::tb-type-system]].
     let mut doc_links: Vec<crate::instance::DocstringLink> = Vec::new();
 
     for (key, value) in mapping.iter() {
@@ -423,7 +423,7 @@ pub fn parse_type_def(
                             value_span,
                         });
                         // Empty parent list (`type: []`) is rejected at parse
-                        // time per [[type list form::au-type-system]]. Reuses
+                        // time per [[type list form::tb-type-system]]. Reuses
                         // PARENT_CLAIM_BAD_SHAPE so callers see a single
                         // claim-shape error rather than a downstream surprise.
                         if items.is_empty() {
@@ -466,7 +466,7 @@ pub fn parse_type_def(
                 let value_span = span_to_byte_range(source, yaml_offset, value.span);
                 match &value.data {
                     // The canonical form: a map keyed by field name. An empty
-                    // `{}` is a [[type tag::au-type-system]], the same as omitting `fields:`.
+                    // `{}` is a [[type tag::tb-type-system]], the same as omitting `fields:`.
                     YamlData::Mapping(m) => {
                         let mut direct_key_ranges: Vec<ByteRange> = Vec::new();
                         for (key, val) in m.iter() {
@@ -609,7 +609,7 @@ pub fn parse_type_def(
                     continue;
                 };
                 if items.is_empty() {
-                    // Explicit `meta: []` — the [[type-def meta::au-type-system]] suppression marker.
+                    // Explicit `meta: []` — the [[type-def meta::tb-type-system]] suppression marker.
                     meta_blocks.get_or_insert_with(Vec::new);
                 } else {
                     // Buffer locally so a list whose sub-regions all fail
@@ -715,7 +715,7 @@ pub fn parse_type_def(
                 // `type:` is almost always an `extends:` claim written with the
                 // wrong key. Fire a targeted error rather than dropping it as
                 // UNKNOWN_TOP_LEVEL_KEY, which would silently strip the parent
-                // and vanish its fields from every instance. See [[type-def extends::au-type-system]].
+                // and vanish its fields from every instance. See [[type-def extends::tb-type-system]].
                 diagnostics.push(diag(
                     codes::TYPE_KEY_ON_TYPE_DEF,
                     Severity::Error,
@@ -740,7 +740,7 @@ pub fn parse_type_def(
     }
 
     // Docstring side-pass: scan the type-def's source region for `#:` comments
-    // and attach them to field declarations or the type-def. See [[type docstring::au-type-system]].
+    // and attach them to field declarations or the type-def. See [[type docstring::tb-type-system]].
     // Region starts at `yaml_offset`, not `source_span.start`: the doc span
     // begins at the first node, so a leading `#:` block before the first key
     // (the type-def docstring) would otherwise fall outside the scan.
@@ -948,7 +948,7 @@ fn parse_brand_shape(
                 match scalar_string(item) {
                     Some(m) => {
                         // A member must match the enum-literal charset (the
-                        // [[type-def legal names::au-type-system]] token), the same rule the inline
+                        // [[type-def legal names::tb-type-system]] token), the same rule the inline
                         // enum grammar enforces. Without it a member with an
                         // embedded comma (`"a, b"`) survives, and two different
                         // member sets canonicalize to the same `[a, b, c]`
@@ -1000,7 +1000,7 @@ fn parse_brand_shape(
     }
 }
 
-/// Recover per-member `#:` docstrings for a named-enum brand ([[type docstring::au-type-system]]).
+/// Recover per-member `#:` docstrings for a named-enum brand ([[type docstring::tb-type-system]]).
 ///
 /// A TRAILING `#:` on a member's line documents that member, keyed by the member
 /// literal. The enum's HEAD doc is the type-def docstring, a `#:` block before
@@ -1044,7 +1044,7 @@ fn shape_err_to_diag(err: ShapeParseError, path: &Path, shape_span: ByteRange) -
 }
 
 /// Parse a `required:` meta item's value into obligation claims. The value is
-/// one meta type name or a list of names, per [[type list form::au-type-system]], each
+/// one meta type name or a list of names, per [[type list form::tb-type-system]], each
 /// `::repo`-qualifiable. A shape that is neither is `required-meta-bad-shape`.
 /// See [[spec - required subtype meta - a base obligates every concrete subtype to carry a named meta]].
 fn parse_required_meta_item(
@@ -1139,7 +1139,7 @@ fn parse_meta_block(
             None => (TypeName(s.to_string()), None),
         },
         YamlData::Sequence(_) => {
-            // Spec [[type-def meta::au-type-system]]: the meta sub-region's `type:` is single-name only.
+            // Spec [[type-def meta::tb-type-system]]: the meta sub-region's `type:` is single-name only.
             // The YAML-sequence arm catches both `type: [a, b]` (mixin form)
             // and `type: []` (empty list); the diagnostic message names
             // both so the corrective action is unambiguous regardless of
@@ -1235,7 +1235,7 @@ fn parse_meta_block(
 /// each block's head `#:` sits before its first key (between the `meta:` key
 /// or the previous block and this block's `type:`), and its span is greedy, so
 /// each block is bounded by its own content end. `lower` is the `meta:` key's
-/// end. See [[type docstring::au-type-system]] and the instance docstring pass.
+/// end. See [[type docstring::tb-type-system]] and the instance docstring pass.
 fn attach_meta_docs(
     path: &Path,
     source: &str,
@@ -1330,7 +1330,7 @@ pub(crate) fn doc_content_range(c: &DocComment) -> ByteRange {
 /// is not a comment. `skip` ranges (the `meta:` / `body:` values) are passed
 /// through inert: their bytes still advance line tracking, but no comment is
 /// captured there, so a `#:`-looking line inside a block scalar is not
-/// mis-read. See [[type docstring::au-type-system]].
+/// mis-read. See [[type docstring::tb-type-system]].
 pub(crate) fn scan_doc_comments(
     source: &str,
     start: usize,
@@ -1450,7 +1450,7 @@ pub(crate) fn scan_doc_comments(
 
 /// Attach `#:` docstrings to field declarations and the type-def. Returns the
 /// type-def's own doc (a leading block before the first key). A comment that
-/// binds to nothing fires `dangling-doc-comment`. See [[type docstring::au-type-system]].
+/// binds to nothing fires `dangling-doc-comment`. See [[type docstring::tb-type-system]].
 fn attach_docstrings(
     path: &Path,
     source: &str,
@@ -2271,7 +2271,7 @@ fields: {}
     fn type_key_on_type_def_is_diagnosed_not_dropped() {
         // A stray `type:` on a type-def (the identity key, misused for the
         // parent claim) fires a targeted error, never the silent-dropping
-        // unknown-top-level-key. See [[type-def extends::au-type-system]].
+        // unknown-top-level-key. See [[type-def extends::tb-type-system]].
         let res = parse_one("type: base\nfields: {}\n", "/v/c.type.yaml");
         let errs: Vec<_> = res
             .diagnostics
@@ -2493,7 +2493,7 @@ fields: {}
     fn hash_inside_meta_block_scalar_is_not_a_docstring() {
         // A `#:`-looking line inside a `meta:` block scalar is prose, not a doc
         // comment. The side-pass skips the `meta:` value range, so it neither
-        // mis-attaches to the following field nor dangles. See [[type docstring::au-type-system]].
+        // mis-attaches to the following field nor dangles. See [[type docstring::tb-type-system]].
         let src = "type: base\nmeta:\n  - type: descr-meta\n    text: |\n      first line\n      #: block-scalar prose, not a doc\nfields:\n  q: String\n";
         let res = parse_one(src, "/v/x.type.yaml");
         let td = res.type_def.as_ref().unwrap();
@@ -2572,7 +2572,7 @@ fields: {}
 
     #[test]
     fn meta_empty_list_is_suppression_marker() {
-        // Spec [[type-def meta::au-type-system]]: `meta: []` is a stop signal for the canonical lookup
+        // Spec [[type-def meta::tb-type-system]]: `meta: []` is a stop signal for the canonical lookup
         // walk — DISTINCT from absent `meta:`. Both shapes must be
         // representable so the walk helper can branch on which one fired.
         let res = parse_one("meta: []\n", "/v/x.type.yaml");
@@ -2599,7 +2599,7 @@ fields: {}
 
     #[test]
     fn meta_block_with_type_only_has_empty_body() {
-        // Spec [[type-def meta::au-type-system]]: an empty sub-region body (`- type: x` with no further
+        // Spec [[type-def meta::tb-type-system]]: an empty sub-region body (`- type: x` with no further
         // keys) is just an empty declaration of that named type-def — NOT
         // suppression. Body validation will require all of x's
         // fields to be optional; parsing succeeds either way.
@@ -2614,7 +2614,7 @@ fields: {}
 
     #[test]
     fn meta_block_type_list_emits_meta_mixin_not_supported() {
-        // Spec [[type-def meta::au-type-system]]: a meta sub-region's `type:` is single-name only —
+        // Spec [[type-def meta::tb-type-system]]: a meta sub-region's `type:` is single-name only —
         // mixin (`type: [a, b]`) is forbidden. Distinct code from
         // meta-block-bad-shape so the rule is greppable on its own.
         let res = parse_one(
@@ -2642,7 +2642,7 @@ fields: {}
 
     #[test]
     fn meta_block_empty_type_list_emits_meta_mixin_not_supported() {
-        // Spec [[type-def meta::au-type-system]] sequence-arm edge case: `type: []` (empty list) is
+        // Spec [[type-def meta::tb-type-system]] sequence-arm edge case: `type: []` (empty list) is
         // structurally a YAML sequence at the `type:` position — fires the
         // same code as mixin form. The shared diagnostic message names
         // both forms so users authoring either edge case see the rule.
@@ -2655,7 +2655,7 @@ fields: {}
         assert_eq!(mixin_diags.len(), 1);
         assert_eq!(mixin_diags[0].severity, Severity::Error);
         // Same reasoning as the sibling test above — the only sub-region
-        // failed to parse, so `meta_blocks` is `None`, not the [[type-def meta::au-type-system]]
+        // failed to parse, so `meta_blocks` is `None`, not the [[type-def meta::tb-type-system]]
         // suppression form.
         let td = res.type_def.unwrap();
         assert_eq!(td.meta_blocks, None);
@@ -2756,7 +2756,7 @@ fields: {}
     #[test]
     fn meta_with_only_bad_subregions_leaves_meta_blocks_none() {
         // `meta:` written with sub-regions that all fail to parse must NOT
-        // collapse to `Some(vec![])` — that's the [[type-def meta::au-type-system]] suppression state
+        // collapse to `Some(vec![])` — that's the [[type-def meta::tb-type-system]] suppression state
         // (explicit `meta: []`), and conflating the two shadows every
         // ancestor's meta in `effective_meta` because of authoring mistakes. With no
         // sub-regions parsed, the type-def is effectively as if `meta:`
@@ -2801,7 +2801,7 @@ fields: {}
         // Reserved keys (`fields:` / `sealed:` / `meta:`) inside a meta
         // sub-region body fire reserved-key-on-instance — the same rule that
         // protects inline values. Mirrors the inline-value behavior; the
-        // meta body is structurally a sub-instance per [[type-def meta::au-type-system]].
+        // meta body is structurally a sub-instance per [[type-def meta::tb-type-system]].
         let src = "meta:\n  - type: display-meta\n    fields:\n      x: String\n";
         let res = parse_one(src, "/v/x.type.yaml");
         assert!(
@@ -2819,7 +2819,7 @@ fields: {}
         assert_eq!(res.diagnostics[0].code.as_str(), "type-def-not-a-mapping");
     }
 
-    // ----- au-grammar integration -----
+    // ----- tb-grammar integration -----
 
     use tb_grammar::{Primitive, Shape};
 
@@ -2865,8 +2865,8 @@ fields:
 
     #[test]
     fn enum_shape_lands_as_ok_on_field_decl() {
-        // [[type-def shape enum::au-type-system]] inline closed enum. The field parse wires
-        // au-grammar's parse through `parse_field_entry`; verify the enum shape
+        // [[type-def shape enum::tb-type-system]] inline closed enum. The field parse wires
+        // tb-grammar's parse through `parse_field_entry`; verify the enum shape
         // carries through with no load-time diagnostic.
         let src = "fields:\n  priority: [low, moderate, high]\n";
         let res = parse_one(src, "/v/task.type.yaml");
@@ -2888,8 +2888,8 @@ fields:
 
     #[test]
     fn record_slot_shape_parses_as_record() {
-        // Bare-name record slots (spec [[type-def shape record::au-type-system]]) parse to `Shape::Record`
-        // — the inline-value entry point ([[type-def shape record::au-type-system]] case 1). au-core
+        // Bare-name record slots (spec [[type-def shape record::tb-type-system]]) parse to `Shape::Record`
+        // — the inline-value entry point ([[type-def shape record::tb-type-system]] case 1). tb-core
         // verifies the name exists in the type graph at load time.
         let src = "fields:\n  rationale: rationale\n";
         let res = parse_one(src, "/v/x.type.yaml");

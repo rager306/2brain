@@ -1,5 +1,5 @@
 title: "use: inside a nested body is rejected (top-level-only constraint)"
-spec_ref: "[[type-def body use::au-type-system]]"
+spec_ref: "[[type-def body use::tb-type-system]]"
 command: graph
 expected:
   codes:

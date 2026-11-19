@@ -1,13 +1,13 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Author and load a task skill from a native package.
 rule: Create a file instance of the skill contract, select it into the launch, and test both discovery and task use.
-about: "[[mcp.skill::au-mcp-sdk]]"
+about: "[[mcp.skill::tb-mcp-sdk]]"
 ---
 
 # Author a skill
 
-Create a markdown instance of [[mcp.skill::au-mcp-sdk]] in the owning package.
+Create a markdown instance of [[mcp.skill::tb-mcp-sdk]] in the owning package.
 
 Read the current fields.
 Supply a name and task description.
@@ -48,7 +48,7 @@ For a new skill or a delivery change, check:
 
 A saved skill edit reaches sessions through launch materialization.
 Reading its content does not establish that a running session uses it.
-[[a-skill-is-launch-static::au-agent-guides]] explains which delivery layer needs refreshing.
+[[a-skill-is-launch-static::tb-agent-guides]] explains which delivery layer needs refreshing.
 
 Test selection when the description or task boundary changes.
 For a body revision, check the affected behavior.

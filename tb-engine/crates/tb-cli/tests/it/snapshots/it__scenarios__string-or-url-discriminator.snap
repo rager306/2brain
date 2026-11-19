@@ -99,7 +99,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/string-or-url-discriminator/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/string-or-url-discriminator/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -118,7 +118,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/string-or-url-discriminator/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/string-or-url-discriminator/.2brain/repo.yaml",
         "section_presence": null
       },
       {

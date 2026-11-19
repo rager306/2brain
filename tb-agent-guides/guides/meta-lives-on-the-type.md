@@ -10,7 +10,7 @@ example:
 Put a type's runtime entry or presentation in its typed `meta:` blocks.
 A type-level consumer will not obtain them from similarly named instance fields, even if the engine preserves those extra values.
 
-[[mcp.tool.au_agent_guide::au-agent-guides:example]] declares call input in fields.
+[[mcp.tool.tb_agent_guide::tb-agent-guides:example]] declares call input in fields.
 Its metadata describes:
 
 - The module

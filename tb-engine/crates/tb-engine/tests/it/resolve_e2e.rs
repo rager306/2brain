@@ -7,7 +7,7 @@
 //! Every fixture is a tempdir, auto-removed on drop (including panic unwind), so
 //! the test creates everything under the system temp dir and cleans up after
 //! itself. The cache root and the registry remote are injected, so the test
-//! touches nothing global: not the real `~/.arsumbris` cache, not the org
+//! touches nothing global: not the real `~/.2brain` cache, not the org
 //! registry, not global git config (identities are set per repo).
 
 #![cfg(unix)]
@@ -52,8 +52,8 @@ fn member_repo(name: &str, type_name: &str) -> (tempfile::TempDir, String) {
         "fields:\n  title: String\n",
     )
     .unwrap();
-    fs::create_dir_all(p.join(".arsumbris")).unwrap();
-    fs::write(p.join(".arsumbris/repo.yaml"), format!("name: {name}\n")).unwrap();
+    fs::create_dir_all(p.join(".2brain")).unwrap();
+    fs::write(p.join(".2brain/repo.yaml"), format!("name: {name}\n")).unwrap();
     git(p, &["add", "-A"]);
     git(p, &["commit", "-q", "-m", "v1"]);
     let sha = git(p, &["rev-parse", "HEAD"]);
@@ -121,9 +121,9 @@ fn resolve_a_mixed_workspace_then_reopen_offline() {
         "fields:\n  title: String\n",
     )
     .unwrap();
-    fs::create_dir_all(ws.join("proj/.arsumbris")).unwrap();
+    fs::create_dir_all(ws.join("proj/.2brain")).unwrap();
     fs::write(
-        ws.join("proj/.arsumbris/repo.yaml"),
+        ws.join("proj/.2brain/repo.yaml"),
         format!(
             "name: proj\ndeps:\n  \
              - name: explicit-dep\n    remote: {}\n    ref: main\n  \
@@ -142,7 +142,7 @@ fn resolve_a_mixed_workspace_then_reopen_offline() {
 
     let before = git(&ws, &["rev-parse", "HEAD"]);
     // Point the daemon at the entry folder-repo directory: its
-    // `.arsumbris/workspace.yaml` declares the closure to resolve.
+    // `.2brain/workspace.yaml` declares the closure to resolve.
     let mut d = daemon(&ws, &cache_packages, &registry.path().to_string_lossy());
 
     // --- Resolve ---
@@ -195,7 +195,7 @@ fn resolve_a_mixed_workspace_then_reopen_offline() {
     assert_eq!(mem("named-dep")["local"], false);
 
     // --- proj's own lock committed into the enclosing git tree ---
-    // The dep lock moved per-repo: proj's `.arsumbris/repo.lock` pins its full
+    // The dep lock moved per-repo: proj's `.2brain/repo.lock` pins its full
     // fetched closure, committed into the git tree that holds it (here `ws`, since
     // the primary `proj` is a co-present subdir of the workspace git repo). The
     // `commits` map keys the sha by the editable repo.
@@ -204,7 +204,7 @@ fn resolve_a_mixed_workspace_then_reopen_offline() {
         .unwrap_or_else(|| panic!("a lock commit sha for proj: {resp}"));
     assert_ne!(git(&ws, &["rev-parse", "HEAD"]), before, "HEAD advanced");
     assert_eq!(git(&ws, &["rev-parse", "HEAD"]), commit);
-    let lock = git(&ws, &["show", "HEAD:proj/.arsumbris/repo.lock"]);
+    let lock = git(&ws, &["show", "HEAD:proj/.2brain/repo.lock"]);
     assert!(
         lock.contains(&explicit_sha) && lock.contains(&named_sha),
         "{lock}"
@@ -256,21 +256,21 @@ fn resolve_a_mixed_workspace_then_reopen_offline() {
 #[test]
 fn resolve_pins_a_discover_member_in_the_workspace_lock_and_reopens_offline() {
     // A `discover` member resolved by NAME through a fixture registry: resolve
-    // fetches it, pins it in the entry's `.arsumbris/workspace.lock` (committed
+    // fetches it, pins it in the entry's `.2brain/workspace.lock` (committed
     // into the entry git tree), and it mounts reproducibly offline. The
     // daemon-wire end-to-end pair to the pkgcache unit test of the same machinery.
     let (shared_src, shared_sha) = member_repo("shared", "sharedthing");
     let registry = registry_repo("shared", &shared_src.path().to_string_lossy());
 
     // The entry is a folder-repo git tree: a content-free `home` repo whose
-    // `.arsumbris/workspace.yaml` discovers `shared` (name-only, via the registry).
+    // `.2brain/workspace.yaml` discovers `shared` (name-only, via the registry).
     let ws_dir = tempfile::tempdir().unwrap();
     let ws = fs::canonicalize(ws_dir.path()).unwrap();
     init_repo(&ws);
-    fs::create_dir_all(ws.join(".arsumbris")).unwrap();
-    fs::write(ws.join(".arsumbris/repo.yaml"), "name: home\n").unwrap();
+    fs::create_dir_all(ws.join(".2brain")).unwrap();
+    fs::write(ws.join(".2brain/repo.yaml"), "name: home\n").unwrap();
     fs::write(
-        ws.join(".arsumbris/workspace.yaml"),
+        ws.join(".2brain/workspace.yaml"),
         "edit:\n  - home\ndiscover:\n  - shared\n",
     )
     .unwrap();
@@ -307,7 +307,7 @@ fn resolve_pins_a_discover_member_in_the_workspace_lock_and_reopens_offline() {
         .unwrap_or_else(|| panic!("a workspace.lock commit for the entry: {resp}"));
     assert_ne!(git(&ws, &["rev-parse", "HEAD"]), before, "HEAD advanced");
     assert_eq!(git(&ws, &["rev-parse", "HEAD"]), commit);
-    let lock = git(&ws, &["show", "HEAD:.arsumbris/workspace.lock"]);
+    let lock = git(&ws, &["show", "HEAD:.2brain/workspace.lock"]);
     assert!(
         lock.contains(&shared_sha),
         "the discover closure is pinned in workspace.lock: {lock}"

@@ -17,18 +17,10 @@ use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::path::Path;
 
 /// Directory names never walked, regardless of any user scoping. An identity
-/// directory (`.2brain/`, or `.arsumbris/` before a repository is migrated)
-/// holds the engine's own index / socket / lock / registry, `.git` is VCS
-/// internals. No `.auignore` pattern, negation included, reaches them.
-///
-/// Both spellings are on the floor at once so a half-migrated tree cannot have
-/// its new identity directory walked as content. Resolution to exactly one
-/// directory is [`crate::identity`]'s job, not the floor's.
-pub const FLOOR_DIR_NAMES: &[&str] = &[
-    ".git",
-    crate::identity::IDENTITY_DIR,
-    crate::identity::LEGACY_IDENTITY_DIR,
-];
+/// directory (`.2brain/`) holds the engine's own index / socket / lock /
+/// registry, `.git` is VCS internals. No `.auignore` pattern, negation included,
+/// reaches them.
+pub const FLOOR_DIR_NAMES: &[&str] = &[".git", crate::identity::IDENTITY_DIR];
 
 /// Directory names excluded by default, overridable by an `.auignore`.
 /// Conventionally build / cache output, large and rarely graph content.

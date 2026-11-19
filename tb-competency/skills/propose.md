@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: propose
 description: >-
   Develops a supported workspace change for review.
@@ -35,10 +35,10 @@ Inspect relevant producer and consumer implementations when declared structure d
 Resolve a consequential disagreement against current implementation and a focused check.
 
 Use guidance for the decision at hand:
-- [[compose-a-capability::au-agent-guides]] for cooperating mechanisms
-- [[pick-the-vehicle::au-agent-guides]] for delivery
-- [[the-capability-pattern::au-agent-guides]] for discovery
-- [[design-for-growth::au-agent-guides]] for contract changes
+- [[compose-a-capability::tb-agent-guides]] for cooperating mechanisms
+- [[pick-the-vehicle::tb-agent-guides]] for delivery
+- [[the-capability-pattern::tb-agent-guides]] for discovery
+- [[design-for-growth::tb-agent-guides]] for contract changes
 - Other owning guidance for unresolved choices
 
 Explain how the intended consumer reaches and uses the result.

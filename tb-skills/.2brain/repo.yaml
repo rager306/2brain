@@ -1,6 +1,6 @@
 type: tb.engine.repo::tb-engine
-name: au-skills
+name: tb-skills
 description: Skills and guides for authoring and independently reviewing agent skills.
 deps:
-  - name: au-agent-guides
-  - name: au-mcp-sdk
+  - name: tb-agent-guides
+  - name: tb-mcp-sdk

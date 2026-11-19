@@ -17,8 +17,8 @@ A status value needs a different contract from a record whose fields depend on i
 - Use a sealed record family for mutually exclusive branches with different required fields or references to a particular branch
 - Use a named union to combine existing value or record types without a common parent, as in [[name-a-value-contract]]
 
-[[mcp.inject::au-mcp-sdk:example]] uses local enums for configuration choices.
-[[mountable::au-host-sdk:example]] uses a sealed family for records with different structural jobs.
+[[mcp.inject::tb-mcp-sdk:example]] uses local enums for configuration choices.
+[[mountable::tb-host-sdk:example]] uses a sealed family for records with different structural jobs.
 Read both definitions to see which obligations need each representation.
 
 **Identity and specialization**

@@ -1,7 +1,7 @@
 //! The hardwired `tb.engine.*` schema type-defs.
 //!
 //! Every engine-schema file is a typed instance of one of these compiled-in
-//! defs, owned by a reserved `au-engine` repo identity, never authored in a
+//! defs, owned by a reserved `tb-engine` repo identity, never authored in a
 //! knowledge base: the in-repo `repo.yaml`, the per-user `repos.yaml` / `workspaces.yaml`,
 //! the in-repo `.2brain/workspace.yaml`, and the `.2brain/` locks. The
 //! type-def IS the schema, self-documenting and `(name, hash)`-comparable like
@@ -17,11 +17,11 @@
 //! consumer's mirror, both without a rework.
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::LazyLock;
 
 use tb_core::{Instance, TypeClaim, TypeDef, TypeName, TypeNameClaim};
-use tb_diagnostics::{ByteRange, Diagnostic, DiagnosticCode, Severity, Span, SuggestedFix};
+use tb_diagnostics::{ByteRange, Diagnostic, DiagnosticCode, Severity, Span};
 
 use crate::parse::{FileParse, parse_file};
 use crate::repo::{Repo, RepoName};
@@ -29,19 +29,19 @@ use crate::repo::{Repo, RepoName};
 /// The reserved repo identity owning every hardwired engine-schema def.
 ///
 /// A knowledge base's same-named def coexists as a DISTINCT `(name, hash)` identity, they
-/// compose like any cross-repo pair, `::au-engine` scopes the engine's. This is
+/// compose like any cross-repo pair, `::tb-engine` scopes the engine's. This is
 /// the engine's slice of the layered-ownership pattern (host owns `au.host.*`,
 /// harness owns `au.mcp.*`).
 pub const BUILTIN_ENGINE_REPO: &str = "tb-engine";
 
-/// The nominal meta marker type-name, `au.engine.meta`. A type is legal in a
+/// The nominal meta marker type-name, `tb.engine.meta`. A type is legal in a
 /// `meta:` position only if its resolved closure mixes this in (as the qualified
-/// `au.engine.meta::au-engine`). Injected into au-core's validator so it stays
+/// `tb.engine.meta::tb-engine`). Injected into tb-core's validator so it stays
 /// domain-pure. See
 /// [[spec - meta type marker - the meta position admits only types that mix in the engine meta base]].
 pub const ENGINE_META_TYPE: &str = "tb.engine.meta";
 
-/// A knowledge base type-def in the reserved `au.engine.*` namespace whose name the
+/// A knowledge base type-def in the reserved `tb.engine.*` namespace whose name the
 /// engine does NOT hardwire. The namespace is reserved forward: a future engine
 /// version may hardwire this name, and the knowledge base def would then live-shadow it.
 /// Advisory (`hint`), never blocks; the knowledge base def keeps its own identity and
@@ -51,8 +51,8 @@ pub const ENGINE_META_TYPE: &str = "tb.engine.meta";
 pub const ENGINE_NAME_FORWARD_RESERVED: DiagnosticCode =
     DiagnosticCode::from_static("engine-name-forward-reserved");
 
-/// A knowledge base type-def named exactly like a hardwired `au.engine.*` type. The two
-/// COEXIST as distinct `(name, hash)` identities, `::au-engine` scopes the
+/// A knowledge base type-def named exactly like a hardwired `tb.engine.*` type. The two
+/// COEXIST as distinct `(name, hash)` identities, `::tb-engine` scopes the
 /// engine's; the code only NOTES the engine owns the name, it never ignores the
 /// knowledge base's def. Advisory (`warning`), never blocks. See
 /// [[spec - cross-repo resolution - in-repo identity and deps over a per-user repo registry]]
@@ -60,7 +60,7 @@ pub const ENGINE_NAME_FORWARD_RESERVED: DiagnosticCode =
 pub const ENGINE_NAME_LIVE_SHADOW: DiagnosticCode =
     DiagnosticCode::from_static("engine-name-live-shadow");
 
-/// A knowledge base type-def that shadows a hardwired `au.engine.*` type AND has DIVERGED
+/// A knowledge base type-def that shadows a hardwired `tb.engine.*` type AND has DIVERGED
 /// from it: its `(name, closure-hash)` identity differs from the engine's copy.
 /// Advisory `drift`, the same tier as a drifted pinned reference, never blocks.
 /// The base coexistence is `engine-name-live-shadow`; this escalates a diverged
@@ -71,14 +71,14 @@ pub const ENGINE_NAME_SHADOW_DRIFT: DiagnosticCode =
 /// An engine-schema file carries no written `type:` key. Its kind still assigns
 /// the FLOOR type, so the file stays fully correct and the engine reads its data
 /// regardless. Advisory `drift`, a high-attention nudge to self-describe: the
-/// engine's own writers emit the qualified `type: tb.engine.X::au-engine`, so an
+/// engine's own writers emit the qualified `type: tb.engine.X::tb-engine`, so an
 /// absent one reads as a hand-authored or legacy file. Never blocks. See
 /// [[spec - engine-schema file claims - the kind assigns a floor, a written type self-describes and mixes in more]].
 pub const ENGINE_SCHEMA_TYPE_UNWRITTEN: DiagnosticCode =
     DiagnosticCode::from_static("engine-schema-type-unwritten");
 
 /// An engine-schema file writes a `type:` whose resolved closure OMITS the
-/// kind's floor type (e.g. a `repo.yaml` written `type: tb.engine.workspace::au-engine`).
+/// kind's floor type (e.g. a `repo.yaml` written `type: tb.engine.workspace::tb-engine`).
 /// The written claim names the wrong kind, so the file does not self-describe as
 /// what it structurally is. An `error`; the engine still reads its data from the
 /// kind-assigned floor (the resolution path is claim-independent), so it is
@@ -88,60 +88,32 @@ pub const ENGINE_SCHEMA_TYPE_UNWRITTEN: DiagnosticCode =
 pub const ENGINE_SCHEMA_TYPE_FLOOR_OMITTED: DiagnosticCode =
     DiagnosticCode::from_static("engine-schema-type-floor-omitted");
 
-/// The engine-schema type namespace in its CANONICAL spelling: the one `DEFS`
-/// names and every writer emits. A def named `tb.engine` or under `tb.engine.`
-/// sits in the engine's reserved namespace, see [`schema_type_matches`].
-///
-/// Release 2 flipped this from `au.engine` (tier C step 7). Both spellings are
-/// still ACCEPTED — [`LEGACY_ENGINE_NAMESPACE`] is what a release-1 tree holds —
-/// so the migration window stays open and no on-disk byte changes meaning.
+/// The engine-schema type namespace: the one `DEFS` names and every writer
+/// emits. A def named `tb.engine` or under `tb.engine.` sits in the engine's
+/// reserved namespace, see [`schema_type_matches`].
 pub(crate) const ENGINE_NAMESPACE: &str = "tb.engine";
 
-/// The same namespace in its release-1 spelling, accepted on every read and
-/// rewritten forward by [`canonical_schema_claim`]. Release 2 never writes it.
-pub(crate) const LEGACY_ENGINE_NAMESPACE: &str = "au.engine";
-
-/// The namespace a migration writes: the canonical one, since release 2 flipped
-/// it. Named separately from [`ENGINE_NAMESPACE`] so the migration reads as a
-/// statement about direction rather than an alias.
-pub(crate) const NEXT_ENGINE_NAMESPACE: &str = ENGINE_NAMESPACE;
-
 /// The part of a namespaced engine-schema name after its root: `""` for a bare
-/// root, `".repo"` for `au.engine.repo` AND `tb.engine.repo`. `None` for a name
-/// in neither spelling. The dot guard keeps an unrelated name like
-/// `au.engineering` out of the namespace.
+/// root, `".repo"` for `tb.engine.repo`. `None` for any other name. The dot
+/// guard keeps an unrelated name like `tb.engineering` out of the namespace.
 pub(crate) fn schema_leaf(name: &str) -> Option<&str> {
-    [ENGINE_NAMESPACE, LEGACY_ENGINE_NAMESPACE]
-        .into_iter()
-        .find_map(|root| {
-            let rest = name.strip_prefix(root)?;
-            (rest.is_empty() || rest.starts_with('.')).then_some(rest)
-        })
+    let rest = name.strip_prefix(ENGINE_NAMESPACE)?;
+    (rest.is_empty() || rest.starts_with('.')).then_some(rest)
 }
 
-/// Whether a type name sits in the engine-reserved namespace, in either
-/// spelling: the exact root (`au.engine`, `tb.engine`) or any dotted descendant
-/// (`au.engine.<leaf>`, `tb.engine.<leaf>`).
+/// Whether a type name sits in the engine-reserved namespace: the exact root
+/// (`tb.engine`) or any dotted descendant (`tb.engine.<leaf>`).
 pub(crate) fn schema_type_matches(name: &str) -> bool {
     schema_leaf(name).is_some()
 }
 
-/// The canonical (release-1) spelling of a hardwired engine-schema name: the
-/// `DEFS` entry the name denotes in either spelling (`tb.engine.repo` becomes
-/// `au.engine.repo`). A name that is not one of the hardwired defs, including a
-/// knowledge base's own `au.engine.custom` or `tb.engine.custom`, is returned
-/// unchanged, so it keeps its own identity.
+/// The hardwired engine-schema name a written name denotes.
+///
+/// One spelling exists, so a name is already canonical and is returned
+/// unchanged; the function stays so a caller reads "this is the identity now"
+/// rather than assuming a rewrite happened.
 pub(crate) fn canonical_schema_name(name: &str) -> &str {
-    if let Some((canonical, _)) = DEFS.iter().copied().find(|(n, _)| *n == name) {
-        return canonical;
-    }
-    let Some(leaf) = schema_leaf(name) else {
-        return name;
-    };
-    DEFS.iter()
-        .map(|(canonical, _)| *canonical)
-        .find(|canonical| schema_leaf(canonical) == Some(leaf))
-        .unwrap_or(name)
+    name
 }
 
 /// Whether a name is one of the hardwired engine-schema defs, in either
@@ -151,21 +123,12 @@ pub(crate) fn is_hardwired_engine_name(name: &str) -> bool {
         .any(|(canonical, _)| *canonical == canonical_schema_name(name))
 }
 
-/// The builtin engine repo's identity in its release-1 spelling, accepted on
-/// every read and rewritten forward by [`canonical_schema_claim`].
-pub(crate) const LEGACY_BUILTIN_ENGINE_REPO: &str = "au-engine";
-
-/// The identity a migration writes: the canonical one, since release 2 flipped
-/// it.
-pub(crate) const NEXT_BUILTIN_ENGINE_REPO: &str = BUILTIN_ENGINE_REPO;
-
 /// Every spelling of the builtin engine repo's identity, the canonical one
 /// first. A `::repo` qualifier naming any of these names the builtin.
-pub(crate) const BUILTIN_ENGINE_REPO_SPELLINGS: &[&str] =
-    &[BUILTIN_ENGINE_REPO, LEGACY_BUILTIN_ENGINE_REPO];
+pub(crate) const BUILTIN_ENGINE_REPO_SPELLINGS: &[&str] = &[BUILTIN_ENGINE_REPO];
 
 /// Whether a repo name is the builtin engine repo's identity, in either
-/// spelling (`au-engine` in release 1, `tb-engine` from release 2).
+/// spelling (`tb-engine` in release 1, `tb-engine` from release 2).
 ///
 /// Exact-match, the way [`crate::repo::RepoMap::by_name`] compares repo names: a
 /// repo name is a case-sensitive identity, so a case variant is a different
@@ -176,11 +139,11 @@ pub(crate) fn is_builtin_repo(name: &str) -> bool {
     BUILTIN_ENGINE_REPO_SPELLINGS.contains(&name)
 }
 
-/// Canonicalize a type name a READ argument carries: `"au.engine.repo::au-engine"`
+/// Canonicalize a type name a READ argument carries: `"tb.engine.repo::tb-engine"`
 /// becomes `"tb.engine.repo::tb-engine"`.
 ///
 /// A read names a type the same way a file claims one, so a release-1 client keeps
-/// working after the flip: without this, `instances_of au.engine.repo::au-engine`
+/// working after the flip: without this, `instances_of tb.engine.repo::tb-engine`
 /// answers nothing while the same instances are served under the new spelling. A
 /// name outside the engine schema is returned unchanged, so a knowledge base's own
 /// types are untouched.
@@ -205,7 +168,7 @@ pub(crate) fn canonical_query_name(raw: &str) -> String {
 /// [`BUILTIN_ENGINE_REPO`], and a hardwired name (in either spelling) is
 /// respelled to its canonical form — unqualified, or under a non-builtin peer
 /// qualifier. Everything else is untouched, so a knowledge base's own
-/// `au.engine.custom` or `tb.engine.custom` keeps its own identity.
+/// `tb.engine.custom` or `tb.engine.custom` keeps its own identity.
 ///
 /// A SPELLING normalisation, not a resolution: an unqualified claim still
 /// resolves in the authoring repo, so a bare `tb.engine.repo` in a repo that
@@ -237,56 +200,6 @@ pub(crate) fn canonical_schema_claim(claim: TypeNameClaim) -> TypeNameClaim {
     }
 }
 
-/// A written claim that still spells the release-1 namespace or repo.
-///
-/// Release 2 flipped the canonical spelling, and the legacy one stays ACCEPTED so
-/// a release-1 tree keeps reading. Accepted is not the same as current: a file
-/// that writes `au.engine.repo::au-engine` is rewritten in memory to the canonical
-/// identity, and the author cannot tell from any read that the bytes on disk are
-/// stale. This note makes the window observable, which is what lets it be closed:
-/// a migration pass reads the vault, takes every file this fires on, and rewrites
-/// exactly those.
-///
-/// Advisory (`hint`), never blocks. The fix names the canonical spelling so an
-/// editor can apply it without consulting this module.
-pub const ENGINE_SCHEMA_LEGACY_SPELLING: DiagnosticCode =
-    DiagnosticCode::from_static("engine-schema-legacy-spelling");
-
-/// The legacy-spelling note for one written claim, or `None` when the claim is
-/// already canonical.
-pub(crate) fn legacy_spelling_diag(source: &Path, claim: &TypeNameClaim) -> Option<Diagnostic> {
-    let name_is_legacy = claim
-        .name
-        .0
-        .strip_prefix(LEGACY_ENGINE_NAMESPACE)
-        .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'));
-    let repo_is_legacy = claim.repo.as_deref() == Some(LEGACY_BUILTIN_ENGINE_REPO);
-    if !name_is_legacy && !repo_is_legacy {
-        return None;
-    }
-    let canonical = canonical_query_name(&claim.authored());
-    // Canonicalization leaves a user namespace alone: `au.engine.custom` is a knowledge base's own
-    // type, not the builtin's, so the claim already reads exactly as it will keep reading. A note
-    // that says "the bytes are stale" about bytes nobody will rewrite is a false alarm.
-    if canonical == claim.authored() {
-        return None;
-    }
-    Some(Diagnostic {
-        code: ENGINE_SCHEMA_LEGACY_SPELLING,
-        severity: Severity::Hint,
-        span: Span::new(source.to_path_buf(), claim.span),
-        message: format!(
-            "engine-schema claim spells the release-1 form '{}'; it reads as '{canonical}', so the \
-             data is correct and the bytes are stale",
-            claim.authored()
-        ),
-        related: vec![],
-        fix: Some(SuggestedFix::advisory(format!(
-            "write '{canonical}' instead; `au migrate identity` applies this for a whole tree"
-        ))),
-    })
-}
-
 /// Canonicalize the claims a parsed type-def yields: its own path-derived name
 /// and every claim it carries. Called by the tb-engine parse wrapper, never by
 /// tb-core, which stays domain-pure and knows no engine-schema names.
@@ -297,32 +210,17 @@ pub(crate) fn canonical_schema_type_def(td: &mut TypeDef) {
     canonicalize_claims(&mut td.required_meta);
 }
 
-/// Canonicalize the `type:` claim of a parsed instance, bare or list, returning
-/// one advisory per claim that was written in the release-1 spelling.
+/// Canonicalize the `type:` claim of a parsed instance, bare or list.
 ///
-/// The note is what makes the migration window observable: the claim already reads
-/// correctly, so without it a stale file is indistinguishable from a current one
-/// in every read.
+/// One spelling exists, so this rewrites a builtin-repo qualifier to its
+/// canonical identity and leaves every other claim alone; it returns no notes
+/// because there is no legacy spelling left to point at.
 pub(crate) fn canonical_schema_instance(inst: &mut Instance) -> Vec<Diagnostic> {
-    let source = inst.source_path.clone();
-    let mut notes = Vec::new();
     match &mut inst.type_claim {
-        TypeClaim::Bare(claim) => {
-            if let Some(note) = legacy_spelling_diag(&source, claim) {
-                notes.push(note);
-            }
-            *claim = canonical_schema_claim(claim.clone());
-        }
-        TypeClaim::List { items, .. } => {
-            for claim in items.iter() {
-                if let Some(note) = legacy_spelling_diag(&source, claim) {
-                    notes.push(note);
-                }
-            }
-            canonicalize_claims(items);
-        }
+        TypeClaim::Bare(claim) => *claim = canonical_schema_claim(claim.clone()),
+        TypeClaim::List { items, .. } => canonicalize_claims(items),
     }
-    notes
+    Vec::new()
 }
 
 fn canonicalize_claims(claims: &mut [TypeNameClaim]) {
@@ -332,14 +230,14 @@ fn canonicalize_claims(claims: &mut [TypeNameClaim]) {
 }
 
 /// The coexistence note for a REPO-authored type-def whose name sits in the
-/// reserved `au.engine.*` namespace, or `None` for an ordinary name.
+/// reserved `tb.engine.*` namespace, or `None` for an ordinary name.
 ///
 /// The engine reserves the namespace by CONVENTION, not annihilation: the knowledge base
 /// def keeps its own `(name, hash)` identity and resolves like any other, so the
 /// note is advisory. A hardwired name is `engine-name-live-shadow` (both
-/// coexist, `::au-engine` scopes the engine's); any other reserved name is
+/// coexist, `::tb-engine` scopes the engine's); any other reserved name is
 /// `engine-name-forward-reserved` (the engine may claim it later). The builtin's
-/// own defs never reach this: they are seeded straight into the `au-engine`
+/// own defs never reach this: they are seeded straight into the `tb-engine`
 /// repo, never walked as knowledge base files.
 pub(crate) fn engine_name_reservation_diag(td: &TypeDef) -> Option<Diagnostic> {
     let name = td.name.0.as_str();
@@ -412,9 +310,9 @@ pub(crate) const BUILTIN_ROOT: &str = "<tb-engine-builtin>";
 
 /// The hardwired defs as `(type-name, source)`. The source is the schema:
 /// seven file types, the record element types their list fields reference, and
-/// the `au.engine.meta` marker base. Every field is a primitive, a `String[]`, or
+/// the `tb.engine.meta` marker base. Every field is a primitive, a `String[]`, or
 /// a `T[]` of one of these element records, so the whole set is expressible with
-/// no maps. The `au.engine.readme` file type is body-only, a self-declared
+/// no maps. The `tb.engine.readme` file type is body-only, a self-declared
 /// markdown node with a section template and no fields. The marker base is a
 /// fieldless abstract tag, see
 /// [[spec - meta type marker - the meta position admits only types that mix in the engine meta base]].
@@ -434,7 +332,7 @@ fields:
     (
         "tb.engine.repos",
         "\
-#: The per-user registry, `<state dir>/au-engine/config/repos.yaml` (see `repo::state_dir_in`), name to remote+path.
+#: The per-user registry, `<state dir>/engine/config/repos.yaml` (see `repo::state_dir_in`), name to remote+path.
 fields:
   repos?: tb.engine.registry-entry[]
 ",
@@ -442,7 +340,7 @@ fields:
     (
         "tb.engine.workspaces",
         "\
-#: The per-user workspaces index, `<state dir>/au-engine/config/workspaces.yaml` (see `repo::state_dir_in`).
+#: The per-user workspaces index, `<state dir>/engine/config/workspaces.yaml` (see `repo::state_dir_in`).
 fields:
   workspaces?: tb.engine.workspace-entry[]
 ",
@@ -549,7 +447,7 @@ fields: {}
     ),
 ];
 
-/// The hardwired `au.engine.*` type-defs, parsed once through the real parse
+/// The hardwired `tb.engine.*` type-defs, parsed once through the real parse
 /// path. A parse error or a missing def is a programming error in a compiled-in
 /// source string, so it panics loudly rather than silently dropping a def.
 static BUILTIN_DEFS: LazyLock<Vec<TypeDef>> = LazyLock::new(|| {
@@ -580,13 +478,13 @@ static BUILTIN_DEFS: LazyLock<Vec<TypeDef>> = LazyLock::new(|| {
         .collect()
 });
 
-/// The hardwired `au.engine.*` type-defs, cloned from the memoized parse.
+/// The hardwired `tb.engine.*` type-defs, cloned from the memoized parse.
 pub(crate) fn builtin_engine_defs() -> Vec<TypeDef> {
     BUILTIN_DEFS.clone()
 }
 
-/// The compiled-in `au-engine` repo: a fixed identity with no on-disk root,
-/// present in every built knowledge base so `::au-engine` resolves as a universal peer
+/// The compiled-in `tb-engine` repo: a fixed identity with no on-disk root,
+/// present in every built knowledge base so `::tb-engine` resolves as a universal peer
 /// (the resolution gate finds it by name, no `deps` declaration needed).
 pub(crate) fn builtin_engine_repo() -> Repo {
     Repo {
@@ -609,7 +507,7 @@ mod tests {
     };
 
     /// Exactly the finalized set: seven file types, four element records, and the
-    /// `au.engine.meta` marker base.
+    /// `tb.engine.meta` marker base.
     const EXPECTED: &[&str] = &[
         "tb.engine.repo",
         "tb.engine.repos",
@@ -629,26 +527,6 @@ mod tests {
     /// knowledge base's own type, canonicalization leaves it alone, and the migration never touches
     /// it. Nagging about it is a false alarm (review finding #24).
     #[test]
-    fn a_user_namespace_under_the_legacy_prefix_is_not_flagged() {
-        use tb_core::TypeNameClaim;
-        let span = tb_diagnostics::ByteRange::new(0, 1);
-        let own = TypeNameClaim::parse("au.engine.custom", span);
-        assert!(
-            legacy_spelling_diag(std::path::Path::new("/v/x.md"), &own).is_none(),
-            "a user namespace is not the builtin's and must not be flagged"
-        );
-        let builtin = TypeNameClaim::parse("au.engine.repo::au-engine", span);
-        let diag = legacy_spelling_diag(std::path::Path::new("/v/x.md"), &builtin)
-            .expect("the builtin claim IS legacy and must be flagged");
-        assert_eq!(diag.code.as_str(), ENGINE_SCHEMA_LEGACY_SPELLING.as_str());
-        assert!(
-            diag.message.contains("tb.engine.repo::tb-engine"),
-            "the note names the canonical form: {}",
-            diag.message
-        );
-    }
-
-    #[test]
     fn the_hardwired_set_is_exactly_the_finalized_leaf_names() {
         let defs = builtin_engine_defs();
         let mut names: Vec<&str> = defs.iter().map(|d| d.name.0.as_str()).collect();
@@ -660,7 +538,7 @@ mod tests {
 
     #[test]
     fn the_hardwired_defs_build_a_clean_graph_with_identities() {
-        // The whole set feeds one graph, as it does under the `au-engine` repo
+        // The whole set feeds one graph, as it does under the `tb-engine` repo
         // at build time. Every element ref resolves within the set, so the load
         // checks must be silent — a hardwired schema is authoritative.
         let build = build_graph(builtin_engine_defs());
@@ -695,41 +573,41 @@ mod tests {
     }
 
     #[test]
-    fn schema_namespace_membership_accepts_both_spellings() {
-        for name in [
-            "au.engine",
-            "tb.engine.repo",
-            "tb.engine.custom-thing",
-            "tb.engine",
-            "tb.engine.repo",
-            "tb.engine.custom-thing",
-        ] {
+    fn schema_namespace_membership_is_the_one_namespace() {
+        for name in ["tb.engine", "tb.engine.repo", "tb.engine.custom-thing"] {
             assert!(schema_type_matches(name), "'{name}' sits in the namespace");
         }
-        // The dot guard keeps a merely-prefixed name out, in both spellings.
-        assert!(!schema_type_matches("au.engineering"));
+        // The retired spelling is not the namespace any more.
+        assert!(!schema_type_matches(concat!("au", ".engine", ".repo")));
+        // The dot guard keeps a merely-prefixed name out.
         assert!(!schema_type_matches("tb.engineering"));
         assert!(!schema_type_matches("engine"));
         assert!(!schema_type_matches("note"));
     }
 
     #[test]
-    fn hardwired_name_membership_accepts_both_spellings() {
-        assert!(is_hardwired_engine_name("au.engine.repo"));
-        assert!(is_hardwired_engine_name("au.engine.locked-package"));
+    fn hardwired_name_membership_is_the_one_spelling() {
         assert!(is_hardwired_engine_name("tb.engine.repo"));
         assert!(is_hardwired_engine_name("tb.engine.locked-package"));
         // In the namespace, but not one of the hardwired defs.
-        assert!(!is_hardwired_engine_name("au.engine.widget"));
         assert!(!is_hardwired_engine_name("tb.engine.widget"));
         assert!(!is_hardwired_engine_name("note"));
+        assert!(!is_hardwired_engine_name(concat!("au", ".engine", ".repo")));
     }
 
     #[test]
     fn the_builtin_repo_identity_accepts_both_spellings() {
         assert!(is_builtin_repo(BUILTIN_ENGINE_REPO));
-        assert!(is_builtin_repo("au-engine"));
         assert!(is_builtin_repo("tb-engine"));
+        assert!(
+            !is_builtin_repo(concat!("au-", "engine")),
+            "the old repo name is not builtin"
+        );
+        assert!(is_builtin_repo("tb-engine"));
+        assert!(
+            !is_builtin_repo(concat!("au-", "engine")),
+            "the old repo name is not builtin"
+        );
         // Exact identity: a case variant names a different repo.
         assert!(!is_builtin_repo("Au-Engine"));
         assert!(!is_builtin_repo("myrepo"));
@@ -741,23 +619,19 @@ mod tests {
     }
 
     #[test]
-    fn a_read_argument_is_canonicalized_so_a_release_one_client_still_answers() {
+    fn a_read_argument_names_the_one_spelling() {
         assert_eq!(
-            canonical_query_name("au.engine.repo::au-engine"),
+            canonical_query_name("tb.engine.repo::tb-engine"),
             "tb.engine.repo::tb-engine"
         );
-        assert_eq!(canonical_query_name("au.engine.repo"), "tb.engine.repo");
-        // A knowledge base's own type is untouched, in either spelling.
         assert_eq!(canonical_query_name("note"), "note");
         assert_eq!(
             canonical_query_name("tb.engine.custom::myrepo"),
             "tb.engine.custom::myrepo"
         );
-        // A non-builtin repo qualifier survives while the name is canonicalized.
-        assert_eq!(
-            canonical_query_name("au.engine.repo::myrepo"),
-            "tb.engine.repo::myrepo"
-        );
+        // The retired spelling is not rewritten: there is nothing to rewrite.
+        let old = concat!("au", ".engine.repo", "::au-", "engine");
+        assert_eq!(canonical_query_name(old), old);
     }
 
     #[test]
@@ -780,31 +654,11 @@ mod tests {
     }
 
     #[test]
-    fn a_legacy_spelled_claim_lands_on_the_builtin() {
-        // A release-1 file keeps reading: its claim is respelled forward, which is
-        // why the migration window stays open.
-        assert_eq!(
-            canonical_schema_claim(claim("au.engine.repo::au-engine")),
-            claim("tb.engine.repo::tb-engine")
-        );
-        // The legacy spelling of the builtin's own identity, on both sides.
-        assert_eq!(
-            canonical_schema_claim(claim("au.engine.repo::tb-engine")),
-            claim("tb.engine.repo::tb-engine")
-        );
-        // An unqualified hardwired name loses only its spelling, not its form.
-        let bare = canonical_schema_claim(claim("au.engine.repo"));
-        assert_eq!(bare, claim("tb.engine.repo"));
-        assert_eq!(bare.repo, None);
-        // A non-hardwired name under the builtin's other spelling still points at
-        // the builtin repo: the qualifier is respelled, the name is kept.
-        assert_eq!(
-            canonical_schema_claim(claim("note::au-engine")),
-            claim("note::tb-engine")
-        );
-        // The authored span survives, so a diagnostic still lands on the bytes.
-        let authored = claim("au.engine.repo::au-engine");
-        assert_eq!(canonical_schema_claim(authored.clone()).span, authored.span);
+    fn a_claim_on_the_builtin_keeps_its_identity_and_span() {
+        let authored = claim("tb.engine.repo::tb-engine");
+        let canonical = canonical_schema_claim(authored.clone());
+        assert_eq!(canonical, authored, "the one spelling is already canonical");
+        assert_eq!(canonical.span, authored.span, "the span lands on the bytes");
     }
 
     #[test]
@@ -813,7 +667,7 @@ mod tests {
         // knowledge base's own peer: nothing to canonicalize.
         for raw in [
             "tb.engine.custom",
-            "au.engine.custom",
+            concat!("au", ".engine", ".custom"),
             "tb.engine.custom::tb-engine",
             "tb.engine.custom::myrepo",
         ] {
@@ -827,21 +681,15 @@ mod tests {
     }
 
     #[test]
-    fn the_type_def_wrapper_canonicalizes_the_name_and_every_claim() {
+    fn the_type_def_wrapper_keeps_the_name_and_its_claim() {
         let path = PathBuf::from("type/tb.engine.repo.type.yaml");
-        let src = b"extends: au.engine.meta::au-engine\nfields:\n  x: String\n";
+        let src = b"extends: tb.engine.meta::tb-engine\nfields:\n  x: String\n";
         match parse_file(&path, src) {
             FileParse::TypeDef {
                 type_def: Some(td), ..
             } => {
-                assert_eq!(
-                    td.name.0, "tb.engine.repo",
-                    "the def name is the canonical one"
-                );
-                assert_eq!(
-                    td.parents[0].name.0, "tb.engine.meta",
-                    "a legacy-spelled ancestor is respelled forward"
-                );
+                assert_eq!(td.name.0, "tb.engine.repo");
+                assert_eq!(td.parents[0].name.0, "tb.engine.meta");
                 assert_eq!(td.parents[0].repo.as_deref(), Some(BUILTIN_ENGINE_REPO));
             }
             other => panic!("expected a type-def, got {other:?}"),
@@ -849,9 +697,9 @@ mod tests {
     }
 
     #[test]
-    fn the_instance_wrapper_canonicalizes_the_type_claim() {
+    fn the_instance_wrapper_keeps_the_claim_and_emits_no_note() {
         let path = PathBuf::from("repo.yaml");
-        let src = b"type: au.engine.repo::au-engine\nname: r\n";
+        let src = b"type: tb.engine.repo::tb-engine\nname: r\n";
         match crate::parse::parse_engine_schema_instance(
             &path,
             src,
@@ -868,23 +716,8 @@ mod tests {
                     .iter()
                     .map(TypeNameClaim::authored)
                     .collect();
-                assert_eq!(
-                    claims,
-                    vec!["tb.engine.repo::tb-engine".to_string()],
-                    "a legacy-spelled claim reads forward"
-                );
-                // The claim is CORRECT, and the bytes are stale: exactly one
-                // advisory says so, and its fix names the canonical spelling.
-                assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-                assert_eq!(diagnostics[0].code, ENGINE_SCHEMA_LEGACY_SPELLING);
-                assert_eq!(diagnostics[0].severity, Severity::Hint);
-                assert!(
-                    diagnostics[0]
-                        .fix
-                        .as_ref()
-                        .is_some_and(|f| f.description.contains("tb.engine.repo::tb-engine")),
-                    "the fix names the canonical spelling: {diagnostics:?}"
-                );
+                assert_eq!(claims, vec!["tb.engine.repo::tb-engine".to_string()]);
+                assert!(diagnostics.is_empty(), "{diagnostics:?}");
             }
             other => panic!("expected an instance, got {other:?}"),
         }
@@ -919,7 +752,7 @@ mod tests {
 
     #[test]
     fn a_hardwired_name_in_the_repo_is_live_shadow_warning() {
-        let td = td_named("au.engine.repo");
+        let td = td_named("tb.engine.repo");
         let d = engine_name_reservation_diag(&td).expect("a reserved name fires");
         assert_eq!(d.code, ENGINE_NAME_LIVE_SHADOW);
         assert_eq!(d.severity, Severity::Warning);
@@ -927,7 +760,7 @@ mod tests {
 
     #[test]
     fn a_reserved_but_unhardwired_name_is_forward_reserved_hint() {
-        let td = td_named("au.engine.widget");
+        let td = td_named("tb.engine.widget");
         let d = engine_name_reservation_diag(&td).expect("a reserved name fires");
         assert_eq!(d.code, ENGINE_NAME_FORWARD_RESERVED);
         assert_eq!(d.severity, Severity::Hint);

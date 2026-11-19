@@ -3,7 +3,7 @@
 //! instance's deduped `type:` claim must contain at most one non-sealed
 //! leaf per sealed family. Fires at file-level and inline-value identity
 //! claims with the same semantics; this file covers the file-level path
-//! (au-testkit's `validate_simple` is file-level).
+//! (tb-testkit's `validate_simple` is file-level).
 
 use tb_core::{TypeDef, TypeName, TypeNameClaim, build_graph};
 use tb_diagnostics::ByteRange;

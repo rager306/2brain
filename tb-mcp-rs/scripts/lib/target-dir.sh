@@ -3,7 +3,7 @@
 #
 # A per-crate `target/` is not where cargo writes: every crate here shares one
 # dependency graph and one directory, so a default such as
-# `../tb-engine/target/debug/au` names a path that does not exist on a clean
+# `../tb-engine/target/debug/tb-engine` names a path that does not exist on a clean
 # checkout. Asking cargo is the only answer that honours both `CARGO_TARGET_DIR`
 # and the config file, which is also what the root `install.sh` does.
 #

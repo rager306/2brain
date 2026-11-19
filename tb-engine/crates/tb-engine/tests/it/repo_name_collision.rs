@@ -27,7 +27,7 @@ fn two_co_present_members_stay_isolated() {
     crate::seed_workspace(&tmp.join("ws"), &["alpha", "beta"]);
 
     // alpha owns `note`.
-    write(&tmp, "ws/alpha/.arsumbris/repo.yaml", "name: alpha\n");
+    write(&tmp, "ws/alpha/.2brain/repo.yaml", "name: alpha\n");
     write(
         &tmp,
         "ws/alpha/type/note.type.yaml",
@@ -36,7 +36,7 @@ fn two_co_present_members_stay_isolated() {
     write(&tmp, "ws/alpha/doc.md", "---\ntype: note\na: hi\n---\n");
 
     // beta owns `widget`.
-    write(&tmp, "ws/beta/.arsumbris/repo.yaml", "name: beta\n");
+    write(&tmp, "ws/beta/.2brain/repo.yaml", "name: beta\n");
     write(
         &tmp,
         "ws/beta/type/widget.type.yaml",
@@ -90,9 +90,9 @@ fn an_undeclared_nested_repo_is_skipped_not_absorbed() {
     // It is SKIPPED with `undeclared-nested-repo` and contributes nothing: its
     // `widget` never enters any graph, and because its marker is filtered before
     // discovery there is no `duplicate-repo-name` fight over the shared name.
-    write(&root, ".arsumbris/repo.yaml", "name: root\n");
-    write(&root, ".arsumbris/workspace.yaml", "edit:\n  - root\n");
-    write(&root, "pkg/.arsumbris/repo.yaml", "name: root\n");
+    write(&root, ".2brain/repo.yaml", "name: root\n");
+    write(&root, ".2brain/workspace.yaml", "edit:\n  - root\n");
+    write(&root, "pkg/.2brain/repo.yaml", "name: root\n");
     write(&root, "type/note.type.yaml", "fields:\n  a: String\n");
     write(&root, "doc.md", "---\ntype: note\na: hi\n---\n");
     write(&root, "pkg/type/widget.type.yaml", "fields:\n  w: String\n");
@@ -145,14 +145,14 @@ fn a_declared_but_ambiguous_name_is_not_falsely_reported_undeclared() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
 
-    write(&root, ".arsumbris/repo.yaml", "name: root\n");
+    write(&root, ".2brain/repo.yaml", "name: root\n");
     write(
         &root,
-        ".arsumbris/workspace.yaml",
+        ".2brain/workspace.yaml",
         "edit:\n  - root\n  - lib\n",
     );
-    write(&root, "a/lib/.arsumbris/repo.yaml", "name: lib\n");
-    write(&root, "b/lib/.arsumbris/repo.yaml", "name: lib\n");
+    write(&root, "a/lib/.2brain/repo.yaml", "name: lib\n");
+    write(&root, "b/lib/.2brain/repo.yaml", "name: lib\n");
 
     let kb = build(&root, &RealFileSystem).expect("build");
     let codes: Vec<String> = kb
@@ -178,12 +178,12 @@ fn a_nested_broken_repo_yaml_names_the_parse_error() {
     // an unquoted `:` inside a scalar value, which will not parse. It drops out of
     // membership, but the malformed file now NAMES itself with an Error, instead
     // of vanishing behind only `undeclared-nested-repo`.
-    write(&root, ".arsumbris/repo.yaml", "name: root\n");
+    write(&root, ".2brain/repo.yaml", "name: root\n");
     write(&root, "type/note.type.yaml", "fields:\n  a: String\n");
     write(&root, "doc.md", "---\ntype: note\na: hi\n---\n");
     write(
         &root,
-        "nested/.arsumbris/repo.yaml",
+        "nested/.2brain/repo.yaml",
         "name: nested\ndescription: text: colon\n",
     );
     write(&root, "nested/x.md", "hi\n");
@@ -198,10 +198,7 @@ fn a_nested_broken_repo_yaml_names_the_parse_error() {
             panic!("expected repo-registry-parse-error, got {codes:?}")
         });
     assert_eq!(format!("{:?}", parse_err.severity), "Error");
-    assert_eq!(
-        parse_err.span.file,
-        root.join("nested/.arsumbris/repo.yaml")
-    );
+    assert_eq!(parse_err.span.file, root.join("nested/.2brain/repo.yaml"));
     assert!(
         parse_err
             .fix
@@ -225,13 +222,13 @@ fn a_broken_external_dependency_names_the_malformed_file() {
     // are deduped).
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(&root, "app/a.md", "hi\n");
     write(
         &root,
-        "base/.arsumbris/repo.yaml",
+        "base/.2brain/repo.yaml",
         "name: base\ndescription: x: y\n",
     );
     write(&root, "base/b.md", "hi\n");
@@ -249,7 +246,7 @@ fn a_broken_external_dependency_names_the_malformed_file() {
     );
     let d = parse_errs[0];
     assert_eq!(format!("{:?}", d.severity), "Error");
-    assert_eq!(d.span.file, root.join("base/.arsumbris/repo.yaml"));
+    assert_eq!(d.span.file, root.join("base/.2brain/repo.yaml"));
     assert!(
         d.fix
             .as_ref()
@@ -274,19 +271,19 @@ fn duplicate_repo_name_messages(kb: &tb_engine::KnowledgeBase) -> Vec<String> {
 /// named `lib` and it does not resolve) and the dep one (`app` declared it and
 /// it does not resolve).
 fn ambiguous_lib_with_a_depender(root: &Path) {
-    write(root, ".arsumbris/repo.yaml", "name: root\n");
+    write(root, ".2brain/repo.yaml", "name: root\n");
     write(
         root,
-        ".arsumbris/workspace.yaml",
+        ".2brain/workspace.yaml",
         "edit:\n  - root\n  - app\n  - lib\n",
     );
     write(
         root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: lib\n",
     );
-    write(root, "a/lib/.arsumbris/repo.yaml", "name: lib\n");
-    write(root, "b/lib/.arsumbris/repo.yaml", "name: lib\n");
+    write(root, "a/lib/.2brain/repo.yaml", "name: lib\n");
+    write(root, "b/lib/.2brain/repo.yaml", "name: lib\n");
 }
 
 #[test]
@@ -325,7 +322,7 @@ fn an_ambiguous_dep_is_reported_against_the_repo_that_declared_it() {
     assert!(
         anchored
             .iter()
-            .all(|f| f == &root.join("app/.arsumbris/repo.yaml").display().to_string()),
+            .all(|f| f == &root.join("app/.2brain/repo.yaml").display().to_string()),
         "the dep note anchors at the declaring repo's registry, got {anchored:?}"
     );
 }

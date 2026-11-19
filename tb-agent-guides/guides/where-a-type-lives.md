@@ -13,9 +13,9 @@ A shared vocabulary or SDK capability belongs with the owner whose contract its 
 
 **Instances can live elsewhere**
 
-[[mcp.tool::au-mcp-sdk:example]] belongs to the agent SDK.
-[[mcp.tool.au_agent_guide::au-agent-guides:example]] belongs here because this package implements and maintains the capability.
-External packages can claim [[guide::au-agent-guides:example]] without copying or moving its definition.
+[[mcp.tool::tb-mcp-sdk:example]] belongs to the agent SDK.
+[[mcp.tool.tb_agent_guide::tb-agent-guides:example]] belongs here because this package implements and maintains the capability.
+External packages can claim [[guide::tb-agent-guides:example]] without copying or moving its definition.
 
 **Make the dependency explicit**
 

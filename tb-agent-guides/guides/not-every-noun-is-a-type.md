@@ -21,8 +21,8 @@ A single configuration can need a type because a loader discovers and validates 
 A hundred similar notes can share an existing contract.
 A type with no instances can define an extension point or a reusable value.
 
-[[guide::au-agent-guides:example]] gives records carrying different advice a shared contract.
-[[mcp.tool.au_agent_guide::au-agent-guides:example]] defines a discoverable capability with one implementation.
+[[guide::tb-agent-guides:example]] gives records carrying different advice a shared contract.
+[[mcp.tool.tb_agent_guide::tb-agent-guides:example]] defines a discoverable capability with one implementation.
 Each has a reason for its type identity.
 
 **A judgment may need its own record**

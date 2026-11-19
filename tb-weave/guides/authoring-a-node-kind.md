@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: author the node kinds a domain needs
 rule: Put each needed distinction's fields and writing guidance in its node kind.
 example:
@@ -12,9 +12,9 @@ Author a new kind for a distinction the consumer needs to preserve or query.
 
 Choose the base by what the note represents:
 
-- A named thing uses [[thing::au-base-types]], like [[entity:example]]
-- A definition or proposition uses [[idea::au-base-types]], like [[concept:example]] or [[claim:example]]
-- Navigation uses [[map::au-base-types]], like [[map.synthesis:example]]
+- A named thing uses [[thing::tb-base-types]], like [[entity:example]]
+- A definition or proposition uses [[idea::tb-base-types]], like [[concept:example]] or [[claim:example]]
+- Navigation uses [[map::tb-base-types]], like [[map.synthesis:example]]
 - For another distinction, choose the base whose contract fits it
 
 ## Put the guidance in the type

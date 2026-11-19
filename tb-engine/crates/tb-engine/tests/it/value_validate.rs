@@ -258,13 +258,13 @@ fn cross_repo_fixture() -> (tempfile::TempDir, PathBuf) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, c).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w("base/type/person.type.yaml", "fields:\n  name: String\n");
     w("base/type/org.type.yaml", "fields:\n  name: String\n");
     w("base/alice.md", "---\ntype: person\nname: Alice\n---\n");
     w("base/acme.md", "---\ntype: org\nname: Acme\n---\n");
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     w(
@@ -346,9 +346,9 @@ fn divergent_same_name_fixture() -> (tempfile::TempDir, PathBuf) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, c).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w("base/type/note.type.yaml", "fields:\n  title: String\n");
-    w("app/.arsumbris/repo.yaml", "name: app\n");
+    w("app/.2brain/repo.yaml", "name: app\n");
     w("app/type/note.type.yaml", "fields:\n  heading: String\n");
     (dir, root)
 }

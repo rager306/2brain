@@ -37,7 +37,20 @@ TEXT = {".rs", ".md", ".toml", ".yaml", ".yml", ".json", ".sh", ".py", ".mjs",
 FROZEN_PREFIX = ("docs/reviews/", "docs/research/", "docs/internal/",
                  "tb-engine/doc/", "upstream/", ".repowise/")
 FROZEN_FILES = {"CHANGELOG.md", "docs/trajectory.md", "docs/naming.md",
-                "docs/rebrand-plan.md"}
+                "docs/rebrand-plan.md",
+                # Dated assessments and plans that measured the pre-rename layout:
+                # rewriting them would falsify the record they exist to keep.
+                "docs/architecture-assessment.md", "docs/graph-engine-assessment.md",
+                "docs/phase-d.md", "docs/repo-inventory.md",
+                # The documents that exist to map old names to new ones.
+                "tb-mcp-rs/docs/live-comparison.md", "tb-mcp-rs/docs/runtime-map.md",
+                "tb-mcp-rs/docs/verification.md",
+                "tb-mcp-rs/skills/2brain/references/tool-map.md",
+                "tb-engine/README-fork.md", "AGENTS.md",
+                "docs/agents-and-decisions-assessment.md", "docs/retrieval-spike.md",
+                "tb-mcp-rs/docs/client-matrix.md",
+                # This tool spells the patterns it looks for.
+                "tools/kb/legacy_audit.py"}
 
 # The patterns, each with the class its matches belong to and a short note.
 PATTERNS = [

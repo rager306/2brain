@@ -1,9 +1,9 @@
 //! Cross-boundary reference resolution: `[[name::repo]]` crosses a repo
 //! boundary.
 //!
-//! Unqualified links resolve repo-local (au-core, the per-repo index). A
+//! Unqualified links resolve repo-local (tb-core, the per-repo index). A
 //! `::repo` link names a target repo; the engine resolves it here, since only
-//! the engine knows the workspace's repos. au-core skips `::repo` links, so
+//! the engine knows the workspace's repos. tb-core skips `::repo` links, so
 //! their resolution and diagnostics live here.
 //!
 //! Cross-repo backlink edges and the semantic-token styling of a `::repo` link
@@ -76,7 +76,7 @@ fn own_closure_ids(graph: &TypeGraph, claim: &TypeClaim) -> BTreeSet<TypeId> {
 }
 
 /// Engine-side [`CrossRepoResolver`]: resolves a `[[name::repo]]` reference into
-/// the named repo and hands au-core that repo's graph, so the repo-agnostic
+/// the named repo and hands tb-core that repo's graph, so the repo-agnostic
 /// validator can type-check the slot by `(name, canonical-hash)` identity across
 /// the boundary.
 ///
@@ -422,7 +422,7 @@ pub(crate) fn resolve_cross_repo(
 /// Diagnostics for every `::repo` reference in the workspace: the
 /// `reference-repo-*` codes, plus the cross-repo target-missing / ambiguous
 /// codes when the named repo is present but the target does not resolve there.
-/// Unqualified links are au-core's concern and are not revisited here.
+/// Unqualified links are tb-core's concern and are not revisited here.
 pub(crate) fn cross_repo_reference_diagnostics(
     catalog: &crate::ir::OrdMap<PathBuf, FileEntry>,
     repos: &RepoMap,
@@ -664,7 +664,7 @@ mod tests {
         use tb_parser::MemoryFileSystem;
 
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  link?: note*\n".to_vec(),
@@ -700,7 +700,7 @@ mod tests {
         // One declared repo `app` at /v/app. `discover_repos` takes pre-read
         // registry bytes, so no filesystem walk is needed.
         let registries = vec![(
-            PathBuf::from("/v/app/.arsumbris/repo.yaml"),
+            PathBuf::from("/v/app/.2brain/repo.yaml"),
             b"name: app\n".to_vec(),
         )];
         let roots = vec![PathBuf::from("/v/app")];
@@ -716,7 +716,7 @@ mod tests {
 
     fn workspace(name: &str, members: &[&str]) -> Workspace {
         Workspace {
-            manifest_path: PathBuf::from(format!("/v/{name}/.arsumbris/workspace.yaml")),
+            manifest_path: PathBuf::from(format!("/v/{name}/.2brain/workspace.yaml")),
             name: name.to_string(),
             members: members
                 .iter()

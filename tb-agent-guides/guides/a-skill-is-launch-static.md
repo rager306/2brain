@@ -18,7 +18,7 @@ These representations can hold different versions:
 
 **Rebuild launch context**
 
-[[mcp.skill::au-mcp-sdk:example]] and [[mcp.inject::au-mcp-sdk:example]] are assembled and materialized for a launch.
+[[mcp.skill::tb-mcp-sdk:example]] and [[mcp.inject::tb-mcp-sdk:example]] are assembled and materialized for a launch.
 A source edit cannot rewrite context already delivered to a model.
 
 Use the launcher's supported refresh or a new launch, then inspect what the harness loaded.
@@ -26,7 +26,7 @@ A harness-specific clear command is not a universal rematerialization operation.
 
 **Refresh executable discovery and schemas**
 
-[[mcp.tool::au-mcp-sdk:example]] runs through the daemon.
+[[mcp.tool::tb-mcp-sdk:example]] runs through the daemon.
 Discovery happens at startup or in a lazy pass.
 Module imports are cached.
 Executable or metadata edits can need fresh daemon discovery.

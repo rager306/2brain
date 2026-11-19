@@ -4,7 +4,7 @@
 //! a client reads over the per-entry hashed socket, and `daemon stop` tears it
 //! down, the process exiting and the socket removed. A directory entry and a
 //! `*.au-workspace.yaml` file entry are both exercised, under a fake `$HOME` so
-//! the real `~/.arsumbris/` is never touched.
+//! the real `~/.2brain/` is never touched.
 
 #![cfg(unix)]
 
@@ -26,15 +26,15 @@ struct Fixture {
 
 fn fixture() -> Fixture {
     let repo = tempfile::Builder::new()
-        .prefix("au-daemon-")
+        .prefix("tb-daemon-")
         .tempdir_in("/tmp")
         .unwrap();
     let root = repo.path();
     // The entry must be a folder-repo. Name it after the tempdir basename
-    // (`au-daemon-XXXX`, a valid repo name) so the folder matches, no drift.
+    // (`tb-daemon-XXXX`, a valid repo name) so the folder matches, no drift.
     let name = root.file_name().unwrap().to_str().unwrap().to_string();
-    fs::create_dir(root.join(".arsumbris")).unwrap();
-    fs::write(root.join(".arsumbris/repo.yaml"), format!("name: {name}\n")).unwrap();
+    fs::create_dir(root.join(".2brain")).unwrap();
+    fs::write(root.join(".2brain/repo.yaml"), format!("name: {name}\n")).unwrap();
     fs::create_dir(root.join("type")).unwrap();
     fs::write(
         root.join("type/note.type.yaml"),
@@ -44,7 +44,7 @@ fn fixture() -> Fixture {
     fs::write(root.join("a.md"), "---\ntype: note\nlink: \"[[b]]\"\n---\n").unwrap();
     fs::write(root.join("b.md"), "---\ntype: note\n---\n").unwrap();
     let home = tempfile::Builder::new()
-        .prefix("au-home-")
+        .prefix("tb-home-")
         .tempdir_in("/tmp")
         .unwrap();
     Fixture { repo, home }
@@ -54,10 +54,10 @@ fn fixture() -> Fixture {
 /// `tb_engine::socket_path` with the home overridden.
 fn socket_under(home: &Path, entry: &Path) -> std::path::PathBuf {
     // Which name the state root carries is the engine's rule (`state_dir_in`), not this
-    // test's: a fresh `$HOME` is `.2brain`, a migrated one `.arsumbris`. Joining a literal
+    // test's: a fresh `$HOME` is `.2brain`, a migrated one `.2brain`. Joining a literal
     // name asserts the rule instead of testing the daemon.
     tb_engine::repo::state_dir_in(home)
-        .join("au-engine")
+        .join("engine")
         .join("run")
         .join(socket_file_name(entry))
 }
@@ -90,7 +90,7 @@ fn daemon_starts_serves_a_read_and_stops() {
     let home = fs::canonicalize(fx.home.path()).unwrap();
     let socket = socket_under(&home, &root);
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_au"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_tb-engine"))
         .args(["daemon", "start"])
         .arg(&root)
         .env("HOME", &home)
@@ -117,7 +117,7 @@ fn daemon_starts_serves_a_read_and_stops() {
     assert_eq!(resp["result"]["instance"]["claim"][0], "note");
 
     // `daemon stop` tears it down over the socket.
-    let stop = Command::new(env!("CARGO_BIN_EXE_au"))
+    let stop = Command::new(env!("CARGO_BIN_EXE_tb-engine"))
         .args(["daemon", "stop"])
         .arg(&root)
         .env("HOME", &home)
@@ -141,7 +141,7 @@ fn shutdown_read_couples_ready_and_version() {
     let home = fs::canonicalize(fx.home.path()).unwrap();
     let socket = socket_under(&home, &root);
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_au"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_tb-engine"))
         .args(["daemon", "start"])
         .arg(&root)
         .env("HOME", &home)
@@ -168,25 +168,25 @@ fn shutdown_read_couples_ready_and_version() {
 }
 
 /// `daemon start` refuses a non-repo entry (a bare directory with no
-/// `.arsumbris/repo.yaml`) with the NOT_A_REPO exit code, before binding a
+/// `.2brain/repo.yaml`) with the NOT_A_REPO exit code, before binding a
 /// socket. The `*.au-workspace.yaml` FILE entry is gone: the entry is always a
 /// folder-repo directory.
 #[test]
 fn daemon_refuses_a_non_repo_entry() {
     let work = tempfile::Builder::new()
-        .prefix("au-bare-")
+        .prefix("tb-bare-")
         .tempdir_in("/tmp")
         .unwrap();
     let home = tempfile::Builder::new()
-        .prefix("au-home-")
+        .prefix("tb-home-")
         .tempdir_in("/tmp")
         .unwrap();
-    // A bare directory: content, but no `.arsumbris/repo.yaml`, so not a folder-repo.
+    // A bare directory: content, but no `.2brain/repo.yaml`, so not a folder-repo.
     fs::write(work.path().join("a.md"), "---\ntype: note\n---\n").unwrap();
     let entry = fs::canonicalize(work.path()).unwrap();
     let home = fs::canonicalize(home.path()).unwrap();
 
-    let status = Command::new(env!("CARGO_BIN_EXE_au"))
+    let status = Command::new(env!("CARGO_BIN_EXE_tb-engine"))
         .args(["daemon", "start"])
         .arg(&entry)
         .env("HOME", &home)
@@ -204,28 +204,28 @@ fn daemon_refuses_a_non_repo_entry() {
 
 #[test]
 fn open_resolves_a_named_workspace_and_serves_it() {
-    // `au open <name>` resolves the name through the per-user workspaces index
+    // `tb-engine open <name>` resolves the name through the per-user workspaces index
     // (under a fake $HOME) to a workspace-repo FOLDER, then serves it exactly like
     // `daemon start <folder>`.
     let work = tempfile::Builder::new()
-        .prefix("au-open-")
+        .prefix("tb-open-")
         .tempdir_in("/tmp")
         .unwrap();
     let home = tempfile::Builder::new()
-        .prefix("au-home-")
+        .prefix("tb-home-")
         .tempdir_in("/tmp")
         .unwrap();
     let root = work.path();
     // The entry folder-repo `home`, composing itself plus a nested member `proj`.
-    fs::create_dir_all(root.join(".arsumbris")).unwrap();
-    fs::write(root.join(".arsumbris/repo.yaml"), "name: home\n").unwrap();
+    fs::create_dir_all(root.join(".2brain")).unwrap();
+    fs::write(root.join(".2brain/repo.yaml"), "name: home\n").unwrap();
     fs::write(
-        root.join(".arsumbris/workspace.yaml"),
+        root.join(".2brain/workspace.yaml"),
         "edit:\n  - home\n  - proj\n",
     )
     .unwrap();
-    fs::create_dir_all(root.join("proj/.arsumbris")).unwrap();
-    fs::write(root.join("proj/.arsumbris/repo.yaml"), "name: proj\n").unwrap();
+    fs::create_dir_all(root.join("proj/.2brain")).unwrap();
+    fs::write(root.join("proj/.2brain/repo.yaml"), "name: proj\n").unwrap();
     fs::create_dir(root.join("proj/type")).unwrap();
     fs::write(
         root.join("proj/type/note.type.yaml"),
@@ -240,7 +240,7 @@ fn open_resolves_a_named_workspace_and_serves_it() {
     // The per-user workspaces index names the folder `kb` (an explicit alias, its
     // basename is a random tempdir name). Written under the fake $HOME device root so
     // the run is hermetic.
-    let cfg = home.join(".arsumbris/au-engine/config");
+    let cfg = home.join(".2brain/engine/config");
     fs::create_dir_all(&cfg).unwrap();
     fs::write(
         cfg.join("workspaces.yaml"),
@@ -248,16 +248,16 @@ fn open_resolves_a_named_workspace_and_serves_it() {
     )
     .unwrap();
 
-    // The socket is derived from the RESOLVED folder, so `au open kb` and
+    // The socket is derived from the RESOLVED folder, so `tb-engine open kb` and
     // `daemon start <folder>` bind the same endpoint.
     let socket = socket_under(&home, &entry);
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_au"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_tb-engine"))
         .args(["open", "kb"])
         .env("HOME", &home)
         .stdout(Stdio::null())
         .spawn()
-        .expect("spawn au open");
+        .expect("spawn tb-engine open");
 
     let resp = wait_ready(&socket);
     assert_eq!(resp["result"]["lifecycle"]["ref"], "ready");
@@ -273,7 +273,7 @@ fn open_resolves_a_named_workspace_and_serves_it() {
         types["result"]["types"]
     );
 
-    let stop = Command::new(env!("CARGO_BIN_EXE_au"))
+    let stop = Command::new(env!("CARGO_BIN_EXE_tb-engine"))
         .args(["daemon", "stop"])
         .arg(&entry)
         .env("HOME", &home)
@@ -337,7 +337,7 @@ fn booting_daemon_is_reachable_by_status_start_refusal_and_stop_force() {
 
     // status: reports a present-but-not-serving daemon, exit 0 (not the exit-4
     // "no daemon running").
-    let status = Command::new(env!("CARGO_BIN_EXE_au"))
+    let status = Command::new(env!("CARGO_BIN_EXE_tb-engine"))
         .args(["daemon", "status"])
         .arg(&root)
         .env("HOME", &home)
@@ -357,7 +357,7 @@ fn booting_daemon_is_reachable_by_status_start_refusal_and_stop_force() {
     );
 
     // start: refuses (exit 3) rather than racing a second cold build.
-    let start = Command::new(env!("CARGO_BIN_EXE_au"))
+    let start = Command::new(env!("CARGO_BIN_EXE_tb-engine"))
         .args(["daemon", "start"])
         .arg(&root)
         .env("HOME", &home)
@@ -376,7 +376,7 @@ fn booting_daemon_is_reachable_by_status_start_refusal_and_stop_force() {
     );
 
     // stop --force: reclaims it by signalling the pid, exit 0, pid file removed.
-    let stop = Command::new(env!("CARGO_BIN_EXE_au"))
+    let stop = Command::new(env!("CARGO_BIN_EXE_tb-engine"))
         .args(["daemon", "stop", "--force"])
         .arg(&root)
         .env("HOME", &home)
@@ -406,7 +406,7 @@ fn status_reclaims_a_stale_pid_file() {
     fs::create_dir_all(pid_file.parent().unwrap()).unwrap();
     fs::write(&pid_file, i32::MAX.to_string()).unwrap();
 
-    let status = Command::new(env!("CARGO_BIN_EXE_au"))
+    let status = Command::new(env!("CARGO_BIN_EXE_tb-engine"))
         .args(["daemon", "status"])
         .arg(&root)
         .env("HOME", &home)
@@ -431,11 +431,11 @@ fn open_an_unknown_name_is_a_usage_error_naming_the_known_ones() {
     // An unknown workspace name is a loud usage error (exit 2), naming the known
     // workspaces, never a silent empty open.
     let home = tempfile::Builder::new()
-        .prefix("au-home-")
+        .prefix("tb-home-")
         .tempdir_in("/tmp")
         .unwrap();
     let home = fs::canonicalize(home.path()).unwrap();
-    let cfg = home.join(".arsumbris/au-engine/config");
+    let cfg = home.join(".2brain/engine/config");
     fs::create_dir_all(&cfg).unwrap();
     fs::write(
         cfg.join("workspaces.yaml"),
@@ -443,11 +443,11 @@ fn open_an_unknown_name_is_a_usage_error_naming_the_known_ones() {
     )
     .unwrap();
 
-    let out = Command::new(env!("CARGO_BIN_EXE_au"))
+    let out = Command::new(env!("CARGO_BIN_EXE_tb-engine"))
         .args(["open", "nope"])
         .env("HOME", &home)
         .output()
-        .expect("run au open");
+        .expect("run tb-engine open");
     assert_eq!(
         out.status.code(),
         Some(2),

@@ -312,18 +312,18 @@ fn cross_repo() -> (tempfile::TempDir, PathBuf) {
     };
     // Entry `v`, editing itself and `app`; `app` depends on `base`.
     w(
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     w(
-        ".arsumbris/workspace.yaml",
+        ".2brain/workspace.yaml",
         "edit:\n  - v\n  - app\ntype: tb.engine.workspace::tb-engine\n",
     );
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w("base/thing.md", "A note owned by the dependency.\n");
     w("app/local.md", "A note owned by app.\n");
     w("app/doc.md", "See [[thing::base]] and [[local]].\n");
@@ -348,18 +348,18 @@ fn cross_repo_slot_pinned_block() -> (tempfile::TempDir, PathBuf) {
         fs::write(p, content).unwrap();
     };
     w(
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     w(
-        ".arsumbris/workspace.yaml",
+        ".2brain/workspace.yaml",
         "edit:\n  - v\n  - app\ntype: tb.engine.workspace::tb-engine\n",
     );
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w(
         "base/type/research-extraction.type.yaml",
         "fields:\n  concepts?: concept-candidate&[]\n",

@@ -1,5 +1,5 @@
 ---
-type: guide.principle::au-agent-guides
+type: guide.principle::tb-agent-guides
 goal: judge coverage separately from the premise and workflow
 rule: Search existing nodes to establish coverage, then judge missing knowledge against the premise and domain guidance.
 ---

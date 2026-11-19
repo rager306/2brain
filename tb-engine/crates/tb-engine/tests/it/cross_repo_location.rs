@@ -35,7 +35,7 @@ fn fixture() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/note.type.yaml",
@@ -43,7 +43,7 @@ fn fixture() -> tempfile::TempDir {
     );
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(

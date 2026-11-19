@@ -3599,7 +3599,7 @@ impl ServerHandler for Server {
                 .build(),
         )
         .with_server_info(Implementation::new(
-            "2brain", // the product name clients see; the crate keeps `au-mcp-rs`
+            "2brain", // the product name clients see; the crate keeps `tb-mcp-rs`
             version_string(),
         ))
         .with_instructions(contract::INSTRUCTIONS)

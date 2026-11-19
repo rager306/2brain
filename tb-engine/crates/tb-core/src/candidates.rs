@@ -1,4 +1,4 @@
-//! Implicit identity candidates ([[type candidate scan::au-type-system]]).
+//! Implicit identity candidates ([[type candidate scan::tb-type-system]]).
 //!
 //! A type-def is a *candidate* for an instance (or an inline value) when its
 //! required-field set is fully satisfied by that scope's top-level fields and
@@ -6,13 +6,13 @@
 //! advisory output — they surface as "you could claim this type" suggestions;
 //! they never validate or invalidate a file.
 //!
-//! The top-level case ([[type candidate scan::au-type-system]]) evaluates against the instance's frontmatter.
-//! The nested case ([[type candidate scan::au-type-system]]) re-runs the same rule inside each inline value,
+//! The top-level case ([[type candidate scan::tb-type-system]]) evaluates against the instance's frontmatter.
+//! The nested case ([[type candidate scan::tb-type-system]]) re-runs the same rule inside each inline value,
 //! scoped to that inline value's own fields and closure. Each emitted
 //! `Candidate` carries a `scope` handle so a consumer can tell which level a
 //! suggestion applies to.
 //!
-//! Detection lives in this module; ranking ([[type candidate scan::au-type-system]]) lives alongside as a free
+//! Detection lives in this module; ranking ([[type candidate scan::tb-type-system]]) lives alongside as a free
 //! function. The full scan API lands when the nested walker arrives — for
 //! now this module ships the data shapes only.
 
@@ -32,13 +32,13 @@ use crate::validate::value_matches_simple_shape;
 /// `satisfied_required` lists T's required fields, alphabetical. Every name
 /// appears in the scope's top-level fields — that is the rule.
 /// `also_satisfied_optional` counts T's optional fields that also happen to
-/// be present; it's the [[type candidate scan::au-type-system]] tiebreaker only, so the count is sufficient.
+/// be present; it's the [[type candidate scan::tb-type-system]] tiebreaker only, so the count is sufficient.
 ///
 /// `supersedes` is non-empty when T is a leaf under a sealed family the
 /// scope already claims a different leaf in. Promoting to T would require
-/// dropping each named claim first per [[type-instance type::au-type-system]]'s multi-leaf-in-sealed-family
+/// dropping each named claim first per [[type-instance type::tb-type-system]]'s multi-leaf-in-sealed-family
 /// rule. An empty list means the candidate can be added cleanly. The scan
-/// already skips sealed parents themselves ([[type-def sealed::au-type-system]] — they're unactionable
+/// already skips sealed parents themselves ([[type-def sealed::tb-type-system]] — they're unactionable
 /// as direct claims), so a candidate here is always a non-sealed terminus.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Candidate {
@@ -89,7 +89,7 @@ impl CandidateScope {
 /// Optional: every field where every declaration has `optional: true`.
 /// The two sets are disjoint by construction — a name in `required` is
 /// required at the candidate scope regardless of whether some origins also
-/// marked it optional, which matches the [[type-def fields collision - auto-unify and qualified field::au-type-system]] "required wins" reading of
+/// marked it optional, which matches the [[type-def fields collision - auto-unify and qualified field::tb-type-system]] "required wins" reading of
 /// per-originator optionality.
 struct ClosureFieldSets {
     required: BTreeSet<FieldName>,
@@ -112,7 +112,7 @@ fn closure_field_sets(graph: &TypeGraph, name: &TypeName) -> ClosureFieldSets {
         }
     }
     // A field declared required somewhere shadows an "optional" record from
-    // a parallel chain. With no-redeclare ([[type subtyping width-only::au-type-system]]) this only matters under
+    // a parallel chain. With no-redeclare ([[type subtyping width-only::tb-type-system]]) this only matters under
     // mixin, but the candidate scan walks a single T's closure where it
     // shouldn't arise — keep the prune for invariant safety.
     for name in &required {
@@ -121,7 +121,7 @@ fn closure_field_sets(graph: &TypeGraph, name: &TypeName) -> ClosureFieldSets {
     ClosureFieldSets { required, optional }
 }
 
-/// Strip the [[type-def fields collision - auto-unify and qualified field::au-type-system]] field qualifier from a frontmatter key, if any.
+/// Strip the [[type-def fields collision - auto-unify and qualified field::tb-type-system]] field qualifier from a frontmatter key, if any.
 /// `foo{note}` → `foo`; `foo` → `foo`. The candidate scan checks
 /// satisfaction by underlying field name regardless of whether the author
 /// opted into qualifier syntax — the qualifier is a disambiguation glyph,
@@ -163,19 +163,19 @@ pub(crate) fn claim_closure(graph: &TypeGraph, claim: &TypeClaim) -> BTreeSet<Ty
 ///
 /// Filters in order:
 ///   - Sealed parents (`graph.is_sealed(name)`) skip — adding a sealed
-///     name to `type:` would fire `sealed-parent-claimed` per [[type-def sealed::au-type-system]], so
+///     name to `type:` would fire `sealed-parent-claimed` per [[type-def sealed::tb-type-system]], so
 ///     they're unactionable as direct candidates.
-///   - In-closure types skip per [[type candidate scan::au-type-system]](b).
+///   - In-closure types skip per [[type candidate scan::tb-type-system]](b).
 ///   - Empty-required-set types (tag types, all-optional) skip per
-///     [[type candidate scan::au-type-system]]'s vacuous-match exclusion.
-///   - Required-set not fully present in frontmatter skips per [[type candidate scan::au-type-system]](a).
+///     [[type candidate scan::tb-type-system]]'s vacuous-match exclusion.
+///   - Required-set not fully present in frontmatter skips per [[type candidate scan::tb-type-system]](a).
 ///
 /// `scope_claims` is the literal claim list at the candidate's scope —
 /// `instance.type_claim`'s elements at top-level, or the inline value's
 /// `type_claim` (or the slot's derived demand) for nested scopes. Used
 /// to compute `Candidate.supersedes`: any of T's sealed ancestors that
 /// the scope's claims already reach through a different leaf produces
-/// a supersedes entry per the multi-leaf-in-sealed-family rule ([[type-instance type::au-type-system]]).
+/// a supersedes entry per the multi-leaf-in-sealed-family rule ([[type-instance type::tb-type-system]]).
 fn emit_candidates(
     graph: &TypeGraph,
     closure: &BTreeSet<TypeName>,
@@ -186,7 +186,7 @@ fn emit_candidates(
     let frontmatter_names = frontmatter_field_names(scope_fields);
     let mut value_by_name: BTreeMap<&str, &InstanceValue> = BTreeMap::new();
     for field in scope_fields {
-        // Per [[type-def fields collision - auto-unify and qualified field::au-type-system]], the base field name (with any qualifier stripped)
+        // Per [[type-def fields collision - auto-unify and qualified field::tb-type-system]], the base field name (with any qualifier stripped)
         // is what the candidate's required-set is keyed by. Re-qualified
         // entries collide on the base name; first-wins is fine because
         // `mixed-bare-and-qualified-field` is a validation error and the
@@ -215,8 +215,8 @@ fn emit_candidates(
         if !sets.required.is_subset(&frontmatter_names) {
             continue;
         }
-        // [[type candidate scan::au-type-system]] (shape-aware satisfaction): every required field's *value*
-        // must conform to T's declared shape per [[type validation::au-type-system]], not just be
+        // [[type candidate scan::tb-type-system]] (shape-aware satisfaction): every required field's *value*
+        // must conform to T's declared shape per [[type validation::tb-type-system]], not just be
         // present. An empty list against `T[+]` or a string against
         // `Number` is a non-fit, not a near-fit — partial-match
         // semantics belong to a future mode (see aspirations).
@@ -256,8 +256,8 @@ fn emit_candidates(
     out
 }
 
-/// Shape-conformance check for the [[type candidate scan::au-type-system]] candidate scan. Returns `true` iff
-/// `value` plausibly fits `shape` under [[type validation::au-type-system]]. Strict on primitive types,
+/// Shape-conformance check for the [[type candidate scan::tb-type-system]] candidate scan. Returns `true` iff
+/// `value` plausibly fits `shape` under [[type validation::tb-type-system]]. Strict on primitive types,
 /// enum membership, list cardinality (incl. `[+]` non-empty), and value-
 /// shape category (string vs map vs sequence). Permissive on reference-
 /// resolution (we don't walk the knowledge base) and on the names inside record /
@@ -269,8 +269,8 @@ fn candidate_value_satisfies_shape(value: &InstanceValue, shape: &Shape) -> bool
         Shape::Primitive(_) | Shape::Enum(_) => value_matches_simple_shape(value, shape),
         // A refined scalar is a candidate when its base primitive matches.
         Shape::Refined { base, .. } => value_matches_simple_shape(value, &Shape::Primitive(*base)),
-        // An `any` slot ([[type-def shape any::au-type-system]]) or an `opaque` slot
-        // ([[type-def shape opaque::au-type-system]]) imposes no type, so every value satisfies it.
+        // An `any` slot ([[type-def shape any::tb-type-system]]) or an `opaque` slot
+        // ([[type-def shape opaque::tb-type-system]]) imposes no type, so every value satisfies it.
         Shape::Any | Shape::Opaque => true,
         Shape::List { inner, min, max } => match value {
             InstanceValue::Sequence(elements) => {
@@ -290,7 +290,7 @@ fn candidate_value_satisfies_shape(value: &InstanceValue, shape: &Shape) -> bool
             _ => false,
         },
         Shape::Reference(_) => matches!(value, InstanceValue::String(_)),
-        // A def-reference ([[type-def shape def-ref::au-type-system]], `type<T>*` / `type*`) is a
+        // A def-reference ([[type-def shape def-ref::tb-type-system]], `type<T>*` / `type*`) is a
         // wikilink string, like any reference. Full def-axis validation
         // happens at the use site.
         Shape::DefReference(_) => matches!(value, InstanceValue::String(_)),
@@ -315,7 +315,7 @@ fn candidate_value_satisfies_shape(value: &InstanceValue, shape: &Shape) -> bool
         Shape::Tuple(_) => {
             matches!(value, InstanceValue::String(_) | InstanceValue::Sequence(_))
         }
-        // A commit-pinned reference ([[type-def shape suffixes::au-type-system]] `*@`) is its inner
+        // A commit-pinned reference ([[type-def shape suffixes::tb-type-system]] `*@`) is its inner
         // reference shape plus a pin requirement; the scan is permissive on
         // resolution, so it delegates to the inner.
         Shape::Pinned(inner) => candidate_value_satisfies_shape(value, inner),
@@ -323,7 +323,7 @@ fn candidate_value_satisfies_shape(value: &InstanceValue, shape: &Shape) -> bool
 }
 
 /// Identify the scope's claimed leaves that the candidate would conflict
-/// with under [[type-instance type::au-type-system]]'s multi-leaf-in-sealed-family rule. For each sealed
+/// with under [[type-instance type::tb-type-system]]'s multi-leaf-in-sealed-family rule. For each sealed
 /// type-def S in the candidate's closure, any scope-claim whose own
 /// closure also contains S is a sibling-family conflict — promoting to
 /// the candidate would require dropping that claim first.
@@ -360,7 +360,7 @@ fn find_supersedes(
     supersedes.into_iter().collect()
 }
 
-/// Scan an instance's top-level frontmatter for [[type candidate scan::au-type-system]] identity candidates.
+/// Scan an instance's top-level frontmatter for [[type candidate scan::tb-type-system]] identity candidates.
 ///
 /// Returns one `Candidate` per type-def T in the graph that satisfies:
 ///   (a) every required field of T's closure is present as a top-level
@@ -371,7 +371,7 @@ fn find_supersedes(
 ///   (c) T's required-field set is non-empty (tag-types and all-optional
 ///       types never surface — they would match every file vacuously).
 ///
-/// Output order is alphabetical by type-name; the ranking pass ([[type candidate scan::au-type-system]])
+/// Output order is alphabetical by type-name; the ranking pass ([[type candidate scan::tb-type-system]])
 /// sorts the list afterwards. For combined top-level + nested scanning
 /// with ranking, use [`scan`].
 pub fn scan_top_level(graph: &TypeGraph, instance: &Instance) -> Vec<Candidate> {
@@ -392,7 +392,7 @@ fn json_pointer_escape(name: &str) -> String {
 ///
 /// Iterates every type-def in the closure and collects each declared
 /// field's parsed shape, keyed by field name. With width-only subtyping +
-/// no-redeclare ([[type subtyping width-only::au-type-system]]), each name has
+/// no-redeclare ([[type subtyping width-only::tb-type-system]]), each name has
 /// exactly one declaring origin per closure (mixin auto-unify keeps shapes
 /// token-equal), so the "first encountered" pick is canonical. Fields whose
 /// shape failed to parse (Err) are skipped — they're already a load-time
@@ -416,11 +416,11 @@ pub(crate) fn build_field_shape_map<'a>(
 }
 
 /// The slot's demanded type-def for a Mapping-valued field, if the shape
-/// names exactly one record type. Spec [[type-def shape record::au-type-system]] case 1 (`name`) and [[type-def shape record::au-type-system]]'s
+/// names exactly one record type. Spec [[type-def shape record::tb-type-system]] case 1 (`name`) and [[type-def shape record::tb-type-system]]'s
 /// `name&` (Shape::InlineOrReference) both nominate a single record;
 /// other shapes (primitives, enums, unions, intersections, compound
 /// references) either don't accept inline maps or require an explicit
-/// `type:` claim ([[type-def shape record::au-type-system]] cases 3–4), so the candidate walker treats them
+/// `type:` claim ([[type-def shape record::tb-type-system]] cases 3–4), so the candidate walker treats them
 /// as ambiguous and emits nothing for unclaimed inline values there.
 pub(crate) fn record_demanded_type(shape: &Shape) -> Option<TypeName> {
     match shape {
@@ -436,7 +436,7 @@ pub(crate) fn record_demanded_type(shape: &Shape) -> Option<TypeName> {
 /// element-side slot context is undefined and we emit nothing for
 /// elements there (validate fires the type mismatch separately).
 /// True when a slot holds opaque content the scans must not descend into: an
-/// `opaque` slot ([[type-def shape opaque::au-type-system]]). The interpreted top `any` (and
+/// `opaque` slot ([[type-def shape opaque::tb-type-system]]). The interpreted top `any` (and
 /// `any&`) is NOT opaque, its content is scanned like any other value. `any*` is
 /// a plain reference, not opaque, and never reaches the Mapping/Sequence descent
 /// anyway.
@@ -454,7 +454,7 @@ pub(crate) fn sequence_element_shape(shape: &Shape) -> Option<&Shape> {
 
 /// Walk an instance's inline-value tree, emitting candidates at each
 /// scope as we go. Threads the "current host closure" through the
-/// recursion so unclaimed inline values ([[type-def shape record::au-type-system]] case 1) resolve their
+/// recursion so unclaimed inline values ([[type-def shape record::tb-type-system]] case 1) resolve their
 /// implied identity from the surrounding slot's demanded type.
 fn walk_and_emit_inline(
     graph: &TypeGraph,
@@ -488,7 +488,7 @@ fn descend_value(
     file_path: &Path,
     out: &mut Vec<Candidate>,
 ) {
-    // An `opaque` slot ([[type-def shape opaque::au-type-system]]) holds content the scan does
+    // An `opaque` slot ([[type-def shape opaque::tb-type-system]]) holds content the scan does
     // not descend into, so no nested candidate surfaces from an uninterpreted
     // payload. `opaque[]` reaches here per element with the inner `Shape::Opaque`,
     // so elements are skipped too. The interpreted top `any` is NOT skipped, its
@@ -500,7 +500,7 @@ fn descend_value(
         InstanceValue::Mapping(inline) => {
             // Resolve the inline value's closure AND its scope claims:
             // explicit `type:` wins; otherwise fall back to the slot's
-            // demanded type per [[type-def shape record::au-type-system]] case 1. Without either, we have no
+            // demanded type per [[type-def shape record::tb-type-system]] case 1. Without either, we have no
             // closure to subtract from — emit nothing for this scope
             // (the typical case is a union/intersection slot where
             // validate is already firing a missing-type error).
@@ -515,7 +515,7 @@ fn descend_value(
                 // slot's, not an implicit-identity question. A candidate
                 // here would advertise a promotion (`type: other`) that
                 // REPLACES the pin and breaks the slot — explicit claims
-                // win over pinning per [[type block-id::au-type-system]]. Suppressed; the
+                // win over pinning per [[type block-id::tb-type-system]]. Suppressed; the
                 // scan resumes once the record carries an explicit claim.
                 // Nested values still walk against the pinned shape.
                 let closure = closure_of(graph, &demanded);
@@ -565,16 +565,16 @@ fn descend_value(
     }
 }
 
-/// Full [[type candidate scan::au-type-system]] scan: top-level ([[type candidate scan::au-type-system]]) plus every inline-value scope ([[type candidate scan::au-type-system]]),
-/// aggregated into one ranked list ([[type candidate scan::au-type-system]]). Each `Candidate.scope`
+/// Full [[type candidate scan::tb-type-system]] scan: top-level ([[type candidate scan::tb-type-system]]) plus every inline-value scope ([[type candidate scan::tb-type-system]]),
+/// aggregated into one ranked list ([[type candidate scan::tb-type-system]]). Each `Candidate.scope`
 /// disambiguates which level the suggestion applies to; consumers may
 /// group by scope to render per-level UIs.
 ///
 /// Unclaimed inline values (`type:` omitted) resolve their closure via
-/// the surrounding slot's demanded type per [[type-def shape record::au-type-system]] case 1 — the walker
+/// the surrounding slot's demanded type per [[type-def shape record::tb-type-system]] case 1 — the walker
 /// threads the host closure through and looks up each Mapping field's
 /// declared shape to find the demand. Unions, intersections, and
-/// compound-reference slots require an explicit `type:` claim ([[type-def shape record::au-type-system]]
+/// compound-reference slots require an explicit `type:` claim ([[type-def shape record::tb-type-system]]
 /// cases 3–4); the walker treats them as ambiguous and emits nothing
 /// for unclaimed inline values at those sites.
 pub fn scan(graph: &TypeGraph, instance: &Instance) -> Vec<Candidate> {
@@ -592,7 +592,7 @@ pub fn scan(graph: &TypeGraph, instance: &Instance) -> Vec<Candidate> {
     out
 }
 
-/// Rank candidates in place per [[type candidate scan::au-type-system]]: required-field-set size primary,
+/// Rank candidates in place per [[type candidate scan::tb-type-system]]: required-field-set size primary,
 /// also-satisfied-optional-field count secondary, both descending. Stable
 /// tertiary on `(type_name, scope.inline_path)` ascending so output is
 /// reproducible across runs and the same scope's candidates stay grouped
@@ -708,7 +708,7 @@ mod tests {
     fn orthogonal_overlap_surfaces_summary() {
         // `summary` requires `description` — same as `note`. Pre-amendment
         // this was implicitly excluded because there were no extras driving
-        // the scan; the [[type candidate scan::au-type-system]] rewrite surfaces it.
+        // the scan; the [[type candidate scan::tb-type-system]] rewrite surfaces it.
         let g = build_graph(vec![
             td("note", &[], &[("description", false)]),
             td("summary", &[], &[("description", false)]),
@@ -762,7 +762,7 @@ mod tests {
     #[test]
     fn tag_type_never_surfaces() {
         // `tag` has zero fields. It would match every instance vacuously —
-        // [[type candidate scan::au-type-system]] explicitly excludes it.
+        // [[type candidate scan::tb-type-system]] explicitly excludes it.
         let g = build_graph(vec![
             td("note", &[], &[("description", false)]),
             td("tag", &[], &[]),
@@ -787,7 +787,7 @@ mod tests {
 
     #[test]
     fn shape_mismatched_value_does_not_surface() {
-        // [[type candidate scan::au-type-system]] (shape-aware): instance has `count` as a string, but the
+        // [[type candidate scan::tb-type-system]] (shape-aware): instance has `count` as a string, but the
         // candidate's `count` slot demands `Number`. Presence alone
         // doesn't qualify; value must conform.
         let g = build_graph(vec![
@@ -821,7 +821,7 @@ mod tests {
 
     #[test]
     fn non_empty_list_with_empty_value_does_not_surface() {
-        // [[type candidate scan::au-type-system]] (shape-aware) + [[type-def shape suffixes::au-type-system]]: candidate requires `tags: String[+]`
+        // [[type candidate scan::tb-type-system]] (shape-aware) + [[type-def shape suffixes::tb-type-system]]: candidate requires `tags: String[+]`
         // (non-empty). Instance has `tags: []`. Empty list is a non-fit
         // on that field, not a near-fit — candidate does NOT surface.
         let g = build_graph(vec![
@@ -955,11 +955,11 @@ mod tests {
 
     #[test]
     fn qualified_field_satisfies_candidate() {
-        // [[type-def fields collision - auto-unify and qualified field::au-type-system]] qualifier syntax: `description{note}` is the same field as
+        // [[type-def fields collision - auto-unify and qualified field::tb-type-system]] qualifier syntax: `description{note}` is the same field as
         // `description` for candidate purposes. The qualifier disambiguates
         // semantic identity, not field identity.
         let g = build_graph(vec![
-            // Two types with same-named field create the [[type-def fields collision - auto-unify and qualified field::au-type-system]] collision
+            // Two types with same-named field create the [[type-def fields collision - auto-unify and qualified field::tb-type-system]] collision
             // setting under which the user typed the qualifier in the first
             // place. The candidate scan doesn't need either of them in
             // closure — just a target that wants `description`.
@@ -1037,7 +1037,7 @@ mod tests {
         assert_eq!(cands[0].scope.file_path, inst.source_path);
     }
 
-    // ---- Nested ([[type candidate scan::au-type-system]]) ------------------------------------------------
+    // ---- Nested ([[type candidate scan::tb-type-system]]) ------------------------------------------------
 
     use crate::instance::{InlineValue, SequenceElement};
 
@@ -1094,7 +1094,7 @@ mod tests {
 
     #[test]
     fn opaque_slot_is_not_descended_by_candidate_scan() {
-        // [[type-def shape opaque::au-type-system]]: an `opaque` slot holds uninterpreted content.
+        // [[type-def shape opaque::tb-type-system]]: an `opaque` slot holds uninterpreted content.
         // The same inline value that surfaces a candidate at a `rationale` record
         // slot (see `nested_inline_surfaces_at_inline_scope`) surfaces nothing at
         // an `opaque` slot — the scan does not descend into the uninterpreted value.
@@ -1126,7 +1126,7 @@ mod tests {
 
     #[test]
     fn any_slot_is_descended_by_candidate_scan() {
-        // [[type-def shape any::au-type-system]]: the interpreted top IS descended. The same
+        // [[type-def shape any::tb-type-system]]: the interpreted top IS descended. The same
         // inline value that surfaces nothing at an `opaque` slot surfaces a
         // candidate at an `any` slot, the interpreted-vs-uninterpreted contrast.
         let g = build_graph(vec![
@@ -1356,7 +1356,7 @@ mod tests {
 
     #[test]
     fn unclaimed_inline_value_resolves_via_slot_demand() {
-        // [[type candidate scan::au-type-system]]: a claim-less record at a single
+        // [[type candidate scan::tb-type-system]]: a claim-less record at a single
         // non-sealed record slot is SKIPPED. Its identity is the slot's;
         // a candidate would advertise an explicit claim that replaces
         // the pin and breaks the slot. The scan resumes once the record
@@ -1473,7 +1473,7 @@ mod tests {
         assert_eq!(by_scope(&scan(&g, &inst)), Vec::<(&str, &str)>::new());
     }
 
-    // ---- Sealed-family filtering ([[type-def sealed::au-type-system]], [[type-instance type::au-type-system]]) ---------------------------
+    // ---- Sealed-family filtering ([[type-def sealed::tb-type-system]], [[type-instance type::tb-type-system]]) ---------------------------
 
     fn td_sealed(name: &str, parents: &[&str], sealed: &[&str]) -> TypeDef {
         let mut t = td(name, parents, &[]);
@@ -1486,7 +1486,7 @@ mod tests {
 
     #[test]
     fn sealed_parents_never_surface_as_candidates() {
-        // A sealed type-def cannot be claimed directly per [[type-def sealed::au-type-system]]
+        // A sealed type-def cannot be claimed directly per [[type-def sealed::tb-type-system]]
         // (`sealed-parent-claimed`). Surfacing it as a candidate would
         // be an unactionable suggestion. The scan skips sealed names
         // entirely; only non-sealed leaves remain.
@@ -1545,7 +1545,7 @@ mod tests {
         // a leaf of sealed `decision`. The scan surfaces it as a
         // candidate, with `supersedes: [decision.pending]` so consumers
         // know the suggested promotion requires dropping the current
-        // leaf first (per [[type-instance type::au-type-system]]'s multi-leaf-in-sealed-family rule).
+        // leaf first (per [[type-instance type::tb-type-system]]'s multi-leaf-in-sealed-family rule).
         let g = build_graph(vec![
             td_sealed("decision", &[], &["decision.pending", "decision.decided"]),
             td("decision.pending", &["decision"], &[("status", false)]),
@@ -1587,7 +1587,7 @@ mod tests {
 
     #[test]
     fn unclaimed_inline_at_union_slot_emits_nothing() {
-        // [[type-def shape record::au-type-system]] cases 3–4: union / intersection / compound-reference
+        // [[type-def shape record::tb-type-system]] cases 3–4: union / intersection / compound-reference
         // slots require an explicit `type:` claim — omitting it is a
         // validation error. The candidate walker stays advisory and
         // simply emits nothing at unresolvable inline scopes (so it

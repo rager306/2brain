@@ -1,5 +1,5 @@
 title: "Load-time type-def grammar — corpus of every diagnostic emitted by the graph builder"
-spec_ref: "[[type-def::au-type-system]], [[type-def legal names::au-type-system]], [[type-def sealed::au-type-system]], [[type-def shape primitive::au-type-system]], [[type closure::au-type-system]], [[type-def fields collision - auto-unify and qualified field::au-type-system]], [[type-def meta::au-type-system]]"
+spec_ref: "[[type-def::tb-type-system]], [[type-def legal names::tb-type-system]], [[type-def sealed::tb-type-system]], [[type-def shape primitive::tb-type-system]], [[type closure::tb-type-system]], [[type-def fields collision - auto-unify and qualified field::tb-type-system]], [[type-def meta::tb-type-system]]"
 command: graph
 expected:
   codes:

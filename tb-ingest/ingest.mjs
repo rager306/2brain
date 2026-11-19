@@ -90,7 +90,7 @@ function frameResult(frame) {
 
 async function discover(broker, selector, entry) {
   const [typeFrame, memberFrame] = await Promise.all([
-    broker.read('subtypes', { base: 'source::au-base-types' }, 30_000),
+    broker.read('subtypes', { base: 'source::tb-base-types' }, 30_000),
     broker.read('members', {}, 30_000),
   ]);
   const subtypes = frameResult(typeFrame)?.subtypes;

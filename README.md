@@ -84,7 +84,7 @@ daemon: a daemon that is already serving keeps the binary it started with until 
 
 ```sh
 2brain init ~/my-vault                           # .2brain/repo.yaml, a root README, and a git work tree
-2brain daemon start ~/my-vault                   # foreground; serves reads over a socket under ~/.2brain/au-engine/run
+2brain daemon start ~/my-vault                   # foreground; serves reads over a socket under ~/.2brain/engine/run
 2brain doctor ~/my-vault                         # in another shell: one ok/warn/fail line per check, and the fix for each
 ```
 
@@ -94,7 +94,7 @@ README that says how to use them. `minimal` and `blank` ship too, and the rest o
 unless `--force`. `2brain doctor` exits non-zero only when a check failed, and each failure names the
 command that fixes it.
 
-The daemon's state root is `~/.2brain/` when that directory exists and `~/.arsumbris/` otherwise — the second
+The daemon's state root is `~/.2brain/` when that directory exists and `~/.2brain/` otherwise — the second
 spelling is the one a fresh machine gets in this release, and the migration to the first is a separate step
 (`docs/naming.md`). A workspace with one note and a broken `[[link]]` reports three diagnostics rather than
 failing: diagnostics describe content, they do not block serving.
@@ -181,7 +181,7 @@ This repository is meant to be read by agents, not only by people. Start here, i
 | `docs/` | design: architecture, trajectory, research, the evidence index; operations live in `docs/internal/` |
 | `tools/` | tooling that never runs on the request path: ranking evaluation, cards, judgement probes |
 
-The engine's on-disk format still uses its historical `au.engine.*` schema names and `.arsumbris/`
+The engine's on-disk format still uses its historical `tb.engine.*` schema names and `.2brain/`
 identity directories. That is a **format**, not a brand: it is read and written as-is, and moving it is a
 migration with its own gate (`docs/rebrand-plan.md`, tier C).
 

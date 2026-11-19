@@ -33,7 +33,7 @@ restricts its candidates before scoring, or ranks everything and filters afterwa
 python3 tools/probe/candidate_set.py                            # table on stdout
 python3 tools/probe/candidate_set.py --json /tmp/rows.json      # raw rows
 python3 tools/probe/candidate_set.py --capture /tmp/before      # every answered page
-python3 tools/probe/candidate_set.py --against /tmp/au-old      # two binaries, one corpus
+python3 tools/probe/candidate_set.py --against /tmp/tb-old      # two binaries, one corpus
 ```
 
 It records, per query and scope, the `search` verb's `documents_visited` and

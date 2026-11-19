@@ -1,5 +1,5 @@
 title: "A bare prose wikilink resolving to two files is surfaced, not silently dropped"
-spec_ref: "[[type reference::au-type-system]], [[reference name resolution::au-type-system]]"
+spec_ref: "[[type reference::tb-type-system]], [[reference name resolution::tb-type-system]]"
 command: validate
 expected:
   codes:

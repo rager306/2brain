@@ -8,10 +8,10 @@ type: tb.engine.repo::tb-engine
 name: host-bundle
 description: aggregator for the host's UI composition closure (projections + first-party vocabulary)
 deps:
-  - name: au-host-sdk
+  - name: tb-host-sdk
   - name: component-contract
-  - name: au-component-catalog
-  - name: au-component-set
+  - name: tb-component-catalog
+  - name: tb-component-set
   - name: force-graph
   - name: aup-git-activity
   - name: aup-reader
@@ -49,7 +49,7 @@ deps:
   - name: scope-panel
   - name: hello
   - name: placeholder-picker
-  - name: au-avatar
+  - name: tb-avatar
   - name: agent-sessions
   - name: settings
   - name: media-viewers

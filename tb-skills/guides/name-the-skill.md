@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Choose a skill name that distinguishes its job within the package.
 rule: Name the work the caller is asking for. Resolve ambiguity against the other names in the same package.
 ---
@@ -8,7 +8,7 @@ rule: Name the work the caller is asking for. Resolve ambiguity against the othe
 
 List the requests the skill owns and compare them with neighboring skills.
 Choose a short name that makes the intended destination recognizable.
-Check the allowed form against [[mcp.skill::au-mcp-sdk:example]].
+Check the allowed form against [[mcp.skill::tb-mcp-sdk:example]].
 
 This package uses `write-a-skill` for creating or changing a skill and `review-a-skill` for returning findings about one.
 Calling both `skill-craft` would hide the distinction between an edit and a review.

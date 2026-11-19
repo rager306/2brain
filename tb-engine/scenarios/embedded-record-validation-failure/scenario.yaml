@@ -1,5 +1,5 @@
 title: "Marked yaml block fails its claimed type's validation"
-spec_ref: "[[type-instance body contribution::au-type-system]]"
+spec_ref: "[[type-instance body contribution::tb-type-system]]"
 command: validate
 expected:
   codes:

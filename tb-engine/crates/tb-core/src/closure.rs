@@ -8,7 +8,7 @@
 //! about: union of fields contributed by every type-def in the closure of a
 //! `TypeClaim`, with each field tagged by its originating type-def(s). Multi-
 //! claim mixin (`type: [a, b, ...]`) unions the closures of each claim and
-//! groups field decls by name; auto-unify ([[type-def fields collision - auto-unify and qualified field::au-type-system]]) collapses same-named fields
+//! groups field decls by name; auto-unify ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]) collapses same-named fields
 //! whose `parsed_shape` is token-equal across origins, otherwise the field is
 //! DIVERGENT: it stays in the effective shape as a per-origin `FieldOrigin`
 //! (in `EffectiveShape.divergent`), and every use of it must be qualified
@@ -127,7 +127,7 @@ pub(crate) fn collect_referenced_type_names(shape: &Shape) -> Vec<&str> {
                 push_own(name, out)
             }
             Shape::List { inner, .. } => walk(inner, out),
-            // A commit-pinned reference ([[type-def shape suffixes::au-type-system]] `*@`) wraps a
+            // A commit-pinned reference ([[type-def shape suffixes::tb-type-system]] `*@`) wraps a
             // reference; its bound type names must exist, so `T*@` / `type<absent>*@`
             // descend through the inner.
             Shape::Pinned(inner) => walk(inner, out),
@@ -141,7 +141,7 @@ pub(crate) fn collect_referenced_type_names(shape: &Shape) -> Vec<&str> {
                     push_own(name, out);
                 }
             }
-            // A def-reference ([[type-def shape def-ref::au-type-system]], `type<T>*`) constrains the
+            // A def-reference ([[type-def shape def-ref::tb-type-system]], `type<T>*`) constrains the
             // target to a def under `T`. The bound's ceiling names are type-defs
             // that must exist. The unconstrained `type*` (None) names nothing.
             Shape::DefReference(bound) => match bound {
@@ -263,7 +263,7 @@ impl OriginId {
 /// One declaration contributed by a single type-def in the closure.
 ///
 /// The originating type-def is the one whose own `fields:` list literally
-/// includes this name. With width-only subtyping ([[type subtyping width-only::au-type-system]]) and the no-redeclare
+/// includes this name. With width-only subtyping ([[type subtyping width-only::tb-type-system]]) and the no-redeclare
 /// rule, each chain has at most one origin per field name; mixin can produce
 /// multiple chains and therefore multiple origins for the same field.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -280,7 +280,7 @@ pub struct OriginInfo {
 /// One entry in `EffectiveShape.fields`. Records every contributing origin
 /// (length 1 for single-claim or 1-element-list; ≥ 2 when mixin auto-unify
 /// kicks in). Per-origin `decl.optional` is preserved so the per-originator
-/// required-field check ([[type-def fields collision - auto-unify and qualified field::au-type-system]]) sees each origin's own optional bit, not a
+/// required-field check ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]) sees each origin's own optional bit, not a
 /// collapsed canonical one.
 ///
 /// Map key (`OriginId`, the authored `name` / `name::repo`) is the originating
@@ -288,7 +288,7 @@ pub struct OriginInfo {
 /// `BTreeMap` ordering gives deterministic canonical-origin selection across runs.
 ///
 /// `origins` is sealed at the crate boundary so the "non-empty" invariant
-/// upheld by `effective_shape` can't be broken from outside au-core;
+/// upheld by `effective_shape` can't be broken from outside tb-core;
 /// `canonical()` and its delegates rely on it. External readers iterate
 /// via [`FieldOrigin::origins`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -341,7 +341,7 @@ impl FieldOrigin {
     }
 
     /// True iff the origins do NOT all share a token-equal shape — a divergent
-    /// field ([[type-def fields collision - auto-unify and qualified field::au-type-system]]). A single-origin field is never divergent. A
+    /// field ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]). A single-origin field is never divergent. A
     /// divergent field has no all-satisfying bare value: every use must be
     /// qualified, and a bare use is a `mixin-collision`.
     pub fn is_divergent(&self) -> bool {
@@ -359,13 +359,13 @@ impl FieldOrigin {
 ///
 /// `fields` holds the resolved entries — single-origin or auto-unified.
 /// `divergent` holds every same-named field whose origins disagree on shape,
-/// as a per-origin `FieldOrigin` keyed by identity ([[type-def fields collision - auto-unify and qualified field::au-type-system]]): the field
+/// as a per-origin `FieldOrigin` keyed by identity ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]): the field
 /// stays in the effective shape (every use must be qualified), it is not
 /// dropped. `iter()` / `get()` expose `fields`; `divergent()` / `get_divergent()`
 /// expose the divergent set. The validator emits `mixin-collision` on a bare use
 /// of a divergent field and enforces its origins' required bits per-origin.
 /// `instance_closure` is the union of `closure_of(c)` across every claim,
-/// used by the [[type-def fields collision - auto-unify and qualified field::au-type-system]] qualifier resolver to validate `field{T}` keys.
+/// used by the [[type-def fields collision - auto-unify and qualified field::tb-type-system]] qualifier resolver to validate `field{T}` keys.
 ///
 /// Keep every field deterministically ordered (`BTreeMap` / `BTreeSet`, never a
 /// `HashMap` / `HashSet`): the scale fuzzer `Debug`-diffs this shape to assert
@@ -449,7 +449,7 @@ impl EffectiveShape {
     }
 
     /// Union of `closure_of(c)` across every claim. Includes the claims
-    /// themselves and all transitive ancestors. Used by the [[type-def fields collision - auto-unify and qualified field::au-type-system]] qualifier
+    /// themselves and all transitive ancestors. Used by the [[type-def fields collision - auto-unify and qualified field::tb-type-system]] qualifier
     /// resolver to verify `T` in `field{T}` is reachable from the instance.
     pub fn instance_closure(&self) -> &BTreeSet<TypeName> {
         &self.instance_closure
@@ -532,7 +532,7 @@ pub fn effective_shape(
 /// Group `(origin_id, decl)` contributions by field name into the effective
 /// shape: each name either auto-unifies (its origins' shapes token-equal) into a
 /// resolved `FieldOrigin` in `fields`, or is DIVERGENT (non-token-equal) and
-/// stays as a per-origin `FieldOrigin` in `divergent` ([[type-def fields collision - auto-unify and qualified field::au-type-system]]) — kept,
+/// stays as a per-origin `FieldOrigin` in `divergent` ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]) — kept,
 /// never dropped. Shared by the own-graph [`effective_shape`] and the
 /// resolution-graph [`effective_shape_resolved`], so the two produce identical
 /// grouping from identical contributions.
@@ -609,7 +609,7 @@ pub fn folded_closure_ids(
 ///
 /// Origins are keyed by authored `OriginId`. A mixin reaching two same-named but
 /// DIVERGED identities (the cross-repo diamond) keeps both as a divergent
-/// `FieldOrigin` ([[type-def fields collision - auto-unify and qualified field::au-type-system]]); a token-equal same-name group collapses to
+/// `FieldOrigin` ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]); a token-equal same-name group collapses to
 /// one representative, so a purely-resolved shape matches the own-graph path.
 pub fn effective_shape_resolved(
     rg: &crate::resolution::ResolutionGraph,
@@ -693,7 +693,7 @@ pub fn effective_shape_resolved(
             // The field is divergent. Fold the NON-diverging origins (a same-named
             // token-equal group, or a differently-named origin like a mixed-in
             // `deliverable.title`) into the divergent set too, so EVERY origin of
-            // the field is present and independently required ([[type-def fields collision - auto-unify and qualified field::au-type-system]]).
+            // the field is present and independently required ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]).
             // Dropping them would silently lose an origin's `required-field-absent`.
             // Keys are disjoint (distinct authored `OriginId`s), so the merge is safe.
             divergent_origins.extend(resolved);
@@ -715,7 +715,7 @@ pub fn effective_shape_resolved(
     Ok(shape)
 }
 
-/// Auto-unify check (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]). Single-origin trivially passes. For `Ok`
+/// Auto-unify check (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]). Single-origin trivially passes. For `Ok`
 /// shapes, equality is structural (`Shape` derives `PartialEq`). For `Err`
 /// shapes (deferred grammar features, syntax errors), equality is on
 /// `raw_shape` — the parser is deterministic, so identical source text
@@ -758,7 +758,7 @@ pub(crate) enum QualifierResolution {
     /// origins: a divergent field reached through a non-declaring descendant, so
     /// which shape the value checks against is an arbitrary choice. Carries one
     /// representative origin per distinct shape, to steer the author to name a
-    /// declaring origin directly ([[type-def fields collision - auto-unify and qualified field::au-type-system]]).
+    /// declaring origin directly ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]).
     Ambiguous(Vec<OriginId>),
     /// No type in the qualifier's closure declares the field.
     Absent,
@@ -985,7 +985,7 @@ mod tests {
         assert!(shape.is_empty());
     }
 
-    // ---------- multi-claim mixin ([[type closure::au-type-system]], [[type-def fields collision - auto-unify and qualified field::au-type-system]]) ----------
+    // ---------- multi-claim mixin ([[type closure::tb-type-system]], [[type-def fields collision - auto-unify and qualified field::tb-type-system]]) ----------
 
     #[test]
     fn mixin_unions_disjoint_claims() {

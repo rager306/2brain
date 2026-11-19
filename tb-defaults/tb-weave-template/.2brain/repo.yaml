@@ -1,0 +1,27 @@
+type: tb.engine.repo::tb-engine
+name: tb-weave-template
+description: Turn source material into connected notes. Includes the standard app layout with tools for ingestion, research, writing guidance and building a knowledge graph.
+deps:
+  - name: tb-weave
+  - name: tb-ingest
+  - name: tb-tree-research
+  - name: tb-writing-style
+  - name: agent-sessions
+  - name: tb-avatar
+  - name: tb-host-sdk
+  - name: tb-mcp-adapter-codex
+  - name: tb-mcp-sdk
+  - name: aup-reader
+  - name: aup-workspace-sidebar
+  - name: bento
+  - name: column
+  - name: editor
+  - name: file-tree
+  - name: force-graph
+  - name: intent
+  - name: media-viewers
+  - name: placeholder-picker
+  - name: sandwich
+  - name: tabs
+  - name: terminal
+  - name: tb-mcp-adapter-cc

@@ -101,9 +101,9 @@ Non-ASCII content (em-dashes, accented characters, emoji) is where UTF-8 ≠ UTF
 
 ---
 
-## 0. Workspace and repo discovery (au-core, au-engine::repo)
+## 0. Workspace and repo discovery (tb-core, tb-engine::repo)
 
-Discovers the repos in a workspace from their `.arsumbris/repo.yaml` markers, before any knowledge base load.
+Discovers the repos in a workspace from their `.2brain/repo.yaml` markers, before any knowledge base load.
 Membership is load-bearing: every file resolves type claims against its repo's graph.
 These discovery diagnostics stay advisory: a malformed registry degrades to an implicit repo, it never blocks the load.
 
@@ -114,7 +114,7 @@ These discovery diagnostics stay advisory: a malformed registry degrades to an i
 `repo registry is not valid YAML: {detail}`.
 
 **Triggers:**
-a `.arsumbris/repo.yaml` is not valid UTF-8 or YAML. The directory is not treated as a repo root.
+a `.2brain/repo.yaml` is not valid UTF-8 or YAML. The directory is not treated as a repo root.
 
 `error`, not advisory.
 - the repo produces no type graph, and every `::repo` fold into it is blocked, a downstream stage.
@@ -218,10 +218,10 @@ a `workspace.yaml`'s `disabled:` overlay names a repo absent from both `edit:` a
 ^member-at-reserved-root
 
 **Message:**
-`workspace member '{name}' resolves to the reserved device root ~/.arsumbris; it is excluded, the workspace opens over the rest`.
+`workspace member '{name}' resolves to the reserved device root ~/.2brain; it is excluded, the workspace opens over the rest`.
 
 **Triggers:**
-a declared workspace member resolves to the reserved device root `~/.arsumbris`, whose `.arsumbris/` IS the device config/data area. The member is EXCLUDED from the mount set, never walked (walking a home directory as content would be catastrophic), and the workspace opens over the rest. A `warning`, never blocking, the parity of the unmounted member-outcome family. The check is EQUALITY (the member's canonical root equals the canonical `$HOME`), not a subtree test, so a cache-mounted member under `~/.arsumbris` is unaffected. It is specific and takes precedence over the generic unmounted signal, so a reserved member fires this rather than `edit-member-unmounted` / `discover-member-unmounted` / `peer-unmounted`. The entry sibling of this outcome is `EntryReserved` (a hard refusal, the daemon does not serve). Fix: point the member at a directory other than the home directory. Emitted at the workspace file.
+a declared workspace member resolves to the reserved device root `~/.2brain`, whose `.2brain/` IS the device config/data area. The member is EXCLUDED from the mount set, never walked (walking a home directory as content would be catastrophic), and the workspace opens over the rest. A `warning`, never blocking, the parity of the unmounted member-outcome family. The check is EQUALITY (the member's canonical root equals the canonical `$HOME`), not a subtree test, so a cache-mounted member under `~/.2brain` is unaffected. It is specific and takes precedence over the generic unmounted signal, so a reserved member fires this rather than `edit-member-unmounted` / `discover-member-unmounted` / `peer-unmounted`. The entry sibling of this outcome is `EntryReserved` (a hard refusal, the daemon does not serve). Fix: point the member at a directory other than the home directory. Emitted at the workspace file.
 
 ### `workspace-member-role-conflict` - error
 ^workspace-member-role-conflict
@@ -230,11 +230,11 @@ a declared workspace member resolves to the reserved device root `~/.arsumbris`,
 `workspace member '{name}' appears in both 'edit' and 'discover'; a member has one role per workspace`.
 
 **Triggers:**
-a name listed in both a `.arsumbris/workspace.yaml`'s `edit:` and its `discover:` list. A member has ONE role per workspace: `edit` is an editable authoring surface, `discover` is a consumed discovery mount, so the two are contradictory. An `error`, but the editable role (`edit`) wins meanwhile so assembly stays deterministic and the workspace still opens. Carries a fix: keep the name in `edit` or `discover`, not both. Emitted at the workspace file. Distinct from `discover-member-is-a-dependency` (a redundant, not contradictory, listing).
+a name listed in both a `.2brain/workspace.yaml`'s `edit:` and its `discover:` list. A member has ONE role per workspace: `edit` is an editable authoring surface, `discover` is a consumed discovery mount, so the two are contradictory. An `error`, but the editable role (`edit`) wins meanwhile so assembly stays deterministic and the workspace still opens. Carries a fix: keep the name in `edit` or `discover`, not both. Emitted at the workspace file. Distinct from `discover-member-is-a-dependency` (a redundant, not contradictory, listing).
 
 **Example:**
 ```yaml
-# .arsumbris/workspace.yaml
+# .2brain/workspace.yaml
 edit:
   - my-content        # also in discover: a role conflict
 discover:
@@ -248,12 +248,12 @@ discover:
 `workspace member '{name}' is listed in 'discover' but is also a declared dependency; the 'discover' listing is redundant`.
 
 **Triggers:**
-a name in a `.arsumbris/workspace.yaml`'s `discover:` list that is ALSO a declared `dep` (reached through some member's `deps`). During assembly the member resolves to the higher role (`dep` subsumes `discover`), so the `discover` listing adds nothing: the dep already mounts and pins it, and — unlike a bare `discover` — lets its types be crossed via `::repo`. A `hint`, never blocking. Distinct from `workspace-member-role-conflict` (a contradictory `edit` + `discover`); this is a redundant, compatible listing. Emitted at the workspace file. Fix: drop the name from `discover`.
+a name in a `.2brain/workspace.yaml`'s `discover:` list that is ALSO a declared `dep` (reached through some member's `deps`). During assembly the member resolves to the higher role (`dep` subsumes `discover`), so the `discover` listing adds nothing: the dep already mounts and pins it, and — unlike a bare `discover` — lets its types be crossed via `::repo`. A `hint`, never blocking. Distinct from `workspace-member-role-conflict` (a contradictory `edit` + `discover`); this is a redundant, compatible listing. Emitted at the workspace file. Fix: drop the name from `discover`.
 
 **Example:**
 ```yaml
-# my-content/.arsumbris/repo.yaml declares dep 'shared'
-# my-content/.arsumbris/workspace.yaml
+# my-content/.2brain/repo.yaml declares dep 'shared'
+# my-content/.2brain/workspace.yaml
 edit:
   - my-content
 discover:
@@ -267,11 +267,11 @@ discover:
 `workspace.yaml does not list its containing repo '{name}' in 'edit'; the entry repo is a live working tree and belongs in 'edit'`.
 
 **Triggers:**
-a folder-repo `.arsumbris/workspace.yaml` does not list its own containing repo in `edit:`. The containing repo is the entry, a live working tree at HEAD, so it belongs in `edit`; an omission would read as if the file excludes its own repo. An `error`, so the file reads as self-complete. The engine still mounts the containing repo regardless (it is always a member with role `entry`), so the omission never drops the home; the error just requires the listing. Fires only for a folder-repo entry (`<repo>/.arsumbris/workspace.yaml`), where the containing repo's identity is known from the sibling `repo.yaml`. Carries a fix: add the containing repo to `edit`.
+a folder-repo `.2brain/workspace.yaml` does not list its own containing repo in `edit:`. The containing repo is the entry, a live working tree at HEAD, so it belongs in `edit`; an omission would read as if the file excludes its own repo. An `error`, so the file reads as self-complete. The engine still mounts the containing repo regardless (it is always a member with role `entry`), so the omission never drops the home; the error just requires the listing. Fires only for a folder-repo entry (`<repo>/.2brain/workspace.yaml`), where the containing repo's identity is known from the sibling `repo.yaml`. Carries a fix: add the containing repo to `edit`.
 
 **Example:**
 ```yaml
-# my-content/.arsumbris/workspace.yaml   (containing repo is 'my-content')
+# my-content/.2brain/workspace.yaml   (containing repo is 'my-content')
 edit:
   - some-other-content       # omits 'my-content'
 discover:
@@ -285,14 +285,14 @@ discover:
 `nested repo '{name}' is not a declared member; its subtree is skipped and contributes nothing`.
 
 **Triggers:**
-a nested `.arsumbris/repo.yaml` under a walked repo (the entry or a declared member) that is not itself a declared member. The content walk is BOUNDED at the nested marker, so it records the marker and never descends the subtree, the nested repo contributes NOTHING, never silently absorbed into its parent and never a `duplicate-repo-name` fight. A `warning`; the fix names how to include it: declare it as an `edit` / `discover` member in `workspace.yaml`, or as a `dep` in `repo.yaml`. A DECLARED nested repo is a member root walked by its own bounded walk, so it mounts as its own member and never fires this. Only the OUTERMOST undeclared nested repo warns: the enclosing walk stops at it, so a repo buried inside another undeclared repo is never walked, never surfaces, and its inclusion is the outer repo's concern. Emitted at the nested repo's `.arsumbris/repo.yaml`.
+a nested `.2brain/repo.yaml` under a walked repo (the entry or a declared member) that is not itself a declared member. The content walk is BOUNDED at the nested marker, so it records the marker and never descends the subtree, the nested repo contributes NOTHING, never silently absorbed into its parent and never a `duplicate-repo-name` fight. A `warning`; the fix names how to include it: declare it as an `edit` / `discover` member in `workspace.yaml`, or as a `dep` in `repo.yaml`. A DECLARED nested repo is a member root walked by its own bounded walk, so it mounts as its own member and never fires this. Only the OUTERMOST undeclared nested repo warns: the enclosing walk stops at it, so a repo buried inside another undeclared repo is never walked, never surfaces, and its inclusion is the outer repo's concern. Emitted at the nested repo's `.2brain/repo.yaml`.
 
 **Example:**
 ```yaml
-# my-content/.arsumbris/workspace.yaml   (declares only 'my-content')
+# my-content/.2brain/workspace.yaml   (declares only 'my-content')
 edit:
   - my-content
-# my-content/vendored/.arsumbris/repo.yaml   (a nested repo, undeclared → skipped)
+# my-content/vendored/.2brain/repo.yaml   (a nested repo, undeclared → skipped)
 ```
 
 ### `dependency-version-conflict` - error
@@ -360,7 +360,7 @@ a transitive locked dependency (in the lock, not a manifest member) whose pinned
 `dependency '{name}' declares a subpath '{path}' that escapes its cache snapshot; an absolute or parent-escaping path is refused, the dependency is not mounted`.
 
 **Triggers:**
-a dependency's declared subpath is absolute, or climbs above its cache-snapshot root under lexical normalization (a `../..`). The subpath is untrusted, a transitive peer's subpath is read verbatim from a FETCHED repo's `.arsumbris/repo.yaml`, so an unchecked `snapshot.join(path)` would mount an arbitrary local directory and persist the escaping path into the lock. The engine refuses the subpath, the dependency is excluded from the mounts and the lock, exactly like a conflicted package. A containment guard against a hostile or buggy dependency, not an ergonomic knob. Checked at the single mount choke point, so it holds for the resolve path and the offline locate (a hand-edited or hostile lock) alike. Emitted at the workspace manifest.
+a dependency's declared subpath is absolute, or climbs above its cache-snapshot root under lexical normalization (a `../..`). The subpath is untrusted, a transitive peer's subpath is read verbatim from a FETCHED repo's `.2brain/repo.yaml`, so an unchecked `snapshot.join(path)` would mount an arbitrary local directory and persist the escaping path into the lock. The engine refuses the subpath, the dependency is excluded from the mounts and the lock, exactly like a conflicted package. A containment guard against a hostile or buggy dependency, not an ergonomic knob. Checked at the single mount choke point, so it holds for the resolve path and the offline locate (a hand-edited or hostile lock) alike. Emitted at the workspace manifest.
 
 ### `repo-missing-readme` - warning
 ^repo-missing-readme
@@ -369,29 +369,29 @@ a dependency's declared subpath is absolute, or climbs above its cache-snapshot 
 `repo '{name}' has no README.md at its root; a repo self-describes through a root README.md`.
 
 **Triggers:**
-an editable repo (the entry or a workspace `edit` member) has no `README.md` at its root. A repo self-describes through a root README, the way it declares its identity through `.arsumbris/repo.yaml`. Scoped to AUTHORING surfaces: a consumed `dep` / `discover` member and a cache snapshot are exempt, their README is their own repo's concern, and an unmounted member is absent from the check by construction. Anchored at the repo's `.arsumbris/repo.yaml`, since the missing file has no span of its own. Carries a fix: add a `README.md` at the root declaring `type: au.engine.readme::au-engine` with a `# Repo Overview` section holding the three sub-sections. Advisory `warning`, never blocks. Computed post-assembly in `au-engine::readme`, listed here with the repo obligations.
+an editable repo (the entry or a workspace `edit` member) has no `README.md` at its root. A repo self-describes through a root README, the way it declares its identity through `.2brain/repo.yaml`. Scoped to AUTHORING surfaces: a consumed `dep` / `discover` member and a cache snapshot are exempt, their README is their own repo's concern, and an unmounted member is absent from the check by construction. Anchored at the repo's `.2brain/repo.yaml`, since the missing file has no span of its own. Carries a fix: add a `README.md` at the root declaring `type: tb.engine.readme::tb-engine` with a `# Repo Overview` section holding the three sub-sections. Advisory `warning`, never blocks. Computed post-assembly in `tb-engine::readme`, listed here with the repo obligations.
 
 ### `readme-type-undeclared` - warning
 ^readme-type-undeclared
 
 **Message:**
-`` README.md does not declare `type: au.engine.readme::au-engine`; the canonical README self-declares its type ``.
+`` README.md does not declare `type: tb.engine.readme::tb-engine`; the canonical README self-declares its type ``.
 
 **Triggers:**
-a `README.md` at an editable repo's root that does not self-declare `type: au.engine.readme::au-engine` in its frontmatter. The canonical README self-declares its type (the type-declares-its-place direction), so an undeclared one reads as a plain note and the engine cannot validate it against the section template. Distinct from `repo-missing-readme` (the file is absent) and `readme-misplaced` (a claim off the root). Carries a fix: add the frontmatter claim. Advisory `warning`.
+a `README.md` at an editable repo's root that does not self-declare `type: tb.engine.readme::tb-engine` in its frontmatter. The canonical README self-declares its type (the type-declares-its-place direction), so an undeclared one reads as a plain note and the engine cannot validate it against the section template. Distinct from `repo-missing-readme` (the file is absent) and `readme-misplaced` (a claim off the root). Carries a fix: add the frontmatter claim. Advisory `warning`.
 
 ### `readme-misplaced` - warning
 ^readme-misplaced
 
 **Message:**
-`` file claims `au.engine.readme` but is not the repo's root README.md; the readme type is a singleton at `<root>/README.md` ``.
+`` file claims `tb.engine.readme` but is not the repo's root README.md; the readme type is a singleton at `<root>/README.md` ``.
 
 **Triggers:**
-a file that claims `au.engine.readme` but is not its repo's root `README.md`. The readme type is a singleton at `<root>/README.md`, so a claim anywhere else is a misplacement. Anchored at the offending claim. Distinct from `repo-missing-readme` and `readme-type-undeclared`. Carries a fix: move the file to the repo root as `README.md`, or drop the claim. Advisory `warning`.
+a file that claims `tb.engine.readme` but is not its repo's root `README.md`. The readme type is a singleton at `<root>/README.md`, so a claim anywhere else is a misplacement. Anchored at the offending claim. Distinct from `repo-missing-readme` and `readme-type-undeclared`. Carries a fix: move the file to the repo root as `README.md`, or drop the claim. Advisory `warning`.
 
 ---
 
-## 1. Repo load (au-parser, au-references)
+## 1. Repo load (tb-parser, tb-references)
 
 Filesystem walk, file I/O, YAML parse, basename indexing.
 
@@ -424,7 +424,7 @@ One bad path doesn't void the whole validation.
 `cannot apply `.auignore`, scoping falls back to the default excludes: {reason}`.
 
 **Triggers:**
-a member's `<root>/.arsumbris/.auignore` exists but could not be applied.
+a member's `<root>/.2brain/.auignore` exists but could not be applied.
 
 Failure modes:
 - the read failed (permission, I/O).
@@ -441,7 +441,7 @@ Advisory, it never aborts the build.
 ``.auignore` excluded every file under {root}; the member contributes nothing`.
 
 **Triggers:**
-a member's `.arsumbris/.auignore` applied cleanly but scoped out every file under the member.
+a member's `.2brain/.auignore` applied cleanly but scoped out every file under the member.
 
 Almost always an over-broad pattern:
 - `*`
@@ -495,7 +495,7 @@ Silent replacement would skew byte offsets in every subsequent diagnostic.
 
 **Message:**
 `file is {size} bytes, over the {cap}-byte read cap; it is skipped and not analysed`.
-Carries a `fix`: split the file, or exclude it via `.arsumbris/.auignore`.
+Carries a `fix`: split the file, or exclude it via `.2brain/.auignore`.
 
 **Triggers:**
 a file the parser would read is larger than the engine's fixed read cap, so it is skipped rather than pulled whole into memory.
@@ -599,7 +599,7 @@ MyNote.md   # collides under case-insensitive comparison
 
 ---
 
-## 2. Type-def structural parse (au-core::typedef)
+## 2. Type-def structural parse (tb-core::typedef)
 
 Runs while building each `TypeDef` from its YAML doc.
 
@@ -1060,7 +1060,7 @@ A strict location is MANDATORY, so it opts out of the mixin satisfy-any and is c
 
 ---
 
-## 3. Slot-expression parse (au-grammar)
+## 3. Slot-expression parse (tb-grammar)
 
 Runs while parsing each field shape into a `Shape` AST.
 
@@ -1090,7 +1090,7 @@ specific per failure mode. Examples:
 **Triggers:**
 the field's right-hand shape expression fails to parse per the [[type-def field shape]] grammar.
 
-Covers all parse failures from au-grammar.
+Covers all parse failures from tb-grammar.
 Surfaces at the use site, not at type-graph load.
 
 **Example:**
@@ -1159,7 +1159,7 @@ Test helpers synthesize this to exercise the lazy-surfacing dispatch.
 
 ---
 
-## 4. Type-graph build + structural load checks (au-core::load_checks, au-engine::engine_schema)
+## 4. Type-graph build + structural load checks (tb-core::load_checks, tb-engine::engine_schema)
 
 Runs after every type-def has been parsed.
 Failures here usually block per-instance validation for the affected types.
@@ -1199,7 +1199,7 @@ The `type/` directory is an authoring convention, so a type-def outside it is su
 - a prose `README.md` under `type/` is NOT a type-def, so it never fires this, it is a plain note.
 
 Carries a `fix`: move the file under the repo's `type/` directory.
-Emitted in au-engine::build, over each classified type-def file.
+Emitted in tb-engine::build, over each classified type-def file.
 
 **Example:**
 ```
@@ -1212,52 +1212,52 @@ notes/widget.type.yaml   # a valid type-def by suffix, but not under `type/`
 ^engine-name-forward-reserved
 
 **Message:**
-`type-def '{name}' is in the engine-reserved 'au.engine.*' namespace, which the engine may hardwire in a future version`.
+`type-def '{name}' is in the engine-reserved 'tb.engine.*' namespace, which the engine may hardwire in a future version`.
 
 **Triggers:**
-a repo-authored type-def whose name sits in the reserved `au.engine.*` namespace, but is not one of the engine's hardwired defs.
+a repo-authored type-def whose name sits in the reserved `tb.engine.*` namespace, but is not one of the engine's hardwired defs.
 The namespace is reserved by CONVENTION, forward: the engine may hardwire this name later, at which point the repo def would live-shadow it (`engine-name-live-shadow`).
 Advisory, never blocks. The repo def keeps its own `(name, hash)` identity and resolves normally, so this is a heads-up, not a rejection.
-The engine's own hardwired defs never fire this, they are seeded into the `au-engine` repo, never walked as repo files.
+The engine's own hardwired defs never fire this, they are seeded into the `tb-engine` repo, never walked as repo files.
 
 **Example:**
 ```
-type/au.engine.widget.type.yaml   # in the reserved namespace, not a hardwired def
+type/tb.engine.widget.type.yaml   # in the reserved namespace, not a hardwired def
 ```
 
 ### `engine-name-live-shadow` - warning
 ^engine-name-live-shadow
 
 **Message:**
-`type-def '{name}' shares a name with a hardwired engine type; both coexist as distinct identities, '{name}::au-engine' names the engine's`.
+`type-def '{name}' shares a name with a hardwired engine type; both coexist as distinct identities, '{name}::tb-engine' names the engine's`.
 
 **Triggers:**
-a repo-authored type-def named EXACTLY like one of the engine's hardwired `au.engine.*` types.
+a repo-authored type-def named EXACTLY like one of the engine's hardwired `tb.engine.*` types.
 COEXISTENCE, not annihilation: the two are distinct `(name, hash)` identities in distinct repos, so it is not a `duplicate-type-def`.
-The bare name resolves to the knowledge base's def in its own repo, `::au-engine` scopes the engine's, they compose like any cross-repo same-name pair.
+The bare name resolves to the knowledge base's def in its own repo, `::tb-engine` scopes the engine's, they compose like any cross-repo same-name pair.
 The code only NOTES that the engine owns the name, it never ignores or overrides the knowledge base's def.
 Advisory, never blocks. Fires for EVERY hardwired-name shadow, in-sync or diverged. A diverged shadow additionally fires `engine-name-shadow-drift` (`drift`), the in-sync-versus-diverged enrichment against the engine's `(name, hash)`.
 
 **Example:**
 ```
-type/au.engine.repo.type.yaml # same name as the hardwired au.engine.repo::au-engine
+type/tb.engine.repo.type.yaml # same name as the hardwired tb.engine.repo::tb-engine
 ```
 
 ### `engine-name-shadow-drift` - drift
 ^engine-name-shadow-drift
 
 **Message:**
-`type-def '{name}' shadows a hardwired engine type and has DIVERGED from it; the engine's copy is '{name}::au-engine'`.
+`type-def '{name}' shadows a hardwired engine type and has DIVERGED from it; the engine's copy is '{name}::tb-engine'`.
 
 **Triggers:**
-a repo-authored type-def named like a hardwired `au.engine.*` type whose `(name, closure-hash)` identity DIFFERS from the engine's copy.
+a repo-authored type-def named like a hardwired `tb.engine.*` type whose `(name, closure-hash)` identity DIFFERS from the engine's copy.
 Emitted alongside `engine-name-live-shadow` (which notes the coexistence for every shadow); this escalates a DIVERGED shadow to the `drift` tier, the advisory-high-attention tier for a cross-version divergence, so a consumer can rank it above an in-sync shadow.
 Computed post-graph-build by comparing the repo def's closure-hash to the engine's hardwired copy of the same name; an IN-SYNC shadow (equal hashes) fires only `engine-name-live-shadow`, never this.
 Advisory, never blocks; the repo def resolves standalone in its own repo. The engine-SDK mirror consistency guard builds on this same `(name, hash)` comparison.
 
 **Example:**
 ```
-type/au.engine.repo.type.yaml   # named au.engine.repo but with different fields than the engine's
+type/tb.engine.repo.type.yaml   # named tb.engine.repo but with different fields than the engine's
 ```
 
 ### `engine-schema-type-unwritten` - drift
@@ -1270,27 +1270,27 @@ type/au.engine.repo.type.yaml   # named au.engine.repo but with different fields
 an engine-schema file (`repo.yaml`, `workspace.yaml`, the locks, the device-config files) carries no written top-level `type:` key.
 The file KIND still assigns the floor type, so the file stays fully correct and the engine reads its data from the claim-independent resolution path.
 `drift`, a high-attention advisory, never blocks.
-The engine's own writers emit the qualified `type: au.engine.X::au-engine`, so an absent one reads as a hand-authored or legacy file.
+The engine's own writers emit the qualified `type: tb.engine.X::tb-engine`, so an absent one reads as a hand-authored or legacy file.
 The suggested written form follows the file's validation scope.
-- an in-repo file crosses to the builtin peer, so `{floor}` is `::au-engine`-qualified.
-- a device-global file validates in the builtin's own scope, so `{floor}` is BARE, a `::au-engine` self-qualifier there is a redundant `type-repo-self`.
+- an in-repo file crosses to the builtin peer, so `{floor}` is `::tb-engine`-qualified.
+- a device-global file validates in the builtin's own scope, so `{floor}` is BARE, a `::tb-engine` self-qualifier there is a redundant `type-repo-self`.
 
 **Example:**
 ```yaml
-# .arsumbris/repo.yaml
-name: myrepo # no written `type:` — the floor au.engine.repo::au-engine still applies
+# .2brain/repo.yaml
+name: myrepo # no written `type:` — the floor tb.engine.repo::tb-engine still applies
 ```
 
 ### `engine-schema-type-floor-omitted` - error
 ^engine-schema-type-floor-omitted
 
 **Message:**
-`` engine-schema file writes a `type:` whose closure omits the kind's floor `{floor}::au-engine`; the written claim names the wrong kind ``.
+`` engine-schema file writes a `type:` whose closure omits the kind's floor `{floor}::tb-engine`; the written claim names the wrong kind ``.
 
 **Triggers:**
 an engine-schema file writes a `type:` whose RESOLVED closure does not include the kind's floor type.
 The written claim names the wrong kind, so the file does not self-describe as what it structurally is.
-- e.g. a `repo.yaml` written `type: au.engine.workspace::au-engine` names the wrong floor.
+- e.g. a `repo.yaml` written `type: tb.engine.workspace::tb-engine` names the wrong floor.
 An `error`, but recoverable, never lost data.
 The engine still reads its data from the kind-assigned floor, the resolution path is claim-independent.
 A written claim that INCLUDES the floor and mixes in more is fine.
@@ -1299,8 +1299,8 @@ Computed over the resolution graph, so a subtype whose closure folds the floor i
 
 **Example:**
 ```yaml
-# .arsumbris/repo.yaml
-type: au.engine.workspace::au-engine # wrong floor: a repo.yaml is au.engine.repo
+# .2brain/repo.yaml
+type: tb.engine.workspace::tb-engine # wrong floor: a repo.yaml is tb.engine.repo
 name: myrepo
 ```
 
@@ -1331,7 +1331,7 @@ The declared wire `type` is stamped as the floor, so the file stays fully correc
 `drift`, high-attention advisory, never blocks.
 - a governed `set_config` write INJECTS `type:`, so an absent one reads as a hand-authored or seeded file.
 - a written `type:` WINS over the stamp and may subtype the declared floor, mixing in more.
-The config-channel sibling of `engine-schema-type-unwritten`, which is for the engine's OWN device files (a kind-assigned `au.engine.*` floor), so the two never overlap.
+The config-channel sibling of `engine-schema-type-unwritten`, which is for the engine's OWN device files (a kind-assigned `tb.engine.*` floor), so the two never overlap.
 
 ### `type-name-violates-regex` - error
 ^type-name-violates-regex
@@ -1615,7 +1615,7 @@ fields:
 
 ---
 
-## 5. Inheritance load checks (au-core::load_checks)
+## 5. Inheritance load checks (tb-core::load_checks)
 
 Runs after structural checks.
 Requires the closure walk to function.
@@ -1762,7 +1762,7 @@ extends:
 
 ---
 
-## 6. Per-instance validation (au-core::validate)
+## 6. Per-instance validation (tb-core::validate)
 
 Runs per instance file after type-graph load succeeds.
 Per-file errors don't block other files.
@@ -2336,7 +2336,7 @@ A qualified DEMANDED type, a slot shaped `foo::repo*`, checks the peer type `foo
 - a `^block-id` target folds its own BLOCK claim, an inline record's or a body typed-fence's, checked the same way.
 
 Produced by the validator.
-Resolution-side codes live in au-references.
+Resolution-side codes live in tb-references.
 
 **Example:**
 ```yaml
@@ -2415,7 +2415,7 @@ proposeTool: "[[someDef]]"   # someDef's parent closure does not include mcp.too
 
 ---
 
-## 7. Reference resolution (au-references)
+## 7. Reference resolution (tb-references)
 
 Fired by the wikilink resolver during instance validation and the meta-body pass.
 Produces well-known codes the validator surfaces as field-shape errors when they fire in a reference-typed slot.
@@ -2564,7 +2564,7 @@ a `::repo`-qualified type name has an empty repo, `foo::`, at a claim or parent 
 
 The type-name sibling of `wikilink-empty-repo`.
 Bare `foo` is the canonical own-repo form, so an empty `::` adds nothing and is rejected.
-At the field-shape position au-grammar rejects `foo::` as `shape-syntax-error` instead, so this code is a claim / parent concern, reachable only via the quoted form `type: "foo::"`.
+At the field-shape position tb-grammar rejects `foo::` as `shape-syntax-error` instead, so this code is a claim / parent concern, reachable only via the quoted form `type: "foo::"`.
 
 ### `type-repo-unknown` - error
 ^type-repo-unknown
@@ -2619,7 +2619,7 @@ A plain VALUE link into a member (`[[node::repo]]`) stays permissive, only a TYP
 **Triggers:**
 a `::repo`-qualified type name names a present `{repo}` that has no type-def `{base}`.
 
-The repo resolved, but the name is wrong, the common typo case `mcp.tool::au-mcp-sdk` where the peer exports `mcp.Tool`.
+The repo resolved, but the name is wrong, the common typo case `mcp.tool::tb-mcp-sdk` where the peer exports `mcp.Tool`.
 The type-side sibling of `slot-references-absent-type`.
 Distinct from `type-repo-unavailable` (the peer is absent) and `type-repo-unknown` (the peer is undeclared); here the peer is present but the name does not resolve in its graph.
 
@@ -2761,7 +2761,7 @@ Canonical order is fixed because either suffix's value would otherwise be ambigu
 
 ---
 
-## 8. Meta-body validation (au-core::validate)
+## 8. Meta-body validation (tb-core::validate)
 
 Meta sub-region bodies validate against their named meta-type-def using the same per-instance machinery.
 
@@ -2789,11 +2789,11 @@ E.g.:
 **Message:**
 `` type-def '{name}' is not a meta type; a meta sub-region's type must mix in '{marker}::{repo}' ``.
 
-`{marker}::{repo}` is the engine meta marker, `au.engine.meta::au-engine`.
+`{marker}::{repo}` is the engine meta marker, `tb.engine.meta::tb-engine`.
 
 **Triggers:**
-a `meta:` sub-region names a CLAIMABLE type whose RESOLVED closure does not include the engine meta marker `au.engine.meta`.
-Meta-ness is nominal: a meta type declares it by mixing in the marker, `type: [X, au.engine.meta::au-engine]`, or via a dedicated wrapper subtype.
+a `meta:` sub-region names a CLAIMABLE type whose RESOLVED closure does not include the engine meta marker `tb.engine.meta`.
+Meta-ness is nominal: a meta type declares it by mixing in the marker, `type: [X, tb.engine.meta::tb-engine]`, or via a dedicated wrapper subtype.
 
 Checked over the resolution graph, the parity of the sealed cross-repo check, comparing by `(name, closure-hash)` identity.
 - only for a CLAIMABLE meta type; a sealed or abstract one already fired the sharper `sealed-parent-claimed` / `abstract-type-claimed`, so no double-signal.
@@ -2809,7 +2809,7 @@ fields:
 # host.type.yaml
 fields: []
 meta:
-  - type: plain-meta   # not a meta type: does not mix in au.engine.meta
+  - type: plain-meta   # not a meta type: does not mix in tb.engine.meta
 ```
 
 ### `required-meta-not-a-meta-type` - error
@@ -2819,7 +2819,7 @@ meta:
 `type-def '{td}' requires meta '{name}', which is not a meta type; it must mix in '{marker}::{repo}'`.
 
 **Triggers:**
-a present, resolvable `required:` target whose RESOLVED closure does not include the engine meta marker `au.engine.meta`. The base-side sibling of `non-meta-type-in-meta-position`, checked over the resolution graph. Skips the cases other gates own, a bare absent target (`required-meta-absent-type`) and an unresolvable qualified target (`type-repo-*`).
+a present, resolvable `required:` target whose RESOLVED closure does not include the engine meta marker `tb.engine.meta`. The base-side sibling of `non-meta-type-in-meta-position`, checked over the resolution graph. Skips the cases other gates own, a bare absent target (`required-meta-absent-type`) and an unresolvable qualified target (`type-repo-*`).
 
 **Example:**
 ```yaml
@@ -2862,7 +2862,7 @@ fields: []
 
 ---
 
-## 9. Body typing (au-core::body, au-core::body_validate, au-references)
+## 9. Body typing (tb-core::body, tb-core::body_validate, tb-references)
 
 The body-typing extension layers `body:` templates, `use:` splicing,
 wikilink `:field` fragments, inline `` `[:field]` `` codes, marked
@@ -2870,7 +2870,7 @@ fences, and `fills:` contracts onto type-defs and instances.
 Codes are grouped here by sub-stage (parse → graph load → per-instance
 validation) rather than scattered across the earlier stage sections.
 
-### 9.1 Type-def body parse (au-core::body)
+### 9.1 Type-def body parse (tb-core::body)
 
 ### `body-not-a-list` - error
 ^body-not-a-list
@@ -2956,7 +2956,7 @@ body:
 
 **Spec:** [[type-def body use]]. Not enumerated in the source spec; introduced by implementation.
 
-### 9.2 Type-graph body-typing load checks (au-core::load_checks)
+### 9.2 Type-graph body-typing load checks (tb-core::load_checks)
 
 ### `body-use-out-of-closure` - error
 ^body-use-out-of-closure
@@ -3083,7 +3083,7 @@ body:
 
 **Spec:** [[type-def body fills]].
 
-### 9.3 Wikilink `:field` fragment parse (au-references)
+### 9.3 Wikilink `:field` fragment parse (tb-references)
 
 ### `wikilink-empty-field` - error
 ^wikilink-empty-field
@@ -3201,7 +3201,7 @@ Split off from `wikilink-fragment-order` so a downstream consumer (LSP completio
 
 **Spec:** [[type reference]].
 
-### 9.4 Per-instance body validation (au-core::body_validate)
+### 9.4 Per-instance body validation (tb-core::body_validate)
 
 ### `body-required-but-yaml-only-instance` - error
 ^body-required-but-yaml-only-instance

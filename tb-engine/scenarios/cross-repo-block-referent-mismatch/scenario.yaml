@@ -1,5 +1,5 @@
 title: "A cross-repo ^^ block-referent to a slot-pinned peer record is type-checked owner-relative; a wrong demand fires reference-target-type-mismatch"
-spec_ref: "[[type block-id::au-type-system]]"
+spec_ref: "[[type block-id::tb-type-system]]"
 command: validate
 expected:
   codes:

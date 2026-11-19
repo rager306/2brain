@@ -218,7 +218,7 @@ fn each_folder_refusal_is_previewed_as_the_verb_refuses() {
     let cases: [(&str, Setup, &str); 6] = [
         (
             "moved",
-            |r| wr(r, "drafts/inner/.arsumbris/repo.yaml", "name: inner\n"),
+            |r| wr(r, "drafts/inner/.2brain/repo.yaml", "name: inner\n"),
             "drafts/inner (nested repo)",
         ),
         (

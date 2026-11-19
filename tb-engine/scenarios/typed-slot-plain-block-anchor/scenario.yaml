@@ -1,5 +1,5 @@
 title: "A plain-block ^id anchor in a typed slot is navigational; the type check falls to the file"
-spec_ref: "[[type block-id::au-type-system]], [[type reference::au-type-system]], [[decision - 2607052046 - a plain-block anchor in a typed slot is navigational, type-check falls to the file]]"
+spec_ref: "[[type block-id::tb-type-system]], [[type reference::tb-type-system]], [[decision - 2607052046 - a plain-block anchor in a typed slot is navigational, type-check falls to the file]]"
 command: validate
 expected:
   codes:

@@ -19,7 +19,7 @@ Include a brief “use this when” if it distinguishes nearby tools.
 
 **Add a separate cue when useful**
 
-[[tool-presentation-meta::au-mcp-sdk:example]] also offers guidance for session orientation.
+[[tool-presentation-meta::tb-mcp-sdk:example]] also offers guidance for session orientation.
 Use it to prompt a specific occasion to seek the tool before inspecting its entry.
 Keep it optional and give it a cue beyond the description.
 

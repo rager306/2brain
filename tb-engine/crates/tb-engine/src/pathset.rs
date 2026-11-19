@@ -64,12 +64,12 @@ mod tests {
         // cross-repo one found through the repo-qualified index. A bystander
         // that names something else is left out.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/ws/.arsumbris/repo.yaml", b"name: ws\n".to_vec());
+        fs.insert("/ws/.2brain/repo.yaml", b"name: ws\n".to_vec());
         fs.insert(
-            "/ws/.arsumbris/workspace.yaml",
+            "/ws/.2brain/workspace.yaml",
             b"edit:\n  - ws\n  - base\n  - app\n".to_vec(),
         );
-        fs.insert("/ws/base/.arsumbris/repo.yaml", b"name: base\n".to_vec());
+        fs.insert("/ws/base/.2brain/repo.yaml", b"name: base\n".to_vec());
         fs.insert(
             "/ws/base/type/note.type.yaml",
             b"fields:\n  link?: note*\n".to_vec(),
@@ -84,7 +84,7 @@ mod tests {
             b"---\ntype: note\n---\nsee [[other]]\n".to_vec(),
         );
         fs.insert(
-            "/ws/app/.arsumbris/repo.yaml",
+            "/ws/app/.2brain/repo.yaml",
             b"name: app\ndeps:\n  - name: base\n".to_vec(),
         );
         fs.insert(

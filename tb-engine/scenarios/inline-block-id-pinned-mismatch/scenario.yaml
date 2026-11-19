@@ -1,5 +1,5 @@
 title: "A `[[^^id]]` block-referent to a record whose slot-pinned claim misses the demanded type fires reference-target-type-mismatch"
-spec_ref: "[[type block-id::au-type-system]], [[type-def shape record::au-type-system]]"
+spec_ref: "[[type block-id::tb-type-system]], [[type-def shape record::tb-type-system]]"
 command: validate
 expected:
   codes:

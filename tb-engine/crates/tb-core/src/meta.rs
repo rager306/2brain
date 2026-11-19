@@ -1,5 +1,5 @@
 //! Effective meta: which `meta:` blocks a type-def surfaces, per meta type
-//! ([[type-def meta::au-type-system]]).
+//! ([[type-def meta::tb-type-system]]).
 //!
 //! `meta:` is NOT inherited as data, it is computed at read time over the
 //! owner-relative [`DefClosure`], each def read in the repo that owns it.
@@ -22,7 +22,7 @@
 //! and a diverged pair is two.
 //!
 //! The walk targets the host's `extends:` chain, never the chains of the meta
-//! type-defs the blocks name ([[type-def meta::au-type-system]]).
+//! type-defs the blocks name ([[type-def meta::tb-type-system]]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -285,7 +285,7 @@ pub fn meta_conflicts(
 /// identity through DIFFERENT written forms, an own `myMeta` beside an in-sync
 /// `myMeta::peer`, or a bare and a self-qualified form.
 ///
-/// The singleton rule is per meta type ([[type-def meta::au-type-system]]), and a
+/// The singleton rule is per meta type ([[type-def meta::tb-type-system]]), and a
 /// meta type is its identity. A same-form pair is the own-graph structure
 /// pass's (`load_checks`), which needs no resolver, so it is skipped here and
 /// never double-fires. An unresolvable form has no identity to share.
@@ -356,7 +356,7 @@ fn written_form(block: &MetaBlock) -> String {
 /// docstrings aside, each block read relative to its declaring repo. The
 /// written `type:` is not compared, the caller already grouped by identity. A
 /// record's `^:` id is not part of its value
-/// ([[type value container::au-type-system]]), so it is ignored too.
+/// ([[type value container::tb-type-system]]), so it is ignored too.
 fn block_eq(
     resolver: &dyn PeerGraphResolver,
     (a, a_repo): (&MetaBlock, &str),
@@ -480,7 +480,7 @@ mod tests {
         t
     }
 
-    /// Mark `meta: []` (the [[type-def meta::au-type-system]] suppression form) on a type-def.
+    /// Mark `meta: []` (the [[type-def meta::tb-type-system]] suppression form) on a type-def.
     fn with_suppressed_meta(mut t: TypeDef) -> TypeDef {
         t.meta_blocks = Some(vec![]);
         t
@@ -691,7 +691,7 @@ mod tests {
 
     #[test]
     fn suppression_marker_stops_walk() {
-        // Host declares `meta: []` ([[type-def meta::au-type-system]] suppression). Parent declares
+        // Host declares `meta: []` ([[type-def meta::tb-type-system]] suppression). Parent declares
         // display-meta. Walk halts at host's suppression → None.
         let g = build_graph(vec![
             meta_typedef("display-meta"),
@@ -730,7 +730,7 @@ mod tests {
         // Chain: note(display-meta) → decision(meta:[]) → committed(display-meta).
         // Query at `committed` for display-meta → committed's own; for
         // runtime-meta → walks up, hits decision's `meta:[]`, returns
-        // None. Mirrors [[type-def meta::au-type-system]] "Other names remain suppressed for that
+        // None. Mirrors [[type-def meta::tb-type-system]] "Other names remain suppressed for that
         // subtree until something further down re-declares them."
         let mut display_for_committed = meta_block("display-meta");
         display_for_committed.block_span = ByteRange::new(100, 200);
@@ -842,7 +842,7 @@ mod tests {
 
     #[test]
     fn walk_does_not_recurse_into_encountered_metas() {
-        // [[type-def meta::au-type-system]] lock: if the meta-type-def `display-meta` itself carries
+        // [[type-def meta::tb-type-system]] lock: if the meta-type-def `display-meta` itself carries
         // a `meta:` block for `runtime-meta`, querying the host for
         // `runtime-meta` must NOT return display-meta's runtime-meta.
         // The walk targets the host's TYPE chain, not the meta-type-def's

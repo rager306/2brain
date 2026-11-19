@@ -1,5 +1,5 @@
 ---
-type: guide.principle::au-agent-guides
+type: guide.principle::tb-agent-guides
 goal: decide whether a source candidate earns a node
 rule: Judge admission against the premise and domain guidance, using source salience and recurrence as evidence.
 ---

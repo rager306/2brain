@@ -182,7 +182,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/cross-repo-import/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-import/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -201,7 +201,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-import/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/cross-repo-import/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -280,7 +280,7 @@ expression: rendered
                         },
                         "start": 10
                       },
-                      "file": "<root>/scenarios/cross-repo-import/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/cross-repo-import/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -313,7 +313,7 @@ expression: rendered
                         },
                         "start": 32
                       },
-                      "file": "<root>/scenarios/cross-repo-import/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/cross-repo-import/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -346,7 +346,7 @@ expression: rendered
                         },
                         "start": 41
                       },
-                      "file": "<root>/scenarios/cross-repo-import/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/cross-repo-import/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -365,7 +365,7 @@ expression: rendered
             "field": "edit"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-import/.arsumbris/workspace.yaml",
+        "file": "<root>/scenarios/cross-repo-import/.2brain/workspace.yaml",
         "section_presence": null
       },
       {
@@ -459,7 +459,7 @@ expression: rendered
                         },
                         "start": 57
                       },
-                      "file": "<root>/scenarios/cross-repo-import/app/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-import/app/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -535,7 +535,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/cross-repo-import/app/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-import/app/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -573,7 +573,7 @@ expression: rendered
                         },
                         "start": 18
                       },
-                      "file": "<root>/scenarios/cross-repo-import/app/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-import/app/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -592,7 +592,7 @@ expression: rendered
             "field": "remote"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-import/app/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/cross-repo-import/app/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -987,7 +987,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/cross-repo-import/base/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-import/base/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -1025,7 +1025,7 @@ expression: rendered
                         },
                         "start": 19
                       },
-                      "file": "<root>/scenarios/cross-repo-import/base/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-import/base/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -1044,7 +1044,7 @@ expression: rendered
             "field": "remote"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-import/base/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/cross-repo-import/base/.2brain/repo.yaml",
         "section_presence": null
       }
     ]

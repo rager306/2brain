@@ -1,5 +1,5 @@
 title: "Dangling navigational prose links warn, all forms, resolvable ones stay silent"
-spec_ref: "[[type reference::au-type-system]], [[type block-id::au-type-system]]"
+spec_ref: "[[type reference::tb-type-system]], [[type block-id::tb-type-system]]"
 command: validate
 expected:
   codes:

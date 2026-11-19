@@ -10,7 +10,7 @@ tldr: Recursive deep research produces articles for further processing. Run four
 
 ## General Context
 
-`au-tree-research` is a research package for 2Brain.
+`tb-tree-research` is a research package for 2Brain.
 It builds a corpus of deeply researched articles that other projects can reuse.
 
 ## What this is
@@ -24,14 +24,14 @@ The research forms a tree:
 
 The caller chooses what to research and when to stop.
 
-See [au-tr-example on GitHub](https://github.com/arsumbris/au-tr-example) for a worked research tree.
+See [tb-tr-example on GitHub](https://github.com/arsumbris/tb-tr-example) for a worked research tree.
 
 ## How to use this
 
 Consider keeping each research field in its own 2Brain repo or a subrepo of your working project.
 This keeps the tree reusable across projects and lets other work build on its articles.
 
-Depend on `au-tree-research`.
+Depend on `tb-tree-research`.
 Load its four skills and the `refresh_research_map` tool.
 
 ### Get started
@@ -57,7 +57,7 @@ articles/
 
 ## How to extend this
 
-Take your research graph and use `au-weave` to create a new graph from it.
+Take your research graph and use `tb-weave` to create a new graph from it.
 
 Supply your own writing guidance.
-Subtype `research-premise::au-tree-research` or `article::au-tree-research` to add fields or sections.
+Subtype `research-premise::tb-tree-research` or `article::tb-tree-research` to add fields or sections.

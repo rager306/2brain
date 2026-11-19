@@ -3,7 +3,7 @@
 //! The RESOLUTION here is pure graph logic: which `location:` block(s) an
 //! instance's claim is subject to, after whole-block shadowing by a more
 //! specific declaration and token-equal auto-unify. The MATCHING against a file's actual placement takes
-//! the repo-relative path as data (the engine supplies it), so au-core stays
+//! the repo-relative path as data (the engine supplies it), so tb-core stays
 //! I/O-free.
 
 use std::path::Path;
@@ -20,7 +20,7 @@ use crate::typedef::TypeName;
 /// Resolve the effective location constraint(s) an instance's claim is subject
 /// to, the claim made in `own_repo`.
 ///
-/// Whole-block shadowing ([[type-def location::au-type-system]]): a declared
+/// Whole-block shadowing ([[type-def location::tb-type-system]]): a declared
 /// `location:` is shadowed by any declared location on a strict descendant in
 /// the claim's closure, so the most specific declarations survive, whatever the
 /// `extends:` order or the path reaching them. Token-equal survivors
@@ -66,7 +66,7 @@ fn auto_unify<'g>(
 
 /// Validate an instance's placement against its effective location(s).
 ///
-/// `rel_path` is the file's REPO-RELATIVE path, supplied by the engine (au-core
+/// `rel_path` is the file's REPO-RELATIVE path, supplied by the engine (tb-core
 /// is I/O-free). Severity model ([[spec - location constraints - a name template and path predicate as an advisory placement meet]]):
 /// - a `strict` location unmet is `location-strict-violation` (error), mandatory.
 /// - satisfy-any met, each unmet SOFT location is `location-partial-unmet` (hint).

@@ -55,7 +55,7 @@ fn write(root: &std::path::Path, rel: &str, content: &str) {
 }
 
 /// A knowledge base where one referrer has a MALFORMED `type:` claim (`type: []`, which
-/// [[spec - diagnostic codes::au-type-system^instance-claim-bad-shape]] rejects) but still holds
+/// [[spec - diagnostic codes::tb-type-system^instance-claim-bad-shape]] rejects) but still holds
 /// a body link to the rename target, and a second, well-formed referrer as the
 /// control.
 fn kb() -> (tempfile::TempDir, PathBuf) {

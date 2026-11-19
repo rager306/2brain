@@ -1,4 +1,4 @@
-# au-testkit
+# tb-testkit
 
 Property generators, builders, and adversarial fixtures for the type system.
 

@@ -1,4 +1,4 @@
-# au-engine fork notes
+# tb-engine fork notes
 
 This is the fork integration branch of the 2brain engine (`fork/main`, created 2026-11-12
 from the pristine 0.0.5-era local work at `44b32f4`), not upstream `main`
@@ -34,7 +34,7 @@ uid 65534. It passes — which is the statement "the code is fine, the runner is
 privileged", made checkable in one command:
 
 ```sh
-cd au-engine && bash scripts/run-known-root-tests.sh   # exit 0 = only root, not code
+cd tb-engine && bash scripts/run-known-root-tests.sh   # exit 0 = only root, not code
 ```
 
 Compare a fresh run against the recorded baseline, from `tb-engine/` (export
@@ -58,4 +58,4 @@ only); the engine's test counts did not move. `clippy -D warnings` is NOT a gate
 the engine: upstream style lints remain in `au-core` and the crates clippy reaches
 after it, so a red clippy says nothing about a fork change. The gate is per crate —
 `cargo clippy -p tb-engine -p tb-cli --all-targets -- -D warnings` — plus the whole
-`au-mcp-rs` workspace, which is clean.
+`tb-mcp-rs` workspace, which is clean.

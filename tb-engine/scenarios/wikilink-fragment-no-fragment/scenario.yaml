@@ -1,5 +1,5 @@
 title: "Bare [[target]] without :field fragment does not contribute and triggers no diagnostic"
-spec_ref: "[[type-instance body contribution::au-type-system]]"
+spec_ref: "[[type-instance body contribution::tb-type-system]]"
 command: validate
 expected:
   clean: true

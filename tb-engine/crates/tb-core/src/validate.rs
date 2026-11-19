@@ -1,11 +1,11 @@
 //! Pure instance validation: `(ValidateContext, Instance) -> Vec<Diagnostic>`.
 //!
 //! No I/O, no global state. The validator dispatches the closure walk
-//! through `closure::effective_shape` and emits the [[type validation::au-type-system]] subset that doesn't
+//! through `closure::effective_shape` and emits the [[type validation::tb-type-system]] subset that doesn't
 //! depend on sealed-leaf / inline-value / compound grammar (those light up
 //! as their grammar lands).
 //!
-//! Per [[type open-world validation::au-type-system]]: extras (instance fields outside the closure) pass
+//! Per [[type open-world validation::tb-type-system]]: extras (instance fields outside the closure) pass
 //! silently. They become candidates for promotion via the candidate scan.
 
 use std::borrow::Cow;
@@ -52,44 +52,44 @@ pub struct ValidateContext<'a> {
     pub ref_data: &'a dyn RefData,
     /// Resolver for `[[name::repo]]` references that cross a repo boundary.
     ///
-    /// au-core is repo-agnostic and sees only one graph, so it cannot reach a
-    /// target in another repo. The engine supplies this seam; au-core calls it
+    /// tb-core is repo-agnostic and sees only one graph, so it cannot reach a
+    /// target in another repo. The engine supplies this seam; tb-core calls it
     /// to resolve the `::repo` target into the named repo's graph, then
     /// type-checks the slot by `(name, canonical-hash)` identity across the
-    /// boundary. `None` (au-core's own tests) skips the cross-repo typed check;
+    /// boundary. `None` (tb-core's own tests) skips the cross-repo typed check;
     /// the existence and `reference-repo-*` diagnostics live in the engine.
     pub cross_repo: Option<&'a dyn CrossRepoResolver>,
     /// R's cross-repo resolution graph, present when R imports any peer type
     /// ([[design - cross-repo type vocabulary - reference import and vendor as one spectrum over the repo qualifier]]).
     ///
     /// When `Some`, claim / parent resolution runs over it, so a `type: foo::repo`
-    /// gathers the folded peer fields; `None` (a non-importing repo, or au-core's
+    /// gathers the folded peer fields; `None` (a non-importing repo, or tb-core's
     /// own tests) falls back to the own `graph`, unchanged. The own graph stays
     /// for the own-graph-only checks. Field-shape demands stay on `cross_repo`.
     pub resolution: Option<&'a ResolutionGraph>,
-    /// The engine's nominal meta marker identity, injected by au-engine so au-core
+    /// The engine's nominal meta marker identity, injected by tb-engine so tb-core
     /// stays domain-pure ([[spec - meta type marker - the meta position admits only types that mix in the engine meta base]]).
     /// A `meta:` block's type is meta-legal only if its RESOLVED closure includes
-    /// this `(name, repo)`. `None` (au-core's own tests, or a build that does not
+    /// this `(name, repo)`. `None` (tb-core's own tests, or a build that does not
     /// supply it) skips the nominal check.
     pub meta_marker: Option<MetaMarker<'a>>,
 }
 
-/// The engine meta marker identity, `(au.engine.meta, au-engine)`, held by
-/// reference so au-core never hardcodes an engine name. Injected via
+/// The engine meta marker identity, `(tb.engine.meta, tb-engine)`, held by
+/// reference so tb-core never hardcodes an engine name. Injected via
 /// [`ValidateContext::meta_marker`].
 #[derive(Debug, Clone, Copy)]
 pub struct MetaMarker<'a> {
-    /// The marker type-def name, `au.engine.meta`.
+    /// The marker type-def name, `tb.engine.meta`.
     pub name: &'a str,
-    /// The repo that owns it, the builtin `au-engine`.
+    /// The repo that owns it, the builtin `tb-engine`.
     pub repo: &'a str,
 }
 
 /// Resolves the per-target data the validator looks up by path during
 /// reference checks: a target instance's type claims, its markdown body (for
 /// cross-file `^block-id` resolution), and its addressable inline records
-/// ([[type block-id::au-type-system]]).
+/// ([[type block-id::tb-type-system]]).
 ///
 /// A seam so the caller chooses the backing. The whole-knowledge-base path uses
 /// [`MapRefData`] over pre-assembled maps; the engine's incremental path backs
@@ -118,7 +118,7 @@ pub trait RefData {
 }
 
 /// A [`RefData`] backed by three pre-assembled maps, the whole-knowledge-base build's
-/// resolver and the shape au-core's own tests construct. Every lookup borrows
+/// resolver and the shape tb-core's own tests construct. Every lookup borrows
 /// from the maps, so the full build allocates nothing per reference.
 pub struct MapRefData<'a> {
     pub claims_by_path: &'a BTreeMap<PathBuf, Vec<TypeName>>,
@@ -141,11 +141,11 @@ impl RefData for MapRefData<'_> {
 }
 
 /// Resolves a `[[name::repo]]`-qualified reference into the named repo, the
-/// engine-supplied seam that lets repo-agnostic au-core type-check across a
+/// engine-supplied seam that lets repo-agnostic tb-core type-check across a
 /// repo boundary.
 ///
 /// The engine owns the workspace's repos, so only it can map a repo label to a
-/// graph and resolve a target within it. au-core consumes the result and
+/// graph and resolve a target within it. tb-core consumes the result and
 /// compares the source slot's demanded type against the target's effective type
 /// closure by canonical-hash identity.
 pub trait CrossRepoResolver: Sync {
@@ -161,13 +161,13 @@ pub trait CrossRepoResolver: Sync {
     /// resolved target file, the qualified sibling of the unqualified reference
     /// check. The seam yields the demanded `TypeId` (the demand repo's identity for
     /// `demand_base`) and the target's FULL folded closure ids (the target's repo
-    /// resolution graph over the target's parsed, still-qualified claims); au-core
+    /// resolution graph over the target's parsed, still-qualified claims); tb-core
     /// does the membership.
     ///
     /// `target_claim` overrides which of the target's claims is folded: `None`
     /// folds the target FILE's frontmatter claim (a whole-file target, engine-read
     /// from the parse), `Some(claim)` folds a given claim (a `^block-id` target's
-    /// own BLOCK claim, which au-core resolved).
+    /// own BLOCK claim, which tb-core resolved).
     ///
     /// `None` when the demand repo (or the target's repo) is unresolvable or has a
     /// broken vocabulary, or when the override carries a `::repo` claim the target
@@ -176,7 +176,7 @@ pub trait CrossRepoResolver: Sync {
     /// diagnostic).
     ///
     /// The default returns `None`: a resolver with no workspace behind it
-    /// (au-core's own tests) cannot fold, so a qualified demand is left unchecked
+    /// (tb-core's own tests) cannot fold, so a qualified demand is left unchecked
     /// here, never false-flagged.
     fn qualified_demand(
         &self,
@@ -200,7 +200,7 @@ pub trait CrossRepoResolver: Sync {
     /// explicit descendant type, deferred), so the inline typed check skips.
     ///
     /// The default returns `None`: a resolver with no workspace behind it
-    /// (au-core's own tests) cannot reach the owner, so the check is skipped.
+    /// (tb-core's own tests) cannot reach the owner, so the check is skipped.
     fn owner_effective_shape(
         &self,
         _demand_base: &str,
@@ -217,7 +217,7 @@ pub trait CrossRepoResolver: Sync {
     /// parent (an inline at a sealed peer slot needs an explicit non-sealed
     /// descendant, so an omitted `type:` there is `inline-value-missing-type`).
     ///
-    /// au-core compares the demanded `id` against the inline claim's FOLDED
+    /// tb-core compares the demanded `id` against the inline claim's FOLDED
     /// closure (over the SOURCE resolution graph, where the inline's own `::repo`
     /// claim is a fold seed), the inline sibling of
     /// [`CrossRepoResolver::qualified_demand`].
@@ -225,7 +225,7 @@ pub trait CrossRepoResolver: Sync {
     /// `None` when the demand repo is unresolvable / has a broken vocabulary or
     /// the type is absent, so the inline check skips (the `type-repo-*` gate owns
     /// the diagnostic). The default returns `None`: a resolver with no workspace
-    /// behind it (au-core's own tests) cannot reach the demand repo.
+    /// behind it (tb-core's own tests) cannot reach the demand repo.
     fn peer_type_id(&self, _demand_base: &str, _demand_repo: &str) -> Option<PeerType> {
         None
     }
@@ -236,14 +236,14 @@ pub trait CrossRepoResolver: Sync {
     /// (the resolution graph holds parent/field ids, not bodies), so the splice
     /// needs the peer graph directly. `None` for an absent / undeclared repo (the
     /// use stays unspliced, the `crosstype` gate owns its diagnostic); the default
-    /// `None` leaves au-core's own tests splicing own bodies only.
+    /// `None` leaves tb-core's own tests splicing own bodies only.
     fn peer_graph(&self, _repo: &str) -> Option<&TypeGraph> {
         None
     }
 }
 
 /// The engine-supplied identity of a qualified INLINE demand's peer type, see
-/// [`CrossRepoResolver::peer_type_id`]. au-core checks `id` for membership in the
+/// [`CrossRepoResolver::peer_type_id`]. tb-core checks `id` for membership in the
 /// inline claim's folded closure, and reads `sealed` to require an explicit
 /// descendant at a sealed peer slot.
 pub struct PeerType {
@@ -268,7 +268,7 @@ pub struct CrossRepoTarget<'a> {
 }
 
 /// The engine-supplied operands for a qualified-demand reference membership
-/// (`foo::repo*`), see [`CrossRepoResolver::qualified_demand`]. au-core compares
+/// (`foo::repo*`), see [`CrossRepoResolver::qualified_demand`]. tb-core compares
 /// `demanded ∈ target_folded`, the qualified sibling of
 /// [`target_closure_includes_cross_repo`].
 pub struct QualifiedDemand {
@@ -278,7 +278,7 @@ pub struct QualifiedDemand {
     /// The target value's FULL folded closure ids. Full, not reduced to a boolean,
     /// so a future diamond diagnostic can tell a name-absent target from a
     /// closure-diverged one (a `foo` at a different hash) by `TypeId` comparison
-    /// over au-core's own vocabulary.
+    /// over tb-core's own vocabulary.
     pub target_folded: BTreeSet<crate::resolution::TypeId>,
 }
 
@@ -352,7 +352,7 @@ pub(crate) fn effective_shape_for(
 ///
 /// The frontmatter pass walks `instance.fields`, so a value arriving only from
 /// the body — an inline `` `[:field] value` `` marker, or a text fence — reaches
-/// its field without ever being compared to the slot. [[type-instance body contribution::au-type-system]]
+/// its field without ever being compared to the slot. [[type-instance body contribution::tb-type-system]]
 /// says a contribution whose value misses the slot shape is an error, so this is
 /// that check for the scalar carrier.
 ///
@@ -647,7 +647,7 @@ pub(crate) fn check_contribution_value(
                 )
             }
         }
-        // A fixed-arity positional product ([[type-def shape tuple::au-type-system]]). Validate
+        // A fixed-arity positional product ([[type-def shape tuple::tb-type-system]]). Validate
         // the model tuple against the slot: a named tuple brand's name must match,
         // arity must match, and each element validates against its position shape.
         ContributionValue::Tuple(elements) => {
@@ -1001,7 +1001,7 @@ pub fn validate(ctx: &ValidateContext, instance: &Instance) -> Vec<Diagnostic> {
     let mut diags: Vec<Diagnostic> = Vec::new();
     let path = &instance.source_path;
 
-    // Redundant-claim warnings ([[type-instance type::au-type-system]]) — duplicate-claim and
+    // Redundant-claim warnings ([[type-instance type::tb-type-system]]) — duplicate-claim and
     // subsumption-in-mixin. Run before effective_shape so duplicate
     // detection still fires when an unknown name would otherwise short-
     // circuit the validator. No-op for bare claims and 1-element lists.
@@ -1032,12 +1032,12 @@ pub fn validate(ctx: &ValidateContext, instance: &Instance) -> Vec<Diagnostic> {
         }
     };
 
-    // Mixin-collision ([[type-def fields collision - auto-unify and qualified field::au-type-system]]) for a divergent field fires only on a BARE use,
+    // Mixin-collision ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]) for a divergent field fires only on a BARE use,
     // handled in the per-field loop below (a divergent field is in `shape.divergent`,
     // resolved per-origin by a `field{type}` qualifier). An untouched divergent
     // field is clean; every use must qualify.
 
-    // Sealed-leaf rule ([[type-def sealed::au-type-system]]) — per-claim. A non-sealed sibling
+    // Sealed-leaf rule ([[type-def sealed::tb-type-system]]) — per-claim. A non-sealed sibling
     // in a mixin does not excuse a sealed claim; duplicates fire once
     // per element (with `duplicate-claim` surfacing the repetition).
     // Inline-value `type:` keys are checked in `validate_inline_value`.
@@ -1085,7 +1085,7 @@ pub fn validate(ctx: &ValidateContext, instance: &Instance) -> Vec<Diagnostic> {
 
     // The qualifier-aware per-field walk (routing, per-origin required,
     // divergent collision + required, mixed-form), shared with the inline-record
-    // and meta sub-region surfaces (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]).
+    // and meta sub-region surfaces (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]).
     check_field_surface(
         &scope,
         &shape,
@@ -1399,7 +1399,7 @@ fn check_value_against_shape_inner(
     origin: &Origin,
     element_index: Option<usize>,
 ) -> Vec<Diagnostic> {
-    // [[type-instance body contribution::au-type-system]]: a null value marks the field as "filled by body" — a visibility
+    // [[type-instance body contribution::tb-type-system]]: a null value marks the field as "filled by body" — a visibility
     // marker, not a value to check. Higher-layer body validation enforces
     // that body contributions exist (required-field-absent / fills-contract-unmet
     // / body-fills-without-frontmatter-key surface absences). Null at list-
@@ -1409,12 +1409,12 @@ fn check_value_against_shape_inner(
     }
     let prefix = format_field_prefix(field_key, element_index);
     match shape {
-        // The uninterpreted slot ([[type-def shape opaque::au-type-system]]): any value passes,
+        // The uninterpreted slot ([[type-def shape opaque::tb-type-system]]): any value passes,
         // no shape check, no descent, so a nested `type:` is plain data. The
         // wikilink and candidate scans skip its content separately (candidates /
         // body_validate), and its fence reads verbatim.
         Shape::Opaque => Vec::new(),
-        // The interpreted top ([[type-def shape any::au-type-system]]): the shape constraint is
+        // The interpreted top ([[type-def shape any::tb-type-system]]): the shape constraint is
         // trivially satisfied, but the value IS read. A mapping is an inline
         // record validated on its own terms (its `type:` claim, if any), with no
         // slot demand (`InlineCompat::Open`). Any non-mapping imposes no
@@ -1460,7 +1460,7 @@ fn check_value_against_shape_inner(
             }
         }
         Shape::Refined { base, refinement } => {
-            // Value refinement ([[type-def field shape::au-type-system]]): first the base
+            // Value refinement ([[type-def field shape::tb-type-system]]): first the base
             // primitive, then the predicate meet.
             let base_diags = check_value_against_shape_inner(
                 scope,
@@ -1495,7 +1495,7 @@ fn check_value_against_shape_inner(
             // A fixed-arity positional product ([[spec - branded types - the shape key names a reusable scalar, enum, union, or tuple]]).
             // An inline tuple value is the PAREN form `(a, b)`, never a `[...]`
             // sequence — a bracket is always a LIST value (decision A, see
-            // [[type-def shape tuple::au-type-system]]). The `Name(...)` constructor form is a
+            // [[type-def shape tuple::tb-type-system]]). The `Name(...)` constructor form is a
             // brand's, handled at the brand layer (`check_nominal_brand_value`).
             //
             // The elaborator classifies a paren tuple into a `Tuple` node; consume
@@ -1546,7 +1546,7 @@ fn check_value_against_shape_inner(
             }
         }
         Shape::Pinned(inner) => {
-            // [[type-def shape suffixes::au-type-system]] `*@`: the value must be a commit-pinned
+            // [[type-def shape suffixes::tb-type-system]] `*@`: the value must be a commit-pinned
             // reference. The reference branch (a wikilink) must carry a `@commit`;
             // the inline branch (only for a `T&@` inner) needs no pin. See
             // [[spec - pinned references - a recorded resolved edge with an immutable past and an on-demand forward trace]].
@@ -1660,7 +1660,7 @@ fn check_value_against_shape_inner(
                     );
                 }
             }
-            // `name*` (typed reference, spec [[type-def shape suffixes::au-type-system]] / [[type reference::au-type-system]]) — value MUST
+            // `name*` (typed reference, spec [[type-def shape suffixes::tb-type-system]] / [[type reference::tb-type-system]]) — value MUST
             // be a wikilink string. Inline maps belong at `name` (Record)
             // or `name&` (InlineOrReference) slots, not here. The value-model
             // path consumes the parsed node when the instance surface produced
@@ -1738,9 +1738,9 @@ fn check_value_against_shape_inner(
                     );
                 }
             }
-            // [[type-def shape record::au-type-system]] — bare-name record slot. Value MUST be an
+            // [[type-def shape record::tb-type-system]] — bare-name record slot. Value MUST be an
             // inline YAML map. Anything else (string, number, etc.) is a
-            // shape mismatch. [[type-def shape record::au-type-system]] cases 1 + 2 dispatch here.
+            // shape mismatch. [[type-def shape record::tb-type-system]] cases 1 + 2 dispatch here.
             match value {
                 InstanceValue::Mapping(inline) => validate_inline_value(
                     scope,
@@ -1765,7 +1765,7 @@ fn check_value_against_shape_inner(
             }
         }
         Shape::InlineOrReference(name) if name.as_str() == "any" => {
-            // `any&` ([[type-def shape any::au-type-system]]): a whole-value `[[...]]` selects the
+            // `any&` ([[type-def shape any::tb-type-system]]): a whole-value `[[...]]` selects the
             // reference branch, resolved as `any*` (no closure check). Every
             // other value is the interpreted inline branch (the top): a mapping
             // is an inline record validated on its own terms, any other value
@@ -1857,7 +1857,7 @@ fn check_value_against_shape_inner(
                     );
                 }
             }
-            // [[type-def shape suffixes::au-type-system]] `name&` — value may be an inline map ([[type-def shape record::au-type-system]]) OR a
+            // [[type-def shape suffixes::tb-type-system]] `name&` — value may be an inline map ([[type-def shape record::tb-type-system]]) OR a
             // wikilink string whose target's `type:` closure includes
             // `name`. Dispatch by value shape.
             match value {
@@ -1905,7 +1905,7 @@ fn check_value_against_shape_inner(
             element_index,
         ),
         Shape::Union(branches) => {
-            // [[type-def shape record::au-type-system]] case 3: inline value at a union slot — `type:` is
+            // [[type-def shape record::tb-type-system]] case 3: inline value at a union slot — `type:` is
             // required, identifies which branch the value satisfies.
             // Records (Shape::Record / Reference / InlineOrReference)
             // contribute names; primitives/enums are skipped (they
@@ -1933,7 +1933,7 @@ fn check_value_against_shape_inner(
                 // branch iteration which will produce per-branch
                 // mismatch diagnostics.
             }
-            // [[type reference::au-type-system]]: in primitive-vs-reference unions, wikilink-pattern
+            // [[type reference::tb-type-system]]: in primitive-vs-reference unions, wikilink-pattern
             // strings (`"[[...]]"`) resolve as references — they skip
             // the String branch and route to the reference branches in
             // source order. Without this precheck, the String branch's
@@ -2010,7 +2010,7 @@ fn check_value_against_shape_inner(
                         ),
                     )];
                 }
-                // [[type reference::au-type-system]]: in unions containing a Url branch, the `^https?://`
+                // [[type reference::tb-type-system]]: in unions containing a Url branch, the `^https?://`
                 // prefix commits the value to the Url branch — without
                 // this precheck the String branch's trivial any-of match
                 // would silently accept a malformed URL. Syntactically
@@ -2033,7 +2033,7 @@ fn check_value_against_shape_inner(
                     }
                 }
             }
-            // Any-of (spec [[type-def shape compound::au-type-system]]). Try each branch; first to succeed wins.
+            // Any-of (spec [[type-def shape compound::tb-type-system]]). Try each branch; first to succeed wins.
             // If all fail, emit ONE field-shape-mismatch with the union's
             // source-form rendering — branch-level diagnostics are not
             // propagated (avoids "satisfies neither" noise).
@@ -2062,7 +2062,7 @@ fn check_value_against_shape_inner(
             )]
         }
         Shape::Intersection(branches) => {
-            // [[type-def shape record::au-type-system]] case 4: inline value at an intersection slot —
+            // [[type-def shape record::tb-type-system]] case 4: inline value at an intersection slot —
             // `type:` is required and must satisfy ALL reference-shape
             // branches (single-name claim or mixin). Validation against
             // the resolved identity's effective shape covers the union
@@ -2087,9 +2087,9 @@ fn check_value_against_shape_inner(
                 // No record-shape branches — fall through to per-branch
                 // failures.
             }
-            // All-of (spec [[type-def shape compound::au-type-system]]). Each branch must validate; concatenate
+            // All-of (spec [[type-def shape compound::tb-type-system]]). Each branch must validate; concatenate
             // per-branch failures so the user sees every constraint that
-            // failed. Spec [[type-def shape compound::au-type-system]]: uninhabitability is never enforced —
+            // failed. Spec [[type-def shape compound::tb-type-system]]: uninhabitability is never enforced —
             // missing-required-field cascades will surface real conflicts
             // at the use site.
             let mut all = Vec::new();
@@ -2136,7 +2136,7 @@ fn check_value_against_shape_inner(
             op,
             branches,
         } => match value {
-            // [[type-def shape record::au-type-system]] + [[type-def shape suffixes::au-type-system]]: inline value at `<X | Y>&` / `<X & Y>&`
+            // [[type-def shape record::tb-type-system]] + [[type-def shape suffixes::tb-type-system]]: inline value at `<X | Y>&` / `<X & Y>&`
             // slot. Synthesize the InlineCompat from the compound's op
             // and branches, then run the same identity-resolution +
             // per-field walk as the single-name inline path.
@@ -2369,7 +2369,7 @@ fn check_compound_reference_star_parsed(
     // cannot see the target; the engine supplies a resolver that reaches into
     // the named repo and yields its graph, so the target's type is checked by
     // `(name, canonical-hash)` identity across the boundary. With no resolver
-    // wired (au-core's own tests) or an unresolvable target (the engine's
+    // wired (tb-core's own tests) or an unresolvable target (the engine's
     // cross-repo pass owns the `reference-repo-*` existence diagnostics), the
     // typed check is skipped here.
     let cross_target = if let Some(repo) = &wikilink.repo {
@@ -2385,7 +2385,7 @@ fn check_compound_reference_star_parsed(
         None
     };
 
-    // Local form per [[type reference::au-type-system]]: empty name + locating fragment
+    // Local form per [[type reference::tb-type-system]]: empty name + locating fragment
     // resolves to the host file itself — name lookup is skipped, so no
     // missing/ambiguous outcome exists.
     let resolved = if let Some(t) = &cross_target {
@@ -2433,14 +2433,14 @@ fn check_compound_reference_star_parsed(
     };
 
     // Anchor existence is independent of the typed check below —
-    // navigational everywhere, see [[type reference::au-type-system]].
+    // navigational everywhere, see [[type reference::tb-type-system]].
     let mut diags = slot_anchor_diags(scope, &resolved, wikilink, value_span, &prefix);
 
-    // Per [[type-def shape file::au-type-system]] the built-in `file` branch is existence-only; successful
+    // Per [[type-def shape file::tb-type-system]] the built-in `file` branch is existence-only; successful
     // resolution above satisfies it without any `type:` claim. Other
     // branches still require the target's closure to include them.
     //
-    // [[type block-id::au-type-system]]: with a `^block-id` the addressed entity's own
+    // [[type block-id::tb-type-system]]: with a `^block-id` the addressed entity's own
     // claims replace the file-level ones — a typed block or an inline
     // record, resolved the same way as the single-name path.
     let mut block_qualified: Vec<TypeNameClaim> = Vec::new();
@@ -2575,7 +2575,7 @@ fn check_compound_reference_star_parsed(
 }
 
 /// True if `shape` accepts a `[[wikilink]]` string at validate time.
-/// Used by [[type reference::au-type-system]]'s primitive-vs-reference disambiguation precheck:
+/// Used by [[type reference::tb-type-system]]'s primitive-vs-reference disambiguation precheck:
 /// strings matching the wikilink pattern route to whichever branches
 /// satisfy this predicate, skipping plain `Shape::Primitive(String)`.
 ///
@@ -2618,10 +2618,10 @@ impl<'a> QualBranch<'a> {
 /// keeping each branch's `::repo` qualifier. A branch admits an inline value
 /// only when it is a bare record (`name`) or inline-or-reference (`name&`); a
 /// `*` reference branch (`Shape::Reference`) is REFERENCE-ONLY per
-/// [[type reference::au-type-system]], so it hosts no inline value and is
+/// [[type reference::tb-type-system]], so it hosts no inline value and is
 /// skipped — the same as a primitive / enum / list / nested-compound branch. So
 /// an inline value at a union's `*` branch matches no candidate identity and
-/// fails [[type-def shape record::au-type-system]] cases 3/4, rather than being
+/// fails [[type-def shape record::tb-type-system]] cases 3/4, rather than being
 /// descended into. This mirrors the single-slot [`InlineCompat`] dispatch, which
 /// admits inline for `Record` / `InlineOrReference` only.
 ///
@@ -2646,20 +2646,20 @@ fn collect_inline_branches(branches: &[Shape]) -> Vec<QualBranch<'_>> {
 
 /// What inline `type:` claims the slot expects to be compatible with.
 /// Drives the missing-type / not-compatible message variants and the
-/// closure-includes check across [[type-def shape record::au-type-system]]'s four cases.
+/// closure-includes check across [[type-def shape record::tb-type-system]]'s four cases.
 enum InlineCompat<'a> {
-    /// [[type-def shape record::au-type-system]] case 1 + 2: declared closure must include `slot_demand`.
+    /// [[type-def shape record::tb-type-system]] case 1 + 2: declared closure must include `slot_demand`.
     /// `type:` is required iff `slot_demand` itself is sealed. A qualified
     /// `foo::repo` demand is handled ahead of here by
     /// [`validate_qualified_inline_demand`], so this is the unqualified case.
     SingleDemand(&'a str),
-    /// [[type-def shape record::au-type-system]] case 3: declared closure must include at least one of the
+    /// [[type-def shape record::tb-type-system]] case 3: declared closure must include at least one of the
     /// reference-branch demands. `type:` is always required.
     Union(Vec<QualBranch<'a>>),
-    /// [[type-def shape record::au-type-system]] case 4: declared closure must include every reference-
+    /// [[type-def shape record::tb-type-system]] case 4: declared closure must include every reference-
     /// branch demand. `type:` is always required.
     Intersection(Vec<QualBranch<'a>>),
-    /// The interpreted top `any` ([[type-def shape any::au-type-system]]): no demand, so a `type:`
+    /// The interpreted top `any` ([[type-def shape any::tb-type-system]]): no demand, so a `type:`
     /// is optional and, when present, validated on its own terms (an unknown
     /// claim fires, the record's fields validate against the claimed type). No
     /// closure compat check, `any` demands nothing. A mapping with no `type:` is
@@ -2682,8 +2682,8 @@ impl<'a> InlineCompat<'a> {
     }
 }
 
-/// Validate an inline value ([[type-def shape record::au-type-system]]) at a record-typed slot. Resolves the
-/// inline's identity per the `compat` rule ([[type-def shape record::au-type-system]] cases 1-4), then walks
+/// Validate an inline value ([[type-def shape record::tb-type-system]]) at a record-typed slot. Resolves the
+/// inline's identity per the `compat` rule ([[type-def shape record::tb-type-system]] cases 1-4), then walks
 /// the inline's fields against the resolved effective shape.
 ///
 /// Identity resolution:
@@ -2796,7 +2796,7 @@ pub(crate) fn check_fence_record_against_slot(
     )
 }
 
-/// The [[type-def shape record::au-type-system]] compat check: does a DECLARED inline claim satisfy
+/// The [[type-def shape record::tb-type-system]] compat check: does a DECLARED inline claim satisfy
 /// the slot it fills?
 ///
 /// - case 1/2 (`SingleDemand`), the closure includes the slot's demand.
@@ -2920,7 +2920,7 @@ fn check_inline_claim_compat(
             }
         }
         // The interpreted top `any` demands nothing, so any declared claim is
-        // compatible; only the claim's own validity matters ([[type-def shape any::au-type-system]]).
+        // compatible; only the claim's own validity matters ([[type-def shape any::tb-type-system]]).
         InlineCompat::Open => None,
     };
 
@@ -2996,18 +2996,18 @@ fn validate_inline_value(
     // A single-demand slot requires an explicit inline `type:` when the demand is
     // NON-CLAIMABLE, sealed OR abstract: an omitted claim would synthesize the
     // ceiling's own identity, an implicit claim of a type that cannot be claimed.
-    // Union/Intersection always require. See [[type-def shape record::au-type-system]].
+    // Union/Intersection always require. See [[type-def shape record::tb-type-system]].
     let type_required = match compat {
         InlineCompat::SingleDemand(name) => {
             scope.ctx.graph.is_abstract(&TypeName(name.to_string()))
         }
         InlineCompat::Union(_) | InlineCompat::Intersection(_) => true,
         // The interpreted top demands nothing, so a `type:` is optional: an
-        // untyped mapping is an open value ([[type-def shape any::au-type-system]]).
+        // untyped mapping is an open value ([[type-def shape any::tb-type-system]]).
         InlineCompat::Open => false,
     };
 
-    // [[type-def shape record::au-type-system]] cases 2/3/4: declare inline `type:` or fire missing-type.
+    // [[type-def shape record::tb-type-system]] cases 2/3/4: declare inline `type:` or fire missing-type.
     // Stops before identity synthesis; without an identity the per-
     // field walk would surface noise.
     if inline.type_claim.is_none() && type_required {
@@ -3059,7 +3059,7 @@ fn validate_inline_value(
 
     // The interpreted top `any` with no `type:` is an untyped open mapping:
     // no claim to resolve, no shape to validate against, so it passes
-    // ([[type-def shape any::au-type-system]]). Any candidate / navigational scanning of its
+    // ([[type-def shape any::tb-type-system]]). Any candidate / navigational scanning of its
     // content is owned by the candidate and body passes, not here.
     if inline.type_claim.is_none() && matches!(compat, InlineCompat::Open) {
         return diags;
@@ -3093,7 +3093,7 @@ fn validate_inline_value(
         }
     };
 
-    // Mixin-side warnings on declared inline claims ([[type-instance type::au-type-system]]).
+    // Mixin-side warnings on declared inline claims ([[type-instance type::tb-type-system]]).
     if let TypeClaim::List { items, .. } = &identity_claim {
         diags.extend(check_redundant_claims(
             scope.ctx.graph,
@@ -3129,7 +3129,7 @@ fn validate_inline_value(
         }
     };
 
-    // [[type-def shape record::au-type-system]] compat check on the declared identity's closure,
+    // [[type-def shape record::tb-type-system]] compat check on the declared identity's closure,
     // shared with the body-fence surface. See `check_inline_claim_compat`.
     if declared {
         let compat_diags = check_inline_claim_compat(
@@ -3149,10 +3149,10 @@ fn validate_inline_value(
         }
     }
 
-    // Sealed-parent-claimed ([[type-def sealed::au-type-system]]) per-claim on declared inline
+    // Sealed-parent-claimed ([[type-def sealed::tb-type-system]]) per-claim on declared inline
     // `type:`. Even at a non-sealed slot, claiming a sealed type
     // directly is a validation error (mirrors file-level rule). The
-    // [[type-def shape record::au-type-system]] case-2 missing-type rule (omitted `type:` at sealed slot is
+    // [[type-def shape record::tb-type-system]] case-2 missing-type rule (omitted `type:` at sealed slot is
     // an error) lights up alongside this when the slot itself is
     // sealed — that's a separate rule.
     if declared {
@@ -3183,7 +3183,7 @@ fn validate_inline_value(
                 ));
             }
         }
-        // Multi-leaf-in-sealed-family ([[type-instance type::au-type-system]]) — symmetric to the
+        // Multi-leaf-in-sealed-family ([[type-instance type::tb-type-system]]) — symmetric to the
         // file-level rule. Only meaningful for declared `type:` claims
         // (an undeclared inline value can't claim multiple leaves).
         diags.extend(check_multi_leaf_in_sealed_family(
@@ -3441,7 +3441,7 @@ fn check_inline_fields(
     };
 
     // The qualifier-aware per-field walk, shared with the frontmatter and meta
-    // surfaces (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]).
+    // surfaces (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]).
     check_field_surface(
         &nested,
         shape,
@@ -3460,9 +3460,9 @@ fn check_inline_fields(
 /// shape using the same per-field machinery as instance validation:
 /// required-field-absent, field-shape-mismatch (via `check_value_against_shape`),
 /// sealed-leaf rule, unknown-type-claim, reference-target-missing/-type-
-/// mismatch. Spec [[type-def meta::au-type-system]].
+/// mismatch. Spec [[type-def meta::tb-type-system]].
 ///
-/// Meta-body errors fire as Error severity. Per [[type validation::au-type-system]] "errors at step 1
+/// Meta-body errors fire as Error severity. Per [[type validation::tb-type-system]] "errors at step 1
 /// prevent step 2", downstream per-instance validation should be aborted
 /// when this returns any Error — callers wire that gate the same way
 /// they handle type-graph load errors today.
@@ -3503,7 +3503,7 @@ pub fn validate_meta_bodies(ctx: &ValidateContext) -> Vec<Diagnostic> {
 /// - a bare target absent from the graph, `required-meta-absent-type` (load_checks).
 /// - a qualified target that does not resolve, the `type-repo-*` / `peer-type-not-found` gate.
 ///
-/// Skipped entirely without a marker or cross-repo seam (au-core's own tests).
+/// Skipped entirely without a marker or cross-repo seam (tb-core's own tests).
 fn check_required_meta_is_meta(ctx: &ValidateContext, td: &TypeDef) -> Vec<Diagnostic> {
     let mut diags: Vec<Diagnostic> = Vec::new();
     let Some(marker) = ctx.meta_marker else {
@@ -3566,7 +3566,7 @@ fn check_required_meta_is_meta(ctx: &ValidateContext, td: &TypeDef) -> Vec<Diagn
 ///
 /// Runs over the resolution graph, so a cross-repo base's obligation and a
 /// cross-repo required meta type both resolve. A repo that imports nothing has no
-/// valid obligation (a meta type mixes in the `::au-engine` marker, an import), so
+/// valid obligation (a meta type mixes in the `::tb-engine` marker, an import), so
 /// `resolution: None` short-circuits. Satisfaction is LITERAL: only `td`'s own
 /// blocks count, an ancestor's surfaced block does not; `meta: []` (no blocks)
 /// exempts nothing.
@@ -3646,10 +3646,10 @@ pub fn unmet_required_meta(
 
 fn check_subtype_required_meta(ctx: &ValidateContext, td: &TypeDef) -> Vec<Diagnostic> {
     // No resolution graph is not a silent skip in the engine: every repo's own
-    // `.arsumbris/repo.yaml` is an `au.engine.repo::au-engine` instance, stamped
+    // `.2brain/repo.yaml` is an `tb.engine.repo::tb-engine` instance, stamped
     // with that claim even when no `type:` is written, so every repo imports the
-    // builtin peer and gets one. Only the builtin `au-engine` repo itself lacks
-    // it, and it authors no obligation on user types. `None` here is au-core's
+    // builtin peer and gets one. Only the builtin `tb-engine` repo itself lacks
+    // it, and it authors no obligation on user types. `None` here is tb-core's
     // own graph-only callers.
     let Some(rg) = ctx.resolution else {
         return Vec::new();
@@ -3673,7 +3673,7 @@ fn check_subtype_required_meta(ctx: &ValidateContext, td: &TypeDef) -> Vec<Diagn
 
 /// Validate one meta sub-region body against its named meta-type-def.
 ///
-/// Single-name only per [[type-def meta::au-type-system]] — parser already rejects mixin at meta sites
+/// Single-name only per [[type-def meta::tb-type-system]] — parser already rejects mixin at meta sites
 /// (`META_MIXIN_NOT_SUPPORTED`). The per-field walk mirrors
 /// `validate_inline_value`'s post-compat path: provided-set, recursive
 /// `check_value_against_shape`, per-origin required-field-absent.
@@ -3684,7 +3684,7 @@ fn validate_meta_subregion(
 ) -> Vec<Diagnostic> {
     let mut diags: Vec<Diagnostic> = Vec::new();
 
-    // The meta-type-def's identity claim, single-name (no mixin per [[type-def meta::au-type-system]]),
+    // The meta-type-def's identity claim, single-name (no mixin per [[type-def meta::tb-type-system]]),
     // synthesized at the sub-region's `type:` span so downstream diagnostics
     // anchor correctly. A `::repo` meta type resolves against the peer's graph via
     // the fold, so it carries the qualifier; `effective_shape_for` then gathers
@@ -3737,7 +3737,7 @@ fn validate_meta_subregion(
         }
     };
 
-    // Universal [[type-def sealed::au-type-system]] sealed-leaf rule fires at the meta site too,
+    // Universal [[type-def sealed::tb-type-system]] sealed-leaf rule fires at the meta site too,
     // mirroring the file-level and inline-value precedent. Same code,
     // new span anchor. The host's own sealing is irrelevant — what
     // matters is whether the meta-type-def the block claims is itself
@@ -3776,7 +3776,7 @@ fn validate_meta_subregion(
         // from the resolution graph. A repo that imports NOTHING has no resolution
         // graph, so X cannot mix in the cross-repo marker and is not meta-legal,
         // exactly the plain-record case this catches. Deferred only when the marker
-        // itself cannot be identified (no cross-repo seam, au-core's own tests).
+        // itself cannot be identified (no cross-repo seam, tb-core's own tests).
         let marker_id = ctx
             .cross_repo
             .and_then(|r| r.peer_type_id(marker.name, marker.repo))
@@ -3807,9 +3807,9 @@ fn validate_meta_subregion(
     // Per-field walk against the meta-type-def's effective shape. Mirrors
     // `validate_inline_value`'s post-compat-check loop — every body field
     // either fills a known field-origin or passes silently as an extra
-    // (per [[type open-world validation::au-type-system]]). Reserved keys were rejected at parse time.
+    // (per [[type open-world validation::tb-type-system]]). Reserved keys were rejected at parse time.
     //
-    // [[type-def meta::au-type-system]] lock: this walk validates body fields against the named
+    // [[type-def meta::tb-type-system]] lock: this walk validates body fields against the named
     // type-def's STRUCTURE, not its meta. We never look at the named
     // type-def's own `meta_blocks` here — that's `lookup_meta`'s job,
     // and even there the walk targets the host's chain.
@@ -3825,7 +3825,7 @@ fn validate_meta_subregion(
     };
 
     // The qualifier-aware per-field walk, shared with the frontmatter and inline
-    // surfaces (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]). A meta type is a single claim
+    // surfaces (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]). A meta type is a single claim
     // but can inherit a divergent field from its own parents, so the meta surface
     // reaches the divergent case too.
     check_field_surface(
@@ -4091,7 +4091,7 @@ fn check_reference_parsed(
     // cannot see the target; the engine supplies a resolver that reaches into
     // the named repo and yields its graph, so the target's type is checked by
     // `(name, canonical-hash)` identity across the boundary. With no resolver
-    // wired (au-core's own tests) or an unresolvable target (the engine's
+    // wired (tb-core's own tests) or an unresolvable target (the engine's
     // cross-repo pass owns the `reference-repo-*` existence diagnostics), the
     // typed check is skipped here.
     let cross_target = if let Some(repo) = &wikilink.repo {
@@ -4107,7 +4107,7 @@ fn check_reference_parsed(
         None
     };
 
-    // Local form per [[type reference::au-type-system]]: empty name + locating fragment
+    // Local form per [[type reference::tb-type-system]]: empty name + locating fragment
     // resolves to the host file itself — name lookup is skipped, so no
     // missing/ambiguous outcome exists.
     let resolved = if let Some(t) = &cross_target {
@@ -4155,10 +4155,10 @@ fn check_reference_parsed(
     };
 
     // Anchor existence is independent of the typed check below —
-    // navigational everywhere, see [[type reference::au-type-system]].
+    // navigational everywhere, see [[type reference::tb-type-system]].
     let mut diags = slot_anchor_diags(scope, &resolved, wikilink, value_span, &prefix);
 
-    // `any*` references any node by existence, no closure check ([[type-def shape any::au-type-system]]).
+    // `any*` references any node by existence, no closure check ([[type-def shape any::tb-type-system]]).
     // A `^block-id` target is allowed; its existence is still checked
     // navigationally, like an anchor on a `file*`.
     if target_type == "any" {
@@ -4168,7 +4168,7 @@ fn check_reference_parsed(
         return diags;
     }
 
-    // Built-in `file*` references a whole file by existence ([[type-def shape file::au-type-system]]).
+    // Built-in `file*` references a whole file by existence ([[type-def shape file::tb-type-system]]).
     // A `^block-id` or `#head` addresses a part of the file, which `file*`
     // does not permit — `any*` is the block-addressing form. The fragment
     // is rejected outright, so the resolved-but-fragmented value never
@@ -4188,7 +4188,7 @@ fn check_reference_parsed(
         return diags;
     }
 
-    // [[type block-id::au-type-system]]: a `^block-id` wikilink targets an addressable
+    // [[type block-id::tb-type-system]]: a `^block-id` wikilink targets an addressable
     // entity inside the file — a typed block or an inline record — not
     // the file itself. The entity's own claim is what the slot checks.
     // For a `^block-id`, the block's own claim in qualified form drives a
@@ -4250,7 +4250,7 @@ fn check_reference_parsed(
     // defines it, so membership is `TypeId` equality over the target's FOLDED
     // closure (its own repo's resolution graph), not a name + `closure_id` compare
     // over plain graphs. The seam supplies the demanded id and the target's folded
-    // ids; au-core compares — the qualified sibling of the unqualified path below.
+    // ids; tb-core compares — the qualified sibling of the unqualified path below.
     if let Some(demand_repo) = demand_repo {
         // A `^block-id` target's satisfaction is its BLOCK's own claim, folded
         // over the target repo's resolution graph, so pass the block's qualified
@@ -4327,7 +4327,7 @@ fn check_reference_parsed(
 }
 
 /// Validate a value against a `type<T>*` / `type*` def-reference slot
-/// ([[type-def shape def-ref::au-type-system]]). The value must be a wikilink to a type-def file; the
+/// ([[type-def shape def-ref::tb-type-system]]). The value must be a wikilink to a type-def file; the
 /// constraint is checked on the def axis — the target def's own closure (itself
 /// plus its `type:` parents) must satisfy the bound. The unconstrained `type*`
 /// (bound `None`) skips the closure check, any type-def by existence.
@@ -4487,7 +4487,7 @@ fn check_def_reference_parsed(
     let prefix = format_field_prefix(field_key, element_index);
 
     // A def is whole-def only — a sub-file fragment is meaningless, like
-    // `file*` ([[type-def shape def-ref::au-type-system]] / [[type-def shape file::au-type-system]]).
+    // `file*` ([[type-def shape def-ref::tb-type-system]] / [[type-def shape file::tb-type-system]]).
     if wikilink.block_id.is_some() || wikilink.anchor.is_some() {
         return vec![field_shape_mismatch_diag(
             scope,
@@ -4522,7 +4522,7 @@ fn check_def_reference_parsed(
     };
 
     // Resolve like any reference, through the repo index — a type-def file is
-    // reachable by its type-name ([[type-def shape def-ref::au-type-system]]), so the same
+    // reachable by its type-name ([[type-def shape def-ref::tb-type-system]]), so the same
     // resolution serves validation, navigational edges, and backlinks alike.
     // The resolved file must be a type-def: its path maps to a name the graph
     // holds. A cross-repo target is resolved by the engine's resolver and
@@ -4704,7 +4704,7 @@ fn num_display(value: &InstanceValue) -> String {
     }
 }
 
-/// Check a value against a slot's value refinement ([[type-def field shape::au-type-system]]),
+/// Check a value against a slot's value refinement ([[type-def field shape::tb-type-system]]),
 /// returning a message describing the first failed predicate, or `None` when
 /// the value satisfies the meet. The value has already passed the base check.
 /// A malformed numeric bound literal is ignored here (flagged at load).
@@ -4826,7 +4826,7 @@ fn refinement_value_violation(
     }
 }
 
-/// A load-time refinement error ([[type-def field shape::au-type-system]]): a regex that does
+/// A load-time refinement error ([[type-def field shape::tb-type-system]]): a regex that does
 /// not compile (also rejecting the non-regular backreference / lookahead forms),
 /// or a `Date` / `DateTime` bound literal that is not a valid date. `None` when
 /// the refinement is well-formed. Surfaced as `refinement-bad-shape`.
@@ -4859,7 +4859,7 @@ pub(crate) fn refinement_load_error(base: Primitive, r: &tb_grammar::Refinement)
 }
 
 /// Whether a numeric value refinement's meet admits no value at all
-/// ([[type-def field shape::au-type-system]]): an empty interval, a single exclusive point, or
+/// ([[type-def field shape::tb-type-system]]): an empty interval, a single exclusive point, or
 /// no integer in the range under `integer`. Only numeric emptiness is detected;
 /// a malformed bound literal makes the check conservative (not empty).
 pub(crate) fn refinement_unsatisfiable(base: Primitive, r: &tb_grammar::Refinement) -> bool {
@@ -5126,7 +5126,7 @@ fn slot_anchor_diags(
     }]
 }
 
-/// Outcome of resolving a block-id fragment ([[type block-id::au-type-system]]) in a typed
+/// Outcome of resolving a block-id fragment ([[type block-id::tb-type-system]]) in a typed
 /// slot, keyed on the sigil MODE, not the target's typed-ness.
 enum BlockTarget {
     /// A `^^` block-referent that resolved to a typed block or inline record:
@@ -5143,7 +5143,7 @@ enum BlockTarget {
     },
     /// A bare `^` navigational anchor over an existing (or unverifiable no-body)
     /// target: the FILE is the referent, the caller type-checks its claim and
-    /// `^id` is a jump anchor ([[type block-id::au-type-system]]).
+    /// `^id` is a jump anchor ([[type block-id::tb-type-system]]).
     FileReferent,
     /// The block-id could not resolve to a checkable referent: a dangling bare
     /// `^` (a `navigational-block-id-not-found` warning), or a `^^` block-referent
@@ -5154,7 +5154,7 @@ enum BlockTarget {
 }
 
 /// Resolve a block-id fragment against the target's two addressable
-/// surfaces ([[type block-id::au-type-system]]): inline records first (frontmatter
+/// surfaces ([[type block-id::tb-type-system]]): inline records first (frontmatter
 /// precedes the body in document order), fenced blocks and markers
 /// second. Gated to reference slots by its call sites.
 ///
@@ -5266,7 +5266,7 @@ fn resolve_block_target(
 
 /// Block-id existence check for the existence-only shapes (`any*`, and a `file`
 /// branch of a union), where the block's TYPE is never checked — only that its
-/// referent exists ([[type-def shape any::au-type-system]], [[type-def shape file::au-type-system]]).
+/// referent exists ([[type-def shape any::tb-type-system]], [[type-def shape file::tb-type-system]]).
 ///
 /// Mode-aware on absence, since the referent differs:
 /// - a bare `^` is navigational (the FILE is the referent), so an absent anchor
@@ -5432,7 +5432,7 @@ pub(crate) fn target_closure_includes_cross_repo(
 }
 
 /// Per-field-name use-site index for the `mixed-bare-and-qualified-field`
-/// rule (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]). Both lists hold indices into `instance.fields` so
+/// rule (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]). Both lists hold indices into `instance.fields` so
 /// the caller can recover key spans when constructing the diagnostic.
 #[derive(Default)]
 struct FieldUseSites {
@@ -5442,7 +5442,7 @@ struct FieldUseSites {
 
 /// Outcome of parsing an instance field's key. `Bare` means the key has no
 /// `{`; `Qualified` means the key parses cleanly as `field{type}` (or
-/// `field{type::repo}`) per [[type-def fields collision - auto-unify and qualified field::au-type-system]];
+/// `field{type::repo}`) per [[type-def fields collision - auto-unify and qualified field::tb-type-system]];
 /// `Malformed` means the key uses the `{...}` qualifier but breaks the syntax
 /// (unclosed brace, empty parts, stray braces, or a qualifier type that
 /// violates the type-name regex).
@@ -5460,9 +5460,9 @@ pub(crate) enum QualifiedKey {
 
 /// Parse an instance field's key into `Bare`, `Qualified { T, F }`, or
 /// `Malformed`. Bare keys (no `{`) take the existing per-field path.
-/// Qualified keys carry the spec [[type-def fields collision - auto-unify and qualified field::au-type-system]] semantics: `field{type}`
+/// Qualified keys carry the spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]] semantics: `field{type}`
 /// scopes the value to a specific closure ancestor, `field{type::repo}` to a
-/// peer's. Field and type names cannot contain `{` or `}` ([[type-def legal names::au-type-system]]),
+/// peer's. Field and type names cannot contain `{` or `}` ([[type-def legal names::tb-type-system]]),
 /// so the field / qualifier split is unambiguous.
 pub(crate) fn parse_qualified_key(key: &str) -> QualifiedKey {
     // The field is everything before the first `{`; the qualifier (which may
@@ -5529,7 +5529,7 @@ pub(crate) fn parse_qualified_key(key: &str) -> QualifiedKey {
 /// The three surfaces the qualifier-aware per-field walk runs over. Names each
 /// call site so `check_field_surface` can build surface-specific diagnostic
 /// messages while running ONE copy of the routing + required + divergent +
-/// mixed-form logic (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]).
+/// mixed-form logic (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]).
 enum FieldSurface<'a> {
     /// A file-level instance's frontmatter fields.
     Instance,
@@ -5568,7 +5568,7 @@ impl FieldSurface<'_> {
 /// The qualifier-aware per-field walk, shared by the frontmatter, inline-record,
 /// and meta sub-region validators (three near-identical loops before this
 /// extraction). For each key it routes bare / `field{type}` / malformed
-/// (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]), then runs three post-passes:
+/// (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]), then runs three post-passes:
 /// - per-origin `required-field-absent` over the auto-unified (resolved) fields.
 /// - divergent fields: a bare use fires `mixin-collision`, and every unfilled
 ///   required origin fires `required-field-absent`, additively.
@@ -5589,7 +5589,7 @@ fn check_field_surface(
 ) {
     let path = scope.instance_path;
 
-    // Per-origin provided set (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]). Each
+    // Per-origin provided set (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]). Each
     // `(origin_id, field_name)` is a slot the user filled, keyed by IDENTITY
     // (`OriginId`) so two same-named cross-repo identities (`note` vs
     // `note::base`) key apart. A bare key contributes one entry per auto-unified
@@ -5643,7 +5643,7 @@ fn check_field_surface(
         }
     }
 
-    // Required-field-absent (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]) — per-originator over the
+    // Required-field-absent (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]) — per-originator over the
     // auto-unified fields. Auto-unify collapses shapes, not optional-ness, so we
     // walk per-origin to honor per-origin required bits. A near-miss present key
     // adds a "did you mean" hint plus a related span at the suspected typo.
@@ -5679,7 +5679,7 @@ fn check_field_surface(
         }
     }
 
-    // Divergent fields (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]) — required is required:
+    // Divergent fields (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]) — required is required:
     // each REQUIRED origin not filled by a `field{origin}` qualifier fires
     // `required-field-absent`, ALWAYS (a bare value fills no origin; an
     // all-optional divergent field is clean when untouched). A BARE use fires
@@ -5720,7 +5720,7 @@ fn check_field_surface(
         }
     }
 
-    // Mixed-bare-and-qualified-field (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]) — one diagnostic per
+    // Mixed-bare-and-qualified-field (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]) — one diagnostic per
     // field name used both bare and qualified. A divergent field's bare use is a
     // `mixin-collision`, not the mixed-form error, so skip it here.
     for (field_name, sites) in &use_sites {
@@ -5755,13 +5755,13 @@ fn check_field_surface(
 }
 
 /// Validate a bare-keyed instance field. Looks up the field name in the
-/// auto-unified `shape.fields`; extras pass silently per [[type extras::au-type-system]]; mixin
+/// auto-unified `shape.fields`; extras pass silently per [[type extras::tb-type-system]]; mixin
 /// collisions skip here (handled by the mixin-collision pass at the top
 /// of `validate`). Lazy-surfaces deferred-shape errors at the use site.
 ///
 /// Contributes `(origin, field_name)` to `provided` for every origin in
 /// the field's auto-unified set — bare values satisfy the slot at every
-/// auto-unified origin (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]).
+/// auto-unified origin (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]).
 fn check_bare_field(
     scope: &Scope,
     shape: &EffectiveShape,
@@ -5810,7 +5810,7 @@ fn check_bare_field(
     }
 }
 
-/// Validate a qualified instance field per [[type-def fields collision - auto-unify and qualified field::au-type-system]].
+/// Validate a qualified instance field per [[type-def fields collision - auto-unify and qualified field::tb-type-system]].
 ///
 /// Resolution sequence:
 /// 1. `T` must be in the instance's effective closure → else
@@ -5824,7 +5824,7 @@ fn check_bare_field(
 ///
 /// On clean resolution, contributes `(originator, field_name)` to
 /// `provided` — exactly one slot, the one named by the qualifier (spec
-/// [[type-def fields collision - auto-unify and qualified field::au-type-system]]). Failed-resolution branches do NOT contribute (the qualifier
+/// [[type-def fields collision - auto-unify and qualified field::tb-type-system]]). Failed-resolution branches do NOT contribute (the qualifier
 /// diagnostic is the failure mode).
 // The arguments are the field, its qualifier and the shared diagnostic state.
 // A context struct would only move the list into a literal.
@@ -5860,7 +5860,7 @@ fn check_qualified_field(
 
     // Contribute the resolved (origin, field) slot — qualified values
     // satisfy only the named origin's slot, not all auto-unified origins
-    // (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]).
+    // (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]).
     provided.insert((originator_id.clone(), field_name.clone()));
 
     let origin = Origin {
@@ -5900,7 +5900,7 @@ fn check_qualified_field(
 /// descendant). The single home for qualifier legality, shared by the
 /// frontmatter/inline key path ([`check_qualified_field`]) and the body
 /// per-contribution path, so the two surfaces validate a qualifier identically
-/// ([[type-def fields collision - auto-unify and qualified field::au-type-system]]).
+/// ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]).
 ///
 /// A `::repo` qualifier resolves over the resolution graph (the peer type lives
 /// there, not the own graph); a bare qualifier over the own graph. Either branch
@@ -6717,13 +6717,13 @@ fn claim_span(claim: &TypeClaim) -> tb_diagnostics::ByteRange {
     }
 }
 
-/// Multi-leaf-in-sealed-family rule ([[type-instance type::au-type-system]]). For each non-sealed
+/// Multi-leaf-in-sealed-family rule ([[type-instance type::tb-type-system]]). For each non-sealed
 /// claim, walk its sealed-ancestor chain and bucket the claim under each
 /// sealed ancestor it descends from. A sealed family is a discriminated
 /// union — two distinct leaves of the same sealed parent in one claim
 /// list are a validation error.
 ///
-/// Implements spec [[type-instance type::au-type-system]]'s "Diagnostic emission discipline" paragraph:
+/// Implements spec [[type-instance type::tb-type-system]]'s "Diagnostic emission discipline" paragraph:
 /// innermost-only suppression on identical leaf sets. When nested sums
 /// overlap and an inner sealed parent S' has the same offending leaf
 /// set as an outer ancestor S, only S' fires. When the outer's leaf set
@@ -7040,8 +7040,8 @@ pub(crate) fn value_matches_simple_shape(value: &InstanceValue, shape: &Shape) -
             InstanceValue::String(s) => literals.iter().any(|l| l == s),
             _ => false,
         },
-        // The no-type slot ([[type-def shape any::au-type-system]]) and the uninterpreted
-        // ([[type-def shape opaque::au-type-system]]) slot accept every value.
+        // The no-type slot ([[type-def shape any::tb-type-system]]) and the uninterpreted
+        // ([[type-def shape opaque::tb-type-system]]) slot accept every value.
         Shape::Any | Shape::Opaque => true,
         // A refined scalar matches when its base primitive matches; the
         // predicate meet is enforced by the range-aware validation pass.
@@ -7143,7 +7143,7 @@ pub(crate) fn is_iso_datetime(s: &str) -> bool {
     is_valid_ymd(year, month, day) && hour <= 23 && minute <= 59 && second <= 59
 }
 
-/// [[type reference::au-type-system]] disambiguator predicate: does the string carry the `^https?://`
+/// [[type reference::tb-type-system]] disambiguator predicate: does the string carry the `^https?://`
 /// prefix? Used by `<String | Url>`-style union routing to commit the
 /// value to the Url branch before the String branch's trivial any-of
 /// match would silently accept it. Syntactically disjoint from
@@ -7152,9 +7152,9 @@ fn has_http_url_prefix(s: &str) -> bool {
     s.starts_with("http://") || s.starts_with("https://")
 }
 
-/// HTTP/HTTPS URL per spec [[type-def shape primitive::au-type-system]]. Starts with `http://` or `https://`,
+/// HTTP/HTTPS URL per spec [[type-def shape primitive::tb-type-system]]. Starts with `http://` or `https://`,
 /// non-empty remainder, ASCII-only, no spaces or control characters. The
-/// `^https?://` prefix is the disambiguator ([[type-def shape primitive::au-type-system]] / [[type reference::au-type-system]]); RFC 3986's
+/// `^https?://` prefix is the disambiguator ([[type-def shape primitive::tb-type-system]] / [[type reference::tb-type-system]]); RFC 3986's
 /// full authority + path grammar isn't enforced.
 fn is_http_url(s: &str) -> bool {
     let rest = if let Some(r) = s.strip_prefix("https://") {
@@ -7598,7 +7598,7 @@ mod tests {
     }
 
     /// `validate_with` plus block-id target data, for `[[file^id]]` /
-    /// `[[^id]]` resolution tests ([[type block-id::au-type-system]]).
+    /// `[[^id]]` resolution tests ([[type block-id::tb-type-system]]).
     fn validate_with_targets(
         graph: &TypeGraph,
         idx: &RepoIndex,
@@ -8536,7 +8536,7 @@ mod tests {
 
     #[test]
     fn opaque_slot_accepts_every_value_shape() {
-        // [[type-def shape opaque::au-type-system]]: an `opaque` slot imposes no type and reads
+        // [[type-def shape opaque::tb-type-system]]: an `opaque` slot imposes no type and reads
         // nothing inside. A scalar, an array, and an object carrying a nested
         // `type:` all pass with no diagnostic. The nested `type:` is plain data,
         // never read as an inline claim, so a bogus claim inside an `opaque`
@@ -8588,7 +8588,7 @@ mod tests {
 
     #[test]
     fn any_slot_interprets_a_nested_type_claim() {
-        // [[type-def shape any::au-type-system]]: the interpreted top READS the value. A mapping
+        // [[type-def shape any::tb-type-system]]: the interpreted top READS the value. A mapping
         // carrying a nested `type:` is an inline claim, so a bogus claim fires
         // `unknown-type-claim` — the contrast with an `opaque` slot, where the
         // same value is inert.
@@ -8612,7 +8612,7 @@ mod tests {
     #[test]
     fn any_slot_untyped_mapping_passes() {
         // A mapping under `any` with NO `type:` is an untyped open value: it
-        // reads clean, nothing to validate against ([[type-def shape any::au-type-system]]).
+        // reads clean, nothing to validate against ([[type-def shape any::tb-type-system]]).
         let g = build_graph(vec![td("rec", &[], &[("v", false, Ok(Shape::Any))])]).graph;
         let inst = instance(
             bare("rec"),
@@ -9022,7 +9022,7 @@ mod tests {
         assert!(validate_simple(&g, &inst).is_empty());
     }
 
-    // ---------- [[type-def fields collision - auto-unify and qualified field::au-type-system]] qualified field resolution ----------
+    // ---------- [[type-def fields collision - auto-unify and qualified field::tb-type-system]] qualified field resolution ----------
 
     #[test]
     fn qualified_field_resolves_to_originator_via_closure() {
@@ -9266,7 +9266,7 @@ mod tests {
         assert!(!codes.contains(&"field-shape-mismatch"));
     }
 
-    // ---------- [[type-def fields collision - auto-unify and qualified field::au-type-system]] per-originator required-field semantics ----------
+    // ---------- [[type-def fields collision - auto-unify and qualified field::tb-type-system]] per-originator required-field semantics ----------
 
     #[test]
     fn bare_value_satisfies_all_auto_unified_origins() {
@@ -9390,7 +9390,7 @@ mod tests {
         assert!(absent[0].message.contains("'note'"));
     }
 
-    // ---------- [[type-def fields collision - auto-unify and qualified field::au-type-system]] mixed-bare-and-qualified-field ----------
+    // ---------- [[type-def fields collision - auto-unify and qualified field::tb-type-system]] mixed-bare-and-qualified-field ----------
 
     #[test]
     fn bare_plus_qualified_on_same_field_fires_once() {
@@ -9563,7 +9563,7 @@ mod tests {
     fn union_slot_with_inline_or_ref_branch_accepts_both_forms() {
         // End-to-end proof of the per-branch `&` fix (finding 2.8, which was
         // purely the grammar rejecting the syntax): the grammar now parses
-        // `<rationale& | thesis>`, and au-core's generic union machinery already
+        // `<rationale& | thesis>`, and tb-core's generic union machinery already
         // validates an InlineOrReference branch in BOTH forms — a wikilink
         // reference and an inline record — beside a plain record branch.
         let shape = tb_grammar::parse_shape("<rationale& | thesis>")
@@ -9602,7 +9602,7 @@ mod tests {
         // the `*` branch's type (`object`, not `transform`) matches no inline
         // branch, so the verdict is `inline-value-type-not-compatible`, never a
         // descent into object's own field validation. Regression guard for the
-        // au-sandbox report: a union's `*` branch was wrongly treated as
+        // tb-sandbox report: a union's `*` branch was wrongly treated as
         // inline-capable, so the engine accepted the inline record and validated
         // object's fields.
         let shape = tb_grammar::parse_shape("<transform& | object*>")
@@ -9895,7 +9895,7 @@ mod tests {
         assert_eq!(codes_of(&diags), vec!["reference-target-type-mismatch"]);
     }
 
-    // `file` is existence-only per [[type-def shape file::au-type-system]]. The standalone-reference path
+    // `file` is existence-only per [[type-def shape file::tb-type-system]]. The standalone-reference path
     // (`file*`) short-circuits as soon as the wikilink resolves; the same
     // semantics must hold when `file` appears as a branch in a compound.
 
@@ -10099,7 +10099,7 @@ mod tests {
 
     #[test]
     fn file_ref_rejects_a_block_id_fragment() {
-        // `file*` references a whole file ([[type-def shape file::au-type-system]]). A `^block-id`
+        // `file*` references a whole file ([[type-def shape file::tb-type-system]]). A `^block-id`
         // addresses a part of the file, which `file*` forbids — `any*` is the
         // block-addressing form. The fragment is a shape mismatch, even though
         // the file itself resolves.
@@ -10161,7 +10161,7 @@ mod tests {
 
     #[test]
     fn any_star_resolves_any_node_without_closure_check() {
-        // `any*` ([[type-def shape any::au-type-system]]) references any node by existence, no closure
+        // `any*` ([[type-def shape any::tb-type-system]]) references any node by existence, no closure
         // check. An untyped asset satisfies it, where a typed `T*` would fire
         // reference-target-type-mismatch.
         let g = build_graph(vec![td("ev", &[], &[("ref", false, ref_shape("any"))])]).graph;
@@ -10179,7 +10179,7 @@ mod tests {
 
     #[test]
     fn any_star_missing_target_still_errors() {
-        // Existence is still checked, see [[type-def shape any::au-type-system]].
+        // Existence is still checked, see [[type-def shape any::tb-type-system]].
         let g = build_graph(vec![td("ev", &[], &[("ref", false, ref_shape("any"))])]).graph;
         let (idx, claims) = repo_with(&[]);
         let inst = instance(
@@ -10340,7 +10340,7 @@ mod tests {
 
     #[test]
     fn any_amp_interprets_inline_or_resolves_a_reference() {
-        // `any&` ([[type-def shape any::au-type-system]]): the inline branch is the interpreted
+        // `any&` ([[type-def shape any::tb-type-system]]): the inline branch is the interpreted
         // top (a bogus `type:` fires `unknown-type-claim`), a whole-value
         // `[[...]]` resolves as `any*`.
         let g = build_graph(vec![td(
@@ -10488,7 +10488,7 @@ mod tests {
         );
     }
 
-    // ----- commit-pinned shapes, `*@` ([[type-def shape suffixes::au-type-system]], pinned refs) -----
+    // ----- commit-pinned shapes, `*@` ([[type-def shape suffixes::tb-type-system]], pinned refs) -----
 
     fn pinned_file_log() -> TypeGraph {
         build_graph(vec![td(
@@ -10738,7 +10738,7 @@ mod tests {
 
     #[test]
     fn compound_reference_inline_with_inline_map_routes_to_inline_value() {
-        // [[type-def shape record::au-type-system]] case 3 entry via `<rationale | thesis>&` slot with an
+        // [[type-def shape record::tb-type-system]] case 3 entry via `<rationale | thesis>&` slot with an
         // inline map. The compound's branches → InlineCompat::Union;
         // identity resolution + per-field walk via the inline-value path.
         let g = build_graph(vec![
@@ -10847,7 +10847,7 @@ mod tests {
 
     #[test]
     fn string_or_reference_union_routes_plain_string_to_string_branch() {
-        // [[type reference::au-type-system]]: non-wikilink strings continue to match the String
+        // [[type reference::tb-type-system]]: non-wikilink strings continue to match the String
         // branch trivially. The precheck only fires on `[[...]]`-shaped
         // values.
         let g = build_graph(vec![
@@ -10876,7 +10876,7 @@ mod tests {
 
     #[test]
     fn string_or_reference_union_routes_wikilink_to_reference_branch() {
-        // [[type reference::au-type-system]]: wikilink-pattern strings skip the String branch and
+        // [[type reference::tb-type-system]]: wikilink-pattern strings skip the String branch and
         // route to the reference branch. A valid target with the
         // required closure produces no diagnostic.
         let g = build_graph(vec![
@@ -10905,7 +10905,7 @@ mod tests {
 
     #[test]
     fn string_or_reference_union_wikilink_missing_target_fires_target_missing() {
-        // [[type reference::au-type-system]] precheck commits to the reference path for wikilink-
+        // [[type reference::tb-type-system]] precheck commits to the reference path for wikilink-
         // shaped values — failed resolution surfaces the reference
         // branch's diagnostic (target-missing) instead of being
         // silently accepted by the String branch.
@@ -10938,7 +10938,7 @@ mod tests {
 
     #[test]
     fn string_or_url_union_routes_http_value_to_url_branch() {
-        // [[type reference::au-type-system]]: `^https?://`-prefixed strings commit to the Url branch.
+        // [[type reference::tb-type-system]]: `^https?://`-prefixed strings commit to the Url branch.
         // A valid URL passes Url validation and the slot accepts.
         let g = build_graph(vec![td(
             "citation",
@@ -10966,7 +10966,7 @@ mod tests {
 
     #[test]
     fn string_or_url_union_routes_plain_string_to_string_branch() {
-        // [[type reference::au-type-system]]: non-prefix strings continue to match the String branch
+        // [[type reference::tb-type-system]]: non-prefix strings continue to match the String branch
         // trivially. The Url precheck only fires on `^https?://`-shaped
         // values.
         let g = build_graph(vec![td(
@@ -10995,7 +10995,7 @@ mod tests {
 
     #[test]
     fn string_or_url_union_malformed_url_does_not_fall_through_to_string() {
-        // [[type reference::au-type-system]] precheck commits to the Url path for prefix-shaped values
+        // [[type reference::tb-type-system]] precheck commits to the Url path for prefix-shaped values
         // — failed Url validation surfaces FIELD_SHAPE_MISMATCH instead
         // of being silently accepted by the String branch.
         let g = build_graph(vec![td(
@@ -11027,7 +11027,7 @@ mod tests {
 
     #[test]
     fn string_or_url_or_reference_union_routes_each_value_shape_correctly() {
-        // [[type reference::au-type-system]]: wikilink, http, and plain-string discriminators coexist
+        // [[type reference::tb-type-system]]: wikilink, http, and plain-string discriminators coexist
         // in `<String | Url | T*>`. Each value-shape routes to its own
         // branch; the discriminators are syntactically disjoint.
         let g = build_graph(vec![
@@ -11073,7 +11073,7 @@ mod tests {
 
     #[test]
     fn reference_first_string_second_union_still_routes_by_value_shape() {
-        // Branch order doesn't change the dispatch — [[type reference::au-type-system]] routes by
+        // Branch order doesn't change the dispatch — [[type reference::tb-type-system]] routes by
         // value shape, not by source order. `<rationale* | String>`
         // with a plain string value still takes the String branch.
         let g = build_graph(vec![
@@ -11222,7 +11222,7 @@ mod tests {
 
     #[test]
     fn multi_reference_union_aggregates_type_mismatch_failures() {
-        // [[type reference::au-type-system]]: when ≥2 reference branches fail with target-type-
+        // [[type reference::tb-type-system]]: when ≥2 reference branches fail with target-type-
         // mismatch, surface ONE aggregated diagnostic naming every
         // attempted branch — not the first branch's failure (which
         // would misleadingly suggest the named branch was the only
@@ -11270,7 +11270,7 @@ mod tests {
 
     #[test]
     fn multi_reference_union_with_missing_target_returns_single_target_missing() {
-        // [[type reference::au-type-system]]: when ≥2 reference branches all fail with target-
+        // [[type reference::tb-type-system]]: when ≥2 reference branches all fail with target-
         // missing (the target file doesn't exist regardless of branch),
         // the failure is the same from every branch — return the first
         // to avoid N copies of the same message. Don't aggregate.
@@ -11447,7 +11447,7 @@ mod tests {
         );
     }
 
-    // ----- [[type-def shape enum::au-type-system]] inline closed enum -----
+    // ----- [[type-def shape enum::tb-type-system]] inline closed enum -----
 
     #[test]
     fn enum_member_value_passes() {
@@ -11499,7 +11499,7 @@ mod tests {
             &[("priority", false, enum_shape(&["low", "high"]))],
         )])
         .graph;
-        // Null is excluded here: per spec [[type-instance body contribution::au-type-system]], a `key:` with a
+        // Null is excluded here: per spec [[type-instance body contribution::tb-type-system]], a `key:` with a
         // null value is the "filled by body" visibility marker, not a value to
         // type-check, so it never fires field-shape-mismatch. A REQUIRED null
         // field whose promised body contribution never arrives is caught by the
@@ -11535,7 +11535,7 @@ mod tests {
         assert_eq!(codes_of(&diags), vec!["required-field-absent"]);
     }
 
-    /// [[type-instance body contribution::au-type-system]]: "a contribution whose value misses the
+    /// [[type-instance body contribution::tb-type-system]]: "a contribution whose value misses the
     /// slot shape is an error". A value arriving ONLY from the body was never
     /// compared to its slot — the frontmatter pass walks `instance.fields`,
     /// where the field is a null anchor, and a null returns early as a promise.
@@ -11733,7 +11733,7 @@ mod tests {
     }
 
     /// A body wikilink to an `any*` slot binds by EXISTENCE — `any*` relaxes the
-    /// closure check ([[type-def shape any::au-type-system]]), so any resolvable node satisfies
+    /// closure check ([[type-def shape any::tb-type-system]]), so any resolvable node satisfies
     /// it. The frontmatter surface already special-cases `any`; the body surface
     /// did not, so a valid `[[node:field]]` false-fired `body-slot-shape-mismatch`.
     #[test]
@@ -11905,7 +11905,7 @@ mod tests {
         );
     }
 
-    // ----- [[type-def shape suffixes::au-type-system]] references -----
+    // ----- [[type-def shape suffixes::tb-type-system]] references -----
 
     fn repo_with(files: &[(&str, &str, &[&str])]) -> (RepoIndex, BTreeMap<PathBuf, Vec<TypeName>>) {
         // (relpath, _basename_unused, type_claims)
@@ -11981,7 +11981,7 @@ mod tests {
         );
     }
 
-    // ----- [[type-def shape def-ref::au-type-system]] typed type-def references -----
+    // ----- [[type-def shape def-ref::tb-type-system]] typed type-def references -----
 
     fn def_ref_single(t: &str) -> Result<Shape, &'static str> {
         Ok(Shape::DefReference(Some(DefBound::Single(t.into()))))
@@ -12023,7 +12023,7 @@ mod tests {
     #[test]
     fn def_ref_resolves_to_def_in_closure_by_type_name() {
         // `[[mcp.tool.propose]]` is the type-NAME; the repo index resolves it
-        // by name, not by the `.type`-tailed file stem ([[type-def shape def-ref::au-type-system]]).
+        // by name, not by the `.type`-tailed file stem ([[type-def shape def-ref::tb-type-system]]).
         let g = def_ref_graph();
         let (idx, claims) = def_ref_repo();
         let inst = instance(
@@ -12473,7 +12473,7 @@ mod tests {
     #[test]
     fn typed_reference_with_canonical_full_wikilink_resolves() {
         // `[[target#anchor^block_id]]` is the canonical full form. The
-        // block-id addresses an entity inside the target ([[type block-id::au-type-system]]);
+        // block-id addresses an entity inside the target ([[type block-id::tb-type-system]]);
         // its claim is what the slot checks, the anchor stays navigational.
         let g = build_graph(vec![
             td("note", &[], &[]),
@@ -12498,7 +12498,7 @@ mod tests {
         );
     }
 
-    // ----- inline-record block-id targets ([[type block-id::au-type-system]]) -----
+    // ----- inline-record block-id targets ([[type block-id::tb-type-system]]) -----
 
     /// `record_targets` entry for one file: id → claim names.
     fn record_targets_for(
@@ -12733,7 +12733,7 @@ mod tests {
 
     #[test]
     fn block_id_wikilink_in_a_string_slot_is_just_a_string() {
-        // Resolution is gated to reference slots ([[type reference::au-type-system]]): a
+        // Resolution is gated to reference slots ([[type reference::tb-type-system]]): a
         // primitive slot holding a wikilink-shaped string never block-id
         // resolves. Pre-fix this fired spurious block-id-not-found.
         let g = build_graph(vec![td(
@@ -12770,11 +12770,11 @@ mod tests {
         );
     }
 
-    // ----- [[type-def shape suffixes::au-type-system]] lists -----
+    // ----- [[type-def shape suffixes::tb-type-system]] lists -----
 
     #[test]
     fn non_empty_list_rejects_empty_sequence() {
-        // [[type-def shape suffixes::au-type-system]]: `T[+]` slot with `[]` value fires
+        // [[type-def shape suffixes::tb-type-system]]: `T[+]` slot with `[]` value fires
         // `field-shape-mismatch` — committed to the non-empty contract.
         let g = build_graph(vec![td(
             "rec",
@@ -13433,7 +13433,7 @@ mod tests {
         assert_eq!(codes_ab, codes_ba);
     }
 
-    // ----- [[type-def shape record::au-type-system]] case 1 — inline values at non-sealed, non-union slots -----
+    // ----- [[type-def shape record::tb-type-system]] case 1 — inline values at non-sealed, non-union slots -----
 
     /// Build an `InstanceValue::Mapping(InlineValue { ... })` from a
     /// claim plus field name/value pairs. Mirrors `instance(...)` for
@@ -13459,7 +13459,7 @@ mod tests {
 
     #[test]
     fn inline_value_omitted_type_validates_against_slot_demand() {
-        // [[type-def shape record::au-type-system]] case 1: inline value at a non-sealed record slot with
+        // [[type-def shape record::tb-type-system]] case 1: inline value at a non-sealed record slot with
         // `type:` omitted. Identity is the slot's demand; required
         // fields must still be present.
         let g = build_graph(vec![
@@ -13506,7 +13506,7 @@ mod tests {
         );
     }
 
-    // ---- inline records with a divergent field ([[type-def fields collision - auto-unify and qualified field::au-type-system]]) ----
+    // ---- inline records with a divergent field ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]) ----
 
     /// A host whose `body: c` slot pins a type `c` that inherits a DIVERGENT
     /// `f` from two parents (`a` String, `b` Number). The inline record's shape
@@ -13656,7 +13656,7 @@ mod tests {
 
     #[test]
     fn inline_value_declared_subtype_satisfies_slot() {
-        // [[type-def shape record::au-type-system]] case 1: declared `type:` may name a subtype of the slot's
+        // [[type-def shape record::tb-type-system]] case 1: declared `type:` may name a subtype of the slot's
         // demand. The declared closure includes the slot's demand, so it
         // satisfies the compatibility check.
         let g = build_graph(vec![
@@ -13691,7 +13691,7 @@ mod tests {
 
     #[test]
     fn inline_value_declared_type_unrelated_fires_not_compatible() {
-        // [[type-def shape record::au-type-system]] case 1: declared closure does not include the slot's
+        // [[type-def shape record::tb-type-system]] case 1: declared closure does not include the slot's
         // demand → `inline-value-type-not-compatible`.
         let g = build_graph(vec![
             td(
@@ -13745,7 +13745,7 @@ mod tests {
 
     #[test]
     fn inline_value_extras_pass_through() {
-        // [[type extras::au-type-system]]: top-level extras pass; same rule applies inside an
+        // [[type extras::tb-type-system]]: top-level extras pass; same rule applies inside an
         // inline value.
         let g = build_graph(vec![
             td(
@@ -13774,7 +13774,7 @@ mod tests {
 
     #[test]
     fn nested_inline_values_validate_recursively() {
-        // [[type-def shape record::au-type-system]]: an inline value can contain inline-record fields. Both
+        // [[type-def shape record::tb-type-system]]: an inline value can contain inline-record fields. Both
         // levels validate via the same dispatch.
         let g = build_graph(vec![
             td(
@@ -13836,7 +13836,7 @@ mod tests {
 
     #[test]
     fn inline_value_declared_sealed_type_fires_sealed_parent_claimed() {
-        // Universal [[type-def sealed::au-type-system]] rule: claiming a sealed type-def
+        // Universal [[type-def sealed::tb-type-system]] rule: claiming a sealed type-def
         // directly is a validation error wherever the claim appears.
         // Even at a non-sealed slot, an inline `type: <sealed>` fires
         // sealed-parent-claimed.
@@ -13872,7 +13872,7 @@ mod tests {
         assert!(codes.contains(&"sealed-parent-claimed"), "got {:?}", codes);
     }
 
-    // ----- [[type-def shape record::au-type-system]] case 2 — inline values at sealed-parent slots -----
+    // ----- [[type-def shape record::tb-type-system]] case 2 — inline values at sealed-parent slots -----
 
     /// Build a sealed `decision` family with one non-sealed leaf and a
     /// nested sealed intermediate. Hosts a single record-typed slot
@@ -13929,7 +13929,7 @@ mod tests {
 
     #[test]
     fn inline_value_at_sealed_slot_with_sealed_intermediate_fires() {
-        // [[type-def sealed::au-type-system]] nested sums — `decision.decided` is itself sealed, so
+        // [[type-def sealed::tb-type-system]] nested sums — `decision.decided` is itself sealed, so
         // claiming it inline still fires `sealed-parent-claimed`.
         let g = sealed_decision_host_graph();
         let inst = instance(
@@ -13966,7 +13966,7 @@ mod tests {
     #[test]
     fn typed_reference_slot_rejects_inline_map_with_field_shape_mismatch() {
         // Regression lock: `name*` (Shape::Reference) is wikilink-only
-        // per [[type-def shape suffixes::au-type-system]] / [[type reference::au-type-system]]. An inline map at a typed-reference slot
+        // per [[type-def shape suffixes::tb-type-system]] / [[type reference::tb-type-system]]. An inline map at a typed-reference slot
         // must fire `field-shape-mismatch` — NOT route through
         // validate_inline_value.
         let g = build_graph(vec![
@@ -14107,7 +14107,7 @@ mod tests {
         assert!(validate_simple(&g, &inst).is_empty());
     }
 
-    // ----- [[type-def shape record::au-type-system]] case 3 / 4 — inline values at union / intersection slots -----
+    // ----- [[type-def shape record::tb-type-system]] case 3 / 4 — inline values at union / intersection slots -----
 
     /// Build a graph with `rationale` and `thesis` (disjoint records),
     /// and a host with one configurable union or intersection slot.
@@ -14245,7 +14245,7 @@ mod tests {
 
     #[test]
     fn inline_at_union_slot_with_sealed_branch_intermediate_fires() {
-        // [[type-def sealed::au-type-system]] nested sums on a union slot: declared `type: decision`
+        // [[type-def sealed::tb-type-system]] nested sums on a union slot: declared `type: decision`
         // (sealed) at a `<decision | thesis>` slot triggers the
         // universal sealed-claim rule.
         let g = build_graph(vec![
@@ -14414,7 +14414,7 @@ mod tests {
 
     #[test]
     fn inline_at_intersection_with_mixin_collision_fires() {
-        // [[type-def fields collision - auto-unify and qualified field::au-type-system]]: two mixin ancestors declare the same field with non-
+        // [[type-def fields collision - auto-unify and qualified field::tb-type-system]]: two mixin ancestors declare the same field with non-
         // token-equal shapes. The mixin-collision rule fires at the
         // inline span from the divergent set, the same per-origin path
         // used at file-level.
@@ -14505,7 +14505,7 @@ mod tests {
     #[test]
     fn subsumption_in_mixin_warning_fires_at_inline_site() {
         // Inline `type: [a, a-strict]` where a-strict extends a — the
-        // wider claim is implied by the narrower ([[type-def shape compound::au-type-system]]-symmetric rule).
+        // wider claim is implied by the narrower ([[type-def shape compound::tb-type-system]]-symmetric rule).
         // Reuses the same shared helper as file-level.
         let g = build_graph(vec![
             td(
@@ -14739,7 +14739,7 @@ mod tests {
 
     /// Local helper for inline-site backfill tests — builds a one-field
     /// type-def with an arbitrary Shape. Mirrors `td_one_field` from
-    /// au-testkit but lives here to avoid cross-crate test imports.
+    /// tb-testkit but lives here to avoid cross-crate test imports.
     fn td_one_field_helper(name: &str, field: &str, shape: Shape) -> TypeDef {
         TypeDef {
             shape: None,
@@ -14845,7 +14845,7 @@ mod tests {
     }
 
     // A meta type is a single claim but can inherit a DIVERGENT field from its
-    // own parents ([[type-def fields collision - auto-unify and qualified field::au-type-system]]), so a meta sub-region reaches the
+    // own parents ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]), so a meta sub-region reaches the
     // divergent model the frontmatter / inline surfaces do.
     fn meta_divergent_graph(block: MetaBlock) -> TypeGraph {
         build_graph(vec![
@@ -14984,7 +14984,7 @@ mod tests {
     #[test]
     fn meta_body_sealed_meta_type_fires_sealed_parent_claimed() {
         // Sealed meta-type-def; a host claiming the sealed parent fires the
-        // universal [[type-def sealed::au-type-system]] rule at the meta site. Same code as the file-level
+        // universal [[type-def sealed::tb-type-system]] rule at the meta site. Same code as the file-level
         // and inline-value rules, new fire surface.
         let g = build_graph(vec![
             td_sealed("base-meta", &[], &[], &["base-meta.x", "base-meta.y"]),
@@ -15006,7 +15006,7 @@ mod tests {
 
     #[test]
     fn meta_body_empty_with_all_optional_meta_type_clean() {
-        // Spec [[type-def meta::au-type-system]]: an empty sub-region body (`- type: x` with no further
+        // Spec [[type-def meta::tb-type-system]]: an empty sub-region body (`- type: x` with no further
         // keys) is just an empty declaration of x — valid only if x's fields
         // are all optional. Locks the case-distinction from `meta: []`.
         let g = build_graph(vec![
@@ -15105,7 +15105,7 @@ mod tests {
 
     #[test]
     fn meta_body_extras_pass_through() {
-        // Spec [[type extras::au-type-system]]: extras (body keys outside the closure) pass silently.
+        // Spec [[type extras::tb-type-system]]: extras (body keys outside the closure) pass silently.
         // Same open-world rule as instance / inline-value validation.
         let g = build_graph(vec![
             td(
@@ -15131,10 +15131,10 @@ mod tests {
         assert!(validate_meta_simple(&g).is_empty());
     }
 
-    // ----- multi-leaf-in-sealed-family ([[type-instance type::au-type-system]]) -----
+    // ----- multi-leaf-in-sealed-family ([[type-instance type::tb-type-system]]) -----
 
     fn nested_decision_graph() -> TypeGraph {
-        // Mirror the spec [[type-def sealed::au-type-system]] nested-sums example:
+        // Mirror the spec [[type-def sealed::tb-type-system]] nested-sums example:
         //   decision (sealed) → decision.pending / decision.decided
         //   decision.decided (sealed) → .committed / .reverted
         // plus a disjoint sealed family `source` and a non-sealed `maturity`.
@@ -15329,7 +15329,7 @@ mod tests {
 
     #[test]
     fn multi_leaf_fires_on_inline_value_identity_claim() {
-        // [[type-def shape record::au-type-system]]: an inline value at a `decision`-typed slot
+        // [[type-def shape record::tb-type-system]]: an inline value at a `decision`-typed slot
         // (sealed) carrying `type: [decision.pending,
         // decision.decided.committed]` violates the multi-leaf rule
         // INSIDE the inline value. Host file's own claim is clean.

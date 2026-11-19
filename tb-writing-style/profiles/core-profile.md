@@ -1,7 +1,7 @@
 ---
 type:
   - writing-profile
-  - mcp.inject::au-mcp-sdk
+  - mcp.inject::tb-mcp-sdk
 name: core
 description: the house writing voice, every rule injected on session start
 depth: 1

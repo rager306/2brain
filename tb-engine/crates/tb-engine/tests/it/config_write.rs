@@ -1,6 +1,6 @@
 //! The `set_config` mutation over the socket: write one CONSUMER config file
 //! under the scoped-config channel. Repo scope constructs
-//! `<member>/.arsumbris/<consumer>/config/<file>` directly (a guard bypass, like
+//! `<member>/.2brain/<consumer>/config/<file>` directly (a guard bypass, like
 //! `set_ignores`), injects `type:` so the file self-describes, honors an
 //! `expected_hash` compare-and-set, and commits per mutation through the saga.
 //!
@@ -70,7 +70,7 @@ fn started() -> Harness {
 
 fn config_file(h: &Harness, consumer: &str, file: &str) -> PathBuf {
     h.root
-        .join(".arsumbris")
+        .join(".2brain")
         .join(consumer)
         .join("config")
         .join(file)
@@ -256,7 +256,7 @@ fn set_config_rejects_both_content_and_edit() {
 #[test]
 fn set_config_rejects_a_reserved_or_traversal_segment() {
     let mut h = started();
-    for consumer in ["au-engine", "Au-Engine", ".."] {
+    for consumer in ["tb-engine", "TB-Engine", ".."] {
         let resp = h
             .client
             .query(&json!({

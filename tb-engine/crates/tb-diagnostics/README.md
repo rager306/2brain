@@ -1,4 +1,4 @@
-# au-diagnostics
+# tb-diagnostics
 
 Structured diagnostic records: `Diagnostic { code, severity, span, message, related, fix }`. Stable kebab-case `DiagnosticCode` strings (`Cow<'static, str>` so producer-side `const`s stay zero-cost). JSON serializable.
 

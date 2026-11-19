@@ -1,5 +1,5 @@
 title: "[[target:field]] target whose type closure doesn't satisfy the slot fires body-slot-shape-mismatch"
-spec_ref: "[[type-instance body contribution::au-type-system]]"
+spec_ref: "[[type-instance body contribution::tb-type-system]]"
 command: validate
 expected:
   codes:

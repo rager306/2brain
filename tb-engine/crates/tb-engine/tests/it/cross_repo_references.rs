@@ -25,10 +25,10 @@ fn fixture() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n  - name: finance\n",
     );
     write(&root, "base/recovery.md", "Recovery notes.\n");
@@ -94,11 +94,11 @@ fn a_pinned_cross_repo_reference_is_not_existence_checked() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(&root, "base/recovery.md", "Recovery notes.\n");
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -130,11 +130,11 @@ fn a_qualified_escaping_path_is_impossible_not_merely_missing() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(&root, "base/recovery.md", "Recovery notes.\n");
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -384,7 +384,7 @@ fn a_cross_repo_type_claim_token_carries_its_repo() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/note.type.yaml",
@@ -392,7 +392,7 @@ fn a_cross_repo_type_claim_token_carries_its_repo() {
     );
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(&root, "app/n.md", "---\ntype: note::base\ntitle: hi\n---\n");
@@ -433,7 +433,7 @@ fn a_type_claim_token_carries_the_identity_it_resolves_to() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/note.type.yaml",
@@ -441,7 +441,7 @@ fn a_type_claim_token_carries_the_identity_it_resolves_to() {
     );
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -567,7 +567,7 @@ fn an_in_sync_type_claim_token_names_the_repo_the_claim_names() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/note.type.yaml",
@@ -575,7 +575,7 @@ fn an_in_sync_type_claim_token_names_the_repo_the_claim_names() {
     );
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(

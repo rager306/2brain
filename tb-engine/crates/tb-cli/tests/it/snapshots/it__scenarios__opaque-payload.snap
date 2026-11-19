@@ -99,7 +99,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/opaque-payload/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/opaque-payload/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -118,7 +118,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/opaque-payload/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/opaque-payload/.2brain/repo.yaml",
         "section_presence": null
       },
       {

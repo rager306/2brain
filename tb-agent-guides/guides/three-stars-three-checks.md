@@ -20,9 +20,9 @@ A value's wikilink syntax does not tell you which check it needs.
 
 **Read the slot's promise**
 
-[[mcp.skill::au-mcp-sdk:example]] uses bounded definition references to identify tools.
-[[source::au-base-types:example]] references original bytes as a file.
-[[supersede::au-base-types:example]] accepts a successor across kinds through a broad node reference.
+[[mcp.skill::tb-mcp-sdk:example]] uses bounded definition references to identify tools.
+[[source::tb-base-types:example]] references original bytes as a file.
+[[supersede::tb-base-types:example]] accepts a successor across kinds through a broad node reference.
 Inspect those slots to see why their ranges differ.
 
 **Select the right address**

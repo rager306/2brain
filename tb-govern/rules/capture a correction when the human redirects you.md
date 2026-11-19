@@ -1,5 +1,5 @@
 ---
-type: rule::au-rules
+type: rule::tb-rules
 name: capture-a-correction-when-redirected
 description: preserve reusable feedback about agent behavior as a correction, linked to its original occurrence when it recurs
 ---

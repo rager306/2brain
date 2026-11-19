@@ -1,5 +1,5 @@
 ---
-type: guide.principle::au-agent-guides
+type: guide.principle::tb-agent-guides
 goal: decide which maps a node belongs on
 rule: Search for every map a node belongs on by meaning, including maps its links never reach.
 ---

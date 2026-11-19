@@ -1,5 +1,5 @@
 title: "A typo'd key surfaces as a near-miss hint on `required-field-absent`"
-spec_ref: "[[spec - diagnostic codes::au-type-system^required-field-absent]]"
+spec_ref: "[[spec - diagnostic codes::tb-type-system^required-field-absent]]"
 command: validate
 expected:
   codes:

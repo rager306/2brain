@@ -1,8 +1,8 @@
 ---
 id: ADR-0005
 title: The old name is removed in one atomic migration, then the legacy readers are deleted
-status: Proposed
-lifecycle: "[proposed]"
+status: Accepted
+lifecycle: "[validated]"
 date: 2026-11-19
 supersedes: none
 related: [ADR-0001]
@@ -102,7 +102,7 @@ removed constant proves the old spelling now *fails* (not merely "is not preferr
 - `tb-cli/Cargo.toml`: `[[bin]] name = "au"` -> `name = "tb-engine"`.
 - `install.sh`: build `-p tb-cli --bin tb-engine`, install `$bin_dir/tb-engine` and
   `$state_root/bin/tb-engine`; no `au` alias (irreversible means no shadow name).
-- Every `CARGO_BIN_EXE_au` -> `CARGO_BIN_EXE_tb_engine` (21 sites).
+- Every `CARGO_BIN_EXE_tb-engine` -> `CARGO_BIN_EXE_tb_engine` (21 sites).
 - Socket/config directory `au-engine` -> `engine` under the state root; update `state_dir_in`
   consumers, the unit's log path, and the trace directory.
 

@@ -30,7 +30,7 @@ use crate::repo::{LockedPackage, MemberRole, PackageLock, RegistryEntry, RepoNam
 /// The fallback registry remote, used only when a dependency is not already located on this device.
 ///
 /// The fork publishes no registry repository: members of this monorepo resolve through the device
-/// registry (`~/.arsumbris/au-engine/config/repos.yaml`). The default therefore points at the
+/// registry (`<state root>/engine/config/repos.yaml`). The default therefore points at the
 /// monorepo itself, where the registry file does not exist — a fetch fails loudly instead of reaching
 /// the retired upstream organisation.
 pub(crate) const DEFAULT_REGISTRY_REMOTE: &str = "git@github.com:rager306/2brain.git";
@@ -52,7 +52,7 @@ pub(crate) struct CachedPackage {
 
 /// The device-global package cache, rooted at `root`.
 ///
-/// `root` is e.g. `~/.arsumbris/au-engine/cache/packages`; the caller resolves the home
+/// `root` is e.g. `<state root>/engine/cache/packages`; the caller resolves the home
 /// dir, the cache stays a pure function of its root so it is testable off the
 /// real home.
 pub(crate) struct PackageCache {
@@ -68,7 +68,7 @@ impl PackageCache {
         PackageCache { root }
     }
 
-    /// The cache root, `~/.arsumbris/au-engine/cache/packages`. Distinguishes an editable
+    /// The cache root, `<state root>/engine/cache/packages`. Distinguishes an editable
     /// member (a local working tree, its root NOT under here) from a read-only
     /// cache snapshot, so the per-repo lock partition locks only editable members.
     pub(crate) fn root(&self) -> &Path {
@@ -214,7 +214,7 @@ fn make_snapshot_read_only(dir: &Path) {
 /// `path: ../../..`. The subpath is untrusted (a transitive peer's subpath is
 /// read verbatim from a fetched repo's registry), so this is the choke point,
 /// every mount site routes through it. See
-/// [[spec - diagnostic codes::au-type-system^dependency-path-escapes-snapshot]].
+/// [[spec - diagnostic codes::tb-type-system^dependency-path-escapes-snapshot]].
 fn member_path(snapshot: &Path, subpath: &Option<String>) -> Option<PathBuf> {
     match subpath {
         Some(p) if is_safe_subpath(p) => Some(snapshot.join(p)),
@@ -523,7 +523,7 @@ fn resolve_source(
 }
 
 /// A fetched dependency's declared `peers`, its transitive dependency record,
-/// read from the snapshot's repo-root `.arsumbris/repo.yaml`. A
+/// read from the snapshot's repo-root `.2brain/repo.yaml`. A
 /// monorepo dependency's record is the whole-repo root, so a subpath package
 /// contributes its repo's whole peer set, an over-approximation; the per-member
 /// axis is a later refinement.
@@ -758,7 +758,7 @@ pub(crate) fn write_package_lock(lock_path: &Path, lock: &PackageLock) -> std::i
         std::fs::create_dir_all(parent)?;
     }
     // The lock's floor type is its kind, derived from the filename: `repo.lock`
-    // is `au.engine.repo-lock`, `workspace.lock` is `au.engine.workspace-lock`.
+    // is `tb.engine.repo-lock`, `workspace.lock` is `tb.engine.workspace-lock`.
     let type_name = match lock_path.file_name().and_then(|n| n.to_str()) {
         Some("workspace.lock") => "tb.engine.workspace-lock",
         _ => "tb.engine.repo-lock",
@@ -839,7 +839,7 @@ pub(crate) fn partition_repo_locks(
 /// LOCAL discover member's own declared deps, so a fetched dep reached only
 /// through a co-present discover member still pins. Mirrors `partition_repo_locks`
 /// but yields ONE lock for the whole discover closure (written to the entry's
-/// `.arsumbris/workspace.lock`) rather than one per editable member. A local
+/// `.2brain/workspace.lock`) rather than one per editable member. A local
 /// member is never pinned (resolved by location), only traversed. So an `edit`
 /// member stays live while a `discover` member mounts pinned and offline. See
 /// [[spec - workspace as a folder-repo - an optional workspace.yaml composes edit and discover members]].
@@ -950,8 +950,8 @@ pub(crate) fn resolve_and_lock(
         // tree workspace has no discover members). Prune-empty like a repo.lock, so
         // dropping the last discover member overwrites the lock empty and stops the
         // offline locate from re-mounting a removed member. Keyed by the entry repo
-        // (role `Entry`), whose git tree holds the `.arsumbris/`.
-        // Only write when the entry repo (whose git tree holds `.arsumbris/`) is
+        // (role `Entry`), whose git tree holds the `.2brain/`.
+        // Only write when the entry repo (whose git tree holds `.2brain/`) is
         // present, so a workspace with no `Entry` role never leaves an orphaned,
         // uncommitted `workspace.lock` on disk. Gate the WRITE on the entry, not
         // just the staging.
@@ -1021,7 +1021,7 @@ pub(crate) fn commit_package_lock(
 /// Locate a workspace's locked dependencies from the cache, offline, and return
 /// any version-conflict diagnostics.
 ///
-/// UNIONS every EDITABLE member's own `.arsumbris/repo.lock` (a local working
+/// UNIONS every EDITABLE member's own `.2brain/repo.lock` (a local working
 /// tree, its root not under the cache), and for each pinned dependency present in
 /// the cache fills `member_paths` with its snapshot. No network: the reproducible,
 /// offline re-open path. A pinned sha absent from the cache leaves that member
@@ -1244,28 +1244,28 @@ mod tests {
     }
 
     /// A co-present folder-repo `<parent>/proj/` declaring `dep` as a remote
-    /// dependency in its own `repo.yaml`, and carrying a `.arsumbris/workspace.yaml`
+    /// dependency in its own `repo.yaml`, and carrying a `.2brain/workspace.yaml`
     /// selecting itself. `proj` is the entry repo; its per-repo lock lands in its
-    /// own `.arsumbris/`. Returns the manifest path.
+    /// own `.2brain/`. Returns the manifest path.
     fn proj_with_remote_dep(parent: &Path, remote: &str) -> PathBuf {
         let proj = parent.join("proj");
-        fs::create_dir_all(proj.join(".arsumbris")).unwrap();
+        fs::create_dir_all(proj.join(".2brain")).unwrap();
         fs::write(
-            proj.join(".arsumbris/repo.yaml"),
+            proj.join(".2brain/repo.yaml"),
             format!("name: proj\ndeps:\n  - name: dep\n    remote: {remote}\n    ref: main\n"),
         )
         .unwrap();
-        let manifest = proj.join(".arsumbris/workspace.yaml");
+        let manifest = proj.join(".2brain/workspace.yaml");
         fs::write(&manifest, "edit:\n  - proj\n").unwrap();
         manifest
     }
 
     /// Write a co-present editable primary `<ws>/proj/` declaring `deps` (each a
     /// `(name, remote)` at `ref: main`) in its own `repo.yaml`. The per-repo lock
-    /// lands at `proj/.arsumbris/repo.lock`.
+    /// lands at `proj/.2brain/repo.lock`.
     fn write_proj(ws: &Path, deps: &[(&str, &str)]) -> PathBuf {
         let proj = ws.join("proj");
-        fs::create_dir_all(proj.join(".arsumbris")).unwrap();
+        fs::create_dir_all(proj.join(".2brain")).unwrap();
         let mut yaml = String::from("name: proj\n");
         if !deps.is_empty() {
             yaml.push_str("deps:\n");
@@ -1275,19 +1275,19 @@ mod tests {
                 ));
             }
         }
-        fs::write(proj.join(".arsumbris/repo.yaml"), yaml).unwrap();
+        fs::write(proj.join(".2brain/repo.yaml"), yaml).unwrap();
         proj
     }
 
     /// A workspace over a co-present folder-repo primary `proj/` declaring `deps`,
     /// assembled so `proj` is the editable entry (in `member_paths`). The manifest
-    /// sits at `proj/.arsumbris/workspace.yaml`. This is the per-repo-lock model:
-    /// the lock lands in `proj/.arsumbris/repo.lock`, beside the manifest. Returns
+    /// sits at `proj/.2brain/workspace.yaml`. This is the per-repo-lock model:
+    /// the lock lands in `proj/.2brain/repo.lock`, beside the manifest. Returns
     /// the ws tempdir, the manifest path, and the loaded Workspace.
     fn proj_workspace(deps: &[(&str, &str)]) -> (TempDir, PathBuf, Workspace) {
         let ws_dir = TempDir::new().unwrap();
         let proj = write_proj(ws_dir.path(), deps);
-        let manifest = proj.join(".arsumbris/workspace.yaml");
+        let manifest = proj.join(".2brain/workspace.yaml");
         fs::write(&manifest, "edit:\n  - proj\n").unwrap();
         let ws = crate::repo::load_workspace(
             &manifest,
@@ -1416,7 +1416,7 @@ mod tests {
             "fields: {}\n",
         )
         .unwrap();
-        fs::create_dir_all(p.join(".arsumbris")).unwrap();
+        fs::create_dir_all(p.join(".2brain")).unwrap();
         let mut yaml = format!("name: {self_name}\n");
         if !peers.is_empty() {
             yaml.push_str("deps:\n");
@@ -1426,7 +1426,7 @@ mod tests {
                 ));
             }
         }
-        fs::write(p.join(".arsumbris/repo.yaml"), yaml).unwrap();
+        fs::write(p.join(".2brain/repo.yaml"), yaml).unwrap();
         run(p, &["add", "-A"]);
         run(p, &["commit", "-q", "-m", "v1"]);
         let sha = run(p, &["rev-parse", "HEAD"]);
@@ -1443,7 +1443,7 @@ mod tests {
             "mid",
             mid.path(),
             "main",
-            PathBuf::from("/ws/.arsumbris/workspace.yaml"),
+            PathBuf::from("/ws/.2brain/workspace.yaml"),
         );
 
         let resolved = resolve_dependencies(&mut ws, &cache, DEFAULT_REGISTRY_REMOTE);
@@ -1477,9 +1477,9 @@ mod tests {
                 "fields: {}\n",
             )
             .unwrap();
-            fs::create_dir_all(p.join(".arsumbris")).unwrap();
+            fs::create_dir_all(p.join(".2brain")).unwrap();
             fs::write(
-                p.join(".arsumbris/repo.yaml"),
+                p.join(".2brain/repo.yaml"),
                 format!(
                     "name: {self_name}\ndeps:\n  - name: {peer}\n    remote: {}\n    ref: main\n",
                     peer_remote.to_string_lossy()
@@ -1496,7 +1496,7 @@ mod tests {
             "a",
             dir_a.path(),
             "main",
-            PathBuf::from("/ws/.arsumbris/workspace.yaml"),
+            PathBuf::from("/ws/.2brain/workspace.yaml"),
         );
 
         // Terminates (the spec-dedup guard halts the cycle) and mounts both.
@@ -1512,7 +1512,7 @@ mod tests {
         // its fetch fails. A prior good repo.lock exists on disk. The failed resolve
         // must NOT overwrite it: a transient network error must not drop a good pin.
         let (app, _) = repo_with_peers("app", &[("gone", "/no/such/remote.git", "main")]);
-        let lock_path = app.path().join(".arsumbris/repo.lock");
+        let lock_path = app.path().join(".2brain/repo.lock");
         let prior = "packages:\n  - name: gone\n    remote: /no/such/remote.git\n    sha: deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n";
         fs::write(&lock_path, prior).unwrap();
         let (_cache_dir, cache) = cache();
@@ -1522,7 +1522,7 @@ mod tests {
         let mut member_paths = BTreeMap::new();
         member_paths.insert(RepoName("app".into()), app.path().to_path_buf());
         let mut ws = Workspace {
-            manifest_path: PathBuf::from("/ws/.arsumbris/workspace.yaml"),
+            manifest_path: PathBuf::from("/ws/.2brain/workspace.yaml"),
             name: "ws".into(),
             members: vec![RepoEntry {
                 name: RepoName("app".into()),
@@ -1589,7 +1589,7 @@ mod tests {
         member_paths.insert(RepoName("app".into()), app.path().to_path_buf());
         member_paths.insert(RepoName("base".into()), base.path().to_path_buf());
         let mut ws = Workspace {
-            manifest_path: PathBuf::from("/ws/.arsumbris/workspace.yaml"),
+            manifest_path: PathBuf::from("/ws/.2brain/workspace.yaml"),
             name: "ws".into(),
             members: vec![
                 RepoEntry {
@@ -1674,7 +1674,7 @@ mod tests {
         provenance.insert(RepoName("leaf".into()), MemberRole::Dep);
         provenance.insert(RepoName("mid".into()), MemberRole::Dep);
         let mut ws = Workspace {
-            manifest_path: PathBuf::from("/ws/.arsumbris/workspace.yaml"),
+            manifest_path: PathBuf::from("/ws/.2brain/workspace.yaml"),
             name: "demo".into(),
             members: vec![
                 RepoEntry {
@@ -1731,7 +1731,7 @@ mod tests {
         let (_cache_dir, cache) = cache();
         let ws_dir = TempDir::new().unwrap();
         let proj = ws_dir.path().join("proj");
-        fs::create_dir_all(proj.join(".arsumbris")).unwrap();
+        fs::create_dir_all(proj.join(".2brain")).unwrap();
         // The editable member `proj`'s own lock pins a transitive dep at an
         // uncached sha.
         let mut lock = PackageLock::new();
@@ -1743,7 +1743,7 @@ mod tests {
         let mut member_paths = BTreeMap::new();
         member_paths.insert(RepoName("proj".into()), proj);
         let mut ws = Workspace {
-            manifest_path: ws_dir.path().join(".arsumbris/workspace.yaml"),
+            manifest_path: ws_dir.path().join(".2brain/workspace.yaml"),
             name: "demo".into(),
             members: vec![],
             member_paths,
@@ -1799,10 +1799,8 @@ mod tests {
             (&a, "git@github.com:org/x.git", None, "sha1"),
             (&b, "https://github.com/org/x", None, "sha2"),
         ];
-        let (diags, conflicted) = detect_version_conflicts(
-            entries.into_iter(),
-            Path::new("/ws/.arsumbris/workspace.yaml"),
-        );
+        let (diags, conflicted) =
+            detect_version_conflicts(entries.into_iter(), Path::new("/ws/.2brain/workspace.yaml"));
         assert!(
             diags
                 .iter()
@@ -1821,7 +1819,7 @@ mod tests {
         let pkg = cache
             .ensure(&leaf.path().to_string_lossy(), "main")
             .expect("fetch and publish");
-        let file = pkg.path.join(".arsumbris/repo.yaml");
+        let file = pkg.path.join(".2brain/repo.yaml");
         let perms = std::fs::metadata(&file).unwrap().permissions();
         assert!(
             perms.readonly(),
@@ -1867,7 +1865,7 @@ mod tests {
         let mut provenance = BTreeMap::new();
         provenance.insert(RepoName("leaf".into()), MemberRole::Dep);
         let mut ws = Workspace {
-            manifest_path: PathBuf::from("/ws/.arsumbris/workspace.yaml"),
+            manifest_path: PathBuf::from("/ws/.2brain/workspace.yaml"),
             name: "demo".into(),
             members: vec![RepoEntry {
                 name: RepoName("leaf".into()),
@@ -1922,7 +1920,7 @@ mod tests {
         provenance.insert(RepoName("a".into()), MemberRole::Dep);
         provenance.insert(RepoName("b".into()), MemberRole::Dep);
         let mut ws = Workspace {
-            manifest_path: PathBuf::from("/ws/.arsumbris/workspace.yaml"),
+            manifest_path: PathBuf::from("/ws/.2brain/workspace.yaml"),
             name: "demo".into(),
             members: vec![
                 RepoEntry {
@@ -1978,7 +1976,7 @@ mod tests {
         provenance.insert(RepoName("leaf".into()), MemberRole::Edit);
         provenance.insert(RepoName("mid".into()), MemberRole::Dep);
         let mut ws = Workspace {
-            manifest_path: PathBuf::from("/ws/.arsumbris/workspace.yaml"),
+            manifest_path: PathBuf::from("/ws/.2brain/workspace.yaml"),
             name: "demo".into(),
             members: vec![
                 RepoEntry {
@@ -2082,7 +2080,7 @@ mod tests {
             "dep",
             src.path(),
             "main",
-            PathBuf::from("/ws/.arsumbris/workspace.yaml"),
+            PathBuf::from("/ws/.2brain/workspace.yaml"),
         );
 
         let resolutions =
@@ -2114,7 +2112,7 @@ mod tests {
         provenance.insert(RepoName("proj".into()), MemberRole::Edit);
         provenance.insert(RepoName("named".into()), MemberRole::Dep);
         let mut ws = Workspace {
-            manifest_path: PathBuf::from("/ws/.arsumbris/workspace.yaml"),
+            manifest_path: PathBuf::from("/ws/.2brain/workspace.yaml"),
             name: "demo".into(),
             members: vec![
                 // A project member that happens to carry a remote and ref: never fetched.
@@ -2210,7 +2208,7 @@ mod tests {
         let mut member_roles = BTreeMap::new();
         member_roles.insert(RepoName("dep".into()), MemberRole::Dep);
         let mut ws = Workspace {
-            manifest_path: PathBuf::from("/ws/.arsumbris/workspace.yaml"),
+            manifest_path: PathBuf::from("/ws/.2brain/workspace.yaml"),
             name: "demo".into(),
             members: vec![RepoEntry {
                 name: RepoName("dep".into()),
@@ -2255,7 +2253,7 @@ mod tests {
             resolve_and_lock(&mut ws, &cache, DEFAULT_REGISTRY_REMOTE).unwrap();
         assert_eq!(resolutions.len(), 1);
 
-        // The lock landed in proj's own `.arsumbris/`, pinning the resolved sha.
+        // The lock landed in proj's own `.2brain/`, pinning the resolved sha.
         let lock_path = crate::repo::repo_lock_path(&ws_dir.path().join("proj"));
         assert!(
             written
@@ -2387,7 +2385,7 @@ mod tests {
         let (_cache_dir, cache) = cache();
         let ws_dir = TempDir::new().unwrap();
         let proj = ws_dir.path().join("proj");
-        fs::create_dir_all(proj.join(".arsumbris")).unwrap();
+        fs::create_dir_all(proj.join(".2brain")).unwrap();
 
         // proj's own lock holds two names requiring the SAME package (one remote,
         // no subpath) at two different shas: a version conflict marking both.
@@ -2407,7 +2405,7 @@ mod tests {
         member_paths.insert(RepoName("proj".into()), proj);
         member_paths.insert(RepoName("base".into()), local.clone());
         let mut ws = Workspace {
-            manifest_path: ws_dir.path().join(".arsumbris/workspace.yaml"),
+            manifest_path: ws_dir.path().join(".2brain/workspace.yaml"),
             name: "demo".into(),
             members: vec![],
             member_paths,
@@ -2455,8 +2453,8 @@ mod tests {
         let ws_dir = TempDir::new().unwrap();
         let proj_a = ws_dir.path().join("proj-a");
         let proj_b = ws_dir.path().join("proj-b");
-        fs::create_dir_all(proj_a.join(".arsumbris")).unwrap();
-        fs::create_dir_all(proj_b.join(".arsumbris")).unwrap();
+        fs::create_dir_all(proj_a.join(".2brain")).unwrap();
+        fs::create_dir_all(proj_b.join(".2brain")).unwrap();
 
         // Two editable members each pin `util`, but to DIFFERENT remotes (legal
         // under same-name-coexistence). Different remotes fall in separate version
@@ -2479,7 +2477,7 @@ mod tests {
         member_paths.insert(RepoName("proj-a".into()), proj_a);
         member_paths.insert(RepoName("proj-b".into()), proj_b);
         let mut ws = Workspace {
-            manifest_path: ws_dir.path().join(".arsumbris/workspace.yaml"),
+            manifest_path: ws_dir.path().join(".2brain/workspace.yaml"),
             name: "demo".into(),
             members: vec![],
             member_paths,
@@ -2514,7 +2512,7 @@ mod tests {
         let (_cache_dir, cache) = cache();
 
         // The primary repo `proj/` is itself a git repo, holding the manifest and
-        // the lock inside its own `.arsumbris/`.
+        // the lock inside its own `.2brain/`.
         let ws_dir = TempDir::new().unwrap();
         let manifest = proj_with_remote_dep(ws_dir.path(), &src.path().to_string_lossy());
         let proj = ws_dir.path().join("proj");
@@ -2558,7 +2556,7 @@ mod tests {
         );
 
         // The committed tree holds proj's own lock, pinning the resolved sha.
-        let committed = run(&proj, &["show", "HEAD:.arsumbris/repo.lock"]);
+        let committed = run(&proj, &["show", "HEAD:.2brain/repo.lock"]);
         assert!(
             committed.contains(&sha),
             "the committed lock pins the resolved sha: {committed}"
@@ -2576,7 +2574,7 @@ mod tests {
     fn locate_is_a_noop_without_a_lockfile() {
         let (_cache_dir, cache) = cache();
         let ws_dir = TempDir::new().unwrap();
-        let manifest = ws_dir.path().join(".arsumbris/workspace.yaml");
+        let manifest = ws_dir.path().join(".2brain/workspace.yaml");
         let mut ws = dep_workspace("dep", Path::new("/gone"), "main", manifest);
         locate_locked_dependencies(&mut ws, &cache, &RealFileSystem);
         assert!(ws.member_paths.is_empty());
@@ -2604,7 +2602,7 @@ mod tests {
             path: None,
         };
         let mut ws = Workspace {
-            manifest_path: PathBuf::from("/ws/.arsumbris/workspace.yaml"),
+            manifest_path: PathBuf::from("/ws/.2brain/workspace.yaml"),
             name: "demo".into(),
             members: vec![mk("a"), mk("b")],
             member_paths: BTreeMap::new(),
@@ -2731,8 +2729,8 @@ mod tests {
             run(p, &["config", "user.email", "tester@example.com"]);
             fs::create_dir_all(p.join("type")).unwrap();
             fs::write(p.join("type/depthing.type.yaml"), "fields: {}\n").unwrap();
-            fs::create_dir_all(p.join(".arsumbris")).unwrap();
-            fs::write(p.join(".arsumbris/repo.yaml"), "name: dep\n").unwrap();
+            fs::create_dir_all(p.join(".2brain")).unwrap();
+            fs::write(p.join(".2brain/repo.yaml"), "name: dep\n").unwrap();
             run(p, &["add", "-A"]);
             run(p, &["commit", "-q", "-m", "v1"]);
         }
@@ -2755,10 +2753,10 @@ mod tests {
         // A folder-repo entry composing proj (co-present, editable) and dep, which
         // is not co-present and not in the registry: dep is an editable member
         // resolving ONLY from the cache, a read-only editable member.
-        fs::create_dir_all(ws_dir.path().join(".arsumbris")).unwrap();
-        fs::write(ws_dir.path().join(".arsumbris/repo.yaml"), "name: ws\n").unwrap();
+        fs::create_dir_all(ws_dir.path().join(".2brain")).unwrap();
+        fs::write(ws_dir.path().join(".2brain/repo.yaml"), "name: ws\n").unwrap();
         fs::write(
-            ws_dir.path().join(".arsumbris/workspace.yaml"),
+            ws_dir.path().join(".2brain/workspace.yaml"),
             "edit:\n  - ws\n  - proj\n  - dep\n",
         )
         .unwrap();
@@ -2813,8 +2811,8 @@ mod tests {
         // only via the per-user registry (not co-present, not the cache).
         let scattered = TempDir::new().unwrap();
         let lib = fs::canonicalize(scattered.path()).unwrap().join("lib");
-        fs::create_dir_all(lib.join(".arsumbris")).unwrap();
-        fs::write(lib.join(".arsumbris/repo.yaml"), "name: lib\n").unwrap();
+        fs::create_dir_all(lib.join(".2brain")).unwrap();
+        fs::write(lib.join(".2brain/repo.yaml"), "name: lib\n").unwrap();
         fs::create_dir_all(lib.join("type")).unwrap();
         fs::write(lib.join("type/libthing.type.yaml"), "fields: {}\n").unwrap();
 
@@ -2822,9 +2820,9 @@ mod tests {
         // entry-only workspace: main + its dep). `lib` resolves via the registry.
         let ws_dir = TempDir::new().unwrap();
         let main = fs::canonicalize(ws_dir.path()).unwrap();
-        fs::create_dir_all(main.join(".arsumbris")).unwrap();
+        fs::create_dir_all(main.join(".2brain")).unwrap();
         fs::write(
-            main.join(".arsumbris/repo.yaml"),
+            main.join(".2brain/repo.yaml"),
             "name: main\ndeps:\n  - name: lib\n",
         )
         .unwrap();
@@ -2900,17 +2898,17 @@ mod tests {
         // resolves ahead of the cache pin, overriding it.
         // Canonical, the spelling the catalog keys the mounted tree under.
         let local = crate::repo::canonical_root(ws_dir.path()).join("dep");
-        fs::create_dir_all(local.join(".arsumbris")).unwrap();
-        fs::write(local.join(".arsumbris/repo.yaml"), "name: dep\n").unwrap();
+        fs::create_dir_all(local.join(".2brain")).unwrap();
+        fs::write(local.join(".2brain/repo.yaml"), "name: dep\n").unwrap();
         fs::create_dir_all(local.join("type")).unwrap();
         fs::write(local.join("type/local-only.type.yaml"), "fields: {}\n").unwrap();
 
         // A folder-repo entry composing proj; proj deps dep, which resolves ahead
         // of the cache pin to the co-present sibling `dep/` (the override).
-        fs::create_dir_all(ws_dir.path().join(".arsumbris")).unwrap();
-        fs::write(ws_dir.path().join(".arsumbris/repo.yaml"), "name: ws\n").unwrap();
+        fs::create_dir_all(ws_dir.path().join(".2brain")).unwrap();
+        fs::write(ws_dir.path().join(".2brain/repo.yaml"), "name: ws\n").unwrap();
         fs::write(
-            ws_dir.path().join(".arsumbris/workspace.yaml"),
+            ws_dir.path().join(".2brain/workspace.yaml"),
             "edit:\n  - ws\n  - proj\n",
         )
         .unwrap();
@@ -2983,7 +2981,7 @@ mod tests {
     #[test]
     fn a_discover_member_is_fetched_pinned_in_the_workspace_lock_and_mounts_offline() {
         // A `discover` member is fetched and pinned (like a dep), its closure
-        // landing in the entry's `.arsumbris/workspace.lock`, so it mounts
+        // landing in the entry's `.2brain/workspace.lock`, so it mounts
         // reproducibly and offline. Sourced by an explicit remote to isolate the
         // fetch/lock machinery from registry name-resolution.
         let (src, sha) = source_repo(); // owns the type-def `thing`
@@ -2991,9 +2989,9 @@ mod tests {
         let (_cache_dir, cache) = cache();
 
         let ws_dir = TempDir::new().unwrap();
-        fs::create_dir_all(ws_dir.path().join(".arsumbris")).unwrap();
-        let manifest = ws_dir.path().join(".arsumbris/workspace.yaml");
-        let ws_lock_path = ws_dir.path().join(".arsumbris/workspace.lock");
+        fs::create_dir_all(ws_dir.path().join(".2brain")).unwrap();
+        let manifest = ws_dir.path().join(".2brain/workspace.yaml");
+        let ws_lock_path = ws_dir.path().join(".2brain/workspace.lock");
 
         let make_ws = || {
             let mut roles = BTreeMap::new();
@@ -3106,7 +3104,7 @@ mod tests {
         // A different package, no conflict.
         lock.insert(RepoName("atlas".into()), locked("Q", "s3", None));
 
-        let (diags, conflicted) = lock_conflicts(&lock, "/ws/.arsumbris/workspace.yaml");
+        let (diags, conflicted) = lock_conflicts(&lock, "/ws/.2brain/workspace.yaml");
         assert_eq!(diags.len(), 1, "exactly one conflicted package");
         assert_eq!(diags[0].code, crate::repo::DEPENDENCY_VERSION_CONFLICT);
         assert_eq!(diags[0].severity, Severity::Error);
@@ -3131,7 +3129,7 @@ mod tests {
         // not a conflict.
         lock.insert(RepoName("c".into()), locked("M", "s9", Some("pkgs/c")));
         lock.insert(RepoName("d".into()), locked("M", "s9", Some("pkgs/d")));
-        let (diags, conflicted) = lock_conflicts(&lock, "/wsx/.arsumbris/workspace.yaml");
+        let (diags, conflicted) = lock_conflicts(&lock, "/wsx/.2brain/workspace.yaml");
         assert!(diags.is_empty());
         assert!(conflicted.is_empty());
     }
@@ -3150,7 +3148,7 @@ mod tests {
             locked("apps", "sha2", Some("projections/editor")),
         );
         assert!(
-            lock_conflicts(&lock, "/wsx/.arsumbris/workspace.yaml")
+            lock_conflicts(&lock, "/wsx/.2brain/workspace.yaml")
                 .0
                 .is_empty()
         );

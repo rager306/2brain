@@ -3,10 +3,10 @@ name: studio
 description: Files, documents and agent sessions together.
 deps:
   - name: agent-sessions
-  - name: au-avatar
-  - name: au-host-sdk
-  - name: au-mcp-adapter-codex
-  - name: au-mcp-sdk
+  - name: tb-avatar
+  - name: tb-host-sdk
+  - name: tb-mcp-adapter-codex
+  - name: tb-mcp-sdk
   - name: aup-reader
   - name: aup-workspace-sidebar
   - name: bento
@@ -20,4 +20,4 @@ deps:
   - name: sandwich
   - name: tabs
   - name: terminal
-  - name: au-mcp-adapter-cc
+  - name: tb-mcp-adapter-cc

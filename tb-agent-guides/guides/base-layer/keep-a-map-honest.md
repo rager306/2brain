@@ -2,7 +2,7 @@
 type: guide.principle
 goal: "Keep an authored synthesis useful as its sources change."
 rule: "Recheck the claims and scope of the map, not only whether its links still resolve."
-about: "[[map::au-base-types]]"
+about: "[[map::tb-base-types]]"
 ---
 
 # Keep the map's interpretation current

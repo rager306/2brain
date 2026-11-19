@@ -22,13 +22,13 @@ fn fixture() -> (tempfile::TempDir, PathBuf) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w(
         "base/type/projection.type.yaml",
         "fields:\n  title: String\n",
     );
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     w(
@@ -137,7 +137,7 @@ fn import_fixture() -> (tempfile::TempDir, PathBuf) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w("base/type/mcp.tool.type.yaml", "fields:\n  name: String\n");
     // An OWNER-repo-resident subtype: base extends its own `mcp.tool` by bare
     // name. base imports nothing, so it has no resolution graph; a qualified
@@ -147,7 +147,7 @@ fn import_fixture() -> (tempfile::TempDir, PathBuf) {
         "extends: mcp.tool\nfields:\n  tag: String\n",
     );
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // Peer-extended leaf, no local `mcp.tool` copy.
@@ -244,13 +244,13 @@ fn divergent_owners_fixture() -> (tempfile::TempDir, PathBuf) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("ra/.arsumbris/repo.yaml", "name: ra\n");
+    w("ra/.2brain/repo.yaml", "name: ra\n");
     w("ra/type/widget.type.yaml", "fields:\n  a: String\n");
     w(
         "ra/type/widget.ra_sub.type.yaml",
         "extends: widget\nfields:\n  x: Number\n",
     );
-    w("rb/.arsumbris/repo.yaml", "name: rb\n");
+    w("rb/.2brain/repo.yaml", "name: rb\n");
     // Divergent widget: a different field, so a different identity.
     w("rb/type/widget.type.yaml", "fields:\n  b: Number\n");
     w(
@@ -326,8 +326,8 @@ fn subtypes_identical_local_copies_report_each_holder() {
     for repo in ["ra", "rb"] {
         let dir = root.join(repo);
         fs::create_dir_all(dir.join("type")).unwrap();
-        fs::create_dir_all(dir.join(".arsumbris")).unwrap();
-        fs::write(dir.join(".arsumbris/repo.yaml"), format!("name: {repo}\n")).unwrap();
+        fs::create_dir_all(dir.join(".2brain")).unwrap();
+        fs::write(dir.join(".2brain/repo.yaml"), format!("name: {repo}\n")).unwrap();
         fs::write(dir.join("type/widget.type.yaml"), "fields:\n  a: String\n").unwrap();
         fs::write(
             dir.join("type/widget.child.type.yaml"),
@@ -367,7 +367,7 @@ fn dangling_base_fixture() -> (tempfile::TempDir, PathBuf) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("solo/.arsumbris/repo.yaml", "name: solo\n");
+    w("solo/.2brain/repo.yaml", "name: solo\n");
     w("solo/type/orphan.type.yaml", "extends: ghost\nfields: {}\n");
     (dir, root)
 }

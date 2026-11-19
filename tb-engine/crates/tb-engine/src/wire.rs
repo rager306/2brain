@@ -2,7 +2,7 @@
 //!
 //! One home for the serialization shapes, reached by both renderers over the
 //! held analysis: the CLI's `--introspect` output and the daemon's read
-//! catalog. Pure serde shapes — they wrap au-core data without adding
+//! catalog. Pure serde shapes — they wrap tb-core data without adding
 //! semantics. Spans carry canonical byte offsets plus the derived `line_col`
 //! rendering wherever the build holds the file's `LineIndex`, so
 //! line-oriented consumers don't re-read files to correlate spans.
@@ -64,7 +64,7 @@ pub struct TypeIntrospection {
     /// resolution graph (the low-level `introspect_graph`).
     pub unmet_required_meta: Vec<String>,
     pub fields: Vec<FieldIntrospection>,
-    /// Declared meta sub-regions on this type-def. Distinguishes spec [[type-def meta::au-type-system]]'s
+    /// Declared meta sub-regions on this type-def. Distinguishes spec [[type-def meta::tb-type-system]]'s
     /// three states:
     /// - `None` → `meta:` key absent.
     /// - `Some(vec![])` → explicit `meta: []` suppression marker — stops
@@ -76,20 +76,20 @@ pub struct TypeIntrospection {
     pub meta_blocks: Option<Vec<MetaBlockIntrospection>>,
     /// The effective field set, the closure's fields the validator checks an
     /// instance against, each tagged with the def that declares it. A divergent
-    /// field ([[type-def fields collision - auto-unify and qualified field::au-type-system]])
+    /// field ([[type-def fields collision - auto-unify and qualified field::tb-type-system]])
     /// is one entry per origin, flagged `divergent`. Absent from the graph-only
     /// builders (`introspect_graph`), present on every served full-mode read.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effective_fields: Option<Vec<ClosureFieldView>>,
     /// The effective meta, one entry per meta type identity with its surviving
-    /// blocks ([[type-def meta::au-type-system]]): shadowed by a declaration on a
+    /// blocks ([[type-def meta::tb-type-system]]): shadowed by a declaration on a
     /// strict descendant, `meta: []` shadowing every ancestor, each def read in
     /// its own repo. More than one block is a `meta-inheritance-conflict`.
     /// Absent from the graph-only builders, present on every served full-mode
     /// read.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effective_meta: Option<Vec<EffectiveMetaView>>,
-    /// Source-form `body:` template per [[type-def body::au-type-system]]. `None` when the type-def
+    /// Source-form `body:` template per [[type-def body::tb-type-system]]. `None` when the type-def
     /// has no `body:` key. `Some(vec![])` for explicit empty `body: []`
     /// (treated as "no template" by validation but distinct on the
     /// wire). `Some(non-empty)` for declared templates.
@@ -99,7 +99,7 @@ pub struct TypeIntrospection {
     /// type-def carries no body of its own.
     pub effective_body: Option<Vec<BodyItemIntrospection>>,
     /// The type-def's own `#:` docstring, a leading block before the first
-    /// key, absent when none. Advisory, never validated. Spec [[type docstring::au-type-system]].
+    /// key, absent when none. Advisory, never validated. Spec [[type docstring::tb-type-system]].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<String>,
     /// The brand this def declares, when it names a `shape:` instead of `fields:`
@@ -157,12 +157,12 @@ pub struct BrandIntrospection {
     /// Same `WireShape` a field's `shape_ast` uses. Spec [[spec - shape ast on the wire]].
     pub shape: WireShape,
     /// Per-enum-member `#:` docstrings, keyed by member literal. Empty for a
-    /// non-enum brand or a docless enum. Advisory. Spec [[type docstring::au-type-system]].
+    /// non-enum brand or a docless enum. Advisory. Spec [[type docstring::tb-type-system]].
     #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub member_docs: std::collections::BTreeMap<String, String>,
 }
 
-/// One body-template item — spec [[type-def body::au-type-system]] discriminator surface.
+/// One body-template item — spec [[type-def body::tb-type-system]] discriminator surface.
 ///
 /// `kind` discriminator: `"use"` / `"section"` / `"fills"`. A type-def's
 /// `body:` value renders as `Vec<BodyItemIntrospection>`; each Section's
@@ -197,7 +197,7 @@ pub enum BodyItemIntrospection {
     },
 }
 
-/// [[type-def body fills::au-type-system]] fills contract. `fields` is the declared field-name list (always
+/// [[type-def body fills::tb-type-system]] fills contract. `fields` is the declared field-name list (always
 /// non-empty for parsed contracts; the parser elides empty lists). The
 /// `!:` form sets `exclusive = true`.
 #[derive(Debug, Serialize)]
@@ -229,12 +229,12 @@ pub struct FieldIntrospection {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub key_span: Option<SpanRange>,
     /// The field's `#:` docstring, absent when none. Advisory, never
-    /// validated. Spec [[type docstring::au-type-system]].
+    /// validated. Spec [[type docstring::tb-type-system]].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<String>,
 }
 
-/// Structured serialization of a slot `Shape` ([[type-def field shape::au-type-system]]) — the parsed AST
+/// Structured serialization of a slot `Shape` ([[type-def field shape::tb-type-system]]) — the parsed AST
 /// beside the source-form `shape` string. A tagged union on `kind`,
 /// mirroring `tb_grammar::Shape` faithfully. Consumers map structure to
 /// their target (a codegen target type, a semantic-token color) without
@@ -248,11 +248,11 @@ pub struct FieldIntrospection {
 pub enum WireShape {
     /// `String` | `Number` | `Boolean` | `Date` | `DateTime` | `Url`.
     Primitive { name: &'static str },
-    /// The no-type inline slot, bare `any` ([[type-def shape any::au-type-system]]). No payload.
+    /// The no-type inline slot, bare `any` ([[type-def shape any::tb-type-system]]). No payload.
     /// The reference forms `any*` / `any&` are `Reference` / `InlineOrReference`
     /// with `name: "any"`, not this kind.
     Any,
-    /// The uninterpreted inline slot, bare `opaque` ([[type-def shape opaque::au-type-system]]).
+    /// The uninterpreted inline slot, bare `opaque` ([[type-def shape opaque::tb-type-system]]).
     /// No payload. Inline-only, there is no `opaque*` / `opaque&`. Additive on
     /// the wire, a consumer that does not know it treats it as an unconstrained
     /// slot like `any`.
@@ -265,7 +265,7 @@ pub enum WireShape {
     Record { name: String },
     /// Inline-or-reference `name&`.
     InlineOrReference { name: String },
-    /// List `inner[min..max]` ([[type-def shape suffixes::au-type-system]]). `min` is the
+    /// List `inner[min..max]` ([[type-def shape suffixes::tb-type-system]]). `min` is the
     /// inclusive lower bound on the element count, `max` the inclusive upper
     /// (`null` is unbounded above). The source suffixes desugar: `[]` is
     /// `{min:0}`, `[+]` is `{min:1}`, `[n]` is `{min:n, max:n}`, `[..m]` is
@@ -286,19 +286,19 @@ pub enum WireShape {
         op: WireCompoundOp,
         branches: Vec<String>,
     },
-    /// Typed reference to a type-def, `type<T>*` / `type*` ([[type-def shape def-ref::au-type-system]]).
+    /// Typed reference to a type-def, `type<T>*` / `type*` ([[type-def shape def-ref::tb-type-system]]).
     /// `bound` is the def-axis ceiling: absent for the unconstrained `type*`,
     /// present for the constrained `type<T>*`. Reference-only, no inline form.
     DefReference {
         #[serde(skip_serializing_if = "Option::is_none")]
         bound: Option<WireDefBound>,
     },
-    /// Commit-pinned reference, the `*@` postfix ([[type-def shape suffixes::au-type-system]]). Wraps
+    /// Commit-pinned reference, the `*@` postfix ([[type-def shape suffixes::tb-type-system]]). Wraps
     /// the inner reference shape; every value must carry a `@commit` pin. The
     /// second wrapper kind beside `List`. Spec
     /// [[spec - pinned references - a recorded resolved edge with an immutable past and an on-demand forward trace]].
     Pinned { inner: Box<WireShape> },
-    /// Value refinement `Base{predicate}` ([[type-def field shape::au-type-system]]). `base` is
+    /// Value refinement `Base{predicate}` ([[type-def field shape::tb-type-system]]). `base` is
     /// the refinable primitive name, `refinement` the predicate meet.
     Refined {
         base: &'static str,
@@ -310,7 +310,7 @@ pub enum WireShape {
     Tuple { elements: Vec<WireShape> },
 }
 
-/// A value refinement on the wire ([[type-def field shape::au-type-system]]): comparison bounds,
+/// A value refinement on the wire ([[type-def field shape::tb-type-system]]): comparison bounds,
 /// an `integer` flag, and a regex pattern, at most one of each. Absent members
 /// are omitted.
 ///
@@ -339,7 +339,7 @@ pub struct WireBound {
     pub inclusive: bool,
 }
 
-/// The ceiling inside a `type<...>*` def-reference ([[type-def shape def-ref::au-type-system]]).
+/// The ceiling inside a `type<...>*` def-reference ([[type-def shape def-ref::tb-type-system]]).
 /// `single` is `type<T>*`; `compound` is `type<a | b>*` / `type<a & b>*`.
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
@@ -568,24 +568,24 @@ pub struct InstanceIntrospection {
     pub claim: Vec<String>,
     pub closure: Vec<String>,
     pub effective_shape: Vec<EffectiveShapeEntry>,
-    /// [[type value container::au-type-system]] effective values — per-field `ValueContainer`s carrying every
+    /// [[type value container::tb-type-system]] effective values — per-field `ValueContainer`s carrying every
     /// contribution surface (frontmatter / body wikilink / body fence
     /// / body inline code). One entry per field that has at least one
     /// contribution; absent for unfilled closure fields.
     pub effective_values: Vec<FieldValuesEntry>,
-    /// [[type-def body section::au-type-system]] presence of each top-level declared section in the instance's
+    /// [[type-def body section::tb-type-system]] presence of each top-level declared section in the instance's
     /// effective body template. `None` when the instance's type has no
     /// `body:` template; `Some(vec![])` for a body-declaring type whose
     /// template carries no `section:` items (e.g. body-level `fills:`
     /// only). Nested sections are NOT enumerated here — only the
     /// validator's top-level coverage is exposed in v1.
     pub section_presence: Option<Vec<SectionPresenceEntry>>,
-    /// Raw markdown body event stream per [[type value container::au-type-system]] / au-parser.
+    /// Raw markdown body event stream per [[type value container::tb-type-system]] / tb-parser.
     /// `None` for pure-YAML instances (no body to scan); `Some(vec![])`
     /// for markdown instances whose body produces no events. Spans are
     /// absolute byte offsets (already shifted by the body start).
     pub body_events: Option<Vec<BodyEventIntrospection>>,
-    /// Addressable inline records ([[type block-id::au-type-system]]): `^:` id, effective
+    /// Addressable inline records ([[type block-id::tb-type-system]]): `^:` id, effective
     /// claim names (explicit or slot-pinned), the id value's span.
     /// Body-side markers and fence ids ride `body_events`; together the
     /// two lists are the file's addressable-id surface (completion for
@@ -594,7 +594,7 @@ pub struct InstanceIntrospection {
     pub record_block_ids: Vec<RecordBlockIdIntrospection>,
 }
 
-/// One addressable inline record per [[type block-id::au-type-system]].
+/// One addressable inline record per [[type block-id::tb-type-system]].
 #[derive(Debug, Serialize)]
 pub struct RecordBlockIdIntrospection {
     pub id: String,
@@ -604,7 +604,7 @@ pub struct RecordBlockIdIntrospection {
     pub span: SpanRange,
 }
 
-/// One field's contribution set per [[type value container::au-type-system]].
+/// One field's contribution set per [[type value container::tb-type-system]].
 #[derive(Debug, Serialize)]
 pub struct FieldValuesEntry {
     pub field: String,
@@ -612,7 +612,7 @@ pub struct FieldValuesEntry {
 }
 
 /// One unique value plus the contributions that produced it. Multiple
-/// contributions with equal values collapse into one container per [[type value container::au-type-system]].
+/// contributions with equal values collapse into one container per [[type value container::tb-type-system]].
 #[derive(Debug, Serialize)]
 pub struct ValueContainerIntrospection {
     pub value: ContributionValueIntrospection,
@@ -630,12 +630,12 @@ pub struct ContributionIntrospection {
     /// Engine-internal representation is `"<index> <text>"`; the wire
     /// surfaces a structured `{ index, text }` so consumers don't
     /// re-parse the string. Same-name siblings disambiguate via the
-    /// `index` field; the literal-`1`-heading edge case from [[type value container::au-type-system]]
+    /// `index` field; the literal-`1`-heading edge case from [[type value container::tb-type-system]]
     /// (`# 1 Why` → `SectionPathSegment { index: 1, text: "1 Why" }`)
     /// stays unambiguous.
     pub section_path: Vec<SectionPathSegment>,
     pub value: ContributionValueIntrospection,
-    /// The collision qualifier a body attribution carried ([[type-def fields collision - auto-unify and qualified field::au-type-system]]):
+    /// The collision qualifier a body attribution carried ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]):
     /// `field{type}` / `field{type::repo}`, naming which divergent origin this
     /// contribution fills. Absent for a bare attribution or a frontmatter
     /// contribution.
@@ -651,7 +651,7 @@ pub struct QualifierIntrospection {
     pub repo: Option<String>,
 }
 
-/// One root-to-leaf section path entry. Index is 1-based per [[type value container::au-type-system]].
+/// One root-to-leaf section path entry. Index is 1-based per [[type value container::tb-type-system]].
 #[derive(Debug, Serialize)]
 pub struct SectionPathSegment {
     pub index: u32,
@@ -731,7 +731,7 @@ pub enum ContributionValueIntrospection {
     InlineRecord {
         fields: Vec<InlineRecordFieldIntrospection>,
     },
-    /// A fixed-arity positional product ([[type-def shape tuple::au-type-system]]). `elements`
+    /// A fixed-arity positional product ([[type-def shape tuple::tb-type-system]]). `elements`
     /// carries each position's resolved value and its optional written brand;
     /// `brand` is the outer tuple's written brand. Additive value kind, no
     /// `SCHEMA_VERSION` bump.
@@ -837,7 +837,7 @@ pub struct EffectiveShapeEntry {
     /// per-origin `origins[].shape` instead.
     pub shape: String,
     pub required: bool,
-    /// True when the origins do NOT agree on shape ([[type-def fields collision - auto-unify and qualified field::au-type-system]]): a divergent
+    /// True when the origins do NOT agree on shape ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]): a divergent
     /// field, resolved per-origin by a `field{type}` qualifier. Each origin's own
     /// shape is on `origins[].shape`.
     pub divergent: bool,
@@ -917,7 +917,7 @@ fn introspect_type(
         .map(|f| introspect_field(f, Some(site)))
         .collect();
     // Map `Option<Vec<MetaBlock>>` to `Option<Vec<MetaBlockIntrospection>>`
-    // preserving all three [[type-def meta::au-type-system]] states (None / Some(vec![]) / Some(vec![..])).
+    // preserving all three [[type-def meta::tb-type-system]] states (None / Some(vec![]) / Some(vec![..])).
     // The serialized JSON renders these as `null` / `[]` / `[..]` respectively.
     //
     // `MetaBlock` doesn't carry its own file path; the host TypeDef's
@@ -1056,10 +1056,10 @@ fn introspect_meta_block(block: &MetaBlock, site: &SourceSite<'_>) -> MetaBlockI
 ///
 /// Mapping shape: the inline value's `type:` claim renders under the
 /// `"type"` key (Bare → JSON string; List → JSON array of strings); a
-/// `^:` block-id renders under the literal `"^"` key ([[type block-id::au-type-system]]),
+/// `^:` block-id renders under the literal `"^"` key ([[type block-id::tb-type-system]]),
 /// so a consumer maps `[[^id]]` references onto the records it received
 /// without re-parsing the file. Body fields render as named entries
-/// alongside. Spec [[type-def::au-type-system]] / [[type list form::au-type-system]] reserve `type:`
+/// alongside. Spec [[type-def::tb-type-system]] / [[type list form::tb-type-system]] reserve `type:`
 /// everywhere and field names can never be `^`, so no compliant field
 /// collides — if that ever changes, this helper would silently drop the
 /// colliding entry.
@@ -1209,7 +1209,7 @@ pub fn introspect_instance(
     // `instances_of`. It was served bare here.
     let claim_names = claim.iter().map(|c| c.authored()).collect();
     let closure = instance_closure_authored(own_graph, resolution, claim, effective_shape);
-    // Resolved (auto-unified) fields plus divergent fields ([[type-def fields collision - auto-unify and qualified field::au-type-system]]), the
+    // Resolved (auto-unified) fields plus divergent fields ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]), the
     // latter flagged `divergent: true` with per-origin shapes. Both surface here,
     // so a consumer reads the whole effective shape from one list.
     let effective = effective_shape
@@ -1277,7 +1277,7 @@ pub fn introspect_instance(
     }
 }
 
-/// The addressable inline records of one instance ([[type block-id::au-type-system]]),
+/// The addressable inline records of one instance ([[type block-id::tb-type-system]]),
 /// for the `record_block_ids` introspection field.
 pub fn record_block_ids_of(
     kb: &KnowledgeBase,
@@ -1390,7 +1390,7 @@ pub fn introspect_kb_instances(kb: &KnowledgeBase) -> Vec<InstanceIntrospection>
 }
 
 /// All implicit-identity candidates in one instance file, ranked per
-/// [[type candidate scan::au-type-system]]. A file scanned with no candidates is still present,
+/// [[type candidate scan::tb-type-system]]. A file scanned with no candidates is still present,
 /// so a consumer tells scanned-and-empty from not-scanned.
 #[derive(Debug, Serialize)]
 pub struct FileCandidatesIntrospection {
@@ -1596,7 +1596,7 @@ pub struct InstanceCountsView {
     /// `origins` filter selects: file-level instances (`Origin::File`), nested
     /// inline records (`Origin::Nested`), and type-def `meta` blocks
     /// (`Origin::Meta`). Absent `origins` counts all three, so a `meta:` block on
-    /// a type-def — including the always-present `au.engine.*` builtins' meta —
+    /// a type-def — including the always-present `tb.engine.*` builtins' meta —
     /// rides in a plain no-arg total; pass `origins` to exclude it.
     pub total: usize,
     /// Per-identity instance counts, sorted by (name, hash).
@@ -1621,7 +1621,7 @@ pub struct InstanceCountsView {
 /// `origins` is the `instances_of`-parity filter (file / nested / meta). Absent
 /// counts ALL THREE, identical to `instances_of`'s no-arg set, so the two duals
 /// default the same way. This INCLUDES meta by default: a `meta:` block sits on
-/// a type-def, so the always-present `au.engine.*` builtins' meta rides in a plain
+/// a type-def, so the always-present `tb.engine.*` builtins' meta rides in a plain
 /// no-arg count; a consumer wanting the clean authored-document overview passes
 /// `origins:['file']` / `['file','nested']` to exclude it (matching an
 /// `instances_of` drill-in over those origins).
@@ -1885,7 +1885,7 @@ pub struct InstanceMatch {
     pub locator: Option<Locator>,
     /// The instance's own `#:` head docstring, absent when none. The
     /// value-surface twin of the type-def docstrings the schema read carries.
-    /// See [[type docstring::au-type-system]].
+    /// See [[type docstring::tb-type-system]].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<String>,
     /// Per-field `#:` docstrings, keyed by field name, documented fields only,
@@ -2333,7 +2333,7 @@ pub fn introspect_list_imports(kb: &KnowledgeBase, scope: TypeScope) -> Vec<Impo
     for (importer, name, owner) in crate::resolution_build::collect_imports(&kb.repos, &kb.catalog)
     {
         // `own` keeps only imports MADE BY an own repo, and drops the automatic
-        // `au.engine.*` builtin fold (owned by the builtin), which every repo
+        // `tb.engine.*` builtin fold (owned by the builtin), which every repo
         // imports and is not a user-authored dependency edge.
         if scope.own_only
             && (!scope.includes_name(kb, &importer)
@@ -2385,7 +2385,7 @@ pub struct MemberView {
     /// `sibling`, `registry`, `cache`, or `disabled` for a member the workspace
     /// switches off. Refines `local`: a live tree is `entry` / `sibling` /
     /// `registry`, a snapshot is `cache`. The tier that FIRST located the
-    /// member's root, as `au members` reports it. Absent only for a repo no member
+    /// member's root, as `tb-engine members` reports it. Absent only for a repo no member
     /// mount produced, which assembly never yields.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tier: Option<&'static str>,
@@ -2466,7 +2466,7 @@ pub(crate) fn member_role(kb: &KnowledgeBase, name: &RepoName) -> MemberRole {
 /// `own` keeps only the user's OWN repos, a repo that is an editable authoring
 /// surface ([`member_role`] editable, the entry or an `edit` member). That hides
 /// every dependency, a consumed `dep` or `discover` member, and the compiled-in
-/// `au.engine.*` builtin. Role-derived: an `edit` member served only from the
+/// `tb.engine.*` builtin. Role-derived: an `edit` member served only from the
 /// read-only cache is still the user's own vocabulary and stays in scope.
 #[derive(Clone, Copy)]
 pub struct TypeScope {
@@ -2547,7 +2547,7 @@ pub fn introspect_members(
         .repos
         .repos()
         .iter()
-        // The compiled-in `au-engine` repo is a type SOURCE (its `au.engine.*`
+        // The compiled-in `tb-engine` repo is a type SOURCE (its `tb.engine.*`
         // types surface like any dependency), not a workspace MEMBER: it has no
         // real root, only a sentinel. Excluding it keeps a consumer from trying
         // to mount a nonexistent tree.
@@ -2663,7 +2663,7 @@ pub struct DeviceConfigFileView {
     /// the config; null when the file is absent or not valid UTF-8 (the
     /// not-UTF-8 case still carries a diagnostic).
     pub content: Option<String>,
-    /// The field-shape verdict against the hardwired `au.engine.*` def, the same
+    /// The field-shape verdict against the hardwired `tb.engine.*` def, the same
     /// catalog a walked instance gets, spans into THIS real file. Empty for an
     /// absent or clean file.
     pub diagnostics: Vec<tb_diagnostics::Diagnostic>,
@@ -2671,7 +2671,7 @@ pub struct DeviceConfigFileView {
 
 /// The `device_config` read: the per-user device-global engine-schema files,
 /// `repos.yaml` and `workspaces.yaml`, each typed against its hardwired
-/// `au.engine.*` def (`au.engine.repos` / `au.engine.workspaces`) and field-shape
+/// `tb.engine.*` def (`tb.engine.repos` / `tb.engine.workspaces`) and field-shape
 /// validated. These sit OUTSIDE every knowledge base, so they are not knowledge base nodes and the
 /// diagnostics land here, not on the workspace `diagnostics` read. An entry is
 /// null when its path cannot be resolved (no device root, `$HOME` unset).
@@ -2682,8 +2682,8 @@ pub struct DeviceConfigView {
 }
 
 /// Build the `device_config` view from the two files' resolved paths and their
-/// bytes (read off the held lock, outside any knowledge base). `au.engine.repos` /
-/// `au.engine.workspaces` resolve in the builtin `au-engine` graph the held
+/// bytes (read off the held lock, outside any knowledge base). `tb.engine.repos` /
+/// `tb.engine.workspaces` resolve in the builtin `tb-engine` graph the held
 /// `knowledge base` always carries, so the field-shape check runs on the snapshot.
 pub fn device_config_view(
     kb: &KnowledgeBase,
@@ -2716,8 +2716,8 @@ fn device_config_file(
         });
     };
     let content = String::from_utf8(bytes.clone()).ok();
-    // The device registries are hardwired `au.engine.*` defs, so they resolve in
-    // the builtin `au-engine` graph the held knowledge base always carries.
+    // The device registries are hardwired `tb.engine.*` defs, so they resolve in
+    // the builtin `tb-engine` graph the held knowledge base always carries.
     let diagnostics = crate::value_validate::validate_device_file(
         kb,
         &path,
@@ -2737,7 +2737,7 @@ fn device_config_file(
 /// graph, so the field-shape check could not run and the value is STORED as-is.
 /// Advisory `warning`, never a refusal: machine-scope config stays writable
 /// regardless of the served workspace, and a consumer's vocabulary may simply not
-/// be mounted. See [[spec - diagnostic codes::au-type-system^config-type-unresolved]] and
+/// be mounted. See [[spec - diagnostic codes::tb-type-system^config-type-unresolved]] and
 /// [[spec - scoped config channel - a config read and set_config mutation over scope, consumer, file, type]].
 pub const CONFIG_TYPE_UNRESOLVED: tb_diagnostics::DiagnosticCode =
     tb_diagnostics::DiagnosticCode::from_static("config-type-unresolved");
@@ -2749,7 +2749,7 @@ pub const CONFIG_TYPE_UNRESOLVED: tb_diagnostics::DiagnosticCode =
 /// injects `type:`, so an absent one reads as a hand-authored or seeded file. The
 /// config-channel sibling of `engine-schema-type-unwritten` (whose message is for
 /// the engine's OWN device files, a kind-assigned floor). See
-/// [[spec - diagnostic codes::au-type-system^config-type-unwritten]] and
+/// [[spec - diagnostic codes::tb-type-system^config-type-unwritten]] and
 /// [[spec - scoped config channel - a config read and set_config mutation over scope, consumer, file, type]].
 pub const CONFIG_TYPE_UNWRITTEN: tb_diagnostics::DiagnosticCode =
     tb_diagnostics::DiagnosticCode::from_static("config-type-unwritten");
@@ -2813,7 +2813,7 @@ pub fn config_view(
         // file self-describes with its own `type:`, honored over the stamped floor;
         // when absent, the engine-schema validator emits its own
         // `engine-schema-type-unwritten` drift, whose message is for the engine's
-        // OWN device files (a kind-assigned `au.engine.*` floor). Remap it to the
+        // OWN device files (a kind-assigned `tb.engine.*` floor). Remap it to the
         // config-channel `config-type-unwritten`, config-appropriate message, same
         // drift severity and span. See [[spec - scoped config channel ...]] "the
         // file self-describes with a `type:` key".
@@ -2872,7 +2872,7 @@ fn is_unresolved_type_noise(code: &str) -> bool {
 fn config_type_resolves(kb: &KnowledgeBase, scope_repo: &str, type_name: &str) -> bool {
     // `rsplit_once` splits on the LAST `::`, the single trailing `::repo`
     // resolution-scope qualifier (a type name never contains a bare `::`), so
-    // `a::b::c` reads as base `a::b` in peer `c`. See [[type repo qualifier::au-type-system]].
+    // `a::b::c` reads as base `a::b` in peer `c`. See [[type repo qualifier::tb-type-system]].
     match type_name.rsplit_once("::") {
         Some((base, peer)) => kb
             .graph_for_repo(peer)
@@ -2963,7 +2963,7 @@ pub struct MemberIgnoresView {
     /// The seeded, overridable default excludes (`node_modules`, `target`).
     pub default_excludes: Vec<String>,
     /// The unconditional, NOT-editable floor (`.git`, and both identity spellings,
-    /// `.2brain` and `.arsumbris`).
+    /// `.2brain` and `.2brain`).
     pub floor: Vec<String>,
     /// The boundary-level effect, present only when the read requested `resolve`.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3318,7 +3318,7 @@ pub(crate) fn closure_fields(
         return Vec::new();
     };
     // Resolved fields, then each divergent field once per origin
-    // ([[type-def fields collision - auto-unify and qualified field::au-type-system]]),
+    // ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]),
     // the validator's own view: a divergent field has no single shape, and an
     // instance fills each origin separately.
     let resolved = shape.iter().map(|(_, origin)| (origin.canonical(), false));
@@ -4181,7 +4181,7 @@ pub fn instance_value_layer(kb: &KnowledgeBase, path: &Path) -> Option<InstanceV
     })
 }
 
-/// Convert au-core's `SectionPresenceInfo` into the introspect wire's
+/// Convert tb-core's `SectionPresenceInfo` into the introspect wire's
 /// `SectionPresenceEntry` (snake_case JSON shape with array spans).
 /// The actual walk + presence-determination is shared with
 /// `body_validate` via `tb_core::compute_section_presence` —
@@ -4368,7 +4368,7 @@ fn value_container_to_introspection(
 /// Split an engine-internal section-path entry `"<index> <text>"` into
 /// its structured form. The split is on the first space — `index` is
 /// strictly an ASCII number, `text` is whatever follows (which may
-/// itself begin with digits, see [[type value container::au-type-system]]'s `"# 1 Why"` example).
+/// itself begin with digits, see [[type value container::tb-type-system]]'s `"# 1 Why"` example).
 /// Misshapen input (no leading number) renders with `index: 0` and
 /// the whole string as `text`; the path was authored by the engine so
 /// the misshapen path should never occur, but the fallback keeps the
@@ -4407,7 +4407,7 @@ fn contribution_to_introspection(
             .map(|s| parse_section_path_entry(s))
             .collect(),
         value: contribution_value_to_introspection(&c.value, c.brand.as_deref(), slot, ctx),
-        // The collision qualifier a body attribution carried ([[type-def fields collision - auto-unify and qualified field::au-type-system]]),
+        // The collision qualifier a body attribution carried ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]),
         // `field{type}` / `field{type::repo}` — which divergent origin it fills.
         qualifier: c.qualifier.map(|q| QualifierIntrospection {
             type_name: q.type_name.as_str().to_string(),
@@ -5299,7 +5299,7 @@ mod tests {
     // ----- meta_blocks introspection -----
 
     /// Build a TypeDef with explicit `meta_blocks` to exercise the three
-    /// [[type-def meta::au-type-system]] states: None / Some(vec![]) / Some(vec![..]).
+    /// [[type-def meta::tb-type-system]] states: None / Some(vec![]) / Some(vec![..]).
     fn type_def_with_meta(name: &str, meta: Option<Vec<MetaBlock>>) -> TypeDef {
         let mut td = type_def(name, &[], &[]);
         td.meta_blocks = meta;
@@ -5350,7 +5350,7 @@ mod tests {
     #[test]
     fn meta_blocks_empty_list_serializes_as_empty_array() {
         // `meta: []` → Some(vec![]) on the AST → `[]` in JSON. This is the
-        // [[type-def meta::au-type-system]] suppression marker — consumers MUST distinguish it from null.
+        // [[type-def meta::tb-type-system]] suppression marker — consumers MUST distinguish it from null.
         let g = build_graph(vec![type_def_with_meta("note", Some(vec![]))]).graph;
         let json = serde_json::to_string(&introspect_graph(&g)).unwrap();
         assert!(
@@ -5733,7 +5733,7 @@ mod tests {
         use std::path::PathBuf;
         use tb_parser::MemoryFileSystem;
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/.auignore", b"docs/\n# a comment\n".to_vec());
+        fs.insert("/v/.2brain/.auignore", b"docs/\n# a comment\n".to_vec());
         let members = vec![("root".to_string(), PathBuf::from("/v"))];
         let view = ignores_view(&fs, &members, false);
         assert_eq!(view.ignores.len(), 1);
@@ -5746,9 +5746,9 @@ mod tests {
             vec!["docs/".to_string(), "# a comment".to_string()]
         );
         assert_eq!(m.default_excludes, vec!["node_modules", "target"]);
-        // Both identity spellings are on the floor at once: a client that walks a tree the engine
-        // serves must not descend into a half-migrated repository's new identity directory either.
-        assert_eq!(m.floor, vec![".git", ".2brain", ".arsumbris"]);
+        // One identity spelling is on the floor: a client that walks a tree the engine serves
+        // must not descend into a repository's identity directory.
+        assert_eq!(m.floor, vec![".git", ".2brain"]);
         // No `resolve`, no boundary effect.
         assert!(m.resolved.is_none());
     }
@@ -5773,7 +5773,7 @@ mod tests {
         use std::path::PathBuf;
         use tb_parser::MemoryFileSystem;
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/.auignore", b"docs/\n".to_vec());
+        fs.insert("/v/.2brain/.auignore", b"docs/\n".to_vec());
         fs.insert("/v/keep.md", b"".to_vec());
         fs.insert("/v/docs/guide.md", b"".to_vec());
         fs.insert("/v/node_modules/a/index.js", b"".to_vec());

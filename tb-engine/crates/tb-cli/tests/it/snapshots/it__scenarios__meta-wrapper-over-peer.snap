@@ -99,7 +99,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/meta-wrapper-over-peer/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/meta-wrapper-over-peer/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -118,7 +118,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/meta-wrapper-over-peer/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/meta-wrapper-over-peer/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -197,7 +197,7 @@ expression: rendered
                         },
                         "start": 10
                       },
-                      "file": "<root>/scenarios/meta-wrapper-over-peer/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/meta-wrapper-over-peer/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -230,7 +230,7 @@ expression: rendered
                         },
                         "start": 37
                       },
-                      "file": "<root>/scenarios/meta-wrapper-over-peer/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/meta-wrapper-over-peer/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -263,7 +263,7 @@ expression: rendered
                         },
                         "start": 46
                       },
-                      "file": "<root>/scenarios/meta-wrapper-over-peer/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/meta-wrapper-over-peer/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -282,7 +282,7 @@ expression: rendered
             "field": "edit"
           }
         ],
-        "file": "<root>/scenarios/meta-wrapper-over-peer/.arsumbris/workspace.yaml",
+        "file": "<root>/scenarios/meta-wrapper-over-peer/.2brain/workspace.yaml",
         "section_presence": null
       },
       {
@@ -376,7 +376,7 @@ expression: rendered
                         },
                         "start": 20
                       },
-                      "file": "<root>/scenarios/meta-wrapper-over-peer/app/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/meta-wrapper-over-peer/app/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -434,7 +434,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/meta-wrapper-over-peer/app/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/meta-wrapper-over-peer/app/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -453,7 +453,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/meta-wrapper-over-peer/app/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/meta-wrapper-over-peer/app/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -547,7 +547,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/meta-wrapper-over-peer/base/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/meta-wrapper-over-peer/base/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -566,7 +566,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/meta-wrapper-over-peer/base/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/meta-wrapper-over-peer/base/.2brain/repo.yaml",
         "section_presence": null
       }
     ]

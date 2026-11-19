@@ -7,9 +7,10 @@
 # What it installs, and where:
 #
 #   $PREFIX/bin/2brain        the MCP server, the engine daemon, `init` and `doctor`
-#   $PREFIX/bin/au            the engine binary, or $HOME/.2brain/bin/au when
+#   $PREFIX/bin/tb-engine     the engine binary, or $HOME/.2brain/bin/tb-engine when
 #                             $PREFIX/bin cannot take it. `2brain daemon` does not
-#                             need it; `au members`, `au migrate` and `au open` do.
+#                             need it; `tb-engine members`, `tb-engine migrate` and
+#                             `tb-engine open` do.
 #   $PREFIX/share/2brain/templates/
 #                             the starters `2brain init --template <name>` copies
 #
@@ -56,10 +57,10 @@ engine_target=$target_root/release
 server_target=$target_root/release
 
 printf 'install.sh: building 2brain and the engine (release)\n'
-(cd "$here/tb-engine" && "${cargo_command[@]}" build --release -p tb-cli --bin au)
+(cd "$here/tb-engine" && "${cargo_command[@]}" build --release -p tb-cli --bin tb-engine)
 (cd "$here/tb-mcp-rs" && "${cargo_command[@]}" build --release --bin 2brain)
 
-for binary in "$server_target/2brain" "$engine_target/au"; do
+for binary in "$server_target/2brain" "$engine_target/tb-engine"; do
   [[ -x $binary ]] || die "the build did not produce $binary"
 done
 
@@ -70,26 +71,26 @@ mkdir -p "$bin_dir" 2>/dev/null ||
 install -m 0755 -t "$bin_dir" "$server_target/2brain" 2>/dev/null ||
   die "cannot write $bin_dir/2brain; run as root, or pass PREFIX=\$HOME/.local"
 
-engine_bin=$bin_dir/au
-if ! install -m 0755 -t "$bin_dir" "$engine_target/au" 2>/dev/null; then
+engine_bin=$bin_dir/tb-engine
+if ! install -m 0755 -t "$bin_dir" "$engine_target/tb-engine" 2>/dev/null; then
   # The fallback must land in the state root the ENGINE will resolve, not in a fresh
-  # `$HOME/.2brain`: creating that beside an existing legacy `$HOME/.arsumbris` makes
+  # `$HOME/.2brain`: creating that beside an existing legacy `$HOME/.2brain` makes
   # `repo::state_dir_in` prefer the new, empty root and hides the old registry, sockets and
   # logs. Same rule as the engine: `$2BRAIN_HOME`, an existing `.2brain`, an existing
-  # `.arsumbris`, else `.2brain`.
+  # `.2brain`, else `.2brain`.
   state_root=${2BRAIN_HOME:-}
   if [[ -z $state_root ]]; then
     if [[ -d $HOME/.2brain ]]; then
       state_root=$HOME/.2brain
-    elif [[ -d $HOME/.arsumbris ]]; then
-      state_root=$HOME/.arsumbris
+    elif [[ -d $HOME/.2brain ]]; then
+      state_root=$HOME/.2brain
     else
       state_root=$HOME/.2brain
     fi
   fi
-  engine_bin=$state_root/bin/au
+  engine_bin=$state_root/bin/tb-engine
   mkdir -p "$state_root/bin"
-  install -m 0755 -t "$state_root/bin" "$engine_target/au"
+  install -m 0755 -t "$state_root/bin" "$engine_target/tb-engine"
   printf 'install.sh: kept the engine at %s, because %s refused it\n' "$engine_bin" "$bin_dir"
 fi
 
@@ -114,7 +115,7 @@ case ":$PATH:" in
 esac
 case ":$PATH:" in
   *":$HOME/.2brain/bin:"*) ;;
-  *) [[ $engine_bin == "$HOME/.2brain/bin/au" ]] && printf 'install.sh: add %s to PATH\n' "$HOME/.2brain/bin" ;;
+  *) [[ $engine_bin == "$HOME/.2brain/bin/tb-engine" ]] && printf 'install.sh: add %s to PATH\n' "$HOME/.2brain/bin" ;;
 esac
 
 printf '\ninstall.sh: next two commands\n'

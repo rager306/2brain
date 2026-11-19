@@ -30,8 +30,8 @@ throwaway `HOME`, so no user or project configuration is read or written.
 ## Re-running
 
 ```sh
-cd au-mcp-rs
-TB_ENGINE_BIN=../tb-engine/target/debug/au ./scripts/client-matrix.sh
+cd tb-mcp-rs
+TB_ENGINE_BIN=../tb-engine/target/debug/tb-engine ./scripts/client-matrix.sh
 ```
 
 The script exits non-zero when an installed client that offers a health check
@@ -43,8 +43,8 @@ are reported as such and do not fail the run.
 Run again on this host with the fork release builds instead of the debug builds:
 
 ```sh
-cd au-mcp-rs
-TB_ENGINE_BIN=/root/2brain/tb-engine/target/release/au \
+cd tb-mcp-rs
+TB_ENGINE_BIN=/root/2brain/tb-engine/target/release/tb-engine \
 TB_MCP_BIN=/root/2brain/tb-mcp-rs/target/release/2brain \
 bash scripts/client-matrix.sh
 ```
@@ -63,12 +63,12 @@ each client reported in this run.
 Full output of the run, including the exit status the harness appended:
 
 ```text
-engine: /tmp/au-client-matrix-1vQCCf/home/.arsumbris/au-engine/run/afa490f1da63b5bb.sock
+engine: /tmp/tb-client-matrix-1vQCCf/home/.2brain/engine/run/afa490f1da63b5bb.sock
 adapter: /root/2brain/tb-mcp-rs/target/release/2brain
 
 client         version    result
 ---------------------------------------------------------------
-claude         2.1.323    FAILED: arsumbris-rs: /root/arsumbris/tb-mcp-rs//root/2brain/tb-mcp-rs/target/release/2brain /tmp/au-client-matrix-1vQCCf/home/.arsumbris/au-engine/run/afa490f1da63b5bb.sock - ✘ Failed to connect — ENOENT: no such file or directory, posix_spawn '/root/arsumbris/tb-mcp-rs//root/2brain/tb-mcp-rs/target/release/2brain'
+claude         2.1.323    FAILED: arsumbris-rs: /root/arsumbris/tb-mcp-rs//root/2brain/tb-mcp-rs/target/release/2brain /tmp/tb-client-matrix-1vQCCf/home/.2brain/engine/run/afa490f1da63b5bb.sock - ✘ Failed to connect — ENOENT: no such file or directory, posix_spawn '/root/arsumbris/tb-mcp-rs//root/2brain/tb-mcp-rs/target/release/2brain'
 codex          0.164.0    registered; no non-interactive health check
 cursor-agent   2026.10.22-27dcf5f configured via .cursor/mcp.json; needs an API key, not exercised
 EXIT:1
@@ -104,7 +104,7 @@ written, and passing that path to both `claude mcp add` and `codex mcp add`.
 Same command, same binaries, after the fix:
 
 ```text
-engine: /tmp/au-client-matrix-MNGeir/home/.arsumbris/au-engine/run/af3ace6d988bed39.sock
+engine: /tmp/tb-client-matrix-MNGeir/home/.2brain/engine/run/af3ace6d988bed39.sock
 adapter: /root/2brain/tb-mcp-rs/target/release/2brain
 
 client         version    result
@@ -131,7 +131,7 @@ The fixture holds `unique-marker-7f3a` in `notes/a.md`, a string no engine knows
 except this one, so a correct answer cannot be a lucky guess:
 
 ```text
-engine:  /tmp/au-fixture-DSYaVF/home/.arsumbris/au-engine/run/123e4ed907267994.sock
+engine:  /tmp/tb-fixture-DSYaVF/home/.2brain/engine/run/123e4ed907267994.sock
 adapter: /root/2brain/tb-mcp-rs/target/release/2brain
 prompt:  find unique-marker-7f3a with tb_grep
 PASS: the model called mcp__arsumbris-rs__au_grep

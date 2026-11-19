@@ -50,7 +50,7 @@ Separate identity is a further choice.
 
 **Check the topology**
 
-[[composition::au-host-sdk:example]] owns a pool of records that reference one another.
+[[composition::tb-host-sdk:example]] owns a pool of records that reference one another.
 The host checks additional topology rules.
 `T*` alone does not prevent:
 

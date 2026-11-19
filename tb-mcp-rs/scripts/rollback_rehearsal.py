@@ -56,7 +56,7 @@ def main() -> int:
     if not os.access(ADAPTER, os.X_OK):
         fail(f"missing adapter binary: {ADAPTER} (set TB_MCP_BIN)")
 
-    root = Path(tempfile.mkdtemp(prefix="au-rollback-"))
+    root = Path(tempfile.mkdtemp(prefix="tb-rollback-"))
     home = root / "home"
     repo = root / "fixture"
     home.mkdir()
@@ -76,7 +76,7 @@ def main() -> int:
         return sorted(
             path.relative_to(repo)
             for path in repo.rglob("*")
-            if ".git" not in path.parts and "au-engine" not in path.parts
+            if ".git" not in path.parts and "tb-engine" not in path.parts
         )
 
     before_files = fixture_files()

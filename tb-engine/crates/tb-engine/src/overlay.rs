@@ -121,7 +121,7 @@ impl<F: FileSystem> FileSystem for OverlayFileSystem<'_, F> {
                 // A write ADD: a new in-scope path the inner walk did not yield
                 // joins the file set. An overwrite or an edit is already present,
                 // so the guard leaves it untouched. The hard-floor exclusion is
-                // upstream: the mutation path rejects an `.arsumbris` target
+                // upstream: the mutation path rejects an `.2brain` target
                 // before a preview ever reaches this overlay.
                 Override::Replace { path, .. } | Override::Moved { path, .. } => {
                     if path.starts_with(root)

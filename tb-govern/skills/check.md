@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: check
 description: Checks the meaning of a changed graph cluster against applicable audits and doctrine, using an independent reader. Records verified findings and the checks actually run. Use when graph work converges or the human asks to verify its meaning. Writing-style audits use check-writing-style, skill and guide reviews use review-a-skill, and structural validation uses tb_diagnostics. Repairs stay with fix.
 ---
@@ -28,7 +28,7 @@ Reuse current evidence and tool results until relevant state changes or freshnes
 
 Select audits whose scope reaches those subjects.
 An absent scope gives an audit graph-wide applicability.
-Discover the roster with tb_instances_of using ofType: audit::au-govern when needed.
+Discover the roster with tb_instances_of using ofType: audit::tb-govern when needed.
 Follow every page before claiming complete audit coverage.
 
 Run the applicable audit recipes against their doctrine.

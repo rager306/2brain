@@ -37,7 +37,7 @@ fn fixture() -> tempfile::TempDir {
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
 
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/log.type.yaml",
@@ -46,7 +46,7 @@ fn fixture() -> tempfile::TempDir {
 
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // Imported claim. `payload` (opaque) holds two embedded links that MUST NOT

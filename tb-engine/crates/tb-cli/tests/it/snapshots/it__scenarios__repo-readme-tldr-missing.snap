@@ -131,7 +131,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/repo-readme-tldr-missing/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/repo-readme-tldr-missing/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -150,7 +150,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/repo-readme-tldr-missing/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/repo-readme-tldr-missing/.2brain/repo.yaml",
         "section_presence": null
       },
       {

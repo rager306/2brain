@@ -270,7 +270,7 @@ fn add_dep_resolves_the_root_and_sends_the_entry() {
         write_response_frame(
             &mut stream,
             12,
-            json!({"path":"/tmp/fixture/.arsumbris/repo.yaml","hash":"h2"}),
+            json!({"path":"/tmp/fixture/.2brain/repo.yaml","hash":"h2"}),
         );
     });
     let mut client = Client::start_with_timeout(
@@ -395,7 +395,7 @@ fn add_workspace_member_sends_the_role_and_root() {
         write_response_frame(
             &mut stream,
             12,
-            json!({"path":"/tmp/fixture/.arsumbris/workspace.yaml","hash":"h2"}),
+            json!({"path":"/tmp/fixture/.2brain/workspace.yaml","hash":"h2"}),
         );
     });
     let mut client = Client::start_with_timeout(

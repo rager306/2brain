@@ -3,7 +3,7 @@
 > A typed knowledge engine over markdown — notes claim a type, link each other with `[[wiki-links]]` and
 > carry addressable `^block-ids` — plus the MCP server agents read and write it through. One Rust binary,
 > one language on the request path, files as the source of truth. Status: alpha; the on-disk format still
-> carries its pre-fork `au.engine.*` naming and is migrating in steps.
+> carries its pre-fork `tb.engine.*` naming and is migrating in steps.
 
 This file maps the repository for an agent. Each link is a document written to be read whole, not a page
 of a website.

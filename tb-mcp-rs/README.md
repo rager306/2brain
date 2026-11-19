@@ -16,7 +16,7 @@ socket, and can write only when the launch grants it.
   grant, 36 with none.
 - **Results are the engine's own object**, under the read's key: `tb_overview`
   answers `{"overview": ...}`. Nothing is re-shaped on the way out.
-- **Three surfaces**: the tools above; MCP **resources** at `2brain://<repo>/<path>` (the legacy `arsumbris://` is still accepted on parse)
+- **Three surfaces**: the tools above; MCP **resources** at `2brain://<repo>/<path>` (the legacy `2brain://` is still accepted on parse)
   for files a client wants to hold and re-read (`resources/list` pages the
   catalogue, `resources/read` returns the engine's text), plus two static
   workflow resources at `2brain://workflow/answer-shape` and
@@ -52,7 +52,7 @@ to this crate, so the two halves cannot drift.
 ```sh
 RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --release --offline
 ./target/release/2brain --help
-./target/release/2brain mcp ~/.arsumbris/au-engine/run/<hash>.sock
+./target/release/2brain mcp ~/.2brain/engine/run/<hash>.sock
 ./target/release/2brain mcp --help         # the MCP server's own contract
 ./target/release/2brain mcp --version
 ./target/release/2brain mcp --info         # MCP surface, no engine needed
@@ -99,7 +99,7 @@ commit for reproducible packaging.
 ```sh
 2brain mcp <socket>                                 # read-only
 2brain mcp <socket> --allow-mutations               # explicit grant
-2brain mcp <socket> --policy /etc/au-policy.json \
+2brain mcp <socket> --policy /etc/tb-policy.json \
           --principal "allspark"                        # scoped grant + audit
 ```
 
@@ -113,7 +113,7 @@ commit for reproducible packaging.
 
 - `allow_mutations` (default `false`) — whether the mutating tools exist at all.
 - `allow_composition` (default `false`) — a second grant for the two dependency
-  verbs (`tb_add_dep`, `tb_remove_dep`). They author `.arsumbris/repo.yaml`, so a
+  verbs (`tb_add_dep`, `tb_remove_dep`). They author `.2brain/repo.yaml`, so a
   launch may trust writes to notes and still refuse to reshape the workspace.
   `--allow-composition` on the command line implies `--allow-mutations`.
 - `allow_workspace_shape` (default `false`) — a third grant for the three
@@ -230,9 +230,9 @@ The ignored real-engine test starts its own daemon on a synthetic repository wit
 a temporary `HOME`:
 
 ```sh
-cd ../tb-engine && RUSTUP_HOME=/root/.rustup cargo +1.99.0 build -p tb-cli --bin au
+cd ../tb-engine && RUSTUP_HOME=/root/.rustup cargo +1.99.0 build -p tb-cli --bin tb-engine
 cd ../tb-mcp-rs
-RUSTUP_HOME=/root/.rustup TB_ENGINE_BIN=../tb-engine/target/debug/au \
+RUSTUP_HOME=/root/.rustup TB_ENGINE_BIN=../tb-engine/target/debug/tb-engine \
   cargo +1.99.0 test --offline --test real_engine -- --ignored
 ```
 

@@ -2,7 +2,7 @@
 type: guide
 goal: "Build and load a view through the host projection contract."
 rule: "Pair the typed config and runtime locator with a registered SDK module, then verify the built entry through an actual mount."
-about: "[[projection::au-host-sdk]]"
+about: "[[projection::tb-host-sdk]]"
 example:
 ---
 
@@ -17,7 +17,7 @@ Choose from:
 - Another supported kind
 
 Its fields describe instance configuration.
-Its own [[projection-runtime-meta::au-host-sdk]] locates the entry relative to the owning package and declares the mount contract version.
+Its own [[projection-runtime-meta::tb-host-sdk]] locates the entry relative to the owning package and declares the mount contract version.
 
 **Use an example for unfamiliar mechanics**
 

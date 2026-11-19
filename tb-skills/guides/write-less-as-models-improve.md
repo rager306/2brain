@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Reassess old instructions when the model or environment changes.
 rule: Test whether an instruction is still needed before removing it. Preserve requirements that the result must continue to satisfy.
 ---

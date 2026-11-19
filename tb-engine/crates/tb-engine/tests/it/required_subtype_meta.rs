@@ -21,7 +21,7 @@ fn write(root: &Path, rel: &str, content: &str) {
 fn fixture() -> (tempfile::TempDir, std::path::PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: r\n");
+    write(&root, ".2brain/repo.yaml", "name: r\n");
     // A meta type and a subtype of it (satisfies by closure).
     write(
         &root,
@@ -127,7 +127,7 @@ fn cross_repo_fixture() -> (tempfile::TempDir, std::path::PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/pm.type.yaml",
@@ -140,7 +140,7 @@ fn cross_repo_fixture() -> (tempfile::TempDir, std::path::PathBuf) {
     );
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // Concrete subtype of the peer base, no block → inherits the obligation.

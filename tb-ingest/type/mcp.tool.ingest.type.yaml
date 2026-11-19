@@ -1,5 +1,5 @@
 #: Convert archived files into companion source notes through the engine.
-extends: mcp.tool::au-mcp-sdk
+extends: mcp.tool::tb-mcp-sdk
 fields:
   #: An archived source path inside the served repository. Supply raw, raws or items.
   raw?: String
@@ -16,10 +16,10 @@ fields:
   #: Optional stable .md destination inside the served repository; single raw only.
   destination?: String
 meta:
-  - type: plugin-runtime-meta::au-mcp-sdk
+  - type: plugin-runtime-meta::tb-mcp-sdk
     entry: ./ingest.mjs
     contractVersion: 0
-  - type: tool-presentation-meta::au-mcp-sdk
+  - type: tool-presentation-meta::tb-mcp-sdk
     description: |
       Convert an archived source into a typed companion note.
       Supply exactly one of raw, raws or items, a capture date (YYYY-MM-DD), and a converter.
@@ -36,5 +36,5 @@ meta:
       Every item reports its outcome and diagnostics. Partial failures set isError.
       An unknown write or pending validation stops the batch. Inspect the destination, diagnostics, and git history before continuing.
       Coordinate other writers during creation: the current engine has no atomic absence guard.
-  - type: tool-access-meta::au-mcp-sdk
+  - type: tool-access-meta::tb-mcp-sdk
     broker: read-write

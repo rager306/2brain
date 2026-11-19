@@ -1,4 +1,4 @@
-//! Wikilink parsing + repo file index + reference resolution per [[type reference::au-type-system]].
+//! Wikilink parsing + repo file index + reference resolution per [[type reference::tb-type-system]].
 //!
 //! Three pieces:
 //! - [`parse_wikilink`] — `"[[target[#anchor][^block_id]]]"` → [`WikilinkRef`].
@@ -13,13 +13,13 @@
 //!   colliding under case-insensitive comparison; legal on Linux, illegal on
 //!   macOS-default APFS).
 //! - [`RepoIndex::resolve`] — wikilink target → absolute path. Implements
-//!   the [[type reference::au-type-system]] algorithm: `/`-bearing targets resolve as repo-relative paths;
+//!   the [[type reference::tb-type-system]] algorithm: `/`-bearing targets resolve as repo-relative paths;
 //!   bare targets match basenames case-insensitively; an extensionless target
 //!   matches any file's stem, whatever the extension; multiple matches are
 //!   ambiguous, none is missing.
 //!
 //! No filesystem I/O — the index is built from a caller-supplied list of
-//! paths. The au-parser crate owns walking; this crate owns indexing +
+//! paths. The tb-parser crate owns walking; this crate owns indexing +
 //! resolution.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -42,16 +42,16 @@ pub mod codes;
 /// must conform to the canonical form. A block-id delimiter is either a
 /// bare `^id` (navigational) or a doubled `^^id` (block-referent); the id
 /// and its mode ride together in [`BlockId`]. `field` is the body-typing
-/// contribution attribution per [[type reference::au-type-system]] — present only when the wikilink
+/// contribution attribution per [[type reference::tb-type-system]] — present only when the wikilink
 /// participates in a body contribution.
 ///
 /// An empty `target` with a locating fragment (`anchor` or `block_id`) is
-/// the local form per [[type reference::au-type-system]]: `[[^id]]` / `[[#head]]` resolve
+/// the local form per [[type reference::tb-type-system]]: `[[^id]]` / `[[#head]]` resolve
 /// within the host file. See [`WikilinkRef::is_local`]. An empty `target`
 /// with a `commit` is the commit-referent form (`[[::@sha]]`), which names a
 /// commit rather than a file. See [`WikilinkRef::is_commit_referent`].
 ///
-/// Implements `Serialize` under the `serde` feature, so the au-cli
+/// Implements `Serialize` under the `serde` feature, so the tb-cli
 /// introspect surface can emit `WikilinkRef` directly on the wire
 /// without owning a duplicate DTO.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,7 +65,7 @@ pub struct WikilinkRef {
     /// against. Binds to `::repo`, written `::repo@commit` or the this-repo
     /// `::@commit`. `None` is an unpinned link, resolved against the working
     /// tree. Verbatim commit-ish, validity is a resolution-time concern. See
-    /// [[type reference::au-type-system]] and [[spec - pinned references - a recorded resolved edge with an immutable past and an on-demand forward trace]].
+    /// [[type reference::tb-type-system]] and [[spec - pinned references - a recorded resolved edge with an immutable past and an on-demand forward trace]].
     pub commit: Option<String>,
     pub anchor: Option<String>,
     /// The block-id fragment, coupling the id with the mode its sigil selected.
@@ -115,7 +115,7 @@ impl WikilinkRef {
 /// A wikilink's block-id fragment: the id, and the mode the sigil selected.
 /// The two ride together so a mode never exists without an id, and the mode is
 /// the link's own (decided locally), never the target's typed-ness. See
-/// [[type block-id::au-type-system]], [[type reference::au-type-system]].
+/// [[type block-id::tb-type-system]], [[type reference::tb-type-system]].
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct BlockId {
@@ -127,7 +127,7 @@ pub struct BlockId {
 }
 
 /// Reasons a wikilink string failed to parse. Each variant maps to a
-/// specific `wikilink-*` diagnostic code; callers in au-core build the
+/// specific `wikilink-*` diagnostic code; callers in tb-core build the
 /// user-facing diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WikilinkParseError {
@@ -137,7 +137,7 @@ pub enum WikilinkParseError {
     EmptyInner,
     /// Target portion is empty without a locating fragment: `[[:field]]`.
     /// `#head` or `^block-id` grant the empty name — `[[#head]]` / `[[^id]]`
-    /// are the legal local forms per [[type reference::au-type-system]]; a field alone has
+    /// are the legal local forms per [[type reference::tb-type-system]]; a field alone has
     /// nothing to contribute without a target. Also the commit-referent with a
     /// stray fragment: `[[::@sha^id]]` names a commit, which has no addressable
     /// file interior, so a `#`/`^`/`:` fragment on it is rejected here.
@@ -152,10 +152,10 @@ pub enum WikilinkParseError {
     /// is `target[#anchor][^block_id][:field]`; reverse order is rejected
     /// rather than silently disambiguated.
     ReversedDelimiters,
-    /// `:field` appears before `#anchor` or `^block_id`. Per [[type reference::au-type-system]] the
+    /// `:field` appears before `#anchor` or `^block_id`. Per [[type reference::tb-type-system]] the
     /// strict parse order is name / #head / ^block-id / :field.
     FieldOutOfOrder,
-    /// `:field` value doesn't conform to the type-name regex ([[type-def legal names::au-type-system]]).
+    /// `:field` value doesn't conform to the type-name regex ([[type-def legal names::tb-type-system]]).
     InvalidFieldName,
     /// `[[note::]]` — `::repo` qualifier with no repo value.
     EmptyRepo,
@@ -165,20 +165,20 @@ pub enum WikilinkParseError {
     /// a hex oid. A pin is a coordinate into an immutable past, so its commit must
     /// be an immutable oid (full or an abbreviated prefix), never a mutable or
     /// relative rev (a branch, a tag, `HEAD`, `HEAD~2`), which can be repointed or
-    /// move with HEAD. See [[type reference::au-type-system]].
+    /// move with HEAD. See [[type reference::tb-type-system]].
     CommitNotOid,
     /// `::repo` out of canonical order: a `#`/`^`/`:` fragment precedes it, or
     /// more than one `::repo` appears. Order is `name ::repo #head ^block :field`.
     RepoOutOfOrder,
     /// `[[note::b/c]]` — the `::repo` value violates the identifier regex
-    /// ([[type-def legal names::au-type-system]]). Rejected at parse, rather than degrading to a
+    /// ([[type-def legal names::tb-type-system]]). Rejected at parse, rather than degrading to a
     /// misleading `reference-repo-unknown` at lookup.
     InvalidRepoName,
 }
 
 /// Cheap `[[ … ]]` shape sniff. True for any trimmed string that starts
 /// with `[[`, ends with `]]`, and has at least one character between
-/// them. Used by the [[type reference::au-type-system]] precheck to route wikilink-shaped inputs to
+/// them. Used by the [[type reference::tb-type-system]] precheck to route wikilink-shaped inputs to
 /// wikilink-handling code paths regardless of whether they parse cleanly
 /// — so a malformed wikilink surfaces as a precise parse error rather
 /// than a generic "doesn't match shape".
@@ -191,7 +191,7 @@ pub fn looks_like_wikilink(s: &str) -> bool {
 /// (`target[#anchor][^block_id][:field]`). Whitespace inside the brackets
 /// is trimmed. Anchors / block-ids / fields that appear must carry
 /// non-empty values; reverse delimiter order is rejected; field-name
-/// regex per [[type-def legal names::au-type-system]] enforced.
+/// regex per [[type-def legal names::tb-type-system]] enforced.
 pub fn parse_wikilink(s: &str) -> Result<WikilinkRef, WikilinkParseError> {
     let trimmed = s.trim();
     let Some(inner) = trimmed
@@ -219,7 +219,7 @@ pub fn parse_wikilink_inner(inner: &str) -> Result<WikilinkRef, WikilinkParseErr
     // repo and field names are letter-first, so a `:` never abuts another in a
     // valid link. `@` binds to `::`, so it is a commit delimiter only here, in
     // the repo-scope position; a bare `@` with no preceding `::` is a literal
-    // filename character (handled in the no-`::` branch below). See [[type reference::au-type-system]].
+    // filename character (handled in the no-`::` branch below). See [[type reference::tb-type-system]].
     let (name_part, repo, commit, frag) = if let Some(r) = find_repo_delim(inner) {
         // Anything before `::` other than the name means the qualifier is out
         // of order (a fragment, or a stray `:`, precedes it).
@@ -251,7 +251,7 @@ pub fn parse_wikilink_inner(inner: &str) -> Result<WikilinkRef, WikilinkParseErr
             // prefix. A mutable or relative rev (a branch, a tag, `HEAD~2`) can be
             // repointed or moves with HEAD, defeating the immutable past a pin
             // records. No length floor: an over-short prefix is syntactically fine
-            // and fails at resolution as ambiguous. See [[type reference::au-type-system]].
+            // and fails at resolution as ambiguous. See [[type reference::tb-type-system]].
             if !commit_val.bytes().all(|b| b.is_ascii_hexdigit()) {
                 return Err(WikilinkParseError::CommitNotOid);
             }
@@ -292,7 +292,7 @@ pub fn parse_wikilink_inner(inner: &str) -> Result<WikilinkRef, WikilinkParseErr
     // The field `:` is the contribution delimiter, distinct from a `:` that is
     // literal heading text. A `:field` never follows a bare `#head`: a heading
     // is navigational, not an addressable value, so it can not be a
-    // contribution source, see [[type reference::au-type-system]]. A heading therefore runs to
+    // contribution source, see [[type reference::tb-type-system]]. A heading therefore runs to
     // the `^block-id` or to the end, and a `:` inside it stays in the anchor.
     // - with a `^block-id`, the field `:` is the first `:` after the caret (a
     //   block-id carries no `:`).
@@ -317,7 +317,7 @@ pub fn parse_wikilink_inner(inner: &str) -> Result<WikilinkRef, WikilinkParseErr
     let target_part = name_part.trim();
     if target_part.is_empty() {
         // `#head` / `^block-id` grant the empty name (the local forms
-        // `[[#head]]` / `[[^id]]` per [[type reference::au-type-system]]); `:field` does not,
+        // `[[#head]]` / `[[^id]]` per [[type reference::tb-type-system]]); `:field` does not,
         // it needs a target to attribute a contribution to.
         let locating = caret_idx.is_some() || hash_idx.is_some();
         let any_fragment = locating || field_idx.is_some();
@@ -356,7 +356,7 @@ pub fn parse_wikilink_inner(inner: &str) -> Result<WikilinkRef, WikilinkParseErr
     // A doubled caret `^^id` is the block-referent mode (the block's typed
     // value fills the slot); a bare `^id` is navigational (the file is the
     // referent, `^id` a jump anchor). The mode is the sigil's, decided
-    // locally, never the target's typed-ness. See [[type block-id::au-type-system]].
+    // locally, never the target's typed-ness. See [[type block-id::tb-type-system]].
     let block_id = if let Some(c) = caret_idx {
         let referent = frag.as_bytes().get(c + 1) == Some(&b'^');
         let id_start = c + if referent { 2 } else { 1 };
@@ -379,8 +379,8 @@ pub fn parse_wikilink_inner(inner: &str) -> Result<WikilinkRef, WikilinkParseErr
             return Err(WikilinkParseError::EmptyField);
         }
         // The `:field` may carry a collision qualifier, `field{type}` /
-        // `field{type::repo}` ([[type-def fields collision - auto-unify and qualified field::au-type-system]]). The raw form is kept
-        // verbatim; au-core parses the qualifier out. A bad field name or
+        // `field{type::repo}` ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]). The raw form is kept
+        // verbatim; tb-core parses the qualifier out. A bad field name or
         // qualifier is `wikilink-invalid-field-name`.
         if !is_valid_field_attribution(value) {
             return Err(WikilinkParseError::InvalidFieldName);
@@ -400,11 +400,11 @@ pub fn parse_wikilink_inner(inner: &str) -> Result<WikilinkRef, WikilinkParseErr
     })
 }
 
-/// `:field` value regex per [[type-def legal names::au-type-system]] — same shape used for type names and
-/// enum literals. Lifted into au-references to avoid a dep on au-grammar
+/// `:field` value regex per [[type-def legal names::tb-type-system]] — same shape used for type names and
+/// enum literals. Lifted into tb-references to avoid a dep on tb-grammar
 /// just for this predicate.
 /// A `::repo` value follows the same identifier grammar as type and field
-/// names ([[type-def legal names::au-type-system]]). Repo names in practice (`au-engine`,
+/// names ([[type-def legal names::tb-type-system]]). Repo names in practice (`tb-engine`,
 /// `my-notes`) are identifier-shaped, so a value that breaks the regex
 /// (a slash, a space, a leading digit) is a malformed reference, surfaced at
 /// parse as `wikilink-invalid-repo-name` rather than a misleading unknown-repo
@@ -434,7 +434,7 @@ fn is_valid_field_name(s: &str) -> bool {
 
 /// The byte offset of the first `::` resolution-scope delimiter at brace depth
 /// zero, or `None`. A `::` inside a `:field{type::repo}` collision qualifier sits
-/// at depth > 0 and is NOT a repo delimiter ([[type-def fields collision - auto-unify and qualified field::au-type-system]]); this is what
+/// at depth > 0 and is NOT a repo delimiter ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]); this is what
 /// keeps the field qualifier's `::` from being misread as the repo scope. `::` is
 /// ASCII, so byte scanning is char-safe.
 fn find_repo_delim(s: &str) -> Option<usize> {
@@ -456,7 +456,7 @@ fn find_repo_delim(s: &str) -> Option<usize> {
 }
 
 /// A `:field` attribution value: a plain field name, or a collision-qualified
-/// `field{type}` / `field{type::repo}` ([[type-def fields collision - auto-unify and qualified field::au-type-system]]). The field name and the
+/// `field{type}` / `field{type::repo}` ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]). The field name and the
 /// qualifier's type-name / `::repo` each follow the identifier grammar. The
 /// braces are the only permitted extra punctuation, and exactly one `{...}` may
 /// appear, closing at the end.
@@ -774,7 +774,7 @@ impl RepoIndex {
         false
     }
 
-    /// Resolve a wikilink target string to an absolute path per [[type reference::au-type-system]].
+    /// Resolve a wikilink target string to an absolute path per [[type reference::tb-type-system]].
     ///
     /// An exact basename match wins. Otherwise the target matches any file
     /// whose stem equals it, whatever the file's real extension — `[[s-001]]`
@@ -827,7 +827,7 @@ impl RepoIndex {
         // carries the `.type` tail (`mcp.tool.propose.type`), so the stem lookup
         // misses and the alias resolves it. A real file always wins because this
         // bucket is only consulted when basename and stem found nothing.
-        // [[type-def shape def-ref::au-type-system]].
+        // [[type-def shape def-ref::tb-type-system]].
         let key = target.to_ascii_lowercase();
         let bucket: Option<&Vec<PathBuf>> = self
             .paths_by_basename
@@ -868,7 +868,7 @@ pub enum BlockResolutionError {
 /// events. Returns the resolved block's info string + verbatim body when
 /// the block is typed; surfaces `NotFound` / `NotTyped` otherwise.
 ///
-/// Callers map the errors to the [[type block-id::au-type-system]] diagnostic codes
+/// Callers map the errors to the [[type block-id::tb-type-system]] diagnostic codes
 /// (`block-id-not-found`, `block-id-not-typed`).
 pub fn resolve_block_id<'a>(
     events: &'a [tb_parser::BodyEvent<'a>],
@@ -904,7 +904,7 @@ pub fn resolve_block_id<'a>(
 }
 
 /// Resolve a `#head` anchor against a body's heading events, per the
-/// [[type reference::au-type-system]] anchor-matching contract:
+/// [[type reference::tb-type-system]] anchor-matching contract:
 /// - case-insensitive, exact text match (Unicode lowercase).
 /// - a heading's text excludes its trailing `^id` marker, the scanner
 ///   strips it before events are emitted.
@@ -925,15 +925,15 @@ pub fn resolve_anchor(events: &[tb_parser::BodyEvent<'_>], anchor: &str) -> Opti
 }
 
 /// Extract the `[:fieldName]` marker from a fence-info string, if present.
-/// Public so the [[type-instance body contribution::au-type-system]] fence validation can also use the same parse.
+/// Public so the [[type-instance body contribution::tb-type-system]] fence validation can also use the same parse.
 pub fn extract_field_marker(info: &str) -> Option<&str> {
     let start = info.find("[:")? + 2;
     let rest = &info[start..];
     let end = rest.find(']')?;
     let name = &rest[..end];
     // The marker may carry a collision qualifier, `[:field{type}]` /
-    // `[:field{type::repo}]` ([[type-def fields collision - auto-unify and qualified field::au-type-system]]); the raw form is returned,
-    // au-core parses the qualifier out.
+    // `[:field{type::repo}]` ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]); the raw form is returned,
+    // tb-core parses the qualifier out.
     if is_valid_field_attribution(name) {
         Some(name)
     } else {
@@ -947,7 +947,7 @@ pub fn extract_field_marker(info: &str) -> Option<&str> {
 /// `mcp.tool.propose.type`), so a wikilink written as the type-name would miss.
 /// The alias closes that gap, so a def-ref `[[mcp.tool.propose]]` resolves to
 /// the file for validation, navigational edges, and backlinks alike.
-/// See [[type-def shape def-ref::au-type-system]]. The `type/foo.yaml` form already stems to its
+/// See [[type-def shape def-ref::tb-type-system]]. The `type/foo.yaml` form already stems to its
 /// own name, so only the `*.type.{yaml,yml}` suffix form needs the alias.
 fn type_name_alias(absolute: &Path) -> Option<String> {
     let basename = absolute.file_name()?.to_str()?;
@@ -1112,7 +1112,7 @@ mod tests {
     #[test]
     fn parses_collision_qualified_field() {
         // The `:field` may carry a collision qualifier, `field{type}` /
-        // `field{type::repo}`; the raw form is kept for au-core to split.
+        // `field{type::repo}`; the raw form is kept for tb-core to split.
         let own = parse_wikilink("[[note:title{tag}]]").unwrap();
         assert_eq!(own.field.as_deref(), Some("title{tag}"));
         let peer = parse_wikilink("[[note:title{tag::base}]]").unwrap();
@@ -1273,7 +1273,7 @@ mod tests {
         assert_eq!(parse_wikilink(""), Err(WikilinkParseError::NotAWikilink));
     }
 
-    // ----- :field fragment ([[type reference::au-type-system]]) -----
+    // ----- :field fragment ([[type reference::tb-type-system]]) -----
 
     #[test]
     fn parses_target_with_field_fragment() {
@@ -1366,7 +1366,7 @@ mod tests {
         );
     }
 
-    // ----- @commit pin fragment ([[type reference::au-type-system]], pinned references) -----
+    // ----- @commit pin fragment ([[type reference::tb-type-system]], pinned references) -----
 
     #[test]
     fn parses_repo_with_commit_pin() {
@@ -1402,9 +1402,9 @@ mod tests {
     #[test]
     fn parses_cross_repo_commit_referent() {
         // `[[::repo@sha]]` names a commit in a peer repo, no file.
-        let r = parse_wikilink("[[::au-provenance@a1b2c3d]]").unwrap();
+        let r = parse_wikilink("[[::tb-provenance@a1b2c3d]]").unwrap();
         assert_eq!(r.target, "");
-        assert_eq!(r.repo.as_deref(), Some("au-provenance"));
+        assert_eq!(r.repo.as_deref(), Some("tb-provenance"));
         assert_eq!(r.commit.as_deref(), Some("a1b2c3d"));
         assert!(r.is_commit_referent());
         assert!(!r.is_local());
@@ -1419,7 +1419,7 @@ mod tests {
             Err(WikilinkParseError::EmptyTarget)
         );
         assert_eq!(
-            parse_wikilink("[[::au-provenance@a1b2c3d#head]]"),
+            parse_wikilink("[[::tb-provenance@a1b2c3d#head]]"),
             Err(WikilinkParseError::EmptyTarget)
         );
         assert_eq!(
@@ -1549,7 +1549,7 @@ mod tests {
     fn colon_after_a_bare_heading_is_literal_anchor_text() {
         // A `:field` never follows a `#head` — a heading is navigational, not
         // an addressable value, so it can not be a contribution source (see
-        // [[type reference::au-type-system]]). The `:` is part of the heading text, not a
+        // [[type reference::tb-type-system]]). The `:` is part of the heading text, not a
         // field delimiter, so a heading may legitimately contain a colon.
         let r = parse_wikilink("[[note#section:field-name]]").unwrap();
         assert_eq!(r.target, "note");
@@ -1623,7 +1623,7 @@ mod tests {
 
     #[test]
     fn invalid_field_name_rejected() {
-        // Field names must follow the [[type-def legal names::au-type-system]] type-name regex.
+        // Field names must follow the [[type-def legal names::tb-type-system]] type-name regex.
         assert_eq!(
             parse_wikilink("[[note:1bad]]"),
             Err(WikilinkParseError::InvalidFieldName)
@@ -1685,7 +1685,7 @@ mod tests {
 
     #[test]
     fn target_only_block_id_is_local_form() {
-        // `[[^block]]` is the local form per [[type reference::au-type-system]] — empty
+        // `[[^block]]` is the local form per [[type reference::tb-type-system]] — empty
         // name means the current file.
         let r = parse_wikilink("[[^block]]").unwrap();
         assert!(r.is_local());
@@ -1720,7 +1720,7 @@ mod tests {
         assert!(!r.is_local());
     }
 
-    // ----- resolve_anchor ([[type reference::au-type-system]]) -----
+    // ----- resolve_anchor ([[type reference::tb-type-system]]) -----
 
     #[test]
     fn anchor_matches_heading_text_case_insensitively() {
@@ -1752,7 +1752,7 @@ mod tests {
 
     #[test]
     fn looks_like_wikilink_accepts_bracketed_content() {
-        // Used by callers (au-core's [[type reference::au-type-system]] precheck) that need to route any
+        // Used by callers (tb-core's [[type reference::tb-type-system]] precheck) that need to route any
         // `[[…]]`-shaped string to wikilink-handling code paths — even
         // malformed forms — so the user sees a precise parse error rather
         // than the generic "doesn't match shape".
@@ -1882,7 +1882,7 @@ mod tests {
     fn resolves_type_def_by_its_type_name() {
         // A `*.type.yaml` file's stem carries the `.type` tail, but its
         // identity is the type-NAME. A def-ref `[[mcp.tool.propose]]` resolves
-        // by the name. [[type-def shape def-ref::au-type-system]].
+        // by the name. [[type-def shape def-ref::tb-type-system]].
         let v = repo_index("/v", &["type/mcp.tool.propose.type.yaml"]);
         assert_eq!(
             v.resolve("mcp.tool.propose").unwrap(),
@@ -1900,7 +1900,7 @@ mod tests {
         // A plain file whose basename carries interior dots resolves by that
         // dotted name. The final `.md` is the extension the stem strips, so the
         // stem is the whole dotted name and the bare target reaches it. Dots in
-        // the target are not read as an extension boundary. [[type reference::au-type-system]].
+        // the target are not read as an extension boundary. [[type reference::tb-type-system]].
         let v = repo_index("/v", &["notes/my.file.name.md"]);
         assert_eq!(
             v.resolve("my.file.name").unwrap(),
@@ -2055,7 +2055,7 @@ mod tests {
         assert_eq!(v.root(), Path::new("/some/path"));
     }
 
-    // ----- resolve_block_id ([[type block-id::au-type-system]]) -----
+    // ----- resolve_block_id ([[type block-id::tb-type-system]]) -----
 
     #[test]
     fn resolves_typed_block_by_id() {

@@ -18,7 +18,7 @@ export async function convert({ raw, date, self, note }) {
   }
   if (!body) throw new Error(`document.convert: ${format} produced no extractable content`);
 
-  return { source: sourceNote('document::au-ingest', {
+  return { source: sourceNote('document::tb-ingest', {
     format,
     captured: date,
     tldr: literal(firstLine(body).replace(/^#+\s+/, '')) || undefined,

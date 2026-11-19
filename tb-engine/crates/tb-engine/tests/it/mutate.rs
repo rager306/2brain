@@ -277,10 +277,7 @@ fn a_mutation_with_validation_errors_lands_and_reports_them() {
 #[test]
 fn path_guards_reject_without_writing() {
     let mut h = started();
-    for (path, reason) in [
-        ("../outside.md", "escape"),
-        (".arsumbris/cache.db", "cache"),
-    ] {
+    for (path, reason) in [("../outside.md", "escape"), (".2brain/cache.db", "cache")] {
         let resp = h
             .client
             .query(&json!({
@@ -841,12 +838,12 @@ fn write_file_into_a_nested_non_git_subrepo_commits_to_the_parent_tree() {
     // working tree; `sub` is its own folder-repo with NO `.git` of its own.
     crate::seed_repo(&root);
     fs::write(
-        root.join(".arsumbris/workspace.yaml"),
+        root.join(".2brain/workspace.yaml"),
         "edit:\n  - v\n  - sub\ntype: tb.engine.workspace::tb-engine\n",
     )
     .unwrap();
-    fs::create_dir_all(root.join("sub/.arsumbris")).unwrap();
-    fs::write(root.join("sub/.arsumbris/repo.yaml"), "name: sub\n").unwrap();
+    fs::create_dir_all(root.join("sub/.2brain")).unwrap();
+    fs::write(root.join("sub/.2brain/repo.yaml"), "name: sub\n").unwrap();
     crate::seed_readme(&root.join("sub"));
     fs::create_dir_all(root.join("sub/type")).unwrap();
     fs::write(
@@ -2354,7 +2351,7 @@ fn rename_type_rewrites_a_cross_repo_wikilink_to_the_def_file() {
     // mounted-set surface-2 rewrite must follow it, the ::ra qualifier kept.
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    wr(&root, "ra/.arsumbris/repo.yaml", "name: ra\n");
+    wr(&root, "ra/.2brain/repo.yaml", "name: ra\n");
     wr(
         &root,
         "ra/type/note.type.yaml",
@@ -2362,7 +2359,7 @@ fn rename_type_rewrites_a_cross_repo_wikilink_to_the_def_file() {
     );
     wr(
         &root,
-        "rb/.arsumbris/repo.yaml",
+        "rb/.2brain/repo.yaml",
         "name: rb\ndeps:\n  - name: ra\n",
     );
     wr(&root, "rb/doc.md", "see the type [[note::ra]]\n");
@@ -2409,11 +2406,11 @@ fn rename_type_rewrites_a_cross_repo_type_name_claim() {
     // (finding 2.2).
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    wr(&root, "ra/.arsumbris/repo.yaml", "name: ra\n");
+    wr(&root, "ra/.2brain/repo.yaml", "name: ra\n");
     wr(&root, "ra/type/note.type.yaml", "fields: {}\n");
     wr(
         &root,
-        "rb/.arsumbris/repo.yaml",
+        "rb/.2brain/repo.yaml",
         "name: rb\ndeps:\n  - name: ra\n",
     );
     wr(&root, "rb/item.md", "---\ntype: note::ra\n---\n");
@@ -2461,10 +2458,10 @@ fn rename_type_leaves_a_same_named_peer_types_references_untouched() {
     // corrupts a peer repo's file — the broken-write class.
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    wr(&root, "ra/.arsumbris/repo.yaml", "name: ra\n");
+    wr(&root, "ra/.2brain/repo.yaml", "name: ra\n");
     wr(&root, "ra/type/widget.type.yaml", "fields:\n  a: String\n");
     wr(&root, "ra/card.md", "---\ntype: widget\na: hi\n---\n");
-    wr(&root, "rb/.arsumbris/repo.yaml", "name: rb\n");
+    wr(&root, "rb/.2brain/repo.yaml", "name: rb\n");
     wr(&root, "rb/type/widget.type.yaml", "fields:\n  b: Number\n");
     wr(&root, "rb/card.md", "---\ntype: widget\nb: 5\n---\n");
     crate::seed_workspace(&root, &["ra", "rb"]);
@@ -2509,9 +2506,9 @@ fn rename_type_qualified_old_name_selects_the_owner_identity() {
     // comes first; `widget::rb` must select rb's identity and leave ra's alone.
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    wr(&root, "ra/.arsumbris/repo.yaml", "name: ra\n");
+    wr(&root, "ra/.2brain/repo.yaml", "name: ra\n");
     wr(&root, "ra/type/widget.type.yaml", "fields:\n  a: String\n");
-    wr(&root, "rb/.arsumbris/repo.yaml", "name: rb\n");
+    wr(&root, "rb/.2brain/repo.yaml", "name: rb\n");
     wr(&root, "rb/type/widget.type.yaml", "fields:\n  b: Number\n");
     crate::seed_workspace(&root, &["ra", "rb"]);
     for r in ["ra", "rb"] {
@@ -2559,11 +2556,11 @@ fn rename_type_rejects_a_non_git_cross_repo_referrer() {
     // written.
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    wr(&root, "ra/.arsumbris/repo.yaml", "name: ra\n");
+    wr(&root, "ra/.2brain/repo.yaml", "name: ra\n");
     wr(&root, "ra/type/note.type.yaml", "fields: {}\n");
     wr(
         &root,
-        "rb/.arsumbris/repo.yaml",
+        "rb/.2brain/repo.yaml",
         "name: rb\ndeps:\n  - name: ra\n",
     );
     wr(&root, "rb/item.md", "---\ntype: note::ra\n---\n");
@@ -4940,7 +4937,7 @@ fn three_repo_workspace() -> (tempfile::TempDir, PathBuf) {
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["ra", "rb", "rc"]);
 
-    wr(&root, "ra/.arsumbris/repo.yaml", "name: ra\n");
+    wr(&root, "ra/.2brain/repo.yaml", "name: ra\n");
     wr(
         &root,
         "ra/type/note.type.yaml",
@@ -4955,7 +4952,7 @@ fn three_repo_workspace() -> (tempfile::TempDir, PathBuf) {
     for r in ["rb", "rc"] {
         wr(
             &root,
-            &format!("{r}/.arsumbris/repo.yaml"),
+            &format!("{r}/.2brain/repo.yaml"),
             &format!("name: {r}\ndeps:\n  - name: ra\n"),
         );
         wr(&root, &format!("{r}/doc.md"), "see [[a::ra]] for context\n");
@@ -5145,7 +5142,7 @@ fn referrer_sorts_before_owner_workspace() -> (tempfile::TempDir, PathBuf) {
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["aa", "zz"]);
 
-    wr(&root, "zz/.arsumbris/repo.yaml", "name: zz\n");
+    wr(&root, "zz/.2brain/repo.yaml", "name: zz\n");
     wr(
         &root,
         "zz/type/note.type.yaml",
@@ -5158,7 +5155,7 @@ fn referrer_sorts_before_owner_workspace() -> (tempfile::TempDir, PathBuf) {
     );
     wr(
         &root,
-        "aa/.arsumbris/repo.yaml",
+        "aa/.2brain/repo.yaml",
         "name: aa\ndeps:\n  - name: zz\n",
     );
     wr(&root, "aa/doc.md", "see [[a::zz]] for context\n");
@@ -5220,7 +5217,7 @@ fn cross_repo_canvas_workspace(
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["ra", "rb"]);
-    wr(&root, "ra/.arsumbris/repo.yaml", "name: ra\n");
+    wr(&root, "ra/.2brain/repo.yaml", "name: ra\n");
     wr(
         &root,
         "ra/type/canvas.type.yaml",
@@ -5236,7 +5233,7 @@ fn cross_repo_canvas_workspace(
     }
     wr(
         &root,
-        "rb/.arsumbris/repo.yaml",
+        "rb/.2brain/repo.yaml",
         "name: rb\ndeps:\n  - name: ra\n",
     );
     for (rel, content) in rb_files {
@@ -5825,14 +5822,14 @@ fn workspace_fixture() -> (tempfile::TempDir, PathBuf) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w(
         "base/type/note.type.yaml",
         "fields:\n  description: String\n",
     );
     w("base/type/pmark.type.yaml", "fields: {}\n");
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     w(
@@ -6534,12 +6531,12 @@ fn rename_type_refuses_a_cascade_outside_the_grant() {
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_repo(&root);
     fs::write(
-        root.join(".arsumbris/workspace.yaml"),
+        root.join(".2brain/workspace.yaml"),
         "edit:\n  - v\n  - sub\ntype: tb.engine.workspace::tb-engine\n",
     )
     .unwrap();
-    fs::create_dir_all(root.join("sub/.arsumbris")).unwrap();
-    fs::write(root.join("sub/.arsumbris/repo.yaml"), "name: sub\n").unwrap();
+    fs::create_dir_all(root.join("sub/.2brain")).unwrap();
+    fs::write(root.join("sub/.2brain/repo.yaml"), "name: sub\n").unwrap();
     crate::seed_readme(&root.join("sub"));
     fs::create_dir_all(root.join("type")).unwrap();
     fs::write(

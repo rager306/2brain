@@ -1,5 +1,5 @@
 title: "Two blocks with the same `^id` in one file fires block-id-duplicate"
-spec_ref: "[[type block-id::au-type-system]]"
+spec_ref: "[[type block-id::tb-type-system]]"
 command: validate
 expected:
   codes:

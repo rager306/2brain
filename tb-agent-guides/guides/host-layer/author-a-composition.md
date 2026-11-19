@@ -2,7 +2,7 @@
 type: guide
 goal: "Author and verify a saved composition using the current host model."
 rule: "Build the flat record pool and window references from current definitions, then verify topology, mounting, and persistence."
-about: "[[composition::au-host-sdk]]"
+about: "[[composition::tb-host-sdk]]"
 ---
 
 # Author a composition
@@ -10,11 +10,11 @@ about: "[[composition::au-host-sdk]]"
 Build the composition from the current windows-and-pool contract.
 Read the definitions you need:
 
-- [[composition::au-host-sdk]]
-- [[window::au-host-sdk]]
+- [[composition::tb-host-sdk]]
+- [[window::tb-host-sdk]]
 - The projections or containers you will use
 
-Find saved entries with `tb_instances_of {ofType: "composition::au-host-sdk", origins: ["file"]}`.
+Find saved entries with `tb_instances_of {ofType: "composition::tb-host-sdk", origins: ["file"]}`.
 A container query does not list openable compositions.
 
 **Give each owned record a stable address**

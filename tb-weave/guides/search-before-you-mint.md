@@ -1,5 +1,5 @@
 ---
-type: guide.principle::au-agent-guides
+type: guide.principle::tb-agent-guides
 goal: resolve a mention to one identity before minting a node
 rule: Search for an existing identity before minting, reusing only a clear match.
 example:

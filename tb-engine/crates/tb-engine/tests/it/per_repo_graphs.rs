@@ -34,13 +34,13 @@ fn each_repo_resolves_its_own_vendored_vocabulary() {
 
     // Two repos in one tree: the root repo owns `note`, the nested `pkg` repo
     // owns `widget`. Neither vendors the other's type.
-    write(&root, ".arsumbris/repo.yaml", "name: root\n");
-    write(&root, "pkg/.arsumbris/repo.yaml", "name: pkg\n");
+    write(&root, ".2brain/repo.yaml", "name: root\n");
+    write(&root, "pkg/.2brain/repo.yaml", "name: pkg\n");
     // The entry composes both member repos: the content-bearing entry `root`
     // (it must list itself in `edit`) and the nested `pkg`.
     write(
         &root,
-        ".arsumbris/workspace.yaml",
+        ".2brain/workspace.yaml",
         "edit:\n  - root\n  - pkg\n",
     );
     write(&root, "type/note.type.yaml", "fields:\n  a: String\n");
@@ -110,13 +110,13 @@ fn a_broken_repo_does_not_abort_a_clean_sibling() {
 
     // The root repo's vocabulary is broken (unparseable type-def). The pkg
     // repo is clean.
-    write(&root, ".arsumbris/repo.yaml", "name: root\n");
-    write(&root, "pkg/.arsumbris/repo.yaml", "name: pkg\n");
+    write(&root, ".2brain/repo.yaml", "name: root\n");
+    write(&root, "pkg/.2brain/repo.yaml", "name: pkg\n");
     // The entry composes both member repos: the content-bearing entry `root`
     // (it must list itself in `edit`) and the nested `pkg`.
     write(
         &root,
-        ".arsumbris/workspace.yaml",
+        ".2brain/workspace.yaml",
         "edit:\n  - root\n  - pkg\n",
     );
     write(&root, "type/bad.type.yaml", "fields: [unclosed\n");

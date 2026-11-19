@@ -27,7 +27,7 @@ fields:
   #: Keep every passage needed for the source's qualification and omit duplicate links to the same block.
   #: Save before resolving a weave candidate or marking an enrichment folded. Presence alone is not completion.
   #: Absent on newly mined candidates and historical extractions. Never backfill without reading the evidence.
-  passages?: source::au-base-types*[+]
+  passages?: source::tb-base-types*[+]
   #: set by reweave once it has folded an enrich candidate's facet into the target node (the node named in
   #: resolves_to). absent means the fold is pending, the drain signal for the enrich-worklist (verdict enrich,
   #: folded absent). only meaningful on an enrich candidate, never write false, when-folded lives in git.

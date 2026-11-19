@@ -1,5 +1,5 @@
 title: "Required nested sub-section absent from instance body"
-spec_ref: "[[type-def body section::au-type-system]]"
+spec_ref: "[[type-def body section::tb-type-system]]"
 command: validate
 expected:
   codes:

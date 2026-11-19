@@ -112,7 +112,7 @@ pub fn multi_member_kb() -> (tempfile::TempDir, PathBuf) {
 
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -139,7 +139,7 @@ pub fn multi_member_kb() -> (tempfile::TempDir, PathBuf) {
         "---\ntype: task\ntitle: broken\nrel: \"[[app-nowhere]]\"\n---\n",
     );
 
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/thing.type.yaml",
@@ -198,7 +198,7 @@ pub fn hub_crowding_kb() -> (tempfile::TempDir, PathBuf) {
 
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -218,7 +218,7 @@ pub fn hub_crowding_kb() -> (tempfile::TempDir, PathBuf) {
         "---\ntype: task\ntitle: a\nrel: \"[[app-hub]]\"\n---\n",
     );
 
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/thing.type.yaml",

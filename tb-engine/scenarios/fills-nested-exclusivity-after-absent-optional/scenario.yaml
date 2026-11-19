@@ -1,5 +1,5 @@
 title: "Nested `fills!: f` fires fills-contract-exceeded when a preceding `section?:` is absent from the body (template/body section indices misalign)"
-spec_ref: "[[type-def body fills::au-type-system]], [[type value container::au-type-system]]"
+spec_ref: "[[type-def body fills::tb-type-system]], [[type value container::tb-type-system]]"
 command: validate
 expected:
   codes:

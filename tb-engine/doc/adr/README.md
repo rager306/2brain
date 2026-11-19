@@ -16,7 +16,7 @@ accepted; they do not authorize production changes on their own.
 | [ADR-0001](0001-rust-native-agent-mcp.md) | Rust-native, agent-neutral MCP serving for 2Brain | Accepted (2026-11-16) | [validated] |
 | [ADR-0002](0002-promote-with-checks.md) | Promote-with-checks refuses on ERROR diagnostics, as an optional rider | Proposed | [proposed] |
 | [ADR-0003](0003-rename-type-grant-binding.md) | A cascade mutation carries the grant it must respect, checked under the write lock | Proposed | [proposed] |
-| [ADR-0005](0005-final-rename.md) | The old name is removed in one atomic migration, then the legacy readers are deleted | Proposed | [proposed] |
+| [ADR-0005](0005-final-rename.md) | The old name is removed in one atomic migration, then the legacy readers are deleted | Accepted (2026-11-19) | [validated] |
 
 An ADR's companion documents — the plan and the tool inventory that argue rather than decide — live in
 [`../plans/`](../plans/). A file in `adr/` is a record: it carries an id, a status and a date.

@@ -15,11 +15,11 @@ One server: **`2brain`**, the Rust adapter over the engine socket.
 
 | item | value |
 |---|---|
-| launch | `2brain mcp <workspace-or-socket>`; a workspace entry is resolved to its socket the way `au daemon start` resolves it |
+| launch | `2brain mcp <workspace-or-socket>`; a workspace entry is resolved to its socket the way `tb-engine daemon start` resolves it |
 | tools | `tb_*`, 52 with every grant — 33 read, 16 mutate, 2 discover, 1 watch |
 | grants | `--allow-mutations` (16), `--allow-composition` (+2), `--allow-workspace-shape` (+3); without them the tools are absent, not merely refused |
 | results | the engine's own object under the read's key, plus `structuredContent` and `_meta.engineVersion` |
-| resources | `2brain://<repo>/<path>` (legacy `arsumbris://` accepted on parse) — catalogued files, no subscription (`tb_watch` is the change signal) |
+| resources | `2brain://<repo>/<path>` (legacy `2brain://` accepted on parse) — catalogued files, no subscription (`tb_watch` is the change signal) |
 
 `references/tool-map.md` lists every tool with its arguments, generated from the running binary.
 

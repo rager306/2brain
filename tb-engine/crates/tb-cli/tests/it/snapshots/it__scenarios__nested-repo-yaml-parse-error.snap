@@ -12,7 +12,7 @@ expression: rendered
       "message": "nested repo 'nested' is not a declared member; its subtree is skipped and contributes nothing",
       "severity": "warning",
       "span": {
-        "file": "<root>/scenarios/nested-repo-yaml-parse-error/nested/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/nested-repo-yaml-parse-error/nested/.2brain/repo.yaml",
         "range": {
           "end": 0,
           "start": 0
@@ -27,7 +27,7 @@ expression: rendered
       "message": "repo registry is not valid YAML: mapping values are not allowed in this context at byte 32 line 2 column 20",
       "severity": "error",
       "span": {
-        "file": "<root>/scenarios/nested-repo-yaml-parse-error/nested/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/nested-repo-yaml-parse-error/nested/.2brain/repo.yaml",
         "range": {
           "end": 32,
           "start": 32
@@ -130,7 +130,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/nested-repo-yaml-parse-error/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/nested-repo-yaml-parse-error/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -149,7 +149,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/nested-repo-yaml-parse-error/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/nested-repo-yaml-parse-error/.2brain/repo.yaml",
         "section_presence": null
       },
       {

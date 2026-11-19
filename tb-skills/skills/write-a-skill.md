@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: write-a-skill
 description: Creates or revises an agent skill, including its task boundary, instructions and checks. Use for requests to write or improve a skill. For findings without edits, use review-a-skill; for guide authoring, use write-a-guide.
 ---
@@ -10,7 +10,7 @@ Establish the request the skill owns and the result it should produce.
 Use the user's requirements and the existing package to decide what needs changing.
 For a new skill, identify the missing procedure with [[when-a-skill-helps]].
 
-Read supporting guides through `au_agent_guide` using `name::au-skills` when the task needs them.
+Read supporting guides through `tb_agent_guide` using `name::tb-skills` when the task needs them.
 For native file contracts, package dependencies or launch delivery, use [[author-a-skill]].
 
 ## Make the change

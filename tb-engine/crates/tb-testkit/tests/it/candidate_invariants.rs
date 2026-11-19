@@ -38,7 +38,7 @@ fn fields(keys: &[&str]) -> Vec<tb_core::InstanceField> {
 }
 
 /// Compose a `TypeDef` that is both sealed AND carries fields. `type_def_sealed`
-/// in au-testkit is fields-empty; `type_def_with_fields` doesn't take a sealed
+/// in tb-testkit is fields-empty; `type_def_with_fields` doesn't take a sealed
 /// list. Stitched together inline here to exercise the supersedes path
 /// (sealed parent with an inherited required field → leaves surface).
 fn sealed_with_fields(name: &str, fields: &[&str], branches: &[&str]) -> TypeDef {

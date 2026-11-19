@@ -9,7 +9,7 @@ expression: rendered
       "message": "type-def 'tb.engine.repo' shares a name with a hardwired engine type; both coexist as distinct identities, 'tb.engine.repo::tb-engine' names the engine's",
       "severity": "warning",
       "span": {
-        "file": "<root>/scenarios/engine-namespace-reserved/type/au.engine.repo.type.yaml",
+        "file": "<root>/scenarios/engine-namespace-reserved/type/tb.engine.repo.type.yaml",
         "line_col": {
           "end": {
             "col": 1,
@@ -31,7 +31,7 @@ expression: rendered
       "message": "type-def 'tb.engine.repo' shadows a hardwired engine type and has DIVERGED from it; the engine's copy is 'tb.engine.repo::tb-engine'",
       "severity": "drift",
       "span": {
-        "file": "<root>/scenarios/engine-namespace-reserved/type/au.engine.repo.type.yaml",
+        "file": "<root>/scenarios/engine-namespace-reserved/type/tb.engine.repo.type.yaml",
         "line_col": {
           "end": {
             "col": 1,
@@ -50,10 +50,10 @@ expression: rendered
     },
     {
       "code": "engine-name-forward-reserved",
-      "message": "type-def 'au.engine.widget' is in the engine-reserved 'tb.engine.*' namespace, which the engine may hardwire in a future version",
+      "message": "type-def 'tb.engine.widget' is in the engine-reserved 'tb.engine.*' namespace, which the engine may hardwire in a future version",
       "severity": "hint",
       "span": {
-        "file": "<root>/scenarios/engine-namespace-reserved/type/au.engine.widget.type.yaml",
+        "file": "<root>/scenarios/engine-namespace-reserved/type/tb.engine.widget.type.yaml",
         "line_col": {
           "end": {
             "col": 1,
@@ -166,7 +166,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/engine-namespace-reserved/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/engine-namespace-reserved/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -185,7 +185,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/engine-namespace-reserved/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/engine-namespace-reserved/.2brain/repo.yaml",
         "section_presence": null
       }
     ]

@@ -5,7 +5,7 @@
 //! The operation set is [`tb_testkit::opcat`], shared with the gate tests that
 //! pin which rebuild path each operation takes.
 //!
-//! Run: `cargo run --release --example op_bench -p au-engine [profile]`
+//! Run: `cargo run --release --example op_bench -p tb-engine [profile]`
 //! - `profile` is `small` / `medium` / `large` / `workspace` / `extreme`,
 //!   default `workspace` (the realistic dozens-of-repos shape).
 //!

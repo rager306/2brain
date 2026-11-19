@@ -154,9 +154,9 @@ fn type_graph_change_attributes_to_the_right_identity_among_same_named_cross_rep
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("ra/.arsumbris/repo.yaml", "name: ra\n");
+    w("ra/.2brain/repo.yaml", "name: ra\n");
     w("ra/type/widget.type.yaml", "fields:\n  a: String\n");
-    w("rb/.arsumbris/repo.yaml", "name: rb\n");
+    w("rb/.2brain/repo.yaml", "name: rb\n");
     w("rb/type/widget.type.yaml", "fields:\n  b: Number\n");
     let (_sock_dir, socket_path) = socket();
     let engine = Engine::new(&root, ConfigSource::Empty);

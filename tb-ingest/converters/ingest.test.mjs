@@ -10,11 +10,11 @@ import { hashOf, LIMITS } from './ingest-core.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
 const XREPO = join(HERE, 'fixtures/xrepo');
-const types = ['pdf', 'document'].map((name) => ({ name, repo: 'au-ingest', source: { file: join(ROOT, 'type', name + '.type.yaml') } }));
+const types = ['pdf', 'document'].map((name) => ({ name, repo: 'tb-ingest', source: { file: join(ROOT, 'type', name + '.type.yaml') } }));
 types.push({ name: 'probe', repo: 'xrepo-fixture', source: { file: join(XREPO, 'type/probe.type.yaml') } });
 
 function fixture(t, options = {}) {
-  const workspace = realpathSync(mkdtempSync(join(tmpdir(), 'au-ingest-test-')));
+  const workspace = realpathSync(mkdtempSync(join(tmpdir(), 'tb-ingest-test-')));
   t.after(() => rmSync(workspace, { recursive: true, force: true }));
   mkdirSync(join(workspace, 'content'));
   for (const name of ['paper', 'paper2', 'dup', 'dup.raw']) copyFileSync(join(HERE, 'fixtures/pdf/sample-text.pdf'), join(workspace, 'content', name + '.pdf'));
@@ -36,10 +36,10 @@ function fixture(t, options = {}) {
       let result;
       if (op === 'members') result = [
         { repo: 'consumer', root: workspace, editable: true, local: true, role: 'entry' },
-        { repo: 'au-ingest', root: ROOT }, { repo: 'xrepo-fixture', root: XREPO },
+        { repo: 'tb-ingest', root: ROOT }, { repo: 'xrepo-fixture', root: XREPO },
         ...(options.members ?? []),
       ];
-      else if (op === 'subtypes') result = { subtypes: args.base === 'source::au-base-types' ? [...types, ...(options.types ?? [])] : [] };
+      else if (op === 'subtypes') result = { subtypes: args.base === 'source::tb-base-types' ? [...types, ...(options.types ?? [])] : [] };
       else if (op === 'content') result = get(args.path);
       else if (op === 'preview_mutation') {
         const [name, repo] = /^type: (.+)::(.+)$/m.exec(args.content)?.slice(1) ?? [];
@@ -244,11 +244,11 @@ test('captures and destinations cannot cross into mounted or undeclared nested r
   mkdirSync(root);
   copyFileSync(join(f.workspace, 'content/paper.pdf'), join(root, 'paper.pdf'));
   members.push({ repo: 'another-repo', root, editable: true, local: true });
-  mkdirSync(join(f.workspace, 'undeclared/.arsumbris'), { recursive: true });
-  writeFileSync(join(f.workspace, 'undeclared/.arsumbris/repo.yaml'), 'name: undeclared\n');
+  mkdirSync(join(f.workspace, 'undeclared/.2brain'), { recursive: true });
+  writeFileSync(join(f.workspace, 'undeclared/.2brain/repo.yaml'), 'name: undeclared\n');
   copyFileSync(join(f.workspace, 'content/paper.pdf'), join(f.workspace, 'undeclared/paper.pdf'));
-  // A repo that already carries the current identity directory is refused too:
-  // the guard must follow the same rule the engine writes by, not only `.arsumbris`.
+  // A second repo carrying the identity directory is refused the same way: the
+  // guard follows the one rule the engine writes by.
   mkdirSync(join(f.workspace, 'current/.2brain'), { recursive: true });
   writeFileSync(join(f.workspace, 'current/.2brain/repo.yaml'), 'name: current\n');
   copyFileSync(join(f.workspace, 'content/paper.pdf'), join(f.workspace, 'current/paper.pdf'));
@@ -308,9 +308,9 @@ test('engine read errors and malformed snapshots never become unconditional writ
 test('preview rejects wrong output identity, structural errors, and unavailable validation', async (t) => {
   for (const preview of [
     { reject: { message: 'invalid path' } }, {},
-    { target: { identities: [{ name: 'source', repo: 'au-base-types' }], diagnostics: [] }, blast_radius: [] },
-    { target: { identities: [{ name: 'pdf', repo: 'au-ingest' }], diagnostics: [{ severity: 'error', code: 'missing-required-field' }] }, blast_radius: [] },
-    { target: { identities: [{ name: 'pdf', repo: 'au-ingest' }], diagnostics: [] }, blast_radius: [{ path: 'referrer.md', diagnostics: [{ severity: 'error', code: 'wrong-target-type' }] }] },
+    { target: { identities: [{ name: 'source', repo: 'tb-base-types' }], diagnostics: [] }, blast_radius: [] },
+    { target: { identities: [{ name: 'pdf', repo: 'tb-ingest' }], diagnostics: [{ severity: 'error', code: 'missing-required-field' }] }, blast_radius: [] },
+    { target: { identities: [{ name: 'pdf', repo: 'tb-ingest' }], diagnostics: [] }, blast_radius: [{ path: 'referrer.md', diagnostics: [{ severity: 'error', code: 'wrong-target-type' }] }] },
   ]) {
     const f = fixture(t, { preview });
     assert.equal((await f.call()).isError, true, JSON.stringify(preview));
@@ -330,7 +330,7 @@ test('saved warnings and structural errors remain visible', async (t) => {
 
 test('successful writes retain preview warnings about affected notes', async (t) => {
   const f = fixture(t, { preview: {
-    target: { identities: [{ name: 'pdf', repo: 'au-ingest' }], diagnostics: [] },
+    target: { identities: [{ name: 'pdf', repo: 'tb-ingest' }], diagnostics: [] },
     blast_radius: [{ path: 'referrer.md', diagnostics: [{ severity: 'warning', code: 'affected-referrer' }] }],
   } });
   const result = await f.call();
@@ -441,13 +441,13 @@ test('nested type directories use their member root, not the type parent directo
   const root = join(f.workspace, 'mounted');
   mkdirSync(join(root, 'types/nested'), { recursive: true });
   mkdirSync(join(root, 'converters'));
-  writeFileSync(join(root, 'types/nested/nested.type.yaml'), 'extends: source::au-base-types\n');
+  writeFileSync(join(root, 'types/nested/nested.type.yaml'), 'extends: source::tb-base-types\n');
   writeFileSync(join(root, 'converters/nested.convert.mjs'), 'export const convert = ({note}) => ({source: note.sourceNote("nested::nested-owner", {tldr:"nested"}, "body")});\n');
   const originalRead = f.broker.read;
   f.broker.read = async (op, args) => {
     const frame = await originalRead(op, args);
     if (op === 'members') frame.result.push({ repo: 'nested-owner', root });
-    if (op === 'subtypes' && args.base === 'source::au-base-types') frame.result.subtypes.push({ name: 'nested', repo: 'nested-owner', source: { file: join(root, 'types/nested/nested.type.yaml') } });
+    if (op === 'subtypes' && args.base === 'source::tb-base-types') frame.result.subtypes.push({ name: 'nested', repo: 'nested-owner', source: { file: join(root, 'types/nested/nested.type.yaml') } });
     return frame;
   };
   const result = await f.call({ converter: 'nested' });

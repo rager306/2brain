@@ -11,8 +11,8 @@
 #: There is deliberately NO `always` field (the DEFAULT SET is derived from the owning member's ROLE —
 #: entry/edit are in it, dep/discover are opt-in, so a consumed member offers and never imposes), NO
 #: `entry`/code (an inject is prose, not a callable), and NO target field (the instance IS the seed).
-#: See [[spec - mcp.inject - typed instances whose bodies land in context at session start, hop-expanded and packed across generated hook slots::au-harness]]
-#: and [[c - the three agent-facing delivery classes differ by what makes them apply::au-harness]].
+#: See [[spec - mcp.inject - typed instances whose bodies land in context at session start, hop-expanded and packed across generated hook slots::tb-harness]]
+#: and [[c - the three agent-facing delivery classes differ by what makes them apply::tb-harness]].
 extends: mcp
 fields:
   #: the inject's name; the stable slug, and with the owning repo it forms the selection key

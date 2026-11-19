@@ -7,7 +7,7 @@ import { runConverter } from './run-converter.mjs';
 import { hashOf } from './ingest-core.mjs';
 
 function fixture(t, code) {
-  const dir = mkdtempSync(join(tmpdir(), 'au-convert-worker-'));
+  const dir = mkdtempSync(join(tmpdir(), 'tb-convert-worker-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const module = join(dir, 'probe.convert.mjs');
   const rawPath = join(dir, 'raw.txt');

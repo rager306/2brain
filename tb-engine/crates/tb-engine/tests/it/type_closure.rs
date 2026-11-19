@@ -39,7 +39,7 @@ fn cross_repo_kb() -> (tempfile::TempDir, PathBuf) {
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["app"]);
 
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/note.type.yaml",
@@ -53,7 +53,7 @@ fn cross_repo_kb() -> (tempfile::TempDir, PathBuf) {
 
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // A SAME-NAMED, DIVERGENT own copy: the multi-fit case.

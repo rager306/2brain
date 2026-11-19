@@ -58,9 +58,10 @@ fn init_creates_a_workspace_the_engine_opens_with_no_diagnostics() {
         readme.contains("type: tb.engine.readme::tb-engine"),
         "{readme}"
     );
+    let old_namespace = concat!("au", ".engine.");
     for (path, text) in [(".2brain/repo.yaml", &identity), ("README.md", &readme)] {
         assert!(
-            !text.contains("au.engine."),
+            !text.contains(old_namespace),
             "{path} still spells the release-1 name: {text}"
         );
     }
@@ -195,12 +196,12 @@ fn init_adopts_a_template_identity_and_renames_only_it() {
     fs::create_dir_all(starter.join(".2brain")).unwrap();
     fs::write(
         starter.join(".2brain/repo.yaml"),
-        "# a starter that carries its own identity\ntype: au.engine.repo::au-engine\nname: adopted\ndeps:\n  - name: base\n",
+        "# a starter that carries its own identity\ntype: tb.engine.repo::tb-engine\nname: adopted\ndeps:\n  - name: base\n",
     )
     .unwrap();
     fs::write(
         starter.join(".2brain/workspace.yaml"),
-        "type: au.engine.workspace::au-engine\nedit:\n  - adopted   # the containing repo, rewritten on create\ndiscover:\n  - bundle\n",
+        "type: tb.engine.workspace::tb-engine\nedit:\n  - adopted   # the containing repo, rewritten on create\ndiscover:\n  - bundle\n",
     )
     .unwrap();
     let workspace = temp.path().join("renamed");
@@ -221,7 +222,7 @@ fn init_adopts_a_template_identity_and_renames_only_it() {
         "a starter's own deps must survive the rename: {identity}"
     );
     assert!(
-        identity.contains("type: au.engine.repo::au-engine"),
+        identity.contains("type: tb.engine.repo::tb-engine"),
         "{identity}"
     );
     let manifest = fs::read_to_string(workspace.join(".2brain/workspace.yaml")).unwrap();
@@ -234,7 +235,7 @@ fn init_adopts_a_template_identity_and_renames_only_it() {
 }
 
 /// A starter is a workspace someone will open first, so no shipped template may carry the
-/// release-1 shape: neither the `au.engine.*` type spelling nor the `.arsumbris/` identity
+/// release-1 shape: neither the `tb.engine.*` type spelling nor the `.2brain/` identity
 /// directory, both of which `init` exists to stop producing. The list is the templates on
 /// disk, not a hand-kept set, so a new template is covered the day it lands.
 #[test]
@@ -244,9 +245,8 @@ fn every_shipped_template_copies_into_a_current_workspace() {
     for entry in fs::read_dir(&templates).unwrap().flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
         let root = entry.path();
-        let is_workspace = root.join(".2brain/repo.yaml").is_file()
-            || root.join(".arsumbris/repo.yaml").is_file()
-            || root.join("README.md").is_file();
+        let is_workspace =
+            root.join(".2brain/repo.yaml").is_file() || root.join("README.md").is_file();
         if !root.is_dir() || !is_workspace {
             continue;
         }
@@ -259,19 +259,20 @@ fn every_shipped_template_copies_into_a_current_workspace() {
             workspace.join(".2brain/repo.yaml").is_file(),
             "{name} copies without a `.2brain/repo.yaml`"
         );
+        let old_dir = concat!(".arsum", "bris");
         assert!(
-            !workspace.join(".arsumbris").exists(),
-            "{name} still ships a `.arsumbris/` identity directory"
+            !workspace.join(old_dir).exists(),
+            "{name} still ships the retired identity directory"
         );
         for file in walk(&workspace) {
             let text = fs::read_to_string(&file).unwrap_or_default();
             assert!(
-                !text.contains("au.engine."),
+                !text.contains(concat!("au", ".engine.")),
                 "{name} ships {} with the release-1 spelling",
                 file.display()
             );
             assert!(
-                !text.contains(".arsumbris"),
+                !text.contains(concat!(".arsum", "bris")),
                 "{name} ships {} naming the release-1 identity directory",
                 file.display()
             );

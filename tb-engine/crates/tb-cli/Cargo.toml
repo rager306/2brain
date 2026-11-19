@@ -14,7 +14,7 @@ name = "tb_cli"
 path = "src/lib.rs"
 
 [[bin]]
-name = "au"
+name = "tb-engine"
 path = "src/main.rs"
 
 [[test]]
@@ -24,7 +24,7 @@ path = "tests/it/main.rs"
 [features]
 # Profiling is opt-in: `cargo build --features hotpath` instruments the daemon.
 # Without the feature every hotpath macro compiles to a noop. The feature also
-# propagates into au-engine, whose build functions carry measure annotations.
+# propagates into tb-engine, whose build functions carry measure annotations.
 hotpath = ["dep:hotpath", "tb-engine/hotpath"]
 
 [dependencies]

@@ -1,5 +1,5 @@
 title: "The same field name declared twice in one type-def — `duplicate-field`"
-spec_ref: "[[type-def fields::au-type-system]], [[spec - diagnostic codes::au-type-system^duplicate-field]]"
+spec_ref: "[[type-def fields::tb-type-system]], [[spec - diagnostic codes::tb-type-system^duplicate-field]]"
 command: validate
 expected:
   codes:

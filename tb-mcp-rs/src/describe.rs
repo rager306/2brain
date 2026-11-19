@@ -67,7 +67,7 @@ pub(crate) fn search_tools(
 }
 
 /// Lowercase word tokens; underscores and dots split so `tb_content` matches
-/// "content" and `io.arsumbris` matches "2brain".
+/// "content" and `io.2brain` matches "2brain".
 fn tokenize(text: &str) -> Vec<String> {
     text.to_lowercase()
         .split(|c: char| !c.is_alphanumeric())

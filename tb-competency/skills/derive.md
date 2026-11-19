@@ -1,10 +1,10 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: derive
 description: >-
   Identifies capability requirements from recurring friction or corroborated research.
   Use when missing methods could change the design.
-  Improve handles supported remedies and au-govern checks existing doctrine.
+  Improve handles supported remedies and tb-govern checks existing doctrine.
 ---
 
 # derive
@@ -23,11 +23,11 @@ Read the premise's purpose and boundaries.
 If none is established, return that dependency.
 This skill does not establish the initial premise or create speculative onboarding questions.
 
-Use [[a-kind-or-a-question::au-agent-guides]] when a modeling choice may need only existing guidance.
+Use [[a-kind-or-a-question::tb-agent-guides]] when a modeling choice may need only existing guidance.
 A new type alone does not justify research.
 Send a supported remedy to [[improve]].
-A violation of existing doctrine belongs to au-govern.
-Subject questions belong to au-tree-research.
+A violation of existing doctrine belongs to tb-govern.
+Subject questions belong to tb-tree-research.
 
 ## Ground the requirement
 

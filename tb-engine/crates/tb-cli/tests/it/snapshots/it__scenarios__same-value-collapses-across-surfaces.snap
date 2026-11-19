@@ -99,7 +99,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/same-value-collapses-across-surfaces/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/same-value-collapses-across-surfaces/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -118,7 +118,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/same-value-collapses-across-surfaces/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/same-value-collapses-across-surfaces/.2brain/repo.yaml",
         "section_presence": null
       },
       {

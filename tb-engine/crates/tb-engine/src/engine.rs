@@ -353,7 +353,7 @@ fn scope_filter_dirty(
 ) -> BTreeSet<PathBuf> {
     let mut filters: BTreeMap<PathBuf, tb_parser::WalkFilter> = BTreeMap::new();
     // A malformed `.auignore` load error is intentionally discarded here: the
-    // full rebuild owns that diagnostic. The `.auignore` edit is an `.arsumbris`
+    // full rebuild owns that diagnostic. The `.auignore` edit is an `.2brain`
     // path, so it survives this filter, forces a full re-walk, and that rebuild
     // re-emits `auignore-load-error` authoritatively. This sink is only the
     // scope decision for the incremental path, not a diagnostic surface.
@@ -485,7 +485,7 @@ struct Held {
 
 struct Inner {
     /// The workspace directory, the knowledge base root for identity (socket, watcher,
-    /// `.arsumbris/` markers) and the walk. Always the folder-repo entry
+    /// `.2brain/` markers) and the walk. Always the folder-repo entry
     /// directory; `build` refuses a non-repo entry.
     root: PathBuf,
     held: Mutex<Held>,
@@ -519,11 +519,11 @@ struct Inner {
     /// injects a local fixture registry so the verb stays hermetic. The
     /// designed workspace-level override plugs in here.
     registry_remote: String,
-    /// The device root holding `au-engine/config/{repos,workspaces}.yaml`.
-    /// `User` resolves the device root (`$HOME/.arsumbris`, then
-    /// `au-engine/config/`); a test injects a tempdir so the
+    /// The device root holding `engine/config/{repos,workspaces}.yaml`.
+    /// `User` resolves the device root (`$HOME/.2brain`, then
+    /// `engine/config/`); a test injects a tempdir so the
     /// `register` write and every registry read stay hermetic, off the
-    /// developer's real `~/.arsumbris/au-engine/config`. The build, the resolve verb, and
+    /// developer's real `<state root>/engine/config`. The build, the resolve verb, and
     /// the `register` mutation read the same value, so they never disagree.
     config: crate::repo::ConfigSource,
     /// The on-demand git-reflog watchers backing `recent_commits` subscriptions,
@@ -868,7 +868,7 @@ impl Inner {
     fn rebuild_paths_locked(&self, incoming: &BTreeSet<PathBuf>) {
         // Scope-filter first: an edit to a scoped-out file (or a floored path)
         // must not re-enter the graph via the incremental fast path.
-        // Engine-schema (`.arsumbris/...`) paths survive to force a re-walk.
+        // Engine-schema (`.2brain/...`) paths survive to force a re-walk.
         let _scope = tracing::info_span!("scope_filter").entered();
         let dirty: BTreeSet<PathBuf> = {
             let held = self.held.lock().unwrap();
@@ -1372,19 +1372,19 @@ impl Engine {
     /// [`ConfigSource::User`](crate::repo::ConfigSource::User), a test passes
     /// `Empty` (hermetic) or `Dir` (an injected tempdir). It was formerly an
     /// `Option<PathBuf>` defaulting to `None`, which meant the developer's real
-    /// `~/.arsumbris/au-engine/config` — so every test that never called the old
+    /// `<state root>/engine/config` — so every test that never called the old
     /// `set_config_dir` read the machine's own registry, and a fixture naming a
     /// dep that happened to be registered there would resolve against a real
     /// repo on disk. Making the caller choose removes the silent default.
     pub fn new(root: impl Into<PathBuf>, config: crate::repo::ConfigSource) -> Self {
         let (version_tx, _) = watch::channel(0);
         // The entry is always the folder-repo DIRECTORY: the knowledge base root for
-        // identity (socket, watcher, `.arsumbris/` markers) and the walk. The
+        // identity (socket, watcher, `.2brain/` markers) and the walk. The
         // `build` refuses a non-repo entry.
         //
         // Held in ONE spelling, the same normalization the assembly applies to
         // every member root, because this root is compared against catalog paths
-        // and the two must agree. `au daemon` already canonicalizes its entry
+        // and the two must agree. `tb-engine daemon` already canonicalizes its entry
         // before constructing the engine, so this aligns the library with how the
         // binary has always called it. See [`crate::repo::canonical_root`].
         let root = crate::repo::canonical_root(&root.into());
@@ -1415,7 +1415,7 @@ impl Engine {
     /// Override the package-cache root, before any build or serve. The build and
     /// the resolve verb both read it, so they agree on where snapshots live. A
     /// test injects a tempdir to keep the resolve verb hermetic, off the real
-    /// `~/.arsumbris` cache.
+    /// `~/.2brain` cache.
     pub fn set_package_cache_root(&mut self, root: impl Into<PathBuf>) {
         // The engine holds no other reference before `serve`/`watch`, so the
         // `Arc` is uniquely owned here; tests call this immediately after `new`.
@@ -1452,7 +1452,7 @@ impl Engine {
     ///
     /// LIMITATION: the watched member set is computed ONCE here, at start. A
     /// runtime change to the resolved member set — a `register`, a manifest edit,
-    /// or a new `.arsumbris/repo.yaml` that adds a SCATTERED (out-of-tree) member
+    /// or a new `.2brain/repo.yaml` that adds a SCATTERED (out-of-tree) member
     /// after startup — does NOT re-arm the watch. Such a member's current content
     /// is ingested on the triggering rebuild, but its subtree is never watched, so
     /// subsequent edits inside it produce no events and no rebuild until the daemon
@@ -1467,7 +1467,7 @@ impl Engine {
             let _ = tx.send(res);
         })?;
         // Always watch the entry directory: the entry repo's root, holding its
-        // `.arsumbris/` (the manifest and lock) and any co-present members.
+        // `.2brain/` (the manifest and lock) and any co-present members.
         watcher.watch(&self.inner.root, RecursiveMode::Recursive)?;
         // Also watch each scattered member tree, the ones that
         // sit outside the entry directory; co-present members are already
@@ -1537,10 +1537,10 @@ mod tests {
     use super::*;
     use std::fs;
 
-    /// Make a tempdir a folder-repo: the entry MUST carry `.arsumbris/repo.yaml`.
+    /// Make a tempdir a folder-repo: the entry MUST carry `.2brain/repo.yaml`.
     fn folder_repo(dir: &Path) {
-        fs::create_dir_all(dir.join(".arsumbris")).unwrap();
-        fs::write(dir.join(".arsumbris/repo.yaml"), "name: v\n").unwrap();
+        fs::create_dir_all(dir.join(".2brain")).unwrap();
+        fs::write(dir.join(".2brain/repo.yaml"), "name: v\n").unwrap();
     }
 
     fn kb() -> tempfile::TempDir {
@@ -1577,15 +1577,15 @@ mod tests {
         fs::write(root.join("keep.md"), "---\ntype: note\n---\n").unwrap();
         fs::create_dir_all(root.join("docs")).unwrap();
         fs::write(root.join("docs/guide.md"), "---\ntype: note\n---\n").unwrap();
-        fs::create_dir_all(root.join(".arsumbris")).unwrap();
-        fs::write(root.join(".arsumbris/.auignore"), "docs/\n").unwrap();
+        fs::create_dir_all(root.join(".2brain")).unwrap();
+        fs::write(root.join(".2brain/.auignore"), "docs/\n").unwrap();
         let kb = crate::build::build(root, &RealFileSystem).unwrap();
 
         let dirty: BTreeSet<PathBuf> = [
             root.join("keep.md"),
-            root.join("docs/guide.md"),        // excluded by .auignore
-            root.join(".arsumbris/.auignore"), // engine-schema, forces re-walk
-            root.join(".git/HEAD"),            // floored
+            root.join("docs/guide.md"),     // excluded by .auignore
+            root.join(".2brain/.auignore"), // engine-schema, forces re-walk
+            root.join(".git/HEAD"),         // floored
         ]
         .into_iter()
         .collect();
@@ -1597,7 +1597,7 @@ mod tests {
             "excluded file dropped"
         );
         assert!(
-            filtered.contains(&root.join(".arsumbris/.auignore")),
+            filtered.contains(&root.join(".2brain/.auignore")),
             "engine-schema kept to force the re-walk"
         );
         assert!(
@@ -1617,7 +1617,7 @@ mod tests {
         let root = crate::repo::canonical_root(dir.path());
         folder_repo(&root);
         fs::write(root.join("keep.md"), "---\ntype: note\n---\n").unwrap();
-        fs::write(root.join(".arsumbris/.auignore"), "docs/\n").unwrap();
+        fs::write(root.join(".2brain/.auignore"), "docs/\n").unwrap();
         fs::create_dir_all(root.join("docs")).unwrap();
 
         let engine = Engine::new(&root, crate::repo::ConfigSource::Empty);
@@ -2553,8 +2553,8 @@ mod tests {
         fs::write(root.join("keep.md"), "---\ntype: note\n---\n").unwrap();
         fs::create_dir_all(root.join("docs")).unwrap();
         fs::write(root.join("docs/guide.md"), "---\ntype: note\n---\n").unwrap();
-        fs::create_dir_all(root.join(".arsumbris")).unwrap();
-        fs::write(root.join(".arsumbris/.auignore"), "docs/\n").unwrap();
+        fs::create_dir_all(root.join(".2brain")).unwrap();
+        fs::write(root.join(".2brain/.auignore"), "docs/\n").unwrap();
         let engine = Engine::new(root, crate::repo::ConfigSource::Empty);
         engine.rebuild();
         assert_eq!(engine.version(), Some(1));

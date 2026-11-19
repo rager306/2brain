@@ -5,7 +5,7 @@
 //! `ms/record` column exposes superlinear scaling: flat means linear, rising
 //! means worse.
 //!
-//! Run: `cargo run --release --example span_scaling -p au-core`
+//! Run: `cargo run --release --example span_scaling -p tb-core`
 
 use std::path::Path;
 use std::time::Instant;

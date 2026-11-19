@@ -5,7 +5,7 @@
 
 Measured on 2026-11-13 in one allspark session, both servers connected to the
 same production workspace (`/root/vault` + six dependency members). The bridge
-reaches the Node `au-mcp` daemon; the adapter reads the engine socket directly.
+reaches the Node `tb-mcp` daemon; the adapter reads the engine socket directly.
 
 ## Surfaces
 
@@ -37,7 +37,7 @@ difference, these answers are **byte-identical**:
 | `tb_subtypes` (`mcp`) | 62 subtypes | identical |
 | `tb_type` (`agent-profile`) | all 16 shared keys | identical |
 | `tb_imports` | 27 imports | identical |
-| `tb_instances_of` (`au.engine.repo::au-engine`) | 7 instance paths | identical |
+| `tb_instances_of` (`tb.engine.repo::tb-engine`) | 7 instance paths | identical |
 | `tb_validate_value` / `au_validate` | diagnostics, identity, undeclared fields | identical |
 
 ## Payloads that differ by projection, not by fact

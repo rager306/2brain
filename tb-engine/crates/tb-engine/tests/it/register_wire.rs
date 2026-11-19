@@ -46,14 +46,14 @@ fn started() -> Harness {
     crate::seed_workspace(&ws, &["main"]);
     w(
         &ws,
-        "main/.arsumbris/repo.yaml",
+        "main/.2brain/repo.yaml",
         "name: main\ndeps:\n  - name: lib\n",
     );
     w(&ws, "main/type/mainthing.type.yaml", "fields: {}\n");
 
     let scattered = tempfile::tempdir().unwrap();
     let lib = fs::canonicalize(scattered.path()).unwrap().join("lib");
-    w(&lib, ".arsumbris/repo.yaml", "name: lib\n");
+    w(&lib, ".2brain/repo.yaml", "name: lib\n");
     w(&lib, "type/libthing.type.yaml", "fields: {}\n");
 
     let cfg_dir = tempfile::tempdir().unwrap();
@@ -109,7 +109,7 @@ fn register_writes_the_entry_and_mounts_the_scattered_member() {
     assert_eq!(resp["name"], "lib");
 
     // The entry landed in the INJECTED registry, not the real device config.
-    let registry = h.config_dir.join("au-engine/config/repos.yaml");
+    let registry = h.config_dir.join("engine/config/repos.yaml");
     let written = fs::read_to_string(&registry).expect("repos.yaml written");
     assert!(
         written.contains("lib") && written.contains(&*h.lib.to_string_lossy()),
@@ -130,7 +130,7 @@ fn register_refuses_a_path_whose_repo_declares_another_name() {
 
     // A repo that declares itself `other`, at lib's path's sibling.
     let other = h.lib.parent().unwrap().join("other-dir");
-    w(&other, ".arsumbris/repo.yaml", "name: other\n");
+    w(&other, ".2brain/repo.yaml", "name: other\n");
 
     let resp = h
         .client
@@ -148,7 +148,7 @@ fn register_refuses_a_path_whose_repo_declares_another_name() {
         resp["error"].as_str().unwrap().contains("other"),
         "the reject names the declared-vs-key mismatch: {resp}"
     );
-    let registry = h.config_dir.join("au-engine/config/repos.yaml");
+    let registry = h.config_dir.join("engine/config/repos.yaml");
     let written = fs::read_to_string(&registry).unwrap_or_default();
     assert!(
         !written.contains("other-dir"),

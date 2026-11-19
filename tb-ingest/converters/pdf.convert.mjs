@@ -6,7 +6,7 @@ export async function convert({ raw, date, self, note }) {
   const body = (await toMarkdownBytes(raw, 'pdf')).trim();
   if (!body) throw new Error('pdf.convert: no extractable text');
 
-  return { source: sourceNote('pdf::au-ingest', {
+  return { source: sourceNote('pdf::tb-ingest', {
     captured: date,
     tldr: literal(firstLine(body).replace(/^#+\s+/, '')),
     original: link(self.raw),

@@ -1,7 +1,7 @@
 ---
 type:
-  - rule-profile::au-rules
-  - mcp.inject::au-mcp-sdk
+  - rule-profile::tb-rules
+  - mcp.inject::tb-mcp-sdk
 name: capture-correction
 description: Capture reusable feedback about agent behavior.
 depth: 1

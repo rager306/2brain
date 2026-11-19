@@ -59,10 +59,10 @@ fn started() -> Harness {
     }
 }
 
-/// Write a repo-scope config file under `<ws>/.arsumbris/<consumer>/config/`.
+/// Write a repo-scope config file under `<ws>/.2brain/<consumer>/config/`.
 fn write_repo_config(h: &Harness, consumer: &str, file: &str, content: &str) {
     let p =
-        h.ws.join(".arsumbris")
+        h.ws.join(".2brain")
             .join(consumer)
             .join("config")
             .join(file);
@@ -317,10 +317,10 @@ fn machine_scope_set_config_writes_no_commit_and_injects_type() {
 #[test]
 fn path_safety_and_the_reserved_segment_reject() {
     let mut h = started();
-    // A traversal `consumer`, the reserved `au-engine` owner segment, and a
+    // A traversal `consumer`, the reserved `tb-engine` owner segment, and a
     // CASE-VARIANT of it (which aliases the same file on a case-insensitive
     // filesystem) are all an `error` response, nothing read.
-    for consumer in ["..", "au-engine", "Au-Engine", "AU-ENGINE"] {
+    for consumer in ["..", "tb-engine", "TB-Engine", "TB-ENGINE"] {
         let resp = read_config(
             &mut h,
             json!({ "scope": "machine", "consumer": consumer, "file": "x.yaml", "type": "t" }),

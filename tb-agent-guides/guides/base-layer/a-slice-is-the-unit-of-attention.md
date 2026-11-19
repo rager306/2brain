@@ -2,7 +2,7 @@
 type: guide.principle
 goal: "Choose enough context to reason about or verify a graph change."
 rule: "Start with the task's evidence needs, then expand the reading scope until its dependencies and counterexamples are covered."
-about: "[[map::au-base-types]]"
+about: "[[map::tb-base-types]]"
 ---
 
 # Choose the scope of attention

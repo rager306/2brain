@@ -1,11 +1,11 @@
-//! `au daemon start|stop|status <entry>` — the per-workspace daemon process.
+//! `tb-engine daemon start|stop|status <entry>` — the per-workspace daemon process.
 //!
-//! The entry is a folder-repo DIRECTORY: a repo carrying `.arsumbris/repo.yaml`,
-//! composed by its optional `.arsumbris/workspace.yaml`. `start` refuses a
+//! The entry is a folder-repo DIRECTORY: a repo carrying `.2brain/repo.yaml`,
+//! composed by its optional `.2brain/workspace.yaml`. `start` refuses a
 //! non-repo entry (a bare directory, a stray file) with the `NOT_A_REPO` exit
 //! code before it binds. One daemon serves one entry over a
 //! Unix socket at a short hashed path outside the repo,
-//! `~/.arsumbris/au-engine/run/<hash-of-abs-entry-path>.sock` (see
+//! `<state root>/engine/run/<hash-of-abs-entry-path>.sock` (see
 //! [`tb_engine::socket_path`]), so a deep repo path can never overrun the
 //! socket-path limit and many workspaces in one folder each get their own
 //! endpoint. `start` runs in the foreground: it boots the engine, watches every
@@ -61,7 +61,7 @@ use serde_json::json;
 use tb_diagnostics::Diagnostic;
 use tb_engine::{Client, Engine, SCHEMA_VERSION, serve, socket_path};
 
-/// Exit codes for `au daemon`. `0` is success. `2` is a usage or environment
+/// Exit codes for `tb-engine daemon`. `0` is success. `2` is a usage or environment
 /// error (unresolvable repo, cannot create/watch/bind, an IO error reaching a
 /// daemon). The remaining codes name a specific daemon state so a script can
 /// branch on it rather than overloading `1`:
@@ -79,7 +79,7 @@ const NOT_A_REPO: u8 = 5;
 const FORCE_STOP_WINDOW: Duration = Duration::from_millis(1500);
 
 /// The pid file for an entry, `<hash>.pid` beside the socket in
-/// `~/.arsumbris/au-engine/run/`.
+/// `<state root>/engine/run/`.
 ///
 /// It shares the socket's entry-derived hash name and lives outside the repo, so
 /// it exists for the same reasons the socket does (a deep repo path never
@@ -167,12 +167,12 @@ impl Drop for PidFile {
     }
 }
 
-/// `au open <name>`: resolve a NAMED workspace through the per-user
-/// `~/.arsumbris/au-engine/config/workspaces.yaml` index to its workspace-repo FOLDER, then
+/// `tb-engine open <name>`: resolve a NAMED workspace through the per-user
+/// `<state root>/engine/config/workspaces.yaml` index to its workspace-repo FOLDER, then
 /// enter it exactly as `daemon start <folder>`.
 ///
 /// The index only POINTS at folders (it never inlines a selection), so the
-/// folder's committed `.arsumbris/workspace.yaml` is always the definition and
+/// folder's committed `.2brain/workspace.yaml` is always the definition and
 /// this only names it — there is no name-lookup spanning both, so a definition
 /// never disagrees with an index. An unknown name (or an empty / absent index) is
 /// a loud usage error naming the known workspaces, never a silent empty open. A
@@ -190,14 +190,14 @@ pub fn open(name: &str) -> ExitCode {
             known.sort_unstable();
             if known.is_empty() {
                 eprintln!(
-                    "au open: no workspace named '{name}' — the per-user workspaces index \
-                     (<state dir>/au-engine/config/workspaces.yaml) is empty or absent. Add a \
-                     '- path: <workspace-repo folder>' entry, or point 'au daemon start' at the \
+                    "tb-engine open: no workspace named '{name}' — the per-user workspaces index \
+                     (<state dir>/engine/config/workspaces.yaml) is empty or absent. Add a \
+                     '- path: <workspace-repo folder>' entry, or point 'tb-engine daemon start' at the \
                      folder directly."
                 );
             } else {
                 eprintln!(
-                    "au open: no workspace named '{name}' — known workspaces: {}",
+                    "tb-engine open: no workspace named '{name}' — known workspaces: {}",
                     known.join(", ")
                 );
             }
@@ -219,11 +219,11 @@ pub fn start(entry: &Path) -> ExitCode {
         Ok(e) => e,
         Err(code) => return code,
     };
-    // The device area `~/.arsumbris` (registries, cache, socket) requires `$HOME`.
+    // The device area `~/.2brain` (registries, cache, socket) requires `$HOME`.
     // Refuse to start when it is unset rather than binding a socket in a temp dir
     // with no registry, an environment error.
     if let Err(e) = tb_engine::device_root() {
-        eprintln!("au: cannot serve {}: {e}", entry.display());
+        eprintln!("tb-engine: cannot serve {}: {e}", entry.display());
         return ExitCode::from(ENV_ERROR);
     }
     // Operation tracing, off unless `TB_TRACE` is set. The guards flush the trace
@@ -234,17 +234,17 @@ pub fn start(entry: &Path) -> ExitCode {
     // prints when the daemon shuts down; `HOTPATH_OUTPUT_FORMAT=json` for JSON.
     #[cfg(feature = "hotpath")]
     let _hotpath = {
-        eprintln!("au: hotpath guard building...");
-        let g = hotpath::HotpathGuardBuilder::new("au-daemon").build();
-        eprintln!("au: hotpath guard ACTIVE");
+        eprintln!("tb-engine: hotpath guard building...");
+        let g = hotpath::HotpathGuardBuilder::new("tb-daemon").build();
+        eprintln!("tb-engine: hotpath guard ACTIVE");
         g
     };
     // Preflight: the entry MUST be a folder-repo (a directory carrying a valid,
-    // named `.arsumbris/repo.yaml`). Refuse a non-repo entry up front with a
+    // named `.2brain/repo.yaml`). Refuse a non-repo entry up front with a
     // distinct exit code, before binding the socket or booting the engine, rather
     // than serving an empty repo the build would refuse.
     if let Err(e) = tb_engine::verify_entry(&entry) {
-        eprintln!("au: cannot serve {}: {e}", entry.display());
+        eprintln!("tb-engine: cannot serve {}: {e}", entry.display());
         return ExitCode::from(NOT_A_REPO);
     }
     let socket = socket_path(&entry);
@@ -255,12 +255,12 @@ pub fn start(entry: &Path) -> ExitCode {
     // speaks an older wire than this binary compiles, warn loudly, since the skew
     // silently corrupts reads otherwise.
     if let Some(resp) = probe_ready(&socket) {
-        eprintln!("au: a daemon is already serving {}", entry.display());
+        eprintln!("tb-engine: a daemon is already serving {}", entry.display());
         warn_on_schema_skew(&resp, &entry);
         return ExitCode::from(ALREADY_SERVING);
     }
 
-    // The socket lives outside the repo now, under `~/.arsumbris/au-engine/run/`, so
+    // The socket lives outside the repo now, under `<state root>/engine/run/`, so
     // ensure that directory exists before `serve` binds into it. Restrict it to
     // the owning user (`0o700`): the socket path is world-derivable (a non-secret
     // hash of a non-secret entry path) and the wire is unauthenticated, so the
@@ -268,7 +268,7 @@ pub fn start(entry: &Path) -> ExitCode {
     // protection does not rely on inherited `~` permissions.
     if let Some(dir) = socket.parent() {
         if let Err(e) = std::fs::create_dir_all(dir) {
-            eprintln!("au: cannot create socket dir {}: {e}", dir.display());
+            eprintln!("tb-engine: cannot create socket dir {}: {e}", dir.display());
             return ExitCode::from(ENV_ERROR);
         }
         #[cfg(unix)]
@@ -292,9 +292,9 @@ pub fn start(entry: &Path) -> ExitCode {
             // genuinely serving one falls through here too, so the message names
             // both rather than asserting "booting".
             eprintln!(
-                "au: a daemon is already running or still booting for {} (pid {pid}, socket not \
+                "tb-engine: a daemon is already running or still booting for {} (pid {pid}, socket not \
                  answering); wait for it to be ready, or reclaim a wedged one with \
-                 'au daemon stop --force'",
+                 'tb-engine daemon stop --force'",
                 entry.display()
             );
             return ExitCode::from(ALREADY_SERVING);
@@ -307,7 +307,7 @@ pub fn start(entry: &Path) -> ExitCode {
     let _pid_file = match PidFile::write(pid_file_path) {
         Ok(guard) => guard,
         Err(e) => {
-            eprintln!("au: cannot write pid file: {e}");
+            eprintln!("tb-engine: cannot write pid file: {e}");
             return ExitCode::from(ENV_ERROR);
         }
     };
@@ -325,7 +325,7 @@ pub fn start(entry: &Path) -> ExitCode {
     let recovery = tb_engine::recover_crashed_saga(&root);
     if let Some(r) = &recovery.recovered {
         println!(
-            "au: recovered an interrupted mutation {} ({} reverted, {} restored)",
+            "tb-engine: recovered an interrupted mutation {} ({} reverted, {} restored)",
             r.mutation_id,
             r.reverted.len(),
             r.restored.len()
@@ -335,7 +335,7 @@ pub fn start(entry: &Path) -> ExitCode {
     // an operator clears the sentinel.
     for f in &recovery.failures {
         eprintln!(
-            "au: WARNING an interrupted mutation could not be fully rolled back, \
+            "tb-engine: WARNING an interrupted mutation could not be fully rolled back, \
              manual repair needed (mutation {}):\n{}",
             f.mutation_id,
             f.detail.trim_end()
@@ -343,7 +343,7 @@ pub fn start(entry: &Path) -> ExitCode {
     }
 
     if let Err(e) = engine.watch() {
-        eprintln!("au: cannot watch {}: {e}", root.display());
+        eprintln!("tb-engine: cannot watch {}: {e}", root.display());
         return ExitCode::from(ENV_ERROR);
     }
     // Build once up front so the ref is Ready when the first status lands,
@@ -363,19 +363,19 @@ pub fn start(entry: &Path) -> ExitCode {
     let server = match serve(engine.handle(), &socket) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("au: cannot bind {}: {e}", socket.display());
+            eprintln!("tb-engine: cannot bind {}: {e}", socket.display());
             return ExitCode::from(ENV_ERROR);
         }
     };
     println!(
-        "au: daemon serving {} at {}",
+        "tb-engine: daemon serving {} at {}",
         root.display(),
         socket.display()
     );
 
     server.wait_for_shutdown();
     // Dropping `server` removes the socket; `engine` drops its watcher.
-    println!("au: daemon stopped");
+    println!("tb-engine: daemon stopped");
     ExitCode::SUCCESS
 }
 
@@ -389,32 +389,32 @@ pub fn build_profile(entry: &Path) -> ExitCode {
         Err(code) => return code,
     };
     if let Err(e) = tb_engine::device_root() {
-        eprintln!("au: cannot profile {}: {e}", entry.display());
+        eprintln!("tb-engine: cannot profile {}: {e}", entry.display());
         return ExitCode::from(ENV_ERROR);
     }
     #[cfg(feature = "hotpath")]
     let _hotpath = {
-        eprintln!("au: hotpath guard building...");
-        let g = hotpath::HotpathGuardBuilder::new("au-build-profile").build();
-        eprintln!("au: hotpath guard ACTIVE (guard drop печатает отчёт)");
+        eprintln!("tb-engine: hotpath guard building...");
+        let g = hotpath::HotpathGuardBuilder::new("tb-build-profile").build();
+        eprintln!("tb-engine: hotpath guard ACTIVE (guard drop печатает отчёт)");
         g
     };
     let fs = tb_parser::RealFileSystem;
     let started = std::time::Instant::now();
     let build_result = tb_engine::build(&entry, &fs);
-    eprintln!("au: build finished, dropping hotpath guard...");
+    eprintln!("tb-engine: build finished, dropping hotpath guard...");
     drop(_hotpath);
     match build_result {
         Ok(kb) => {
             eprintln!(
-                "au: build ok in {:.2}s ({} catalogued files)",
+                "tb-engine: build ok in {:.2}s ({} catalogued files)",
                 started.elapsed().as_secs_f32(),
                 kb.catalog.size()
             );
             ExitCode::SUCCESS
         }
         Err(e) => {
-            eprintln!("au: build failed: {e}");
+            eprintln!("tb-engine: build failed: {e}");
             ExitCode::FAILURE
         }
     }
@@ -437,11 +437,11 @@ pub fn stop(entry: &Path, force: bool) -> ExitCode {
     let served = match Client::connect(&socket) {
         Ok(mut client) => match client.query(&json!({ "read": "shutdown" })) {
             Ok(_) => {
-                println!("au: shutdown requested for {}", entry.display());
+                println!("tb-engine: shutdown requested for {}", entry.display());
                 true
             }
             Err(e) => {
-                eprintln!("au: shutdown request failed: {e}");
+                eprintln!("tb-engine: shutdown request failed: {e}");
                 // Without --force a failed request is the end of the line; with
                 // it, fall through to signal the recorded pid.
                 if !force {
@@ -459,7 +459,10 @@ pub fn stop(entry: &Path, force: bool) -> ExitCode {
             false
         }
         Err(e) => {
-            eprintln!("au: cannot reach daemon for {}: {e}", entry.display());
+            eprintln!(
+                "tb-engine: cannot reach daemon for {}: {e}",
+                entry.display()
+            );
             if !force {
                 return ExitCode::from(ENV_ERROR);
             }
@@ -469,7 +472,7 @@ pub fn stop(entry: &Path, force: bool) -> ExitCode {
 
     if !force {
         if !served {
-            println!("au: no daemon running for {}", entry.display());
+            println!("tb-engine: no daemon running for {}", entry.display());
         }
         return ExitCode::SUCCESS;
     }
@@ -481,14 +484,14 @@ pub fn stop(entry: &Path, force: bool) -> ExitCode {
         // No pid recorded: a graceful stop already handled a serving daemon, or
         // nothing was running.
         if !served {
-            println!("au: no daemon running for {}", entry.display());
+            println!("tb-engine: no daemon running for {}", entry.display());
         }
         return ExitCode::SUCCESS;
     };
     if !pid_alive(pid) {
         let _ = std::fs::remove_file(&pid_file_path); // a stale pid, reclaim it
         if !served {
-            println!("au: no daemon running for {}", entry.display());
+            println!("tb-engine: no daemon running for {}", entry.display());
         }
         return ExitCode::SUCCESS;
     }
@@ -497,7 +500,7 @@ pub fn stop(entry: &Path, force: bool) -> ExitCode {
     // before signalling, so a serving daemon still exits cleanly under --force.
     if served && wait_for_exit(pid, FORCE_STOP_WINDOW) {
         let _ = std::fs::remove_file(&pid_file_path);
-        println!("au: daemon stopped for {}", entry.display());
+        println!("tb-engine: daemon stopped for {}", entry.display());
         return ExitCode::SUCCESS;
     }
 
@@ -511,7 +514,7 @@ pub fn stop(entry: &Path, force: bool) -> ExitCode {
     }
     let _ = std::fs::remove_file(&pid_file_path);
     println!(
-        "au: force-stopped daemon for {} (pid {pid})",
+        "tb-engine: force-stopped daemon for {} (pid {pid})",
         entry.display()
     );
     ExitCode::SUCCESS
@@ -534,7 +537,7 @@ pub fn status(entry: &Path) -> ExitCode {
             let refstate = resp["result"]["lifecycle"]["ref"].as_str().unwrap_or("?");
             let version = resp["version"].as_u64();
             println!(
-                "au: daemon running for {} (engine={engine}, ref={refstate}, ready={ready}, version={})",
+                "tb-engine: daemon running for {} (engine={engine}, ref={refstate}, ready={ready}, version={})",
                 entry.display(),
                 version
                     .map(|v| v.to_string())
@@ -559,19 +562,19 @@ pub fn status(entry: &Path) -> ExitCode {
             match read_recorded_pid(&pid_file_path) {
                 Some(pid) if pid_alive(pid) => {
                     println!(
-                        "au: daemon present but not yet serving for {} (booting, pid {pid}); \
-                         reclaim a wedged one with 'au daemon stop --force'",
+                        "tb-engine: daemon present but not yet serving for {} (booting, pid {pid}); \
+                         reclaim a wedged one with 'tb-engine daemon stop --force'",
                         entry.display()
                     );
                     ExitCode::SUCCESS
                 }
                 Some(_) => {
                     let _ = std::fs::remove_file(&pid_file_path);
-                    println!("au: no daemon running for {}", entry.display());
+                    println!("tb-engine: no daemon running for {}", entry.display());
                     ExitCode::from(NOT_RUNNING)
                 }
                 None => {
-                    println!("au: no daemon running for {}", entry.display());
+                    println!("tb-engine: no daemon running for {}", entry.display());
                     ExitCode::from(NOT_RUNNING)
                 }
             }
@@ -598,7 +601,7 @@ fn schema_skew_warning(resp: &serde_json::Value, root: &Path) -> Option<String> 
     let compiled = u64::from(SCHEMA_VERSION);
     (daemon != compiled).then(|| {
         format!(
-            "au: WARNING: a stale daemon (schema v{daemon}) is serving {}; \
+            "tb-engine: WARNING: a stale daemon (schema v{daemon}) is serving {}; \
              this binary speaks v{compiled} — stop and restart it",
             root.display(),
         )
@@ -655,7 +658,7 @@ fn degraded_boot_report(diags: &[Diagnostic]) -> Option<String> {
         return None;
     }
     let mut out = format!(
-        "au: WARNING workspace opened degraded — {} declared member(s)/dependency(ies) did not \
+        "tb-engine: WARNING workspace opened degraded — {} declared member(s)/dependency(ies) did not \
          resolve; their types are absent from the served workspace:",
         degraded.len()
     );
@@ -698,7 +701,7 @@ fn degraded_counts_line(by_code: &serde_json::Value) -> Option<String> {
         .collect::<Vec<_>>()
         .join(", ");
     Some(format!(
-        "au: WARNING workspace degraded — {total} declared member(s)/dependency(ies) did not \
+        "tb-engine: WARNING workspace degraded — {total} declared member(s)/dependency(ies) did not \
          resolve ({breakdown})"
     ))
 }
@@ -708,7 +711,7 @@ fn degraded_counts_line(by_code: &serde_json::Value) -> Option<String> {
 /// entry is a usage error.
 fn canonical_entry(entry: &Path) -> Result<PathBuf, ExitCode> {
     std::fs::canonicalize(entry).map_err(|e| {
-        eprintln!("au: cannot resolve entry {}: {e}", entry.display());
+        eprintln!("tb-engine: cannot resolve entry {}: {e}", entry.display());
         ExitCode::from(ENV_ERROR)
     })
 }
@@ -721,7 +724,7 @@ struct TraceGuards {
 }
 
 /// Install the operation-tracing subscriber when `TB_TRACE` is set, writing a
-/// Perfetto trace and a timing log under `<entry>/.arsumbris/au-engine/logs/trace/`,
+/// Perfetto trace and a timing log under `<entry>/.2brain/engine/logs/trace/`,
 /// each named by the run's start time. `None` when tracing is off, the default,
 /// where no subscriber is installed and the span macros cost nothing.
 ///
@@ -734,12 +737,15 @@ fn install_tracing(entry: &Path) -> Option<TraceGuards> {
     // carries a spelling keeps it and a new one gets the current name -- the same rule
     // the saga marker directory follows.
     let dir = tb_parser::identity_dir_for_write_with(entry, |dir| dir.exists())
-        .join("au-engine")
+        .join("engine")
         .join("logs")
         .join("trace");
     // Runtime output, never committed: the directory ignores itself.
     if let Err(e) = tb_engine::ensure_git_ignored_dir(&dir) {
-        eprintln!("au: TB_TRACE set but cannot create {}: {e}", dir.display());
+        eprintln!(
+            "tb-engine: TB_TRACE set but cannot create {}: {e}",
+            dir.display()
+        );
         return None;
     }
     let stamp = std::time::SystemTime::now()
@@ -755,7 +761,7 @@ fn install_tracing(entry: &Path) -> Option<TraceGuards> {
     let log_file = match std::fs::File::create(dir.join(format!("timing-{stamp}.log"))) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("au: TB_TRACE set but cannot open the timing log: {e}");
+            eprintln!("tb-engine: TB_TRACE set but cannot open the timing log: {e}");
             return None;
         }
     };
@@ -773,7 +779,10 @@ fn install_tracing(entry: &Path) -> Option<TraceGuards> {
         .with(chrome)
         .with(timing)
         .init();
-    eprintln!("au: TB_TRACE on, tracing operations to {}", dir.display());
+    eprintln!(
+        "tb-engine: TB_TRACE on, tracing operations to {}",
+        dir.display()
+    );
     Some(TraceGuards {
         _chrome: chrome_guard,
         _appender: appender_guard,
@@ -820,7 +829,7 @@ mod tests {
         Diagnostic {
             code,
             severity: Severity::Warning,
-            span: Span::new(".arsumbris/workspace.yaml", ByteRange::new(0, 5)),
+            span: Span::new(".2brain/workspace.yaml", ByteRange::new(0, 5)),
             message: message.into(),
             related: vec![],
             fix: None,

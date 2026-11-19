@@ -38,7 +38,7 @@ ADAPTER = os.environ.get("TB_MCP_BIN", str(TARGET / "release/2brain"))
 
 
 def disposable() -> tuple[str, dict, str]:
-    root = tempfile.mkdtemp(prefix="au-strict-")
+    root = tempfile.mkdtemp(prefix="tb-strict-")
     home, repo = os.path.join(root, "home"), os.path.join(root, "repo")
     for directory in (home, os.path.join(repo, ".2brain"), os.path.join(repo, "notes")):
         os.makedirs(directory, exist_ok=True)

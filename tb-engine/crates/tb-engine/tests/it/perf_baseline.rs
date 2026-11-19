@@ -5,7 +5,7 @@
 //! captures the effects the read-path fixes target, not just the read compute.
 //!
 //! Run it, sized by `TB_BASELINE_N` (default 2000):
-//!   cargo test -p au-engine --test it perf_baseline -- --ignored --nocapture
+//!   cargo test -p tb-engine --test it perf_baseline -- --ignored --nocapture
 //!
 //! Re-run after each read-path action and compare. The numbers to watch:
 //! - `children` and per-file `diagnostics`, the O(knowledge base) reads, should fall to

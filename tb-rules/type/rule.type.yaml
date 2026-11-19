@@ -8,7 +8,7 @@
 #: Keep a rule only where it changes what the agent does.
 #: Close on a "To check, ..." self-test where a runnable check fits.
 #: Name a mechanism in backticks, not a body wikilink, since the profile injects the rule body alone and never follows it.
-#: The overridable writing voice is its own package now, au-writing-style.
+#: The overridable writing voice is its own package now, tb-writing-style.
 fields:
   name: String
   description: String

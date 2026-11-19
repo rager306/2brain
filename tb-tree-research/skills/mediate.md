@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: mediate
 description: >-
   Explore the premise and research graph, develop follow-up questions and recommend what to research next.
@@ -44,7 +44,7 @@ Keep every question within the premise's boundaries.
 **Reuse or create**
 
 Reuse equivalent open questions and check retired leads before recreating them.
-Save new questions as `question.open::au-tree-research` with:
+Save new questions as `question.open::tb-tree-research` with:
 
 - A `tldr`
 - A self-contained `prompt`
@@ -61,7 +61,7 @@ Keep the question's wording in the filename, adjusting only characters unsafe in
 
 **Retire unused leads**
 
-Retire duplicate or off-scope open leads as `question.dropped::au-tree-research`, preserving their other data.
+Retire duplicate or off-scope open leads as `question.dropped::tb-tree-research`, preserving their other data.
 Leave these untouched:
 
 - Active work

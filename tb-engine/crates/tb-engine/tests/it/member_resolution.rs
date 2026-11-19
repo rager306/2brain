@@ -13,8 +13,8 @@ use tb_engine::{
 use tb_parser::RealFileSystem;
 
 fn repo(root: &Path, yaml: &str) {
-    fs::create_dir_all(root.join(".arsumbris")).unwrap();
-    fs::write(root.join(".arsumbris/repo.yaml"), yaml).unwrap();
+    fs::create_dir_all(root.join(".2brain")).unwrap();
+    fs::write(root.join(".2brain/repo.yaml"), yaml).unwrap();
 }
 
 /// A workspace touching every tier:
@@ -41,12 +41,12 @@ fn fixture() -> Fixture {
         "name: ws\ndeps:\n  - name: cached\n  - name: peer\n",
     );
     fs::write(
-        entry.join(".arsumbris/workspace.yaml"),
+        entry.join(".2brain/workspace.yaml"),
         "edit:\n  - ws\ndiscover:\n  - sib\n  - reg\n  - gone\n  - off\ndisabled:\n  - off\n",
     )
     .unwrap();
     fs::write(
-        entry.join(".arsumbris/repo.lock"),
+        entry.join(".2brain/repo.lock"),
         "packages:\n  - name: cached\n    remote: git@example.com:o/cached.git\n    sha: aaaa1111\n  - name: ghost\n    remote: git@example.com:o/ghost.git\n    sha: bbbb2222\n",
     )
     .unwrap();
@@ -134,7 +134,7 @@ fn a_locked_dependency_missing_from_the_cache_marks_the_answer_incomplete() {
 fn a_fully_located_workspace_is_complete() {
     let f = fixture();
     fs::write(
-        f.entry.join(".arsumbris/repo.lock"),
+        f.entry.join(".2brain/repo.lock"),
         "packages:\n  - name: cached\n    remote: git@example.com:o/cached.git\n    sha: aaaa1111\n",
     )
     .unwrap();

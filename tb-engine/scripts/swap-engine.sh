@@ -4,7 +4,7 @@
 # The runbook (docs/engine-swap-2026-11-16.md) is prose for a human; this is the same procedure as one
 # command, because the risky part is not deciding — it is the ordering. `install` replaces the FILE
 # before `systemctl restart` replaces the PROCESS, so between the two a failed restart leaves a new
-# binary on disk that cron's au-health.sh would happily start. This script therefore treats any
+# binary on disk that cron's tb-health.sh would happily start. This script therefore treats any
 # failure after `install` as "restore first, diagnose second", and it never leaves that window open:
 # every step after the install either completes the swap or puts the old binary back.
 #
@@ -18,10 +18,10 @@ export HOME=/root
 
 DATE=${TB_SWAP_DATE:-$(date +%Y%m%d)}
 BACKUPS=/root/backups
-INSTALLED=/root/.2brain/bin/au
-CANDIDATE=${TB_CANDIDATE:-/root/2brain/tb-engine/target/release/au}
+INSTALLED=/root/.2brain/bin/tb-engine
+CANDIDATE=${TB_CANDIDATE:-/root/2brain/tb-engine/target/release/tb-engine}
 SERVICE=2brain-engine.service
-SOCKET=/root/.2brain/au-engine/run/adcfe8680a485529.sock
+SOCKET=/root/.2brain/tb-engine/run/adcfe8680a485529.sock
 PROBE=/root/2brain/tb-engine/scripts/engine_probe.py
 PRE=$BACKUPS/au-$DATE-pre-search
 CAND=$BACKUPS/au-$DATE-candidate
@@ -48,7 +48,7 @@ problem() {
 }
 
 preconditions() {
-  [[ -x $CANDIDATE ]] || problem "no candidate at $CANDIDATE (build it: cd au-engine && cargo +1.99.0 build --release)"
+  [[ -x $CANDIDATE ]] || problem "no candidate at $CANDIDATE (build it: cd tb-engine && cargo +1.99.0 build --release)"
   [[ -x $INSTALLED ]]  || problem "no installed binary at $INSTALLED"
   systemctl is-active --quiet "$SERVICE" || problem "$SERVICE is not running"
   [[ -S $SOCKET ]] || problem "no engine socket at $SOCKET"
@@ -57,20 +57,20 @@ preconditions() {
   pgrep -af "cargo (test|build)" | grep -v swap-engine >/dev/null && problem "a cargo build or test is running"
   # The candidate must not predate the sources it claims to build: a stale binary ships code nobody
   # reviewed. `au` carries no commit marker, so the check is "no source is newer than the binary".
-  ( cd /root/2brain && git diff --quiet -- au-engine ) || problem "au-engine has uncommitted changes"
+  ( cd /root/2brain && git diff --quiet -- tb-engine ) || problem "tb-engine has uncommitted changes"
   local newer
   newer=$(find /root/2brain/tb-engine/crates -name '*.rs' -newer "$CANDIDATE" -print -quit)
   [[ -z $newer ]] || problem "the candidate is older than $newer (rebuild it)"
 
   # Idempotence: if the served engine already answers `search`, there is nothing to swap.
-  if "$PROBE" --socket "$SOCKET" --out /tmp/au-swap-pre --verb tb_search >/dev/null 2>&1; then
+  if "$PROBE" --socket "$SOCKET" --out /tmp/tb-swap-pre --verb tb_search >/dev/null 2>&1; then
     problem "the served engine already answers tb_search — already swapped"
   fi
 
-  if ! "$PROBE" --socket "$SOCKET" --out /tmp/au-swap-probe >/dev/null 2>&1; then
+  if ! "$PROBE" --socket "$SOCKET" --out /tmp/tb-swap-probe >/dev/null 2>&1; then
     # The probe exits non-zero when one requested read is refused, which is the normal state before
     # the swap (`tb_search` is in the default set) — so acceptance is "the socket answered at all".
-    [[ -f /tmp/au-swap-probe/tb_overview.json ]] || problem "the engine does not answer a probe"
+    [[ -f /tmp/tb-swap-probe/tb_overview.json ]] || problem "the engine does not answer a probe"
   fi
 }
 
@@ -105,7 +105,7 @@ restore() {
   systemctl restart "$SERVICE"
   for _ in $(seq 1 30); do
     sleep 1
-    "$PROBE" --socket "$SOCKET" --out /tmp/au-restore-probe >/dev/null 2>&1 && {
+    "$PROBE" --socket "$SOCKET" --out /tmp/tb-restore-probe >/dev/null 2>&1 && {
       say "restored $INSTALLED from $PRE and the engine answers"
       return 0
     }
@@ -157,7 +157,7 @@ fi
 ready=0
 for _ in $(seq 1 60); do
   sleep 1
-  if "$PROBE" --socket "$SOCKET" --out /tmp/au-swap-wait >/dev/null 2>&1; then ready=1; break; fi
+  if "$PROBE" --socket "$SOCKET" --out /tmp/tb-swap-wait >/dev/null 2>&1; then ready=1; break; fi
 done
 if [[ $ready -eq 0 ]]; then
   say "the new engine did not answer within 60 s — restoring"
@@ -182,7 +182,7 @@ else
 fi
 
 # 5. The verb the swap exists for.
-if "$PROBE" --socket "$SOCKET" --out /tmp/au-swap-search --verb tb_search >/dev/null 2>&1; then
+if "$PROBE" --socket "$SOCKET" --out /tmp/tb-swap-search --verb tb_search >/dev/null 2>&1; then
   say "  tb_search: answered"
 else
   say "  tb_search: still refused — the swap did not take, restoring"

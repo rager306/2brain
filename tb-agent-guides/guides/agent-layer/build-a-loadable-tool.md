@@ -2,7 +2,7 @@
 type: guide
 goal: "Build a native agent tool from its definition and executable entry."
 rule: "Define the input and typed metadata, implement createPlugin, then verify discovery, advertised schema, and invocation."
-about: "[[mcp.tool::au-mcp-sdk]]"
+about: "[[mcp.tool::tb-mcp-sdk]]"
 example:
 ---
 
@@ -10,7 +10,7 @@ example:
 
 Build the tool from:
 
-- A subtype of [[mcp.tool::au-mcp-sdk]]
+- A subtype of [[mcp.tool::tb-mcp-sdk]]
 - Typed metadata
 - An executable module
 
@@ -25,9 +25,9 @@ First-party core tools use this package mechanism too.
 
 Read the current metadata contracts:
 
-- [[plugin-runtime-meta::au-mcp-sdk]]
-- [[tool-presentation-meta::au-mcp-sdk]]
-- [[tool-access-meta::au-mcp-sdk]]
+- [[plugin-runtime-meta::tb-mcp-sdk]]
+- [[tool-presentation-meta::tb-mcp-sdk]]
+- [[tool-access-meta::tb-mcp-sdk]]
 
 - Fields describe input
 - Runtime metadata locates the module relative to its owner and declares the plugin contract version
@@ -39,7 +39,7 @@ Callable is not a shape value.
 
 **Implement the entry contract**
 
-Read [[mcp.tool.au_agent_guide::au-agent-guides:example]] and its linked entry module.
+Read [[mcp.tool.tb_agent_guide::tb-agent-guides:example]] and its linked entry module.
 Its ESM exports createPlugin(ctx), which returns an invoke function.
 Invoke returns a CallableResult with content and isError on failure.
 

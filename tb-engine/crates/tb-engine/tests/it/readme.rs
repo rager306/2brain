@@ -1,7 +1,7 @@
 //! Repo README obligations: presence, self-declaration, placement, and scope.
 //!
 //! `seed_repo` writes a conformant README, so these fixtures write their own
-//! `.arsumbris/repo.yaml` (and READMEs) directly to exercise the missing /
+//! `.2brain/repo.yaml` (and READMEs) directly to exercise the missing /
 //! undeclared / misplaced / exempt cases.
 
 use std::fs;
@@ -28,7 +28,7 @@ fn an_entry_repo_with_no_readme_warns() {
     let root = fs::canonicalize(dir.path()).unwrap();
     write(
         &root,
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     // No README.md at the root.
@@ -45,7 +45,7 @@ fn a_conformant_readme_clears_the_obligation() {
     let root = fs::canonicalize(dir.path()).unwrap();
     write(
         &root,
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     write(&root, "README.md", CONFORMANT_README);
@@ -63,7 +63,7 @@ fn a_readme_without_a_tldr_field_fires_required_field_absent() {
     let root = fs::canonicalize(dir.path()).unwrap();
     write(
         &root,
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     // Self-declares the type and carries every section, but omits the required
@@ -86,7 +86,7 @@ fn a_root_readme_without_a_type_claim_warns_undeclared() {
     let root = fs::canonicalize(dir.path()).unwrap();
     write(
         &root,
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     // A plain README, no frontmatter type.
@@ -108,7 +108,7 @@ fn a_readme_claim_off_the_root_warns_misplaced() {
     let root = fs::canonicalize(dir.path()).unwrap();
     write(
         &root,
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     write(&root, "README.md", CONFORMANT_README);
@@ -128,7 +128,7 @@ fn a_readme_is_queryable_via_instances_of() {
     let root = fs::canonicalize(dir.path()).unwrap();
     write(
         &root,
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     write(&root, "README.md", CONFORMANT_README);
@@ -151,19 +151,19 @@ fn a_non_editable_member_without_a_readme_is_exempt() {
     // authored, so it is exempt from the README obligation.
     write(
         &root,
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "name: home\ntype: tb.engine.repo::tb-engine\n",
     );
     write(
         &root,
-        ".arsumbris/workspace.yaml",
+        ".2brain/workspace.yaml",
         "edit:\n  - home\ndiscover:\n  - sub\ntype: tb.engine.workspace::tb-engine\n",
     );
     write(&root, "README.md", CONFORMANT_README);
     // The discover member, no README of its own.
     write(
         &root,
-        "sub/.arsumbris/repo.yaml",
+        "sub/.2brain/repo.yaml",
         "name: sub\ntype: tb.engine.repo::tb-engine\n",
     );
     let cs = codes(&root);

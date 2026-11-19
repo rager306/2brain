@@ -55,7 +55,7 @@ fn instances_read_returns_per_instance_introspection() {
     assert_eq!(resp["ready"], true);
     let result = &resp["result"];
     assert_eq!(result["aborted_at_load"], false);
-    // Three instances: the user's `doc.md`, the folder-repo's `.arsumbris/repo.yaml`
+    // Three instances: the user's `doc.md`, the folder-repo's `.2brain/repo.yaml`
     // (an tb.engine.repo node), and its root `README.md` (an tb.engine.readme node).
     assert_eq!(result["count"], 3);
 

@@ -18,7 +18,7 @@ fn write(root: &Path, rel: &str, content: &str) {
 fn field_key_span_lands_on_the_field_name() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: proj\n");
+    write(&root, ".2brain/repo.yaml", "name: proj\n");
     // Two fields, so the span must land on the SECOND field's name, not the
     // type-def opening line.
     write(

@@ -10,7 +10,7 @@ tldr: Six skills to build and maintain source-grounded knowledge graphs with you
 
 ## General Context
 
-`au-weave` turns source material into connected notes in 2Brain.
+`tb-weave` turns source material into connected notes in 2Brain.
 Other projects can reuse the resulting knowledge.
 
 ## What this is
@@ -37,22 +37,22 @@ Other profiles supply their own vocabulary.
 
 **Inspect a worked graph**
 
-See [au-weave-example on GitHub](https://github.com/arsumbris/tb-weave-example) for a graph built with the shipped vocabulary.
+See [tb-weave-example on GitHub](https://github.com/arsumbris/tb-weave-example) for a graph built with the shipped vocabulary.
 Start at `map - start here` and inspect:
 
 - Short concept, claim and entity notes
 - Reasoned links and map placement
 - Extraction candidates connected to source passages
 
-Add `au-weave-example` and `au-tr-example` to your workspace's `discover` list to inspect the graph and its sources.
-The source articles live in `au-tr-example`.
+Add `tb-weave-example` and `tb-tr-example` to your workspace's `discover` list to inspect the graph and its sources.
+The source articles live in `tb-tr-example`.
 
 **Set up the graph**
 
 A graph can live in its own 2Brain repo or a declared subrepo of your project.
 Keep sources alongside it or reference an existing corpus.
 
-Declare `au-weave` in the consumer repository's dependencies.
+Declare `tb-weave` in the consumer repository's dependencies.
 The engine mounts it through that dependency.
 
 **Choose skills**
@@ -72,7 +72,7 @@ Refresh the runtime after changing skills or tools.
 
 **Prepare sources**
 
-Sources use `source::au-base-types` or a type that inherits from it.
+Sources use `source::tb-base-types` or a type that inherits from it.
 Compatible corpus types need no extra tagging.
 
 Creating passage anchors requires editable sources.

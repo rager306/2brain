@@ -1,2 +1,2 @@
-type: agent-profile::au-mcp-sdk
-adapter: "[[mcp.adapter.codex::au-mcp-adapter-codex]]"
+type: agent-profile::tb-mcp-sdk
+adapter: "[[mcp.adapter.codex::tb-mcp-adapter-codex]]"

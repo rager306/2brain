@@ -2,7 +2,7 @@
 //! incremental fast-path wall-clock across the named profiles and a repo-count
 //! sweep. A smoke test for ~linear (O(V+E)) whole-build scaling, eyeballed.
 //!
-//! `cargo run --release --example scale_bench -p au-engine`
+//! `cargo run --release --example scale_bench -p tb-engine`
 //!
 //! Complements `rebuild_bench`, which measures the edit-class and dirty-served
 //! stream over a hand-authored topology; this one drives the profile knobs of the

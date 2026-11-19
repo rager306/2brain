@@ -6,4 +6,4 @@ location:
   fileType: yaml
 fields:
   #: The source whose wording warrants these candidates. Recurrence counts distinct sources.
-  of: source::au-base-types*
+  of: source::tb-base-types*

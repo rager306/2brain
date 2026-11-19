@@ -405,7 +405,7 @@ fn files_defaults_to_all_and_narrows_on_request() {
     let (_dir, root) = multi_member_kb();
     let mut h = harness(&root);
 
-    // `v` is the entry repo: its own `.arsumbris/` engine-schema files are
+    // `v` is the entry repo: its own `.2brain/` engine-schema files are
     // catalogued and are resolvable wikilink targets, so they belong here.
     let default = h.payload("files", json!({}));
     assert_eq!(
@@ -426,7 +426,7 @@ fn files_defaults_to_all_and_narrows_on_request() {
 }
 
 /// The stem is what a bare `[[name]]` resolves by, so serving it saves every
-/// consumer re-deriving the strip-ONE-extension rule ([[type reference::au-type-system]]).
+/// consumer re-deriving the strip-ONE-extension rule ([[type reference::tb-type-system]]).
 #[test]
 fn a_files_entry_carries_the_stem_a_bare_wikilink_resolves_by() {
     let (_dir, root) = multi_member_kb();

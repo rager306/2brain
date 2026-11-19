@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: research
 description: >-
   Research one question in depth and synthesize a self-contained article.
@@ -111,7 +111,7 @@ Keep all wikilinks outside the article body, including examples.
 
 ## Save the article
 
-Save as `article::au-tree-research` or the requested compatible type, following the workspace's note requirements.
+Save as `article::tb-tree-research` or the requested compatible type, following the workspace's note requirements.
 Include a `tldr` and an `answers` link to the question.
 
 Follow the question's parent chain to its premise.
@@ -142,7 +142,7 @@ Resolve other errors first.
 
 **Complete the question**
 
-After review, re-read the question and change only its direct `question.open::au-tree-research` claim to `question.researched::au-tree-research`.
+After review, re-read the question and change only its direct `question.open::tb-tree-research` claim to `question.researched::tb-tree-research`.
 Preserve its prompt, parent and other data.
 
 Handle completion exceptions:

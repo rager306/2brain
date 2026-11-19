@@ -1,5 +1,5 @@
 title: "Text at a union slot that is a well-formed typed mapping is read as a record, and the hint names why"
-spec_ref: "[[spec - diagnostic codes::au-type-system^body-fence-read-as-record]]"
+spec_ref: "[[spec - diagnostic codes::tb-type-system^body-fence-read-as-record]]"
 command: validate
 expected:
   codes:

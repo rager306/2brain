@@ -1,7 +1,7 @@
 """The monorepo's shared cargo target directory (`.cargo/config.toml`).
 
 Every crate here shares one target directory, so a per-crate path such as
-`tb-engine/target/release/au` does not exist on a clean checkout. Asking cargo is
+`tb-engine/target/release/tb-engine` does not exist on a clean checkout. Asking cargo is
 the only answer that honours both `CARGO_TARGET_DIR` and the config file.
 """
 

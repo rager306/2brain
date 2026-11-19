@@ -1,4 +1,4 @@
-//! Diagnostic codes emitted by `au-parser`. Stable kebab-case strings;
+//! Diagnostic codes emitted by `tb-parser`. Stable kebab-case strings;
 //! downstream consumers match on these.
 
 use tb_diagnostics::DiagnosticCode;

@@ -19,7 +19,7 @@
 //! independent, and it is the fact that decides whether a write costs
 //! microseconds or a whole rebuild.
 //!
-//! No `au-engine` dependency, so the crate graph stays acyclic. An operation is
+//! No `tb-engine` dependency, so the crate graph stays acyclic. An operation is
 //! filesystem work plus a declared expectation; the engine-side meaning of
 //! [`RebuildPath`] is mapped by the caller.
 
@@ -191,7 +191,7 @@ impl Operation {
 /// produces no version advance and no event. Every operation here is measured as
 /// write-to-observable latency, and an operation with nothing to observe has no
 /// latency to measure, so it would only ever report a timeout. The behaviour is
-/// pinned by unit test instead, in au-engine: `an_asset_content_edit_advances_nothing`
+/// pinned by unit test instead, in tb-engine: `an_asset_content_edit_advances_nothing`
 /// for the version, `parity_an_asset_edit_changes_nothing` for the state.
 pub fn catalog() -> Vec<Operation> {
     vec![

@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: integrate a large existing corpus without committing to a full migration upfront
 rule: Check a representative batch against the workspace's needs before expanding the integration.
 ---
@@ -56,7 +56,7 @@ Qualify cross-repository references.
 **Readable sources**
 
 Preserve original material when creating readable versions.
-Use current au-ingest guidance for supported conversions when that package is available.
+Use current tb-ingest guidance for supported conversions when that package is available.
 Before converting, check that the format is supported.
 Check conversion fidelity separately from readability.
 

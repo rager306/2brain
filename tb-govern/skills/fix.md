@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: fix
 description: Repairs open findings on a knowledge graph, checks the repair against their doctrine, and records resolution. Use when the findings worklist needs draining or the human asks to resolve recorded findings. Check owns discovering semantic defects. General code fixes and unrecorded bug reports stay with their own workflows. Acceptance and dismissal require the human's ruling.
 ---
@@ -15,7 +15,7 @@ Keep the repair evidence and disposition on each finding.
 
 Use the finding's subject and breaks to judge the defect against its evidence.
 Reuse current reads until relevant state changes or freshness is uncertain.
-When the worklist is unknown or stale, query tb_instances_of with ofType: finding.open::au-govern.
+When the worklist is unknown or stale, query tb_instances_of with ofType: finding.open::tb-govern.
 Follow every page before claiming the worklist is complete.
 
 Prioritize repairs by their effect on the affected work.
@@ -29,10 +29,10 @@ Do not alter their words merely to make the check pass.
 
 **Identity and location**
 
-Use [[reshape-with-the-engine::au-agent-guides]] for changes to identities or locations.
+Use [[reshape-with-the-engine::tb-agent-guides]] for changes to identities or locations.
 Choose the operation for its supported effects on references.
 
-For a successor, follow [[supersede::au-agent-guides]].
+For a successor, follow [[supersede::tb-agent-guides]].
 Existing links still reach the old note.
 The engine neither redirects them nor follows the successor chain automatically.
 Carry only relations the successor still supports.

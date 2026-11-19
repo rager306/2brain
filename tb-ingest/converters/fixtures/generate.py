@@ -170,7 +170,7 @@ archive("sample.epub", {
     '<rootfiles><rootfile full-path="content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>',
     "content.opf": '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">'
     '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'
-    f'<dc:identifier id="id">urn:au-ingest:conversion-test</dc:identifier><dc:title>{TITLE}</dc:title>'
+    f'<dc:identifier id="id">urn:tb-ingest:conversion-test</dc:identifier><dc:title>{TITLE}</dc:title>'
     '<dc:language>en</dc:language><meta property="dcterms:modified">2000-01-01T00:00:00Z</meta></metadata>'
     '<manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>'
     '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/></manifest>'

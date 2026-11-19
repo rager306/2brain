@@ -4,8 +4,8 @@
 #: and the instance's markdown BODY is the skill instructions. Discovered via `instances_of('mcp.skill')`
 #: — the launch-time-STATIC mirror of the runtime-DYNAMIC `mcp.tool`. No `body:` contract (the body is
 #: freeform prose) and no `entry`/code: a skill is guidance, not a callable.
-#: See [[spec - mcp.skill - packages ship agent guidance as typed instances materialized at launch into each harness skill folder::au-harness]]
-#: and [[c - skills are launch-time-static the mirror of runtime-dynamic tools::au-harness]].
+#: See [[spec - mcp.skill - packages ship agent guidance as typed instances materialized at launch into each harness skill folder::tb-harness]]
+#: and [[c - skills are launch-time-static the mirror of runtime-dynamic tools::tb-harness]].
 extends: mcp
 fields:
   #: the skill's name; becomes the harness skill id (e.g. Claude Code `/<owner>:<name>`).

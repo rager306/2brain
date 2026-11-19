@@ -36,7 +36,7 @@ fn severity_token(s: Severity) -> &'static str {
 /// is the default state of nearly every curated fixture. It is an entry-level
 /// obligation orthogonal to what each fixture tests, so surfacing it here would
 /// bury every scenario's actual point under one uniform warning. It is covered by
-/// a dedicated au-engine integration test instead.
+/// a dedicated tb-engine integration test instead.
 const SCENARIO_SUPPRESSED_CODES: &[&str] = &["repo-missing-readme"];
 
 fn is_suppressed(d: &tb_diagnostics::Diagnostic) -> bool {
@@ -140,7 +140,7 @@ fn render_scenario_engine(scenario_dir: &Path, command: &str, root: &Path) -> St
             // def's `parents[]` verbatim — a cross-repo `extends:` parent reads
             // `name::repo`. An optional `repo:` field scopes to one member (the
             // reporter's `readTypes(client, { repo })`, and keeps the snapshot to
-            // that member's own defs, off the hardwired `au.engine.*` set);
+            // that member's own defs, off the hardwired `tb.engine.*` set);
             // absent, it is the whole-workspace read.
             let repo = read_optional_field(&scenario_dir.join("scenario.yaml"), "repo");
             let types = match repo {

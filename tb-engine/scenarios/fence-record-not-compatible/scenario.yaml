@@ -1,5 +1,5 @@
 title: "A fence record must satisfy the slot, not merely its own claimed type"
-spec_ref: "[[type-def shape record::au-type-system]], [[type-instance body contribution::au-type-system]]"
+spec_ref: "[[type-def shape record::tb-type-system]], [[type-instance body contribution::tb-type-system]]"
 command: validate
 expected:
   codes:

@@ -3,11 +3,11 @@
 
   "files.watcherExclude": {
     "**/target/**": true,
-    "**/.arsumbris/**": true
+    "**/.2brain/**": true
   },
   "search.exclude": {
     "**/target": true,
-    "**/.arsumbris": true
+    "**/.2brain": true
   },
   "files.exclude": {
     "**/target": false

@@ -1,5 +1,5 @@
 title: "Two unrelated parents surfacing different blocks of one meta type fire meta-inheritance-conflict"
-spec_ref: "[[type-def meta::au-type-system]]"
+spec_ref: "[[type-def meta::tb-type-system]]"
 command: validate
 expected:
   codes:

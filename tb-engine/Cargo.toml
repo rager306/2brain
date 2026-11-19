@@ -57,7 +57,7 @@ opt-level = 0
 # variable inspection is degraded; backtraces and panic messages still work.
 debug = "line-tables-only"
 # No incremental state: it is never cacheable, and kache (the rustc wrapper) only
-# earns its keep on non-incremental units. au-mcp-rs sets the same — both
+# earns its keep on non-incremental units. tb-mcp-rs sets the same — both
 # workspaces share one target directory, so a mismatch compiles crates twice.
 incremental = false
 

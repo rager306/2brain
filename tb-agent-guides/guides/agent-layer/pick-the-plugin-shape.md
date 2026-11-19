@@ -2,15 +2,15 @@
 type: guide.gotcha
 goal: "Choose an agent tool or the hook phase a runtime capability needs."
 rule: "Use a tool for an agent-invoked operation; use hook shapes for runtime phases, choosing ordering and failure behavior deliberately."
-about: "[[plugin-runtime-meta::au-mcp-sdk]]"
+about: "[[plugin-runtime-meta::tb-mcp-sdk]]"
 example:
 ---
 
 # Choose the plugin kind and hook phases
 
 Use a tool for an agent-invoked operation and a hook for internal runtime phases.
-A subtype of [[mcp.tool::au-mcp-sdk:example]] supplies invoke and has no shapes list.
-A subtype of [[mcp.hook::au-mcp-sdk:example]] supplies one or more hook phases.
+A subtype of [[mcp.tool::tb-mcp-sdk:example]] supplies invoke and has no shapes list.
+A subtype of [[mcp.hook::tb-mcp-sdk:example]] supplies one or more hook phases.
 
 Name it `mcp.tool.<name>` or `mcp.hook.<name>` as required by the loader.
 Inheritance alone does not satisfy that discovery filter.

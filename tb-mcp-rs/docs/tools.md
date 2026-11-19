@@ -4,7 +4,7 @@ Three surfaces: **tools** (52) for actions and reads; **resources** for
 addressable files; and **prompts** for the answer contract (see
 `docs/research/answer-contract-2026-11-16.md` in the monorepo).
 
-A resource URI is `2brain://<repo>/<path>` (the legacy `arsumbris://` is accepted on parse), where the path is
+A resource URI is `2brain://<repo>/<path>` (the legacy `2brain://` is accepted on parse), where the path is
 member-relative and percent-encoded; `resources/list` pages the catalogue 100 at a
 time and `resources/read` returns the engine's own text with `text/markdown`.
 `resources/templates/list` publishes the one shape, so a client can construct a URI
@@ -156,7 +156,7 @@ at a time) and each is one engine saga:
 | `tb_promote` | `repo`, `path`, `to`, `at` xor `block_id`, `expected_hash` | lifts an inline record into its own file and leaves a reference |
 | `tb_batch` | `repo`, `ops` (1–50 of write_file / edit_file / delete_file, each with its own `expected_hash`) | applies the ops in order as one engine saga: one commit per touched member, and a rejection on any op leaves every file as it was |
 | `tb_rename_type` | `old_name`, `new_name`, `expected_hash` | renames a type-def and carries every claim, slot, and wikilink; the freshness check is the type's hash, and the grant must cover every member the cascade rewrites, not only the defining one |
-| `tb_add_dep` / `tb_remove_dep` | `repo`, `dep`, `expected_hash?` | author `.arsumbris/repo.yaml`; requires the composition grant |
+| `tb_add_dep` / `tb_remove_dep` | `repo`, `dep`, `expected_hash?` | author `.2brain/repo.yaml`; requires the composition grant |
 
 ### Workspace shape
 

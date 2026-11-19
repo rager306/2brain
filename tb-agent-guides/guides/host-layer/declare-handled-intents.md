@@ -2,7 +2,7 @@
 type: guide.gotcha
 goal: "Declare and route the commands a projection can receive."
 rule: "Keep static intent capabilities, mounted handlers, and composition routing consistent; choose ambient and aimed delivery deliberately."
-about: "[[handles-intent-meta::au-host-sdk]]"
+about: "[[handles-intent-meta::tb-host-sdk]]"
 example:
 ---
 
@@ -14,7 +14,7 @@ Keep these parts consistent:
 - Mounted handlers
 - Composition routing
 
-[[handles-intent-meta::au-host-sdk:example]] declares which intent definitions a projection can handle.
+[[handles-intent-meta::tb-host-sdk:example]] declares which intent definitions a projection can handle.
 The host reads it during discovery.
 The mounted instance separately binds runtime handlers through its supplied intent capability.
 
@@ -26,7 +26,7 @@ Read the intent definitions with the handler implementation.
 
 **Trace the route**
 
-The host interprets the intent mechanism and the composition's [[intent-routing::au-host-sdk:example]] configuration.
+The host interprets the intent mechanism and the composition's [[intent-routing::tb-host-sdk:example]] configuration.
 The recipient can depend on:
 
 - Explicit wires and reachability

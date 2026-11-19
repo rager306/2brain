@@ -5,7 +5,7 @@ type: tb.engine.repo::tb-engine
 name: minimal
 description: a file tree beside a document, and nothing else
 deps:
-  - name: au-host-sdk           # composition / window / keymap base types
+  - name: tb-host-sdk           # composition / window / keymap base types
   - name: bento                 # bento::bento, bento-node.branch::bento (the split)
   - name: file-tree             # file-tree::file-tree
   - name: editor                # editor-pane::editor (the document)

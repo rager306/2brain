@@ -12,7 +12,7 @@ a bare hub array). The daemon is being retired; a contract that outlives it has 
 be phrased in the engine's own answers, which is what this captures.
 
     ./tb-engine/scripts/engine_probe.py \
-        --socket ~/.2brain/au-engine/run/<hash>.sock \
+        --socket <state root>/engine/run/<hash>.sock \
         --out tb-engine/tests-golden/engine
 
 Every response is normalized so a re-capture on a clean tree diffs only when the

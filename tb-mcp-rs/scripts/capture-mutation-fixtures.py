@@ -15,7 +15,7 @@ mutating tool, not three of them:
     tb_add_workspace_member tb_remove_workspace_member tb_set_workspace_member_role
 
 The fixture is disposable and never the served vault: a tempdir HOME, a temp repo, one
-`au daemon start` on it, and the adapter launched with --allow-mutations
+`tb-engine daemon start` on it, and the adapter launched with --allow-mutations
 --allow-composition --allow-workspace-shape. Every tool is put in a state where it
 SUCCEEDS, which is the state the schema describes: a guarded mutation reads first
 (`tb_content` for the content hash, `tb_type` for a type hash), and each capture owns its
@@ -309,7 +309,7 @@ def main() -> int:
 
     out = Path(options.out)
     out.mkdir(parents=True, exist_ok=True)
-    temp = tempfile.mkdtemp(prefix="au-mutations-")
+    temp = tempfile.mkdtemp(prefix="tb-mutations-")
     root = Path(temp)
     daemon = None
     written: list[tuple[str, list[str]]] = []

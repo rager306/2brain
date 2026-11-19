@@ -12,7 +12,7 @@
    "message": "workspace edit member 'aux' resolves to nothing; the workspace opens degraded over its present members",
    "severity": "warning",
    "span": {
-    "file": "$FIXTURE/.arsumbris/workspace.yaml",
+    "file": "$FIXTURE/.2brain/workspace.yaml",
     "line_col": {
      "end": {
       "col": 1,
@@ -31,7 +31,7 @@
   }
  ],
  "hash": "70ad4fc577aa3586",
- "path": "$FIXTURE/.arsumbris/workspace.yaml",
+ "path": "$FIXTURE/.2brain/workspace.yaml",
  "reflected": true,
  "untracked_files": []
 }

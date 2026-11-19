@@ -314,7 +314,7 @@ impl ResolutionGraphs {
 /// Crossing a boundary is explicit, `[[name::repo]]`. A scopeless navigation
 /// read with no source repo unions every index, see [`resolve_any`].
 ///
-/// Symmetric with [`RepoGraphs`], scoping is which index you pass; au-core's
+/// Symmetric with [`RepoGraphs`], scoping is which index you pass; tb-core's
 /// resolution is unchanged.
 ///
 /// [`resolve_any`]: RepoIndexes::resolve_any
@@ -467,7 +467,7 @@ pub struct KnowledgeBase {
     /// path-set change (an add, delete, or rename) walks to its edge-flip set.
     ///
     /// The key's repo is the target side, a `::repo` qualifier or the source's
-    /// own repo, so it spans repos. The name-key mirrors au-references
+    /// own repo, so it spans repos. The name-key mirrors tb-references
     /// resolution (basename, stem, repo-relative path). See [[spec - incremental
     /// resolved recompute - a change recomputes its blast radius byte-identical
     /// to a full build]].
@@ -660,7 +660,7 @@ impl KnowledgeBase {
     }
 
     /// The type graph a path resolves against: its repo's graph. Scoping is
-    /// which graph you pass; au-core's resolution is unchanged.
+    /// which graph you pass; tb-core's resolution is unchanged.
     pub fn graph_for_path(&self, path: &Path) -> &TypeGraph {
         match self.repos.repo_of(path) {
             Some(r) => self.graphs.of(&r.name),
@@ -678,7 +678,7 @@ impl KnowledgeBase {
     }
 
     /// The reference index a path resolves against: its repo's index. Scoping
-    /// is which index you pass; au-core's resolution is unchanged.
+    /// is which index you pass; tb-core's resolution is unchanged.
     pub fn index_for_path(&self, path: &Path) -> &RepoIndex {
         match self.repos.repo_of(path) {
             Some(r) => self.indexes.of(&r.name),

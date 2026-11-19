@@ -1,5 +1,5 @@
 title: "Field value violates declared primitive shape"
-spec_ref: "[[type-def shape primitive::au-type-system]]"
+spec_ref: "[[type-def shape primitive::tb-type-system]]"
 command: validate
 expected:
   codes:

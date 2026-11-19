@@ -58,12 +58,12 @@ fn started(writes: &[(&str, &str)]) -> Harness {
         fs::write(p, content).unwrap();
     };
     w(
-        "base/.arsumbris/repo.yaml",
+        "base/.2brain/repo.yaml",
         "name: base\ntype: tb.engine.repo::tb-engine\n",
     );
     crate::seed_readme(&root.join("base"));
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ntype: tb.engine.repo::tb-engine\ndeps:\n  - name: base\n",
     );
     crate::seed_readme(&root.join("app"));

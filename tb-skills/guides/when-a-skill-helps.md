@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Decide whether a recurring task needs a skill.
 rule: Identify a missing procedure and a task it would improve before adding another skill.
 ---
@@ -13,7 +13,7 @@ A one-time instruction may be enough for a one-time task.
 Check where the missing information belongs.
 A field's accepted values belong with its type contract.
 A procedure spanning several decisions may belong in a skill.
-[[pick-the-vehicle::au-agent-guides]] covers the available mechanisms.
+[[pick-the-vehicle::tb-agent-guides]] covers the available mechanisms.
 
 For this package, valid skill metadata alone is insufficient: the author must also check delivery, selection and task results.
 [[write-a-skill]] connects those checks into an authoring procedure.

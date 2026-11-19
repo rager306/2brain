@@ -22,9 +22,9 @@ Choose a mechanism that can reach it with the required reliability.
 
 **Read the execution contract**
 
-[[mcp.skill::au-mcp-sdk:example]] supplies task guidance that the agent must select and use.
-[[mcp.tool::au-mcp-sdk:example]] supplies a callable operation.
-[[mcp.hook::au-mcp-sdk:example]] supplies these phases:
+[[mcp.skill::tb-mcp-sdk:example]] supplies task guidance that the agent must select and use.
+[[mcp.tool::tb-mcp-sdk:example]] supplies a callable operation.
+[[mcp.hook::tb-mcp-sdk:example]] supplies these phases:
 
 - observer
 - mediator

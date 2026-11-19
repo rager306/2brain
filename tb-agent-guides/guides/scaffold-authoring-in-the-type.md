@@ -10,8 +10,8 @@ example:
 Use a body template when recurring sections make instances easier to author or inspect.
 Use free prose when the explanation needs to vary between instances.
 
-[[guide.pattern::au-agent-guides:example]] offers an optional skeleton.
-[[guide::au-agent-guides:example]] allows a free body.
+[[guide.pattern::tb-agent-guides:example]] offers an optional skeleton.
+[[guide::tb-agent-guides:example]] allows a free body.
 Choose the one that fits the content.
 
 **Author a value where it belongs**

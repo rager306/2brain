@@ -46,16 +46,16 @@ fn engine_read_request(socket: &Path, request: Value) -> std::io::Result<Value> 
 /// The directory a private engine's sockets live in, found rather than spelled.
 ///
 /// Which name the state root carries is the engine's decision (`$2BRAIN_HOME`, an existing
-/// `.2brain`, an existing `.arsumbris`, else `.2brain`), so a test that joins a literal name
+/// `.2brain`, an existing `.2brain`, else `.2brain`), so a test that joins a literal name
 /// asserts that decision instead of the behaviour it means to test: it passes while the rule
 /// holds and fails when the rule changes and the engine is right. This walks `$HOME` for any
-/// `<root>/au-engine/run` and returns the first, which is the same directory either way.
+/// `<root>/engine/run` and returns the first, which is the same directory either way.
 fn state_run_dir(home: &Path) -> PathBuf {
     let deadline = Instant::now() + STARTUP_TIMEOUT;
     loop {
         if let Ok(entries) = fs::read_dir(home) {
             for entry in entries.flatten() {
-                let run = entry.path().join("au-engine").join("run");
+                let run = entry.path().join("engine").join("run");
                 if run.is_dir() {
                     return run;
                 }
@@ -63,7 +63,7 @@ fn state_run_dir(home: &Path) -> PathBuf {
         }
         assert!(
             Instant::now() < deadline,
-            "the engine created no au-engine/run directory under {}",
+            "the engine created no engine/run directory under {}",
             home.display()
         );
         thread::sleep(Duration::from_millis(50));
@@ -161,7 +161,7 @@ fn commit_work_tree(dir: &Path) {
         let status = Command::new("git")
             .args([
                 "-c",
-                "user.name=au-mcp-rs",
+                "user.name=tb-mcp-rs",
                 "-c",
                 "user.email=test@example.invalid",
             ])
@@ -181,23 +181,23 @@ fn build_fixture(temp: &Path) -> (PathBuf, PathBuf) {
     let home = temp.join("home");
     let repo = temp.join("fixture");
     let base = temp.join("base");
-    fs::create_dir_all(base.join(".arsumbris")).unwrap();
+    fs::create_dir_all(base.join(".2brain")).unwrap();
     fs::create_dir_all(base.join("type")).unwrap();
-    fs::write(base.join(".arsumbris/repo.yaml"), "name: base\n").unwrap();
+    fs::write(base.join(".2brain/repo.yaml"), "name: base\n").unwrap();
     fs::write(
         base.join("type/peer.type.yaml"),
         "fields:\n  title: String\n",
     )
     .unwrap();
     fs::write(base.join("asset.pdf"), b"synthetic asset").unwrap();
-    fs::create_dir_all(home.join(".arsumbris")).unwrap();
-    fs::create_dir_all(repo.join(".arsumbris")).unwrap();
+    fs::create_dir_all(home.join(".2brain")).unwrap();
+    fs::create_dir_all(repo.join(".2brain")).unwrap();
     fs::create_dir_all(repo.join("type")).unwrap();
     fs::create_dir_all(repo.join("notes/order")).unwrap();
     fs::write(repo.join("notes/order/inner.md"), "synthetic note\n").unwrap();
     fs::write(repo.join("notes/order z.md"), "synthetic note\n").unwrap();
     fs::write(
-        repo.join(".arsumbris/repo.yaml"),
+        repo.join(".2brain/repo.yaml"),
         "name: fixture\ndeps:\n  - name: base\n",
     )
     .unwrap();
@@ -257,8 +257,8 @@ fn build_fixture(temp: &Path) -> (PathBuf, PathBuf) {
     (home, repo)
 }
 
-// Build the engine separately: RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --manifest-path ../tb-engine/Cargo.toml -p au-cli --bin au
-// Then run: RUSTUP_HOME=/root/.rustup TB_ENGINE_BIN=../tb-engine/target/debug/au cargo +1.99.0 test --locked --test real_engine -- --ignored
+// Build the engine separately: RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --manifest-path ../tb-engine/Cargo.toml -p tb-cli --bin tb-engine
+// Then run: RUSTUP_HOME=/root/.rustup TB_ENGINE_BIN=../tb-engine/target/debug/tb-engine cargo +1.99.0 test --locked --test real_engine -- --ignored
 /// The read fixtures replay every advertised read through the MCP layer against
 /// a real engine on a disposable repository. Paths are recorded relative to the
 /// fixture root as `$FIXTURE`, so the corpus does not carry machine paths.
@@ -373,7 +373,7 @@ fn synthetic_read_fixtures_match_the_engine() {
     let engine = std::env::var_os("TB_ENGINE_BIN").expect("set TB_ENGINE_BIN to the au binary");
     let capture = std::env::var_os("CAPTURE_FIXTURES").is_some();
     let temp = tempfile::Builder::new()
-        .prefix("au-fixtures-")
+        .prefix("tb-fixtures-")
         .tempdir_in("/tmp")
         .unwrap();
     let (home, _repo) = build_fixture(temp.path());
@@ -472,28 +472,28 @@ fn synthetic_read_fixtures_match_the_engine() {
 fn build_two_member_workspace(temp: &Path) -> (PathBuf, PathBuf) {
     let home = temp.join("home");
     let entry = temp.join("entry");
-    fs::create_dir_all(home.join(".arsumbris")).unwrap();
+    fs::create_dir_all(home.join(".2brain")).unwrap();
     let write = |rel: &str, content: &str| {
         let path = entry.join(rel);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, content).unwrap();
     };
     write(
-        ".arsumbris/repo.yaml",
-        "name: v\ntype: au.engine.repo::au-engine\n",
+        ".2brain/repo.yaml",
+        "name: v\ntype: tb.engine.repo::tb-engine\n",
     );
     write(
-        ".arsumbris/workspace.yaml",
-        "edit:\n  - v\n  - base\n  - app\ntype: au.engine.workspace::au-engine\n",
+        ".2brain/workspace.yaml",
+        "edit:\n  - v\n  - base\n  - app\ntype: tb.engine.workspace::tb-engine\n",
     );
     write(
-        "base/.arsumbris/repo.yaml",
-        "name: base\ntype: au.engine.repo::au-engine\n",
+        "base/.2brain/repo.yaml",
+        "name: base\ntype: tb.engine.repo::tb-engine\n",
     );
     write("base/type/widget.type.yaml", "fields:\n  label: String\n");
     write(
-        "app/.arsumbris/repo.yaml",
-        "name: app\ntype: au.engine.repo::au-engine\ndeps:\n  - name: base\n",
+        "app/.2brain/repo.yaml",
+        "name: app\ntype: tb.engine.repo::tb-engine\ndeps:\n  - name: base\n",
     );
     write("app/holder.md", "---\ntype: widget::base\nlabel: x\n---\n");
     commit_work_tree(&entry);
@@ -569,7 +569,7 @@ fn reply_text(reply: &Value) -> String {
 fn rename_type_refuses_a_cascade_outside_the_member_grant() {
     let engine = std::env::var_os("TB_ENGINE_BIN").expect("set TB_ENGINE_BIN to the au binary");
     let temp = tempfile::Builder::new()
-        .prefix("au-rename-type-grant-")
+        .prefix("tb-rename-type-grant-")
         .tempdir_in("/tmp")
         .unwrap();
     let (home, entry) = build_two_member_workspace(temp.path());
@@ -703,7 +703,7 @@ fn rename_type_refuses_a_cascade_outside_the_member_grant() {
 fn mcp_reads_match_real_engine_on_temporary_repo() {
     let engine = std::env::var_os("TB_ENGINE_BIN").expect("set TB_ENGINE_BIN to the au binary");
     let temp = tempfile::Builder::new()
-        .prefix("au-e2e-")
+        .prefix("tb-e2e-")
         .tempdir_in("/tmp")
         .unwrap();
     let (home, repo) = build_fixture(temp.path());
@@ -1365,7 +1365,7 @@ fn mcp_reads_match_real_engine_on_temporary_repo() {
         );
         if scope == Some("own") {
             assert!(
-                imports.iter().all(|entry| entry["owner"] != "au-engine"),
+                imports.iter().all(|entry| entry["owner"] != "engine"),
                 "{payload}"
             );
         }

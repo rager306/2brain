@@ -24,7 +24,7 @@ Make a field required when every valid instance must supply the information.
 Make it optional when absence has a meaningful interpretation.
 Deferring every obligation leaves consumers guessing about records that validate.
 
-[[tool-presentation-meta::au-mcp-sdk:example]] combines required presentation with optional proactive guidance.
+[[tool-presentation-meta::tb-mcp-sdk:example]] combines required presentation with optional proactive guidance.
 A missing required meta block is an engine warning, yet a consumer may need it to load.
 
 **Review the change with its migration**

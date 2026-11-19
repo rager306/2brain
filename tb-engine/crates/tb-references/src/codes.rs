@@ -1,10 +1,10 @@
-//! Diagnostic codes emitted by au-references. Stable kebab-case strings.
+//! Diagnostic codes emitted by tb-references. Stable kebab-case strings.
 
 use tb_diagnostics::DiagnosticCode;
 
 /// Two basenames in the repo collide under case-insensitive comparison.
 /// Legal on Linux, illegal on macOS-default APFS — references to either are
-/// ambiguous on case-insensitive filesystems. Spec [[type reference::au-type-system]].
+/// ambiguous on case-insensitive filesystems. Spec [[type reference::tb-type-system]].
 ///
 /// **Severity is `Warning`, not `Error`.** The spec lists the diagnostic but
 /// doesn't pin a severity; we picked Warning because the collision is a
@@ -26,7 +26,7 @@ pub const REFERENCE_TARGET_MISSING: DiagnosticCode =
     DiagnosticCode::from_static("reference-target-missing");
 
 /// Wikilink target matched two or more repo files (basename ambiguity).
-/// Spec [[type reference::au-type-system]]: resolution requires explicit path or rename.
+/// Spec [[type reference::tb-type-system]]: resolution requires explicit path or rename.
 pub const REFERENCE_TARGET_AMBIGUOUS: DiagnosticCode =
     DiagnosticCode::from_static("reference-target-ambiguous");
 
@@ -36,7 +36,7 @@ pub const REFERENCE_TARGET_AMBIGUOUS: DiagnosticCode =
 /// own scope and no later authoring makes it resolve. Distinct from
 /// `reference-target-missing` (which is open-world growth) precisely so an
 /// impossible address does not sit in the same bucket as one that is merely
-/// absent. Carries the `::repo` spelling as its fix. See [[type reference::au-type-system]].
+/// absent. Carries the `::repo` spelling as its fix. See [[type reference::tb-type-system]].
 pub const REFERENCE_PATH_ESCAPES_REPO: DiagnosticCode =
     DiagnosticCode::from_static("reference-path-escapes-repo");
 
@@ -53,9 +53,9 @@ pub const REFERENCE_REPO_UNKNOWN: DiagnosticCode =
 pub const REFERENCE_REPO_UNAVAILABLE: DiagnosticCode =
     DiagnosticCode::from_static("reference-repo-unavailable");
 
-// Note: `reference-target-type-mismatch` lives in `au-core::codes`. This crate
+// Note: `reference-target-type-mismatch` lives in `tb-core::codes`. This crate
 // owns resolution-side codes (target-missing, target-ambiguous, basename
-// collisions); the type-closure check is au-core's concern, so its code lives
+// collisions); the type-closure check is tb-core's concern, so its code lives
 // where it's produced.
 
 // ----- wikilink parse codes -----
@@ -68,7 +68,7 @@ pub const REFERENCE_REPO_UNAVAILABLE: DiagnosticCode =
 /// Wikilink has the `[[ … ]]` frame but the target portion is empty
 /// without a locating fragment — `[[:field]]`. `#head` or `^block-id`
 /// grant the empty name: `[[#head]]` / `[[^id]]` are the legal local
-/// forms (current file) per [[type reference::au-type-system]]; a field alone has nothing
+/// forms (current file) per [[type reference::tb-type-system]]; a field alone has nothing
 /// to contribute without a target.
 pub const WIKILINK_EMPTY_TARGET: DiagnosticCode =
     DiagnosticCode::from_static("wikilink-empty-target");
@@ -95,14 +95,14 @@ pub const WIKILINK_EMPTY_FIELD: DiagnosticCode =
     DiagnosticCode::from_static("wikilink-empty-field");
 
 /// Wikilink fragments out of strict `name / #head / ^block-id / :field`
-/// order — e.g. `[[note:f#h]]` (field before anchor). Spec [[type reference::au-type-system]].
+/// order — e.g. `[[note:f#h]]` (field before anchor). Spec [[type reference::tb-type-system]].
 pub const WIKILINK_FRAGMENT_ORDER: DiagnosticCode =
     DiagnosticCode::from_static("wikilink-fragment-order");
 
 /// Wikilink `:field` fragment whose value doesn't satisfy the field-name
-/// grammar (lowercase identifier per [[type-def legal names::au-type-system]]). Distinct from fragment-order
+/// grammar (lowercase identifier per [[type-def legal names::tb-type-system]]). Distinct from fragment-order
 /// errors so consumers can route name-vs-position issues separately.
-/// Spec [[type reference::au-type-system]].
+/// Spec [[type reference::tb-type-system]].
 pub const WIKILINK_INVALID_FIELD_NAME: DiagnosticCode =
     DiagnosticCode::from_static("wikilink-invalid-field-name");
 
@@ -114,7 +114,7 @@ pub const WIKILINK_EMPTY_REPO: DiagnosticCode = DiagnosticCode::from_static("wik
 /// Wikilink carries the `@commit` pin but no commit value — `[[note::@]]` /
 /// `[[note::base@]]`. Same rationale as the other empty-fragment codes. The
 /// `@commit` binds to `::repo`; a bare `@` with no `::` is a literal filename
-/// character, not an empty pin. Spec [[type reference::au-type-system]],
+/// character, not an empty pin. Spec [[type reference::tb-type-system]],
 /// [[spec - pinned references - a recorded resolved edge with an immutable past and an on-demand forward trace]].
 pub const WIKILINK_EMPTY_COMMIT: DiagnosticCode =
     DiagnosticCode::from_static("wikilink-empty-commit");
@@ -125,15 +125,15 @@ pub const WIKILINK_EMPTY_COMMIT: DiagnosticCode =
 /// mutable or relative rev (a branch, a tag, `HEAD`, `HEAD~2`), which can be
 /// repointed or moves with HEAD. Checked at parse, no length floor, an
 /// over-short prefix is accepted here and fails at resolution as ambiguous.
-/// Spec [[type reference::au-type-system]],
+/// Spec [[type reference::tb-type-system]],
 /// [[spec - pinned references - a recorded resolved edge with an immutable past and an on-demand forward trace]].
 pub const PINNED_COMMIT_NOT_OID: DiagnosticCode =
     DiagnosticCode::from_static("pinned-commit-not-oid");
 
-/// Wikilink `::repo` value that violates the identifier regex ([[type-def legal names::au-type-system]])
+/// Wikilink `::repo` value that violates the identifier regex ([[type-def legal names::tb-type-system]])
 /// — `[[note::b/c]]`, `[[note::1bad]]`. Repo names share the type/field-name
 /// grammar; rejecting at parse gives a clear authoring error instead of the
 /// misleading `reference-repo-unknown` a bad name would otherwise hit at lookup.
-/// Distinct from `wikilink-empty-repo` and the order codes. Spec [[type reference::au-type-system]].
+/// Distinct from `wikilink-empty-repo` and the order codes. Spec [[type reference::tb-type-system]].
 pub const WIKILINK_INVALID_REPO_NAME: DiagnosticCode =
     DiagnosticCode::from_static("wikilink-invalid-repo-name");

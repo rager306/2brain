@@ -1,5 +1,5 @@
 ---
-type: guide.principle::au-agent-guides
+type: guide.principle::tb-agent-guides
 goal: keep a woven graph accurate as it grows
 rule: Tend the whole graph regularly with a fresh reader and a stop budget.
 ---

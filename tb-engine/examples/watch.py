@@ -7,7 +7,7 @@ so it exercises the contract as a real outsider would, not through the engine's
 own client.
 
 Usage:
-    au daemon start <repo>            # in another terminal
+    tb-engine daemon start <repo>            # in another terminal
     python3 examples/watch.py <repo> [channel] [file]
 
     channel defaults to "changes". For "diagnostics" pass the file to watch:
@@ -24,13 +24,13 @@ from pathlib import Path
 
 # The wire: each frame is a 4-byte big-endian length prefix, then that many
 # bytes of JSON. One endpoint per entry point, at a short hashed path outside the
-# repo, ~/.arsumbris/au-engine/run/<hash>.sock (see socket_path).
+# repo, <state root>/engine/run/<hash>.sock (see socket_path).
 LENGTH_PREFIX = struct.Struct(">I")
 
 
 def socket_path(entry: str) -> Path:
     # Match tb_engine::socket_path: the socket lives outside the repo, at
-    # ~/.arsumbris/au-engine/run/<hash>.sock, so a deep repo path never overruns the
+    # <state root>/engine/run/<hash>.sock, so a deep repo path never overruns the
     # Unix sun_path limit. <hash> is the FNV-1a-64 of the absolute entry path's
     # bytes, in 16 hex digits. Resolve symlinks first (realpath) so this hashes
     # the same string the daemon does (on macOS /var -> /private/var).
@@ -38,7 +38,7 @@ def socket_path(entry: str) -> Path:
     h = 0xCBF29CE484222325
     for b in abs_entry.encode("utf-8"):
         h = ((h ^ b) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
-    return Path.home() / ".arsumbris" / "au-engine" / "run" / f"{h:016x}.sock"
+    return Path.home() / ".2brain" / "tb-engine" / "run" / f"{h:016x}.sock"
 
 
 def send_frame(sock: socket.socket, message: dict) -> None:
@@ -106,7 +106,7 @@ def main() -> int:
 
     path = socket_path(repo)
     if not path.exists():
-        print(f"no daemon socket at {path}; start one with: au daemon start {repo}", file=sys.stderr)
+        print(f"no daemon socket at {path}; start one with: tb-engine daemon start {repo}", file=sys.stderr)
         return 1
 
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

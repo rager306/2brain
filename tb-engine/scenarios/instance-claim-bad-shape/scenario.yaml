@@ -1,5 +1,5 @@
 title: "Instance `type:` value is neither a string nor a list — claim shape rejected at load"
-spec_ref: "[[type-instance type::au-type-system]]"
+spec_ref: "[[type-instance type::tb-type-system]]"
 command: validate
 expected:
   codes:

@@ -1,6 +1,6 @@
-//! `au members <entry> --json`: the daemon-less member resolution through the
+//! `tb-engine members <entry> --json`: the daemon-less member resolution through the
 //! binary, reading the per-user registry and package cache under `$HOME` exactly as
-//! `au daemon start` would.
+//! `tb-engine daemon start` would.
 
 use std::fs;
 use std::path::Path;
@@ -9,12 +9,12 @@ use std::process::Command;
 use serde_json::Value;
 
 fn repo(root: &Path, yaml: &str) {
-    fs::create_dir_all(root.join(".arsumbris")).unwrap();
-    fs::write(root.join(".arsumbris/repo.yaml"), yaml).unwrap();
+    fs::create_dir_all(root.join(".2brain")).unwrap();
+    fs::write(root.join(".2brain/repo.yaml"), yaml).unwrap();
 }
 
 fn run(entry: &Path, home: &Path, args: &[&str]) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_au"))
+    Command::new(env!("CARGO_BIN_EXE_tb-engine"))
         .arg("members")
         .arg(entry)
         .args(args)
@@ -31,14 +31,14 @@ fn json_reports_each_member_tier_from_the_user_registry_and_siblings() {
     let entry = top.join("ws");
     repo(&entry, "name: ws\n");
     fs::write(
-        entry.join(".arsumbris/workspace.yaml"),
+        entry.join(".2brain/workspace.yaml"),
         "edit:\n  - ws\ndiscover:\n  - sib\n  - reg\n  - gone\n",
     )
     .unwrap();
     repo(&top.join("sib"), "name: sib\n");
     let reg = top.join("elsewhere").join("reg-checkout");
     repo(&reg, "name: reg\n");
-    let config = home.join(".arsumbris/au-engine/config");
+    let config = home.join(".2brain/engine/config");
     fs::create_dir_all(&config).unwrap();
     fs::write(
         config.join("repos.yaml"),
@@ -86,14 +86,14 @@ fn a_non_repo_entry_exits_not_a_repo() {
     assert!(out.stdout.is_empty());
 }
 
-/// `au daemon start` refuses without `$HOME` (no registry, no cache), so
-/// `au members` refuses too rather than answering something the daemon would not.
+/// `tb-engine daemon start` refuses without `$HOME` (no registry, no cache), so
+/// `tb-engine members` refuses too rather than answering something the daemon would not.
 #[test]
 fn an_unset_home_exits_env_error_like_the_daemon() {
     let dir = tempfile::tempdir().unwrap();
     let entry = dir.path().join("ws");
     repo(&entry, "name: ws\n");
-    let out = Command::new(env!("CARGO_BIN_EXE_au"))
+    let out = Command::new(env!("CARGO_BIN_EXE_tb-engine"))
         .arg("members")
         .arg(&entry)
         .arg("--json")

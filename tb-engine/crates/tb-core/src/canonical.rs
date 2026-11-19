@@ -21,7 +21,7 @@
 //!   [[spec - abstract type-defs - a non-claimable open type-def, sealed is abstract plus closed]]
 //!   and [[spec - required subtype meta - a base obligates every concrete subtype to carry a named meta]].
 //! - out: the type name (paired beside the hash), comments, `#:` docstrings
-//!   (advisory, see [[type docstring::au-type-system]]), key order, whitespace, meta (separate
+//!   (advisory, see [[type docstring::tb-type-system]]), key order, whitespace, meta (separate
 //!   type-level metadata), and all spans.
 //!
 //! Free text (a section's heading and its `guidance`) is hashed BYTE-EXACT, with
@@ -131,7 +131,7 @@ pub fn canonical_form(td: &TypeDef) -> String {
     }
 
     // Body: order-preserved. `body: []` and an absent `body:` both serialize
-    // to just the tag, matching their identical behaviour ([[type-def body::au-type-system]]).
+    // to just the tag, matching their identical behaviour ([[type-def body::tb-type-system]]).
     out.push('B');
     match &td.body {
         Some(body) if !body.is_empty() => canonical_body(body, &mut out),

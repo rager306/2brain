@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: weave
 description: Find or mint canonical nodes from the cut's picks, write source-grounded pages and forward edges, and resolve their candidates. Use to weave a named pick or continue a cut's pending picks. Enrichment belongs to reweave.
 ---

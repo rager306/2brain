@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: reweave
 description: Add owed links to existing nodes, place new nodes on their maps and fold the cut's enrichments. Use after a weave wave, for pending enrichments, or to revisit a named, sparse or stale node. Whole-graph audits belong to tend.
 ---
@@ -14,7 +14,7 @@ Nodes, maps and extraction flags are shared.
 
 Use new nodes' incoming and outgoing links to find older nodes worth revisiting.
 
-List `extraction::au-weave` instances with `tb_instances_of`.
+List `extraction::tb-weave` instances with `tb_instances_of`.
 Page through the full roster and select this graph's files.
 Read candidate lists with `tb_resolved`.
 
@@ -27,7 +27,7 @@ Pending enrichments have:
 Group them by resolved target.
 Report missing targets for [[cut]] to correct.
 
-Read the graph's full `map::au-base-types` roster, including subtypes.
+Read the graph's full `map::tb-base-types` roster, including subtypes.
 Reuse it while current.
 
 ## Judge the revision
@@ -87,7 +87,7 @@ Place each node on every slice its meaning earns.
 Include sibling regions its links never reach.
 Give the reason in the map's idiom.
 
-Read unfamiliar map guidance and [[author-a-map::au-agent-guides]].
+Read unfamiliar map guidance and [[author-a-map::tb-agent-guides]].
 Apply the map kind's guidance.
 Preserve its reading route and place additions under the question they serve.
 

@@ -2,13 +2,13 @@
 type: guide.gotcha
 goal: "Choose where a saved host arrangement and temporary view state belong."
 rule: "Persist the arrangement as a composition of windows and referenced records; keep machine-specific and transient state at their own layer."
-about: "[[composition::au-host-sdk]]"
+about: "[[composition::tb-host-sdk]]"
 example:
 ---
 
 # Persist the composition as typed data
 
-Save a host arrangement as a [[composition::au-host-sdk:example]] instance.
+Save a host arrangement as a [[composition::tb-host-sdk:example]] instance.
 Composition is its own branch of the mountable family.
 Even one visible view uses a composition and a window.
 

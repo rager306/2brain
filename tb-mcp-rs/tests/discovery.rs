@@ -171,7 +171,7 @@ fn describe_returns_the_full_definition_and_refuses_what_is_not_visible() {
     );
     assert!(definition.get("outputSchema").is_some());
 
-    let unknown = client.call_result(4, "tb_describe_tool", json!({"name":"au_nope"}));
+    let unknown = client.call_result(4, "tb_describe_tool", json!({"name":"tb_nope"}));
     assert_eq!(unknown["isError"], true, "{unknown}");
     assert!(
         unknown["content"][0]["text"]

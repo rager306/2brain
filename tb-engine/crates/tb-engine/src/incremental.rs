@@ -1412,7 +1412,7 @@ mod tests {
     /// A single repo: registry, one type-def, one instance.
     fn kb() -> KnowledgeBase {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  title: String\n".to_vec(),
@@ -1463,7 +1463,7 @@ mod tests {
     #[test]
     fn a_registry_edit_needs_full() {
         assert_eq!(
-            classify_dirty(&kb(), &set(&["/v/.arsumbris/repo.yaml"])),
+            classify_dirty(&kb(), &set(&["/v/.2brain/repo.yaml"])),
             DirtyClass::NeedsFull
         );
     }
@@ -1487,7 +1487,7 @@ mod tests {
         // layer handles, so its blast radius is the one the recompute models: a
         // path-set membership plus its own outgoing edges.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert("/v/prose.md", b"# Prose\n".to_vec());
         let held = build(Path::new("/v"), &fs).unwrap();
         assert_eq!(
@@ -1519,7 +1519,7 @@ mod tests {
         // separates the two; a mere existence probe would catalogue the
         // directory and diverge from a full build.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert("/v/sub/a.md", b"---\ntype: note\n---\n".to_vec());
         let held = build(Path::new("/v"), &fs).unwrap();
 
@@ -1542,16 +1542,16 @@ mod tests {
             format!("fields:\n  t?: String\nlocation:\n  path: \"{path}\"\n").into_bytes()
         };
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             b"edit:\n  - v\n  - app\n  - base\n".to_vec(),
         );
         fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
+            "/v/app/.2brain/repo.yaml",
             b"name: app\ndeps:\n  - name: base\n".to_vec(),
         );
-        fs.insert("/v/base/.arsumbris/repo.yaml", b"name: base\n".to_vec());
+        fs.insert("/v/base/.2brain/repo.yaml", b"name: base\n".to_vec());
         fs.insert("/v/app/type/note.type.yaml", note("notes/"));
         fs.insert("/v/base/type/note.type.yaml", note("elsewhere/"));
         fs.insert("/v/app/notes/own.md", b"---\ntype: note\n---\n".to_vec());
@@ -1645,7 +1645,7 @@ mod tests {
         // Everything that SURVIVES the delete. `MemoryFileSystem` has no
         // removal, so the after-state is built rather than edited.
         let survivors = |fs: &mut MemoryFileSystem| {
-            fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+            fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
             // THE PREFIX HAZARD, as a fixture. A byte-wise prefix test would
             // drag `/v/subdir/c.md` into a delete of `/v/sub`.
             fs.insert("/v/subdir/c.md", b"---\ntype: note\n---\n".to_vec());
@@ -1684,7 +1684,7 @@ mod tests {
         // `a_present_but_unreadable_entry_falls_back` exercises, on an entry that
         // does carry a hash — which is why the hash was never the signal.
         let mut inner = MemoryFileSystem::new();
-        inner.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        inner.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         inner.insert("/v/prose.md", b"# Prose\n".to_vec());
         let fs = UnreadableAt {
             inner,
@@ -1729,7 +1729,7 @@ mod tests {
             ("an instance", &b"---\ntype: note\n---\n"[..]),
         ] {
             let mut inner = MemoryFileSystem::new();
-            inner.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+            inner.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
             inner.insert("/v/type/note.type.yaml", b"fields: {}\n".to_vec());
             inner.insert("/v/prose.md", bytes.to_vec());
 
@@ -1769,7 +1769,7 @@ mod tests {
         use crate::parse::FileParse;
 
         let base = |fs: &mut MemoryFileSystem| {
-            fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+            fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
             fs.insert(
                 "/v/type/note.type.yaml",
                 b"fields:\n  link?: note*\n".to_vec(),
@@ -1851,7 +1851,7 @@ mod tests {
         // `reference-target-type-mismatch`. b is the dirty instance, a is its
         // inbound identity-dependent, so the recompute must re-validate a.
         let base = |fs: &mut MemoryFileSystem| {
-            fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+            fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
             fs.insert(
                 "/v/type/note.type.yaml",
                 b"fields:\n  link?: note*\n".to_vec(),
@@ -1990,15 +1990,15 @@ mod tests {
         // missing peer field — not read the held (import-less) fold. Parity with a
         // from-scratch build of `after` proves it end to end.
         let mut before = MemoryFileSystem::new();
-        before.insert("/v/.arsumbris/repo.yaml", "name: v\n");
+        before.insert("/v/.2brain/repo.yaml", "name: v\n");
         before.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             "edit:\n  - v\n  - base\n  - app\n",
         );
-        before.insert("/v/base/.arsumbris/repo.yaml", "name: base\n");
+        before.insert("/v/base/.2brain/repo.yaml", "name: base\n");
         before.insert("/v/base/type/note.type.yaml", "fields:\n  title: String\n");
         before.insert(
-            "/v/app/.arsumbris/repo.yaml",
+            "/v/app/.2brain/repo.yaml",
             "name: app\ndeps:\n  - name: base\n",
         );
         before.insert("/v/app/type/thing.type.yaml", "fields:\n  x: String\n");
@@ -2008,13 +2008,13 @@ mod tests {
         after.insert("/v/app/n.md", "---\ntype: note::base\n---\n");
 
         let held = build(Path::new("/v"), &before).unwrap();
-        // app's `repo.yaml` is a typed instance folding the builtin au.engine.repo,
+        // app's `repo.yaml` is a typed instance folding the builtin tb.engine.repo,
         // so app already has a resolution graph before the edit; but it authors no
         // `::base`, so base's `note` is not in it yet — the edit folds it freshly.
         let rg = held
             .resolution_graphs
             .of(&RepoName("app".into()))
-            .expect("repo.yaml folds au.engine.repo");
+            .expect("repo.yaml folds tb.engine.repo");
         assert!(
             rg.resolve_authored(&tb_core::TypeName("note".into()), Some("base"))
                 .is_none(),
@@ -2056,12 +2056,12 @@ mod tests {
         // this shape (its cross-repo instances fill a reference slot, its
         // slot-pinned nested records sit on own-repo hosts), so it is asserted here.
         let base = |fs: &mut MemoryFileSystem| {
-            fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+            fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
             fs.insert(
-                "/v/.arsumbris/workspace.yaml",
+                "/v/.2brain/workspace.yaml",
                 b"edit:\n  - v\n  - base\n  - app\n".to_vec(),
             );
-            fs.insert("/v/base/.arsumbris/repo.yaml", b"name: base\n".to_vec());
+            fs.insert("/v/base/.2brain/repo.yaml", b"name: base\n".to_vec());
             fs.insert(
                 "/v/base/type/research-extraction.type.yaml",
                 b"fields:\n  concepts?: concept-candidate&[]\n".to_vec(),
@@ -2071,7 +2071,7 @@ mod tests {
                 b"fields:\n  salience?: String\n".to_vec(),
             );
             fs.insert(
-                "/v/app/.arsumbris/repo.yaml",
+                "/v/app/.2brain/repo.yaml",
                 b"name: app\ndeps:\n  - name: base\n".to_vec(),
             );
             fs.insert(
@@ -2134,7 +2134,7 @@ mod tests {
 
     /// Registry plus a `note` type with a typed self-reference slot.
     fn linked_base(fs: &mut MemoryFileSystem) {
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  title?: String\n  link?: note*\n".to_vec(),
@@ -2349,7 +2349,7 @@ mod tests {
         // dropped-note-dependent bug: add, delete, and rename of the target each
         // diverged from a full build before the fix.
         let note_and_type = |fs: &mut MemoryFileSystem| {
-            fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+            fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
             fs.insert(
                 "/v/type/note.type.yaml",
                 b"fields:\n  title?: String\n".to_vec(),
@@ -2436,7 +2436,7 @@ mod tests {
         // pointing at it, so the add clears a dangling reference and the delete
         // restores it.
         let base = |fs: &mut MemoryFileSystem| {
-            fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+            fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
             fs.insert(
                 "/v/type/note.type.yaml",
                 b"fields:\n  asset?: file*\n".to_vec(),
@@ -2487,7 +2487,7 @@ mod tests {
         // this is the state half, and it holds even when the no-op gate is
         // bypassed and the recompute runs anyway.
         let base = |fs: &mut MemoryFileSystem| {
-            fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+            fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
             fs.insert(
                 "/v/type/note.type.yaml",
                 b"fields:\n  asset?: file*\n".to_vec(),
@@ -2700,18 +2700,18 @@ mod tests {
         // index rebuild and the edge-flip set across the boundary in a real
         // assembled two-repo workspace.
         let base = |fs: &mut MemoryFileSystem| {
-            fs.insert("/ws/.arsumbris/repo.yaml", b"name: ws\n".to_vec());
+            fs.insert("/ws/.2brain/repo.yaml", b"name: ws\n".to_vec());
             fs.insert(
-                "/ws/.arsumbris/workspace.yaml",
+                "/ws/.2brain/workspace.yaml",
                 b"edit:\n  - ws\n  - base\n  - app\n".to_vec(),
             );
-            fs.insert("/ws/base/.arsumbris/repo.yaml", b"name: base\n".to_vec());
+            fs.insert("/ws/base/.2brain/repo.yaml", b"name: base\n".to_vec());
             fs.insert(
                 "/ws/base/type/note.type.yaml",
                 b"fields:\n  link?: note*\n".to_vec(),
             );
             fs.insert(
-                "/ws/app/.arsumbris/repo.yaml",
+                "/ws/app/.2brain/repo.yaml",
                 b"name: app\ndeps:\n  - name: base\n".to_vec(),
             );
             fs.insert(
@@ -2737,7 +2737,7 @@ mod tests {
         // diagnoses in its Instance slice. Editing the referrer's body must
         // reproduce that cross-boundary diagnostic through the fast path.
         let base = |fs: &mut MemoryFileSystem| {
-            fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+            fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
             fs.insert(
                 "/v/type/note.type.yaml",
                 b"fields:\n  link?: note*\n".to_vec(),
@@ -2767,7 +2767,7 @@ mod tests {
         // decision's body contribution to a mismatch. research-notes is the
         // dirty target, decision its block-pull dependent, the block-id edge.
         let base = |fs: &mut MemoryFileSystem| {
-            fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+            fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
             fs.insert(
                 "/v/type/assumption.type.yaml",
                 b"fields:\n  description: String\n".to_vec(),
@@ -2809,13 +2809,13 @@ mod tests {
         // base, app's t is its inbound identity-dependent across the boundary.
         let base = |fs: &mut MemoryFileSystem| {
             // The workspace entry and its co-present members.
-            fs.insert("/ws/.arsumbris/repo.yaml", b"name: ws\n".to_vec());
+            fs.insert("/ws/.2brain/repo.yaml", b"name: ws\n".to_vec());
             fs.insert(
-                "/ws/.arsumbris/workspace.yaml",
+                "/ws/.2brain/workspace.yaml",
                 b"edit:\n  - ws\n  - base\n  - app\n".to_vec(),
             );
             // base owns note and other.
-            fs.insert("/ws/base/.arsumbris/repo.yaml", b"name: base\n".to_vec());
+            fs.insert("/ws/base/.2brain/repo.yaml", b"name: base\n".to_vec());
             fs.insert(
                 "/ws/base/type/note.type.yaml",
                 b"fields:\n  title?: String\n".to_vec(),
@@ -2827,7 +2827,7 @@ mod tests {
             // app owns its own note (byte-identical to base's, so the same
             // identity) and a task with a typed cross-repo slot.
             fs.insert(
-                "/ws/app/.arsumbris/repo.yaml",
+                "/ws/app/.2brain/repo.yaml",
                 b"name: app\ndeps:\n  - name: base\n".to_vec(),
             );
             fs.insert(
@@ -2881,7 +2881,7 @@ mod tests {
     /// bounded disk read pass on top.
     ///
     /// Run:
-    /// `cargo test -p au-engine --lib incremental::tests::bulk_recompute_lock_hold_micro_bench -- --ignored --nocapture`
+    /// `cargo test -p tb-engine --lib incremental::tests::bulk_recompute_lock_hold_micro_bench -- --ignored --nocapture`
     #[test]
     #[ignore]
     fn bulk_recompute_lock_hold_micro_bench() {
@@ -2892,7 +2892,7 @@ mod tests {
         // from an intrinsic super-linearity.
         fn make_fs(n: usize, hub: bool) -> MemoryFileSystem {
             let mut fs = MemoryFileSystem::new();
-            fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+            fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
             fs.insert(
                 "/v/type/note.type.yaml",
                 b"fields:\n  title: String\n  related?: note*\n".to_vec(),

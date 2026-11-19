@@ -2,7 +2,7 @@
 """Acceptance smoke for an installed 2brain: MCP reads and both write paths, over stdio.
 
     python3 tools/probe/mcp_smoke.py --binary /usr/local/bin/2brain \
-        --socket ~/.2brain/au-engine/run/<hash>.sock --repo <member>
+        --socket <state root>/engine/run/<hash>.sock --repo <member>
 
 Speaks MCP the way a client does: `initialize`, then `tools/call`. It checks a read, a clean
 create that must land, the hash a read returns, a gated write that must land, and a create with

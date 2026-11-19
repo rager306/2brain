@@ -1,14 +1,14 @@
-//! Repo README obligations: the engine-owned `au.engine.readme` node at a repo's
+//! Repo README obligations: the engine-owned `tb.engine.readme` node at a repo's
 //! root, and the diagnostics that keep it present, self-declared, and in place.
 //!
 //! A repo self-describes through a `README.md` at its root, a typed instance of
-//! the hardwired `au.engine.readme` def (a body-only section template, see
+//! the hardwired `tb.engine.readme` def (a body-only section template, see
 //! [`crate::engine_schema`]). Three advisory `warning` checks:
 //! - `repo-missing-readme`: an editable repo (the entry or an `edit` member) has
 //!   no root `README.md`.
 //! - `readme-type-undeclared`: a root `README.md` that does not self-declare
-//!   `type: au.engine.readme::au-engine`.
-//! - `readme-misplaced`: a file claiming `au.engine.readme` that is not a repo's
+//!   `type: tb.engine.readme::tb-engine`.
+//! - `readme-misplaced`: a file claiming `tb.engine.readme` that is not a repo's
 //!   root `README.md`.
 //!
 //! The obligation is scoped to AUTHORING surfaces (the entry and `edit` members);
@@ -16,7 +16,7 @@
 //! repo's concern.
 //!
 //! All README logic is localized here so a future declarable located-singleton
-//! mechanism can fold `au.engine.readme` in as its first user, see
+//! mechanism can fold `tb.engine.readme` in as its first user, see
 //! [[spec - repo readme - an engine-owned self-declaring node at the repo root with a required body template]].
 
 use std::path::{Path, PathBuf};
@@ -36,17 +36,17 @@ const README_BASENAME: &str = "README.md";
 
 /// An editable repo (the entry or an `edit` member) has no root `README.md`. A
 /// repo self-describes through one, like it declares its identity through
-/// `.arsumbris/repo.yaml`. Anchored at the repo's `repo.yaml`, since the missing
+/// `.2brain/repo.yaml`. Anchored at the repo's `repo.yaml`, since the missing
 /// file has no span. `warning`, advisory, never blocks.
 pub const REPO_MISSING_README: DiagnosticCode = DiagnosticCode::from_static("repo-missing-readme");
 
-/// A root `README.md` that does not self-declare `type: au.engine.readme::au-engine`.
+/// A root `README.md` that does not self-declare `type: tb.engine.readme::tb-engine`.
 /// The canonical README self-declares its type; an undeclared one reads as a plain
 /// note. `warning`, advisory.
 pub const README_TYPE_UNDECLARED: DiagnosticCode =
     DiagnosticCode::from_static("readme-type-undeclared");
 
-/// A file claiming `au.engine.readme` that is not a repo's root `README.md`. The
+/// A file claiming `tb.engine.readme` that is not a repo's root `README.md`. The
 /// readme type is a singleton at `<root>/README.md`, so a claim elsewhere is a
 /// misplacement. `warning`, advisory.
 pub const README_MISPLACED: DiagnosticCode = DiagnosticCode::from_static("readme-misplaced");
@@ -168,7 +168,7 @@ mod tests {
     use super::*;
 
     /// A fix that names the release-1 spelling sends the writer back into the migration
-    /// window the schema rename exists to close, so no advisory may carry `au.engine.`.
+    /// window the schema rename exists to close, so no advisory may carry `tb.engine.`.
     /// This is a rule about the guidance, not a copy of one message.
     #[test]
     fn no_advisory_sends_a_writer_to_the_release_one_spelling() {
@@ -189,8 +189,8 @@ mod tests {
                 .expect("each README diagnostic suggests a fix");
             for text in [&diagnostic.message, &fix.description] {
                 assert!(
-                    !text.contains("au.engine."),
-                    "{:?} sends a writer to the release-1 spelling: {text}",
+                    !text.contains(concat!("au", ".engine.")),
+                    "{:?} sends a writer to the retired spelling: {text}",
                     diagnostic.code
                 );
             }

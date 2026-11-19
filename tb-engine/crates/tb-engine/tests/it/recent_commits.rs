@@ -85,7 +85,7 @@ fn two_tree_kb() -> (tempfile::TempDir, PathBuf) {
     crate::seed_workspace(&root, &["app"]); // entry `v`, edit members [v, app]
 
     // `app` is its own repo and its own git tree.
-    write(&root, "app/.arsumbris/repo.yaml", "name: app\n");
+    write(&root, "app/.2brain/repo.yaml", "name: app\n");
     write(&root, "app/hub.md", "app hub\n");
     let app = root.join("app");
     git_config(&app);
@@ -260,7 +260,7 @@ fn subscription_does_not_leak_below_cut_commits_across_trees() {
     crate::seed_workspace(&root, &["app"]); // entry `v`, edit members [v, app]
 
     // `app` is its own git tree with one OLD commit (below the cut at limit 2).
-    write(&root, "app/.arsumbris/repo.yaml", "name: app\n");
+    write(&root, "app/.2brain/repo.yaml", "name: app\n");
     write(&root, "app/old.md", "old\n");
     let app = root.join("app");
     git_config(&app);

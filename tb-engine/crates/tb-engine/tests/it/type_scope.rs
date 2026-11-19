@@ -28,7 +28,7 @@ fn write(root: &Path, rel: &str, content: &str) {
 fn scope_own_hides_the_engine_builtin() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: proj\n");
+    write(&root, ".2brain/repo.yaml", "name: proj\n");
     write(&root, "type/foo.type.yaml", "fields:\n  x: String\n");
     let kb = build(&root, &RealFileSystem).expect("build");
 
@@ -73,7 +73,7 @@ fn scope_own_hides_a_dependency_repos_types() {
     let root = fs::canonicalize(dir.path()).unwrap();
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -81,7 +81,7 @@ fn scope_own_hides_a_dependency_repos_types() {
         "app/type/task.type.yaml",
         "fields:\n  done: Boolean\n",
     );
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/thing.type.yaml",
@@ -133,7 +133,7 @@ fn scope_own_hides_a_dependency_repos_types() {
 fn instance_counts_are_closure_inclusive() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: proj\n");
+    write(&root, ".2brain/repo.yaml", "name: proj\n");
     write(&root, "type/note.type.yaml", "fields:\n  title: String\n");
     write(
         &root,
@@ -154,7 +154,7 @@ fn instance_counts_are_closure_inclusive() {
     let kb = build(&root, &RealFileSystem).expect("build");
 
     let counts = introspect_instance_counts(&kb, None, TypeScope::all(), None).unwrap();
-    // Three authored docs plus the repo's own `.arsumbris/repo.yaml`, itself an
+    // Three authored docs plus the repo's own `.2brain/repo.yaml`, itself an
     // `tb.engine.repo` engine-schema instance.
     assert_eq!(
         counts.total, 4,
@@ -191,7 +191,7 @@ fn instance_counts_tally_a_cross_repo_slot_pinned_nested_record() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/research-extraction.type.yaml",
@@ -204,7 +204,7 @@ fn instance_counts_tally_a_cross_repo_slot_pinned_nested_record() {
     );
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -240,7 +240,7 @@ fn instance_counts_scope_by_site_repo() {
     let root = fs::canonicalize(dir.path()).unwrap();
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -249,7 +249,7 @@ fn instance_counts_scope_by_site_repo() {
         "fields:\n  done: Boolean\n",
     );
     write(&root, "app/t.md", "---\ntype: task\ndone: false\n---\n");
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/thing.type.yaml",
@@ -314,7 +314,7 @@ fn instance_counts_scope_by_site_repo() {
 fn scope_own_hides_the_engine_fold_from_list_imports() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: proj\n");
+    write(&root, ".2brain/repo.yaml", "name: proj\n");
     write(&root, "type/foo.type.yaml", "fields:\n  x: String\n");
     let kb = build(&root, &RealFileSystem).expect("build");
 
@@ -346,7 +346,7 @@ fn scope_own_hides_the_engine_fold_from_list_imports() {
 fn instance_counts_is_the_dual_of_instances_of_per_origin() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: proj\n");
+    write(&root, ".2brain/repo.yaml", "name: proj\n");
     write(&root, "type/note.type.yaml", "fields:\n  title: String\n");
     write(&root, "type/part.type.yaml", "fields:\n  label: String\n");
     // A meta type: mixes in the engine meta marker so it is legal in a `meta:` block.

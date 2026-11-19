@@ -1,5 +1,5 @@
 title: "Sealed-parent record slot — inline `type:` REQUIRED, must drill to a leaf"
-spec_ref: "[[type-def shape record::au-type-system]]"
+spec_ref: "[[type-def shape record::tb-type-system]]"
 command: validate
 expected:
   codes:

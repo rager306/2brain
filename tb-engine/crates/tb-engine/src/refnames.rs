@@ -6,7 +6,7 @@
 //! the index a path-set change walks to its edge-flip set: the sources whose
 //! resolution turns over when a basename appears or disappears.
 //!
-//! The keys mirror au-references resolution ([`tb_references::RepoIndex`]): a
+//! The keys mirror tb-references resolution ([`tb_references::RepoIndex`]): a
 //! bare target matches a file by case-insensitive basename or stem; a
 //! `/`-bearing target matches by exact repo-relative path, or by parent plus
 //! stem when extensionless. A file is found under every key a target could
@@ -29,7 +29,7 @@ use crate::repo::{RepoMap, RepoName};
 
 /// A normalized wikilink-target identity, the form a file is matched against.
 ///
-/// Mirrors au-references resolution. A file contributes the keys it can be
+/// Mirrors tb-references resolution. A file contributes the keys it can be
 /// reached by; an edge contributes the keys its target string can match.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NameKey {
@@ -258,7 +258,7 @@ mod tests {
         // would match, basename/stem in-repo, relpath plus dir-stem, and the
         // cross-repo target qualified into the named repo.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  link?: note*\n".to_vec(),
@@ -309,7 +309,7 @@ mod tests {
         // incrementally, and incremental diverges from a full build. Covers the
         // type-def head-and-field surface and an instance frontmatter docstring.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/task.type.yaml",
             b"#: see [[headpolicy]]\nfields:\n  gate: String   #: see [[fieldpolicy]]\n".to_vec(),
@@ -349,7 +349,7 @@ mod tests {
         // edge; it must also register in the referenced-name index so its
         // dangling state flips incrementally, the twin of the docstring gap.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/step.type.yaml",
             b"fields:\n  ref: file*\n".to_vec(),

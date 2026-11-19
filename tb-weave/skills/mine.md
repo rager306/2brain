@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: mine
 description: Read one source and mine it into a per-source extraction, one typed candidate for each thing the source names. Use to mine a source that has no extraction yet.
 ---

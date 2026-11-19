@@ -7,9 +7,9 @@
 # bases may wear, a sibling of `tool-access-meta` (which declares ENGINE access; this declares
 # CAPABILITY availability). Its own concern on its own change-clock.
 #
-# The AVAILABILITY sibling of au-workflow's `mcp.gate`: gate checks a PRODUCTION (you made X) per
+# The AVAILABILITY sibling of tb-workflow's `mcp.gate`: gate checks a PRODUCTION (you made X) per
 # action; this checks an AVAILABILITY (X is mounted / usable) per session-open. A first-party
-# session-start hook (au-mcp-core `requiredScope-check`) reads it against the kernel-resolved
+# session-start hook (tb-mcp-core `requiredScope-check`) reads it against the kernel-resolved
 # `SessionScope` and injects a warning per unmet ref, so an unmet need surfaces EARLY at open rather
 # than failing late and cryptically at call time.
 #
@@ -17,14 +17,14 @@
 # per ref. "Do N instances of type T exist" is a different mechanism, served by
 # `instance-count-notice`. Do not overload this with counts.
 #
-# Owned here (au-mcp-sdk, the contract owner). Meta is excluded from the canonical hash, so a
+# Owned here (tb-mcp-sdk, the contract owner). Meta is excluded from the canonical hash, so a
 # vendored copy drops the doc; discovery reads the OWNER copy. Mixes in the schema-18 nominal-meta
-# marker so it is meta-legal (closure includes `au.engine.meta::au-engine`).
+# marker so it is meta-legal (closure includes `tb.engine.meta::tb-engine`).
 extends: tb.engine.meta::tb-engine
 fields:
   #: the capabilities that must be AVAILABLE in the session, as type-def refs. A tool IS a typed def,
-  #: so one ref shape covers "tool `au_declare` available" and "type `T` resolvable" uniformly;
+  #: so one ref shape covers "tool `tb_declare` available" and "type `T` resolvable" uniformly;
   #: requiring a type/tool a member owns also covers "that member mounted" (an unmounted member's ref
-  #: does not resolve). Each value is a def-ref wikilink, e.g. `[[au_declare::au-provenance]]`. Absent
+  #: does not resolve). Each value is a def-ref wikilink, e.g. `[[tb_declare::tb-provenance]]`. Absent
   #: means no requirement.
   requires?: type*[]

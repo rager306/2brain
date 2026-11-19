@@ -122,7 +122,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/instance-claim-bad-shape/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/instance-claim-bad-shape/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -141,7 +141,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/instance-claim-bad-shape/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/instance-claim-bad-shape/.2brain/repo.yaml",
         "section_presence": null
       }
     ]

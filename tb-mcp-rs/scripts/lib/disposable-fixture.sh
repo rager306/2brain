@@ -16,7 +16,7 @@
 # production socket or user config is touched.
 
 prepare_fixture() {
-  root=$(mktemp -d /tmp/au-fixture-XXXXXX)
+  root=$(mktemp -d /tmp/tb-fixture-XXXXXX)
   # The EXIT trap is what stops the daemon, and it does not run when the caller is
   # killed. The owner pid is how a later run tells a live run's root from a dead one's:
   # the directory's existence alone proves nothing.
@@ -30,7 +30,7 @@ prepare_fixture() {
   trap cleanup_fixture EXIT
 
   # An EXIT trap does not run when the caller is killed (a harness timeout sends the
-  # whole process group a signal), and `au daemon start` may detach, so a trap alone
+  # whole process group a signal), and `tb-engine daemon start` may detach, so a trap alone
   # left fourteen orphans on this host by 2026-11-16. Reap the signature of that
   # failure before adding another: a daemon whose fixture root no longer exists, or
   # whose owner pid is gone.
@@ -56,11 +56,11 @@ prepare_fixture() {
   socket=
   for _ in $(seq 1 200); do
     # Which spelling the state root has is the engine's decision, so ask the filesystem
-    # each pass: a fresh $HOME gets .2brain, a migrated one keeps .arsumbris. A single
+    # each pass: a fresh $HOME gets .2brain, a migrated one keeps .2brain. A single
     # pass outside the loop would read the directory before the daemon created it.
-    for state in .2brain .arsumbris; do
-      if [[ -d $HOME/$state/au-engine/run ]]; then
-        socket=$(ls "$HOME/$state/au-engine/run"/*.sock 2>/dev/null | head -1 || true)
+    for state in .2brain .2brain; do
+      if [[ -d $HOME/$state/tb-engine/run ]]; then
+        socket=$(ls "$HOME/$state/tb-engine/run"/*.sock 2>/dev/null | head -1 || true)
         [[ -n $socket ]] && break 2
       fi
     done
@@ -102,12 +102,12 @@ reap_orphaned_fixtures() {
     fi
     kill "$pid" 2>/dev/null && reaped=$((reaped + 1))
     # The daemon is gone; its fixture directory is the other half of the orphan.
-    if [[ $root == /tmp/au-fixture-* ]]; then
+    if [[ $root == /tmp/tb-fixture-* ]]; then
       rm -rf "$root"
     fi
   done < <(
     ps -eo pid=,args= 2>/dev/null |
-      awk '/au daemon start \/tmp\/au-fixture-/ {
+      awk '/au daemon start \/tmp\/tb-fixture-/ {
              pid = $1
              for (i = 1; i <= NF; i++) if ($i == "start") { print pid, $(i + 1); break }
            }'
@@ -128,7 +128,7 @@ cleanup_fixture() {
   # process detached from the shell that started it. Then fall back to signals.
   [[ -n ${ENGINE:-} && -n ${repo:-} ]] && "$ENGINE" daemon stop "$repo" >/dev/null 2>&1 || true
   if [[ -n ${repo:-} ]]; then
-    pkill -f "au daemon start $repo" 2>/dev/null || true
+    pkill -f "tb-engine daemon start $repo" 2>/dev/null || true
   fi
   if [[ -n ${daemon_pid:-} ]]; then
     kill "$daemon_pid" 2>/dev/null || true

@@ -3,7 +3,7 @@
 
 What this proves now: the binary a client launches is the binary the tree builds. Before the
 TypeScript layer was deleted (2026-11-16) this script compared the Python bridge with the adapter;
-both bridge and daemon are gone, so the second process is the freshly built `au-mcp-rs` binary and
+both bridge and daemon are gone, so the second process is the freshly built `tb-mcp-rs` binary and
 the comparison answers a different question — "is what is installed still what the source says".
 
 Read-only by construction: both servers are started WITHOUT `--allow-mutations`, so neither can
@@ -96,7 +96,7 @@ def main() -> int:
     parser.add_argument(
         "--socket",
         help="engine socket (default: the newest under the engine's run directory, "
-        "which is <state dir>/au-engine/run for whichever spelling the engine uses)",
+        "which is <state dir>/tb-engine/run for whichever spelling the engine uses)",
     )
     parser.add_argument("--json", action="store_true", help="machine-readable result")
     args = parser.parse_args()

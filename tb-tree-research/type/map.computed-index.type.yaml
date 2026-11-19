@@ -3,8 +3,8 @@
 #: Refresh replaces only Index contents, preserving frontmatter, the heading and other sections.
 #: Question parents determine nesting; researched and dropped question entries and tldrs are hidden.
 #: An open question and any answers share one row, with descendants beneath it.
-#: The map inherits map::au-base-types for navigation discovery.
-extends: map::au-base-types
+#: The map inherits map::tb-base-types for navigation discovery.
+extends: map::tb-base-types
 fields:
   #: The premise whose tree this map indexes.
   #: This reference identifies the field's existing map.

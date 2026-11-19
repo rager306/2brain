@@ -1,5 +1,5 @@
 //! Workspace assembly: the engine pointed at a folder-repo directory composes
-//! one knowledge base from its `.arsumbris/workspace.yaml`'s members plus their transitive
+//! one knowledge base from its `.2brain/workspace.yaml`'s members plus their transitive
 //! `deps` closure, each member walked from its own root.
 //!
 //! The members here are co-present subdirectories of the entry folder-repo,
@@ -26,22 +26,22 @@ fn codes(kb: &tb_engine::KnowledgeBase) -> Vec<String> {
 }
 
 /// An assembled workspace: the entry `ws/` is a content-free folder-repo whose
-/// `.arsumbris/workspace.yaml` composes the members `base` and `app`, co-present
+/// `.2brain/workspace.yaml` composes the members `base` and `app`, co-present
 /// subdirectories of `ws/`. `base` owns `note`; `app` owns its own `note` (a
 /// distinct same-named identity) and `task`.
 fn assembled_workspace() -> (tempfile::TempDir, std::path::PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let tmp = fs::canonicalize(dir.path()).unwrap();
 
-    write(&tmp, "ws/.arsumbris/repo.yaml", "name: ws\n");
+    write(&tmp, "ws/.2brain/repo.yaml", "name: ws\n");
     write(
         &tmp,
-        "ws/.arsumbris/workspace.yaml",
+        "ws/.2brain/workspace.yaml",
         "edit:\n  - ws\n  - base\n  - app\n",
     );
 
     // base, owns note.
-    write(&tmp, "ws/base/.arsumbris/repo.yaml", "name: base\n");
+    write(&tmp, "ws/base/.2brain/repo.yaml", "name: base\n");
     write(
         &tmp,
         "ws/base/type/note.type.yaml",
@@ -53,7 +53,7 @@ fn assembled_workspace() -> (tempfile::TempDir, std::path::PathBuf) {
     // dependency.
     write(
         &tmp,
-        "ws/app/.arsumbris/repo.yaml",
+        "ws/app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -138,30 +138,26 @@ fn instances_in_every_member_validate() {
 
 #[test]
 fn a_content_less_member_is_discovered_by_its_walker_marker() {
-    // A declared member holding ONLY `.arsumbris/repo.yaml` (no content) is
+    // A declared member holding ONLY `.2brain/repo.yaml` (no content) is
     // discovered by its walker-surfaced marker. Before marker discovery it was
-    // invisible: the walk skips `.arsumbris/`, so a content-less repo had no
+    // invisible: the walk skips `.2brain/`, so a content-less repo had no
     // walked file to anchor the ancestor-scan discovery. Its discovery is
     // observable via the folder-name drift, which also proves discovery is
     // folder-name-independent (the marker, not the folder, is the indicator).
     let dir = tempfile::tempdir().unwrap();
     let tmp = fs::canonicalize(dir.path()).unwrap();
     // A folder-repo entry composing `main` and the content-less `declared` member.
-    write(&tmp, ".arsumbris/repo.yaml", "name: home\n");
+    write(&tmp, ".2brain/repo.yaml", "name: home\n");
     write(
         &tmp,
-        ".arsumbris/workspace.yaml",
+        ".2brain/workspace.yaml",
         "edit:\n  - home\n  - main\n  - declared\n",
     );
     // A member with content, so the tree has files to walk.
-    write(&tmp, "main/.arsumbris/repo.yaml", "name: main\n");
+    write(&tmp, "main/.2brain/repo.yaml", "name: main\n");
     write(&tmp, "main/type/x.type.yaml", "fields:\n  a: String\n");
     // A content-less member in a folder whose name differs from its declared name.
-    write(
-        &tmp,
-        "wrong-folder/.arsumbris/repo.yaml",
-        "name: declared\n",
-    );
+    write(&tmp, "wrong-folder/.2brain/repo.yaml", "name: declared\n");
 
     let kb = build(&tmp, &RealFileSystem).expect("build");
     assert!(
@@ -179,13 +175,13 @@ fn a_missing_edit_member_is_edit_member_unmounted_and_the_workspace_opens_degrad
     // over its present edit member `base`.
     let dir = tempfile::tempdir().unwrap();
     let tmp = fs::canonicalize(dir.path()).unwrap();
-    write(&tmp, "ws/.arsumbris/repo.yaml", "name: ws\n");
+    write(&tmp, "ws/.2brain/repo.yaml", "name: ws\n");
     write(
         &tmp,
-        "ws/.arsumbris/workspace.yaml",
+        "ws/.2brain/workspace.yaml",
         "edit:\n  - ws\n  - base\n  - ghost\n",
     );
-    write(&tmp, "ws/base/.arsumbris/repo.yaml", "name: base\n");
+    write(&tmp, "ws/base/.2brain/repo.yaml", "name: base\n");
     write(
         &tmp,
         "ws/base/type/note.type.yaml",
@@ -218,13 +214,13 @@ fn a_name_in_both_edit_and_discover_is_a_role_conflict() {
     // wins meanwhile, so the workspace still opens over `base`.
     let dir = tempfile::tempdir().unwrap();
     let tmp = fs::canonicalize(dir.path()).unwrap();
-    write(&tmp, "ws/.arsumbris/repo.yaml", "name: ws\n");
+    write(&tmp, "ws/.2brain/repo.yaml", "name: ws\n");
     write(
         &tmp,
-        "ws/.arsumbris/workspace.yaml",
+        "ws/.2brain/workspace.yaml",
         "edit:\n  - ws\n  - base\ndiscover:\n  - base\n",
     );
-    write(&tmp, "ws/base/.arsumbris/repo.yaml", "name: base\n");
+    write(&tmp, "ws/base/.2brain/repo.yaml", "name: base\n");
     write(
         &tmp,
         "ws/base/type/note.type.yaml",
@@ -251,18 +247,14 @@ fn a_name_in_both_edit_and_discover_is_a_role_conflict() {
 #[test]
 fn a_folder_repo_directory_assembles_from_its_workspace_yaml() {
     // The entry is a DIRECTORY that is itself a repo (`home`) carrying a
-    // `.arsumbris/workspace.yaml` composing itself plus a nested member `sub`.
+    // `.2brain/workspace.yaml` composing itself plus a nested member `sub`.
     // Pointing at the folder assembles from that composition, not a tree scan.
     let dir = tempfile::tempdir().unwrap();
     let tmp = fs::canonicalize(dir.path()).unwrap();
-    write(&tmp, ".arsumbris/repo.yaml", "name: home\n");
-    write(
-        &tmp,
-        ".arsumbris/workspace.yaml",
-        "edit:\n  - home\n  - sub\n",
-    );
+    write(&tmp, ".2brain/repo.yaml", "name: home\n");
+    write(&tmp, ".2brain/workspace.yaml", "edit:\n  - home\n  - sub\n");
     write(&tmp, "type/note.type.yaml", "fields:\n  title: String\n");
-    write(&tmp, "sub/.arsumbris/repo.yaml", "name: sub\n");
+    write(&tmp, "sub/.2brain/repo.yaml", "name: sub\n");
     write(
         &tmp,
         "sub/type/task.type.yaml",
@@ -295,15 +287,15 @@ fn a_folder_repo_directory_assembles_from_its_workspace_yaml() {
 
 #[test]
 fn a_workspace_yaml_omitting_its_containing_repo_errors_but_still_mounts_it() {
-    // The `.arsumbris/workspace.yaml`'s `edit` omits its containing repo `home`.
+    // The `.2brain/workspace.yaml`'s `edit` omits its containing repo `home`.
     // That is `workspace-omits-containing-repo` (self-completeness), but the entry
     // repo is ALWAYS a member (role Entry), so it still composes.
     let dir = tempfile::tempdir().unwrap();
     let tmp = fs::canonicalize(dir.path()).unwrap();
-    write(&tmp, ".arsumbris/repo.yaml", "name: home\n");
-    write(&tmp, ".arsumbris/workspace.yaml", "edit:\n  - sub\n");
+    write(&tmp, ".2brain/repo.yaml", "name: home\n");
+    write(&tmp, ".2brain/workspace.yaml", "edit:\n  - sub\n");
     write(&tmp, "type/note.type.yaml", "fields:\n  title: String\n");
-    write(&tmp, "sub/.arsumbris/repo.yaml", "name: sub\n");
+    write(&tmp, "sub/.2brain/repo.yaml", "name: sub\n");
 
     let kb = build(&tmp, &RealFileSystem).expect("build");
 
@@ -341,14 +333,14 @@ fn omits_containing_repo_fix_moves_it_when_hand_listed_under_discover() {
     // (already in a list), so the fix MOVES it with `set_workspace_member_role`.
     let dir = tempfile::tempdir().unwrap();
     let tmp = fs::canonicalize(dir.path()).unwrap();
-    write(&tmp, ".arsumbris/repo.yaml", "name: home\n");
+    write(&tmp, ".2brain/repo.yaml", "name: home\n");
     write(
         &tmp,
-        ".arsumbris/workspace.yaml",
+        ".2brain/workspace.yaml",
         "edit:\n  - sub\ndiscover:\n  - home\n",
     );
     write(&tmp, "type/note.type.yaml", "fields:\n  title: String\n");
-    write(&tmp, "sub/.arsumbris/repo.yaml", "name: sub\n");
+    write(&tmp, "sub/.2brain/repo.yaml", "name: sub\n");
 
     let kb = build(&tmp, &RealFileSystem).expect("build");
 
@@ -372,10 +364,10 @@ fn an_undeclared_nested_repo_is_skipped_with_a_warning() {
     // nothing) and reported `undeclared-nested-repo`, never silently absorbed.
     let dir = tempfile::tempdir().unwrap();
     let tmp = fs::canonicalize(dir.path()).unwrap();
-    write(&tmp, ".arsumbris/repo.yaml", "name: home\n");
-    write(&tmp, ".arsumbris/workspace.yaml", "edit:\n  - home\n");
+    write(&tmp, ".2brain/repo.yaml", "name: home\n");
+    write(&tmp, ".2brain/workspace.yaml", "edit:\n  - home\n");
     write(&tmp, "type/note.type.yaml", "fields:\n  title: String\n");
-    write(&tmp, "sub/.arsumbris/repo.yaml", "name: sub\n");
+    write(&tmp, "sub/.2brain/repo.yaml", "name: sub\n");
     write(
         &tmp,
         "sub/type/task.type.yaml",
@@ -411,14 +403,10 @@ fn a_declared_nested_repo_mounts_and_does_not_warn() {
     // raises no `undeclared-nested-repo`.
     let dir = tempfile::tempdir().unwrap();
     let tmp = fs::canonicalize(dir.path()).unwrap();
-    write(&tmp, ".arsumbris/repo.yaml", "name: home\n");
-    write(
-        &tmp,
-        ".arsumbris/workspace.yaml",
-        "edit:\n  - home\n  - sub\n",
-    );
+    write(&tmp, ".2brain/repo.yaml", "name: home\n");
+    write(&tmp, ".2brain/workspace.yaml", "edit:\n  - home\n  - sub\n");
     write(&tmp, "type/note.type.yaml", "fields:\n  title: String\n");
-    write(&tmp, "sub/.arsumbris/repo.yaml", "name: sub\n");
+    write(&tmp, "sub/.2brain/repo.yaml", "name: sub\n");
     write(
         &tmp,
         "sub/type/task.type.yaml",
@@ -475,13 +463,13 @@ fn an_unmounted_member_drops_out_with_an_advisory() {
     // The workspace declares base and finance as edit members; only base is
     // co-present. finance resolves nowhere, a legitimate state. Both are editable
     // members, so finance's unmounted outcome reads as `edit-member-unmounted`.
-    write(&tmp, "ws/.arsumbris/repo.yaml", "name: ws\n");
+    write(&tmp, "ws/.2brain/repo.yaml", "name: ws\n");
     write(
         &tmp,
-        "ws/.arsumbris/workspace.yaml",
+        "ws/.2brain/workspace.yaml",
         "edit:\n  - ws\n  - base\n  - finance\n",
     );
-    write(&tmp, "ws/base/.arsumbris/repo.yaml", "name: base\n");
+    write(&tmp, "ws/base/.2brain/repo.yaml", "name: base\n");
     write(
         &tmp,
         "ws/base/type/note.type.yaml",
@@ -516,19 +504,19 @@ fn a_discover_member_that_is_also_a_dep_is_a_redundant_hint() {
     // never a role conflict (that is edit + discover).
     let dir = tempfile::tempdir().unwrap();
     let tmp = fs::canonicalize(dir.path()).unwrap();
-    write(&tmp, "ws/.arsumbris/repo.yaml", "name: ws\n");
+    write(&tmp, "ws/.2brain/repo.yaml", "name: ws\n");
     write(
         &tmp,
-        "ws/.arsumbris/workspace.yaml",
+        "ws/.2brain/workspace.yaml",
         "edit:\n  - ws\n  - app\ndiscover:\n  - shared\n",
     );
     write(
         &tmp,
-        "ws/app/.arsumbris/repo.yaml",
+        "ws/app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: shared\n",
     );
     write(&tmp, "ws/app/a.md", "x");
-    write(&tmp, "ws/shared/.arsumbris/repo.yaml", "name: shared\n");
+    write(&tmp, "ws/shared/.2brain/repo.yaml", "name: shared\n");
     write(&tmp, "ws/shared/s.md", "x");
 
     let kb = build(&tmp.join("ws"), &RealFileSystem).expect("build");
@@ -559,13 +547,13 @@ fn a_discover_member_that_is_also_a_dep_is_a_redundant_hint() {
 fn a_properly_mounted_member_raises_no_membership_advisory() {
     let dir = tempfile::tempdir().unwrap();
     let tmp = fs::canonicalize(dir.path()).unwrap();
-    write(&tmp, "ws/.arsumbris/repo.yaml", "name: ws\n");
+    write(&tmp, "ws/.2brain/repo.yaml", "name: ws\n");
     write(
         &tmp,
-        "ws/.arsumbris/workspace.yaml",
+        "ws/.2brain/workspace.yaml",
         "edit:\n  - ws\n  - alpha\n",
     );
-    write(&tmp, "ws/alpha/.arsumbris/repo.yaml", "name: alpha\n");
+    write(&tmp, "ws/alpha/.2brain/repo.yaml", "name: alpha\n");
     write(&tmp, "ws/alpha/doc.md", "x");
 
     let kb = build(&tmp.join("ws"), &RealFileSystem).expect("build");
@@ -607,19 +595,19 @@ fn members_read_reports_co_present_members() {
 fn members_and_resolve_member_report_role_derived_editable() {
     let dir = tempfile::tempdir().unwrap();
     let tmp = fs::canonicalize(dir.path()).unwrap();
-    write(&tmp, "ws/.arsumbris/repo.yaml", "name: ws\n");
+    write(&tmp, "ws/.2brain/repo.yaml", "name: ws\n");
     write(
         &tmp,
-        "ws/.arsumbris/workspace.yaml",
+        "ws/.2brain/workspace.yaml",
         "edit:\n  - ws\n  - app\n",
     );
     write(
         &tmp,
-        "ws/app/.arsumbris/repo.yaml",
+        "ws/app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: lib\n",
     );
     write(&tmp, "ws/app/a.md", "x");
-    write(&tmp, "ws/lib/.arsumbris/repo.yaml", "name: lib\n");
+    write(&tmp, "ws/lib/.2brain/repo.yaml", "name: lib\n");
     write(&tmp, "ws/lib/l.md", "x");
 
     let ws = tmp.join("ws");

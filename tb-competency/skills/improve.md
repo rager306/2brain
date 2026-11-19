@@ -1,10 +1,10 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: improve
 description: >-
   Assesses recurring feedback and implements approved workspace changes.
   Use when signals need a disposition or agreed work is ready to build.
-  Propose develops changes and au-govern fixes individual findings.
+  Propose develops changes and tb-govern fixes individual findings.
 ---
 
 # improve
@@ -43,8 +43,8 @@ Resolve ordinary implementation choices within that scope.
 Return a material scope change through propose for a ruling.
 
 Use each mechanism's owning authoring capability.
-For example, [[write-a-skill::au-skills]] authors skills and [[write-a-rule::au-writing-style]] authors writing rules.
-For contract changes, use [[design-for-growth::au-agent-guides]].
+For example, [[write-a-skill::tb-skills]] authors skills and [[write-a-rule::tb-writing-style]] authors writing rules.
+For contract changes, use [[design-for-growth::tb-agent-guides]].
 Account for affected consumers and preserve a resumption point during migration.
 
 Observe the result through its intended consumer.

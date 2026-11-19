@@ -5,10 +5,10 @@
 #
 # WHY: a read-precondition ("must have read file X") is satisfied when a file enters the
 # session read-view. `read_file` populates it directly. But the ergonomic way to read a
-# guide is `au_guide {scenario}`, which serves the guide without a `read_file`. This meta
+# guide is `tb_guide {scenario}`, which serves the guide without a `read_file`. This meta
 # lets the daemon RECOMPUTE, at OBSERVE (the session-bound hook path — it carries
 # `tool_name` + `tool_input`), which file a call served, and register it — so calling the
-# tool COUNTS as reading. See [[decision - 2607030037 - au_guide satisfies a read-precondition
+# tool COUNTS as reading. See [[decision - 2607030037 - tb_guide satisfies a read-precondition
 # via a declarative typed serves-contract, not a text sentinel]].
 #
 # SPOOF-RESISTANCE is the whole point: the served file is derived from the OBSERVED CALL
@@ -16,15 +16,15 @@
 # an agent can forge via any other tool). A rogue agent cannot fake having called the tool.
 #
 # `pathTemplate` is a path relative to the tool's PACKAGE ROOT (where its type-def lives),
-# with `{field}` placeholders substituted from the call input. E.g. au_guide declares
-# `guides/{scenario}.md`; a call `au_guide {scenario: "schema-induction"}` serves
+# with `{field}` placeholders substituted from the call input. E.g. tb_guide declares
+# `guides/{scenario}.md`; a call `tb_guide {scenario: "schema-induction"}` serves
 # `<pkg>/guides/schema-induction.md`. The daemon GUARDS the substitution: a `{field}` value
 # must be a single plain path segment (no `/`, `\`, `..`) and the resolved path must stay
 # inside the package root and exist — else it registers nothing (a path-traversal input, or
-# a task-map call with no scenario, serves no specific file). Owned here (au-mcp-sdk).
+# a task-map call with no scenario, serves no specific file). Owned here (tb-mcp-sdk).
 #
 # Mixes in the schema-18 nominal-meta marker so it is meta-legal (closure includes
-# `au.engine.meta::au-engine`).
+# `tb.engine.meta::tb-engine`).
 extends: tb.engine.meta::tb-engine
 fields:
   # A package-root-relative path with `{inputField}` placeholders, e.g. "guides/{scenario}.md".

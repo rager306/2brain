@@ -72,11 +72,11 @@ pub(crate) struct MoveDirPlan {
 ///
 /// `dir` is absolute and resolved. Refuses:
 /// - a folder not in one editable repo, a repo root, or under a hard-floor
-///   directory (`.git`, `.arsumbris`).
+///   directory (`.git`, `.2brain`).
 /// - a folder holding a workspace member's root, a nested repo moved file by
 ///   file would drop out of the workspace.
 /// - a folder whose disk holds anything outside the catalog: a scoped-out path,
-///   a nested `.git` or `.arsumbris`, a nested repo, a symlink, or an entry the
+///   a nested `.git` or `.2brain`, a nested repo, a symlink, or an entry the
 ///   walk could not read. Moving only the catalogued files would leave the rest
 ///   behind; carrying it along would move bytes no plan describes.
 /// - a folder whose disk files differ from the catalog's, an engine view
@@ -661,7 +661,7 @@ mod tests {
     fn repo(files: &[(&str, &str)]) -> (tempfile::TempDir, PathBuf) {
         let tmp = tempfile::tempdir().unwrap();
         let root = std::fs::canonicalize(tmp.path()).unwrap();
-        write(&root, ".arsumbris/repo.yaml", "name: v\n");
+        write(&root, ".2brain/repo.yaml", "name: v\n");
         for (p, c) in files {
             write(&root, p, c);
         }
@@ -752,7 +752,7 @@ mod tests {
     #[test]
     fn an_auignore_dropped_file_refuses() {
         let (_t, root) = repo(&[
-            (".arsumbris/.auignore", "*.log\n"),
+            (".2brain/.auignore", "*.log\n"),
             ("drafts/a.md", "# a\n"),
             ("drafts/run.log", ""),
         ]);
@@ -765,7 +765,7 @@ mod tests {
     fn an_undeclared_nested_repo_refuses() {
         let (_t, root) = repo(&[
             ("drafts/a.md", "# a\n"),
-            ("drafts/inner/.arsumbris/repo.yaml", "name: inner\n"),
+            ("drafts/inner/.2brain/repo.yaml", "name: inner\n"),
         ]);
         let v = kb(&root);
         let err = plan_subtree(&v, &root.join("drafts")).unwrap_err();
@@ -800,7 +800,7 @@ mod tests {
         let v = kb(&root);
         assert!(plan_subtree(&v, &root).unwrap_err().contains("repo root"));
         assert!(
-            plan_subtree(&v, &root.join(".arsumbris"))
+            plan_subtree(&v, &root.join(".2brain"))
                 .unwrap_err()
                 .contains("engine-owned")
         );
@@ -837,7 +837,7 @@ mod tests {
                 .contains("itself")
         );
         assert!(
-            plan_move_dir(&v, &dir, &root.join(".arsumbris/x"))
+            plan_move_dir(&v, &dir, &root.join(".2brain/x"))
                 .unwrap_err()
                 .contains("engine-owned")
         );
@@ -860,17 +860,17 @@ mod tests {
     /// `lib`, a consumed member.
     fn workspace() -> (tempfile::TempDir, PathBuf) {
         let (t, root) = repo(&[
-            (".arsumbris/workspace.yaml", "edit:\n  - v\n  - inner\n"),
+            (".2brain/workspace.yaml", "edit:\n  - v\n  - inner\n"),
             ("drafts/a.md", "# a\n"),
-            ("drafts/inner/.arsumbris/repo.yaml", "name: inner\n"),
+            ("drafts/inner/.2brain/repo.yaml", "name: inner\n"),
             ("drafts/inner/i.md", "# i\n"),
-            ("vendor/lib/.arsumbris/repo.yaml", "name: lib\n"),
+            ("vendor/lib/.2brain/repo.yaml", "name: lib\n"),
             ("vendor/lib/docs/l.md", "# l\n"),
             ("other/o.md", "# o\n"),
         ]);
         write(
             &root,
-            ".arsumbris/repo.yaml",
+            ".2brain/repo.yaml",
             "name: v\ndeps:\n  - name: lib\n",
         );
         (t, root)
@@ -904,7 +904,7 @@ mod tests {
     #[test]
     fn a_destination_out_of_scope_refuses() {
         let (_t, root) = repo(&[
-            (".arsumbris/.auignore", "archive/\n"),
+            (".2brain/.auignore", "archive/\n"),
             ("drafts/a.md", "# a\n"),
         ]);
         let v = kb(&root);

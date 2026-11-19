@@ -13,7 +13,7 @@
 //! - `name::repo` crosses to that repo.
 //!
 //! It serves the whole-block inheritance both keys share
-//! ([[type-def meta::au-type-system]], [[type-def location::au-type-system]]):
+//! ([[type-def meta::tb-type-system]], [[type-def location::tb-type-system]]):
 //! a declaration is shadowed by any declaration on a strict descendant in the
 //! closure, see [`DefClosure::survivors`].
 
@@ -52,7 +52,7 @@ pub struct DefClosure<'g> {
 
 /// A one-graph resolver, for a caller holding a single repo's graph: every repo
 /// name resolves to it. A `::repo` edge then reads the same graph, so it suits
-/// only a single-repo world (au-core's own tests, a graph with no qualified
+/// only a single-repo world (tb-core's own tests, a graph with no qualified
 /// edges).
 pub struct SingleGraph<'g>(pub &'g TypeGraph);
 

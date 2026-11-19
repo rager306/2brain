@@ -22,7 +22,7 @@ watcher plus an incremental rebuild.
 The store is the filesystem plus git. Between runs the graph does not exist at all; what
 persists is the working tree, `.arsumbris/repo.yaml` and friends (typed by built-in defaults,
 `engine_schema.rs:190-320`), the package cache (`pkgcache.rs`), and the saga journal under
-`.arsumbris/au-engine/run/`. Inside a run, one `Arc<KnowledgeBase>` in `Held.kb`
+`.arsumbris/engine/run/`. Inside a run, one `Arc<KnowledgeBase>` in `Held.kb`
 (`engine.rs:475-484`) holds `catalog: OrdMap<PathBuf, FileEntry>`, `graphs: Arc<RepoGraphs>`,
 `resolution_graphs`, `repos`, `indexes`, `instances`, `backlinks`, `closure_members`,
 `referenced_names` and `diagnostics_by_source` (`ir.rs:340-470`), where `OrdMap` is
@@ -155,7 +155,7 @@ and exactly what is expensive to hand-roll correctly on top of a standalone vect
    databases", and "ultra-low write latency" is not its target either. Our reads are 4–20 ms from
    RAM and local files; its system of record is object storage with read caches.
 3. **Still a second data model.** Typed frontmatter, spans, block ids and diagnostics would be
-   projected into a property graph and validated outside it, so `au-type-system` stays ours; and
+   projected into a property graph and validated outside it, so `tb-type-system` stays ours; and
    as an authority it would reintroduce the dual-write window against git.
 
 **Where that leaves it.** HelixDB is the **best-fit known candidate for the retrieval problem** —
@@ -211,7 +211,7 @@ Read through `arsumbris-rs` while preparing this:
    (samyama: strict/background/raft-default), backup/restore and a second recovery path — a
    third durability model next to git and the filesystem, and unpredicted p99 inside a
    single-binary daemon.
-4. **The typed contract is ours, not the store's.** `au-type-system` validates frontmatter and
+4. **The typed contract is ours, not the store's.** `tb-type-system` validates frontmatter and
    cross-note contracts; a property graph is schema-less, so the type layer would sit on top of
    a store that cannot enforce it. Spans, block ids and diagnostics would have to round-trip
    through a model that does not know about them.

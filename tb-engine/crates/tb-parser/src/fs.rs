@@ -3,8 +3,8 @@
 //! BTreeMap-backed test double.
 //!
 //! Walks apply a two-layer scope: an unconditional hard floor (`.git`,
-//! `.arsumbris`, never walked, never reachable by any pattern) and a per-walk
-//! [`WalkFilter`] (the default excludes plus any `.arsumbris/.auignore`). See
+//! `.2brain`, never walked, never reachable by any pattern) and a per-walk
+//! [`WalkFilter`] (the default excludes plus any `.2brain/.auignore`). See
 //! the `scope` module.
 
 use crate::identity::{identity_marker_with, is_identity_dir_name};
@@ -45,7 +45,7 @@ fn dir_reachable(root: &Path, dir: &Path, filter: &WalkFilter) -> bool {
     true
 }
 
-/// The repo roots strictly under `root` among `keys`: a `<D>/.arsumbris/repo.yaml`
+/// The repo roots strictly under `root` among `keys`: a `<D>/.2brain/repo.yaml`
 /// key marks `D` a repo root, and the walk root itself is excluded (its identity,
 /// not a boundary). `MemoryFileSystem` uses this to bound its flat-map walks at a
 /// nested repo, the mirror of the real walker stopping at a nested marker. A file
@@ -84,7 +84,7 @@ pub struct WalkError {
 /// the walk decides at, never the contents below a pruned directory. A pruned
 /// `node_modules` is ONE `ignored_dirs` entry, its contents never enumerated.
 ///
-/// The hard floor (`.git`, `.arsumbris`) is NOT reported here — it is a name
+/// The hard floor (`.git`, `.2brain`) is NOT reported here — it is a name
 /// check above the filter, surfaced separately as the un-editable floor. This
 /// backs the `ignores` read's `resolve` effect, see
 /// [[spec - scope management surface - an ignores read and a set_ignores config mutation]].
@@ -100,16 +100,16 @@ pub struct ScopeBoundaries {
 /// surfaced, and any per-entry failures.
 ///
 /// `repo_markers` is the one carve-out in the hard floor: as the walk enters a
-/// directory holding a `.arsumbris/repo.yaml`, it surfaces that marker PATH
-/// here, a repo-DISCOVERY signal, without walking `.arsumbris/` as content. So a
+/// directory holding a `.2brain/repo.yaml`, it surfaces that marker PATH
+/// here, a repo-DISCOVERY signal, without walking `.2brain/` as content. So a
 /// repo is discovered content-free, even one holding only its `repo.yaml`. The
-/// floor otherwise holds, no other `.arsumbris/` file is a kept file or a marker.
+/// floor otherwise holds, no other `.2brain/` file is a kept file or a marker.
 /// See [[spec - knowledge base file scoping - a per-repo auignore file over a hard floor]].
 #[derive(Debug, Default)]
 pub struct Walk {
     /// Every regular file the filter kept, the content set.
     pub files: Vec<PathBuf>,
-    /// Absolute paths of each surfaced `<dir>/.arsumbris/repo.yaml` marker.
+    /// Absolute paths of each surfaced `<dir>/.2brain/repo.yaml` marker.
     pub repo_markers: Vec<PathBuf>,
     /// Per-entry failures encountered along the way, non-fatal.
     pub errors: Vec<WalkError>,
@@ -134,7 +134,7 @@ pub trait FileSystem: Send + Sync {
     /// Whether `path` is present AS A DIRECTORY, without listing it.
     ///
     /// The directory twin of [`FileSystem::is_file`]. The identity seam asks whether a root holds
-    /// `.2brain/` or `.arsumbris/` before deciding which one to read, and it must ask the port — a
+    /// `.2brain/` or `.2brain/` before deciding which one to read, and it must ask the port — a
     /// memory filesystem answers from its key map — rather than `std::fs`, which knows nothing
     /// about a fixture. A wrapper should delegate this to its inner filesystem.
     fn is_dir(&self, path: &Path) -> bool;
@@ -161,7 +161,7 @@ pub trait FileSystem: Send + Sync {
     /// way. All extensions, Markdown / YAML / assets alike — the
     /// classifier (`classify_by_path`) decides what to do with each.
     ///
-    /// Scope has two layers. The hard floor (`.git`, `.arsumbris`) is never
+    /// Scope has two layers. The hard floor (`.git`, `.2brain`) is never
     /// walked, unconditionally. The `filter` decides the rest: a matched
     /// directory is pruned, a matched file dropped. `filter` is anchored to
     /// `root`. Order is unspecified — callers that need determinism should
@@ -173,13 +173,13 @@ pub trait FileSystem: Send + Sync {
     /// `io::Result` is reserved for root-level failures (root not a
     /// directory, root canonicalize fails).
     ///
-    /// au-references' `RepoIndex` consumes the kept files directly so that bare
+    /// tb-references' `RepoIndex` consumes the kept files directly so that bare
     /// `file*` references find PDFs, images, and other assets the type
     /// system doesn't otherwise model.
     ///
     /// The one floor carve-out: [`Walk::repo_markers`] carries each
-    /// `<dir>/.arsumbris/repo.yaml` the walk passed, a content-free repo-root
-    /// discovery signal. `.arsumbris/` is otherwise never walked, see [`Walk`].
+    /// `<dir>/.2brain/repo.yaml` the walk passed, a content-free repo-root
+    /// discovery signal. `.2brain/` is otherwise never walked, see [`Walk`].
     fn walk_files(&self, root: &Path, filter: &WalkFilter) -> io::Result<Walk>;
 
     /// Walk `root` recording the scope BOUNDARIES the `filter` decides at,
@@ -241,13 +241,13 @@ enum WalkEvent {
     PrunedDir(PathBuf),
     /// A file the filter dropped, whose parent directory WAS entered.
     DroppedFile(PathBuf),
-    /// A `<dir>/.arsumbris/repo.yaml` marker surfaced at the floor, the one
+    /// A `<dir>/.2brain/repo.yaml` marker surfaced at the floor, the one
     /// carve-out: a repo-root discovery signal, never a kept file.
     RepoMarker(PathBuf),
     /// A directory the walk entered, the walk root included.
     EnteredDir(PathBuf),
-    /// A hard-floor directory (`.git`, or an `.arsumbris` holding no
-    /// `repo.yaml`), skipped unwalked. An `.arsumbris` holding a `repo.yaml` is
+    /// A hard-floor directory (`.git`, or an `.2brain` holding no
+    /// `repo.yaml`), skipped unwalked. An `.2brain` holding a `repo.yaml` is
     /// a [`WalkEvent::RepoMarker`] instead.
     FlooredDir(PathBuf),
     /// An entry that is a symbolic link. The walk still follows it; this only
@@ -367,7 +367,7 @@ fn walk_core(
                         let name_str = name.to_string_lossy();
                         // Hard floor first, unconditional, above the filter. The
                         // floor is never a scope boundary — it emits no event.
-                        // One carve-out: an `.arsumbris` holding a `repo.yaml` is
+                        // One carve-out: an `.2brain` holding a `repo.yaml` is
                         // a repo root, surfaced as a discovery marker (never
                         // walked as content), so a repo is found content-free.
                         if is_floored_name(&name_str) {
@@ -518,10 +518,10 @@ pub struct SubtreeAudit {
     pub pruned_dirs: Vec<PathBuf>,
     /// Files the filter dropped.
     pub dropped_files: Vec<PathBuf>,
-    /// Hard-floor directories, a nested `.git`, or an `.arsumbris` with no
+    /// Hard-floor directories, a nested `.git`, or an `.2brain` with no
     /// `repo.yaml`.
     pub floored_dirs: Vec<PathBuf>,
-    /// Each nested `.arsumbris/repo.yaml`, the subtree root's own included.
+    /// Each nested `.2brain/repo.yaml`, the subtree root's own included.
     pub repo_markers: Vec<PathBuf>,
     /// Every symbolic link, file or directory.
     pub symlinks: Vec<PathBuf>,
@@ -636,12 +636,12 @@ impl FileSystem for MemoryFileSystem {
             })
             .cloned()
             .collect();
-        // Repo-root markers: a `<dir>/.arsumbris/repo.yaml` key under root,
+        // Repo-root markers: a `<dir>/.2brain/repo.yaml` key under root,
         // surfaced when the walk would have entered `<dir>` (its ancestors not
         // pruned) AND no nested repo root sits strictly between `root` and `dir`
         // (the bounded walk stops at the first nested repo on each path, so a
         // deeper repo never surfaces). The marker sits under the floored
-        // `.arsumbris`, so it is absent from `files`; here it is a discovery
+        // `.2brain`, so it is absent from `files`; here it is a discovery
         // signal, not content.
         let mut repo_markers: Vec<PathBuf> = self
             .files
@@ -656,7 +656,7 @@ impl FileSystem for MemoryFileSystem {
                     && p.parent().and_then(Path::parent).is_some_and(|dir| {
                         // The walk root's OWN marker always surfaces (the real
                         // walker enters the root directly and surfaces its
-                        // `.arsumbris/repo.yaml` at the floor). A NESTED repo marker
+                        // `.2brain/repo.yaml` at the floor). A NESTED repo marker
                         // is structural too: surfaced regardless of whether the
                         // nested repo's OWN folder matches the user filter (it is a
                         // repo boundary, not a user-pruned dir), so only the
@@ -786,9 +786,9 @@ mod tests {
         // `repo.yaml`), but its content belongs to it, not this walk. The content
         // surfaces only when that repo is walked as its own root.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/a/.arsumbris/repo.yaml", b"name: a\n".to_vec());
+        fs.insert("/v/a/.2brain/repo.yaml", b"name: a\n".to_vec());
         fs.insert("/v/a/note.md", b"".to_vec());
-        fs.insert("/v/b/.arsumbris/repo.yaml", b"name: b\n".to_vec());
+        fs.insert("/v/b/.2brain/repo.yaml", b"name: b\n".to_vec());
         let w = fs
             .walk_files(Path::new("/v"), &scope(Path::new("/v")))
             .unwrap();
@@ -800,8 +800,8 @@ mod tests {
         assert_eq!(
             w.repo_markers,
             vec![
-                PathBuf::from("/v/a/.arsumbris/repo.yaml"),
-                PathBuf::from("/v/b/.arsumbris/repo.yaml"),
+                PathBuf::from("/v/a/.2brain/repo.yaml"),
+                PathBuf::from("/v/b/.2brain/repo.yaml"),
             ],
             "both repos discovered by marker, content-free b included"
         );
@@ -812,7 +812,7 @@ mod tests {
         assert_eq!(wa.files, vec![PathBuf::from("/v/a/note.md")]);
         assert_eq!(
             wa.repo_markers,
-            vec![PathBuf::from("/v/a/.arsumbris/repo.yaml")]
+            vec![PathBuf::from("/v/a/.2brain/repo.yaml")]
         );
     }
 
@@ -822,8 +822,8 @@ mod tests {
         // does not, that content belongs to the nested repo's own walk.
         let tmp = tempfile::tempdir().unwrap();
         let nested = tmp.path().join("nested");
-        std::fs::create_dir_all(nested.join(".arsumbris")).unwrap();
-        std::fs::write(nested.join(".arsumbris/repo.yaml"), b"name: nested\n").unwrap();
+        std::fs::create_dir_all(nested.join(".2brain")).unwrap();
+        std::fs::write(nested.join(".2brain/repo.yaml"), b"name: nested\n").unwrap();
         std::fs::write(nested.join("inside.md"), b"").unwrap();
         std::fs::write(tmp.path().join("top.md"), b"").unwrap();
         let w = walk(tmp.path(), 8, &scope(tmp.path())).unwrap();
@@ -834,7 +834,7 @@ mod tests {
         );
         assert_eq!(
             w.repo_markers,
-            vec![nested.join(".arsumbris/repo.yaml")],
+            vec![nested.join(".2brain/repo.yaml")],
             "nested repo surfaced by marker"
         );
     }
@@ -845,15 +845,15 @@ mod tests {
         // buried inside another nested repo never surfaces from the outer walk.
         let tmp = tempfile::tempdir().unwrap();
         let outer = tmp.path().join("outer");
-        std::fs::create_dir_all(outer.join(".arsumbris")).unwrap();
-        std::fs::write(outer.join(".arsumbris/repo.yaml"), b"name: outer\n").unwrap();
+        std::fs::create_dir_all(outer.join(".2brain")).unwrap();
+        std::fs::write(outer.join(".2brain/repo.yaml"), b"name: outer\n").unwrap();
         let inner = outer.join("inner");
-        std::fs::create_dir_all(inner.join(".arsumbris")).unwrap();
-        std::fs::write(inner.join(".arsumbris/repo.yaml"), b"name: inner\n").unwrap();
+        std::fs::create_dir_all(inner.join(".2brain")).unwrap();
+        std::fs::write(inner.join(".2brain/repo.yaml"), b"name: inner\n").unwrap();
         let w = walk(tmp.path(), 8, &scope(tmp.path())).unwrap();
         assert_eq!(
             w.repo_markers,
-            vec![outer.join(".arsumbris/repo.yaml")],
+            vec![outer.join(".2brain/repo.yaml")],
             "only the outermost repo surfaces; inner is buried"
         );
         assert!(w.files.is_empty());
@@ -864,9 +864,9 @@ mod tests {
         // Ports stay observationally equal: the flat-map walk bounds at the first
         // nested repo too, so a buried repo and its content never surface.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/outer/.arsumbris/repo.yaml", b"name: outer\n".to_vec());
+        fs.insert("/v/outer/.2brain/repo.yaml", b"name: outer\n".to_vec());
         fs.insert(
-            "/v/outer/inner/.arsumbris/repo.yaml",
+            "/v/outer/inner/.2brain/repo.yaml",
             b"name: inner\n".to_vec(),
         );
         fs.insert("/v/outer/inner/deep.md", b"".to_vec());
@@ -875,7 +875,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             w.repo_markers,
-            vec![PathBuf::from("/v/outer/.arsumbris/repo.yaml")],
+            vec![PathBuf::from("/v/outer/.2brain/repo.yaml")],
             "only outer surfaces from the /v walk"
         );
         assert!(w.files.is_empty(), "all content is bounded behind outer");
@@ -887,10 +887,7 @@ mod tests {
         // inherited, mirroring the real walk that never descends the pruned dir.
         let mut fs = MemoryFileSystem::new();
         fs.insert("/v/keep.md", b"".to_vec());
-        fs.insert(
-            "/v/target/dep/.arsumbris/repo.yaml",
-            b"name: dep\n".to_vec(),
-        );
+        fs.insert("/v/target/dep/.2brain/repo.yaml", b"name: dep\n".to_vec());
         let w = fs
             .walk_files(Path::new("/v"), &scope(Path::new("/v")))
             .unwrap();
@@ -904,21 +901,21 @@ mod tests {
     #[test]
     fn real_fs_surfaces_a_content_less_repo_marker() {
         let tmp = tempfile::tempdir().unwrap();
-        let sub = tmp.path().join("sub/.arsumbris");
+        let sub = tmp.path().join("sub/.2brain");
         std::fs::create_dir_all(&sub).unwrap();
         std::fs::write(sub.join("repo.yaml"), b"name: sub\n").unwrap();
         let w = walk(tmp.path(), 8, &scope(tmp.path())).unwrap();
         assert!(w.files.is_empty(), "content-less: no kept files");
         assert_eq!(
             w.repo_markers,
-            vec![tmp.path().join("sub/.arsumbris/repo.yaml")],
+            vec![tmp.path().join("sub/.2brain/repo.yaml")],
             "the content-less repo is discovered by its marker"
         );
     }
 
     #[test]
     fn memory_fs_walk_returns_assets_alongside_typed_files() {
-        // Assets (non-frontmatter files) must come back so au-references'
+        // Assets (non-frontmatter files) must come back so tb-references'
         // RepoIndex can resolve `file*` slots pointing at PDFs / images /
         // arbitrary binaries.
         let mut fs = MemoryFileSystem::new();
@@ -952,7 +949,7 @@ mod tests {
         let mut fs = MemoryFileSystem::new();
         fs.insert("/v/keep.png", b"".to_vec());
         fs.insert("/v/target/intermediate/cached.png", b"".to_vec());
-        fs.insert("/v/.arsumbris/index.bin", b"".to_vec());
+        fs.insert("/v/.2brain/index.bin", b"".to_vec());
         let w = fs
             .walk_files(Path::new("/v"), &scope(Path::new("/v")))
             .unwrap();
@@ -999,7 +996,7 @@ mod tests {
         let mut fs = MemoryFileSystem::new();
         fs.insert("/v/keep.md", b"".to_vec());
         fs.insert("/v/.git/HEAD", b"".to_vec());
-        fs.insert("/v/.arsumbris/index.bin", b"".to_vec());
+        fs.insert("/v/.2brain/index.bin", b"".to_vec());
         let filter = WalkFilter::default_excludes(Path::new("/v"));
         let (b, _) = fs.walk_scope_boundaries(Path::new("/v"), &filter).unwrap();
         assert!(b.ignored_dirs.is_empty() && b.ignored_files.is_empty());
@@ -1015,8 +1012,8 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join("keep.md"), b"").unwrap();
         let nested = tmp.path().join("nested");
-        std::fs::create_dir_all(nested.join(".arsumbris")).unwrap();
-        std::fs::write(nested.join(".arsumbris/repo.yaml"), b"name: nested\n").unwrap();
+        std::fs::create_dir_all(nested.join(".2brain")).unwrap();
+        std::fs::write(nested.join(".2brain/repo.yaml"), b"name: nested\n").unwrap();
         std::fs::write(nested.join("scratch.log"), b"").unwrap();
         let filter = WalkFilter::with_auignore(tmp.path(), "*.log\n").unwrap();
         let (b, _) = walk_boundaries(tmp.path(), 8, &filter).unwrap();
@@ -1034,7 +1031,7 @@ mod tests {
         // The memory port is observationally equal.
         let mut fs = MemoryFileSystem::new();
         fs.insert("/m/keep.md", b"".to_vec());
-        fs.insert("/m/nested/.arsumbris/repo.yaml", b"name: nested\n".to_vec());
+        fs.insert("/m/nested/.2brain/repo.yaml", b"name: nested\n".to_vec());
         fs.insert("/m/nested/scratch.log", b"".to_vec());
         let filter = WalkFilter::with_auignore(Path::new("/m"), "*.log\n").unwrap();
         let (b, _) = fs.walk_scope_boundaries(Path::new("/m"), &filter).unwrap();
@@ -1082,14 +1079,14 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join("keep.md"), b"").unwrap();
         let nested = tmp.path().join("nested");
-        std::fs::create_dir_all(nested.join(".arsumbris")).unwrap();
-        std::fs::write(nested.join(".arsumbris/repo.yaml"), b"name: nested\n").unwrap();
+        std::fs::create_dir_all(nested.join(".2brain")).unwrap();
+        std::fs::write(nested.join(".2brain/repo.yaml"), b"name: nested\n").unwrap();
         std::fs::write(nested.join("inside.md"), b"").unwrap();
         let filter = WalkFilter::with_auignore(tmp.path(), "nested/\n").unwrap();
         let w = walk(tmp.path(), 8, &filter).unwrap();
         assert_eq!(
             w.repo_markers,
-            vec![nested.join(".arsumbris/repo.yaml")],
+            vec![nested.join(".2brain/repo.yaml")],
             "the marker surfaces despite the folder matching the prune"
         );
         assert_eq!(
@@ -1107,13 +1104,13 @@ mod tests {
         // Memory port, observationally equal.
         let mut fs = MemoryFileSystem::new();
         fs.insert("/m/keep.md", b"".to_vec());
-        fs.insert("/m/nested/.arsumbris/repo.yaml", b"name: nested\n".to_vec());
+        fs.insert("/m/nested/.2brain/repo.yaml", b"name: nested\n".to_vec());
         fs.insert("/m/nested/inside.md", b"".to_vec());
         let filter = WalkFilter::with_auignore(Path::new("/m"), "nested/\n").unwrap();
         let w = fs.walk_files(Path::new("/m"), &filter).unwrap();
         assert_eq!(
             w.repo_markers,
-            vec![PathBuf::from("/m/nested/.arsumbris/repo.yaml")],
+            vec![PathBuf::from("/m/nested/.2brain/repo.yaml")],
             "memory port: marker surfaces despite the prune"
         );
         assert_eq!(w.files, vec![PathBuf::from("/m/keep.md")]);
@@ -1207,10 +1204,10 @@ mod tests {
         std::fs::write(dir.join("node_modules").join("x.js"), b"").unwrap();
         std::fs::write(dir.join("scratch.log"), b"").unwrap();
         std::fs::create_dir_all(dir.join("clone").join(".git")).unwrap();
-        std::fs::create_dir_all(dir.join("stray").join(".arsumbris")).unwrap();
-        std::fs::create_dir_all(dir.join("inner").join(".arsumbris")).unwrap();
+        std::fs::create_dir_all(dir.join("stray").join(".2brain")).unwrap();
+        std::fs::create_dir_all(dir.join("inner").join(".2brain")).unwrap();
         std::fs::write(
-            dir.join("inner").join(".arsumbris").join("repo.yaml"),
+            dir.join("inner").join(".2brain").join("repo.yaml"),
             b"name: inner\n",
         )
         .unwrap();
@@ -1223,12 +1220,12 @@ mod tests {
             a.floored_dirs,
             vec![
                 dir.join("clone").join(".git"),
-                dir.join("stray").join(".arsumbris")
+                dir.join("stray").join(".2brain")
             ]
         );
         assert_eq!(
             a.repo_markers,
-            vec![dir.join("inner").join(".arsumbris").join("repo.yaml")]
+            vec![dir.join("inner").join(".2brain").join("repo.yaml")]
         );
         assert!(a.files.is_empty(), "nothing under the folder is catalogued");
     }
@@ -1281,24 +1278,20 @@ mod tests {
 
     #[test]
     fn real_fs_walk_floor_holds_against_negation() {
-        // `!.arsumbris` cannot re-include the floor: it stays a name check
+        // `!.2brain` cannot re-include the floor: it stays a name check
         // above the matcher.
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join("keep.md"), b"").unwrap();
-        let state_dir = tmp.path().join(".arsumbris");
+        let state_dir = tmp.path().join(".2brain");
         std::fs::create_dir(&state_dir).unwrap();
         std::fs::write(state_dir.join("index.bin"), b"").unwrap();
-        let filter = WalkFilter::with_auignore(tmp.path(), "!.arsumbris\n").unwrap();
+        let filter = WalkFilter::with_auignore(tmp.path(), "!.2brain\n").unwrap();
         let walked = walk(tmp.path(), 8, &filter).unwrap().files;
         let names: Vec<_> = walked
             .iter()
             .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
             .collect();
-        assert_eq!(
-            names,
-            vec!["keep.md"],
-            "floor holds, .arsumbris never walked"
-        );
+        assert_eq!(names, vec!["keep.md"], "floor holds, .2brain never walked");
     }
 
     #[test]

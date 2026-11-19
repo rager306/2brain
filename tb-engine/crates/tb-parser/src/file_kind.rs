@@ -1,6 +1,6 @@
 //! Path-and-shape based classification of knowledge base files.
 //!
-//! Conventions (per [[type-def::au-type-system]] and [[type-instance::au-type-system]]):
+//! Conventions (per [[type-def::tb-type-system]] and [[type-instance::tb-type-system]]):
 //! - A file is a type-def IFF its name ends `.type.yaml` / `.type.yml`. The
 //!   suffix is the sole, self-describing marker; location plays no part. A
 //!   `type/` directory is an authoring convention surfaced advisorily at the
@@ -21,17 +21,17 @@ use std::path::Path;
 pub enum FileKind {
     TypeDef,
     Instance,
-    /// `.arsumbris/repo.yaml`, an engine-schema file: a substrate node
+    /// `.2brain/repo.yaml`, an engine-schema file: a substrate node
     /// whose shape is hardwired in the engine, see
     /// [[spec - engine-schema files - hardwired-schema files are first-class substrate nodes]].
     RepoRegistry,
-    /// `.arsumbris/workspace.yaml`, the workspace manifest, an engine-schema file
+    /// `.2brain/workspace.yaml`, the workspace manifest, an engine-schema file
     /// like the registry. Declares the `members` in scope. Read by targeted path
     /// (it lives under the walk floor), never path-classified, so this kind is
     /// assigned directly when the entry manifest is catalogued.
     Workspace,
-    /// `.arsumbris/repo.lock`, the per-repo dependency lock, an engine-written
-    /// engine-schema file typed `au.engine.repo-lock`. Under the walk floor, so
+    /// `.2brain/repo.lock`, the per-repo dependency lock, an engine-written
+    /// engine-schema file typed `tb.engine.repo-lock`. Under the walk floor, so
     /// it is catalogued by targeted read, not walked.
     RepoLock,
     Unclassified,
@@ -176,10 +176,10 @@ mod tests {
     }
 
     #[test]
-    fn au_workspace_suffix_is_not_recognized() {
+    fn tb_workspace_suffix_is_not_recognized() {
         // The interim `<name>.au-workspace.yaml` form is retired. Such a file is
         // now a plain pure-yaml file, path-unclassified; the one workspace
-        // manifest is `.arsumbris/workspace.yaml`, read by targeted path.
+        // manifest is `.2brain/workspace.yaml`, read by targeted path.
         assert_eq!(
             classify_by_path(Path::new("/v/demo.au-workspace.yaml")),
             None

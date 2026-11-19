@@ -147,7 +147,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/fence-claim-unknown-type/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/fence-claim-unknown-type/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -166,7 +166,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/fence-claim-unknown-type/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/fence-claim-unknown-type/.2brain/repo.yaml",
         "section_presence": null
       },
       {

@@ -1,7 +1,7 @@
 //! Repo discovery and membership.
 //!
 //! A repo is a directory holding a committed identity manifest, `repo.yaml` under
-//! `.2brain/` (or under `.arsumbris/` before the repository is migrated), that
+//! `.2brain/` (or under `.2brain/` before the repository is migrated), that
 //! declares its `name:`. Identity is declared, not derived from the directory.
 //! A file's repo is its nearest ancestor repo root. A root that declares no
 //! registry degrades to one implicit repo, so every walked file has a repo.
@@ -68,7 +68,7 @@ pub(crate) fn registry_path_in(root: &Path, fs: &impl FileSystem) -> PathBuf {
 /// The dependency lockfile's name inside a repository's identity directory.
 const REPO_LOCK_FILE: &str = "repo.lock";
 
-/// `.arsumbris/repo.yaml` is not valid UTF-8 or YAML. `Error`: the repo produces
+/// `.2brain/repo.yaml` is not valid UTF-8 or YAML. `Error`: the repo produces
 /// no type graph and every `::repo` fold into it is blocked.
 pub const REPO_REGISTRY_PARSE_ERROR: DiagnosticCode =
     DiagnosticCode::from_static("repo-registry-parse-error");
@@ -139,8 +139,8 @@ pub const DISCOVER_MEMBER_UNMOUNTED: DiagnosticCode =
 /// [[spec - workspace as a folder-repo - an optional workspace.yaml composes edit and discover members]].
 pub const DISABLED_MEMBER_NOT_DECLARED: DiagnosticCode =
     DiagnosticCode::from_static("disabled-member-not-declared");
-/// A declared workspace member resolves to the reserved device root `~/.arsumbris`,
-/// whose `.arsumbris/` IS the device config/data area. The member is EXCLUDED from
+/// A declared workspace member resolves to the reserved device root `~/.2brain`,
+/// whose `.2brain/` IS the device config/data area. The member is EXCLUDED from
 /// the mount set (walking a home directory as content would be catastrophic); the
 /// workspace opens over the rest. Advisory, the parity of the unmounted family, and
 /// specific: it takes precedence over the generic unmounted signal. See
@@ -165,7 +165,7 @@ pub const WORKSPACE_MEMBER_ROLE_CONFLICT: DiagnosticCode =
 /// [[spec - workspace as a folder-repo - an optional workspace.yaml composes edit and discover members]].
 pub const DISCOVER_MEMBER_IS_A_DEPENDENCY: DiagnosticCode =
     DiagnosticCode::from_static("discover-member-is-a-dependency");
-/// A folder-repo's `.arsumbris/workspace.yaml` does not list its own containing
+/// A folder-repo's `.2brain/workspace.yaml` does not list its own containing
 /// repo in `edit:`. The containing repo is the entry, a live working tree at
 /// HEAD, so it belongs in `edit`; an omission would read as if the file excludes
 /// its own repo. An error, so the file reads as self-complete. Fires only for a
@@ -173,7 +173,7 @@ pub const DISCOVER_MEMBER_IS_A_DEPENDENCY: DiagnosticCode =
 /// [[spec - workspace as a folder-repo - an optional workspace.yaml composes edit and discover members]].
 pub const WORKSPACE_OMITS_CONTAINING_REPO: DiagnosticCode =
     DiagnosticCode::from_static("workspace-omits-containing-repo");
-/// A nested `.arsumbris/repo.yaml` under a walked member that is not itself a
+/// A nested `.2brain/repo.yaml` under a walked member that is not itself a
 /// declared member. The subtree belongs to the nested repo, so the enclosing
 /// walk stops at it and the nested repo contributes nothing, never silently
 /// absorbed. A warning, the fix names how to include it (declare it as an `edit`
@@ -224,7 +224,7 @@ pub const DEPENDENCY_PATH_OVERRIDDEN: DiagnosticCode =
 /// A dependency's declared subpath is absolute or escapes its cache snapshot
 /// under lexical normalization (a `../..` that climbs above the snapshot root).
 /// The subpath is untrusted: a transitive peer's subpath is read verbatim from a
-/// FETCHED repo's `.arsumbris/repo.yaml`, so an unchecked join would
+/// FETCHED repo's `.2brain/repo.yaml`, so an unchecked join would
 /// mount an arbitrary local directory (and persist the escaping path into the
 /// lock). The engine refuses the subpath, the dependency is not mounted. A
 /// containment guard, not an ergonomic knob.
@@ -284,15 +284,15 @@ pub struct Repo {
     pub root: PathBuf,
     pub name: RepoName,
     /// `false` for an isolated FALLBACK repo: a member root whose
-    /// `.arsumbris/repo.yaml` could not become a declared repo (a duplicate name,
+    /// `.2brain/repo.yaml` could not become a declared repo (a duplicate name,
     /// or a parse error), mounted on its own so its files never silently merge
     /// into an enclosing repo. Every folder-repo entry and every resolved member
     /// is `declared: true`; the entry model forbids an undeclared entry, so the
     /// fallback is a safety floor, not the routine path.
     pub declared: bool,
-    /// `true` only for the compiled-in `au-engine` repo, whose `root` is a
-    /// sentinel and whose defs are the hardwired `au.engine.*` schemas, never
-    /// read from disk. It is present in every built knowledge base so `::au-engine`
+    /// `true` only for the compiled-in `engine` repo, whose `root` is a
+    /// sentinel and whose defs are the hardwired `tb.engine.*` schemas, never
+    /// read from disk. It is present in every built knowledge base so `::engine`
     /// resolves as a universal peer; consumers of `root()` and member-facing
     /// reads skip it, it is an identity, not a workspace member. See
     /// [`crate::engine_schema`].
@@ -366,7 +366,7 @@ impl MemberRole {
 /// A workspace: its `edit` / `discover` composition, the members it resolves
 /// to, and their local paths.
 ///
-/// The composition (`.arsumbris/workspace.yaml`) declares three optional lists,
+/// The composition (`.2brain/workspace.yaml`) declares three optional lists,
 /// `edit:` (editable members), `discover:` (pinned members mounted for
 /// discovery), and `disabled:` (declared but intentionally not mounted). The
 /// members are the entry repo plus its `deps`, plus the `edit` and `discover`
@@ -375,7 +375,7 @@ impl MemberRole {
 /// the cache), see [`assemble_members`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Workspace {
-    /// The composition anchor: the entry folder's `.arsumbris/workspace.yaml`.
+    /// The composition anchor: the entry folder's `.2brain/workspace.yaml`.
     pub manifest_path: PathBuf,
     /// The workspace name.
     pub name: String,
@@ -496,11 +496,11 @@ impl RepoMap {
         &self.repos
     }
 
-    /// Install the compiled-in `au-engine` repo, the fixed identity that owns
-    /// the hardwired `au.engine.*` schema defs. Its sentinel root matches no
+    /// Install the compiled-in `engine` repo, the fixed identity that owns
+    /// the hardwired `tb.engine.*` schema defs. Its sentinel root matches no
     /// walked file, so `repo_of` never routes a real file to it and `root()`
     /// skips it; its graph is seeded from [`crate::engine_schema`], not from
-    /// disk. Present in every built knowledge base so `::au-engine` resolves as a
+    /// disk. Present in every built knowledge base so `::engine` resolves as a
     /// universal peer. Idempotent: a second call is a no-op.
     pub(crate) fn install_engine_builtin(&mut self) {
         if self
@@ -594,7 +594,7 @@ impl RepoMap {
 /// A workspace's resolved-dependency lockfile: each dependency name pinned to
 /// the concrete commit sha it resolved to, plus the remote it was fetched from.
 ///
-/// The solve, committed per-repo in `.arsumbris/repo.lock`, machine-independent.
+/// The solve, committed per-repo in `.2brain/repo.lock`, machine-independent.
 /// A version pin is merged by text. Entries iterate sorted by name.
 pub type PackageLock = BTreeMap<RepoName, LockedPackage>;
 
@@ -660,7 +660,7 @@ pub(crate) fn repo_lock_path_in(repo_root: &Path, fs: &impl FileSystem) -> PathB
 /// `workspace.yaml` inside the same identity directory. Per entry-repo, engine-written, it pins the workspace's
 /// `discover` closure (the discover members plus their transitive deps) so those
 /// members mount reproducibly and offline. Parallel to [`repo_lock_path`] and the
-/// same `au.engine.repo-lock` `packages` shape; an `edit` member stays live and
+/// same `tb.engine.repo-lock` `packages` shape; an `edit` member stays live and
 /// is never locked here. See
 /// [[spec - workspace as a folder-repo - an optional workspace.yaml composes edit and discover members]].
 pub fn workspace_lock_path(entry_root: &Path) -> PathBuf {
@@ -803,7 +803,7 @@ pub struct RegistryLocation {
     pub path: PathBuf,
 }
 
-/// The per-user registry, `~/.arsumbris/au-engine/config/repos.yaml`: every known
+/// The per-user registry, `<state root>/engine/config/repos.yaml`: every known
 /// repo name to its `{ remote, path }`. Engine-written, read on build, the locator
 /// for repos that are not co-present as siblings.
 pub type UserRegistry = BTreeMap<RepoName, RegistryLocation>;
@@ -856,7 +856,7 @@ pub fn parse_user_registry(bytes: &[u8]) -> UserRegistry {
     out
 }
 
-/// `$HOME` is unset or empty, so the device area `~/.arsumbris` cannot be located.
+/// `$HOME` is unset or empty, so the device area `~/.2brain` cannot be located.
 ///
 /// The device root requires `$HOME`. Unset or empty is a loud refusal, not a
 /// silently-degraded state: a device area with no `$HOME` is unresolvable, not
@@ -873,7 +873,7 @@ impl std::fmt::Display for HomeUnset {
 
 impl std::error::Error for HomeUnset {}
 
-/// The device-global root, `canonical($HOME)/.arsumbris`.
+/// The device-global root, `canonical($HOME)/.2brain`.
 ///
 /// The single source for the device registries, the package cache, and the
 /// daemon socket, and the location the reservation guard refuses a repo from
@@ -891,32 +891,15 @@ pub fn device_root() -> Result<PathBuf, HomeUnset> {
 /// The state directory name used under `$HOME`.
 pub const STATE_DIR: &str = ".2brain";
 
-/// The name this directory carried before the rebrand. Kept as a fallback so a machine
-/// that has not been migrated keeps its sockets, registry and logs where they are; the
-/// migration is `mv ~/.arsumbris ~/.2brain` plus a symlink for one release
-/// (`docs/rebrand-plan.md`, tier B).
-pub const LEGACY_STATE_DIR: &str = ".arsumbris";
+/// The runtime subdirectory of the state root: sockets, config and logs.
+pub const ENGINE_RUNTIME_DIR: &str = "engine";
 
 /// The state directory under `home`: `$2BRAIN_HOME` wins (tests, non-standard installs),
-/// then an existing `.2brain`, then an existing legacy `.arsumbris`, else `.2brain`.
-///
-/// Existence decides which world `home` is in, not a version flag: after the migration the new
-/// directory is there and the old name is a symlink to it, so both spellings reach the same
-/// inode and neither an old client nor a new one has to be told which world it is. A home with
-/// NEITHER spelling is new, and a new home is [`STATE_DIR`]'s to name — the same write rule
-/// [`crate::repo::identity_dir_for_write_with`] applies to a repository.
+/// else `.2brain`.
 pub fn state_dir_in(home: &Path) -> PathBuf {
     match std::env::var_os("2BRAIN_HOME") {
         Some(explicit) if !explicit.is_empty() => PathBuf::from(explicit),
-        _ => {
-            let new = home.join(STATE_DIR);
-            if new.exists() {
-                new
-            } else {
-                let legacy = home.join(LEGACY_STATE_DIR);
-                if legacy.exists() { legacy } else { new }
-            }
-        }
+        _ => home.join(STATE_DIR),
     }
 }
 
@@ -949,9 +932,7 @@ pub(crate) fn is_reserved_root(root: &Path) -> bool {
 /// [`is_reserved_root`] against an explicit device root, the determinism seam.
 fn reserved_against(root: &Path, device_root: &Path) -> bool {
     let root = canonical_root(root);
-    [STATE_DIR, LEGACY_STATE_DIR]
-        .iter()
-        .any(|name| root.join(name) == device_root)
+    root.join(STATE_DIR) == device_root
 }
 
 /// Where the per-user config (`repos.yaml`, `workspaces.yaml`) is read from.
@@ -963,15 +944,15 @@ fn reserved_against(root: &Path, device_root: &Path) -> bool {
 /// a caller must pick one, so reading the real config is a visible, greppable
 /// choice rather than the thing that happens when nobody says otherwise.
 ///
-/// See [[repos yaml::au-type-system]]: "the injected path is the build's determinism seam".
+/// See [[repos yaml::tb-type-system]]: "the injected path is the build's determinism seam".
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfigSource {
-    /// The real per-user config under the device root, `~/.arsumbris`. The
+    /// The real per-user config under the device root, `~/.2brain`. The
     /// daemon's choice; a run with no `$HOME` reads nothing.
     User,
-    /// An explicit device-root directory, standing in for `~/.arsumbris`. A test
+    /// An explicit device-root directory, standing in for `~/.2brain`. A test
     /// injects a tempdir when it exercises the registry itself, reads or `register`
-    /// writes; the same `au-engine/config/` interior is joined onto it.
+    /// writes; the same `engine/config/` interior is joined onto it.
     Dir(PathBuf),
     /// No per-user config at all: the registry is empty, resolution falls to
     /// co-present siblings and the cache. The hermetic default for a test that
@@ -981,7 +962,7 @@ pub enum ConfigSource {
 }
 
 impl ConfigSource {
-    /// The device-root base directory (`~/.arsumbris`), `None` when there is no
+    /// The device-root base directory (`<state root>`), `None` when there is no
     /// per-user config to read (`Empty`, or `User` with no `$HOME`).
     pub fn base(&self) -> Option<PathBuf> {
         match self {
@@ -992,29 +973,30 @@ impl ConfigSource {
     }
 }
 
-/// The per-user registry file, `~/.arsumbris/au-engine/config/repos.yaml`.
+/// The per-user registry file, `<state root>/engine/config/repos.yaml`.
 ///
 /// `None` when the source resolves no base, so the registry is empty and
 /// resolution falls to siblings and the cache only.
 pub fn user_registry_path(config: &ConfigSource) -> Option<PathBuf> {
-    config
-        .base()
-        .map(|base| base.join("au-engine").join("config").join("repos.yaml"))
+    config.base().map(|base| {
+        base.join(ENGINE_RUNTIME_DIR)
+            .join("config")
+            .join("repos.yaml")
+    })
 }
 
 /// Build the scoped-config-channel path for one consumer file, under the given
-/// `.arsumbris` directory: the device root `~/.arsumbris` at machine scope, or
-/// `<repo>/.arsumbris` at repo scope. Both then join `<consumer>/config/<file>`,
+/// state directory: the device root at machine scope, or`<repo>/.2brain` at repo scope. Both then join `<consumer>/config/<file>`,
 /// so the two scopes share one construction.
 ///
-/// This is a SANCTIONED bypass of the `.arsumbris/` write-guard, so the two
+/// This is a SANCTIONED bypass of the `.2brain/` write-guard, so the two
 /// caller-controlled segments carry no guard behind them and MUST be sanitized
 /// here. `consumer` and `file` are each rejected when empty, when they start with
 /// a dot (which covers `.`, `..`, and a hidden name), or when they carry a path
 /// separator or a control character (which covers an absolute path). And
-/// `consumer` equal to the engine's own writing-tenant name (`au-engine`) is
+/// `consumer` equal to the engine's own writing-tenant name (`engine`) is
 /// reserved: a machine-scope path there would resolve straight onto the engine's
-/// own `~/.arsumbris/au-engine/config/repos.yaml`, so the channel refuses it,
+/// own `<state root>/engine/config/repos.yaml`, so the channel refuses it,
 /// keeping the engine's own config separate by mechanism. See
 /// [[spec - scoped config channel - a config read and set_config mutation over scope, consumer, file, type]].
 ///
@@ -1030,13 +1012,13 @@ pub(crate) fn config_path(state_dir: &Path, consumer: &str, file: &str) -> Resul
 /// rejects a malformed `consumer` / `file`). [`config_path`] runs this before it
 /// joins.
 ///
-/// The engine's own `au-engine` owner segment is reserved on BOTH scopes. Only
-/// machine scope can actually collide (its `~/.arsumbris/au-engine/config/` IS the
+/// The engine's own `tb-engine` owner segment is reserved on BOTH scopes. Only
+/// machine scope can actually collide (its `<state root>/engine/config/` IS the
 /// engine's device registry); repo scope cannot, but the engine's name is
 /// genuinely reserved everywhere, so the check is uniform rather than
 /// scope-conditional. The compare is CASE-INSENSITIVE: on a case-insensitive
 /// filesystem (macOS APFS default) `Au-Engine/config/repos.yaml` and
-/// `au-engine/config/repos.yaml` are the same inode, so a case-variant `consumer`
+/// `engine/config/repos.yaml` are the same inode, so a case-variant `consumer`
 /// would otherwise slip past the reserve and clobber the registry.
 pub(crate) fn check_config_segments(consumer: &str, file: &str) -> Result<(), String> {
     reject_config_segment("consumer", consumer)?;
@@ -1111,10 +1093,10 @@ pub fn serialize_user_registry(reg: &UserRegistry) -> String {
     out
 }
 
-/// The per-user workspaces index, `~/.arsumbris/au-engine/config/workspaces.yaml`:
+/// The per-user workspaces index, `<state root>/engine/config/workspaces.yaml`:
 /// a local alias `name` to the workspace-repo FOLDER it points at.
 /// USER-AUTHORED, read only (never engine-written, unlike [`UserRegistry`]), the
-/// lookup for `au open <name>`. Symmetric with `repos.yaml`: one indexes repo
+/// lookup for `tb-engine open <name>`. Symmetric with `repos.yaml`: one indexes repo
 /// locations, this indexes workspace-repo folders, see
 /// [[spec - cross-repo resolution - in-repo identity and deps over a per-user repo registry]].
 pub type UserWorkspaces = BTreeMap<String, PathBuf>;
@@ -1122,7 +1104,7 @@ pub type UserWorkspaces = BTreeMap<String, PathBuf>;
 /// Parse `workspaces.yaml` bytes into `name -> workspace-repo folder`.
 ///
 /// A `workspaces:` sequence of `{ path, name? }` mappings, each `path` a
-/// workspace-repo FOLDER (a directory carrying `.arsumbris/repo.yaml`, opened as a
+/// workspace-repo FOLDER (a directory carrying `.2brain/repo.yaml`, opened as a
 /// folder-repo entry). The lookup name is the explicit `name`, else the folder
 /// BASENAME. An entry with no non-empty `path`, or one whose path has no basename
 /// (the filesystem root) and no explicit `name`, is skipped, it cannot be named. A
@@ -1131,7 +1113,7 @@ pub type UserWorkspaces = BTreeMap<String, PathBuf>;
 /// a block.
 ///
 /// This only POINTS at workspace folders, it never inlines a selection, so a
-/// workspace has exactly one definition form (its committed `.arsumbris/workspace.yaml`)
+/// workspace has exactly one definition form (its committed `.2brain/workspace.yaml`)
 /// and this only names its folder.
 pub fn parse_user_workspaces(bytes: &[u8]) -> UserWorkspaces {
     let mut out = UserWorkspaces::new();
@@ -1174,14 +1156,14 @@ pub fn parse_user_workspaces(bytes: &[u8]) -> UserWorkspaces {
     out
 }
 
-/// The per-user workspaces file, `~/.arsumbris/au-engine/config/workspaces.yaml`.
+/// The per-user workspaces file, `<state root>/engine/config/workspaces.yaml`.
 ///
 /// The `ConfigSource` selects the device-root base, the test injection seam,
 /// mirroring [`user_registry_path`]. `Empty`, or `User` with no `$HOME`, returns
 /// `None`, so the index is empty.
 pub fn user_workspaces_path(config: &ConfigSource) -> Option<PathBuf> {
     config.base().map(|base| {
-        base.join("au-engine")
+        base.join(ENGINE_RUNTIME_DIR)
             .join("config")
             .join("workspaces.yaml")
     })
@@ -1398,7 +1380,7 @@ pub(crate) fn atomic_write(path: &Path, contents: &str) -> std::io::Result<()> {
     }
 }
 
-/// Write one machine-scope scoped-config file, `~/.arsumbris/<consumer>/config/<file>`,
+/// Write one machine-scope scoped-config file, `~/.2brain/<consumer>/config/<file>`,
 /// under a cross-daemon exclusive lock, so two daemons writing one device-global
 /// file serialize rather than tear. The same `flock`-on-a-sibling pattern
 /// [`register_entry`] uses for `repos.yaml`, plus an atomic (temp + rename) write,
@@ -1718,7 +1700,7 @@ pub enum ResolveNote {
     /// span is the malformed file) so the actual cause is named. Raised only when
     /// the dep is ultimately unresolved.
     MalformedRepoYaml(Diagnostic),
-    /// A member resolved to the reserved device root `~/.arsumbris`
+    /// A member resolved to the reserved device root `~/.2brain`
     /// (`member-at-reserved-root`). It is EXCLUDED from the mount set, never
     /// walked. Keyed by the member it rides beside, rendered in the
     /// member-outcome pass, not the notes pass.
@@ -1908,7 +1890,7 @@ pub struct AssembledMembers {
 /// a member with role [`MemberRole::Entry`], independent of the `edit` list, so a
 /// `workspace.yaml` that omits it (a `workspace-omits-containing-repo` error the
 /// caller emits) still mounts its own repo. `None` when the manifest is not a
-/// folder-repo `.arsumbris/workspace.yaml`, or its `repo.yaml` is nameless or
+/// folder-repo `.2brain/workspace.yaml`, or its `repo.yaml` is nameless or
 /// unreadable, so there is no single entry repo.
 ///
 /// Each member carries its [`MemberRole`], the HIGHEST-ranked way it was reached:
@@ -2044,8 +2026,8 @@ pub fn assemble_members(
     AssembledMembers { members, notes }
 }
 
-/// The repo roots discovered from walker-surfaced `.arsumbris/repo.yaml`
-/// markers. Each marker `<root>/.arsumbris/repo.yaml` maps back to `<root>`.
+/// The repo roots discovered from walker-surfaced `.2brain/repo.yaml`
+/// markers. Each marker `<root>/.2brain/repo.yaml` maps back to `<root>`.
 ///
 /// Content-free: a repo holding only a `repo.yaml` is discovered the same as one
 /// with content, and a folder-name mismatch never hides one, the marker is the
@@ -2064,7 +2046,7 @@ pub fn marker_roots(markers: &[PathBuf]) -> Vec<PathBuf> {
 /// Find the repo-registry files under a set of roots and read their bytes.
 ///
 /// A repo root is a directory with a readable identity manifest (`repo.yaml` under `.2brain/`,
-/// or under `.arsumbris/` before migration).
+/// or under `.2brain/` before migration).
 /// Candidate directories are the roots, the walker-surfaced `markers`
 /// ([`marker_roots`]), plus the ancestors of the walked files, bounded to stay
 /// within some root. The markers discover a repo content-free; the ancestor scan
@@ -2124,14 +2106,14 @@ fn candidate_repo_dirs(
     candidates
 }
 
-/// Find the engine-written `.arsumbris/` lock files under a set of roots and read
+/// Find the engine-written `.2brain/` lock files under a set of roots and read
 /// their bytes. Each returned path is a `repo.lock` beside a repo's `repo.yaml`,
 /// over the same candidate directories as [`registry_files`].
 ///
 /// The lock sits under the walk floor, so it is never walked as a knowledge base file.
 /// The engine reads it for resolution by targeted path already (the package
 /// cache); this surfaces the same bytes so it can be catalogued as a first-class
-/// `au.engine.repo-lock` node.
+/// `tb.engine.repo-lock` node.
 pub fn lock_files(
     roots: &[PathBuf],
     files: &[PathBuf],
@@ -2151,7 +2133,7 @@ pub fn lock_files(
 /// Build the membership map from the pre-read registry files.
 ///
 /// Assembly passes one root per mounted member, each carrying a declared
-/// `.arsumbris/repo.yaml`. A member root whose registry could NOT become a
+/// `.2brain/repo.yaml`. A member root whose registry could NOT become a
 /// declared repo (a duplicate name, or a parse error) is isolated as a fallback
 /// repo (`declared: false`) so its files never silently merge into an enclosing
 /// repo. This is the safety floor: the folder-repo entry model forbids an
@@ -2335,7 +2317,7 @@ fn unique_repo_name(
     }
 }
 
-/// The repo root of a `<root>/.arsumbris/repo.yaml` path.
+/// The repo root of a `<root>/.2brain/repo.yaml` path.
 fn repo_root_of_registry(registry: &Path) -> Option<PathBuf> {
     registry.parent()?.parent().map(|p| p.to_path_buf())
 }
@@ -2346,7 +2328,7 @@ struct ParsedRegistry {
     deps: Vec<RepoEntry>,
 }
 
-/// Parse `.arsumbris/repo.yaml` into the identity entry plus `deps`.
+/// Parse `.2brain/repo.yaml` into the identity entry plus `deps`.
 ///
 /// The document root is the identity, a non-empty top-level `name` is required;
 /// a missing or nameless root is `repo-name-missing`. `deps` is optional;
@@ -2425,7 +2407,7 @@ fn unquoted_colon_hint(text: &str) -> Option<SuggestedFix> {
 
 /// A fetched dependency's declared `deps`, its own transitive dependency record.
 ///
-/// Reads the `deps:` list from a repo's `.arsumbris/repo.yaml` bytes, the same
+/// Reads the `deps:` list from a repo's `.2brain/repo.yaml` bytes, the same
 /// shape the transitive resolver walks. A malformed or nameless `repo.yaml`
 /// yields no deps, so the dependency reads as a leaf rather than aborting the
 /// walk; an incomplete closure surfaces downstream as an unresolved `::repo`
@@ -2526,7 +2508,7 @@ pub fn load_workspace(
 ) -> Workspace {
     let manifest = parse_workspace_manifest(bytes);
     let name = workspace_name(manifest_path);
-    // A folder-repo `.arsumbris/workspace.yaml` has a containing repo, its own
+    // A folder-repo `.2brain/workspace.yaml` has a containing repo, its own
     // home, always a member (role `Entry`) even if the `edit` list omits it. Its
     // `(name, root)` comes from the sibling `repo.yaml` and the entry directory.
     // None when the containing `repo.yaml` is absent, nameless, or unreadable.
@@ -2548,7 +2530,7 @@ pub fn load_workspace(
     )
 }
 
-/// The declared repo name at a root, read from its `.arsumbris/repo.yaml`. `None`
+/// The declared repo name at a root, read from its `.2brain/repo.yaml`. `None`
 /// when absent, unreadable, or nameless. The declared name wins over the folder
 /// name, so a caller uses this rather than the basename.
 pub(crate) fn declared_name_at(root: &Path, fs: &impl FileSystem) -> Option<RepoName> {
@@ -2578,23 +2560,23 @@ pub(crate) fn entry_repo_load(root: &Path, fs: &impl FileSystem) -> Result<(), O
     parse_registry(&repo_yaml, &bytes).map(|_| ()).map_err(Some)
 }
 
-/// Validate a surfaced `.arsumbris/repo.yaml` marker in place, for the discovery
+/// Validate a surfaced `.2brain/repo.yaml` marker in place, for the discovery
 /// pass over the walked markers.
 ///
 /// `None` when it loads (or vanished / is unreadable). `Some(diag)` when it is
 /// present but will not parse or declares no name. Unlike membership resolution,
 /// which drops a repo whose `repo.yaml` will not load and never says so, this
 /// surfaces the parse error against the marker's own path. The `marker` is the
-/// full `.arsumbris/repo.yaml` path, so the diagnostic points at the file.
+/// full `.2brain/repo.yaml` path, so the diagnostic points at the file.
 pub(crate) fn validate_registry_marker(marker: &Path, fs: &impl FileSystem) -> Option<Diagnostic> {
     let bytes = fs.read_file(marker).ok()?;
     parse_registry(marker, &bytes).err()
 }
 
-/// The `(declared name, root)` of a folder-repo `.arsumbris/workspace.yaml`'s
-/// containing repo: the name from the sibling `.arsumbris/repo.yaml`, the root the
+/// The `(declared name, root)` of a folder-repo `.2brain/workspace.yaml`'s
+/// containing repo: the name from the sibling `.2brain/repo.yaml`, the root the
 /// entry directory (its grandparent). `None` when the path is not a folder-repo
-/// `.arsumbris/workspace.yaml`, or its containing `repo.yaml` is unreadable or
+/// `.2brain/workspace.yaml`, or its containing `repo.yaml` is unreadable or
 /// nameless.
 fn folder_repo_entry(manifest_path: &Path, fs: &impl FileSystem) -> Option<(RepoName, PathBuf)> {
     if manifest_path.file_name()? != "workspace.yaml" {
@@ -2614,11 +2596,11 @@ fn folder_repo_entry(manifest_path: &Path, fs: &impl FileSystem) -> Option<(Repo
 }
 
 /// Assemble the workspace for a folder-repo entry that has no
-/// `.arsumbris/workspace.yaml`: the entry repo plus its transitive `deps`, with no
+/// `.2brain/workspace.yaml`: the entry repo plus its transitive `deps`, with no
 /// `edit` / `discover` selection.
 ///
 /// The entry repo is ALWAYS a member (role [`MemberRole::Entry`]), its
-/// `(name, root)` read from `<entry_dir>/.arsumbris/repo.yaml`. The no-manifest
+/// `(name, root)` read from `<entry_dir>/.2brain/repo.yaml`. The no-manifest
 /// analogue of [`load_workspace`]: an entry-only composition, the degenerate
 /// single-repo workspace. Drives `locate_locked_dependencies` (mount pinned deps
 /// from the entry repo's own `repo.lock`) and `resolve_and_lock` (write the lock),
@@ -2724,12 +2706,12 @@ fn assemble_workspace(
         // named member), so the resolve verb can fetch a not-yet-present dep.
         ws.members.push(resolved.entry.clone());
         if let Some(root) = resolved.root() {
-            // A member resolving to the reserved device root `~/.arsumbris` is
-            // EXCLUDED from the mount set: its `.arsumbris/` IS the device area, so
+            // A member resolving to the reserved device root `~/.2brain` is
+            // EXCLUDED from the mount set: its `.2brain/` IS the device area, so
             // walking it would treat the whole home directory as content. Never a
             // member_path (so it is never walked); a `ReservedRoot` note renders as
             // `member-at-reserved-root`. Equality not subtree, so a cache-mounted
-            // member under `~/.arsumbris` is unaffected, see [`is_reserved_root`].
+            // member under `~/.2brain` is unaffected, see [`is_reserved_root`].
             if is_reserved_root(root) {
                 ws.member_notes
                     .push((member.clone(), ResolveNote::ReservedRoot));
@@ -2757,7 +2739,7 @@ impl Workspace {
     }
 }
 
-/// A parsed `.arsumbris/workspace.yaml` composition: three optional name lists.
+/// A parsed `.2brain/workspace.yaml` composition: three optional name lists.
 ///
 /// `edit:` names the editable members, `discover:` the pinned members mounted
 /// for type-discovery, `disabled:` the declared members intentionally not
@@ -2771,7 +2753,7 @@ pub struct WorkspaceManifest {
     pub disabled: Vec<RepoName>,
 }
 
-/// Parse a `.arsumbris/workspace.yaml` into its `edit` / `discover` selection.
+/// Parse a `.2brain/workspace.yaml` into its `edit` / `discover` selection.
 ///
 /// Each entry is a bare name scalar. A missing or malformed list yields an empty
 /// one, so a workspace with only `edit:` (or neither) parses cleanly.
@@ -2808,7 +2790,7 @@ fn parse_workspace_manifest(bytes: &[u8]) -> WorkspaceManifest {
 }
 
 /// The workspace name. The one manifest form is a folder-repo
-/// `.arsumbris/workspace.yaml`, named after its containing repo folder (the
+/// `.2brain/workspace.yaml`, named after its containing repo folder (the
 /// grandparent), matching `entry_only_workspace`'s basename naming.
 fn workspace_name(manifest_path: &Path) -> String {
     manifest_path
@@ -2952,9 +2934,9 @@ mod tests {
         // An unquoted `:` inside a scalar value breaks the YAML parse, the
         // recurring `repo.yaml` footgun.
         let (fs, files) = repo_with(&[
-            ("/v/.arsumbris/repo.yaml", "name: v\n"),
+            ("/v/.2brain/repo.yaml", "name: v\n"),
             (
-                "/v/dep/.arsumbris/repo.yaml",
+                "/v/dep/.2brain/repo.yaml",
                 "name: dep\ndescription: text: colon\n",
             ),
         ]);
@@ -2998,7 +2980,7 @@ mod tests {
     fn folder_name_mismatch_warns_at_drift_declared_name_wins() {
         // a repo declaring `base` lives in a `notbase` folder.
         let (fs, files) = repo_with(&[
-            ("/v/notbase/.arsumbris/repo.yaml", "name: base\n"),
+            ("/v/notbase/.2brain/repo.yaml", "name: base\n"),
             ("/v/notbase/note.md", "x"),
         ]);
         let (map, diags) = discover(&fs, &files);
@@ -3015,7 +2997,7 @@ mod tests {
     fn folder_name_match_and_implicit_repo_do_not_warn() {
         // a matching folder does not warn.
         let (fs, files) = repo_with(&[
-            ("/v/base/.arsumbris/repo.yaml", "name: base\n"),
+            ("/v/base/.2brain/repo.yaml", "name: base\n"),
             ("/v/base/note.md", "x"),
         ]);
         let (_, diags) = discover(&fs, &files);
@@ -3041,8 +3023,8 @@ mod tests {
     #[test]
     fn sibling_scan_finds_a_co_present_monorepo_member() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/kb/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
-        fs.insert("/kb/library/.arsumbris/repo.yaml", reg_yaml("library"));
+        fs.insert("/kb/notes/.2brain/repo.yaml", reg_yaml("notes"));
+        fs.insert("/kb/library/.2brain/repo.yaml", reg_yaml("library"));
         let located = [PathBuf::from("/kb/notes")];
         assert_eq!(
             sibling_scan(&RepoName("library".into()), &located, &fs),
@@ -3053,7 +3035,7 @@ mod tests {
     #[test]
     fn sibling_scan_absent_name_is_not_found() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/kb/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
+        fs.insert("/kb/notes/.2brain/repo.yaml", reg_yaml("notes"));
         let located = [PathBuf::from("/kb/notes")];
         assert_eq!(
             sibling_scan(&RepoName("ghost".into()), &located, &fs),
@@ -3065,10 +3047,10 @@ mod tests {
     fn sibling_scan_refuses_two_siblings_of_one_name() {
         // two located repos in different trees, each with a `lib` sibling.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/a/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
-        fs.insert("/a/lib/.arsumbris/repo.yaml", reg_yaml("lib"));
-        fs.insert("/b/other/.arsumbris/repo.yaml", reg_yaml("other"));
-        fs.insert("/b/lib/.arsumbris/repo.yaml", reg_yaml("lib"));
+        fs.insert("/a/notes/.2brain/repo.yaml", reg_yaml("notes"));
+        fs.insert("/a/lib/.2brain/repo.yaml", reg_yaml("lib"));
+        fs.insert("/b/other/.2brain/repo.yaml", reg_yaml("other"));
+        fs.insert("/b/lib/.2brain/repo.yaml", reg_yaml("lib"));
         let located = [PathBuf::from("/a/notes"), PathBuf::from("/b/other")];
         assert_eq!(
             sibling_scan(&RepoName("lib".into()), &located, &fs),
@@ -3082,7 +3064,7 @@ mod tests {
         // DECLARED name, even under folder-name drift: `lib` in a `mylib/` folder
         // resolves. This is X, the marker is the definitive repo-root indicator.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/kb/mylib/.arsumbris/repo.yaml", reg_yaml("lib"));
+        fs.insert("/kb/mylib/.2brain/repo.yaml", reg_yaml("lib"));
         let located = [PathBuf::from("/kb/mylib")];
         assert_eq!(
             sibling_scan(&RepoName("lib".into()), &located, &fs),
@@ -3097,8 +3079,8 @@ mod tests {
         // so it falls to the registry tier. The residual of X: only marker-surfaced
         // repos are drift-tolerant.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/kb/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
-        fs.insert("/kb/mylib/.arsumbris/repo.yaml", reg_yaml("lib"));
+        fs.insert("/kb/notes/.2brain/repo.yaml", reg_yaml("notes"));
+        fs.insert("/kb/mylib/.2brain/repo.yaml", reg_yaml("lib"));
         let located = [PathBuf::from("/kb/notes")];
         assert_eq!(
             sibling_scan(&RepoName("lib".into()), &located, &fs),
@@ -3106,8 +3088,8 @@ mod tests {
         );
         // and a folder named `lib` that declares a DIFFERENT name is not a match.
         let mut fs2 = MemoryFileSystem::new();
-        fs2.insert("/kb/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
-        fs2.insert("/kb/lib/.arsumbris/repo.yaml", reg_yaml("something-else"));
+        fs2.insert("/kb/notes/.2brain/repo.yaml", reg_yaml("notes"));
+        fs2.insert("/kb/lib/.2brain/repo.yaml", reg_yaml("something-else"));
         assert_eq!(
             sibling_scan(&RepoName("lib".into()), &located, &fs2),
             SiblingScan::NotFound
@@ -3135,8 +3117,8 @@ mod tests {
     #[test]
     fn resolve_sibling_wins_over_registry() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/kb/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
-        fs.insert("/kb/lib/.arsumbris/repo.yaml", reg_yaml("lib"));
+        fs.insert("/kb/notes/.2brain/repo.yaml", reg_yaml("notes"));
+        fs.insert("/kb/lib/.2brain/repo.yaml", reg_yaml("lib"));
         let located = [PathBuf::from("/kb/notes")];
         // registry points elsewhere, but the co-present sibling wins.
         let registry = reg(&[("lib", "/somewhere/else")]);
@@ -3157,8 +3139,8 @@ mod tests {
     #[test]
     fn resolve_registry_path_verified_against_declared_name() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/kb/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
-        fs.insert("/reg/lib/.arsumbris/repo.yaml", reg_yaml("lib"));
+        fs.insert("/kb/notes/.2brain/repo.yaml", reg_yaml("notes"));
+        fs.insert("/reg/lib/.2brain/repo.yaml", reg_yaml("lib"));
         let located = [PathBuf::from("/kb/notes")];
         let registry = reg(&[("lib", "/reg/lib")]);
         let r = resolve_repo_name(
@@ -3178,8 +3160,8 @@ mod tests {
     #[test]
     fn resolve_registry_key_mismatch_is_identity_conflict_and_unmounted() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/kb/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
-        fs.insert("/reg/x/.arsumbris/repo.yaml", reg_yaml("other"));
+        fs.insert("/kb/notes/.2brain/repo.yaml", reg_yaml("notes"));
+        fs.insert("/reg/x/.2brain/repo.yaml", reg_yaml("other"));
         let located = [PathBuf::from("/kb/notes")];
         let registry = reg(&[("lib", "/reg/x")]);
         let r = resolve_repo_name(
@@ -3202,12 +3184,12 @@ mod tests {
     #[test]
     fn resolve_registry_path_malformed_names_the_file() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/kb/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
+        fs.insert("/kb/notes/.2brain/repo.yaml", reg_yaml("notes"));
         // The registered path points at a repo.yaml that will not parse, an
         // unquoted `:` in a value. Cannot verify identity, so it stays unmounted,
         // but the malformed file is now named rather than read as merely absent.
         fs.insert(
-            "/reg/lib/.arsumbris/repo.yaml",
+            "/reg/lib/.2brain/repo.yaml",
             b"name: lib\ndescription: x: y\n".to_vec(),
         );
         let located = [PathBuf::from("/kb/notes")];
@@ -3224,7 +3206,7 @@ mod tests {
             [ResolveNote::MalformedRepoYaml(d)] => {
                 assert_eq!(d.code.as_str(), "repo-registry-parse-error");
                 assert_eq!(d.severity, Severity::Error);
-                assert_eq!(d.span.file, PathBuf::from("/reg/lib/.arsumbris/repo.yaml"));
+                assert_eq!(d.span.file, PathBuf::from("/reg/lib/.2brain/repo.yaml"));
                 assert!(d.fix.is_some(), "carries the quoting hint");
             }
             other => panic!("expected one MalformedRepoYaml note, got {other:?}"),
@@ -3234,12 +3216,12 @@ mod tests {
     #[test]
     fn resolve_sibling_malformed_names_the_file() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/kb/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
+        fs.insert("/kb/notes/.2brain/repo.yaml", reg_yaml("notes"));
         // A beside-the-entry sibling at the folder-name position `/kb/lib`, its
         // repo.yaml broken. It cannot declare its name, so `scan` never matches
         // it; the fallback probe names it instead of a bare peer-unmounted.
         fs.insert(
-            "/kb/lib/.arsumbris/repo.yaml",
+            "/kb/lib/.2brain/repo.yaml",
             b"name: lib\ndescription: x: y\n".to_vec(),
         );
         let located = [PathBuf::from("/kb/notes")];
@@ -3254,7 +3236,7 @@ mod tests {
         match r.notes.as_slice() {
             [ResolveNote::MalformedRepoYaml(d)] => {
                 assert_eq!(d.code.as_str(), "repo-registry-parse-error");
-                assert_eq!(d.span.file, PathBuf::from("/kb/lib/.arsumbris/repo.yaml"));
+                assert_eq!(d.span.file, PathBuf::from("/kb/lib/.2brain/repo.yaml"));
             }
             other => panic!("expected one MalformedRepoYaml note, got {other:?}"),
         }
@@ -3264,8 +3246,8 @@ mod tests {
     fn resolve_registry_path_valid_raises_no_malformed_note() {
         // A dep that resolves cleanly raises no spurious parse note.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/kb/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
-        fs.insert("/reg/lib/.arsumbris/repo.yaml", reg_yaml("lib"));
+        fs.insert("/kb/notes/.2brain/repo.yaml", reg_yaml("notes"));
+        fs.insert("/reg/lib/.2brain/repo.yaml", reg_yaml("lib"));
         let located = [PathBuf::from("/kb/notes")];
         let r = resolve_repo_name(
             &RepoName("lib".into()),
@@ -3284,7 +3266,7 @@ mod tests {
     #[test]
     fn resolve_falls_to_cache_then_unmounted() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/kb/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
+        fs.insert("/kb/notes/.2brain/repo.yaml", reg_yaml("notes"));
         let located = [PathBuf::from("/kb/notes")];
         let registry = reg(&[]);
         // no sibling, no registry entry: cache resolves.
@@ -3315,8 +3297,8 @@ mod tests {
     #[test]
     fn resolve_local_over_cache_fires_override_hint() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/kb/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
-        fs.insert("/kb/lib/.arsumbris/repo.yaml", reg_yaml("lib"));
+        fs.insert("/kb/notes/.2brain/repo.yaml", reg_yaml("notes"));
+        fs.insert("/kb/lib/.2brain/repo.yaml", reg_yaml("lib"));
         let located = [PathBuf::from("/kb/notes")];
         let registry = reg(&[]);
         // the name is a locked dependency (cache present) but a sibling shadows it.
@@ -3343,10 +3325,10 @@ mod tests {
     #[test]
     fn resolve_ambiguous_sibling_refuses() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/a/notes/.arsumbris/repo.yaml", reg_yaml("notes"));
-        fs.insert("/a/lib/.arsumbris/repo.yaml", reg_yaml("lib"));
-        fs.insert("/b/other/.arsumbris/repo.yaml", reg_yaml("other"));
-        fs.insert("/b/lib/.arsumbris/repo.yaml", reg_yaml("lib"));
+        fs.insert("/a/notes/.2brain/repo.yaml", reg_yaml("notes"));
+        fs.insert("/a/lib/.2brain/repo.yaml", reg_yaml("lib"));
+        fs.insert("/b/other/.2brain/repo.yaml", reg_yaml("other"));
+        fs.insert("/b/lib/.2brain/repo.yaml", reg_yaml("lib"));
         let located = [PathBuf::from("/a/notes"), PathBuf::from("/b/other")];
         let registry = reg(&[]);
         let r = resolve_repo_name(
@@ -3380,14 +3362,11 @@ mod tests {
         // primary `base` depends on `mid`, which depends on `leaf`; all co-present.
         let mut fs = MemoryFileSystem::new();
         fs.insert(
-            "/kb/base/.arsumbris/repo.yaml",
+            "/kb/base/.2brain/repo.yaml",
             reg_yaml_deps("base", &["mid"]),
         );
-        fs.insert(
-            "/kb/mid/.arsumbris/repo.yaml",
-            reg_yaml_deps("mid", &["leaf"]),
-        );
-        fs.insert("/kb/leaf/.arsumbris/repo.yaml", reg_yaml("leaf"));
+        fs.insert("/kb/mid/.2brain/repo.yaml", reg_yaml_deps("mid", &["leaf"]));
+        fs.insert("/kb/leaf/.2brain/repo.yaml", reg_yaml("leaf"));
         let seed = [
             PathBuf::from("/kb/base"),
             PathBuf::from("/kb/mid"),
@@ -3428,10 +3407,7 @@ mod tests {
     fn assemble_members_cache_dep_is_read_only() {
         // primary `app` depends on `ext`, present only in the cache.
         let mut fs = MemoryFileSystem::new();
-        fs.insert(
-            "/kb/app/.arsumbris/repo.yaml",
-            reg_yaml_deps("app", &["ext"]),
-        );
+        fs.insert("/kb/app/.2brain/repo.yaml", reg_yaml_deps("app", &["ext"]));
         let seed = [PathBuf::from("/kb/app")];
         let cache = |n: &RepoName| (n.as_str() == "ext").then(|| PathBuf::from("/cache/deadbeef"));
         let out = assemble_members(
@@ -3460,7 +3436,7 @@ mod tests {
         // primary `app` depends on `ghost`, resolvable nowhere.
         let mut fs = MemoryFileSystem::new();
         fs.insert(
-            "/kb/app/.arsumbris/repo.yaml",
+            "/kb/app/.2brain/repo.yaml",
             reg_yaml_deps("app", &["ghost"]),
         );
         let seed = [PathBuf::from("/kb/app")];
@@ -3482,8 +3458,8 @@ mod tests {
     fn assemble_members_cycle_terminates_and_assigns_roles() {
         // a <-> b mutual deps; `a` is the edit seed. The fixpoint must terminate.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/kb/a/.arsumbris/repo.yaml", reg_yaml_deps("a", &["b"]));
-        fs.insert("/kb/b/.arsumbris/repo.yaml", reg_yaml_deps("b", &["a"]));
+        fs.insert("/kb/a/.2brain/repo.yaml", reg_yaml_deps("a", &["b"]));
+        fs.insert("/kb/b/.2brain/repo.yaml", reg_yaml_deps("b", &["a"]));
         let seed = [PathBuf::from("/kb/a"), PathBuf::from("/kb/b")];
         let out = assemble_members(
             None,
@@ -3508,7 +3484,7 @@ mod tests {
         // and the workspace lock fall back to the registry and pin the wrong source.
         let mut fs = MemoryFileSystem::new();
         fs.insert(
-            "/kb/app/.arsumbris/repo.yaml",
+            "/kb/app/.2brain/repo.yaml",
             b"name: app\ndeps:\n  - name: base\n    remote: git@example.com:base.git\n    ref: v2\n"
                 .to_vec(),
         );
@@ -3544,12 +3520,9 @@ mod tests {
         // the discover, so `base` ends up role Dep, not Discover. `host` is a
         // discover-only member, so it stays Discover.
         let mut fs = MemoryFileSystem::new();
-        fs.insert(
-            "/kb/app/.arsumbris/repo.yaml",
-            reg_yaml_deps("app", &["base"]),
-        );
-        fs.insert("/kb/base/.arsumbris/repo.yaml", reg_yaml("base"));
-        fs.insert("/kb/host/.arsumbris/repo.yaml", reg_yaml("host"));
+        fs.insert("/kb/app/.2brain/repo.yaml", reg_yaml_deps("app", &["base"]));
+        fs.insert("/kb/base/.2brain/repo.yaml", reg_yaml("base"));
+        fs.insert("/kb/host/.2brain/repo.yaml", reg_yaml("host"));
         let seed = [
             PathBuf::from("/kb/app"),
             PathBuf::from("/kb/base"),
@@ -3609,7 +3582,7 @@ mod tests {
 
     #[test]
     fn device_root_requires_home() {
-        // A set, non-empty HOME resolves to `<home>/.arsumbris`. A path that does
+        // A set, non-empty HOME resolves to `<home>/.2brain`. A path that does
         // not exist canonicalizes to itself, so the join is deterministic.
         // A home with neither spelling is new, and a new home is named by the write rule.
         assert_eq!(
@@ -3630,13 +3603,12 @@ mod tests {
 
         let legacy = tmp.path().join("legacy");
         std::fs::create_dir(&legacy).unwrap();
-        std::fs::create_dir(legacy.join(LEGACY_STATE_DIR)).unwrap();
-        assert_eq!(state_dir_in(&legacy), legacy.join(LEGACY_STATE_DIR));
-
-        let both = tmp.path().join("both");
-        std::fs::create_dir_all(both.join(STATE_DIR)).unwrap();
-        std::fs::create_dir_all(both.join(LEGACY_STATE_DIR)).unwrap();
-        assert_eq!(state_dir_in(&both), both.join(STATE_DIR));
+        std::fs::create_dir(legacy.join(concat!(".arsum", "bris"))).unwrap();
+        assert_eq!(
+            state_dir_in(&legacy),
+            legacy.join(STATE_DIR),
+            "the old directory is not a fallback any more"
+        );
     }
 
     #[test]
@@ -3647,7 +3619,7 @@ mod tests {
         assert!(reserved_against(Path::new("/no/such/home"), &dev));
         assert!(!reserved_against(Path::new("/no/such/home/repo"), &dev));
         assert!(!reserved_against(
-            Path::new("/no/such/home/.2brain/au-engine/cache/packages/abc"),
+            Path::new("/no/such/home/.2brain/engine/cache/packages/abc"),
             &dev
         ));
     }
@@ -3655,14 +3627,14 @@ mod tests {
     #[test]
     fn reserved_against_is_equality_not_subtree() {
         // Non-existent paths canonicalize to themselves, so this is deterministic.
-        let dev = PathBuf::from("/no/such/home/.arsumbris");
-        // The home dir itself is reserved: its `.arsumbris` IS the device area.
+        let dev = PathBuf::from("/no/such/home/.2brain");
+        // The home dir itself is reserved: its `.2brain` IS the device area.
         assert!(reserved_against(Path::new("/no/such/home"), &dev));
         // A repo beside it is not.
         assert!(!reserved_against(Path::new("/no/such/home/repo"), &dev));
-        // A cache-mounted member UNDER `~/.arsumbris` is not: equality, not subtree.
+        // A cache-mounted member UNDER `~/.2brain` is not: equality, not subtree.
         assert!(!reserved_against(
-            Path::new("/no/such/home/.arsumbris/au-engine/cache/packages/abc"),
+            Path::new("/no/such/home/.2brain/engine/cache/packages/abc"),
             &dev
         ));
     }
@@ -3678,7 +3650,7 @@ mod tests {
 
         // The device root is derived from the REAL home. An entry given via the
         // SYMLINK still matches, because both sides are canonicalized.
-        let dev = canonical_root(&real_home).join(".arsumbris");
+        let dev = canonical_root(&real_home).join(".2brain");
         assert!(reserved_against(&linked_home, &dev));
     }
 
@@ -3687,39 +3659,39 @@ mod tests {
         let dir = PathBuf::from("/cfg");
         assert_eq!(
             user_registry_path(&ConfigSource::Dir(dir.clone())),
-            Some(PathBuf::from("/cfg/au-engine/config/repos.yaml"))
+            Some(PathBuf::from("/cfg/engine/config/repos.yaml"))
         );
     }
 
     #[test]
     fn config_path_builds_the_scoped_tail_under_the_state_dir() {
-        // Machine scope: the `.arsumbris` dir IS the device root.
+        // Machine scope: the state dir IS the device root.
         assert_eq!(
             config_path(
-                Path::new("/home/me/.arsumbris"),
+                Path::new("/home/me/.2brain"),
                 "host-app",
                 "viewer-defaults.yaml"
             ),
             Ok(PathBuf::from(
-                "/home/me/.arsumbris/host-app/config/viewer-defaults.yaml"
+                "/home/me/.2brain/host-app/config/viewer-defaults.yaml"
             ))
         );
-        // Repo scope: the `.arsumbris` dir is `<repo>/.arsumbris`.
+        // Repo scope: the `.2brain` dir is `<repo>/.2brain`.
         assert_eq!(
             config_path(
-                Path::new("/kb/notes/.arsumbris"),
+                Path::new("/kb/notes/.2brain"),
                 "agent-tools",
                 "tool-permissions.yaml"
             ),
             Ok(PathBuf::from(
-                "/kb/notes/.arsumbris/agent-tools/config/tool-permissions.yaml"
+                "/kb/notes/.2brain/agent-tools/config/tool-permissions.yaml"
             ))
         );
     }
 
     #[test]
     fn config_path_rejects_traversal_and_escaping_segments() {
-        let dir = Path::new("/home/me/.arsumbris");
+        let dir = Path::new("/home/me/.2brain");
         // `..`, a leading dot, a separator, and an absolute path are all rejected,
         // in either segment; nothing is built.
         for (consumer, file) in [
@@ -3743,19 +3715,22 @@ mod tests {
 
     #[test]
     fn config_path_reserves_the_engine_owner_segment() {
-        // A machine-scope write with consumer `au-engine` would resolve onto the
-        // engine's own `~/.arsumbris/au-engine/config/repos.yaml`, so the channel
+        // A machine-scope write with consumer `engine` would resolve onto the
+        // engine's own `<state root>/engine/config/repos.yaml`, so the channel
         // refuses the reserved owner segment.
-        let dir = Path::new("/home/me/.arsumbris");
+        let dir = Path::new("/home/me/.2brain");
         assert!(config_path(dir, crate::engine_schema::BUILTIN_ENGINE_REPO, "repos.yaml").is_err());
-        assert!(config_path(dir, "au-engine", "anything.yaml").is_err());
+        assert!(
+            config_path(dir, "TB-ENGINE", "anything.yaml").is_err(),
+            "case-insensitive reserve"
+        );
         // A dotted consumer that is NOT the engine, and a normal file, still build.
         assert!(config_path(dir, "host-app", "viewer-defaults.yaml").is_ok());
     }
 
     /// `Empty` reaches NO file on this machine, whatever `HOME` says. This is
     /// the determinism seam: a test constructing an engine with `Empty` cannot
-    /// read the developer's real `~/.arsumbris/au-engine/config`, so a fixture naming a
+    /// read the developer's real `<state root>/engine/config`, so a fixture naming a
     /// dep that happens to be registered there resolves to nothing rather than
     /// to a real repo on disk.
     #[test]
@@ -3774,7 +3749,7 @@ mod tests {
     fn load_user_registry_reads_injected_path_and_degrades_when_absent() {
         let mut fs = MemoryFileSystem::new();
         fs.insert(
-            "/cfg/au-engine/config/repos.yaml",
+            "/cfg/engine/config/repos.yaml",
             b"repos:\n  - name: notes\n    path: /kb/notes\n".to_vec(),
         );
         let cfg = PathBuf::from("/cfg");
@@ -3825,7 +3800,7 @@ mod tests {
     fn user_workspaces_malformed_degrades_to_empty() {
         assert!(parse_user_workspaces(b"\xff\xfe not utf8").is_empty());
         assert!(
-            parse_user_workspaces(b"notworkspaces:\n  - path: /p/.arsumbris/workspace.yaml\n")
+            parse_user_workspaces(b"notworkspaces:\n  - path: /p/.2brain/workspace.yaml\n")
                 .is_empty()
         );
     }
@@ -3835,7 +3810,7 @@ mod tests {
         let dir = PathBuf::from("/cfg");
         assert_eq!(
             user_workspaces_path(&ConfigSource::Dir(dir.clone())),
-            Some(PathBuf::from("/cfg/au-engine/config/workspaces.yaml"))
+            Some(PathBuf::from("/cfg/engine/config/workspaces.yaml"))
         );
     }
 
@@ -3843,7 +3818,7 @@ mod tests {
     fn load_user_workspaces_reads_injected_path_and_degrades_when_absent() {
         let mut fs = MemoryFileSystem::new();
         fs.insert(
-            "/cfg/au-engine/config/workspaces.yaml",
+            "/cfg/engine/config/workspaces.yaml",
             b"workspaces:\n  - path: /kb/my-workspace\n".to_vec(),
         );
         let cfg = PathBuf::from("/cfg");
@@ -3860,8 +3835,8 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let reg_path = dir.path().join("repos.yaml");
         let target = dir.path().join("notes");
-        std::fs::create_dir_all(target.join(".arsumbris")).unwrap();
-        std::fs::write(target.join(".arsumbris/repo.yaml"), "name: notes\n").unwrap();
+        std::fs::create_dir_all(target.join(".2brain")).unwrap();
+        std::fs::write(target.join(".2brain/repo.yaml"), "name: notes\n").unwrap();
 
         let out = register_entry(
             &reg_path,
@@ -3883,12 +3858,8 @@ mod tests {
         let reg_path = dir.path().join("repos.yaml");
         let mk = |name: &str| {
             let target = dir.path().join(name);
-            std::fs::create_dir_all(target.join(".arsumbris")).unwrap();
-            std::fs::write(
-                target.join(".arsumbris/repo.yaml"),
-                format!("name: {name}\n"),
-            )
-            .unwrap();
+            std::fs::create_dir_all(target.join(".2brain")).unwrap();
+            std::fs::write(target.join(".2brain/repo.yaml"), format!("name: {name}\n")).unwrap();
             target
         };
 
@@ -3964,7 +3935,7 @@ mod tests {
         // parse_entry rejects it, so no such name is ever built into a RepoName
         // that sibling_scan could join outside its parent.
         let (fs, files) = repo_with(&[
-            ("/v/.arsumbris/repo.yaml", "name: ../evil\n"),
+            ("/v/.2brain/repo.yaml", "name: ../evil\n"),
             ("/v/note.md", "x"),
         ]);
         let (map, diags) = discover(&fs, &files);
@@ -3994,8 +3965,8 @@ mod tests {
         )
         .unwrap();
         let target = dir.path().join("notes");
-        std::fs::create_dir_all(target.join(".arsumbris")).unwrap();
-        std::fs::write(target.join(".arsumbris/repo.yaml"), "name: notes\n").unwrap();
+        std::fs::create_dir_all(target.join(".2brain")).unwrap();
+        std::fs::write(target.join(".2brain/repo.yaml"), "name: notes\n").unwrap();
 
         let out = register_entry(
             &reg_path,
@@ -4022,7 +3993,7 @@ mod tests {
         let n = 8;
         for i in 0..n {
             let name = format!("dep{i}");
-            let state_dir = dir.path().join(&name).join(".arsumbris");
+            let state_dir = dir.path().join(&name).join(".2brain");
             std::fs::create_dir_all(&state_dir).unwrap();
             std::fs::write(state_dir.join("repo.yaml"), format!("name: {name}\n")).unwrap();
         }
@@ -4132,8 +4103,8 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let reg_path = dir.path().join("repos.yaml");
         let target = dir.path().join("notes");
-        std::fs::create_dir_all(target.join(".arsumbris")).unwrap();
-        std::fs::write(target.join(".arsumbris/repo.yaml"), "name: notes\n").unwrap();
+        std::fs::create_dir_all(target.join(".2brain")).unwrap();
+        std::fs::write(target.join(".2brain/repo.yaml"), "name: notes\n").unwrap();
 
         // First register records a remote.
         register_entry(
@@ -4173,7 +4144,7 @@ mod tests {
     fn register_refuses_an_absent_target_repo_yaml() {
         let dir = tempfile::TempDir::new().unwrap();
         let reg_path = dir.path().join("repos.yaml");
-        // A path with no `.arsumbris/repo.yaml`: register-before-clone is refused,
+        // A path with no `.2brain/repo.yaml`: register-before-clone is refused,
         // a registered path must be an existing name-declaring checkout.
         let target = dir.path().join("not-a-checkout");
         std::fs::create_dir_all(&target).unwrap();
@@ -4190,8 +4161,8 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let reg_path = dir.path().join("repos.yaml");
         let target = dir.path().join("mislabeled");
-        std::fs::create_dir_all(target.join(".arsumbris")).unwrap();
-        std::fs::write(target.join(".arsumbris/repo.yaml"), "name: other\n").unwrap();
+        std::fs::create_dir_all(target.join(".2brain")).unwrap();
+        std::fs::write(target.join(".2brain/repo.yaml"), "name: other\n").unwrap();
 
         let out = register_entry(&reg_path, &RepoName("notes".into()), None, &target).unwrap();
         assert!(matches!(out, RegisterOutcome::Conflict(_)), "{out:?}");
@@ -4212,7 +4183,7 @@ mod tests {
     #[test]
     fn declared_repo_root_uses_its_name() {
         let (fs, files) = repo_with(&[
-            ("/v/.arsumbris/repo.yaml", "name: root\n"),
+            ("/v/.2brain/repo.yaml", "name: root\n"),
             ("/v/note.md", "x"),
         ]);
         let (map, diags) = discover(&fs, &files);
@@ -4234,7 +4205,7 @@ mod tests {
         // cloned onto a case-insensitive filesystem is a legitimate layout, not a
         // high-attention convention breach.
         let (fs, files) = repo_with(&[
-            ("/v/myrepo/.arsumbris/repo.yaml", "name: MyRepo\n"),
+            ("/v/myrepo/.2brain/repo.yaml", "name: MyRepo\n"),
             ("/v/myrepo/note.md", "x"),
         ]);
         let (_map, diags) = discover(&fs, &files);
@@ -4247,7 +4218,7 @@ mod tests {
 
         // A genuine mismatch (different letters) still drifts.
         let (fs, files) = repo_with(&[
-            ("/v/bar/.arsumbris/repo.yaml", "name: foo\n"),
+            ("/v/bar/.2brain/repo.yaml", "name: foo\n"),
             ("/v/bar/note.md", "x"),
         ]);
         let (_map, diags) = discover(&fs, &files);
@@ -4268,9 +4239,9 @@ mod tests {
         // fragility the bounded walk exposed: a `discover` fed only file ancestors
         // silently drops a content-less repo.
         let (fs, files) = repo_with(&[
-            ("/v/.arsumbris/repo.yaml", "name: v\n"),
+            ("/v/.2brain/repo.yaml", "name: v\n"),
             ("/v/note.md", "x"),
-            ("/v/cl/.arsumbris/repo.yaml", "name: cl\n"),
+            ("/v/cl/.2brain/repo.yaml", "name: cl\n"),
             // no content under /v/cl: only its marker can reveal it.
         ]);
         let (map, diags) = discover(&fs, &files);
@@ -4289,9 +4260,9 @@ mod tests {
     #[test]
     fn nested_repo_takes_membership_in_its_subtree() {
         let (fs, files) = repo_with(&[
-            ("/v/.arsumbris/repo.yaml", "name: root\n"),
+            ("/v/.2brain/repo.yaml", "name: root\n"),
             ("/v/note.md", "x"),
-            ("/v/pkg/.arsumbris/repo.yaml", "name: bento\n"),
+            ("/v/pkg/.2brain/repo.yaml", "name: bento\n"),
             ("/v/pkg/inner.md", "y"),
         ]);
         let (map, diags) = discover(&fs, &files);
@@ -4345,9 +4316,9 @@ mod tests {
     #[test]
     fn duplicate_repo_name_is_diagnosed() {
         let (fs, files) = repo_with(&[
-            ("/v/.arsumbris/repo.yaml", "name: dup\n"),
+            ("/v/.2brain/repo.yaml", "name: dup\n"),
             ("/v/a.md", "x"),
-            ("/v/pkg/.arsumbris/repo.yaml", "name: dup\n"),
+            ("/v/pkg/.2brain/repo.yaml", "name: dup\n"),
             ("/v/pkg/b.md", "y"),
         ]);
         let (map, diags) = discover(&fs, &files);
@@ -4371,7 +4342,7 @@ mod tests {
     #[test]
     fn missing_self_is_diagnosed() {
         let (fs, files) = repo_with(&[
-            ("/v/.arsumbris/repo.yaml", "description: no self\n"),
+            ("/v/.2brain/repo.yaml", "description: no self\n"),
             ("/v/a.md", "x"),
         ]);
         let (_map, diags) = discover(&fs, &files);
@@ -4382,10 +4353,10 @@ mod tests {
     fn resolve_deps_fills_peer_paths_from_a_co_present_sibling() {
         let (fs, files) = repo_with(&[
             (
-                "/v/app/.arsumbris/repo.yaml",
+                "/v/app/.2brain/repo.yaml",
                 "name: app\ndeps:\n  - name: base\n",
             ),
-            ("/v/base/.arsumbris/repo.yaml", "name: base\n"),
+            ("/v/base/.2brain/repo.yaml", "name: base\n"),
             ("/v/app/note.md", "x"),
         ]);
         let (mut map, diags) = discover(&fs, &files);
@@ -4416,7 +4387,7 @@ mod tests {
     #[test]
     fn workspace_name_of_a_folder_repo_manifest_is_the_container_folder() {
         assert_eq!(
-            workspace_name(Path::new("/ws/.arsumbris/workspace.yaml")),
+            workspace_name(Path::new("/ws/.2brain/workspace.yaml")),
             "ws",
             "a folder-repo manifest is named after its containing repo folder"
         );
@@ -4428,14 +4399,11 @@ mod tests {
         // co-present sibling, so `base` is a computed member.
         let manifest = "edit:\n  - app\n";
         let mut fs = MemoryFileSystem::new();
-        fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
-            reg_yaml_deps("app", &["base"]),
-        );
-        fs.insert("/v/base/.arsumbris/repo.yaml", reg_yaml("base"));
+        fs.insert("/v/app/.2brain/repo.yaml", reg_yaml_deps("app", &["base"]));
+        fs.insert("/v/base/.2brain/repo.yaml", reg_yaml("base"));
         let seed = [PathBuf::from("/v/app"), PathBuf::from("/v/base")];
         let ws = load_workspace(
-            Path::new("/v/demo/.arsumbris/workspace.yaml"),
+            Path::new("/v/demo/.2brain/workspace.yaml"),
             manifest.as_bytes(),
             &seed,
             &UserRegistry::new(),
@@ -4461,14 +4429,11 @@ mod tests {
         // `app` is an edit member (editable); `base` is a computed dep.
         let manifest = "edit:\n  - app\n";
         let mut fs = MemoryFileSystem::new();
-        fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
-            reg_yaml_deps("app", &["base"]),
-        );
-        fs.insert("/v/base/.arsumbris/repo.yaml", reg_yaml("base"));
+        fs.insert("/v/app/.2brain/repo.yaml", reg_yaml_deps("app", &["base"]));
+        fs.insert("/v/base/.2brain/repo.yaml", reg_yaml("base"));
         let seed = [PathBuf::from("/v/app"), PathBuf::from("/v/base")];
         let ws = load_workspace(
-            Path::new("/v/demo/.arsumbris/workspace.yaml"),
+            Path::new("/v/demo/.2brain/workspace.yaml"),
             manifest.as_bytes(),
             &seed,
             &UserRegistry::new(),
@@ -4492,7 +4457,7 @@ mod tests {
         // by the caller as edit-member-unmounted).
         let manifest = "edit:\n  - ghost\n";
         let ws = load_workspace(
-            Path::new("/v/demo/.arsumbris/workspace.yaml"),
+            Path::new("/v/demo/.2brain/workspace.yaml"),
             manifest.as_bytes(),
             &[],
             &UserRegistry::new(),
@@ -4511,9 +4476,9 @@ mod tests {
         // manifest-dir guess (that seed-hack is retired, discovery is the marker).
         let manifest = "edit:\n  - proj\n";
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/ws/proj/.arsumbris/repo.yaml", reg_yaml("proj"));
+        fs.insert("/ws/proj/.2brain/repo.yaml", reg_yaml("proj"));
         let ws = load_workspace(
-            Path::new("/ws/demo/.arsumbris/workspace.yaml"),
+            Path::new("/ws/demo/.2brain/workspace.yaml"),
             manifest.as_bytes(),
             &[PathBuf::from("/ws/proj")],
             &UserRegistry::new(),
@@ -4530,7 +4495,7 @@ mod tests {
     fn resolve_deps_leaves_unresolved_deps_unmounted() {
         let (fs, files) = repo_with(&[
             (
-                "/v/app/.arsumbris/repo.yaml",
+                "/v/app/.2brain/repo.yaml",
                 "name: app\ndeps:\n  - name: base\n",
             ),
             ("/v/app/note.md", "x"),
@@ -4556,7 +4521,7 @@ deps:
     remote: git@example.com:me/base.git
   - name: shared
 ";
-        let (fs, files) = repo_with(&[("/v/.arsumbris/repo.yaml", registry), ("/v/a.md", "x")]);
+        let (fs, files) = repo_with(&[("/v/.2brain/repo.yaml", registry), ("/v/a.md", "x")]);
         let (map, diags) = discover(&fs, &files);
         // `app` declared in a `v` folder, an expected folder-name drift.
         assert!(

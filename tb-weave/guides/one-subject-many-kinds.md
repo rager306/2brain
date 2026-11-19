@@ -1,5 +1,5 @@
 ---
-type: guide.principle::au-agent-guides
+type: guide.principle::tb-agent-guides
 goal: decide whether a subject already covered earns another node kind
 rule: Judge each node by the knowledge it holds, its identity and the candidate's declared resolution target.
 ---
@@ -11,13 +11,13 @@ A definition can exist while a claim about that subject is still missing.
 
 A kind describes what the node represents:
 
-- A [[thing::au-base-types]] names something
-- An [[idea::au-base-types]] holds a meaning or proposition
+- A [[thing::tb-base-types]] names something
+- An [[idea::tb-base-types]] holds a meaning or proposition
 - A map gathers related notes
 - Other bases represent subjects such as events or sources
 
 Domains refine those distinctions.
-au-weave's research vocabulary separates concepts from claims.
+tb-weave's research vocabulary separates concepts from claims.
 A scene graph might hold a system and a claim about it.
 Judge each needed node against the premise and domain guidance.
 

@@ -1,4 +1,4 @@
-type: composition::au-host-sdk
+type: composition::tb-host-sdk
 intent-routing:
   wires:
     - intent: "[[open-intent::intent]]"
@@ -77,12 +77,12 @@ viewer-defaults:
     - opens: "*"
       viewer: "[[editor-pane::editor]]"
 windows:
-  - "[[^^au-window-primary]]"
+  - "[[^^tb-window-primary]]"
 projections:
-  - ^: au-window-primary
+  - ^: tb-window-primary
     content: "[[^^workspace]]"
     primary: true
-    type: window::au-host-sdk
+    type: window::tb-host-sdk
   - ^: workspace
     center:
       child: "[[^^documents]]"
@@ -150,7 +150,7 @@ projections:
   - ^: avatar
     backdrop: false
     character: umbra
-    type: aup-avatar::au-avatar
+    type: aup-avatar::tb-avatar
   - ^: session-launcher
     type: agent-session-launcher::agent-sessions
     profile: "[[Codex]]"

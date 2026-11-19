@@ -9,7 +9,7 @@ notes nearest its file stem are the candidates that could link to it.
 It proposes; it never writes. A proposal is a note whose ranking put the orphan in its top three,
 which is evidence the two discuss the same thing, not proof that a link belongs there.
 
-    python3 tools/kb/intake_targets.py --socket ~/.2brain/au-engine/run/<hash>.sock
+    python3 tools/kb/intake_targets.py --socket <state root>/engine/run/<hash>.sock
     python3 tools/kb/intake_targets.py --health /tmp/graph_shape.json     # offline
     python3 tools/kb/intake_targets.py --selftest
 """

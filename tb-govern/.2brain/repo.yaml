@@ -1,8 +1,8 @@
 # Package identity and intrinsic vocabulary dependencies.
 type: tb.engine.repo::tb-engine
-name: au-govern
+name: tb-govern
 description: Maintain workspace meaning through audits, findings, repairs and reusable feedback.
 deps:
-  - name: au-mcp-sdk
-  - name: au-rules
-  - name: au-agent-guides
+  - name: tb-mcp-sdk
+  - name: tb-rules
+  - name: tb-agent-guides

@@ -136,7 +136,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/redundant-abstract-on-sealed/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/redundant-abstract-on-sealed/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -155,7 +155,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/redundant-abstract-on-sealed/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/redundant-abstract-on-sealed/.2brain/repo.yaml",
         "section_presence": null
       }
     ]

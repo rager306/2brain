@@ -14,8 +14,8 @@
 //! explicit PRNG, so the same inputs write a byte-identical tree. No `rand`, no
 //! clock (the engine forbids both, and byte-identity is the property under test).
 //!
-//! Format knowledge lives here as string templates, so au-testkit needs no
-//! au-engine dependency (the crate graph stays acyclic).
+//! Format knowledge lives here as string templates, so tb-testkit needs no
+//! tb-engine dependency (the crate graph stays acyclic).
 
 use std::path::{Path, PathBuf};
 

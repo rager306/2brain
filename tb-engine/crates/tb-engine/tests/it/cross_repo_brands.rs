@@ -33,7 +33,7 @@ fn nominal_fixture() -> tempfile::TempDir {
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["sdk", "app"]);
 
-    write(&root, "sdk/.arsumbris/repo.yaml", "name: sdk\n");
+    write(&root, "sdk/.2brain/repo.yaml", "name: sdk\n");
     write(
         &root,
         "sdk/type/icon-role.type.yaml",
@@ -42,7 +42,7 @@ fn nominal_fixture() -> tempfile::TempDir {
 
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: sdk\n",
     );
     write(
@@ -150,7 +150,7 @@ fn structural_fixture() -> tempfile::TempDir {
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["sdk", "app"]);
 
-    write(&root, "sdk/.arsumbris/repo.yaml", "name: sdk\n");
+    write(&root, "sdk/.2brain/repo.yaml", "name: sdk\n");
     write(&root, "sdk/type/paper.type.yaml", "fields:\n  t: String\n");
     write(
         &root,
@@ -166,7 +166,7 @@ fn structural_fixture() -> tempfile::TempDir {
 
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: sdk\n",
     );
     write(
@@ -215,7 +215,7 @@ fn a_star_on_a_mixed_member_peer_union_brand_fires_brand_not_referenceable() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["sdk", "app"]);
-    write(&root, "sdk/.arsumbris/repo.yaml", "name: sdk\n");
+    write(&root, "sdk/.2brain/repo.yaml", "name: sdk\n");
     write(
         &root,
         "sdk/type/evidence.type.yaml",
@@ -228,7 +228,7 @@ fn a_star_on_a_mixed_member_peer_union_brand_fires_brand_not_referenceable() {
     );
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: sdk\n",
     );
     write(
@@ -254,11 +254,11 @@ fn a_union_with_a_peer_nominal_member_accepts_that_members_constructor() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["units", "app"]);
-    write(&root, "units/.arsumbris/repo.yaml", "name: units\n");
+    write(&root, "units/.2brain/repo.yaml", "name: units\n");
     write(&root, "units/type/meter.type.yaml", "shape: Number\n");
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: units\n",
     );
     write(&root, "app/type/paper.type.yaml", "fields:\n  t: String\n");
@@ -313,7 +313,7 @@ fn overlap_fixture() -> tempfile::TempDir {
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["sdk", "app"]);
 
-    write(&root, "sdk/.arsumbris/repo.yaml", "name: sdk\n");
+    write(&root, "sdk/.2brain/repo.yaml", "name: sdk\n");
     write(&root, "sdk/type/label.type.yaml", "shape: String\n");
     write(
         &root,
@@ -323,7 +323,7 @@ fn overlap_fixture() -> tempfile::TempDir {
 
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: sdk\n",
     );
     write(

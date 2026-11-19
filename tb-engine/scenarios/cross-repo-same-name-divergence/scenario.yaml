@@ -1,5 +1,5 @@
 title: "A mixin reaching two distinct identities of one type name (own `note` beside peer `note::base`) with diverged field shapes is a mixin-collision, not a silent pick; the authored origin `note::base` distinguishes the identities"
-spec_ref: "[[type-def fields collision - auto-unify and qualified field::au-type-system]]"
+spec_ref: "[[type-def fields collision - auto-unify and qualified field::tb-type-system]]"
 command: validate
 expected:
   codes:

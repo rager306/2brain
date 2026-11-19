@@ -53,7 +53,7 @@ fn commit_meta(h: &mut Harness, commits: Value) -> Vec<Value> {
 }
 
 /// An engine-written commit round-trips its metadata and its trailers. A
-/// mediated `write_file` commits with author `au-engine` and a `Mutation-Id`
+/// mediated `write_file` commits with author `tb-engine` and a `Mutation-Id`
 /// trailer, and `commit_meta` reads them back uninterpreted — the read half of
 /// driver 1 (attribution lookup).
 #[test]

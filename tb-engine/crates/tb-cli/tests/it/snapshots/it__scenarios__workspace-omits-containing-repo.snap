@@ -22,7 +22,7 @@ expression: rendered
       "message": "workspace.yaml does not list its containing repo 'workspace-omits-containing-repo' in 'edit'; the entry repo is a live working tree and belongs in 'edit'",
       "severity": "error",
       "span": {
-        "file": "<root>/scenarios/workspace-omits-containing-repo/.arsumbris/workspace.yaml",
+        "file": "<root>/scenarios/workspace-omits-containing-repo/.2brain/workspace.yaml",
         "line_col": {
           "end": {
             "col": 1,
@@ -135,7 +135,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/workspace-omits-containing-repo/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/workspace-omits-containing-repo/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -154,7 +154,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/workspace-omits-containing-repo/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/workspace-omits-containing-repo/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -233,7 +233,7 @@ expression: rendered
                         },
                         "start": 10
                       },
-                      "file": "<root>/scenarios/workspace-omits-containing-repo/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/workspace-omits-containing-repo/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -252,7 +252,7 @@ expression: rendered
             "field": "edit"
           }
         ],
-        "file": "<root>/scenarios/workspace-omits-containing-repo/.arsumbris/workspace.yaml",
+        "file": "<root>/scenarios/workspace-omits-containing-repo/.2brain/workspace.yaml",
         "section_presence": null
       },
       {
@@ -346,7 +346,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/workspace-omits-containing-repo/sub/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/workspace-omits-containing-repo/sub/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -365,7 +365,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/workspace-omits-containing-repo/sub/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/workspace-omits-containing-repo/sub/.2brain/repo.yaml",
         "section_presence": null
       }
     ]

@@ -1,4 +1,4 @@
-//! Per-file index of addressable inline records ([[type block-id::au-type-system]]):
+//! Per-file index of addressable inline records ([[type block-id::tb-type-system]]):
 //! `^:` id → the record's effective claim names.
 //!
 //! Computed once per instance before validation. Reference resolution
@@ -6,7 +6,7 @@
 //! document order), then falls back to body blocks.
 //!
 //! The effective claim is the explicit inline `type:` when present,
-//! else the type the slot pins ([[type-def shape record::au-type-system]]): a bare
+//! else the type the slot pins ([[type-def shape record::tb-type-system]]): a bare
 //! `Record` or `InlineOrReference` slot names exactly one type-def.
 //! Union / intersection / sealed slots demand an explicit claim — a
 //! record without one there is already `inline-value-missing-type`, so
@@ -179,7 +179,7 @@ fn resolved_shape(ctx: &ResolveCtx, claim: &crate::instance::TypeClaim) -> Optio
 /// shape resolves over the extended fold, where the peer node's fields are
 /// re-qualified to the owner. This is what lets a peer record nested inside
 /// another peer record be discovered. A bare / own claim, or the resolver-less
-/// case (single-repo, au-core's own tests), falls back to [`resolved_shape`].
+/// case (single-repo, tb-core's own tests), falls back to [`resolved_shape`].
 fn nested_effective_shape(ctx: &ResolveCtx, qualified: &[TypeNameClaim]) -> Option<EffectiveShape> {
     if qualified.is_empty() {
         return None;
@@ -307,7 +307,7 @@ pub struct NestedRecord {
     pub block_id: Option<String>,
     /// The record's own body fields, so a consumer sees the record's values.
     pub fields: Vec<InstanceField>,
-    /// The record's `#:` head docstring, `None` when absent. See [[type docstring::au-type-system]].
+    /// The record's `#:` head docstring, `None` when absent. See [[type docstring::tb-type-system]].
     pub doc: Option<String>,
     /// Per-field `#:` docstrings, keyed by field key, documented fields only.
     pub field_docs: std::collections::BTreeMap<String, String>,

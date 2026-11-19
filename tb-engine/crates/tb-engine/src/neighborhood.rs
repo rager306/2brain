@@ -492,7 +492,7 @@ mod tests {
     /// `ref` slot so a frontmatter edge is `field`.
     fn linked_kb() -> KnowledgeBase {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  ref?: note*\n".to_vec(),
@@ -588,7 +588,7 @@ mod tests {
         // consumer does not read it as the broken link a coarse `navigational`
         // + null `to` would suggest.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  ref?: note*\n".to_vec(),
@@ -727,7 +727,7 @@ mod tests {
     #[test]
     fn block_span_resolves_a_record_and_a_fence() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  inner?: assumption[]\n".to_vec(),

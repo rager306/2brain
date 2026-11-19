@@ -6,11 +6,11 @@
 #
 # DISCOVERY enumerates subtypes: the engine's `subtypes('mcp.tool')` read returns every
 # subtype across the workspace with its owner repo + runtime meta in ONE read, deduped
-# to the owner copy. au-host proved this exact pattern (its `projection` base); we lift
-# it. See [[observation - 2606231225 - au-host proved the meta-plus-owner mechanic and the engine ships a subtypes read::au-harness]].
+# to the owner copy. tb-host proved this exact pattern (its `projection` base); we lift
+# it. See [[observation - 2606231225 - tb-host proved the meta-plus-owner mechanic and the engine ships a subtypes read::tb-harness]].
 #
-# OWNERSHIP: this BASE + `plugin-runtime-meta` are owned here (au-mcp-sdk, the contract
-# owner); the per-tool subtypes are owned by au-mcp (first-party) or a user repo (user-
+# OWNERSHIP: this BASE + `plugin-runtime-meta` are owned here (tb-mcp-sdk, the contract
+# owner); the per-tool subtypes are owned by tb-mcp (first-party) or a user repo (user-
 # authored) — the same shape, different source. The old flat `mcp.tool` (a manifest
 # record with `inputType`/`entry` fields + a separate `toolInput.<tool>` hierarchy) is
 # RETIRED by this reshape; `toolInput` dissolves (its leaves became `mcp.tool.<tool>`).
@@ -33,7 +33,7 @@ fields: {}
 # `tool-presentation-meta` (its agent-facing description). The engine now enforces this
 # nominally — a concrete tool without one fires `subtype-missing-required-meta` and surfaces
 # via the type view's `unmet_required_meta`. This RETIRES the harness STANDIN in
-# au-mcp/src/daemon/discovery.ts that hand-checked "every tool has a description".
-# See [[decision - 2606251602 - tool description rides a typed tool-presentation meta surfaced via the manifest, adapter forwards::au-harness]].
+# tb-mcp/src/daemon/discovery.ts that hand-checked "every tool has a description".
+# See [[decision - 2606251602 - tool description rides a typed tool-presentation meta surfaced via the manifest, adapter forwards::tb-harness]].
 meta:
   - required: tool-presentation-meta

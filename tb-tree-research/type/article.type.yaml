@@ -3,7 +3,7 @@
 #: The research skill creates one answer by default and recovers saved work on retry.
 #: The saved article is a source artifact that downstream graphs can reference in place.
 #: Its body is the authored synthesis; source membership does not establish evidential strength.
-extends: source::au-base-types
+extends: source::tb-base-types
 fields:
   #: The researched question this article answers.
   #: Saving a reference to an open question leaves a state-mismatch diagnostic.

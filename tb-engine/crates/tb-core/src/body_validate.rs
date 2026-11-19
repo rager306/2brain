@@ -1,4 +1,4 @@
-//! Body-typing validation per [[type-def body section::au-type-system]], [[type-def body fills::au-type-system]], [[type-def body::au-type-system]].
+//! Body-typing validation per [[type-def body section::tb-type-system]], [[type-def body fills::tb-type-system]], [[type-def body::tb-type-system]].
 //!
 //! Consumes a parsed `Instance` plus its raw body source and runs the
 //! body-typing checks layered on top of the provenance value model.
@@ -53,7 +53,7 @@ pub fn validate_body(
     let template = build_effective_template(ctx, instance, &mut diags).unwrap_or_default();
     let body_declaring = !template.is_empty();
 
-    // [[type-def body::au-type-system]] format coupling.
+    // [[type-def body::tb-type-system]] format coupling.
     if body_declaring && !is_markdown_instance {
         diags.push(Diagnostic {
             code: codes::BODY_REQUIRED_BUT_YAML_ONLY_INSTANCE,
@@ -77,17 +77,17 @@ pub fn validate_body(
     //
     // Computed BEFORE the value layer: `effective_values` needs it to decide
     // whether a whole-value wikilink is a reference or a literal string, which
-    // is a per-SLOT question ([[type reference::au-type-system]]).
+    // is a per-SLOT question ([[type reference::tb-type-system]]).
     let shape = crate::validate::effective_shape_for(ctx, &instance.type_claim).ok();
 
     let values = effective_values(instance, &events, body_byte_offset, shape.as_ref());
 
-    // [[type-def body section::au-type-system]] section presence + order (declared template only).
+    // [[type-def body section::tb-type-system]] section presence + order (declared template only).
     if body_declaring && is_markdown_instance {
         check_section_presence(instance, &template, &events, body_byte_offset, &mut diags);
     }
 
-    // [[type-def body fills::au-type-system]] fills contracts (declared template only).
+    // [[type-def body fills::tb-type-system]] fills contracts (declared template only).
     if body_declaring {
         check_fills_contracts(
             instance,
@@ -99,7 +99,7 @@ pub fn validate_body(
         );
     }
 
-    // [[type-instance body contribution::au-type-system]] frontmatter visibility — optional field with body contributions
+    // [[type-instance body contribution::tb-type-system]] frontmatter visibility — optional field with body contributions
     // but no frontmatter key.
     if let Some(shape) = &shape {
         check_frontmatter_visibility(instance, shape, &values, &mut diags);
@@ -108,7 +108,7 @@ pub fn validate_body(
         check_null_anchor_without_body_fill(instance, shape, &values, &mut diags);
     }
 
-    // [[type value container::au-type-system]] cardinality across surfaces — bare-T fields with > 1 distinct
+    // [[type value container::tb-type-system]] cardinality across surfaces — bare-T fields with > 1 distinct
     // ValueContainer.
     if let Some(shape) = &shape {
         check_cardinality_cross_surface(instance, shape, &values, &mut diags);
@@ -128,7 +128,7 @@ pub fn validate_body(
     check_prose_dangling_links(ctx, instance, &events, body_byte_offset, &mut diags);
 
     // Navigational links embedded in frontmatter string values, the value-side
-    // mirror of the prose pass, see [[type reference::au-type-system]].
+    // mirror of the prose pass, see [[type reference::tb-type-system]].
     check_frontmatter_navigational_links(ctx, instance, shape.as_ref(), &mut diags);
     check_unterminated_fences(instance, &events, body_byte_offset, &mut diags);
     check_duplicate_block_ids(instance, &events, body_byte_offset, &mut diags);
@@ -163,7 +163,7 @@ fn build_effective_template(
     _diags: &mut Vec<Diagnostic>,
 ) -> Option<BodyTemplate> {
     // Find the first body-declaring type in the instance's claim closure
-    // and walk it. Mixin claims don't merge bodies (per [[type-def body::au-type-system]]) — we pick
+    // and walk it. Mixin claims don't merge bodies (per [[type-def body::tb-type-system]]) — we pick
     // the first claim whose type chain has a body. Multi-mixin with
     // multiple body-bearing chains is out of scope for v1.
     for claim in instance.type_claim.iter() {
@@ -185,7 +185,7 @@ fn build_effective_template(
     None
 }
 
-// ----- [[type-def body section::au-type-system]] section presence + order -----
+// ----- [[type-def body section::tb-type-system]] section presence + order -----
 
 fn check_section_presence(
     instance: &Instance,
@@ -306,7 +306,7 @@ pub struct SectionPresenceInfo {
     pub span: Option<ByteRange>,
     /// Stripped, name-only path from root to this section (e.g.
     /// `["Why", "Background"]`). Each entry is the declared section
-    /// name without the index prefix that [[type value container::au-type-system]] uses internally.
+    /// name without the index prefix that [[type value container::tb-type-system]] uses internally.
     pub path: Vec<String>,
 }
 
@@ -408,7 +408,7 @@ fn declared_top_sections(template: &BodyTemplate) -> Vec<DeclaredSection> {
         .collect()
 }
 
-// ----- [[type-def body fills::au-type-system]] contracts + exclusivity -----
+// ----- [[type-def body fills::tb-type-system]] contracts + exclusivity -----
 
 fn check_fills_contracts(
     instance: &Instance,
@@ -520,7 +520,7 @@ fn walk_scope(
             let mut child_stripped = stripped_prefix.to_vec();
             child_stripped.push(name.clone());
             let absent = !present_sections.contains(&child_stripped);
-            // [[type-def body section::au-type-system]]: declared sections must be present at every nesting
+            // [[type-def body section::tb-type-system]]: declared sections must be present at every nesting
             // depth. Top-level sections are checked separately by
             // `check_section_presence` (which also enforces top-level
             // ordering); this branch covers depth ≥ 1.
@@ -537,7 +537,7 @@ fn walk_scope(
                     fix: None,
                 });
             }
-            // [[type-def body fills::au-type-system]]: `fills` on a `section?:` (or any nested section) that
+            // [[type-def body fills::tb-type-system]]: `fills` on a `section?:` (or any nested section) that
             // didn't materialize in the body is a no-op — the contract
             // attaches to a scope that doesn't exist in this instance.
             // Skip enforcement AND skip recursion (a nested fills inside
@@ -717,7 +717,7 @@ fn format_declared(declared: &BTreeSet<&str>) -> String {
     }
 }
 
-// ----- [[type-instance body contribution::au-type-system]] frontmatter visibility -----
+// ----- [[type-instance body contribution::tb-type-system]] frontmatter visibility -----
 
 fn check_frontmatter_visibility(
     instance: &Instance,
@@ -773,7 +773,7 @@ fn check_frontmatter_visibility(
 }
 
 /// A required field written as a null frontmatter key (`field:`) is the
-/// [[type-instance body contribution::au-type-system]] "filled by body" anchor, a promise the body will supply it.
+/// [[type-instance body contribution::tb-type-system]] "filled by body" anchor, a promise the body will supply it.
 /// The frontmatter-pass required-field check counts the key as provided by mere
 /// presence, so it stays silent; if no body contribution ever arrives the
 /// promise breaks and the field is as absent as an omitted key. Fire
@@ -845,7 +845,7 @@ fn check_null_anchor_without_body_fill(
     }
 }
 
-// ----- [[type value container::au-type-system]] cardinality across surfaces -----
+// ----- [[type value container::tb-type-system]] cardinality across surfaces -----
 
 fn check_cardinality_cross_surface(
     instance: &Instance,
@@ -863,7 +863,7 @@ fn check_cardinality_cross_surface(
         };
         let is_bare = !matches!(parsed, Shape::List { .. });
         if is_bare && containers.len() > 1 {
-            // [[type value container::au-type-system]]: the diagnostic includes the location of every
+            // [[type value container::tb-type-system]]: the diagnostic includes the location of every
             // Contribution under every ValueContainer so the author can
             // see all duplication sites at once. Anchor at the first
             // container's earliest contribution (the canonical value);
@@ -940,7 +940,7 @@ fn check_per_contribution(
                 }
                 // A divergent field lives in `shape.divergent`, not `fields`, so
                 // check both — a qualified body contribution to a divergent field
-                // is in-closure ([[type-def fields collision - auto-unify and qualified field::au-type-system]]).
+                // is in-closure ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]).
                 let in_closure = shape.get(field).is_some() || shape.get_divergent(field).is_some();
                 if !in_closure {
                     // The instance's `type:` claim is the most actionable
@@ -982,7 +982,7 @@ fn check_per_contribution(
                             });
                         }
                         // A fence is the multi-line CARRIER of the same contribution
-                        // ([[type-instance body contribution::au-type-system]], "the carriers differ only by
+                        // ([[type-instance body contribution::tb-type-system]], "the carriers differ only by
                         // EXTENT"), so an out-of-closure fence gets the same advisory
                         // the inline marker does. Without this a typo'd `` ```[:sumary] ``
                         // was completely silent where `` `[:sumary]` `` warned.
@@ -1012,7 +1012,7 @@ fn check_per_contribution(
                 // qualifier is rejected. The shared `resolve_qualifier` keeps the
                 // two surfaces identical — without it a bogus qualifier on an
                 // auto-unified field was silently ignored on the body surface
-                // only ([[type-def fields collision - auto-unify and qualified field::au-type-system]]).
+                // only ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]).
                 //
                 // Fired PER SITE, deliberately not deduped. These diagnostics
                 // anchor at the offending token's own span (unlike the
@@ -1034,7 +1034,7 @@ fn check_per_contribution(
                     }
                 }
                 // Body wikilink reference checks, gated to slots that
-                // admit a reference ([[type reference::au-type-system]]): block-id
+                // admit a reference ([[type reference::tb-type-system]]): block-id
                 // existence (`block-id-not-found` / `block-id-not-typed`)
                 // and the shape mismatch. A wikilink bound to a primitive
                 // field is already a shape mismatch; it never block-id
@@ -1050,7 +1050,7 @@ fn check_per_contribution(
                 ) = (contrib.surface, &contrib.value)
                 {
                     // Resolve the slot: a resolved field's canonical decl, or a
-                    // divergent field's qualified origin ([[type-def fields collision - auto-unify and qualified field::au-type-system]]).
+                    // divergent field's qualified origin ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]).
                     if let Some(info) = crate::provenance::contrib_target_decl(
                         shape,
                         field,
@@ -1164,7 +1164,7 @@ fn check_per_contribution(
 
 /// A BARE body contribution (no `field{type}` qualifier) to a DIVERGENT field is
 /// a `mixin-collision`, the body twin of the frontmatter bare-use rule
-/// ([[type-def fields collision - auto-unify and qualified field::au-type-system]]). The frontmatter divergent pass sees only frontmatter
+/// ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]). The frontmatter divergent pass sees only frontmatter
 /// keys, so a body-only bare use would otherwise slip through unvalidated. Fires
 /// once per divergent field with a bare body contribution, anchored at the
 /// `type:` claim like the frontmatter case.
@@ -1333,7 +1333,7 @@ fn block_target_satisfies(
     if is_existence_only_demand(required) {
         return target.is_empty() || ctx.repo_index.resolve(target).is_ok();
     }
-    // Local form ([[type reference::au-type-system]]): empty name means the host file.
+    // Local form ([[type reference::tb-type-system]]): empty name means the host file.
     let target_path = if target.is_empty() {
         host_path.to_path_buf()
     } else {
@@ -1342,7 +1342,7 @@ fn block_target_satisfies(
             Err(_) => return true,
         }
     };
-    // Addressable inline record ([[type block-id::au-type-system]]): its precomputed
+    // Addressable inline record ([[type block-id::tb-type-system]]): its precomputed
     // effective claim is checked, frontmatter precedes the body.
     let records = ctx.ref_data.record_targets(&target_path);
     if let Some(target) = records.as_ref().and_then(|targets| targets.get(block_id)) {
@@ -1545,7 +1545,7 @@ pub(crate) fn extract_block_type_claims(doc: &tb_parser::yaml::MarkedYaml<'_>) -
 
 /// `file*` and `any*` are the existence-only built-in reference targets: both
 /// resolve by mere node existence, with no type-closure check
-/// ([[type-def shape file::au-type-system]], [[type-def shape any::au-type-system]]). The frontmatter path
+/// ([[type-def shape file::tb-type-system]], [[type-def shape any::tb-type-system]]). The frontmatter path
 /// special-cases them in `validate_body_block_values`; the body-fill helpers
 /// must too, otherwise a `file*` or `any*` body wikilink false-fires
 /// `body-slot-shape-mismatch` since neither name is ever in a user closure.
@@ -1705,7 +1705,7 @@ fn check_malformed_markers(
 }
 
 /// Whether `anchor` matches a heading in the target, per the
-/// [[type reference::au-type-system]] anchor-matching contract (`tb_references::resolve_anchor`).
+/// [[type reference::tb-type-system]] anchor-matching contract (`tb_references::resolve_anchor`).
 /// `None` when the engine cannot verify — no held body and the target
 /// isn't a yaml-only instance (a plain note or asset may carry the
 /// heading; a false warning is worse than a missed one). A yaml-only
@@ -1732,7 +1732,7 @@ pub(crate) fn anchor_exists_in(
 
 /// Surface dangling navigational wikilinks in body prose, as warnings —
 /// a missing file target, or a `^block-id` absent from both of the
-/// target's addressable surfaces ([[type block-id::au-type-system]]). Local forms
+/// target's addressable surfaces ([[type block-id::tb-type-system]]). Local forms
 /// included: growth is the same story in the current file and across
 /// files, so the severity is uniform.
 ///
@@ -1779,7 +1779,7 @@ fn check_prose_dangling_links(
 /// (`navigational-block-id-not-found`). All warnings, never errors.
 ///
 /// Shared by body prose and frontmatter value links — a `[[...]]` is
-/// navigational wherever it sits, see [[type reference::au-type-system]]. The slot-side
+/// navigational wherever it sits, see [[type reference::tb-type-system]]. The slot-side
 /// validated reference keeps its own error path.
 fn check_navigational_target(
     ctx: &ValidateContext<'_>,
@@ -1858,7 +1858,7 @@ fn check_navigational_target(
     } else {
         link.target.clone()
     };
-    // Anchor existence per the [[type reference::au-type-system]] matching contract,
+    // Anchor existence per the [[type reference::tb-type-system]] matching contract,
     // independent of the block-id fragment.
     if let Some(anchor) = link.anchor.as_deref() {
         if anchor_exists_in(ctx, &target_path, anchor) == Some(false) {
@@ -1985,7 +1985,7 @@ fn walk_value_navigational_links(
     slot: Option<&Shape>,
     diags: &mut Vec<Diagnostic>,
 ) {
-    // An `opaque` slot ([[type-def shape opaque::au-type-system]]) holds content whose
+    // An `opaque` slot ([[type-def shape opaque::tb-type-system]]) holds content whose
     // `[[...]]`-shaped strings are uninterpreted data, so no navigational scan
     // descends into it. The interpreted top `any` is NOT skipped: its content is
     // scanned like any other value. The shape threads through records and lists
@@ -1994,7 +1994,7 @@ fn walk_value_navigational_links(
     // KNOWN LIMITATION: this suppresses the navigational DIAGNOSTIC only. The
     // backlink EDGE index is shape-blind, so an `opaque` field's `[[...]]` still
     // forms an edge and is still rename-rewritten, the deferred fourth axis, see
-    // [[type-def shape opaque::au-type-system]].
+    // [[type-def shape opaque::tb-type-system]].
     if is_opaque_slot(slot) {
         return;
     }
@@ -2201,7 +2201,7 @@ fn check_malformed_wikilinks(
                 // Other parse errors fall through silently — they're
                 // covered by the existing frontmatter wikilink validation
                 // for frontmatter occurrences, and body navigational links
-                // are open-world per [[type open-world validation::au-type-system]].
+                // are open-world per [[type open-world validation::tb-type-system]].
                 Err(_) => {}
             }
         }
@@ -2213,7 +2213,7 @@ fn check_malformed_wikilinks(
 /// first match and silently ignores duplicates — the diagnostic gives
 /// authors the chance to disambiguate.
 ///
-/// One namespace per file ([[type block-id::au-type-system]]). Sources counted: fenced
+/// One namespace per file ([[type block-id::tb-type-system]]). Sources counted: fenced
 /// blocks with `trailing_block_id`, bare `BlockIdMarker` events, AND
 /// inline-record `^:` ids from the frontmatter. Same-id occurrences
 /// across any of the surfaces count toward the duplication.
@@ -2339,7 +2339,7 @@ fn absolute(span: ByteRange, offset: usize) -> ByteRange {
 // ----- cross-file ^block-id resolution + marked-fence validation -----
 
 /// Resolve a body-contribution block-id fragment against the repo, keyed on the
-/// sigil MODE ([[type block-id::au-type-system]]), and push at most one diagnostic. Returns
+/// sigil MODE ([[type block-id::tb-type-system]]), and push at most one diagnostic. Returns
 /// whether the caller should SKIP the value claim check — there is no valid
 /// referent to check, or the file is being anchored (not asserted).
 ///
@@ -2365,7 +2365,7 @@ fn diagnose_block_id_resolution(
 ) -> bool {
     let block_id = block.id.as_str();
     let referent = block.referent;
-    // Local form ([[type reference::au-type-system]]): empty name means the host file.
+    // Local form ([[type reference::tb-type-system]]): empty name means the host file.
     let target_path = if target.is_empty() {
         source_path.to_path_buf()
     } else {
@@ -2460,7 +2460,7 @@ fn diagnose_block_id_resolution(
 
 /// Shape-check every SCALAR value that reached a field only through the body.
 ///
-/// [[type-instance body contribution::au-type-system]]: "a contribution whose value misses the slot
+/// [[type-instance body contribution::tb-type-system]]: "a contribution whose value misses the slot
 /// shape is an error". The frontmatter pass cannot deliver this — it iterates
 /// `instance.fields`, where a body-filled field is either absent or a null
 /// anchor, and a null returns early as a promise rather than a value.
@@ -2470,11 +2470,11 @@ fn diagnose_block_id_resolution(
 /// - only `Scalar`. A `Reference` is checked by the wikilink pass below and an
 ///   `InlineRecord` by `check_marked_fences`, both with better-targeted messages.
 /// - only containers carrying NO frontmatter contribution. Equal values collapse
-///   across surfaces ([[type value container::au-type-system]]), so a container holding one was
+///   across surfaces ([[type value container::tb-type-system]]), so a container holding one was
 ///   already checked by the frontmatter pass, and re-checking would double-report.
 /// - against the slot's ELEMENT shape, since one contribution is one element.
 /// - only where the slot is KNOWN. An unresolved claim yields no shape, and an
-///   out-of-shape field is a [[type extras::au-type-system]], advisory by the open-world stance.
+///   out-of-shape field is a [[type extras::tb-type-system]], advisory by the open-world stance.
 fn check_body_scalar_shapes(
     ctx: &ValidateContext<'_>,
     instance: &Instance,
@@ -2596,7 +2596,7 @@ fn check_marked_fences(
             // skip embedded-record validation for them.
             continue;
         };
-        // A marked fence reads by its SLOT ([[type-instance body contribution::au-type-system]]),
+        // A marked fence reads by its SLOT ([[type-instance body contribution::tb-type-system]]),
         // so only a fence that reads as a RECORD is validated as one. A text
         // fence — a `String` slot, an `opaque` slot, a union whose content took
         // the text branch — carries no record contract to check, and validating
@@ -2618,7 +2618,7 @@ fn check_marked_fences(
         let decl_shape_span = field_decl.map(|(d, _)| d.shape_span);
         // A REFERENCE-ONLY slot (`T*`, `file*`, `any*`, `type<T>*`, `<A | B>*`)
         // carries no inline form at all, so a fence cannot fill it
-        // ([[type-instance body contribution::au-type-system]]). The value layer still captures the
+        // ([[type-instance body contribution::tb-type-system]]). The value layer still captures the
         // content, so the contribution exists and this anchors to it, rather than
         // the fence being silently accepted as text the slot cannot hold.
         //
@@ -2852,7 +2852,7 @@ fn check_marked_fences(
     }
 }
 
-/// The [[spec - diagnostic codes::au-type-system^body-fence-read-as-record]] hint. Rides alongside
+/// The [[spec - diagnostic codes::tb-type-system^body-fence-read-as-record]] hint. Rides alongside
 /// the record failure, never replaces it.
 fn fence_read_as_record_hint(
     instance: &Instance,

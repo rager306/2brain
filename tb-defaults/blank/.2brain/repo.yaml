@@ -3,4 +3,4 @@ type: tb.engine.repo::tb-engine
 name: blank
 description: the curated empty start — host UI and agent layer, nothing composed
 deps:
-  - name: au-host-sdk
+  - name: tb-host-sdk

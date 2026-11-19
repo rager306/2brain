@@ -12,7 +12,7 @@
    "message": "workspace discover member 'aux' is declared but not mounted on this machine",
    "severity": "warning",
    "span": {
-    "file": "$FIXTURE/.arsumbris/workspace.yaml",
+    "file": "$FIXTURE/.2brain/workspace.yaml",
     "line_col": {
      "end": {
       "col": 1,
@@ -31,7 +31,7 @@
   }
  ],
  "hash": "0ae9e6640d5dd275",
- "path": "$FIXTURE/.arsumbris/workspace.yaml",
+ "path": "$FIXTURE/.2brain/workspace.yaml",
  "reflected": true,
  "untracked_files": []
 }

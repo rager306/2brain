@@ -12,6 +12,29 @@ source.
 
 ## [Unreleased]
 
+### Changed
+
+- **The old name is gone: one spelling on disk, on the wire and in every name (engine, adapter,
+  tooling, content).** ADR-0005 closes the compatibility window instead of extending it. In one
+  migration the identity directory is `.2brain` only (`.arsumbris` is refused, not preferred), the
+  type namespace is `tb.engine.*`/`::tb-engine` only (the canonicaliser and the
+  `engine-schema-legacy-spelling` advisory are deleted), `arsumbris://` is no longer a resource, the
+  state runtime directory is `<state root>/engine/` (was `au-engine`), and the engine binary is
+  `tb-engine` (was `au`).
+  - Code: `LEGACY_IDENTITY_DIR`, `LEGACY_STATE_DIR`, `LEGACY_ENGINE_NAMESPACE`,
+    `LEGACY_BUILTIN_ENGINE_REPO`, `LEGACY_RESOURCE_SCHEME` and the identity-migration rewriter are
+    removed with their advisory; `migrate identity` is now a check that reports `current` or
+    `missing`. Two negative tests prove the old spelling now *fails* (`concat!`-split so no source
+    file spells it).
+  - Content: 16 `repo.yaml` names, 79 `deps:`, the templates (now `tb-*-template`), 1 561 wikilinks
+    and 306 `au.engine.*` claims moved together — the identity name is a join key, so a half-applied
+    rename is a build error. The served vault carried zero `::au-*` links, so nothing in it moved.
+  - Disk: 288 `.arsumbris/` directories (12 identities, 276 scenarios) renamed to `.2brain/`; 213
+    scenario snapshots re-blessed, and the only diff beyond the path spelling is the renamed type
+    files in `engine-namespace-reserved`.
+  - `tools/kb/legacy_audit.py --check` now reports **0** live, 0 format, 0 content, 0 directories;
+    the only remainder is dated records (`history`, 895) and the lineage paragraph (3).
+
 ### Added
 
 - **`tools/kb/legacy_audit.py` and ADR-0005: the measured inventory of the old name and the plan to

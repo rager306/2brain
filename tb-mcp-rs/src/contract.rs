@@ -284,12 +284,9 @@ pub(crate) fn workflow_resources() -> Vec<Resource> {
 ///
 /// `None` when the URI is not in the workflow namespace at all, so the caller falls
 /// through to the member-backed read; `Some(Err(..))` when it is a workflow URI but
-/// names nothing served. The legacy scheme is accepted on read, never emitted - the
-/// same one-release window `resources.rs` documents.
+/// names nothing served. The scheme is `2brain://` only (ADR-0005).
 pub(crate) fn workflow_resource(uri: &str) -> Option<Result<&'static str, ErrorData>> {
-    let rest = uri
-        .strip_prefix("2brain://workflow/")
-        .or_else(|| uri.strip_prefix("arsumbris://workflow/"))?;
+    let rest = uri.strip_prefix("2brain://workflow/")?;
     if rest.is_empty() {
         return Some(Err(ErrorData::invalid_params(
             "a workflow resource needs a name; resources/list carries the two served",
@@ -344,13 +341,14 @@ mod tests {
     }
 
     #[test]
-    fn the_workflow_resources_are_reachable_by_both_schemes_and_unknown_names_refuse() {
-        for scheme in ["2brain", "arsumbris"] {
-            for (name, _, _, expected) in &WORKFLOW_RESOURCES {
-                let served = workflow_resource(&format!("{scheme}://workflow/{name}")).unwrap();
-                assert_eq!(served.unwrap(), *expected);
-            }
+    fn the_workflow_resources_are_reachable_by_the_one_scheme_and_unknown_names_refuse() {
+        for (name, _, _, expected) in &WORKFLOW_RESOURCES {
+            let served = workflow_resource(&format!("2brain://workflow/{name}")).unwrap();
+            assert_eq!(served.unwrap(), *expected);
         }
+        // The retired scheme is not a resource any more.
+        let old = concat!("arsum", "bris://workflow/answer-shape");
+        assert!(workflow_resource(old).is_none());
         assert!(
             workflow_resource("2brain://workflow/nothing")
                 .unwrap()

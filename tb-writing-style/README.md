@@ -10,7 +10,7 @@ tldr: Reusable writing style profiles and three skills to apply, check and exten
 
 ## What this is
 
-`au-writing-style` gives agents reusable writing style profiles.
+`tb-writing-style` gives agents reusable writing style profiles.
 Each profile selects rules that guide how the agent writes.
 
 The default `core-profile` focuses on scannability.
@@ -19,7 +19,7 @@ Its rules favor short sentences and plain words.
 
 ## How to use this
 
-Depend on `au-writing-style`.
+Depend on `tb-writing-style`.
 Select a profile in your agent launch to load its rules at session start.
 
 Load the skills your task needs:
@@ -35,8 +35,8 @@ With neither, they use `core-profile`.
 
 ## How to extend this
 
-Create your own `writing-profile::au-writing-style` in your package.
-Reuse existing rules or write `writing-rule::au-writing-style` notes for your own guidance.
+Create your own `writing-profile::tb-writing-style` in your package.
+Reuse existing rules or write `writing-rule::tb-writing-style` notes for your own guidance.
 Each profile selects at least one rule.
 
 Use `core-profile` as an example of bundling rules and loading them at session start.

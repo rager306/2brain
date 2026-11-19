@@ -1,5 +1,5 @@
 title: "Instance frontmatter uses `fields:` (a type-def-only key) — reserved-key error"
-spec_ref: "[[type-def::au-type-system]]"
+spec_ref: "[[type-def::tb-type-system]]"
 command: validate
 expected:
   codes:

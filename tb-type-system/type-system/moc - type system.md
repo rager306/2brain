@@ -88,7 +88,7 @@ For how the atoms are authored, see the README.
 - [[type-def meta]]
   - type-level metadata, never reaches an instance.
 - [[type-def meta marker]]
-  - the meta position admits only types mixing in `au.engine.meta`.
+  - the meta position admits only types mixing in `tb.engine.meta`.
 - [[type-def required meta]]
   - a base obligates every concrete subtype to carry a named meta.
 
@@ -150,7 +150,7 @@ For how the atoms are authored, see the README.
 - [[package registry]]
   - the hosted name-to-remote catalog.
 - [[engine schema files]]
-  - the hardwired `au.engine.*` defs and the engine's typed files.
+  - the hardwired `tb.engine.*` defs and the engine's typed files.
 
 # Errors
 - [[spec - diagnostic codes]]

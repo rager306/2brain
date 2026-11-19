@@ -1,5 +1,5 @@
 title: "Reference resolves but target's closure doesn't include the slot's required type"
-spec_ref: "[[type reference::au-type-system]]"
+spec_ref: "[[type reference::tb-type-system]]"
 command: validate
 expected:
   codes:

@@ -1,5 +1,5 @@
 title: "`T[+]` slot rejects an empty list with field-shape-mismatch"
-spec_ref: "[[type-def shape suffixes::au-type-system]]"
+spec_ref: "[[type-def shape suffixes::tb-type-system]]"
 command: validate
 expected:
   codes:

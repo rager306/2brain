@@ -21,7 +21,7 @@ expression: rendered
       "message": "workspace member 'shared' is listed in 'discover' but is also a declared dependency; the 'discover' listing is redundant",
       "severity": "hint",
       "span": {
-        "file": "<root>/scenarios/discover-member-redundant/.arsumbris/workspace.yaml",
+        "file": "<root>/scenarios/discover-member-redundant/.2brain/workspace.yaml",
         "line_col": {
           "end": {
             "col": 1,
@@ -134,7 +134,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/discover-member-redundant/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/discover-member-redundant/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -153,7 +153,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/discover-member-redundant/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/discover-member-redundant/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -232,7 +232,7 @@ expression: rendered
                         },
                         "start": 58
                       },
-                      "file": "<root>/scenarios/discover-member-redundant/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/discover-member-redundant/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -270,7 +270,7 @@ expression: rendered
                         },
                         "start": 10
                       },
-                      "file": "<root>/scenarios/discover-member-redundant/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/discover-member-redundant/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -303,7 +303,7 @@ expression: rendered
                         },
                         "start": 40
                       },
-                      "file": "<root>/scenarios/discover-member-redundant/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/discover-member-redundant/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -322,7 +322,7 @@ expression: rendered
             "field": "edit"
           }
         ],
-        "file": "<root>/scenarios/discover-member-redundant/.arsumbris/workspace.yaml",
+        "file": "<root>/scenarios/discover-member-redundant/.2brain/workspace.yaml",
         "section_presence": null
       },
       {
@@ -416,7 +416,7 @@ expression: rendered
                         },
                         "start": 20
                       },
-                      "file": "<root>/scenarios/discover-member-redundant/app/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/discover-member-redundant/app/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -474,7 +474,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/discover-member-redundant/app/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/discover-member-redundant/app/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -493,7 +493,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/discover-member-redundant/app/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/discover-member-redundant/app/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -600,7 +600,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/discover-member-redundant/shared/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/discover-member-redundant/shared/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -619,7 +619,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/discover-member-redundant/shared/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/discover-member-redundant/shared/.2brain/repo.yaml",
         "section_presence": null
       }
     ]

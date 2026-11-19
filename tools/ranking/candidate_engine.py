@@ -10,7 +10,7 @@ from the working tree, over a copy of the vault, with its own HOME and its own s
     tools/ranking/candidate_engine.py --stop
 
 Three details the rehearsal learned the hard way (`docs/engine-swap-2026-11-16.md`):
-- members resolve through `$HOME/.2brain/au-engine/config/repos.yaml`, so the copy gets its own HOME and a
+- members resolve through `$HOME/.2brain/tb-engine/config/repos.yaml`, so the copy gets its own HOME and a
   registry copy with **only** the `vault` entry re-pointed at the copy — leaving it at `/root/vault` would make
   the candidate index the live vault;
 - the socket name derives from the canonical path, so a copy at a different path gets a different socket name;
@@ -32,9 +32,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 VAULT = Path("/root/vault")
 RUN_DIR = Path("/tmp/candidate-engine")
-CANDIDATE = Path(os.environ.get("BRAIN_ENGINE_BINARY", ROOT / "tb-engine/target/release/au"))
-INSTALLED = Path("/root/.2brain/bin/au")
-STATE = Path("/root/.2brain/au-engine")
+CANDIDATE = Path(os.environ.get("BRAIN_ENGINE_BINARY", ROOT / "tb-engine/target/release/tb-engine"))
+INSTALLED = Path("/root/.2brain/bin/tb-engine")
+STATE = Path("/root/.2brain/tb-engine")
 
 sys.path.insert(0, str(ROOT / "tb-mcp-rs/scripts/lib"))
 
@@ -70,7 +70,7 @@ def start() -> int:
     shutil.copytree(VAULT, vault, symlinks=True)
 
     # The registry, with the one entry this copy owns re-pointed at the copy.
-    config = home / ".2brain/au-engine/config"
+    config = home / ".2brain/tb-engine/config"
     config.mkdir(parents=True)
     for name in ("repos.yaml", "workspaces.yaml"):
         source = STATE / "config" / name
@@ -96,7 +96,7 @@ def start() -> int:
             start_new_session=True,
         )
     for _ in range(60):
-        found = list((home / ".2brain/au-engine/run").glob("*.sock"))
+        found = list((home / ".2brain/tb-engine/run").glob("*.sock"))
         if found:
             (RUN_DIR / "socket").write_text(str(found[0]) + "\n")
             print(str(found[0]))

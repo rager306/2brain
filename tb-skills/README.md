@@ -10,11 +10,11 @@ tldr: Write and independently review agent skills. Load two skills and use them 
 
 ## What this is
 
-`au-skills` helps you create and review agent skills.
+`tb-skills` helps you create and review agent skills.
 
 ## How to use this
 
-Mount `au-skills`.
+Mount `tb-skills`.
 Load its two skills in your agent launch.
 
 - **write-a-skill** creates or improves a skill, from defining its task to checking its triggers and results

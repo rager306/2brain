@@ -278,7 +278,7 @@ mod tests {
 
     #[test]
     fn element_renders_a_record_with_first_key_on_the_dash() {
-        // The au-workflow action shape: `- type: action.open` then aligned fields.
+        // The tb-workflow action shape: `- type: action.open` then aligned fields.
         let out = element(
             &json!({"type": "action.open", "description": "first action"}),
             6,

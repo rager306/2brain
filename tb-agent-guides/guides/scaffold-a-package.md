@@ -6,7 +6,7 @@ rule: "Declare package identity and dependencies, then verify mounting, typed co
 
 # Scaffold a native package
 
-Declare the package's identity and vocabulary dependencies in `.arsumbris/repo.yaml`.
+Declare the package's identity and vocabulary dependencies in `.2brain/repo.yaml`.
 Give it a README with a useful tldr.
 A JavaScript package may also need package.json for its dependencies and scripts.
 

@@ -8,15 +8,15 @@ is in git history, and this one records what replaced it.
 
 | module | language | role | in the served path |
 |---|---|---|---|
-| `au-engine` | Rust | the engine: parser, type graph, diagnostics, daemon, wire, the BM25 index | **yes — the authority** |
-| `au-mcp-rs` | Rust | MCP stdio server over the engine socket; `scripts/install.sh` builds it as `/usr/local/bin/2brain` | **yes — the only front end** |
-| `au-mcp-sdk` | type definitions | the `mcp.*` vocabulary that content notes are written in (`mcp.skill`, `mcp.inject`, …) | no — it is a contract, and `au-weave`/`au-rules` depend on it |
-| `au-type-system`, `au-base-types`, `au-rules`, `au-skills`, `au-agent-guides`, `au-writing-style`, `au-competency`, `au-defaults`, `au-govern` | YAML + Markdown | vocabulary, rules, guides, templates, audits | content, mounted as members |
-| `au-ingest` | YAML contracts + one fixture script | source → markdown contracts | offline toolchain |
+| `tb-engine` | Rust | the engine: parser, type graph, diagnostics, daemon, wire, the BM25 index | **yes — the authority** |
+| `tb-mcp-rs` | Rust | MCP stdio server over the engine socket; `scripts/install.sh` builds it as `/usr/local/bin/2brain` | **yes — the only front end** |
+| `tb-mcp-sdk` | type definitions | the `mcp.*` vocabulary that content notes are written in (`mcp.skill`, `mcp.inject`, …) | no — it is a contract, and `tb-weave`/`tb-rules` depend on it |
+| `tb-type-system`, `tb-base-types`, `tb-rules`, `tb-skills`, `tb-agent-guides`, `tb-writing-style`, `tb-competency`, `tb-defaults`, `tb-govern` | YAML + Markdown | vocabulary, rules, guides, templates, audits | content, mounted as members |
+| `tb-ingest` | YAML contracts + one fixture script | source → markdown contracts | offline toolchain |
 
 ## What is gone (2026-11-16)
 
-`au-mcp` (Node daemon), `au-mcp-core` (49 tool definitions and their implementations), both client
+`tb-mcp` (Node daemon), `tb-mcp-core` (49 tool definitions and their implementations), both client
 adapters, `au-mcp-bridge` (the Python bridge), `au-engine-sdk` (the Node client) and `au-type-codegen`
 (all TypeScript), plus `arsumbris-mcp.service`. Reasons and measurements:
 `docs/internal/serving-parity.md`, `docs/repo-inventory.md`, `docs/internal/detach-and-consolidate.md`.

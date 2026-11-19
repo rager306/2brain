@@ -1,5 +1,5 @@
 title: "A union's `*` branch is reference-only — an inline record there is not compatible"
-spec_ref: "[[type-def shape compound::au-type-system]], [[type reference::au-type-system]]"
+spec_ref: "[[type-def shape compound::tb-type-system]], [[type reference::tb-type-system]]"
 command: validate
 expected:
   codes:

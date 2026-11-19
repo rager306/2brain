@@ -1,5 +1,5 @@
 title: "Wikilink fragments out of name/#head/^block-id/:field order fire wikilink-fragment-order"
-spec_ref: "[[type reference::au-type-system]]"
+spec_ref: "[[type reference::tb-type-system]]"
 command: validate
 expected:
   codes:

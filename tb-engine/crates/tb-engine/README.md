@@ -1,4 +1,4 @@
-# au-engine
+# tb-engine
 
 The continuously-held analysis of a knowledge base.
 
@@ -36,7 +36,7 @@ type graph, validate every instance, index references, then serve reads.
   frame is tagged by `type` and carries a schema version; a read's `response`
   carries the readiness and, when ready, the observed version.
 - `socket_path(entry)` derives the per-entry endpoint
-  (`~/.2brain/au-engine/run/<hash>.sock` on a migrated or fresh home, `~/.arsumbris` otherwise; the FNV-1a of the absolute entry path), so
+  (`~/.2brain/engine/run/<hash>.sock` on a migrated or fresh home, `~/.2brain` otherwise; the FNV-1a of the absolute entry path), so
   the daemon and any consumer reach it from the entry path alone, off a deep
   knowledge base path that could overrun the socket-path limit.
 - Reads: diagnostics (whole-knowledge-base, or scoped by path / path-prefix / severity /
@@ -73,7 +73,7 @@ type graph, validate every instance, index references, then serve reads.
   IR into the wire shapes; spans carry canonical byte offsets plus the derived
   `line_col` rendering for every file the build read.
 
-au-core stays pure analysis. au-cli renders this crate's output. This crate owns
+tb-core stays pure analysis. tb-cli renders this crate's output. This crate owns
 the orchestration, the held state, the wire shapes, and the serving surface.
 
 ## Scope

@@ -28,8 +28,6 @@ use crate::transport::{EngineTransport, Launch, SCHEMA_VERSION, UnixTransport, a
 /// dependency is `tb-cli`, and `init` proves its own output with
 /// `tb_cli::verify_entry` instead of trusting this constant.
 const IDENTITY_DIR: &str = ".2brain";
-/// The spelling a machine that has not been migrated still carries.
-const LEGACY_IDENTITY_DIR: &str = ".arsumbris";
 /// The marker file that makes a directory a repository.
 const IDENTITY_MARKER: &str = "repo.yaml";
 /// How long `doctor` waits for one engine answer.
@@ -52,11 +50,11 @@ pub struct Resolved {
 pub enum Origin {
     /// A `.sock` path given as an argument: no state root was consulted.
     Given,
-    /// Derived for a workspace: `<state root>/au-engine/run/<hash>.sock`.
+    /// Derived for a workspace: `<state root>/engine/run/<hash>.sock`.
     Derived {
         /// The workspace entry the socket was hashed from.
         target: PathBuf,
-        /// The engine's device area, `$HOME/.2brain` or `$HOME/.arsumbris`.
+        /// The engine's device area, `$HOME/.2brain` or `$HOME/.2brain`.
         state_root: PathBuf,
         /// The directory the engine's `.sock` files live in.
         run_dir: PathBuf,
@@ -66,7 +64,7 @@ pub enum Origin {
 }
 
 /// The socket a target names: a `.sock` path as given, anything else a workspace
-/// entry whose socket is derived the way `au daemon start` derives it.
+/// entry whose socket is derived the way `tb-engine daemon start` derives it.
 ///
 /// The entry is canonicalized first because the daemon hashes a canonical path
 /// (`tb_engine::serve::socket_path` documents this), and a symlinked or relative
@@ -84,7 +82,7 @@ pub fn resolve(target: &Path) -> Result<Resolved, String> {
     let target =
         fs::canonicalize(target).map_err(|error| format!("{}: {error}", target.display()))?;
     let socket = tb_cli::socket_path(&target);
-    // The socket sits at `<state root>/au-engine/run/<hash>.sock`, so the root is
+    // The socket sits at `<state root>/engine/run/<hash>.sock`, so the root is
     // read back from the path the engine will be asked for rather than derived a
     // second time from `$HOME`: one derivation, and the report names it.
     let run_dir = socket
@@ -234,14 +232,12 @@ fn create(directory: &Path, template: Option<&str>, force: bool) -> Result<Creat
     // A directory that already carries an identity is a workspace, and a second
     // one on top of it would leave two identities in one place. `--force` never
     // reaches this: it is about files, not about an existing workspace.
-    for identity in [IDENTITY_DIR, LEGACY_IDENTITY_DIR] {
-        if root.join(identity).exists() {
-            return Err(format!(
-                "{} already has {identity}/, so it is already a workspace; \
-                 choose an empty directory, or remove {identity}/ to start over",
-                root.display()
-            ));
-        }
+    if root.join(IDENTITY_DIR).exists() {
+        return Err(format!(
+            "{} already has {IDENTITY_DIR}/, so it is already a workspace; \
+             choose an empty directory, or remove {IDENTITY_DIR}/ to start over",
+            root.display()
+        ));
     }
     if !force && let Some(first) = first_entry(&root)? {
         return Err(format!(
@@ -291,7 +287,7 @@ fn create(directory: &Path, template: Option<&str>, force: bool) -> Result<Creat
         write_new(&root.join("README.md"), &readme_markdown(&name))?;
     }
 
-    // The same preflight `au daemon start` runs: if this passes, the engine will
+    // The same preflight `tb-engine daemon start` runs: if this passes, the engine will
     // open what was just written, and if it does not the message says why.
     tb_cli::verify_entry(&root)
         .map_err(|error| format!("the engine will not open {}: {error}", root.display()))?;
@@ -401,20 +397,16 @@ fn identity_yaml(name: &str) -> String {
     format!("type: tb.engine.repo::tb-engine\nname: {name}\n")
 }
 
-/// The identity directory `root` holds, under either spelling.
+/// The identity directory `root` holds.
 fn existing_identity(root: &Path) -> Option<PathBuf> {
-    [IDENTITY_DIR, LEGACY_IDENTITY_DIR]
-        .into_iter()
-        .map(|identity| root.join(identity))
-        .find(|identity| identity.is_dir())
+    let identity = root.join(IDENTITY_DIR);
+    identity.is_dir().then_some(identity)
 }
 
 /// The identity marker that makes `root` a repository the engine will open.
 fn identity_marker_of(root: &Path) -> Option<PathBuf> {
-    [IDENTITY_DIR, LEGACY_IDENTITY_DIR]
-        .into_iter()
-        .map(|identity| root.join(identity).join(IDENTITY_MARKER))
-        .find(|marker| marker.is_file())
+    let marker = root.join(IDENTITY_DIR).join(IDENTITY_MARKER);
+    marker.is_file().then_some(marker)
 }
 
 /// Rewrite a copied starter's identity to `name`: the top-level `name:` of its

@@ -1,5 +1,5 @@
 # mcp.hook — the BASE for KERNEL-INTERNAL capabilities (the split of decision 2608242056).
-# A hook is a SUBTYPE (`mcp.hook.au_recorder`, `mcp.hook.gate`, ...) that hooks a kernel
+# A hook is a SUBTYPE (`mcp.hook.tb_recorder`, `mcp.hook.gate`, ...) that hooks a kernel
 # phase (mediate -> act -> observe); the agent never sees it and never invokes it. Its
 # runtime data (entry, shapes, deps, priority, critical) rides a typed `plugin-runtime-meta`
 # sub-region, read off the def via the engine (type owner -> meta.entry), exactly like
@@ -21,7 +21,7 @@
 # That is the whole point of the split: an observer / mediator / stamper no longer fires
 # `subtype-missing-required-meta` for a description it should never have had.
 #
-# DISCOVERY: au-mcp reads `mcp.tool` and `mcp.hook` together (or `subtypes('mcp')` and
+# DISCOVERY: tb-mcp reads `mcp.tool` and `mcp.hook` together (or `subtypes('mcp')` and
 # dispatches by base), keying the registry off tool-vs-hook rather than a `callable` shape
 # flag.
 #

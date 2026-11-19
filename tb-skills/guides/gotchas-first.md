@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Place advice about a known mistake at the decision where it can prevent a repeat.
 rule: Describe the symptom, the mistaken action and the correction beside the affected step.
 ---

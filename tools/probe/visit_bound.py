@@ -261,12 +261,12 @@ def start_engine(binary: Path, entry: Path, home: Path, log_path: Path) -> tuple
             raise SystemExit(
                 f"engine for {entry} exited before binding a socket: see {log_path}"
             )
-        # Both spellings of the per-user state directory: `~/.arsumbris` is the
+        # Both spellings of the per-user state directory: `~/.2brain` is the
         # engine's historical name and `~/.2brain` the served one, and a fresh
         # HOME holds whichever the binary writes, so the probe follows the binary
         # rather than assuming one.
-        for state in (".2brain", ".arsumbris"):
-            for candidate in sorted((home / state / "au-engine" / "run").glob("*.sock")):
+        for state in (".2brain", ".2brain"):
+            for candidate in sorted((home / state / "tb-engine" / "run").glob("*.sock")):
                 return process, candidate, log
         time.sleep(0.1)
     process.terminate()
@@ -312,7 +312,7 @@ def main() -> int:
     parser.add_argument(
         "--binary",
         type=Path,
-        default=Path(__file__).resolve().parents[2] / "tb-engine/target/release/au",
+        default=Path(__file__).resolve().parents[2] / "tb-engine/target/release/tb-engine",
         help="the engine binary to start on each copy (default: the workspace release build)",
     )
     parser.add_argument(

@@ -90,7 +90,7 @@ pub(crate) fn decide(
     }
 
     // The cross-repo peer gate (mode 1): a qualified mixin must resolve to a
-    // declared, present dependency that owns the type. au-core's value gate below
+    // declared, present dependency that owns the type. tb-core's value gate below
     // DEFERS a qualified claim, so this engine-side gate owns the resolution
     // failures. A bare mixin has no `::repo` and falls to the value gate.
     if let Some(repo_q) = &claim.repo {
@@ -285,7 +285,7 @@ mod tests {
     /// `tag`), `sub` (extends `marker`), and a colliding `x` pair.
     fn kb() -> KnowledgeBase {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  title: String\n".to_vec(),

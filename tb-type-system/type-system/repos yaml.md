@@ -1,4 +1,4 @@
-The per-user `~/.arsumbris/au-engine/config/repos.yaml` file,
+The per-user `~/.2brain/engine/config/repos.yaml` file,
 the device-global registry mapping every known repo name to its remote and local path.
 
 See [[cross-repo file set]] for the whole file set.
@@ -7,12 +7,12 @@ See [[cross repo typed graph]] for the workspace of repos it serves.
 # Properties
 
 ## Per-user, device-global
-One file per user, `~/.arsumbris/au-engine/config/repos.yaml`.
+One file per user, `~/.2brain/engine/config/repos.yaml`.
 - shared across every workspace on the machine.
 - never committed as identity, this machine's view of where repos sit.
 
 ## A typed node
-A typed instance of the hardwired `au.engine.repos` def.
+A typed instance of the hardwired `tb.engine.repos` def.
 - device-global, so validated on the `device_config` read.
 - not a knowledge base node, it sits outside every knowledge base.
 - see [[engine schema files]].
@@ -49,7 +49,7 @@ The engine owns the write, the consumer drives it.
 
 ## Read-injected
 The read path is an injected port, like the `FileSystem` port.
-- default, the device root `$HOME/.arsumbris`, then `tb-engine/config/repos.yaml`.
+- default, the device root `$HOME/.2brain`, then `engine/config/repos.yaml`.
 - `$HOME` is required, an unset `$HOME` refuses rather than falling back.
 - a test injects a tempdir standing in for the device root, so no test reads the developer's real registry.
 - the injected path is the build's determinism seam.
@@ -67,7 +67,7 @@ Two different registries, do not conflate.
 
 # Structure
 ```yaml
-# ~/.arsumbris/au-engine/config/repos.yaml
+# ~/.2brain/engine/config/repos.yaml
 repos:
   - name: library
     remote: git@github.com:org/library.git

@@ -1,7 +1,7 @@
 //! The workspace composition verbs over the socket: `add_workspace_member`,
 //! `remove_workspace_member`, `set_workspace_member_role`,
 //! `set_workspace_member_disabled`, authoring
-//! `<member>/.arsumbris/workspace.yaml`. A guard-bypass like `set_config`, but the
+//! `<member>/.2brain/workspace.yaml`. A guard-bypass like `set_config`, but the
 //! file is a first-class node, so the change re-resolves and rebuilds; an absent
 //! file is created self-complete (the containing repo seeded into `edit:`).
 //!
@@ -65,7 +65,7 @@ fn started() -> Harness {
 }
 
 fn ws_yaml(h: &Harness) -> String {
-    fs::read_to_string(h.root.join(".arsumbris").join("workspace.yaml")).unwrap()
+    fs::read_to_string(h.root.join(".2brain").join("workspace.yaml")).unwrap()
 }
 
 fn codes(resp: &Value) -> Vec<String> {
@@ -211,7 +211,7 @@ fn remove_member_rejects_an_absent_name() {
 /// saga refuses a dirty target, so the seed is committed; the engine rebuilds so
 /// the held view matches.
 fn seed_ws_yaml(h: &Harness, content: &str) {
-    fs::write(h.root.join(".arsumbris").join("workspace.yaml"), content).unwrap();
+    fs::write(h.root.join(".2brain").join("workspace.yaml"), content).unwrap();
     git(&h.root, &["add", "-A"]);
     git(&h.root, &["commit", "-q", "-m", "seed workspace.yaml"]);
     h._engine.rebuild();
@@ -441,7 +441,7 @@ fn started_with_siblings() -> Harness {
     let dir = tempfile::tempdir().unwrap();
     let base = fs::canonicalize(dir.path()).unwrap();
     for name in ["ws", "peer", "other"] {
-        let reg = base.join(name).join(".arsumbris");
+        let reg = base.join(name).join(".2brain");
         fs::create_dir_all(&reg).unwrap();
         fs::write(reg.join("repo.yaml"), format!("name: {name}\n")).unwrap();
     }
@@ -478,7 +478,7 @@ fn an_absent_root_authors_the_served_entry_beside_sibling_members() {
         .unwrap();
     assert_eq!(first["ready"], true, "{first}");
     // Then an edit sibling: a default scope that fell to it would author
-    // `peer/.arsumbris/workspace.yaml` and commit in `peer`.
+    // `peer/.2brain/workspace.yaml` and commit in `peer`.
     let second = h
         .client
         .query(&json!({ "mutate": "add_workspace_member", "name": "peer", "role": "edit" }))
@@ -498,10 +498,7 @@ fn an_absent_root_authors_the_served_entry_beside_sibling_members() {
     let base = h.root.parent().unwrap();
     for sibling in ["peer", "other"] {
         assert!(
-            !base
-                .join(sibling)
-                .join(".arsumbris/workspace.yaml")
-                .exists(),
+            !base.join(sibling).join(".2brain/workspace.yaml").exists(),
             "no workspace.yaml was authored in sibling '{sibling}'"
         );
     }
@@ -554,7 +551,7 @@ fn an_absent_root_repo_config_read_resolves_to_the_served_entry() {
         resp["result"]["config"]["path"],
         json!(
             h.root
-                .join(".arsumbris/host-app/config/panel.yaml")
+                .join(".2brain/host-app/config/panel.yaml")
                 .display()
                 .to_string()
         ),

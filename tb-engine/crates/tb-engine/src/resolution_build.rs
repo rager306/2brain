@@ -1,6 +1,6 @@
 //! Engine-side construction of the per-repo cross-repo resolution graphs.
 //!
-//! au-core owns the [`fold`] algorithm (the `TypeId`-keyed claim / parent fold,
+//! tb-core owns the [`fold`] algorithm (the `TypeId`-keyed claim / parent fold,
 //! see [[design - cross-repo type vocabulary - reference import and vendor as one spectrum over the repo qualifier]]),
 //! but only the engine knows the workspace's repos, so the engine supplies the
 //! [`PeerGraphResolver`] over [`RepoGraphs`] and discovers the import set from
@@ -345,7 +345,7 @@ pub(crate) fn owner_relative_effective_shape(
 
 /// Collect every `::repo`-qualified claim an instance makes, its frontmatter
 /// identity claim plus any inline-record claim in its field values. Unqualified
-/// claims are au-core's own concern and contribute no seed.
+/// claims are tb-core's own concern and contribute no seed.
 fn collect_instance_seeds(inst: &Instance, out: &mut Vec<(TypeName, String)>) {
     for claim in inst.type_claim.iter() {
         if let Some(repo) = &claim.repo {
@@ -594,15 +594,15 @@ mod tests {
     /// and carries `app_files`.
     fn build_two_repo(app_files: &[(&str, &str)]) -> KnowledgeBase {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
         fs.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             "edit:\n  - v\n  - base\n  - app\n",
         );
-        fs.insert("/v/base/.arsumbris/repo.yaml", "name: base\n");
+        fs.insert("/v/base/.2brain/repo.yaml", "name: base\n");
         fs.insert("/v/base/type/note.type.yaml", "fields:\n  title: String\n");
         fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
+            "/v/app/.2brain/repo.yaml",
             "name: app\ndeps:\n  - name: base\n",
         );
         for (rel, content) in app_files {
@@ -618,11 +618,11 @@ mod tests {
     #[test]
     fn a_repo_with_no_user_imports_folds_only_the_builtin_engine_schema() {
         // app owns its own `card` and authors no `::repo`. But its `repo.yaml` is
-        // a typed instance claiming `au.engine.repo::au-engine`, so app folds the
+        // a typed instance claiming `tb.engine.repo::tb-engine`, so app folds the
         // builtin engine schema (visible, not filtered) and thus HAS a resolution
-        // graph — carrying au.engine.repo, but no user peer type.
+        // graph — carrying tb.engine.repo, but no user peer type.
         let v = build_two_repo(&[("type/card.type.yaml", "fields:\n  n: Number\n")]);
-        let rg = app(&v).expect("repo.yaml imports au.engine.repo, so app folds it");
+        let rg = app(&v).expect("repo.yaml imports tb.engine.repo, so app folds it");
         assert!(
             rg.resolve_authored(
                 &tb_core::TypeName("tb.engine.repo".into()),
@@ -770,18 +770,18 @@ mod tests {
     /// the current (undiagnosed) state so the fix flips it GREEN.
     fn build_mutual_cycle() -> KnowledgeBase {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
         fs.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             "edit:\n  - v\n  - base\n  - app\n",
         );
         fs.insert(
-            "/v/base/.arsumbris/repo.yaml",
+            "/v/base/.2brain/repo.yaml",
             "name: base\ndeps:\n  - name: app\n",
         );
         fs.insert("/v/base/type/b.type.yaml", "extends: a::app\n");
         fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
+            "/v/app/.2brain/repo.yaml",
             "name: app\ndeps:\n  - name: base\n",
         );
         fs.insert("/v/app/type/a.type.yaml", "extends: b::base\n");
@@ -862,13 +862,13 @@ mod tests {
     /// parent), so each aborts its own.
     fn build_mutual_cycle_with_instances() -> KnowledgeBase {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
         fs.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             "edit:\n  - v\n  - base\n  - app\n",
         );
         fs.insert(
-            "/v/base/.arsumbris/repo.yaml",
+            "/v/base/.2brain/repo.yaml",
             "name: base\ndeps:\n  - name: app\n",
         );
         fs.insert(
@@ -877,7 +877,7 @@ mod tests {
         );
         fs.insert("/v/base/inst-b.md", "---\ntype: b\n---\n");
         fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
+            "/v/app/.2brain/repo.yaml",
             "name: app\ndeps:\n  - name: base\n",
         );
         fs.insert(
@@ -930,15 +930,15 @@ mod tests {
     /// claim like the frontmatter form (review 2.2).
     fn build_nested_peer_fixture(body_form: bool) -> KnowledgeBase {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
         fs.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             "edit:\n  - v\n  - base\n  - app\n",
         );
-        fs.insert("/v/base/.arsumbris/repo.yaml", "name: base\n");
+        fs.insert("/v/base/.2brain/repo.yaml", "name: base\n");
         fs.insert("/v/base/type/note.type.yaml", "fields:\n  title: String\n");
         fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
+            "/v/app/.2brain/repo.yaml",
             "name: app\ndeps:\n  - name: base\n",
         );
         fs.insert(
@@ -994,9 +994,9 @@ mod tests {
     }
     fn build_self_repo_fixture() -> KnowledgeBase {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
-        fs.insert("/v/.arsumbris/workspace.yaml", "edit:\n  - v\n  - app\n");
-        fs.insert("/v/app/.arsumbris/repo.yaml", "name: app\n");
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/workspace.yaml", "edit:\n  - v\n  - app\n");
+        fs.insert("/v/app/.2brain/repo.yaml", "name: app\n");
         fs.insert("/v/app/type/note.type.yaml", "fields:\n  title: String\n");
         fs.insert("/v/app/n.md", "---\ntype: note::app\n---\n");
         build(Path::new("/v"), &fs).unwrap()
@@ -1026,12 +1026,12 @@ mod tests {
     /// `tag::base` from a field-shape slot, which is NOT an import.
     fn build_imports_fixture() -> KnowledgeBase {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
         fs.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             "edit:\n  - v\n  - base\n  - app\n",
         );
-        fs.insert("/v/base/.arsumbris/repo.yaml", "name: base\n");
+        fs.insert("/v/base/.2brain/repo.yaml", "name: base\n");
         fs.insert("/v/base/type/note.type.yaml", "fields:\n  title: String\n");
         fs.insert("/v/base/type/tag.type.yaml", "fields:\n  label: String\n");
         fs.insert("/v/base/type/dm.type.yaml", "fields: {}\n");
@@ -1040,7 +1040,7 @@ mod tests {
             "fields: {}\nbody:\n  - section: S\n",
         );
         fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
+            "/v/app/.2brain/repo.yaml",
             "name: app\ndeps:\n  - name: base\n",
         );
         // claim import
@@ -1082,7 +1082,7 @@ mod tests {
             !has("tag"),
             "field-shape tag::base* is a reference, not an import: {imports:?}"
         );
-        // app's stamped `repo.yaml` claims `au.engine.repo::au-engine`, so the
+        // app's stamped `repo.yaml` claims `tb.engine.repo::tb-engine`, so the
         // config-schema dependency surfaces as an import too — the builtin peer
         // is visible, not filtered (see the plan's visible-vs-prelude decision).
         assert!(
@@ -1091,10 +1091,10 @@ mod tests {
                 TypeName("tb.engine.repo".into()),
                 "tb-engine".to_string()
             )),
-            "the stamped repo.yaml surfaces au.engine.repo::au-engine as an import: {imports:?}"
+            "the stamped repo.yaml surfaces tb.engine.repo::tb-engine as an import: {imports:?}"
         );
         // Three user imports from base, note::base deduped across its two sites,
-        // plus the one builtin au.engine.repo import: four total.
+        // plus the one builtin tb.engine.repo import: four total.
         assert_eq!(
             imports.iter().filter(|(r, _, _)| r == &app).count(),
             4,
@@ -1107,16 +1107,16 @@ mod tests {
     /// `note::base` directly (an instance) and via a subtype (`card` extends it).
     fn build_instances_of_fixture() -> KnowledgeBase {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
         fs.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             "edit:\n  - v\n  - base\n  - app\n",
         );
-        fs.insert("/v/base/.arsumbris/repo.yaml", "name: base\n");
+        fs.insert("/v/base/.2brain/repo.yaml", "name: base\n");
         fs.insert("/v/base/type/note.type.yaml", "fields:\n  title: String\n");
         fs.insert("/v/base/bn.md", "---\ntype: note\ntitle: x\n---\n");
         fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
+            "/v/app/.2brain/repo.yaml",
             "name: app\ndeps:\n  - name: base\n",
         );
         // app's OWN note, diverged fields → a distinct identity from base's note.
@@ -1199,8 +1199,8 @@ mod tests {
         let v = build_imports_fixture();
         let imports = crate::wire::introspect_list_imports(&v, crate::wire::TypeScope::all());
         // Three USER imports (app → base), plus the config-schema import each
-        // repo.yaml surfaces (`v`, `app`, `base` → au.engine.repo), plus the entry
-        // `v`'s workspace.yaml (→ au.engine.workspace): seven total. The builtin
+        // repo.yaml surfaces (`v`, `app`, `base` → tb.engine.repo), plus the entry
+        // `v`'s workspace.yaml (→ tb.engine.workspace): seven total. The builtin
         // peer is VISIBLE, not filtered (the plan's decision).
         assert_eq!(
             imports.len(),
@@ -1224,9 +1224,9 @@ mod tests {
             !names.contains(&"tag"),
             "the field-shape reference is excluded"
         );
-        // The config-schema imports: every repo.yaml surfaces au.engine.repo (the
+        // The config-schema imports: every repo.yaml surfaces tb.engine.repo (the
         // entry `v`, `app`, `base`), and the entry's workspace.yaml surfaces
-        // au.engine.workspace.
+        // tb.engine.workspace.
         let repo_schema: Vec<_> = imports
             .iter()
             .filter(|i| i.name == "tb.engine.repo")
@@ -1234,7 +1234,7 @@ mod tests {
         assert_eq!(
             repo_schema.len(),
             3,
-            "the entry `v`, `app`, and `base` each import au.engine.repo"
+            "the entry `v`, `app`, and `base` each import tb.engine.repo"
         );
         assert!(
             repo_schema
@@ -1245,7 +1245,7 @@ mod tests {
             imports
                 .iter()
                 .any(|i| i.name == "tb.engine.workspace" && i.importer == "v"),
-            "the entry `v`'s workspace.yaml imports au.engine.workspace"
+            "the entry `v`'s workspace.yaml imports tb.engine.workspace"
         );
     }
 }
@@ -1262,17 +1262,17 @@ mod bodyuse_tests {
     /// `base` (present, owns `base_files`) and `app` (peers base, owns `app_files`).
     fn build_repos(base_files: &[(&str, &str)], app_files: &[(&str, &str)]) -> KnowledgeBase {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
         fs.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             "edit:\n  - v\n  - base\n  - app\n",
         );
-        fs.insert("/v/base/.arsumbris/repo.yaml", "name: base\n");
+        fs.insert("/v/base/.2brain/repo.yaml", "name: base\n");
         for (rel, c) in base_files {
             fs.insert(format!("/v/base/{rel}"), *c);
         }
         fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
+            "/v/app/.2brain/repo.yaml",
             "name: app\ndeps:\n  - name: base\n",
         );
         for (rel, c) in app_files {
@@ -1442,15 +1442,15 @@ mod candidate_scope_tests {
         // scan must suggest the OWN `titled` (proving it runs) and must NOT suggest
         // the peer `note` (proving it stays own-graph-scoped, never the peer vocab).
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
         fs.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             "edit:\n  - v\n  - base\n  - app\n",
         );
-        fs.insert("/v/base/.arsumbris/repo.yaml", "name: base\n");
+        fs.insert("/v/base/.2brain/repo.yaml", "name: base\n");
         fs.insert("/v/base/type/note.type.yaml", "fields:\n  title: String\n");
         fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
+            "/v/app/.2brain/repo.yaml",
             "name: app\ndeps:\n  - name: base\n",
         );
         fs.insert("/v/app/type/titled.type.yaml", "fields:\n  title: String\n");
@@ -1499,17 +1499,17 @@ mod qualified_demand_tests {
     /// `::repo` field shapes.
     fn build_repos(base_files: &[(&str, &str)], app_files: &[(&str, &str)]) -> KnowledgeBase {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
         fs.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             "edit:\n  - v\n  - base\n  - app\n",
         );
-        fs.insert("/v/base/.arsumbris/repo.yaml", "name: base\n");
+        fs.insert("/v/base/.2brain/repo.yaml", "name: base\n");
         for (rel, c) in base_files {
             fs.insert(format!("/v/base/{rel}"), *c);
         }
         fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
+            "/v/app/.2brain/repo.yaml",
             "name: app\ndeps:\n  - name: base\n",
         );
         for (rel, c) in app_files {

@@ -14,15 +14,15 @@ whatever directory encloses the temporary parent.
 ## Regenerate
 
 ```sh
-RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --manifest-path ../tb-engine/Cargo.toml -p tb-cli --bin au
-CAPTURE_FIXTURES=1 RUSTUP_HOME=/root/.rustup TB_ENGINE_BIN=../tb-engine/target/debug/au \
+RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --manifest-path ../tb-engine/Cargo.toml -p tb-cli --bin tb-engine
+CAPTURE_FIXTURES=1 RUSTUP_HOME=/root/.rustup TB_ENGINE_BIN=../tb-engine/target/debug/tb-engine \
   cargo +1.99.0 test --offline --test real_engine -- --ignored --test-threads=1
 ```
 
 ## Verify
 
 ```sh
-RUSTUP_HOME=/root/.rustup TB_ENGINE_BIN=../tb-engine/target/debug/au \
+RUSTUP_HOME=/root/.rustup TB_ENGINE_BIN=../tb-engine/target/debug/tb-engine \
   cargo +1.99.0 test --offline --test real_engine -- --ignored
 ```
 

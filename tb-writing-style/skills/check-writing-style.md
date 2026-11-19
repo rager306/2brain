@@ -1,7 +1,7 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: check-writing-style
-description: Audits a note's prose against the active house writing voice and reports where it breaks the writing-rules, rule by rule, without rewriting. Use when the human asks to check, audit, or review a note against the writing style, to find style violations, or to see whether it holds the house standard. Do not use to fix or rewrite a note (that is apply-writing-style), for the discipline rules (those are au-rules), or on code, data, or quoted text.
+description: Audits a note's prose against the active house writing voice and reports where it breaks the writing-rules, rule by rule, without rewriting. Use when the human asks to check, audit, or review a note against the writing style, to find style violations, or to see whether it holds the house standard. Do not use to fix or rewrite a note (that is apply-writing-style), for the discipline rules (those are tb-rules), or on code, data, or quoted text.
 ---
 
 # check-writing-style
@@ -21,9 +21,9 @@ Use the first available profile:
 
 1. The profile the human specifies for this task
 2. The active injected profile identified by the launch context
-3. [[core-profile::au-writing-style]]
+3. [[core-profile::tb-writing-style]]
 
-Find profiles with `tb_instances_of {ofType: "writing-profile::au-writing-style", resolve: true}`.
+Find profiles with `tb_instances_of {ofType: "writing-profile::tb-writing-style", resolve: true}`.
 
 Read the chosen profile and only its effective `rules`, in order.
 Read any missing rule bodies in full.

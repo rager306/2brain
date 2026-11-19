@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Review an artifact independently of the reasoning that produced it.
 rule: Give a fresh reader the actual artifact and applicable criteria. Check its findings against the evidence before acting.
 ---

@@ -10,7 +10,7 @@ tldr: Shared types for 2Brain knowledge. Use them in your notes or extend them f
 
 ## General Context
 
-`au-base-types` is the shared vocabulary for 2Brain knowledge repos.
+`tb-base-types` is the shared vocabulary for 2Brain knowledge repos.
 Other packages build their own types and workflows on it.
 
 ## What this is
@@ -35,24 +35,24 @@ Two abstract traits let concrete types carry additional meaning:
 
 ## How to use this
 
-Depend on `au-base-types` in your repo's `.arsumbris/repo.yaml`.
-Use a concrete type in a note's frontmatter, such as `type: idea::au-base-types`.
+Depend on `tb-base-types` in your repo's `.2brain/repo.yaml`.
+Use a concrete type in a note's frontmatter, such as `type: idea::tb-base-types`.
 Supply its required fields and keep the note in your own repo.
 
 **See it in use**
 
-- `au-tree-research` builds a research corpus with `article` notes and a `map.computed-index`
-- `au-weave` builds connected `concept`, `claim` and `entity` notes, organized through `map.overview` and `map.synthesis`
+- `tb-tree-research` builds a research corpus with `article` notes and a `map.computed-index`
+- `tb-weave` builds connected `concept`, `claim` and `entity` notes, organized through `map.overview` and `map.synthesis`
 
 ## How to extend this
 
 Define your own types in your package.
-Name a parent with `extends`, for example `extends: idea::au-base-types`.
+Name a parent with `extends`, for example `extends: idea::tb-base-types`.
 Add fields for the distinctions your work needs.
 Inherited fields remain part of the type and cannot be redeclared.
 
 Include `lens` or `supersede` in a concrete type's `extends` list when it needs those traits.
-Use qualified parent names, such as `lens::au-base-types`.
+Use qualified parent names, such as `lens::tb-base-types`.
 Instances claim the concrete type.
 Each perspective kind defines its own typed subject field.
 

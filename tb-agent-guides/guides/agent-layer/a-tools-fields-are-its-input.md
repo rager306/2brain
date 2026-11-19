@@ -2,7 +2,7 @@
 type: guide.gotcha
 goal: "Define a tool's public input without maintaining a duplicate schema."
 rule: "Author public arguments as type fields, inspect the generated schema, and check runtime rules at the operation boundary."
-about: "[[mcp.tool::au-mcp-sdk]]"
+about: "[[mcp.tool::tb-mcp-sdk]]"
 example:
 ---
 
@@ -12,7 +12,7 @@ Author public arguments in the tool type's fields and descriptions.
 The daemon generates the advertised JSON Schema from those effective fields.
 Maintain that source instead of a parallel argument catalogue.
 
-[[mcp.tool.au_agent_guide::au-agent-guides:example]] declares selectors in fields and implements their meaning in its serving module.
+[[mcp.tool.tb_agent_guide::tb-agent-guides:example]] declares selectors in fields and implements their meaning in its serving module.
 The schema describes the arguments.
 The implementation checks relationships such as mutually exclusive selectors.
 

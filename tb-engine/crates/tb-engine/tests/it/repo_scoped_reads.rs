@@ -24,9 +24,9 @@ fn fixture() -> (tempfile::TempDir, PathBuf) {
         fs::write(p, content).unwrap();
     };
     crate::seed_workspace(&root, &["base", "app"]);
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     w("base/type/note.type.yaml", "fields:\n  title: String\n");

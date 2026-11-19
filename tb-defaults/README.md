@@ -1,4 +1,4 @@
-# au-defaults
+# tb-defaults
 
 Starter workspaces and shared bundles for Ars Umbris. The host discovers this repository through the device's `workspace-template-repos.yaml`, reads `workspace-templates.yaml` before starting the graph, and preserves its order.
 

@@ -1,15 +1,15 @@
 //! Slot-expression parser.
 //!
 //! `parse_shape(&str) -> Result<Shape, ShapeParseError>` is the entry point.
-//! The grammar is the slot-expression mini-language from [[type-def field shape::au-type-system]].
-//! Recognizes [[type-def shape primitive::au-type-system]] primitives, [[type-def shape enum::au-type-system]] inline closed enums, [[type-def shape record::au-type-system]]
-//! bare-name records, [[type-def shape suffixes::au-type-system]] typed references (`name*`, incl. `file*`),
-//! [[type-def shape suffixes::au-type-system]] inline-or-reference (`name&`), the [[type-def shape suffixes::au-type-system]] list suffix `[]`,
-//! [[type-def shape compound::au-type-system]] compound expressions (`<X | Y>`, `<X & Y>`), and the [[type-def shape suffixes::au-type-system]]
+//! The grammar is the slot-expression mini-language from [[type-def field shape::tb-type-system]].
+//! Recognizes [[type-def shape primitive::tb-type-system]] primitives, [[type-def shape enum::tb-type-system]] inline closed enums, [[type-def shape record::tb-type-system]]
+//! bare-name records, [[type-def shape suffixes::tb-type-system]] typed references (`name*`, incl. `file*`),
+//! [[type-def shape suffixes::tb-type-system]] inline-or-reference (`name&`), the [[type-def shape suffixes::tb-type-system]] list suffix `[]`,
+//! [[type-def shape compound::tb-type-system]] compound expressions (`<X | Y>`, `<X & Y>`), and the [[type-def shape suffixes::tb-type-system]]
 //! suffix matrix on compounds (`<...>*`, `<...>&`, `<...>[]`).
 //!
 //! `ShapeParseError` carries `code`, `severity`, and `message`; callers attach
-//! the source `Span` to produce a full `Diagnostic`. au-grammar has no notion
+//! the source `Span` to produce a full `Diagnostic`. tb-grammar has no notion
 //! of source files — it parses strings.
 
 use std::fmt;
@@ -19,7 +19,7 @@ use tb_diagnostics::{ByteRange, DiagnosticCode, Severity};
 
 /// Forward-compat hook for future deferred shape features. No
 /// `parse_shape` path produces this code today, and no validate-time
-/// path emits it for currently-supported shapes. au-core test helpers
+/// path emits it for currently-supported shapes. tb-core test helpers
 /// still synthesize this code into `parsed_shape: Err(...)` to exercise
 /// the lazy-surfacing-on-use mechanism (see `validate.rs::td()` and
 /// `load_checks.rs::td_with_unparsed_field`); this keeps the lazy
@@ -30,13 +30,13 @@ use tb_diagnostics::{ByteRange, DiagnosticCode, Severity};
 pub const NOT_YET_IMPLEMENTED_SHAPE_FEATURE: DiagnosticCode =
     DiagnosticCode::from_static("not-yet-implemented-shape-feature");
 pub const SHAPE_SYNTAX_ERROR: DiagnosticCode = DiagnosticCode::from_static("shape-syntax-error");
-/// A malformed value refinement ([[type-def field shape::au-type-system]], `Base{predicate}`): a
+/// A malformed value refinement ([[type-def field shape::tb-type-system]], `Base{predicate}`): a
 /// predicate invalid for its base, a duplicate-kind predicate, a bad number
 /// literal, an unterminated regex, or an empty / non-primitive refinement. Also
 /// emitted at load for a regex that does not compile or a bad temporal literal.
 pub const REFINEMENT_BAD_SHAPE: DiagnosticCode =
     DiagnosticCode::from_static("refinement-bad-shape");
-/// A malformed list cardinality suffix ([[type-def shape suffixes::au-type-system]], `T[x..y]`): an
+/// A malformed list cardinality suffix ([[type-def shape suffixes::tb-type-system]], `T[x..y]`): an
 /// inverted range (`[5..1]`), a non-integer or negative bound, or the redundant
 /// `[..]`.
 pub const CARDINALITY_BAD_SHAPE: DiagnosticCode =
@@ -49,10 +49,10 @@ pub const CARDINALITY_BAD_SHAPE: DiagnosticCode =
 /// run of `[]`, or deeply nested `<...>` — produces a `shape-syntax-error`
 /// instead of overflowing the stack and aborting the process. Set far above
 /// any legitimate shape (real shapes nest a handful of levels at most),
-/// mirroring au-core's `MAX_TYPE_CHAIN_DEPTH` and au-parser's `MAX_WALK_DEPTH`.
+/// mirroring tb-core's `MAX_TYPE_CHAIN_DEPTH` and tb-parser's `MAX_WALK_DEPTH`.
 const MAX_SHAPE_DEPTH: usize = 64;
 
-/// [[type-def shape primitive::au-type-system]].
+/// [[type-def shape primitive::tb-type-system]].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Primitive {
     String,
@@ -76,14 +76,14 @@ impl Primitive {
     }
 }
 
-/// A value refinement on a scalar primitive base ([[type-def field shape::au-type-system]]),
+/// A value refinement on a scalar primitive base ([[type-def field shape::tb-type-system]]),
 /// the `{predicate}` in `Number{>=0 & integer}` / `String{/^[a-z]+$/}`. A MEET
 /// on the base's value lattice: comparison bounds, an `integer` flag, and a
 /// regex pattern, at most one of each. A numeric bound's literal is stored
 /// canonicalized (shortest exact decimal, so `>=0` and `>=0.0` are one identity);
-/// a temporal bound stores the source literal, whose calendar validity au-core
+/// a temporal bound stores the source literal, whose calendar validity tb-core
 /// checks. `pattern` is the text between the `/.../` delimiters verbatim (a
-/// literal slash stays `\/`); au-core compiles it and enforces the regular subset.
+/// literal slash stays `\/`); tb-core compiles it and enforces the regular subset.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Refinement {
     pub lower: Option<Bound>,
@@ -100,27 +100,27 @@ pub struct Bound {
     pub inclusive: bool,
 }
 
-/// [[type-def field shape::au-type-system]]. `Enum` literals are stored in declaration order — token
-/// equality ([[type-def fields collision - auto-unify and qualified field::au-type-system]]) is structural over this `Vec`, so `[a, b] != [b, a]`.
+/// [[type-def field shape::tb-type-system]]. `Enum` literals are stored in declaration order — token
+/// equality ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]) is structural over this `Vec`, so `[a, b] != [b, a]`.
 /// Same ordering rule applies to `Union`/`Intersection` branches and
 /// `CompoundReference.branches`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Shape {
     Primitive(Primitive),
-    /// Inline closed enum ([[type-def shape enum::au-type-system]]). Each entry is a literal value as it
+    /// Inline closed enum ([[type-def shape enum::tb-type-system]]). Each entry is a literal value as it
     /// appeared on the source side, after whitespace trimming around commas.
     /// Whitespace inside a literal is rejected; quoted literals are not yet
     /// supported.
     Enum(Vec<String>),
-    /// The no-type slot ([[type-def shape any::au-type-system]], bare `any`). Holds an inline value of any
+    /// The no-type slot ([[type-def shape any::tb-type-system]], bare `any`). Holds an inline value of any
     /// shape, stored verbatim and uninterpreted: no shape check, no
     /// nested-`type:` claim, no wikilink scan, no candidate scan. The reference
     /// forms `any*` / `any&` are not this variant — they parse as
     /// `Shape::Reference("any")` / `Shape::InlineOrReference("any")`, the `"any"`
     /// sentinel resolves engine-side like `"file"`, any node by existence with
-    /// no closure check ([[type-def shape any::au-type-system]]).
+    /// no closure check ([[type-def shape any::tb-type-system]]).
     Any,
-    /// The uninterpreted inline slot ([[type-def shape opaque::au-type-system]], bare `opaque`).
+    /// The uninterpreted inline slot ([[type-def shape opaque::tb-type-system]], bare `opaque`).
     /// Holds an inline value of any shape, stored VERBATIM and never read: no
     /// shape check, no nested-`type:` claim, no candidate scan. The interpreted
     /// top type is `Shape::Any`; `opaque` is its uninterpreted sibling. Inline
@@ -128,26 +128,26 @@ pub enum Shape {
     /// definition, so the top-type reference is `any*` / `any&`. The list form
     /// `opaque[]` / `opaque[+]` is a `Shape::List` wrapping this variant. The
     /// wikilink/edge suppression is the intent and not yet wired, see
-    /// [[type-def shape opaque::au-type-system]].
+    /// [[type-def shape opaque::tb-type-system]].
     Opaque,
-    /// Typed reference ([[type-def shape suffixes::au-type-system]], `name*`). Target file's `type:` closure
+    /// Typed reference ([[type-def shape suffixes::tb-type-system]], `name*`). Target file's `type:` closure
     /// must include `name`. Built-in `file` is an in-grammar literal but
-    /// resolves engine-side without a closure check ([[type-def shape file::au-type-system]]). The string
-    /// is the type-def name as written, optionally `::repo`-qualified; au-core
-    /// enforces the [[type-def legal names::au-type-system]] regex and existence in the type graph.
+    /// resolves engine-side without a closure check ([[type-def shape file::tb-type-system]]). The string
+    /// is the type-def name as written, optionally `::repo`-qualified; tb-core
+    /// enforces the [[type-def legal names::tb-type-system]] regex and existence in the type graph.
     Reference(QualifiedName),
-    /// Bare-name record slot ([[type-def shape record::au-type-system]], e.g. `rationale`). Value must be
-    /// an inline YAML map ([[type-def shape record::au-type-system]]); the slot's demanded type-def supplies the
+    /// Bare-name record slot ([[type-def shape record::tb-type-system]], e.g. `rationale`). Value must be
+    /// an inline YAML map ([[type-def shape record::tb-type-system]]); the slot's demanded type-def supplies the
     /// effective shape. Distinct from `Shape::Reference` (which is `name*`
     /// and wants a wikilink) and `Shape::InlineOrReference` (which is
     /// `name&` and accepts both).
     Record(QualifiedName),
-    /// Bare-name inline-or-reference slot ([[type-def shape suffixes::au-type-system]], `name&`). Value may
-    /// be an inline map ([[type-def shape record::au-type-system]]) or a `[[wikilink]]` string whose target's
+    /// Bare-name inline-or-reference slot ([[type-def shape suffixes::tb-type-system]], `name&`). Value may
+    /// be an inline map ([[type-def shape record::tb-type-system]]) or a `[[wikilink]]` string whose target's
     /// closure includes `name`. The single-name parallel to
     /// `Shape::CompoundReference { mode: Inline, .. }`.
     InlineOrReference(QualifiedName),
-    /// List of values matching the wrapped shape. [[type-def shape suffixes::au-type-system]].
+    /// List of values matching the wrapped shape. [[type-def shape suffixes::tb-type-system]].
     /// Range cardinality: `min` is the inclusive lower bound on the element
     /// count, `max` the inclusive upper (`None` is unbounded above). The source
     /// suffixes desugar here: `[]` is `{min:0, max:None}`, `[+]` is
@@ -160,19 +160,19 @@ pub enum Shape {
         min: u32,
         max: Option<u32>,
     },
-    /// Slot-level union ([[type-def shape compound::au-type-system]], `<X | Y>`). Branch order is preserved
-    /// — `<A | B>` ≠ `<B | A>` per the [[type-def fields collision - auto-unify and qualified field::au-type-system]] structural-equality rule. The
+    /// Slot-level union ([[type-def shape compound::tb-type-system]], `<X | Y>`). Branch order is preserved
+    /// — `<A | B>` ≠ `<B | A>` per the [[type-def fields collision - auto-unify and qualified field::tb-type-system]] structural-equality rule. The
     /// AST allows N branches: `<A | B | C>` parses as one `Union` with
     /// three entries (chained, not nested).
     Union(Vec<Shape>),
-    /// Slot-level intersection ([[type-def shape compound::au-type-system]], `<X & Y>`). Same N-ary,
+    /// Slot-level intersection ([[type-def shape compound::tb-type-system]], `<X & Y>`). Same N-ary,
     /// order-significant shape as `Union`.
     Intersection(Vec<Shape>),
-    /// Reference suffix attached to a compound expression ([[type-def shape suffixes::au-type-system]]):
+    /// Reference suffix attached to a compound expression ([[type-def shape suffixes::tb-type-system]]):
     /// `<X | Y>*` / `<X | Y>&` (Union of branches) or `<X & Y>*` /
     /// `<X & Y>&` (Intersection). `branches` are bare type-def names —
     /// primitives and inline enums in the compound are rejected at parse
-    /// time per [[type-def shape suffixes::au-type-system]] ("operands are all type-def names"). Validation
+    /// time per [[type-def shape suffixes::tb-type-system]] ("operands are all type-def names"). Validation
     /// semantics: the value's reference target's `type:` closure must
     /// satisfy the compound (any-of for Union, all-of for Intersection).
     /// `Inline` mode (`&`) defers validation to the inline-value phase.
@@ -181,7 +181,7 @@ pub enum Shape {
         op: CompoundRefOp,
         branches: Vec<QualifiedName>,
     },
-    /// Typed reference to a type-def ([[type-def shape def-ref::au-type-system]], `type<T>*` /
+    /// Typed reference to a type-def ([[type-def shape def-ref::tb-type-system]], `type<T>*` /
     /// `type*`). The def-axis sibling of `Shape::Reference` (`T*`): the value is
     /// a wikilink to a `.type.yaml` file, and the constraint is checked against
     /// that target def's [[type-def type]] parent closure, not an instance's
@@ -191,7 +191,7 @@ pub enum Shape {
     /// reserved in reference position; `type*` here is the def-ref, never a
     /// reference to a type-def literally named `type`.
     DefReference(Option<DefBound>),
-    /// Commit-pinned reference ([[type-def shape suffixes::au-type-system]], the `@` postfix). Wraps a
+    /// Commit-pinned reference ([[type-def shape suffixes::tb-type-system]], the `@` postfix). Wraps a
     /// `*` reference-bearing inner shape and demands every value carry a `@commit`
     /// pin: `file*@`, `any*@`, `T*@`, `<A | B>*@`, `type<T>*@`. `@` attaches only
     /// to `*`, so `T&@` is a `shape-syntax-error` (a `&` inline branch cannot pin,
@@ -202,7 +202,7 @@ pub enum Shape {
     /// but does not re-resolve or drift-check it, see
     /// [[spec - pinned references - a recorded resolved edge with an immutable past and an on-demand forward trace]].
     Pinned(Box<Shape>),
-    /// Value refinement on a scalar primitive ([[type-def field shape::au-type-system]], the
+    /// Value refinement on a scalar primitive ([[type-def field shape::tb-type-system]], the
     /// `Base{predicate}` form, e.g. `Number{>=0 & integer}`). `base` is the
     /// refinable primitive, `refinement` the meet narrowing it. Inline only: a
     /// refined primitive is not reference-bearing and takes no `*` / `&` / `@`.
@@ -210,7 +210,7 @@ pub enum Shape {
         base: Primitive,
         refinement: Refinement,
     },
-    /// Tuple, a fixed-arity positional product ([[type-def shape refinement::au-type-system]] sibling,
+    /// Tuple, a fixed-arity positional product ([[type-def shape refinement::tb-type-system]] sibling,
     /// [[spec - branded types - the shape key names a reusable scalar, enum, union, or tuple]]):
     /// `(A, B, ...)`, every element required, each a full shape. Element order is
     /// significant — `(String, Number)` ≠ `(Number, String)` — like `Enum` /
@@ -220,7 +220,7 @@ pub enum Shape {
     Tuple(Vec<Shape>),
 }
 
-/// The constraint inside a `type<...>*` def-reference ([[type-def shape def-ref::au-type-system]]).
+/// The constraint inside a `type<...>*` def-reference ([[type-def shape def-ref::tb-type-system]]).
 /// Mirrors the compound-of-names that `*` / `&` accept, on the def axis: the
 /// named ceilings are matched against the target type-def's parent closure.
 /// Branch order is preserved, like `Union` / `CompoundReference.branches`.
@@ -236,7 +236,7 @@ pub enum DefBound {
     },
 }
 
-/// Suffix kind on a compound reference (`*` or `&`). [[type-def shape suffixes::au-type-system]].
+/// Suffix kind on a compound reference (`*` or `&`). [[type-def shape suffixes::tb-type-system]].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RefMode {
     /// `<...>*` — typed reference. Value must be a wikilink; target's
@@ -260,7 +260,7 @@ impl RefMode {
 
 /// Compound operator on a compound reference. Mirrors `Shape::Union` /
 /// `Shape::Intersection` for the suffix-bearing case but flattens the
-/// branches to bare names per [[type-def shape suffixes::au-type-system]].
+/// branches to bare names per [[type-def shape suffixes::tb-type-system]].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CompoundRefOp {
     /// `<X | Y>` — target's closure satisfies any of `branches`.
@@ -291,8 +291,8 @@ impl fmt::Display for Primitive {
 /// graph at fold time. See [[design - cross-repo type vocabulary - reference import and vendor as one spectrum over the repo qualifier]].
 ///
 /// The `::` delimiter is unambiguous in shape position: `:` is not a shape
-/// operator and is illegal inside a [[type-def legal names::au-type-system]] name, so a `::`
-/// can only be the repo qualifier. The base is the [[type-def legal names::au-type-system]]
+/// operator and is illegal inside a [[type-def legal names::tb-type-system]] name, so a `::`
+/// can only be the repo qualifier. The base is the [[type-def legal names::tb-type-system]]
 /// type-name; the repo is a single-segment identifier.
 ///
 /// Serializes transparently as its source string (`base` or `base::repo`), so
@@ -594,7 +594,7 @@ fn write_compound(f: &mut fmt::Formatter<'_>, branches: &[Shape], op: char) -> f
     f.write_str(">")
 }
 
-/// Failure from `parse_shape`. Spanless — the caller (au-core graph build)
+/// Failure from `parse_shape`. Spanless — the caller (tb-core graph build)
 /// pairs this with the field's `shape_span` to make a full `Diagnostic`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShapeParseError {
@@ -680,25 +680,25 @@ fn shape_name_role(name: &str) -> ShapeSpanRole {
 /// Recognized today:
 /// - `String` / `Number` / `Boolean` / `Date` / `DateTime` → `Shape::Primitive`
 /// - `[v1, v2, ...]` → `Shape::Enum`
-/// - bare `any` → `Shape::Any` ([[type-def shape any::au-type-system]], the no-type inline slot)
-/// - bare `name` → `Shape::Record` ([[type-def shape record::au-type-system]] record-slot, inline only)
+/// - bare `any` → `Shape::Any` ([[type-def shape any::tb-type-system]], the no-type inline slot)
+/// - bare `name` → `Shape::Record` ([[type-def shape record::tb-type-system]] record-slot, inline only)
 /// - `name*` (incl. `file*`, `decision.decided*`) → `Shape::Reference`
 /// - `name&` → `Shape::InlineOrReference` (inline or wikilink)
 /// - `<inner>[]` → `Shape::List` (where `<inner>` is any recognized shape)
-/// - `<X | Y>` → `Shape::Union`, `<X & Y>` → `Shape::Intersection` ([[type-def shape compound::au-type-system]])
+/// - `<X | Y>` → `Shape::Union`, `<X & Y>` → `Shape::Intersection` ([[type-def shape compound::tb-type-system]])
 /// - `<X | Y>*` / `<X & Y>*` / `<X | Y>&` / `<X & Y>&` → `Shape::CompoundReference`
-/// - `type*` / `type<T>*` / `type<a | b>*` / `type<a & b>*` → `Shape::DefReference` ([[type-def shape def-ref::au-type-system]])
-/// - `<ref>*@` (e.g. `file*@`, `T*@`, `<A | B>*@`, `type<T>*@`) → `Shape::Pinned` ([[type-def shape suffixes::au-type-system]], the commit-pin postfix; `@` requires `*`, so `T&@` is rejected)
+/// - `type*` / `type<T>*` / `type<a | b>*` / `type<a & b>*` → `Shape::DefReference` ([[type-def shape def-ref::tb-type-system]])
+/// - `<ref>*@` (e.g. `file*@`, `T*@`, `<A | B>*@`, `type<T>*@`) → `Shape::Pinned` ([[type-def shape suffixes::tb-type-system]], the commit-pin postfix; `@` requires `*`, so `T&@` is rejected)
 ///
 /// Rejected (`shape-syntax-error`):
 /// - `@` on a non-reference (`String@`, `[a, b]@`, bare `T@`), a double `@` (`T*@@`)
 /// - `@` on a `&` inline-or-reference (`T&@`): `@` requires `*`, a `&` inline branch cannot pin (write `< T& | T*@ >`)
 /// - Empty / whitespace-only / leading non-identifier
 /// - `*` / `&` on primitives, inline enums, or compounds containing them
-/// - Bare `file` and `file&` ([[type-def shape file::au-type-system]]: `file` is meaningful only with `*`)
-/// - `type<T>` / `type<T>&` ([[type-def shape def-ref::au-type-system]]: def-refs are reference-only, `*` is part of the keyword)
+/// - Bare `file` and `file&` ([[type-def shape file::tb-type-system]]: `file` is meaningful only with `*`)
+/// - `type<T>` / `type<T>&` ([[type-def shape def-ref::tb-type-system]]: def-refs are reference-only, `*` is part of the keyword)
 /// - Empty / single-branch compounds, mixed `|`/`&` operators in one compound
-/// - Names violating the [[type-def legal names::au-type-system]] type-name regex
+/// - Names violating the [[type-def legal names::tb-type-system]] type-name regex
 ///
 /// `not-yet-implemented-shape-feature` is reserved for future deferred
 /// features but no `parse_shape` path produces it today.
@@ -748,7 +748,7 @@ fn parse_shape_core(raw: &str, ctx: &mut SpanCtx) -> Result<Shape, ShapeParseErr
     parse_with_list_suffix(trimmed, 0, ctx)
 }
 
-/// [[type-def shape suffixes::au-type-system]]: `[]` (and its atomic non-empty variant `[+]`) attach last
+/// [[type-def shape suffixes::tb-type-system]]: `[]` (and its atomic non-empty variant `[+]`) attach last
 /// (outermost). Strip any number of trailing `[]` / `[+]` first and recurse,
 /// then dispatch to `parse_unlisted` for the inner shape. Falls through
 /// cleanly for non-list inputs.
@@ -818,7 +818,7 @@ fn split_trailing_list_suffix(s: &str) -> Option<(&str, &str)> {
 }
 
 /// Parse the content of a `[...]` list-cardinality suffix into an inclusive
-/// `(min, max)` count bound. [[type-def shape suffixes::au-type-system]]. The sugar and range
+/// `(min, max)` count bound. [[type-def shape suffixes::tb-type-system]]. The sugar and range
 /// forms: `[]` is `(0, None)`, `[+]` is `(1, None)`, `[n]` is `(n, Some(n))`,
 /// `[x..]` is `(x, None)`, `[..m]` is `(0, Some(m))`, `[x..y]` is
 /// `(x, Some(y))`. `[..]` is rejected as redundant with `[]`, an inverted
@@ -871,7 +871,7 @@ fn parse_count(s: &str) -> Result<u32, ShapeParseError> {
 /// when no suffix is present. `depth` is forwarded unchanged — this is a
 /// dispatch step, not a nesting level.
 fn parse_unlisted(s: &str, depth: usize, ctx: &mut SpanCtx) -> Result<Shape, ShapeParseError> {
-    // [[type-def shape suffixes::au-type-system]]: the `@` pin-enforcement attaches after the
+    // [[type-def shape suffixes::tb-type-system]]: the `@` pin-enforcement attaches after the
     // reference suffix and before the list suffix, so it strips here first,
     // outside the `*` / `&`. `T*@[]` already had its `[]` stripped upstream, so
     // the inner under `@` is never a list.
@@ -887,7 +887,7 @@ fn parse_unlisted(s: &str, depth: usize, ctx: &mut SpanCtx) -> Result<Shape, Sha
     parse_atom(s, depth, ctx)
 }
 
-/// Inner side of the `@` pin-enforcement postfix ([[type-def shape suffixes::au-type-system]]). The
+/// Inner side of the `@` pin-enforcement postfix ([[type-def shape suffixes::tb-type-system]]). The
 /// `@` attaches only to a `*` reference — never to a primitive, enum, bare
 /// record, or a `&` inline-or-reference. `T&@` is a contradiction, the `@`
 /// demands a pin while `&`'s inline branch cannot carry one, so it is rejected;
@@ -925,7 +925,7 @@ fn parse_pinned(prefix: &str, depth: usize, ctx: &mut SpanCtx) -> Result<Shape, 
 /// list and `*@` pin wrappers. `T*`, `T*[]`, `T*@`, and `T*@[]` all yield the
 /// same inner `T*`.
 ///
-/// Wrapper order is fixed by [[type-def shape suffixes::au-type-system]] (reference suffix,
+/// Wrapper order is fixed by [[type-def shape suffixes::tb-type-system]] (reference suffix,
 /// then `@`, then the list suffix), but this loops rather than assuming a
 /// depth, so a future wrapper composes without changing callers.
 pub fn slot_element_shape(shape: &Shape) -> &Shape {
@@ -942,7 +942,7 @@ pub fn slot_element_shape(shape: &Shape) -> &Shape {
 ///
 /// This is the gate the value layer uses to decide whether a whole-value
 /// wikilink is a `reference` container or the literal string
-/// ([[type reference::au-type-system]], "Navigational versus validated": a validated reference
+/// ([[type reference::tb-type-system]], "Navigational versus validated": a validated reference
 /// needs BOTH that the slot admits one AND that the value is exactly one
 /// `[[...]]`).
 pub fn slot_admits_reference(shape: &Shape) -> bool {
@@ -960,7 +960,7 @@ pub fn slot_admits_reference(shape: &Shape) -> bool {
 }
 
 /// Whether a slot is list-cardinality, so its value yields one container PER
-/// ELEMENT ([[type value container::au-type-system]]: "a field's effective value is a list of
+/// ELEMENT ([[type value container::tb-type-system]]: "a field's effective value is a list of
 /// value containers"). `List` is always the OUTERMOST wrapper — `T*@[]` parses
 /// as `List(Pinned(Reference))` and the inner is never a list.
 pub fn slot_is_list(shape: &Shape) -> bool {
@@ -970,7 +970,7 @@ pub fn slot_is_list(shape: &Shape) -> bool {
 /// How a slot reads NON-record content, or `None` where it reads none.
 ///
 /// The text half of the body-fence content-form question, see
-/// [[type-instance body contribution::au-type-system]]. Pairs with [`slot_admits_record`]: a slot
+/// [[type-instance body contribution::tb-type-system]]. Pairs with [`slot_admits_record`]: a slot
 /// answering both is a compound, and the content disambiguates it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextForm {
@@ -983,7 +983,7 @@ pub enum TextForm {
     /// Parsing is not optional here: `` `[:count] 42` `` yields a number, so a
     /// fence over `42` must too, or the two carriers produce unequal values for
     /// identical content, fail to collapse, and one authored value counts twice
-    /// against cardinality ([[type value container::au-type-system]]).
+    /// against cardinality ([[type value container::tb-type-system]]).
     Scalar,
 }
 
@@ -993,9 +993,9 @@ pub enum TextForm {
 /// [`slot_admits_reference`]'s any-branch rule for compounds.
 ///
 /// The interpreted top `any` and its `any&` inline branch DO admit a record: a
-/// mapping value reads as an inline record ([[type-def shape any::au-type-system]], interpreted).
+/// mapping value reads as an inline record ([[type-def shape any::tb-type-system]], interpreted).
 /// The uninterpreted `opaque` never does, its fence reads verbatim only
-/// ([[type-def shape opaque::au-type-system]]), so it falls to the `_` arm.
+/// ([[type-def shape opaque::tb-type-system]]), so it falls to the `_` arm.
 pub fn slot_admits_record(shape: &Shape) -> bool {
     match slot_element_shape(shape) {
         Shape::Union(branches) | Shape::Intersection(branches) => {
@@ -1032,7 +1032,7 @@ pub fn slot_text_form(shape: &Shape) -> Option<TextForm> {
         } => Some(TextForm::Verbatim),
         Shape::Refined { .. } => Some(TextForm::Scalar),
         Shape::Primitive(_) | Shape::Enum(_) => Some(TextForm::Scalar),
-        // `any&` admits an inline value, the interpreted top ([[type-def shape any::au-type-system]]).
+        // `any&` admits an inline value, the interpreted top ([[type-def shape any::tb-type-system]]).
         // It also admits a record (`slot_admits_record`), so the two together read
         // a fence by value-shape: a mapping is a record, anything else keeps its
         // text (verbatim here).
@@ -1077,7 +1077,7 @@ pub fn slot_text_form(shape: &Shape) -> Option<TextForm> {
 /// scalar interpretation lives.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Constructor {
-    /// The brand name before the `(`, a valid [[type-def legal names::au-type-system]] token,
+    /// The brand name before the `(`, a valid [[type-def legal names::tb-type-system]] token,
     /// `::repo`-qualifiable (a peer's brand, `icon-role::sdk(save)`).
     pub name: String,
     /// The positional argument strings, split on top-level commas and trimmed.
@@ -1094,7 +1094,7 @@ pub struct Constructor {
 /// Tri-state so validation can tell a plain value from a broken one: a bare
 /// scalar coerces silently, a well-formed constructor is checked against the
 /// slot's brand, and a value that STARTS a `Name(` shape but does not close as
-/// one surfaces `malformed-constructor` (a warning). au-grammar emits no
+/// one surfaces `malformed-constructor` (a warning). tb-grammar emits no
 /// diagnostics — it has no source files — so the discrimination is returned, not
 /// reported.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1112,7 +1112,7 @@ pub enum ConstructorMatch {
 }
 
 /// The outcome of applying [`recognize_tuple`] to an instance value: the NAMELESS
-/// paren tuple form `(a, b)` an inline tuple slot takes ([[type-def shape tuple::au-type-system]]).
+/// paren tuple form `(a, b)` an inline tuple slot takes ([[type-def shape tuple::tb-type-system]]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TupleMatch {
     /// Not a paren form: the value does not start `(`. A `[...]` bracket is a
@@ -1181,7 +1181,7 @@ fn parse_paren_args(body: &str) -> Option<Vec<String>> {
 }
 
 /// Recognize the NAMELESS paren tuple form `(a, b)`, the value an inline tuple
-/// slot `(A, B)` takes ([[type-def shape tuple::au-type-system]]). A `[...]` bracket is always a
+/// slot `(A, B)` takes ([[type-def shape tuple::tb-type-system]]). A `[...]` bracket is always a
 /// LIST value and never reaches here. A named `Name(a, b)` is a brand constructor,
 /// see [`recognize_constructor`].
 pub fn recognize_tuple(raw: &str) -> TupleMatch {
@@ -1197,7 +1197,7 @@ pub fn recognize_tuple(raw: &str) -> TupleMatch {
 
 /// Recognize a `Name(...)` constructor in an instance value string.
 ///
-/// "Starts a constructor" means a leading run of [[type-def legal names::au-type-system]] name
+/// "Starts a constructor" means a leading run of [[type-def legal names::tb-type-system]] name
 /// characters (`::repo`-qualifiable) followed IMMEDIATELY by `(`, no whitespace
 /// between. This tight-token rule keeps a prose value like `save (the file)` from
 /// reading as a constructor — the space before `(` breaks the token. A value with
@@ -1235,7 +1235,7 @@ pub fn recognize_constructor(raw: &str) -> ConstructorMatch {
     }
 }
 
-/// A constructor name is a leading run matching the [[type-def legal names::au-type-system]]
+/// A constructor name is a leading run matching the [[type-def legal names::tb-type-system]]
 /// type-name token, optionally `::repo`-qualified. Reuses the shape-side
 /// validators so the value form and the slot form agree on what a name is.
 fn is_constructor_name(s: &str) -> bool {
@@ -1255,7 +1255,7 @@ fn is_reference_bearing(shape: &Shape) -> bool {
     )
 }
 
-/// Inner side of a `*` reference suffix. [[type-def shape suffixes::au-type-system]]: `*` may attach to a
+/// Inner side of a `*` reference suffix. [[type-def shape suffixes::tb-type-system]]: `*` may attach to a
 /// type-def name (incl. dotted sealed-leaf names) or the built-in `file`.
 /// It MUST NOT attach to primitives, inline enums, or — once they exist —
 /// compounds containing primitives/enums.
@@ -1273,7 +1273,7 @@ fn parse_reference(
     if first == '<' {
         return parse_compound_with_suffix(prefix, RefMode::Star, depth, ctx);
     }
-    // [[type-def shape def-ref::au-type-system]]: the `type` keyword in reference position is a
+    // [[type-def shape def-ref::tb-type-system]]: the `type` keyword in reference position is a
     // typed type-def reference, not a reference to a type-def named "type".
     // `type*` is unconstrained; `type<T>*` carries a def-axis bound.
     if prefix == "type" {
@@ -1285,9 +1285,9 @@ fn parse_reference(
         ctx.record(&prefix[..4], ShapeSpanRole::Builtin);
         return Ok(Shape::DefReference(Some(parse_def_bound(bound, ctx)?)));
     }
-    // Split off an optional `::repo` peer qualifier ([[type-def shape suffixes::au-type-system]]:
+    // Split off an optional `::repo` peer qualifier ([[type-def shape suffixes::tb-type-system]]:
     // the qualifier binds to the name, before the suffixes). The base is then
-    // validated as a [[type-def legal names::au-type-system]] name; a `::repo` on a built-in is
+    // validated as a [[type-def legal names::tb-type-system]] name; a `::repo` on a built-in is
     // rejected by `qualified_name`.
     let (base, repo) = split_repo_qualifier(prefix)?;
     if base.contains('{') {
@@ -1325,10 +1325,10 @@ fn parse_reference(
     Ok(Shape::Reference(name))
 }
 
-/// Inner side of an `&` (inline-or-reference) suffix. [[type-def shape suffixes::au-type-system]]: `&` may
+/// Inner side of an `&` (inline-or-reference) suffix. [[type-def shape suffixes::tb-type-system]]: `&` may
 /// attach to a type-def name (incl. dotted sealed-leaf names) or to a
 /// compound. Like `*`, it MUST NOT attach to primitives, inline enums, or
-/// compounds containing them. `file&` is rejected outright ([[type-def shape file::au-type-system]]:
+/// compounds containing them. `file&` is rejected outright ([[type-def shape file::tb-type-system]]:
 /// `file*` is the only meaningful form for the built-in any-repo-file
 /// reference). Single-name input produces `Shape::InlineOrReference`;
 /// compound input delegates to `parse_compound_with_suffix`.
@@ -1346,7 +1346,7 @@ fn parse_inline_or_ref(
     if first == '<' {
         return parse_compound_with_suffix(prefix, RefMode::Inline, depth, ctx);
     }
-    // [[type-def shape def-ref::au-type-system]]: def-refs are reference-only, there is no
+    // [[type-def shape def-ref::tb-type-system]]: def-refs are reference-only, there is no
     // `type*`/`type<T>*` inline-or-reference form. Reject `type&` / `type<T>&`.
     if prefix == "type" || strip_type_bound(prefix).is_some() {
         return Err(syntax_error(
@@ -1413,12 +1413,12 @@ fn parse_atom(s: &str, depth: usize, ctx: &mut SpanCtx) -> Result<Shape, ShapePa
             first
         )));
     }
-    // A value refinement `Base{predicate}` on a primitive base ([[type-def field shape::au-type-system]]).
+    // A value refinement `Base{predicate}` on a primitive base ([[type-def field shape::tb-type-system]]).
     // The base name is alphabetic, so a `{` here opens a refinement.
     if let Some(brace_pos) = s.find('{') {
         return parse_refinement(s, brace_pos, ctx);
     }
-    // [[type-def shape def-ref::au-type-system]]: `type<...>` is reference-only. A bound with no
+    // [[type-def shape def-ref::tb-type-system]]: `type<...>` is reference-only. A bound with no
     // `*` is ill-formed — the `*` is part of the keyword form. (`type<...>*` and
     // `type*` are intercepted in `parse_reference`; bare `type` with no bracket
     // falls through to the record-name path below.)
@@ -1442,13 +1442,13 @@ fn parse_atom(s: &str, depth: usize, ctx: &mut SpanCtx) -> Result<Shape, ShapePa
     }
     match s {
         // Unlike `file`, bare `any` has an inline form: the no-type slot
-        // ([[type-def shape any::au-type-system]]). `any*` / `any&` route through
+        // ([[type-def shape any::tb-type-system]]). `any*` / `any&` route through
         // `parse_reference` / `parse_inline_or_ref` before reaching here.
         "any" => {
             ctx.record(s, ShapeSpanRole::Builtin);
             Ok(Shape::Any)
         }
-        // The uninterpreted inline slot ([[type-def shape opaque::au-type-system]]). Like `any`
+        // The uninterpreted inline slot ([[type-def shape opaque::tb-type-system]]). Like `any`
         // it has an inline form; unlike `any` it has NO reference form, so
         // `opaque*` / `opaque&` are rejected in `parse_reference` /
         // `parse_inline_or_ref` before reaching here.
@@ -1460,10 +1460,10 @@ fn parse_atom(s: &str, depth: usize, ctx: &mut SpanCtx) -> Result<Shape, ShapePa
             "bare 'file' is not meaningful; use 'file*' for any-repo-file references",
         )),
         other => {
-            // Bare-name record slot ([[type-def shape record::au-type-system]], e.g. `rationale`), optionally
-            // `::repo`-qualified. Value must be an inline YAML map ([[type-def shape record::au-type-system]]).
-            // au-core verifies the name exists in the type graph; au-grammar only
-            // enforces the [[type-def legal names::au-type-system]] type-name regex here.
+            // Bare-name record slot ([[type-def shape record::tb-type-system]], e.g. `rationale`), optionally
+            // `::repo`-qualified. Value must be an inline YAML map ([[type-def shape record::tb-type-system]]).
+            // tb-core verifies the name exists in the type graph; tb-grammar only
+            // enforces the [[type-def legal names::tb-type-system]] type-name regex here.
             let (base, repo) = split_repo_qualifier(other)?;
             if !is_valid_type_name(base) {
                 return Err(syntax_error(format!(
@@ -1495,7 +1495,7 @@ fn is_ordered_primitive(p: Primitive) -> bool {
     matches!(p, Primitive::Number | Primitive::Date | Primitive::DateTime)
 }
 
-/// Parse a value refinement `Base{predicate}` ([[type-def field shape::au-type-system]]). `s` is
+/// Parse a value refinement `Base{predicate}` ([[type-def field shape::tb-type-system]]). `s` is
 /// the whole atom, `brace_pos` the index of the opening `{`. The base must be a
 /// refinable primitive; the predicate is validated for that base.
 fn parse_refinement(
@@ -1663,13 +1663,13 @@ fn split_predicates(content: &str) -> Result<Vec<&str>, ShapeParseError> {
 
 /// Validate and canonicalize a comparison literal for `base`. A `Number` literal
 /// is normalized to its shortest exact decimal; a `Date` / `DateTime` literal is
-/// stored as written (non-empty, no interior whitespace), au-core checks its
+/// stored as written (non-empty, no interior whitespace), tb-core checks its
 /// calendar validity.
 fn normalize_comparison_literal(base: Primitive, lit: &str) -> Result<String, ShapeParseError> {
     if base == Primitive::Number {
         return normalize_number_literal(lit);
     }
-    // Date / DateTime: light shape check only; calendar validity is au-core's.
+    // Date / DateTime: light shape check only; calendar validity is tb-core's.
     if lit.is_empty() || lit.chars().any(|c| c.is_whitespace()) {
         return Err(refinement_bad_shape(format!(
             "'{}' is not a valid {} literal",
@@ -1721,8 +1721,8 @@ fn normalize_number_literal(s: &str) -> Result<String, ShapeParseError> {
 }
 
 /// Parse a compound expression `<X | Y>` or `<X & Y>` into a `Shape::Union`
-/// or `Shape::Intersection`. [[type-def shape compound::au-type-system]]. Branches preserve source order
-/// per [[type-def fields collision - auto-unify and qualified field::au-type-system]] (token equality is structural over the `Vec`).
+/// or `Shape::Intersection`. [[type-def shape compound::tb-type-system]]. Branches preserve source order
+/// per [[type-def fields collision - auto-unify and qualified field::tb-type-system]] (token equality is structural over the `Vec`).
 ///
 /// Caller (`parse_atom`) has verified the input starts with `<`. The closing
 /// `>` is checked here. One operator type per compound: `<X | Y & Z>` is a
@@ -1831,7 +1831,7 @@ fn parse_compound(raw: &str, depth: usize, ctx: &mut SpanCtx) -> Result<Shape, S
 }
 
 /// Parse a compound with a `*` or `&` suffix into a `Shape::CompoundReference`.
-/// [[type-def shape suffixes::au-type-system]]: the suffix attaches to a compound whose operands are all
+/// [[type-def shape suffixes::tb-type-system]]: the suffix attaches to a compound whose operands are all
 /// type-def names — primitives and inline enums in the compound are
 /// rejected here, not at `parse_compound` level (a bare `<String | Number>`
 /// without suffix is a perfectly fine union slot).
@@ -1856,7 +1856,7 @@ fn parse_compound_with_suffix(
     };
     let mut branches = Vec::with_capacity(branch_shapes.len());
     for branch in branch_shapes {
-        // [[type-def shape suffixes::au-type-system]]: compound operands are all type-def names. Whether
+        // [[type-def shape suffixes::tb-type-system]]: compound operands are all type-def names. Whether
         // each operand was written bare (`rationale`), as a typed
         // reference (`rationale*`), or as inline-or-reference
         // (`rationale&`), they all reduce to the same name in the
@@ -1893,13 +1893,13 @@ fn parse_compound_with_suffix(
 /// If `s` is the keyword-bracketed `type<...>` form, return the inner bound
 /// (between the brackets). Used by `parse_reference` (the `type<T>*` case),
 /// `parse_inline_or_ref` (reject `type<T>&`), and `parse_atom` (reject a
-/// suffix-less `type<T>`). [[type-def shape def-ref::au-type-system]].
+/// suffix-less `type<T>`). [[type-def shape def-ref::tb-type-system]].
 fn strip_type_bound(s: &str) -> Option<&str> {
     s.strip_prefix("type<")?.strip_suffix('>')
 }
 
 /// Parse the bound inside a `type<...>*` def-reference into a `DefBound`.
-/// [[type-def shape def-ref::au-type-system]]. The bound is a single type-def name or a compound
+/// [[type-def shape def-ref::tb-type-system]]. The bound is a single type-def name or a compound
 /// of names — the same compound-of-names that `*` / `&` accept, restricted to
 /// the def axis. Mixed `|`/`&`, empty branches, and non-name operands are
 /// rejected, mirroring `parse_compound` / `parse_compound_with_suffix`. Nested
@@ -2069,7 +2069,7 @@ fn refinement_span_end(bytes: &[u8], i: usize) -> Option<usize> {
 /// the compound's own depth without descending into nested compounds or
 /// inline enums.
 /// Whether the `op` char at byte index `i` in `s` is a compound OPERATOR
-/// rather than a branch's inline-or-reference `&` suffix ([[type-def shape suffixes::au-type-system]]).
+/// rather than a branch's inline-or-reference `&` suffix ([[type-def shape suffixes::tb-type-system]]).
 ///
 /// `|` is never a suffix, so any top-level `|` is the union operator. `&` is
 /// ambiguous: it is both the intersection operator (`<a & b>`) and the
@@ -2191,8 +2191,8 @@ pub fn is_primitive_name(s: &str) -> bool {
     )
 }
 
-/// Mirrors the [[type-def legal names::au-type-system]] type-name regex without pulling in a regex dep:
-/// `^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z][A-Za-z0-9_-]*)*$`. au-core enforces
+/// Mirrors the [[type-def legal names::tb-type-system]] type-name regex without pulling in a regex dep:
+/// `^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z][A-Za-z0-9_-]*)*$`. tb-core enforces
 /// the same rule on type-def names; this keeps slot-side names consistent.
 fn is_valid_type_name(s: &str) -> bool {
     if s.is_empty() {
@@ -2214,7 +2214,7 @@ fn is_valid_type_name(s: &str) -> bool {
 }
 
 /// A repo name in a `::repo` qualifier is a single-segment identifier, matching
-/// au-references' `is_valid_repo_name`: a leading letter, then letters, digits,
+/// tb-references' `is_valid_repo_name`: a leading letter, then letters, digits,
 /// `_`, `-`. No dots (a repo is not a sealed-leaf name).
 fn is_valid_repo_name(s: &str) -> bool {
     let mut chars = s.chars();
@@ -2237,7 +2237,7 @@ fn is_reserved_builtin(s: &str) -> bool {
 /// Split a type-name token into its base and optional `::repo` qualifier.
 ///
 /// The `::` is unambiguous in shape position: `:` is not a shape operator and
-/// is illegal inside a [[type-def legal names::au-type-system]] name, so a `::` can only be the
+/// is illegal inside a [[type-def legal names::tb-type-system]] name, so a `::` can only be the
 /// repo qualifier. Splits on the first `::`, so a stray second `::` lands in the
 /// repo half and fails `is_valid_repo_name`. Rejects an empty base, an empty
 /// repo (`foo::`, the shape sibling of `wikilink-empty-repo`), and a malformed
@@ -2274,7 +2274,7 @@ fn split_repo_qualifier(token: &str) -> Result<(&str, Option<&str>), ShapeParseE
 /// Build a `QualifiedName` from a validated base and optional repo, rejecting a
 /// `::repo` on a built-in keyword. Shared by the three single-name reference
 /// parsers and the def-bound parser. `base` is assumed already validated as a
-/// [[type-def legal names::au-type-system]] name by the caller; the built-in check happens here
+/// [[type-def legal names::tb-type-system]] name by the caller; the built-in check happens here
 /// because only a qualified built-in is illegal (bare `file` / `any` are fine).
 fn qualified_name(base: &str, repo: Option<&str>) -> Result<QualifiedName, ShapeParseError> {
     if repo.is_some() && is_reserved_builtin(base) {
@@ -2367,7 +2367,7 @@ fn parse_enum(raw: &str, ctx: &mut SpanCtx) -> Result<Shape, ShapeParseError> {
     Ok(Shape::Enum(literals))
 }
 
-/// [[type-def shape enum::au-type-system]]: enum elements follow the [[type-def legal names::au-type-system]] type-name regex. Same rule
+/// [[type-def shape enum::tb-type-system]]: enum elements follow the [[type-def legal names::tb-type-system]] type-name regex. Same rule
 /// as `is_valid_type_name` — segmented `^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z]...)*$`.
 /// Excludes shape-grammar characters (`+`, `*`, etc.) and YAML-numeric forms
 /// (`1.5`, `42`) so enum values stay YAML-string-shaped at instance sites.
@@ -2448,16 +2448,16 @@ mod tests {
 
     #[test]
     fn lowercase_primitive_name_is_not_a_primitive() {
-        // `string` (lowercase) is a valid type-def name per the [[type-def legal names::au-type-system]]
+        // `string` (lowercase) is a valid type-def name per the [[type-def legal names::tb-type-system]]
         // regex, so it parses as a bare-name record slot — not the
-        // `String` primitive (capital S only). au-core verifies the name
+        // `String` primitive (capital S only). tb-core verifies the name
         // exists in the type graph at load time.
         assert_eq!(parse_shape("string"), Ok(Shape::Record("string".into())));
     }
 
     #[test]
     fn bare_record_slot_parses() {
-        // Bare type-def names parse as `Shape::Record` ([[type-def shape record::au-type-system]]):
+        // Bare type-def names parse as `Shape::Record` ([[type-def shape record::tb-type-system]]):
         // the slot expects an inline YAML map. Distinct from
         // `Shape::Reference` (the `name*` form, wikilink-only).
         assert_eq!(
@@ -2472,7 +2472,7 @@ mod tests {
 
     #[test]
     fn bare_record_with_invalid_name_is_syntax_error() {
-        // The [[type-def legal names::au-type-system]] type-name regex still gates bare names — typos and
+        // The [[type-def legal names::tb-type-system]] type-name regex still gates bare names — typos and
         // junk text don't slip through as records.
         let err = parse_shape("not a name").unwrap_err();
         assert_eq!(err.code, SHAPE_SYNTAX_ERROR);
@@ -2480,7 +2480,7 @@ mod tests {
 
     #[test]
     fn inline_or_reference_bare_name_parses() {
-        // Bare `name&` is the [[type-def shape suffixes::au-type-system]] inline-or-reference single-name
+        // Bare `name&` is the [[type-def shape suffixes::tb-type-system]] inline-or-reference single-name
         // form: value may be an inline map or a wikilink.
         assert_eq!(
             parse_shape("rationale&"),
@@ -2515,15 +2515,15 @@ mod tests {
 
     #[test]
     fn file_reference_parses() {
-        // Built-in `file*` is the any-repo-file reference ([[type-def shape file::au-type-system]]).
-        // au-grammar treats it as an ordinary `Shape::Reference`; au-core
+        // Built-in `file*` is the any-repo-file reference ([[type-def shape file::tb-type-system]]).
+        // tb-grammar treats it as an ordinary `Shape::Reference`; tb-core
         // recognizes the name and skips the closure check at validation.
         assert_eq!(parse_shape("file*"), Ok(Shape::Reference("file".into())));
     }
 
     #[test]
     fn any_forms_parse() {
-        // Bare `any` is the no-type inline slot ([[type-def shape any::au-type-system]]), unlike
+        // Bare `any` is the no-type inline slot ([[type-def shape any::tb-type-system]]), unlike
         // bare `file` which errors. `any[]` falls out of the list machinery.
         assert_eq!(parse_shape("any"), Ok(Shape::Any));
         assert_eq!(
@@ -2543,7 +2543,7 @@ mod tests {
             })
         );
         // The reference forms route through the suffix parsers and land as
-        // `"any"`-named references, like `file*`. au-core treats the name as
+        // `"any"`-named references, like `file*`. tb-core treats the name as
         // a built-in target with no closure check.
         assert_eq!(parse_shape("any*"), Ok(Shape::Reference("any".into())));
         assert_eq!(
@@ -2570,7 +2570,7 @@ mod tests {
 
     #[test]
     fn opaque_forms_parse() {
-        // [[type-def shape opaque::au-type-system]]: the uninterpreted inline slot.
+        // [[type-def shape opaque::tb-type-system]]: the uninterpreted inline slot.
         assert_eq!(parse_shape("opaque"), Ok(Shape::Opaque));
         assert_eq!(
             parse_shape("opaque[]"),
@@ -2610,7 +2610,7 @@ mod tests {
     #[test]
     fn opaque_fence_reads_verbatim_never_a_record() {
         // The uninterpreted slot reads a fence verbatim and never as a record,
-        // the distinction from interpreted `any`. [[type-instance body contribution::au-type-system]].
+        // the distinction from interpreted `any`. [[type-instance body contribution::tb-type-system]].
         assert_eq!(slot_text_form(&Shape::Opaque), Some(TextForm::Verbatim));
         assert!(!slot_admits_record(&Shape::Opaque));
     }
@@ -2620,7 +2620,7 @@ mod tests {
         assert!(is_reserved_builtin("opaque"));
     }
 
-    /// The body-fence content-form predicates, [[type-instance body contribution::au-type-system]].
+    /// The body-fence content-form predicates, [[type-instance body contribution::tb-type-system]].
     /// `slot_admits_record` and `slot_text_form` together classify every slot.
     #[test]
     fn fence_content_form_predicates_classify_every_slot() {
@@ -2677,13 +2677,13 @@ mod tests {
     #[test]
     fn any_reads_by_value_shape_opaque_reads_verbatim() {
         // The interpreted top `any&` admits a record AND carries a text form, so
-        // its fence reads by value-shape ([[type-def shape any::au-type-system]]).
+        // its fence reads by value-shape ([[type-def shape any::tb-type-system]]).
         let inline_or_ref = parse_shape("any&").unwrap();
         assert!(slot_admits_record(&inline_or_ref));
         assert_eq!(slot_text_form(&inline_or_ref), Some(TextForm::Verbatim));
 
         // The uninterpreted `opaque` admits NO record, only verbatim text
-        // ([[type-def shape opaque::au-type-system]]).
+        // ([[type-def shape opaque::tb-type-system]]).
         let opaque = parse_shape("opaque").unwrap();
         assert!(!slot_admits_record(&opaque));
         assert_eq!(slot_text_form(&opaque), Some(TextForm::Verbatim));
@@ -2703,7 +2703,7 @@ mod tests {
 
     #[test]
     fn def_reference_forms_parse() {
-        // [[type-def shape def-ref::au-type-system]]: the `type` keyword in reference position.
+        // [[type-def shape def-ref::tb-type-system]]: the `type` keyword in reference position.
         assert_eq!(parse_shape("type*"), Ok(Shape::DefReference(None)));
         assert_eq!(
             parse_shape("type<mcp.tool>*"),
@@ -2755,7 +2755,7 @@ mod tests {
         }
     }
 
-    // ----- `@` pin-enforcement postfix ([[type-def shape suffixes::au-type-system]]) -----
+    // ----- `@` pin-enforcement postfix ([[type-def shape suffixes::tb-type-system]]) -----
 
     #[test]
     fn pin_postfix_wraps_a_reference_shape() {
@@ -2829,7 +2829,7 @@ mod tests {
 
     #[test]
     fn def_reference_reference_only_forms_are_errors() {
-        // [[type-def shape def-ref::au-type-system]]: def-refs are reference-only — `*` is part of the
+        // [[type-def shape def-ref::tb-type-system]]: def-refs are reference-only — `*` is part of the
         // keyword form. A suffix-less `type<T>` and the inline `type<T>&` /
         // `type&` forms are rejected.
         for raw in ["type<mcp.tool>", "type<mcp.tool>&", "type&"] {
@@ -2890,7 +2890,7 @@ mod tests {
     #[test]
     fn compound_reference_star_parses() {
         // `<X | Y>*` is a typed reference whose target's `type:` closure
-        // satisfies any of `branches` (Union case). [[type-def shape suffixes::au-type-system]] preferred
+        // satisfies any of `branches` (Union case). [[type-def shape suffixes::tb-type-system]] preferred
         // form is `<rationale | thesis>*` (bare names) but bare records
         // are still NYI today — the explicit-`*`-per-branch form is the
         // current workaround. The CompoundReference flattens both forms
@@ -2961,7 +2961,7 @@ mod tests {
 
     #[test]
     fn compound_reference_star_with_primitive_branch_is_syntax_error() {
-        // `<String | rationale*>*` rejects: [[type-def shape suffixes::au-type-system]] forbids `*` on a
+        // `<String | rationale*>*` rejects: [[type-def shape suffixes::tb-type-system]] forbids `*` on a
         // compound containing a primitive shape.
         let err = parse_shape("<String | rationale*>*").unwrap_err();
         assert_eq!(err.code, SHAPE_SYNTAX_ERROR);
@@ -2986,7 +2986,7 @@ mod tests {
     #[test]
     fn compound_reference_with_list_branch_is_syntax_error() {
         // `<a*[] | b*>*` — the first branch is a list, not a bare-name
-        // reference. Per [[type-def shape suffixes::au-type-system]] ("operands are all type-def names")
+        // reference. Per [[type-def shape suffixes::tb-type-system]] ("operands are all type-def names")
         // this is rejected.
         let err = parse_shape("<a*[] | b*>*").unwrap_err();
         assert_eq!(err.code, SHAPE_SYNTAX_ERROR);
@@ -3010,7 +3010,7 @@ mod tests {
 
     #[test]
     fn bare_file_is_syntax_error() {
-        // [[type-def shape file::au-type-system]]: `file` is meaningful only with `*`.
+        // [[type-def shape file::tb-type-system]]: `file` is meaningful only with `*`.
         let err = parse_shape("file").unwrap_err();
         assert_eq!(err.code, SHAPE_SYNTAX_ERROR);
     }
@@ -3036,7 +3036,7 @@ mod tests {
     #[test]
     fn name_amp_parses_as_inline_or_reference() {
         // `name&` is the inline-or-reference single-name slot
-        // ([[type-def shape suffixes::au-type-system]]). Distinct from `name*` (wikilink-only) and
+        // ([[type-def shape suffixes::tb-type-system]]). Distinct from `name*` (wikilink-only) and
         // bare `name` (inline-only).
         assert_eq!(
             parse_shape("rationale&"),
@@ -3107,14 +3107,14 @@ mod tests {
 
     #[test]
     fn reference_with_invalid_name_is_syntax_error() {
-        // `$` is outside the [[type-def legal names::au-type-system]] type-name regex.
+        // `$` is outside the [[type-def legal names::tb-type-system]] type-name regex.
         let err = parse_shape("foo$bar*").unwrap_err();
         assert_eq!(err.code, SHAPE_SYNTAX_ERROR);
     }
 
     #[test]
     fn reference_with_leading_dot_is_syntax_error() {
-        // Dotted segments must each start with a letter ([[type-def legal names::au-type-system]]).
+        // Dotted segments must each start with a letter ([[type-def legal names::tb-type-system]]).
         let err = parse_shape(".foo*").unwrap_err();
         assert_eq!(err.code, SHAPE_SYNTAX_ERROR);
     }
@@ -3164,7 +3164,7 @@ mod tests {
 
     #[test]
     fn enum_preserves_declaration_order() {
-        // Order matters for token-equality ([[type-def fields collision - auto-unify and qualified field::au-type-system]]). `[a, b, c]` and
+        // Order matters for token-equality ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]). `[a, b, c]` and
         // `[c, b, a]` are different shapes.
         assert_eq!(
             parse_shape("[c, b, a]"),
@@ -3230,7 +3230,7 @@ mod tests {
 
     #[test]
     fn enum_literal_must_follow_type_name_regex() {
-        // [[type-def shape enum::au-type-system]] / [[type-def legal names::au-type-system]]: enum elements share the type-name regex. Forms
+        // [[type-def shape enum::tb-type-system]] / [[type-def legal names::tb-type-system]]: enum elements share the type-name regex. Forms
         // that used to slip through the looser per-char allowlist now
         // fail at parse: leading digit, leading/trailing dot, doubled
         // dot, numeric-looking literals.
@@ -3380,7 +3380,7 @@ mod tests {
     }
 
     // --- Per-branch inline-or-reference `&` suffix inside a compound. ---
-    // [[type-def shape suffixes::au-type-system]]: a compound branch may carry its own `&`
+    // [[type-def shape suffixes::tb-type-system]]: a compound branch may carry its own `&`
     // (inline-or-reference) suffix, the parity of the already-legal per-branch
     // `*` (`<String | T*>`). The intersection operator `&` and the branch suffix
     // `&` are told apart structurally (see `is_operator_at`), so a suffixed
@@ -3684,7 +3684,7 @@ mod tests {
 
     #[test]
     fn compound_branch_order_is_significant() {
-        // [[type-def fields collision - auto-unify and qualified field::au-type-system]]: token equality is structural over the branch Vec, so
+        // [[type-def fields collision - auto-unify and qualified field::tb-type-system]]: token equality is structural over the branch Vec, so
         // `<a* | b*>` ≠ `<b* | a*>`.
         let ab = parse_shape("<a* | b*>").unwrap();
         let ba = parse_shape("<b* | a*>").unwrap();
@@ -3716,7 +3716,7 @@ mod tests {
     fn bare_record_branch_in_compound_parses() {
         // Bare-name records parse via `parse_atom` to `Shape::Record`;
         // a Union of bare records is the spec-canonical record-slot
-        // union form ([[type-def shape record::au-type-system]] case 3 entry point).
+        // union form ([[type-def shape record::tb-type-system]] case 3 entry point).
         assert_eq!(
             parse_shape("<rationale | thesis>"),
             Ok(Shape::Union(vec![
@@ -4070,7 +4070,7 @@ mod tests {
 
     #[test]
     fn non_empty_list_parses_with_plus_marker() {
-        // [[type-def shape suffixes::au-type-system]]: `[+]` is an atomic list-suffix variant — peer of `[]`,
+        // [[type-def shape suffixes::tb-type-system]]: `[+]` is an atomic list-suffix variant — peer of `[]`,
         // produces `Shape::List { min: 1, max: None }`.
         assert_eq!(
             parse_shape("String[+]"),
@@ -4225,7 +4225,7 @@ mod tests {
 
     #[test]
     fn list_with_invalid_inner_propagates_syntax_error() {
-        // `String*[]` fails at the inner `*`-on-primitive check ([[type-def shape suffixes::au-type-system]]).
+        // `String*[]` fails at the inner `*`-on-primitive check ([[type-def shape suffixes::tb-type-system]]).
         let err = parse_shape("String*[]").unwrap_err();
         assert_eq!(err.code, SHAPE_SYNTAX_ERROR);
     }

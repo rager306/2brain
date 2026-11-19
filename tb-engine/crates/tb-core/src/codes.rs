@@ -1,4 +1,4 @@
-//! Diagnostic codes emitted by `au-core`. Stable kebab-case strings; downstream
+//! Diagnostic codes emitted by `tb-core`. Stable kebab-case strings; downstream
 //! consumers match on these.
 
 use tb_diagnostics::DiagnosticCode;
@@ -13,7 +13,7 @@ pub const PARENT_CLAIM_BAD_SHAPE: DiagnosticCode =
 /// is `extends:`; `type:` is the identity claim, which a type-def never makes of
 /// itself. Fires a targeted error rather than dropping the key as
 /// `unknown-top-level-key`, so a mistaken parent claim never silently strips
-/// the parent. See [[type-def extends::au-type-system]].
+/// the parent. See [[type-def extends::tb-type-system]].
 pub const TYPE_KEY_ON_TYPE_DEF: DiagnosticCode =
     DiagnosticCode::from_static("type-key-on-type-def");
 
@@ -106,7 +106,7 @@ pub const BRAND_CONSTRUCTOR_REQUIRED: DiagnosticCode =
     DiagnosticCode::from_static("brand-constructor-required");
 
 /// A `meta:` sub-region names a type whose resolved closure does not include the
-/// engine meta marker (`au.engine.meta`). Meta-ness is nominal: a meta type must
+/// engine meta marker (`tb.engine.meta`). Meta-ness is nominal: a meta type must
 /// mix in the marker. See
 /// [[spec - meta type marker - the meta position admits only types that mix in the engine meta base]].
 pub const NON_META_TYPE_IN_META_POSITION: DiagnosticCode =
@@ -125,7 +125,7 @@ pub const REQUIRED_META_ABSENT_TYPE: DiagnosticCode =
     DiagnosticCode::from_static("required-meta-absent-type");
 
 /// A `required:` names a present type that is not a meta type, its closure lacks
-/// the engine meta marker `au.engine.meta`. The base-side sibling of
+/// the engine meta marker `tb.engine.meta`. The base-side sibling of
 /// `non-meta-type-in-meta-position`. See
 /// [[spec - required subtype meta - a base obligates every concrete subtype to carry a named meta]].
 pub const REQUIRED_META_NOT_A_META_TYPE: DiagnosticCode =
@@ -147,7 +147,7 @@ pub const SUBTYPE_MISSING_REQUIRED_META: DiagnosticCode =
 /// type IDENTITY, `(name, ClosureHash)`: an in-sync own and peer copy are one
 /// type and can conflict, a diverged pair is two and never does.
 /// A `warning`, resolved by the def declaring its own block of that type. See
-/// [[type-def meta::au-type-system]].
+/// [[type-def meta::tb-type-system]].
 pub const META_INHERITANCE_CONFLICT: DiagnosticCode =
     DiagnosticCode::from_static("meta-inheritance-conflict");
 
@@ -166,9 +166,9 @@ pub const META_NOT_A_LIST: DiagnosticCode = DiagnosticCode::from_static("meta-no
 pub const META_BLOCK_BAD_SHAPE: DiagnosticCode =
     DiagnosticCode::from_static("meta-block-bad-shape");
 
-/// A meta sub-region's `type:` is a list (mixin form). Spec [[type-def meta::au-type-system]] forbids
+/// A meta sub-region's `type:` is a list (mixin form). Spec [[type-def meta::tb-type-system]] forbids
 /// mixin inside `meta:` sub-regions — the discriminator must be a bare scalar
-/// per [[type list form::au-type-system]]. Distinct from `META_BLOCK_BAD_SHAPE` (which covers absent / non-
+/// per [[type list form::tb-type-system]]. Distinct from `META_BLOCK_BAD_SHAPE` (which covers absent / non-
 /// string `type:`) so consumers can match on the specific authoring error.
 pub const META_MIXIN_NOT_SUPPORTED: DiagnosticCode =
     DiagnosticCode::from_static("meta-mixin-not-supported");
@@ -231,10 +231,10 @@ pub const REDUNDANT_ABSTRACT_ON_SEALED: DiagnosticCode =
     DiagnosticCode::from_static("redundant-abstract-on-sealed");
 
 /// A user type-def claims a name reserved by the engine: `file` (built-in
-/// any-repo-file reference target, spec [[type-def shape file::au-type-system]]), `any` (the no-type slot shape,
-/// spec [[type-def shape any::au-type-system]]), `opaque` (the uninterpreted slot shape, spec [[type-def shape opaque::au-type-system]]),
+/// any-repo-file reference target, spec [[type-def shape file::tb-type-system]]), `any` (the no-type slot shape,
+/// spec [[type-def shape any::tb-type-system]]), `opaque` (the uninterpreted slot shape, spec [[type-def shape opaque::tb-type-system]]),
 /// or one of the primitive shape names `String`, `Number`,
-/// `Boolean`, `Date`, `DateTime`, `Url` (spec [[type-def legal names::au-type-system]], [[type-def shape primitive::au-type-system]]).
+/// `Boolean`, `Date`, `DateTime`, `Url` (spec [[type-def legal names::tb-type-system]], [[type-def shape primitive::tb-type-system]]).
 pub const RESERVED_TYPE_NAME: DiagnosticCode = DiagnosticCode::from_static("reserved-type-name");
 
 /// A `Shape::Reference` slot names a type-def absent from the type graph
@@ -251,7 +251,7 @@ pub const PARENT_REFERENCES_ABSENT_TYPE: DiagnosticCode =
 /// Resolved reference target's `type:` closure does not include the slot's
 /// required type. Producer is the instance validator; co-locating with the
 /// other reference codes here keeps all "validator emits this" codes on the
-/// same side of the crate boundary. (au-references owns resolution-side codes
+/// same side of the crate boundary. (tb-references owns resolution-side codes
 /// — target-missing, target-ambiguous, case-collision-basename — and never
 /// fires this one itself.)
 ///
@@ -271,7 +271,7 @@ pub const REFERENCE_TARGET_TYPE_MISMATCH: DiagnosticCode =
     DiagnosticCode::from_static("reference-target-type-mismatch");
 
 /// A `type<...>*` / `type*` def-reference resolved to a target that exists but
-/// is not a type-def ([[type-def shape def-ref::au-type-system]]). The def axis demands a `.type.yaml`
+/// is not a type-def ([[type-def shape def-ref::tb-type-system]]). The def axis demands a `.type.yaml`
 /// target; a plain instance or asset does not qualify. Distinct from the
 /// existence side (`reference-target-missing`) — the target is present, just
 /// not a def. Producer is the instance validator.
@@ -279,7 +279,7 @@ pub const DEF_REF_TARGET_NOT_A_TYPE_DEF: DiagnosticCode =
     DiagnosticCode::from_static("def-ref-target-not-a-type-def");
 
 /// A constrained `type<T>*` def-reference resolved to a type-def whose `type:`
-/// parent closure does not include `T` ([[type-def shape def-ref::au-type-system]]). The def-axis
+/// parent closure does not include `T` ([[type-def shape def-ref::tb-type-system]]). The def-axis
 /// sibling of `reference-target-type-mismatch`: that code checks the target
 /// instance's identity closure, this one checks the target def's parent
 /// closure. A compound bound (`type<a | b>*`) is any-of for a union, all-of for
@@ -290,7 +290,7 @@ pub const DEF_REF_TARGET_NOT_A_TYPE_DEF: DiagnosticCode =
 pub const DEF_REF_CLOSURE_MISMATCH: DiagnosticCode =
     DiagnosticCode::from_static("def-ref-closure-mismatch");
 
-/// A value in a `*@` enforced-pinned slot ([[type-def shape suffixes::au-type-system]]) is not a
+/// A value in a `*@` enforced-pinned slot ([[type-def shape suffixes::tb-type-system]]) is not a
 /// commit-pinned reference. The slot's contract is that every value carries a
 /// `@commit` pin; an unpinned wikilink, or a non-reference value, violates it.
 /// Distinct from the resolution outcomes — this is the shape-level requirement,
@@ -325,24 +325,24 @@ pub const MISSING_TYPE_CLAIM: DiagnosticCode = DiagnosticCode::from_static("miss
 
 /// Instance `type:` is malformed: not a string or list of strings, an
 /// empty list (`type: []` must name at least one type), or a non-string
-/// list element. Spec [[type list form::au-type-system]], [[type-instance type::au-type-system]].
+/// list element. Spec [[type list form::tb-type-system]], [[type-instance type::tb-type-system]].
 pub const INSTANCE_CLAIM_BAD_SHAPE: DiagnosticCode =
     DiagnosticCode::from_static("instance-claim-bad-shape");
 
 /// `fields:`, `sealed:`, or `meta:` appears as a key on an instance —
-/// these are type-def-only keys per [[type-def::au-type-system]].
+/// these are type-def-only keys per [[type-def::tb-type-system]].
 pub const RESERVED_KEY_ON_INSTANCE: DiagnosticCode =
     DiagnosticCode::from_static("reserved-key-on-instance");
 
 /// `^:` value on an inline record fails the block-id grammar
 /// (`[A-Za-z0-9_-]+`) or is not a scalar. The body parser skips a
 /// malformed `^marker` silently — it reads as prose; an explicit `^:`
-/// key cannot be prose, so it surfaces. Spec [[type block-id::au-type-system]].
+/// key cannot be prose, so it surfaces. Spec [[type block-id::tb-type-system]].
 pub const BLOCK_ID_MALFORMED: DiagnosticCode = DiagnosticCode::from_static("block-id-malformed");
 
 /// `^:` at the top level of instance frontmatter — the file is
 /// addressable by name, block-ids belong on inline records. The key is
-/// dropped with a warning, never silently meaningful. Spec [[type block-id::au-type-system]].
+/// dropped with a warning, never silently meaningful. Spec [[type block-id::tb-type-system]].
 pub const BLOCK_ID_ON_INSTANCE_ROOT: DiagnosticCode =
     DiagnosticCode::from_static("block-id-on-instance-root");
 
@@ -368,7 +368,7 @@ pub const NAVIGATIONAL_TARGET_AMBIGUOUS: DiagnosticCode =
     DiagnosticCode::from_static("navigational-target-ambiguous");
 
 /// A navigational wikilink whose `^block-id` exists on neither of the
-/// target's addressable surfaces ([[type block-id::au-type-system]]) — no record `^:`
+/// target's addressable surfaces ([[type block-id::tb-type-system]]) — no record `^:`
 /// id, no body marker or fence id. Same severity stance as
 /// `navigational-target-not-found`: growth is the same story in body
 /// prose, inside frontmatter values, and in a `#:` docstring. Local forms
@@ -377,7 +377,7 @@ pub const NAVIGATIONAL_BLOCK_ID_NOT_FOUND: DiagnosticCode =
     DiagnosticCode::from_static("navigational-block-id-not-found");
 
 /// A wikilink's `#head` fragment matches no heading in the resolved
-/// target, per the [[type reference::au-type-system]] anchor-matching contract. Fires
+/// target, per the [[type reference::tb-type-system]] anchor-matching contract. Fires
 /// for prose, slot values, and `#:` docstrings alike — anchors are
 /// navigational everywhere, so the severity is warning everywhere. Silent
 /// when the engine doesn't hold the target's body (plain notes, assets).
@@ -402,7 +402,7 @@ pub const UNKNOWN_TOP_LEVEL_KEY: DiagnosticCode =
 
 /// A `#:` doc comment binds to no declaration, so it is dropped. Advisory:
 /// `#:` signals intended documentation, not an incidental `#` comment. See
-/// [[type docstring::au-type-system]].
+/// [[type docstring::tb-type-system]].
 pub const DANGLING_DOC_COMMENT: DiagnosticCode =
     DiagnosticCode::from_static("dangling-doc-comment");
 
@@ -466,7 +466,7 @@ pub const FIELD_SHAPE_MISMATCH: DiagnosticCode =
 pub const NON_FINITE_NUMBER: DiagnosticCode = DiagnosticCode::from_static("non-finite-number");
 
 /// A value is the right base type but falls outside its slot's value refinement
-/// ([[type-def field shape::au-type-system]], `Base{predicate}`) — e.g. `-1` in a
+/// ([[type-def field shape::tb-type-system]], `Base{predicate}`) — e.g. `-1` in a
 /// `Number{>=0}` slot. Distinct from `field-shape-mismatch` so the message
 /// names the failed predicate rather than claiming a type mismatch. Suppressed
 /// when the refinement is provably empty (that fires `refinement-unsatisfiable`
@@ -474,7 +474,7 @@ pub const NON_FINITE_NUMBER: DiagnosticCode = DiagnosticCode::from_static("non-f
 pub const VALUE_OUT_OF_REFINEMENT: DiagnosticCode =
     DiagnosticCode::from_static("value-out-of-refinement");
 
-/// A type-def declares a value refinement ([[type-def field shape::au-type-system]]) whose
+/// A type-def declares a value refinement ([[type-def field shape::tb-type-system]]) whose
 /// numeric meet admits no value — `Number{>=5 & <=1}`, `Number{>2 & <3 &
 /// integer}`. A `Warning`-severity advisory on the type-def: the slot can never
 /// be satisfied, so every value would fail; the validator suppresses the
@@ -483,7 +483,7 @@ pub const REFINEMENT_UNSATISFIABLE: DiagnosticCode =
     DiagnosticCode::from_static("refinement-unsatisfiable");
 
 /// Same field name reached by mixin ancestors with non-token-equal
-/// `parsed_shape` (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]). Also covers the cross-repo same-name
+/// `parsed_shape` (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]). Also covers the cross-repo same-name
 /// diamond: a folded mixin reaching two distinct identities of one type name
 /// (own `note` plus peer `note::base`, or two peers) that disagree on a field.
 /// The origin's authored form (`note::base`) distinguishes the identities in the
@@ -494,20 +494,20 @@ pub const REFINEMENT_UNSATISFIABLE: DiagnosticCode =
 /// resolvable per-instance by a `field{type}` key.
 pub const MIXIN_COLLISION: DiagnosticCode = DiagnosticCode::from_static("mixin-collision");
 
-/// Repeated name in a `type:` list (spec [[type-instance type::au-type-system]] redundant-claims rule).
+/// Repeated name in a `type:` list (spec [[type-instance type::tb-type-system]] redundant-claims rule).
 /// Severity::Warning — the closure dedupes silently; the warning surfaces
 /// the likely authoring mistake. Fires at both load time (type-def parents)
 /// and validate time (instance claims).
 pub const DUPLICATE_CLAIM: DiagnosticCode = DiagnosticCode::from_static("duplicate-claim");
 
 /// One claim's closure includes another in the same `type:` list — the
-/// wider claim is implied by the narrower (spec [[type-instance type::au-type-system]] — symmetric to
-/// [[type-def shape compound::au-type-system]]'s slot-union subsumption rule). Severity::Warning. Fires at both
+/// wider claim is implied by the narrower (spec [[type-instance type::tb-type-system]] — symmetric to
+/// [[type-def shape compound::tb-type-system]]'s slot-union subsumption rule). Severity::Warning. Fires at both
 /// load time and validate time.
 pub const SUBSUMPTION_IN_MIXIN: DiagnosticCode =
     DiagnosticCode::from_static("subsumption-in-mixin");
 
-/// One reference branch in a slot-union is a subtype of another (spec [[type-def shape compound::au-type-system]]).
+/// One reference branch in a slot-union is a subtype of another (spec [[type-def shape compound::tb-type-system]]).
 /// E.g. `<decision | decision.decided>` — `decision.decided`'s closure
 /// includes `decision`, so `decision.decided` is the narrower branch. In
 /// a union, the wider branch subsumes the narrower, so the *narrower* is
@@ -520,7 +520,7 @@ pub const SUBSUMPTION_IN_SLOT_UNION: DiagnosticCode =
     DiagnosticCode::from_static("subsumption-in-slot-union");
 
 /// One reference branch in a slot-intersection is a subtype of another
-/// (spec [[type-def shape compound::au-type-system]]). E.g. `<decision & decision.decided>` collapses to
+/// (spec [[type-def shape compound::tb-type-system]]). E.g. `<decision & decision.decided>` collapses to
 /// `decision.decided` — the *wider* `decision` branch is redundant
 /// because the narrower already implies it. Severity::Warning. Mirror in
 /// shape of `subsumption-in-slot-union`; same pairwise closure-inclusion
@@ -531,18 +531,18 @@ pub const SUBSUMPTION_IN_SLOT_INTERSECTION: DiagnosticCode =
 
 /// Qualified key `field{type}` is syntactically broken (empty field, empty
 /// qualifier, unclosed or stray braces, qualifier type violates the
-/// type-name regex). Spec [[type-def fields collision - auto-unify and qualified field::au-type-system]].
+/// type-name regex). Spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]].
 pub const MALFORMED_QUALIFIER_KEY: DiagnosticCode =
     DiagnosticCode::from_static("malformed-qualifier-key");
 
 /// Qualified key `field{type}` names a `type` that is not in the instance's
-/// effective closure (its claims plus all transitive ancestors). Spec [[type-def fields collision - auto-unify and qualified field::au-type-system]].
+/// effective closure (its claims plus all transitive ancestors). Spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]].
 pub const QUALIFIER_NOT_IN_CLOSURE: DiagnosticCode =
     DiagnosticCode::from_static("qualifier-not-in-closure");
 
 /// Qualified key `field{type}` names a `type` that IS in the instance's
 /// closure, but no type-def in `closure_of(type)` literally lists `field`
-/// in its `fields:`. Spec [[type-def fields collision - auto-unify and qualified field::au-type-system]].
+/// in its `fields:`. Spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]].
 pub const QUALIFIER_DOES_NOT_DECLARE_FIELD: DiagnosticCode =
     DiagnosticCode::from_static("qualifier-does-not-declare-field");
 
@@ -550,11 +550,11 @@ pub const QUALIFIER_DOES_NOT_DECLARE_FIELD: DiagnosticCode =
 /// at two or more NON-token-equal origins — a divergent field reached through a
 /// non-declaring descendant. Which origin's shape the value would check against
 /// is arbitrary, so the qualifier is rejected; name a declaring origin directly
-/// (`field{origin}`). Spec [[type-def fields collision - auto-unify and qualified field::au-type-system]].
+/// (`field{origin}`). Spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]].
 pub const QUALIFIER_AMBIGUOUS: DiagnosticCode = DiagnosticCode::from_static("qualifier-ambiguous");
 
 /// Same field name on one instance has both bare and qualified entries
-/// (spec [[type-def fields collision - auto-unify and qualified field::au-type-system]]). All uses of a single field name must agree on form —
+/// (spec [[type-def fields collision - auto-unify and qualified field::tb-type-system]]). All uses of a single field name must agree on form —
 /// either every use is bare (auto-unify governs) or every use is
 /// qualified (explicit per-origin distinction). Mixing the two is a
 /// contradictory claim about whether the field auto-unified.
@@ -562,7 +562,7 @@ pub const MIXED_BARE_AND_QUALIFIED_FIELD: DiagnosticCode =
     DiagnosticCode::from_static("mixed-bare-and-qualified-field");
 
 /// Instance `type:` claim names a sealed type-def directly
-/// (spec [[type-def sealed::au-type-system]]). Per-claim: in a `type:` list, each element is checked
+/// (spec [[type-def sealed::tb-type-system]]). Per-claim: in a `type:` list, each element is checked
 /// independently and a non-sealed sibling does not excuse a sealed
 /// claim. Same code whether the sealed name is a top-level sealed
 /// parent or a sealed intermediate in a nested sum.
@@ -570,7 +570,7 @@ pub const SEALED_PARENT_CLAIMED: DiagnosticCode =
     DiagnosticCode::from_static("sealed-parent-claimed");
 
 /// Instance `type:` claim list contains two or more distinct non-sealed
-/// leaves descending from the same sealed type-def (spec [[type-instance type::au-type-system]]).
+/// leaves descending from the same sealed type-def (spec [[type-instance type::tb-type-system]]).
 /// A sealed family is a discriminated union — a single file cannot
 /// simultaneously be two of its sibling leaves. Fires once per violated
 /// sealed family, naming the innermost-shared sealed ancestor when
@@ -580,7 +580,7 @@ pub const MULTI_LEAF_IN_SEALED_FAMILY: DiagnosticCode =
     DiagnosticCode::from_static("multi-leaf-in-sealed-family");
 
 /// Inline value's declared `type:` exists in the graph but does not
-/// satisfy the slot's demand (spec [[type-def shape record::au-type-system]]). Trigger sites: case 1
+/// satisfy the slot's demand (spec [[type-def shape record::tb-type-system]]). Trigger sites: case 1
 /// declared closure missing the slot's demanded type; case 3 declared
 /// not in any union branch; case 4 declared closure missing one or more
 /// intersection branches; a qualified `foo::repo` demand whose inline
@@ -590,48 +590,48 @@ pub const INLINE_VALUE_TYPE_NOT_COMPATIBLE: DiagnosticCode =
     DiagnosticCode::from_static("inline-value-type-not-compatible");
 
 /// Inline value at a slot that requires an explicit `type:` claim
-/// (spec [[type-def shape record::au-type-system]] cases 2/3/4 — sealed-parent slot, union slot, or
+/// (spec [[type-def shape record::tb-type-system]] cases 2/3/4 — sealed-parent slot, union slot, or
 /// intersection slot, plus a sealed peer `foo::repo` demand) omits the
 /// claim. Single code, message variant per case.
 pub const INLINE_VALUE_MISSING_TYPE: DiagnosticCode =
     DiagnosticCode::from_static("inline-value-missing-type");
 
-// ----- body typing v5 ([[type-def body::au-type-system]], [[type-def body use::au-type-system]], [[type-def body fills::au-type-system]]) -----
+// ----- body typing v5 ([[type-def body::tb-type-system]], [[type-def body use::tb-type-system]], [[type-def body fills::tb-type-system]]) -----
 
-/// `body:` value is not a YAML list. Spec [[type-def body::au-type-system]].
+/// `body:` value is not a YAML list. Spec [[type-def body::tb-type-system]].
 pub const BODY_NOT_A_LIST: DiagnosticCode = DiagnosticCode::from_static("body-not-a-list");
 
 /// `body:` item is not a YAML mapping. Each item must be a map carrying
 /// a discriminating key (`use:`, `section:`, `section?:`, `fills:`, or
-/// `fills!:`). Spec [[type-def body::au-type-system]].
+/// `fills!:`). Spec [[type-def body::tb-type-system]].
 pub const BODY_ITEM_NOT_A_MAPPING: DiagnosticCode =
     DiagnosticCode::from_static("body-item-not-a-mapping");
 
 /// `body:` item lacks any of the recognized discriminator keys.
-/// Spec [[type-def body::au-type-system]].
+/// Spec [[type-def body::tb-type-system]].
 pub const BODY_ITEM_MISSING_DISCRIMINATOR: DiagnosticCode =
     DiagnosticCode::from_static("body-item-missing-discriminator");
 
-/// `fills:` value is not a field name or list of field names. Spec [[type-def body fills::au-type-system]].
+/// `fills:` value is not a field name or list of field names. Spec [[type-def body fills::tb-type-system]].
 pub const FILLS_VALUE_BAD_SHAPE: DiagnosticCode =
     DiagnosticCode::from_static("fills-value-bad-shape");
 
-/// `fills:` and `fills!:` declared on the same scope. Spec [[type-def body fills::au-type-system]].
+/// `fills:` and `fills!:` declared on the same scope. Spec [[type-def body fills::tb-type-system]].
 pub const FILLS_DOUBLE_FORM_DECLARATION: DiagnosticCode =
     DiagnosticCode::from_static("fills-double-form-declaration");
 
 /// `use:` of a type-def outside the current type-def's closure. Also fires
 /// cross-repo: a `use: parent::repo` whose peer is not in the host's FOLDED
 /// closure (the host does not extend `parent::repo`), checked in the engine's
-/// cross-repo gate. Spec [[type-def body use::au-type-system]].
+/// cross-repo gate. Spec [[type-def body use::tb-type-system]].
 pub const BODY_USE_OUT_OF_CLOSURE: DiagnosticCode =
     DiagnosticCode::from_static("body-use-out-of-closure");
 
-/// `use:` splice graph contains a cycle. Spec [[type-def body use::au-type-system]].
+/// `use:` splice graph contains a cycle. Spec [[type-def body use::tb-type-system]].
 pub const BODY_USE_CYCLE: DiagnosticCode = DiagnosticCode::from_static("body-use-cycle");
 
 /// `use:` appears inside a nested `body:` (only allowed at the top of the
-/// outermost body). Spec [[type-def body use::au-type-system]]. Not enumerated in the source spec; added during
+/// outermost body). Spec [[type-def body use::tb-type-system]]. Not enumerated in the source spec; added during
 /// implementation.
 pub const BODY_USE_NESTED: DiagnosticCode = DiagnosticCode::from_static("body-use-nested");
 
@@ -640,36 +640,36 @@ pub const BODY_USE_NESTED: DiagnosticCode = DiagnosticCode::from_static("body-us
 /// is dead syntax. Severity: warning. The instance still validates;
 /// surfaced because it's almost always a typo on the target name or a
 /// dangling `use:` left after the target lost its body. Also fires cross-repo
-/// for an in-closure `use: parent::repo` whose peer type declares no body. Spec [[type-def body use::au-type-system]].
+/// for an in-closure `use: parent::repo` whose peer type declares no body. Spec [[type-def body use::tb-type-system]].
 pub const BODY_USE_TARGET_HAS_NO_BODY: DiagnosticCode =
     DiagnosticCode::from_static("body-use-target-has-no-body");
 
 /// `fills:` references a field absent from the type-def's effective
-/// closure. Spec [[type-def body fills::au-type-system]].
+/// closure. Spec [[type-def body fills::tb-type-system]].
 pub const FILLS_UNKNOWN_FIELD: DiagnosticCode = DiagnosticCode::from_static("fills-unknown-field");
 
 /// Nested `fills:` requires a field forbidden by an ancestor `fills!:`.
-/// Spec [[type-def body fills::au-type-system]].
+/// Spec [[type-def body fills::tb-type-system]].
 pub const FILLS_CONTRACT_CONFLICT_NESTED_EXCLUSIVITY: DiagnosticCode =
     DiagnosticCode::from_static("fills-contract-conflict-nested-exclusivity");
 
 // `body:` on instance frontmatter reuses RESERVED_KEY_ON_INSTANCE (parameterized
 // message names the offending key); no dedicated code.
 
-// ----- body typing v5 — per-instance validation ([[type-def body section::au-type-system]], [[type-def body fills::au-type-system]], [[type-def body::au-type-system]]) -----
+// ----- body typing v5 — per-instance validation ([[type-def body section::tb-type-system]], [[type-def body fills::tb-type-system]], [[type-def body::tb-type-system]]) -----
 
 /// Yaml-only instance of a type-def that declares a non-empty `body:`
-/// template. Spec [[type-def body::au-type-system]].
+/// template. Spec [[type-def body::tb-type-system]].
 pub const BODY_REQUIRED_BUT_YAML_ONLY_INSTANCE: DiagnosticCode =
     DiagnosticCode::from_static("body-required-but-yaml-only-instance");
 
 /// Declared body section absent from the instance's prose.
-/// Spec [[type-def body section::au-type-system]].
+/// Spec [[type-def body section::tb-type-system]].
 pub const BODY_SECTION_MISSING: DiagnosticCode =
     DiagnosticCode::from_static("body-section-missing");
 
 /// Declared body section appears out of its templated position relative
-/// to a sibling declared section. Spec [[type-def body section::au-type-system]] ("position in the ordering
+/// to a sibling declared section. Spec [[type-def body section::tb-type-system]] ("position in the ordering
 /// must be respected").
 pub const BODY_SECTION_OUT_OF_ORDER: DiagnosticCode =
     DiagnosticCode::from_static("body-section-out-of-order");
@@ -682,69 +682,69 @@ pub const BODY_SECTION_OUT_OF_ORDER: DiagnosticCode =
 /// scanning subsequent lines as ordinary content; this diagnostic
 /// surfaces the unterminated open. Advisory severity per CommonMark
 /// (which permits unterminated fences but reads them ambiguously).
-/// Spec [[type-instance body contribution::au-type-system]].
+/// Spec [[type-instance body contribution::tb-type-system]].
 pub const BODY_UNTERMINATED_FENCE: DiagnosticCode =
     DiagnosticCode::from_static("body-unterminated-fence");
 
 /// Two or more blocks in a single file share the same `^block-id`.
 /// `resolve_block_id` returns the first match, silently ignoring later
 /// ones; this diagnostic surfaces the duplication so authors can
-/// disambiguate. Spec [[type block-id::au-type-system]].
+/// disambiguate. Spec [[type block-id::tb-type-system]].
 pub const BLOCK_ID_DUPLICATE: DiagnosticCode = DiagnosticCode::from_static("block-id-duplicate");
 
 /// Scope declared `fills: f` but contains no contribution to f.
-/// Spec [[type-def body fills::au-type-system]].
+/// Spec [[type-def body fills::tb-type-system]].
 pub const FILLS_CONTRACT_UNMET: DiagnosticCode =
     DiagnosticCode::from_static("fills-contract-unmet");
 
 /// Scope declared `fills!: f` but contains a contribution to a different
-/// field. Spec [[type-def body fills::au-type-system]].
+/// field. Spec [[type-def body fills::tb-type-system]].
 pub const FILLS_CONTRACT_EXCEEDED: DiagnosticCode =
     DiagnosticCode::from_static("fills-contract-exceeded");
 
 /// Body contributes to a field whose frontmatter key is absent.
-/// Spec [[type-instance body contribution::au-type-system]].
+/// Spec [[type-instance body contribution::tb-type-system]].
 pub const BODY_FILLS_WITHOUT_FRONTMATTER_KEY: DiagnosticCode =
     DiagnosticCode::from_static("body-fills-without-frontmatter-key");
 
 /// Effective ValueContainer list exceeds the field's declared cardinality.
-/// Spec [[type value container::au-type-system]].
+/// Spec [[type value container::tb-type-system]].
 pub const FIELD_CARDINALITY_EXCEEDED: DiagnosticCode =
     DiagnosticCode::from_static("field-cardinality-exceeded");
 
 /// `[[target:field]]` references a field absent from the instance's
-/// effective closure. Spec [[type-instance body contribution::au-type-system]].
+/// effective closure. Spec [[type-instance body contribution::tb-type-system]].
 pub const UNBOUND_FIELD_BINDING: DiagnosticCode =
     DiagnosticCode::from_static("unbound-field-binding");
 
 /// Inline `[:field]` references a field absent from the closure (advisory).
-/// Spec [[type-instance body contribution::au-type-system]].
+/// Spec [[type-instance body contribution::tb-type-system]].
 pub const UNKNOWN_FIELD_IN_PROSE_CONTRIBUTION: DiagnosticCode =
     DiagnosticCode::from_static("unknown-field-in-prose-contribution");
 
 /// Body contribution's value doesn't satisfy the bound field's shape.
-/// Spec [[type-instance body contribution::au-type-system]].
+/// Spec [[type-instance body contribution::tb-type-system]].
 pub const BODY_SLOT_SHAPE_MISMATCH: DiagnosticCode =
     DiagnosticCode::from_static("body-slot-shape-mismatch");
 
 /// Inline code starts with `[:` but doesn't match `[:fieldName] value`.
 /// Severity: warning — `[:field]` and similar near-misses ARE reserved
 /// attribution syntax, but the author's intent is ambiguous (bare
-/// `[:field]` is a common documentation idiom). Spec [[type-instance body contribution::au-type-system]].
+/// `[:field]` is a common documentation idiom). Spec [[type-instance body contribution::tb-type-system]].
 pub const MALFORMED_ATTRIBUTION_MARKER: DiagnosticCode =
     DiagnosticCode::from_static("malformed-attribution-marker");
 
 /// A `^^id` block-referent resolves to a plain (fence-less) block. Fires only on
-/// the `^^` path; a bare `^id` is navigational. Spec [[type block-id::au-type-system]].
+/// the `^^` path; a bare `^id` is navigational. Spec [[type block-id::tb-type-system]].
 pub const BLOCK_ID_NOT_TYPED: DiagnosticCode = DiagnosticCode::from_static("block-id-not-typed");
 
 /// A `^^id` block-referent's id is absent from the target file. Fires only on the
 /// `^^` path; a bare `^id`'s missing id is `navigational-block-id-not-found`
-/// (warning). Spec [[type block-id::au-type-system]].
+/// (warning). Spec [[type block-id::tb-type-system]].
 pub const BLOCK_ID_NOT_FOUND: DiagnosticCode = DiagnosticCode::from_static("block-id-not-found");
 
 /// A marked fence reading as a record (`type: T`) fails T's contract.
-/// Spec [[type-instance body contribution::au-type-system]].
+/// Spec [[type-instance body contribution::tb-type-system]].
 pub const EMBEDDED_RECORD_VALIDATION_FAILURE: DiagnosticCode =
     DiagnosticCode::from_static("embedded-record-validation-failure");
 
@@ -757,6 +757,6 @@ pub const EMBEDDED_RECORD_VALIDATION_FAILURE: DiagnosticCode =
 /// failure rather
 /// than replacing it — the record really is invalid, so the error keeps its own
 /// severity. A fence whose record reads and validates fires nothing.
-/// Spec [[type-instance body contribution::au-type-system]].
+/// Spec [[type-instance body contribution::tb-type-system]].
 pub const BODY_FENCE_READ_AS_RECORD: DiagnosticCode =
     DiagnosticCode::from_static("body-fence-read-as-record");

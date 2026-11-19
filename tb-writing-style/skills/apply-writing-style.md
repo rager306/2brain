@@ -1,7 +1,7 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: apply-writing-style
-description: Rewrites a note's prose into the active house writing voice, applying its writing-rules. Use when the human asks to restyle, reformat, tighten, or clean up a note, to apply the writing style, or to bring it up to the house standard. Do not use to write new content, for the discipline rules (those are au-rules), or on code, data, or quoted text.
+description: Rewrites a note's prose into the active house writing voice, applying its writing-rules. Use when the human asks to restyle, reformat, tighten, or clean up a note, to apply the writing style, or to bring it up to the house standard. Do not use to write new content, for the discipline rules (those are tb-rules), or on code, data, or quoted text.
 ---
 
 # apply-writing-style
@@ -21,9 +21,9 @@ Use the first available profile:
 
 1. The profile the human specifies for this task
 2. The active injected profile identified by the launch context
-3. [[core-profile::au-writing-style]]
+3. [[core-profile::tb-writing-style]]
 
-Find profiles with `tb_instances_of {ofType: "writing-profile::au-writing-style", resolve: true}`.
+Find profiles with `tb_instances_of {ofType: "writing-profile::tb-writing-style", resolve: true}`.
 
 Read the chosen profile and only its effective `rules`, in order.
 Read any missing rule bodies in full.

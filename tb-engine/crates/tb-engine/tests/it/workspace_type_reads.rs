@@ -24,9 +24,9 @@ fn fixture() -> (tempfile::TempDir, PathBuf) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     w("base/type/thing.type.yaml", "fields:\n  title: String\n");
@@ -342,9 +342,9 @@ fn same_name_fixture() -> (tempfile::TempDir, PathBuf) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("repo_a/.arsumbris/repo.yaml", "name: repo_a\n");
+    w("repo_a/.2brain/repo.yaml", "name: repo_a\n");
     w("repo_a/type/widget.type.yaml", "fields:\n  a: String\n");
-    w("repo_b/.arsumbris/repo.yaml", "name: repo_b\n");
+    w("repo_b/.2brain/repo.yaml", "name: repo_b\n");
     // Divergent: a different field, so a different closure, so a different hash.
     w("repo_b/type/widget.type.yaml", "fields:\n  b: Number\n");
     (dir, root)
@@ -570,10 +570,10 @@ fn import_fixture() -> (tempfile::TempDir, PathBuf) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w("base/type/thing.type.yaml", "fields:\n  title: String\n");
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // Peer-extended, no local `thing` copy: `type: thing::base`.

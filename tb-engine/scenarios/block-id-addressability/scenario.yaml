@@ -1,5 +1,5 @@
 title: "Block-id resolution fires only in reference-admitting slots; a plain block falls to the file"
-spec_ref: "[[type block-id::au-type-system]], [[type reference::au-type-system]]"
+spec_ref: "[[type block-id::tb-type-system]], [[type reference::tb-type-system]]"
 command: validate
 expected:
   codes:

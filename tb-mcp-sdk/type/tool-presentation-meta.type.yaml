@@ -1,18 +1,18 @@
 # tool-presentation-meta — the typed meta a tool carries for its AGENT-FACING surface
-# ([[decision - 2606251602 - tool description rides a typed tool-presentation meta surfaced via the manifest, adapter forwards::au-harness]]).
+# ([[decision - 2606251602 - tool description rides a typed tool-presentation meta surfaced via the manifest, adapter forwards::tb-harness]]).
 # Claimed in an `mcp.tool` subtype's `meta:` block (never instance fields — meta is
 # type-level, read off the def via the engine). SEPARATE from plugin-runtime-meta:
 # runtime wiring (entry/shapes) and presentation are different concerns on different
 # change-clocks. The daemon reads these fields and puts them on the tool's PluginManifest;
-# au-mcp surfaces them via list-capabilities; the adapter forwards them, holding no tool
+# tb-mcp surfaces them via list-capabilities; the adapter forwards them, holding no tool
 # descriptions or usage notes of its own ("adapters only adapt").
 #
-# Owned here (au-mcp-sdk, the contract owner). Meta is excluded from the canonical hash,
+# Owned here (tb-mcp-sdk, the contract owner). Meta is excluded from the canonical hash,
 # so a vendored copy drops the doc; discovery reads the OWNER copy (engine `subtypes`
 # dedupes to it).
 #
 # Mixes in the schema-18 nominal-meta marker so it is meta-legal (its closure includes
-# `au.engine.meta::au-engine`, the universal `::au-engine` peer — no `deps` needed).
+# `tb.engine.meta::tb-engine`, the universal `::tb-engine` peer — no `deps` needed).
 extends: tb.engine.meta::tb-engine
 fields:
   # Human-readable description, advertised to the agent. Required: every tool presents one.

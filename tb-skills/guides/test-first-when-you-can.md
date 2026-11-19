@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: structure a skill that drives code so the agent's own work is checked
 rule: For a behavior change, write a requirement-based test and observe its failure before fixing the implementation. Preserve the assertion unless evidence shows the test is wrong.
 ---

@@ -61,7 +61,7 @@ fn validate_meta_simple(graph: &TypeGraph) -> Vec<Diagnostic> {
 }
 
 /// Compose a `meta:` block list onto an existing TypeDef. Mirrors
-/// `with_sealed` from `sealed_leaf_invariants.rs` — au-testkit's
+/// `with_sealed` from `sealed_leaf_invariants.rs` — tb-testkit's
 /// builders don't carry meta by default; tests opt in.
 fn with_meta(mut td: TypeDef, blocks: Vec<MetaBlock>) -> TypeDef {
     td.meta_blocks = Some(blocks);

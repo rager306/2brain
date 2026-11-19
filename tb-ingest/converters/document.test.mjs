@@ -29,7 +29,7 @@ const cases = [
 for (const { file, want } of cases) {
   test(`${file} preserves expected content and source fields`, async () => {
     const source = await run(file);
-    assert.match(source, /^type: document::au-ingest$/m);
+    assert.match(source, /^type: document::tb-ingest$/m);
     assert.ok(source.includes(`original: "[[${file}]]"`));
     for (const pattern of GARBAGE) assert.doesNotMatch(source, pattern);
     assert.ok(want(source), source);

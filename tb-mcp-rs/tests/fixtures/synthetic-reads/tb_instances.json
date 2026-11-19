@@ -98,7 +98,7 @@
                         },
                         "start": 6
                       },
-                      "file": "$FIXTURE/base/.arsumbris/repo.yaml"
+                      "file": "$FIXTURE/base/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -117,7 +117,7 @@
             "field": "name"
           }
         ],
-        "file": "$FIXTURE/base/.arsumbris/repo.yaml",
+        "file": "$FIXTURE/base/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -211,7 +211,7 @@
                         },
                         "start": 24
                       },
-                      "file": "$FIXTURE/fixture/.arsumbris/repo.yaml"
+                      "file": "$FIXTURE/fixture/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -269,7 +269,7 @@
                         },
                         "start": 6
                       },
-                      "file": "$FIXTURE/fixture/.arsumbris/repo.yaml"
+                      "file": "$FIXTURE/fixture/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -288,7 +288,7 @@
             "field": "name"
           }
         ],
-        "file": "$FIXTURE/fixture/.arsumbris/repo.yaml",
+        "file": "$FIXTURE/fixture/.2brain/repo.yaml",
         "section_presence": null
       },
       {

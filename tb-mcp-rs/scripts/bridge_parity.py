@@ -17,10 +17,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from mcp_stdio import StdioMcp, is_error, tool_payload
 
-ENGINE = os.environ.get("TB_ENGINE_BIN", "../tb-engine/target/debug/au")
+ENGINE = os.environ.get("TB_ENGINE_BIN", "../tb-engine/target/debug/tb-engine")
 ADAPTER = os.environ.get("TB_MCP_BIN", "target/debug/tb-mcp-rs")
 BRIDGE = os.environ.get(
-    "TB_BRIDGE", str(Path(__file__).resolve().parents[2] / "au-mcp-bridge/bridge.py")
+    "TB_BRIDGE", str(Path(__file__).resolve().parents[2] / "tb-mcp-bridge/bridge.py")
 )
 BUNDLE = Path(__file__).resolve().parents[2]
 TIMEOUT = 60.0
@@ -72,7 +72,7 @@ def commit(directory: Path) -> None:
 
 def build_workspace(root: Path) -> Path:
     """A fixture workspace that mounts the bundled plugin package as a dependency."""
-    for name in ("au-mcp-core", "au-mcp-sdk"):
+    for name in ("tb-mcp-core", "tb-mcp-sdk"):
         target = root / name
         shutil.copytree(BUNDLE / name, target, ignore=shutil.ignore_patterns(".git", "node_modules"))
         commit(target)
@@ -80,7 +80,7 @@ def build_workspace(root: Path) -> Path:
     (repo / ".2brain").mkdir(parents=True)
     (repo / "notes").mkdir()
     (repo / ".2brain/repo.yaml").write_text(
-        "name: fixture\ndeps:\n  - name: au-mcp-core\n  - name: au-mcp-sdk\n"
+        "name: fixture\ndeps:\n  - name: tb-mcp-core\n  - name: tb-mcp-sdk\n"
     )
     (repo / "notes/a.md").write_text("---\ntype: note\n---\n")
     (repo / "type").mkdir()
@@ -122,7 +122,7 @@ def main() -> int:
     if shutil.which("bun") is None:
         raise SystemExit("bun is required to run the Node daemon")
 
-    root = Path(tempfile.mkdtemp(prefix="au-parity-"))
+    root = Path(tempfile.mkdtemp(prefix="tb-parity-"))
     home = root / "home"
     home.mkdir()
     repo = build_workspace(root)
@@ -136,18 +136,18 @@ def main() -> int:
             stderr=subprocess.DEVNULL,
         )
         processes.append(engine)
-        engine_socket = wait_for(home / ".2brain/au-engine/run", time.monotonic() + TIMEOUT)
+        engine_socket = wait_for(home / ".2brain/tb-engine/run", time.monotonic() + TIMEOUT)
         if engine_socket is None:
             raise SystemExit("the disposable engine never became ready")
 
         daemon = subprocess.Popen(
             ["bun", "run", "src/cli.ts", "start", str(repo)],
-            cwd=str(BUNDLE / "au-mcp"), env=env,
+            cwd=str(BUNDLE / "tb-mcp"), env=env,
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
         processes.append(daemon)
-        daemon_socket = wait_for(home / ".arsumbris/au-mcp/run", time.monotonic() + TIMEOUT)
+        daemon_socket = wait_for(home / ".2brain/tb-mcp/run", time.monotonic() + TIMEOUT)
         if daemon_socket is None:
             raise SystemExit("the Node daemon never became ready")
 
@@ -228,9 +228,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    # The packages this needs (au-mcp-core, au-mcp-sdk code, au-mcp-bridge) were deleted on
+    # The packages this needs (tb-mcp-core, tb-mcp-sdk code, tb-mcp-bridge) were deleted on
     # 2026-11-16. Fail with the reason instead of a traceback from a missing path.
-    missing = [p for p in (BRIDGE, BUNDLE / "au-mcp-core") if not Path(p).exists()]
+    missing = [p for p in (BRIDGE, BUNDLE / "tb-mcp-core") if not Path(p).exists()]
     if missing:
         print("retired: the Python bridge / Node workspace is gone (" +
               ", ".join(str(m) for m in missing) + "); see live_parity.py", file=sys.stderr)

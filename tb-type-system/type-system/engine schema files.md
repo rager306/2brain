@@ -1,15 +1,15 @@
-The hardwired `au.engine.*` type-defs, and the engine's own files typed as their instances.
+The hardwired `tb.engine.*` type-defs, and the engine's own files typed as their instances.
 
 See [[cross-repo file set]] for the files themselves.
 
 # Properties
 
 ## Hardwired defs, a builtin repo
-The `au.engine.*` type-defs are compiled into the engine, not authored in a knowledge base.
-- owned by a builtin `au-engine` repo, present in every build.
-- `::au-engine` resolves as a universal peer, no `deps` declaration needed.
+The `tb.engine.*` type-defs are compiled into the engine, not authored in a knowledge base.
+- owned by a builtin `tb-engine` repo, present in every build.
+- `::tb-engine` resolves as a universal peer, no `deps` declaration needed.
 - each carries a `(name, closure-hash)` identity like any def, so it is wire-serializable and drift-comparable.
-- the set is the file types below, plus the record element types their list fields reference, e.g. `au.engine.dep`.
+- the set is the file types below, plus the record element types their list fields reference, e.g. `tb.engine.dep`.
 
 ## The typed files
 Each engine-owned file is a typed instance of one hardwired def.
@@ -23,18 +23,18 @@ Each engine-owned file is a typed instance of one hardwired def.
   - field-shape validated on the `device_config` read, its diagnostics land there.
 
 ## The namespace is reserved by convention
-`au.engine.*` is reserved, coexistence not annihilation.
-- a repo def named in the namespace keeps its own `(name, hash)` identity and resolves normally, `::au-engine` scopes the engine's.
-- a repo def named `au.engine.foo` the engine does not hardwire is [[spec - diagnostic codes^engine-name-forward-reserved]].
+`tb.engine.*` is reserved, coexistence not annihilation.
+- a repo def named in the namespace keeps its own `(name, hash)` identity and resolves normally, `::tb-engine` scopes the engine's.
+- a repo def named `tb.engine.foo` the engine does not hardwire is [[spec - diagnostic codes^engine-name-forward-reserved]].
 - a repo def named like a hardwired type is [[spec - diagnostic codes^engine-name-live-shadow]], both coexist.
 - such a shadow diverged from the engine's copy adds [[spec - diagnostic codes^engine-name-shadow-drift]].
 - each is advisory, never a block.
 
 # Structure
 The engine-owned files and their assigned types.
-- `<repo>/.arsumbris/repo.yaml`, [[repo yaml]], `au.engine.repo`.
-- `<repo>/.arsumbris/repo.lock`, `au.engine.repo-lock`.
-- `<repo>/.arsumbris/workspace.yaml`, the [[workspace manifest]], `au.engine.workspace`, `edit?: String[]` plus `discover?: String[]`.
-- `<repo>/.arsumbris/workspace.lock`, `au.engine.workspace-lock`, the pinned discover closure, parallel to `au.engine.repo-lock`.
-- `~/.arsumbris/au-engine/config/repos.yaml`, [[repos yaml]], `au.engine.repos`.
-- `~/.arsumbris/au-engine/config/workspaces.yaml`, [[workspaces yaml]], `au.engine.workspaces`.
+- `<repo>/.2brain/repo.yaml`, [[repo yaml]], `tb.engine.repo`.
+- `<repo>/.2brain/repo.lock`, `tb.engine.repo-lock`.
+- `<repo>/.2brain/workspace.yaml`, the [[workspace manifest]], `tb.engine.workspace`, `edit?: String[]` plus `discover?: String[]`.
+- `<repo>/.2brain/workspace.lock`, `tb.engine.workspace-lock`, the pinned discover closure, parallel to `tb.engine.repo-lock`.
+- `~/.2brain/engine/config/repos.yaml`, [[repos yaml]], `tb.engine.repos`.
+- `~/.2brain/engine/config/workspaces.yaml`, [[workspaces yaml]], `tb.engine.workspaces`.

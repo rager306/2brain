@@ -488,13 +488,13 @@
    "disabled": false,
    "editable": false,
    "git": {
-    "root": "/root/2brain/au-mcp",
+    "root": "/root/2brain/tb-mcp",
     "tracked": true
    },
    "local": true,
-   "repo": "au-mcp",
+   "repo": "tb-mcp",
    "role": "dep",
-   "root": "/root/2brain/au-mcp",
+   "root": "/root/2brain/tb-mcp",
    "scattered": true,
    "tier": "registry"
   },
@@ -502,13 +502,13 @@
    "disabled": false,
    "editable": false,
    "git": {
-    "root": "/root/2brain/au-mcp-adapter-cc",
+    "root": "/root/2brain/tb-mcp-adapter-cc",
     "tracked": true
    },
    "local": true,
-   "repo": "au-mcp-adapter-cc",
+   "repo": "tb-mcp-adapter-cc",
    "role": "dep",
-   "root": "/root/2brain/au-mcp-adapter-cc",
+   "root": "/root/2brain/tb-mcp-adapter-cc",
    "scattered": true,
    "tier": "sibling"
   },
@@ -516,13 +516,13 @@
    "disabled": false,
    "editable": false,
    "git": {
-    "root": "/root/2brain/au-mcp-adapter-codex",
+    "root": "/root/2brain/tb-mcp-adapter-codex",
     "tracked": true
    },
    "local": true,
-   "repo": "au-mcp-adapter-codex",
+   "repo": "tb-mcp-adapter-codex",
    "role": "dep",
-   "root": "/root/2brain/au-mcp-adapter-codex",
+   "root": "/root/2brain/tb-mcp-adapter-codex",
    "scattered": true,
    "tier": "sibling"
   },
@@ -530,13 +530,13 @@
    "disabled": false,
    "editable": false,
    "git": {
-    "root": "/root/2brain/au-mcp-core",
+    "root": "/root/2brain/tb-mcp-core",
     "tracked": true
    },
    "local": true,
-   "repo": "au-mcp-core",
+   "repo": "tb-mcp-core",
    "role": "dep",
-   "root": "/root/2brain/au-mcp-core",
+   "root": "/root/2brain/tb-mcp-core",
    "scattered": true,
    "tier": "sibling"
   },
@@ -548,7 +548,7 @@
     "tracked": true
    },
    "local": true,
-   "repo": "au-mcp-sdk",
+   "repo": "tb-mcp-sdk",
    "role": "dep",
    "root": "/root/2brain/tb-mcp-sdk",
    "scattered": true,

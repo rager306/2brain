@@ -5,7 +5,7 @@
 //! shape conformance) lives in `validate`.
 //!
 //! `fields:` / `sealed:` / `meta:` at instance top level →
-//! `reserved-key-on-instance` ([[type-def::au-type-system]]).
+//! `reserved-key-on-instance` ([[type-def::tb-type-system]]).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -16,7 +16,7 @@ use tb_parser::yaml::{MarkedYaml, Scalar, YamlData, span_to_byte_range};
 use crate::codes;
 use crate::typedef::TypeNameClaim;
 
-/// Instance `type:` form. Bare scalar is the [[type list form::au-type-system]] single-claim form;
+/// Instance `type:` form. Bare scalar is the [[type list form::tb-type-system]] single-claim form;
 /// `List` covers proper mixin and the trivial 1-element list form
 /// (still single-claim).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,13 +71,13 @@ impl TypeClaim {
     }
 }
 
-/// An instance-field value. `Mapping` carries an inline value ([[type-def shape record::au-type-system]]) — a
+/// An instance-field value. `Mapping` carries an inline value ([[type-def shape record::tb-type-system]]) — a
 /// YAML map mirroring file frontmatter (optional `type:` claim plus
 /// arbitrary fields), parsed eagerly so the validator can descend.
 ///
 /// `Float(f64)` makes this `PartialEq` but not `Eq`: a `NaN` value never
 /// compares equal to itself. Any equality-based dedup or caching of values
-/// (e.g. [[type value container::au-type-system]] collapsing equal contributions) treats two
+/// (e.g. [[type value container::tb-type-system]] collapsing equal contributions) treats two
 /// `NaN`s as distinct. Fine in practice — authored data does not carry `NaN` —
 /// but a reason this enum stays `PartialEq` only.
 #[derive(Debug, Clone, PartialEq)]
@@ -91,7 +91,7 @@ pub enum InstanceValue {
     /// validator can point list-element diagnostics at the offending entry
     /// instead of the surrounding list.
     Sequence(Vec<SequenceElement>),
-    /// Inline value at a record-typed slot ([[type-def shape record::au-type-system]]): a YAML map with optional
+    /// Inline value at a record-typed slot ([[type-def shape record::tb-type-system]]): a YAML map with optional
     /// `type:` claim plus fields. Same shape as a top-level instance's
     /// frontmatter — nested inline values fall out of the recursive
     /// `classify_value` walk.
@@ -117,7 +117,7 @@ pub struct SequenceElement {
 /// otherwise source-free: the raw scalar token (quotes, escapes) can't be
 /// reconstructed downstream, so link offsets must be fixed while the source
 /// is in hand. A link is navigational, not a validated reference, see
-/// [[type reference::au-type-system]].
+/// [[type reference::tb-type-system]].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NavLink {
     pub span: ByteRange,
@@ -141,7 +141,7 @@ pub enum DocOrigin {
 /// A navigational `[[...]]` wikilink captured from a `#:` docstring, tagged
 /// with the declaration it documents. Navigational only, never a validated or
 /// contributing reference. Derived from the docstring text, so it stays
-/// advisory and out of the closure hash. See [[type docstring::au-type-system]].
+/// advisory and out of the closure hash. See [[type docstring::tb-type-system]].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocstringLink {
     pub origin: DocOrigin,
@@ -167,21 +167,21 @@ pub(crate) fn nav_links_in_range(source: &str, range: ByteRange) -> Vec<NavLink>
         .collect()
 }
 
-/// An inline value at a record-typed slot ([[type-def shape record::au-type-system]]). Mirrors a file-level
+/// An inline value at a record-typed slot ([[type-def shape record::tb-type-system]]). Mirrors a file-level
 /// `Instance`'s frontmatter shape: optional `type:` claim plus arbitrary
 /// fields. Reserved keys (`fields:`, `sealed:`, `meta:`) inside an inline
 /// value emit `reserved-key-on-instance` at parse time.
 #[derive(Debug, Clone, PartialEq)]
 pub struct InlineValue {
     pub type_claim: Option<TypeClaim>,
-    /// The `^:` block-id ([[type block-id::au-type-system]]): identity-layer beside the
+    /// The `^:` block-id ([[type block-id::tb-type-system]]): identity-layer beside the
     /// `type:` claim, never a field. Makes the record a reference target
     /// (`[[file^id]]` / `[[^id]]`).
     pub block_id: Option<BlockIdDecl>,
     pub fields: Vec<InstanceField>,
     /// The record's own `#:` head docstring: a leading `#:` block before its
     /// first key, `None` when absent. Advisory, surfaced on the value surface,
-    /// see [[type docstring::au-type-system]].
+    /// see [[type docstring::tb-type-system]].
     pub doc: Option<String>,
     /// Per-field `#:` docstrings, keyed by the field key as authored (the
     /// qualified form kept verbatim). Only documented fields appear. Advisory.
@@ -200,7 +200,7 @@ pub struct BlockIdDecl {
 #[derive(Debug, Clone, PartialEq)]
 pub struct InstanceField {
     /// The YAML key as it appeared on disk. Not necessarily a valid
-    /// `FieldName` — may carry a [[type-def fields collision - auto-unify and qualified field::au-type-system]] qualifier
+    /// `FieldName` — may carry a [[type-def fields collision - auto-unify and qualified field::tb-type-system]] qualifier
     /// (`field-name{type-name}`); the validator parses the qualifier shape
     /// and constructs a `FieldName` only after resolving it.
     pub key: String,
@@ -219,7 +219,7 @@ pub struct Instance {
     pub type_claim: TypeClaim,
     pub fields: Vec<InstanceField>,
     /// The instance's own `#:` head docstring: a leading `#:` block before the
-    /// first frontmatter key, `None` when absent. Advisory, see [[type docstring::au-type-system]].
+    /// first frontmatter key, `None` when absent. Advisory, see [[type docstring::tb-type-system]].
     pub doc: Option<String>,
     /// Per-field `#:` docstrings, keyed by the frontmatter field key as
     /// authored. Only documented fields appear. Advisory.
@@ -262,7 +262,7 @@ pub fn parse_instance(
 /// not write. A written top-level `type:` always wins; the stamp is used only
 /// when the file writes no `type:` key. This types a file the engine classifies
 /// by kind (an engine-schema file, its `type:` implicit) without a written key,
-/// while a future explicit key stays honored. au-core is domain-pure: it stamps
+/// while a future explicit key stays honored. tb-core is domain-pure: it stamps
 /// whatever claim the caller supplies, it knows no engine-schema names.
 ///
 /// With `stamp: None` this is exactly [`parse_instance`]. With a stamp and no
@@ -303,7 +303,7 @@ pub fn parse_instance_stamped(
     let mut fields: Vec<InstanceField> = Vec::new();
     // The offset of the first frontmatter key, the boundary a leading `#:` head
     // block must sit before. Captured across every key (including `type:`), so a
-    // block above the first key documents the instance. See [[type docstring::au-type-system]].
+    // block above the first key documents the instance. See [[type docstring::tb-type-system]].
     let mut first_key_offset: Option<usize> = None;
 
     for (key, value) in mapping.iter() {
@@ -340,7 +340,7 @@ pub fn parse_instance_stamped(
                     ),
                 ));
             }
-            // `^:` belongs on inline records ([[type block-id::au-type-system]]); the
+            // `^:` belongs on inline records ([[type block-id::tb-type-system]]); the
             // file itself is addressable by name. Warn, drop the key.
             "^" => {
                 diagnostics.push(diag(
@@ -368,7 +368,7 @@ pub fn parse_instance_stamped(
     // the first key, so a leading head block would otherwise fall outside the
     // region. Extend the upper past the last field's line (the mapping span ends
     // at the value, before a trailing `#:` on the last field), stopping before
-    // the next line (a closing `---` or the body). See [[type docstring::au-type-system]].
+    // the next line (a closing `---` or the body). See [[type docstring::tb-type-system]].
     let content_end = fields
         .iter()
         .map(|f| f.value_span.end)
@@ -477,7 +477,7 @@ pub fn parse_note(path: &Path, source: &str, yaml_offset: usize, doc: &MarkedYam
 /// `#:` block before `first_key_offset`; `field_docs` maps each documented
 /// field key to its `#:` text. A `#:` binding to nothing fires
 /// `dangling-doc-comment`. Recurses into every nested record so each carries
-/// its own docs. See [[type docstring::au-type-system]].
+/// its own docs. See [[type docstring::tb-type-system]].
 ///
 /// The caller owns `region`, the byte range this scope's comments live in.
 /// A record's leading head block sits BEFORE its value span (between the parent
@@ -739,7 +739,7 @@ fn parse_type_claim(
         }
         YamlData::Sequence(items) => {
             // Empty list claim (`type: []`) is rejected at parse time per
-            // [[type list form::au-type-system]] — a list-form claim must name at least one
+            // [[type list form::tb-type-system]] — a list-form claim must name at least one
             // type. Reuses INSTANCE_CLAIM_BAD_SHAPE so callers see a single
             // claim-shape error rather than a downstream surprise.
             if items.is_empty() {
@@ -900,7 +900,7 @@ fn parse_inline_value(
             "type" => {
                 type_claim = parse_type_claim(path, source, val, yaml_offset, diagnostics);
             }
-            // `^:` is identity-layer ([[type block-id::au-type-system]]) — beside `type:`,
+            // `^:` is identity-layer ([[type block-id::tb-type-system]]) — beside `type:`,
             // never a field. Field names can't be `^` (leading letter
             // required), so the key is structurally collision-free.
             "^" => match block_id_scalar(val) {
@@ -1415,7 +1415,7 @@ n: null
 
     #[test]
     fn mapping_value_classifies_as_inline_value() {
-        // [[type-def shape record::au-type-system]]: a YAML map at a record-typed slot is an inline value with
+        // [[type-def shape record::tb-type-system]]: a YAML map at a record-typed slot is an inline value with
         // optional `type:` claim and arbitrary fields. The classifier
         // recurses, so nested maps come out as nested InlineValue.
         let res = parse_one("type: foo\nm: {a: 1}\n", "/v/m.md");
@@ -1500,7 +1500,7 @@ n: null
         assert!(value_text.contains("hi"));
     }
 
-    // ----- `^:` block-ids on inline records ([[type block-id::au-type-system]]) -----
+    // ----- `^:` block-ids on inline records ([[type block-id::tb-type-system]]) -----
 
     fn inline_of(value: &InstanceValue) -> &InlineValue {
         match value {
@@ -1632,7 +1632,7 @@ node:
         assert_eq!(&src[decl.value_span.start..decl.value_span.end], "n1");
     }
 
-    // ----- `#:` docstrings on instances ([[type docstring::au-type-system]]) -----
+    // ----- `#:` docstrings on instances ([[type docstring::tb-type-system]]) -----
 
     #[test]
     fn instance_head_doc_and_frontmatter_field_docs() {

@@ -2,7 +2,7 @@
 type: guide.principle
 goal: "Use a map to orient a reading task and preserve useful discoveries."
 rule: "Use a map when its scope fits, verify the claims you rely on, and record discoveries only when they add justified value."
-about: "[[map::au-base-types]]"
+about: "[[map::tb-base-types]]"
 ---
 
 # Use a map as a reading aid

@@ -1,6 +1,6 @@
 # Discipline rules are plain notes. Rule profiles supply session injection.
 type: tb.engine.repo::tb-engine
-name: au-rules
+name: tb-rules
 description: Reusable discipline rules and selectable rule profiles for agent sessions.
 deps:
-  - name: au-mcp-sdk
+  - name: tb-mcp-sdk

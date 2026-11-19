@@ -11,8 +11,8 @@
 #   cargo +1.99.0 fmt --check -p tb-engine              -> exit 0
 #   cargo +1.99.0 clippy --workspace --all-targets -- -D warnings -> exit 0 since
 #       2026-11-16, when the engine job gained that gate (.github/workflows/ci.yml).
-#       The 85 warnings this file used to record (au-core 43, au-engine 38,
-#       au-testkit 4) are history, not a live measurement; six reasoned `#[allow]`s
+#       The 85 warnings this file used to record (tb-core 43, tb-engine 38,
+#       tb-testkit 4) are history, not a live measurement; six reasoned `#[allow]`s
 #       remain in tb-engine, which the gate accepts.
 #
 # The `it` count includes the three golden-capture tests added 2026-11-14.

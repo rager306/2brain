@@ -10,10 +10,10 @@ tldr: Design and build new workspace capabilities, using research into methods a
 
 ## What this is
 
-`au-competency` helps you design new structure for your 2Brain workspace.
+`tb-competency` helps you design new structure for your 2Brain workspace.
 That can mean types and relationships for your knowledge, skills and guides for your agents, or tools and workflows that connect them.
 
-Self-research investigates methods and established practices through [[README::au-tree-research]].
+Self-research investigates methods and established practices through [[README::tb-tree-research]].
 It helps you decide what fits your work and why.
 A known solution can go straight to a proposal.
 
@@ -31,12 +31,12 @@ Use [[workspace-premise]] to ground improvements in its purpose and boundaries.
 | [[design-architecture]] | Explain how the parts will work together |
 | [[improve]] | Build approved changes and check the result |
 
-Use the supporting guidance from [[README::au-agent-guides]].
-For research setup, follow [[README::au-tree-research]].
+Use the supporting guidance from [[README::tb-agent-guides]].
+For research setup, follow [[README::tb-tree-research]].
 Keep small designs in the proposal.
 
 ## How to extend this
 
 Keep your requirements, proposals and evidence in your own repo.
-Depend on `au-competency` when using its types.
+Depend on `tb-competency` when using its types.
 Extend them with fields or writing guidance suited to your work.

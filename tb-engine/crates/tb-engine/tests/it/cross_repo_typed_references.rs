@@ -37,7 +37,7 @@ fn faithful_fixture() -> tempfile::TempDir {
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
 
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/person.type.yaml",
@@ -74,7 +74,7 @@ fn faithful_fixture() -> tempfile::TempDir {
 
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // app imports base: card's who slot demands the peer type person::base.
@@ -182,7 +182,7 @@ fn body_slot_fixture() -> tempfile::TempDir {
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
 
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/person.type.yaml",
@@ -202,7 +202,7 @@ fn body_slot_fixture() -> tempfile::TempDir {
 
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -259,7 +259,7 @@ fn qualified_body_slot_fixture() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/person.type.yaml",
@@ -278,7 +278,7 @@ fn qualified_body_slot_fixture() -> tempfile::TempDir {
     write(&root, "base/acme.md", "---\ntype: org\nname: Acme\n---\n");
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -335,7 +335,7 @@ fn shadowed_body_slot_fixture() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/person.type.yaml",
@@ -343,7 +343,7 @@ fn shadowed_body_slot_fixture() -> tempfile::TempDir {
     );
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // A DIFFERENT shape than base's person, so a distinct `(name, closure-hash)`.
@@ -388,7 +388,7 @@ fn a_wrong_typed_cross_repo_reference_in_a_meta_body_is_reported() {
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
 
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/person.type.yaml",
@@ -403,7 +403,7 @@ fn a_wrong_typed_cross_repo_reference_in_a_meta_body_is_reported() {
 
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // A meta-type with a `person::base*` reference field, used as a meta block
@@ -438,7 +438,7 @@ fn a_cross_repo_reference_into_an_aborted_target_repo_does_not_misfire() {
 
     // base's `person.type.yaml` is unparseable: `person` is absent and base's
     // type graph aborts. The root cause is base's own load error.
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(&root, "base/type/person.type.yaml", "fields: [unclosed\n");
     write(
         &root,
@@ -448,7 +448,7 @@ fn a_cross_repo_reference_into_an_aborted_target_repo_does_not_misfire() {
 
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -474,7 +474,7 @@ fn a_cross_repo_reference_into_an_aborted_target_repo_does_not_misfire() {
     );
 }
 
-// ----- cross-repo def-references (`type<T>*`, [[type-def shape def-ref::au-type-system]]) -----
+// ----- cross-repo def-references (`type<T>*`, [[type-def shape def-ref::tb-type-system]]) -----
 
 /// `base` owns `mcp.tool` and a subtype `mcp.tool.propose`, plus an unrelated
 /// `other` def and a plain note. `app` imports `base` and owns `mode` with a
@@ -484,7 +484,7 @@ fn def_ref_cross_repo_fixture() -> tempfile::TempDir {
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
 
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/mcp.tool.type.yaml",
@@ -504,7 +504,7 @@ fn def_ref_cross_repo_fixture() -> tempfile::TempDir {
 
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -609,7 +609,7 @@ fn cross_repo_block_referent_fixture() -> tempfile::TempDir {
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
 
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/research-extraction.type.yaml",
@@ -628,7 +628,7 @@ fn cross_repo_block_referent_fixture() -> tempfile::TempDir {
 
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(

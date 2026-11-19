@@ -9,7 +9,7 @@ expression: rendered
       "message": "repo 'app' lives in a folder named 'self-repo-qualifier'; the declared name wins",
       "severity": "drift",
       "span": {
-        "file": "<root>/scenarios/self-repo-qualifier/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/self-repo-qualifier/.2brain/repo.yaml",
         "line_col": {
           "end": {
             "col": 1,
@@ -199,7 +199,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/self-repo-qualifier/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/self-repo-qualifier/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -218,7 +218,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/self-repo-qualifier/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/self-repo-qualifier/.2brain/repo.yaml",
         "section_presence": null
       },
       {

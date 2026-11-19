@@ -13,7 +13,7 @@ Judge its value for the intended profile.
 
 **Check what gets selected**
 
-[[mcp.inject::au-mcp-sdk:example]] declares available context.
+[[mcp.inject::tb-mcp-sdk:example]] declares available context.
 Inclusion depends on:
 
 - Owner role

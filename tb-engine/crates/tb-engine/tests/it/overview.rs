@@ -37,8 +37,8 @@ fn harness(root: &std::path::Path) -> Harness {
 fn kb() -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    fs::create_dir_all(root.join(".arsumbris")).unwrap();
-    fs::write(root.join(".arsumbris/repo.yaml"), "name: v\n").unwrap();
+    fs::create_dir_all(root.join(".2brain")).unwrap();
+    fs::write(root.join(".2brain/repo.yaml"), "name: v\n").unwrap();
     fs::create_dir_all(root.join("type")).unwrap();
     fs::write(
         root.join("type/note.type.yaml"),
@@ -127,12 +127,12 @@ fn overview_aggregates_the_up_front_map() {
 /// A knowledge base whose most-referenced file is an unread ASSET: three
 /// instances point a `file*` slot at one PDF. The walker catalogues an asset by
 /// path and never reads it, precisely so `file*` resolves against it
-/// ([[type-def shape file::au-type-system]]), so it genuinely ranks.
+/// ([[type-def shape file::tb-type-system]]), so it genuinely ranks.
 fn kb_with_a_referenced_asset() -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    fs::create_dir_all(root.join(".arsumbris")).unwrap();
-    fs::write(root.join(".arsumbris/repo.yaml"), "name: v\n").unwrap();
+    fs::create_dir_all(root.join(".2brain")).unwrap();
+    fs::write(root.join(".2brain/repo.yaml"), "name: v\n").unwrap();
     fs::create_dir_all(root.join("type")).unwrap();
     fs::write(
         root.join("type/citation.type.yaml"),

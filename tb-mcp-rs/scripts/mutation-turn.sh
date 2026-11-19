@@ -125,7 +125,7 @@ echo "---"
 # The duplicate assertions are removed once a live run confirms they agree
 # (docs/architecture-plan.md, track G).
 if [[ $status -eq 0 ]]; then
-  context=$(mktemp /tmp/au-mutation-context-XXXXXX.json)
+  context=$(mktemp /tmp/tb-mutation-context-XXXXXX.json)
   printf '{"repo": "%s", "target_path": "%s", "expected_text": "%s", "commits_before": %s}\n' \
     "$repo" "$repo/notes/a.md" "unique-marker-7f3a updated" "$before" >"$context"
   if python3 "$(dirname "$0")/lib/procedure.py" verify mutation_turn --context "$context"; then

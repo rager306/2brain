@@ -90,7 +90,7 @@
         "sealed": null
       },
       {
-        "doc": "The per-repo dependency lock, `.arsumbris/repo.lock`, engine-written.",
+        "doc": "The per-repo dependency lock, `.2brain/repo.lock`, engine-written.",
         "hash": "33430123ed4a81d6",
         "name": "tb.engine.repo-lock",
         "parents": [],
@@ -98,7 +98,7 @@
         "sealed": null
       },
       {
-        "doc": "The per-user registry, `<state dir>/au-engine/config/repos.yaml` (see `repo::state_dir_in`), name to remote+path.",
+        "doc": "The per-user registry, `<state dir>/tb-engine/config/repos.yaml` (see `repo::state_dir_in`), name to remote+path.",
         "hash": "3f35862c245ce57b",
         "name": "tb.engine.repos",
         "parents": [],
@@ -122,7 +122,7 @@
         "sealed": null
       },
       {
-        "doc": "The per-workspace discover lock, `.arsumbris/workspace.lock`, engine-written.",
+        "doc": "The per-workspace discover lock, `.2brain/workspace.lock`, engine-written.",
         "hash": "d008d9835b7b76db",
         "name": "tb.engine.workspace-lock",
         "parents": [],
@@ -130,7 +130,7 @@
         "sealed": null
       },
       {
-        "doc": "The per-user workspaces index, `<state dir>/au-engine/config/workspaces.yaml` (see `repo::state_dir_in`).",
+        "doc": "The per-user workspaces index, `<state dir>/tb-engine/config/workspaces.yaml` (see `repo::state_dir_in`).",
         "hash": "a8fc56f3d7bfc445",
         "name": "tb.engine.workspaces",
         "parents": [],

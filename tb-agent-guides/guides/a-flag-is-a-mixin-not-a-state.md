@@ -24,7 +24,7 @@ A tag on a subtype makes every instance a member.
 A concrete tag claimed by an instance makes membership local to that instance.
 An abstract trait needs a concrete identity through which it can be reached.
 
-[[supersede::au-base-types:example]] carries a field as an independent capability alongside a domain kind.
+[[supersede::tb-base-types:example]] carries a field as an independent capability alongside a domain kind.
 The combinations do not each need a lifecycle state.
 
 **Check dependencies between dimensions**

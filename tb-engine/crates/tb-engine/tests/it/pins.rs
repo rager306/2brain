@@ -5,7 +5,7 @@
 //! not a backlink question. `pins { target, source_type }` returns every pin
 //! naming `target` whose source file contains an instance of `source_type`.
 //!
-//! The fixture mirrors au-provenance's shape: a ledger file whose pins live in
+//! The fixture mirrors tb-provenance's shape: a ledger file whose pins live in
 //! NESTED inline records, plus a top-level pin, plus an out-of-scope carrier of
 //! a same-named pin. See [[spec - pinned references - a recorded resolved edge
 //! with an immutable past and an on-demand forward trace]].

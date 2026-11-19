@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: premise
 description: Create or refine a knowledge graph's premise from the user's intent. Use when starting a graph or clarifying what belongs in it.
 ---
@@ -9,7 +9,7 @@ Ask only about unresolved choices that would change what earns a node.
 
 ## Find the premise
 
-Query `weave-premise::au-weave` with `tb_instances_of`.
+Query `weave-premise::tb-weave` with `tb_instances_of`.
 Select the destination graph's premises.
 Reuse or refine a match.
 
@@ -37,7 +37,7 @@ Set `profile` to its qualified type reference.
 Save in the consumer's graph repository.
 Honor consumer paths and preserve an existing premise's filename.
 Default new premises to `premise - <name>.md`, using the graph's name.
-Default the type to `weave-premise::au-weave`.
+Default the type to `weave-premise::tb-weave`.
 
 Check the saved note's diagnostics and profile reference.
 Return its path and point to [[mine]] for the first source.

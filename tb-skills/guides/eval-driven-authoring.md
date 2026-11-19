@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Check whether a skill improves selection and task performance.
 rule: Compare representative tasks with and without the skill when its contribution is uncertain. Grade the intended procedure as well as the final result.
 ---

@@ -78,7 +78,7 @@ fn a_marker_under_the_new_identity_directory_is_discovered_and_served() {
     let mut h = harness(&root);
 
     // Discovery: the entry is its DECLARED repo, `v`, not an implicit repo named after the
-    // temporary directory. An engine that only looked under `.arsumbris` would find no marker and
+    // temporary directory. An engine that only looked under `.2brain` would find no marker and
     // serve the directory as a fallback repo, or refuse the entry outright.
     let resp = h.client.query(&json!({ "read": "overview" })).unwrap();
     assert_eq!(resp["ready"], true, "{resp}");

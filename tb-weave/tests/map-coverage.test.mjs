@@ -8,7 +8,7 @@ const a = `${graph}/A.md`
 const b = `${graph}/B.md`
 const map = `${graph}/map.md`
 const identity = (name, repo) => ({ name, repo, hash: `${repo}/${name}` })
-const candidate = identity('candidate', 'au-weave')
+const candidate = identity('candidate', 'tb-weave')
 const shape = { kind: 'list', inner: { kind: 'inline-or-reference', name: 'finding-candidate' } }
 
 function inline(target, start) {
@@ -46,9 +46,9 @@ function fixture() {
     [map, [body(a)]],
   ])
   const types = new Map([
-    ['candidate::au-weave', { identity: candidate, ancestors: [candidate], fields: [] }],
-    ['extraction::au-weave', { identity: identity('extraction', 'au-weave'), fields: [] }],
-    ['map::au-base-types', { identity: identity('map', 'au-base-types'), fields: [] }],
+    ['candidate::tb-weave', { identity: candidate, ancestors: [candidate], fields: [] }],
+    ['extraction::tb-weave', { identity: identity('extraction', 'tb-weave'), fields: [] }],
+    ['map::tb-base-types', { identity: identity('map', 'tb-base-types'), fields: [] }],
     ['review::domain', {
       identity: profile, fields: [{ name: 'findings', shape_ast: shape, origin: identity('base-review', 'domain') }],
     }],
@@ -77,8 +77,8 @@ function fixture() {
       } else if (op === 'type_closure') result = types.has(args.name) ? [types.get(args.name)] : []
       else if (op === 'instances_of') {
         assert.deepEqual(args.origins, ['file']) // Nested maps never count as map files.
-        if (args.type === 'extraction::au-weave') result = rows
-        else if (args.type === 'map::au-base-types') result = maps
+        if (args.type === 'extraction::tb-weave') result = rows
+        else if (args.type === 'map::tb-base-types') result = maps
         else assert.fail(`Unexpected type ${args.type}`)
       } else if (op === 'references_out') result = edges.get(args.path) ?? []
       else if (op === 'resolve_target') result = targets.get(args.target) ?? null

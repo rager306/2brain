@@ -1,5 +1,5 @@
 title: "Inline values, `&` suffix, and primitive-or-reference disambiguation — inline-value corpus"
-spec_ref: "[[type-def shape record::au-type-system]], [[type reference::au-type-system]]"
+spec_ref: "[[type-def shape record::tb-type-system]], [[type reference::tb-type-system]]"
 command: validate
 expected:
   codes:

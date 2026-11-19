@@ -1,5 +1,5 @@
 title: "use: T fires body-use-out-of-closure when T is not in the type-def's closure"
-spec_ref: "[[type-def body use::au-type-system]]"
+spec_ref: "[[type-def body use::tb-type-system]]"
 command: graph
 expected:
   codes:

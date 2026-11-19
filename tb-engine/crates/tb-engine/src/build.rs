@@ -2,7 +2,7 @@
 //! validate every instance, and assemble the held [`KnowledgeBase`].
 //!
 //! Per-file parsing goes through [`parse_file`]; the pure analysis stays in
-//! au-core; this routes data between them and collects the result.
+//! tb-core; this routes data between them and collects the result.
 //!
 //! A build can reuse a prior parse layer ([`build_reusing`]): a file whose
 //! content hash is unchanged reuses its parse, and skips its read, instead of
@@ -41,7 +41,7 @@ use crate::repo::{MemberRole, RepoMap, RepoName};
 /// Why a build could not open its entry.
 ///
 /// The entry MUST be a folder-repo: a directory carrying a valid, named
-/// `.arsumbris/repo.yaml`. Anything else is refused up front, `EntryNotARepo`,
+/// `.2brain/repo.yaml`. Anything else is refused up front, `EntryNotARepo`,
 /// before any walk. An IO failure reading or walking propagates as `Io`. The
 /// distinct variants let the daemon map the refusal to its own exit code without
 /// sniffing an error string.
@@ -49,7 +49,7 @@ use crate::repo::{MemberRole, RepoMap, RepoName};
 pub enum BuildError {
     /// An IO failure reading or walking the entry.
     Io(std::io::Error),
-    /// The entry is not a folder-repo: no directory-level `.arsumbris/repo.yaml`,
+    /// The entry is not a folder-repo: no directory-level `.2brain/repo.yaml`,
     /// or it is unreadable, unparseable, or nameless. `reason` carries the parse
     /// detail (message plus any quoting hint) when the file exists but will not
     /// load, so the refusal names the cause; `None` when the file is simply
@@ -58,8 +58,8 @@ pub enum BuildError {
         path: PathBuf,
         reason: Option<String>,
     },
-    /// The entry roots at the reserved device root `~/.arsumbris`, whose
-    /// `.arsumbris/` IS the device config/data area. A repo cannot root there, so
+    /// The entry roots at the reserved device root `~/.2brain`, whose
+    /// `.2brain/` IS the device config/data area. A repo cannot root there, so
     /// the daemon refuses to serve it. The distinct variant lets the daemon carry
     /// the clearer message; it maps to the same exit code as `EntryNotARepo`. See
     /// [[spec - 2brain layout - a reserved multi-tenant device root, owner-namespaced with a category sublayer]].
@@ -74,7 +74,7 @@ impl std::fmt::Display for BuildError {
                 write!(
                     f,
                     "entry '{}' is not a folder-repo: a directory carrying a valid, named \
-                     identity manifest is required (repo.yaml under .2brain/, or .arsumbris/ \
+                     identity manifest is required (repo.yaml under .2brain/, or .2brain/ \
                      before the repository is migrated)",
                     path.display()
                 )?;
@@ -139,7 +139,7 @@ pub fn build(repo: &std::path::Path, fs: &impl FileSystem) -> Result<KnowledgeBa
     )
 }
 
-/// The device-global package cache root, `~/.arsumbris/au-engine/cache/packages`.
+/// The device-global package cache root, `<state root>/engine/cache/packages`.
 ///
 /// `None` when `$HOME` is unknown (the daemon has already refused to start by
 /// then). The daemon passes this into [`build_reusing`] so a locked dependency
@@ -147,7 +147,7 @@ pub fn build(repo: &std::path::Path, fs: &impl FileSystem) -> Result<KnowledgeBa
 pub fn default_package_cache_root() -> Option<PathBuf> {
     crate::repo::device_root()
         .ok()
-        .map(|d| d.join("au-engine").join("cache").join("packages"))
+        .map(|d| d.join("engine").join("cache").join("packages"))
 }
 
 /// [`build`], reusing a prior parse layer.
@@ -208,7 +208,7 @@ pub fn build_reusing(
     let _schema_nodes = tracing::info_span!("phase.schema_nodes").entered();
 
     // The entry workspace, catalogued as a node when it has a
-    // `.arsumbris/workspace.yaml` file (its path lives outside every member root,
+    // `.2brain/workspace.yaml` file (its path lives outside every member root,
     // so it is not in `files`). This is the one workspace manifest form; a walked
     // file is never a workspace node.
     let mut workspaces: Vec<crate::repo::Workspace> = Vec::new();
@@ -238,7 +238,7 @@ pub fn build_reusing(
         .collect();
     workspaces.push(entry_ws);
     for (path, bytes) in &reg_files {
-        // The registry file is a typed instance of `au.engine.repo`, its type
+        // The registry file is a typed instance of `tb.engine.repo`, its type
         // stamped from its kind (no written `type:`), so it is a first-class
         // node queryable via `instances_of`. Discovery still reads it
         // separately via `parse_registry`; this is the node view.
@@ -267,9 +267,9 @@ pub fn build_reusing(
             },
         );
     }
-    // The engine-written `.arsumbris/repo.lock` is an engine-schema file like the
+    // The engine-written `.2brain/repo.lock` is an engine-schema file like the
     // registry: under the walk floor, read by targeted path, and catalogued as a
-    // typed instance node (`au.engine.repo-lock`) so it is `instances_of`-queryable
+    // typed instance node (`tb.engine.repo-lock`) so it is `instances_of`-queryable
     // and validated against its def. The resolution path (the package cache) reads
     // the same bytes; this is the node view. See [[spec - engine-schema files - hardwired-schema files are first-class substrate nodes]].
     for (path, bytes) in crate::repo::lock_files(&roots, &files, &repo_markers, fs) {
@@ -365,7 +365,7 @@ pub fn build_reusing(
             type_def: Some(td), ..
         } = parse.as_ref()
         {
-            // A knowledge base def named in the reserved `au.engine.*` namespace coexists
+            // A knowledge base def named in the reserved `tb.engine.*` namespace coexists
             // with the hardwired set as a distinct `(name, hash)` identity; note
             // the reservation, advisory, never a block. The builtin's own defs
             // are seeded below, not walked, so they never reach this check.
@@ -411,11 +411,11 @@ pub fn build_reusing(
     }
     drop(typedefs);
 
-    // Install the compiled-in `au-engine` repo and seed its hardwired
-    // `au.engine.*` defs, so the graph loop below builds its graph on the one
+    // Install the compiled-in `tb-engine` repo and seed its hardwired
+    // `tb.engine.*` defs, so the graph loop below builds its graph on the one
     // code path (running the load checks as a self-test). The builtin has no
     // on-disk root, so no walked file routed into it above; its defs are the
-    // only source of its graph. This makes `::au-engine` resolve as a universal
+    // only source of its graph. This makes `::tb-engine` resolve as a universal
     // peer, see [[spec - cross-repo resolution - in-repo identity and deps over a per-user repo registry]]
     // "Engine files are typed".
     // Spanned because `builtin_engine_defs()` reconstructs the hardwired def set
@@ -607,7 +607,7 @@ pub fn build_reusing(
     }
 
     // A `[[name::repo]]` typed reference is checked across the boundary: the
-    // resolver reaches into the named repo's graph so au-core can verify the
+    // resolver reaches into the named repo's graph so tb-core can verify the
     // target's effective type by `(name, canonical-hash)` identity. Wired into
     // every typed-reference surface, frontmatter, body slots, and meta bodies,
     // so cross-repo references are type-checked uniformly.
@@ -720,7 +720,7 @@ pub fn build_reusing(
             validate_body(&ctx, inst, body, *body_offset, *is_markdown),
         );
         // Placement check: the file's repo-relative path against its type's
-        // effective location. au-core is I/O-free, so the engine strips the
+        // effective location. tb-core is I/O-free, so the engine strips the
         // member root here, the same pattern as `type-def-outside-type-dir`.
         // Each def is read in its owning repo, never the fold's one node per
         // identity, so an in-sync twin's `location:` stays its own.
@@ -786,7 +786,7 @@ pub fn build_reusing(
     // kind-assigned FLOOR (or a subtype whose closure folds it in). A stamped
     // floor (no written type) trivially contains it and never fires; a
     // wrong-floor written claim (e.g. a `repo.yaml` written
-    // `type: au.engine.workspace::au-engine`) omits it and errors. The engine
+    // `type: tb.engine.workspace::tb-engine`) omits it and errors. The engine
     // still reads its data from the floor regardless, the resolution path is
     // claim-independent, so it is recoverable, never lost data. An UNRESOLVABLE
     // claim is the `unknown-type-claim` gate's, detected by an empty folded
@@ -928,7 +928,7 @@ pub fn build_reusing(
 
     // Cross-boundary references: `[[name::repo]]` resolves into the named repo;
     // the `reference-repo-*` diagnostics (and cross-repo target-missing /
-    // ambiguous) ride here, since au-core skips `::repo` links.
+    // ambiguous) ride here, since tb-core skips `::repo` links.
     // Cross-boundary references key to their source instance, not the
     // cross-cutting knowledge-base bucket. A `::repo` reference is per source file, like
     // in-repo validation, and cross-repo references are the common case in this
@@ -943,7 +943,7 @@ pub fn build_reusing(
     }
 
     // Cross-boundary type vocabulary: a `::repo`-qualified claim, parent, or
-    // field shape names a peer's type. au-core defers the qualified name; the
+    // field shape names a peer's type. tb-core defers the qualified name; the
     // engine gates the peer here so the author gets feedback before the fold.
     // An instance's claim diagnostics key to its own slice (like validation); a
     // type-def's parent / shape diagnostics key to its repo's vocabulary bucket,
@@ -1119,7 +1119,7 @@ pub(crate) fn served_stream(
 pub(crate) struct EntryResolution {
     /// The entry directory, the folder-repo root and the walk root.
     pub workspace_dir: PathBuf,
-    /// The `.arsumbris/workspace.yaml` composition, when the entry declares one.
+    /// The `.2brain/workspace.yaml` composition, when the entry declares one.
     /// `None` means the workspace is the entry repo plus its own `deps`.
     pub manifest: Option<PathBuf>,
 }
@@ -1132,7 +1132,7 @@ pub(crate) struct EntryResolution {
 /// daemon-less [`crate::members::resolve_members`] read cannot disagree on what
 /// mounts.
 pub(crate) struct Composition {
-    /// The entry `.arsumbris/workspace.yaml` and its bytes, when present and read.
+    /// The entry `.2brain/workspace.yaml` and its bytes, when present and read.
     pub(crate) entry_ws_file: Option<(PathBuf, Vec<u8>)>,
     /// The assembled entry workspace, cache mounts included.
     pub(crate) entry_ws: crate::repo::Workspace,
@@ -1142,7 +1142,7 @@ pub(crate) struct Composition {
     pub(crate) roots: Vec<PathBuf>,
     /// Member roots whose walk failed, by root.
     pub(crate) member_walk_errors: BTreeMap<PathBuf, std::io::Error>,
-    /// The `.arsumbris/repo.yaml` markers the walks surfaced, undeclared nested
+    /// The `.2brain/repo.yaml` markers the walks surfaced, undeclared nested
     /// and disabled ones dropped.
     pub(crate) repo_markers: Vec<PathBuf>,
     /// Each member's registry file and its bytes.
@@ -1156,7 +1156,7 @@ pub(crate) struct Composition {
 }
 
 /// The unioned member walk: the deduped member file set, the member roots, the
-/// root-to-name map, each root's walk error, and every `.arsumbris/repo.yaml`
+/// root-to-name map, each root's walk error, and every `.2brain/repo.yaml`
 /// marker surfaced under a member root.
 type MemberUnion = (
     Vec<PathBuf>,
@@ -1183,8 +1183,8 @@ pub(crate) fn compose(
     let compose = tracing::info_span!("phase.compose", members = tracing::field::Empty).entered();
 
     // The entry MUST be a folder-repo: a directory carrying a valid, named
-    // `.arsumbris/repo.yaml`. `resolve_entry` refuses anything else. The
-    // workspace is composed from its `.arsumbris/workspace.yaml` when present,
+    // `.2brain/repo.yaml`. `resolve_entry` refuses anything else. The
+    // workspace is composed from its `.2brain/workspace.yaml` when present,
     // else it is the entry repo plus its own `deps` (an entry-only workspace).
     let entry_span = tracing::info_span!("compose.entry").entered();
     let EntryResolution {
@@ -1373,7 +1373,7 @@ pub(crate) fn compose(
             Some(&crate::repo::canonical_root(&workspace_dir)),
         )
     };
-    // Every `.arsumbris/repo.yaml` marker the walker surfaced should parse. A
+    // Every `.2brain/repo.yaml` marker the walker surfaced should parse. A
     // broken one denies its repo a name, so it drops out of membership before
     // discovery can surface the parse error: a nested broken repo reads only as
     // `undeclared-nested-repo`, a broken member silently vanishes. Validate the
@@ -1434,7 +1434,7 @@ pub(crate) fn compose(
 /// composition, or refuse a non-repo entry.
 ///
 /// The entry MUST be a directory carrying a valid, named identity manifest
-/// (`repo.yaml` under `.2brain/`, or under `.arsumbris/` before migration);
+/// (`repo.yaml` under `.2brain/`, or under `.2brain/` before migration);
 /// anything else, a bare directory, a plain file, a nameless or unreadable
 /// `repo.yaml`, is [`BuildError::EntryNotARepo`]. When the entry also
 /// carries a `workspace.yaml` in its identity directory, that composition is returned; otherwise
@@ -1444,16 +1444,16 @@ pub(crate) fn resolve_entry(
     entry: &std::path::Path,
     fs: &impl FileSystem,
 ) -> Result<EntryResolution, BuildError> {
-    // Refuse an entry rooted at the reserved device root `~/.arsumbris` before the
-    // not-a-repo check, so `au daemon start ~` gets the clearer reserved message
+    // Refuse an entry rooted at the reserved device root `~/.2brain` before the
+    // not-a-repo check, so `tb-engine daemon start ~` gets the clearer reserved message
     // rather than the generic not-a-folder-repo. The device area IS this entry's
-    // `.arsumbris`, so serving it would collide config/data with a repo declaration.
+    // `.2brain`, so serving it would collide config/data with a repo declaration.
     if crate::repo::is_reserved_root(entry) {
         return Err(BuildError::EntryReserved {
             path: entry.to_path_buf(),
         });
     }
-    // A folder-repo declares a valid, named `.arsumbris/repo.yaml`. Reuse the
+    // A folder-repo declares a valid, named `.2brain/repo.yaml`. Reuse the
     // discovery parse so a nameless or malformed `repo.yaml` refuses the same way,
     // and carry the parse detail so the refusal names the cause (an unquoted `:`
     // in a value is the common footgun) instead of a bare not-a-folder-repo.
@@ -1485,7 +1485,7 @@ pub(crate) fn resolve_entry(
 }
 
 /// Verify an entry is a folder-repo (a directory carrying a valid, named
-/// `.arsumbris/repo.yaml`), the daemon's preflight before it boots the engine and
+/// `.2brain/repo.yaml`), the daemon's preflight before it boots the engine and
 /// serves. `Ok(())` when the entry can be opened, `Err(BuildError::EntryNotARepo)`
 /// when it must be refused. Does not build the knowledge base.
 pub fn verify_entry(entry: &std::path::Path) -> Result<(), BuildError> {
@@ -1504,7 +1504,7 @@ pub(crate) fn is_folder_repo_manifest(manifest: &std::path::Path) -> bool {
 }
 
 /// The walk / watch / fingerprint roots for an engine pointed at `entry`, plus
-/// the entry manifest when it declares a `.arsumbris/workspace.yaml`. Always
+/// the entry manifest when it declares a `.2brain/workspace.yaml`. Always
 /// assembly now: the mounted member roots (a `workspace.yaml` composition, else
 /// the entry repo plus its `deps`). Shared by `fingerprint` and the watcher so
 /// both cover exactly what `build` reads. A non-repo entry degrades to watching
@@ -1622,7 +1622,7 @@ fn auignore_emptied_the_member(root: &Path, fs: &impl FileSystem) -> bool {
 /// surfaces it as `workspace-member-unwalkable` or a role-keyed unmounted code
 /// (`edit-member-unmounted` / `discover-member-unmounted` / `peer-unmounted`).
 ///
-/// Each member honors its own `.arsumbris/.auignore`; an over-broad scope that
+/// Each member honors its own `.2brain/.auignore`; an over-broad scope that
 /// empties a member fires `auignore-empty-scope`.
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
 fn walk_member_once(
@@ -1967,8 +1967,8 @@ fn engine_schema_floor(kind: FileKind) -> Option<&'static str> {
 /// The catalog entry for a workspace manifest: classified, hashed, and indexed,
 /// but not structurally parsed (its `members` load into a [`Workspace`]).
 fn workspace_entry(path: &Path, bytes: &[u8]) -> FileEntry {
-    // The entry `.arsumbris/workspace.yaml` is a typed instance of
-    // `au.engine.workspace`, its type stamped from its kind (no written `type:`),
+    // The entry `.2brain/workspace.yaml` is a typed instance of
+    // `tb.engine.workspace`, its type stamped from its kind (no written `type:`),
     // a first-class node.
     let parse = crate::parse::parse_engine_schema_instance(
         path,
@@ -1994,7 +1994,7 @@ fn workspace_entry(path: &Path, bytes: &[u8]) -> FileEntry {
 ///
 /// The workspace-scoped checks (the member-state taxonomy) run over `workspaces`,
 /// which holds the single entry workspace (the entry repo's
-/// `.arsumbris/workspace.yaml` composition, else the entry repo plus its `deps`).
+/// `.2brain/workspace.yaml` composition, else the entry repo plus its `deps`).
 pub(crate) fn consistency_diagnostics(
     repos: &RepoMap,
     workspaces: &[crate::repo::Workspace],
@@ -2298,7 +2298,7 @@ pub(crate) fn consistency_diagnostics(
                 ));
             }
         }
-        // A folder-repo `.arsumbris/workspace.yaml` must list its containing repo
+        // A folder-repo `.2brain/workspace.yaml` must list its containing repo
         // in `edit:` (the entry is a live working tree at HEAD, so it belongs
         // there). An omission reads as excluding the file's own repo, an error, so
         // the file is self-complete. Fires only for a folder-repo entry, where the
@@ -2358,8 +2358,8 @@ pub(crate) fn consistency_diagnostics(
         }
         for member in &ws.members {
             let mount = member_mount(ws, &member.name, repos, member_walk_errors);
-            // A member resolving to the reserved device root `~/.arsumbris` is
-            // excluded from the mount set (its `.arsumbris/` IS the device area, so
+            // A member resolving to the reserved device root `~/.2brain` is
+            // excluded from the mount set (its `.2brain/` IS the device area, so
             // walking it would treat the whole home directory as content). Specific,
             // and takes precedence over the generic unmounted signal below.
             if matches!(mount, MemberMount::ReservedRoot) {
@@ -2461,7 +2461,7 @@ pub(crate) fn consistency_diagnostics(
 pub(crate) enum MemberMount<'a> {
     /// A repo was discovered at the member's resolved root.
     Mounted(&'a Path),
-    /// The member resolved to the reserved device root `~/.arsumbris` and was
+    /// The member resolved to the reserved device root `~/.2brain` and was
     /// excluded from the mount set.
     ReservedRoot,
     /// The member resolved to a path that exists but could not be walked (a file,
@@ -2504,7 +2504,7 @@ pub(crate) fn member_mount<'a>(
 /// Advisory `warning`: the `.type.yaml` suffix is the classification marker, so
 /// the file is a valid type-def regardless; the `type/` directory is an
 /// authoring convention, and a type-def outside it is surfaced, never blocked.
-/// See [[spec - diagnostic codes::au-type-system^type-def-outside-type-dir]].
+/// See [[spec - diagnostic codes::tb-type-system^type-def-outside-type-dir]].
 pub const TYPE_DEF_OUTSIDE_TYPE_DIR: DiagnosticCode =
     DiagnosticCode::from_static("type-def-outside-type-dir");
 
@@ -2605,7 +2605,7 @@ impl ContextMaps {
             })
             .collect();
 
-        // Addressable inline records per file ([[type block-id::au-type-system]]): `^:` id →
+        // Addressable inline records per file ([[type block-id::tb-type-system]]): `^:` id →
         // effective claim names, so `[[file^id]]` / `[[^id]]` references can
         // resolve to records and type-check against their claims. Each file's
         // records resolve against its own repo's graph.
@@ -2769,7 +2769,7 @@ pub(crate) fn fingerprint(
     for (path, bytes) in crate::repo::registry_files(&roots, &all_files, &all_markers, fs) {
         fp.insert(path.clone(), Some(ContentHash::of(&bytes)));
         if let Some(d) = path.parent() {
-            // The `.arsumbris/repo.lock` sits beside the registry, also engine
+            // The `.2brain/repo.lock` sits beside the registry, also engine
             // schema the walker ignores and catalogued as a typed node; a lock
             // edit must trigger a rebuild so its node view (and validation)
             // refreshes.
@@ -2953,22 +2953,22 @@ mod tests {
     /// conflict across the repo boundary.
     fn meta_conflict_fs(app_meta: &str, panel_meta: &str) -> MemoryFileSystem {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/ws/.arsumbris/repo.yaml", b"name: ws\n".to_vec());
+        fs.insert("/ws/.2brain/repo.yaml", b"name: ws\n".to_vec());
         fs.insert(
-            "/ws/.arsumbris/workspace.yaml",
+            "/ws/.2brain/workspace.yaml",
             b"edit:\n  - ws\n  - base\n  - app\n".to_vec(),
         );
-        fs.insert("/ws/base/.arsumbris/repo.yaml", b"name: base\n".to_vec());
+        fs.insert("/ws/base/.2brain/repo.yaml", b"name: base\n".to_vec());
         fs.insert(
             "/ws/base/type/view-meta.type.yaml",
-            b"extends: au.engine.meta::au-engine\nfields:\n  tldr: String\n".to_vec(),
+            b"extends: tb.engine.meta::tb-engine\nfields:\n  tldr: String\n".to_vec(),
         );
         fs.insert(
             "/ws/base/type/card.type.yaml",
             b"fields: {}\nmeta:\n  - type: view-meta\n    tldr: card\n".to_vec(),
         );
         fs.insert(
-            "/ws/app/.arsumbris/repo.yaml",
+            "/ws/app/.2brain/repo.yaml",
             b"name: app\ndeps:\n  - name: base\n".to_vec(),
         );
         fs.insert(
@@ -3054,9 +3054,9 @@ mod tests {
             .collect()
     }
 
-    const IN_SYNC: &str = "extends: au.engine.meta::au-engine\nfields:\n  tldr: String\n";
+    const IN_SYNC: &str = "extends: tb.engine.meta::tb-engine\nfields:\n  tldr: String\n";
     const DIVERGED: &str =
-        "extends: au.engine.meta::au-engine\nfields:\n  tldr: String\n  extra?: String\n";
+        "extends: tb.engine.meta::tb-engine\nfields:\n  tldr: String\n  extra?: String\n";
 
     #[test]
     fn a_meta_conflict_through_a_cross_repo_parent_fires_on_the_importer() {
@@ -3108,21 +3108,21 @@ mod tests {
     }
 
     /// A folder-repo workspace in memory: the entry `/ws` is a content-free repo
-    /// whose `.arsumbris/workspace.yaml` composes the members `base` and `app`,
+    /// whose `.2brain/workspace.yaml` composes the members `base` and `app`,
     /// each a subdirectory repo declaring its own name.
     fn scattered_fs() -> MemoryFileSystem {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/ws/.arsumbris/repo.yaml", b"name: ws\n".to_vec());
+        fs.insert("/ws/.2brain/repo.yaml", b"name: ws\n".to_vec());
         fs.insert(
-            "/ws/.arsumbris/workspace.yaml",
+            "/ws/.2brain/workspace.yaml",
             b"edit:\n  - ws\n  - base\n  - app\n".to_vec(),
         );
-        fs.insert("/ws/base/.arsumbris/repo.yaml", b"name: base\n".to_vec());
+        fs.insert("/ws/base/.2brain/repo.yaml", b"name: base\n".to_vec());
         fs.insert(
             "/ws/base/type/note.type.yaml",
             b"fields:\n  title: String\n".to_vec(),
         );
-        fs.insert("/ws/app/.arsumbris/repo.yaml", b"name: app\n".to_vec());
+        fs.insert("/ws/app/.2brain/repo.yaml", b"name: app\n".to_vec());
         fs.insert(
             "/ws/app/type/note.type.yaml",
             b"fields:\n  title: String\n".to_vec(),
@@ -3216,14 +3216,14 @@ mod tests {
 
     #[test]
     fn a_present_but_unreadable_workspace_manifest_surfaces_a_read_error() {
-        // `/ws` is a folder-repo whose `.arsumbris/workspace.yaml` EXISTS but is
+        // `/ws` is a folder-repo whose `.2brain/workspace.yaml` EXISTS but is
         // unreadable. The build degrades to the entry-only workspace, but the read
         // error must SURFACE as a diagnostic, never a silent drop of the whole
         // composition. (Absence, by contrast, is a legitimate entry-only workspace
         // with no diagnostic.)
         let fs = FailReadFs {
             inner: scattered_fs(),
-            fail: PathBuf::from("/ws/.arsumbris/workspace.yaml"),
+            fail: PathBuf::from("/ws/.2brain/workspace.yaml"),
         };
         let kb = build(Path::new("/ws"), &fs).unwrap();
         assert!(
@@ -3290,7 +3290,7 @@ mod tests {
     #[test]
     fn an_over_cap_instance_is_skipped_with_a_file_too_large_error() {
         let mut inner = MemoryFileSystem::new();
-        inner.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        inner.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         inner.insert("/v/type/note.type.yaml", b"fields: {}\n".to_vec());
         inner.insert("/v/big.md", b"---\ntype: note\n---\n".to_vec());
         inner.insert("/v/small.md", b"---\ntype: note\n---\n".to_vec());
@@ -3330,7 +3330,7 @@ mod tests {
     #[test]
     fn an_over_cap_type_def_is_skipped_and_aborts_its_repos_validation() {
         let mut inner = MemoryFileSystem::new();
-        inner.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        inner.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         inner.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  title: String\n".to_vec(),
@@ -3358,7 +3358,7 @@ mod tests {
     #[test]
     fn an_over_cap_dirty_file_falls_back_to_a_full_build() {
         let mut inner = MemoryFileSystem::new();
-        inner.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        inner.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         inner.insert("/v/type/note.type.yaml", b"fields: {}\n".to_vec());
         inner.insert("/v/big.md", b"---\ntype: note\n---\n".to_vec());
         let fs = OversizedFs {
@@ -3380,7 +3380,7 @@ mod tests {
     #[test]
     fn an_over_cap_file_coexists_through_an_incremental_edit_of_another() {
         let mut before = MemoryFileSystem::new();
-        before.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        before.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         before.insert("/v/type/note.type.yaml", b"fields: {}\n".to_vec());
         before.insert("/v/big.md", b"---\ntype: note\n---\n".to_vec());
         before.insert("/v/y.md", b"---\ntype: note\n---\n".to_vec());
@@ -3413,10 +3413,10 @@ mod tests {
     #[test]
     fn auignore_excludes_a_subtree_from_the_catalog() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert("/v/keep.md", b"---\ntype: note\n---\n".to_vec());
         fs.insert("/v/docs/guide.md", b"---\ntype: note\n---\n".to_vec());
-        fs.insert("/v/.arsumbris/.auignore", b"docs/\n".to_vec());
+        fs.insert("/v/.2brain/.auignore", b"docs/\n".to_vec());
         let kb = build(Path::new("/v"), &fs).unwrap();
         assert!(
             kb.catalog.contains_key(Path::new("/v/keep.md")),
@@ -3431,11 +3431,11 @@ mod tests {
     #[test]
     fn auignore_allowlist_keeps_only_matched() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert("/v/keep-out.md", b"---\ntype: note\n---\n".to_vec());
         fs.insert("/v/docs/guide.md", b"---\ntype: note\n---\n".to_vec());
         // The gitignore allowlist idiom: ignore everything at root, re-include docs.
-        fs.insert("/v/.arsumbris/.auignore", b"/*\n!/docs\n".to_vec());
+        fs.insert("/v/.2brain/.auignore", b"/*\n!/docs\n".to_vec());
         let kb = build(Path::new("/v"), &fs).unwrap();
         assert!(
             kb.catalog.contains_key(Path::new("/v/docs/guide.md")),
@@ -3450,9 +3450,9 @@ mod tests {
     #[test]
     fn auignore_negation_reincludes_a_default_exclude() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert("/v/target/out.md", b"---\ntype: note\n---\n".to_vec());
-        fs.insert("/v/.arsumbris/.auignore", b"!target\n".to_vec());
+        fs.insert("/v/.2brain/.auignore", b"!target\n".to_vec());
         let kb = build(Path::new("/v"), &fs).unwrap();
         assert!(
             kb.catalog.contains_key(Path::new("/v/target/out.md")),
@@ -3463,10 +3463,10 @@ mod tests {
     #[test]
     fn auignore_that_excludes_everything_warns() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert("/v/only.md", b"---\ntype: note\n---\n".to_vec());
         // `*` matches every top-level entry, emptying the tree.
-        fs.insert("/v/.arsumbris/.auignore", b"*\n".to_vec());
+        fs.insert("/v/.2brain/.auignore", b"*\n".to_vec());
         let kb = build(Path::new("/v"), &fs).unwrap();
         assert!(
             kb.diagnostics()
@@ -3486,9 +3486,9 @@ mod tests {
         // is empty with or without the `.auignore`. The user's `docs/` pattern
         // is not what emptied it, so `auignore-empty-scope` must not fire.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert("/v/target/out.md", b"---\ntype: note\n---\n".to_vec());
-        fs.insert("/v/.arsumbris/.auignore", b"docs/\n".to_vec());
+        fs.insert("/v/.2brain/.auignore", b"docs/\n".to_vec());
         let kb = build(Path::new("/v"), &fs).unwrap();
         assert!(
             !kb.diagnostics()
@@ -3501,10 +3501,10 @@ mod tests {
     #[test]
     fn malformed_auignore_diagnoses_and_falls_back() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert("/v/keep.md", b"---\ntype: note\n---\n".to_vec());
         // A lone backslash is not a valid glob.
-        fs.insert("/v/.arsumbris/.auignore", b"\\\n".to_vec());
+        fs.insert("/v/.2brain/.auignore", b"\\\n".to_vec());
         let kb = build(Path::new("/v"), &fs).unwrap();
         assert!(
             kb.diagnostics()
@@ -3526,13 +3526,13 @@ mod tests {
     /// under the entry would be covered by the entry repo's own walk).
     fn scattered_member_fs() -> (MemoryFileSystem, crate::repo::UserRegistry) {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/main/.arsumbris/repo.yaml", b"name: main\n".to_vec());
+        fs.insert("/main/.2brain/repo.yaml", b"name: main\n".to_vec());
         fs.insert(
-            "/main/.arsumbris/workspace.yaml",
+            "/main/.2brain/workspace.yaml",
             b"edit:\n  - main\n  - lib\n".to_vec(),
         );
         fs.insert("/main/m.md", b"---\ntype: note\n---\n".to_vec());
-        fs.insert("/ext/lib/.arsumbris/repo.yaml", b"name: lib\n".to_vec());
+        fs.insert("/ext/lib/.2brain/repo.yaml", b"name: lib\n".to_vec());
         fs.insert(
             "/ext/lib/type/note.type.yaml",
             b"fields:\n  title: String\n".to_vec(),
@@ -3620,17 +3620,17 @@ mod tests {
         // declared-but-missing). `app` stays mounted, so the workspace still
         // composes over the rest.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/ws/.arsumbris/repo.yaml", b"name: ws\n".to_vec());
+        fs.insert("/ws/.2brain/repo.yaml", b"name: ws\n".to_vec());
         fs.insert(
-            "/ws/.arsumbris/workspace.yaml",
+            "/ws/.2brain/workspace.yaml",
             b"edit:\n  - ws\n  - base\n  - app\ndisabled:\n  - base\n".to_vec(),
         );
-        fs.insert("/ws/base/.arsumbris/repo.yaml", b"name: base\n".to_vec());
+        fs.insert("/ws/base/.2brain/repo.yaml", b"name: base\n".to_vec());
         fs.insert(
             "/ws/base/type/note.type.yaml",
             b"fields:\n  title: String\n".to_vec(),
         );
-        fs.insert("/ws/app/.arsumbris/repo.yaml", b"name: app\n".to_vec());
+        fs.insert("/ws/app/.2brain/repo.yaml", b"name: app\n".to_vec());
         fs.insert(
             "/ws/app/type/other.type.yaml",
             b"fields:\n  title: String\n".to_vec(),
@@ -3720,16 +3720,16 @@ mod tests {
         // orphan its walked files. Regression guard for the marker-drop being
         // dep-blind.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/ws/.arsumbris/repo.yaml", b"name: ws\n".to_vec());
+        fs.insert("/ws/.2brain/repo.yaml", b"name: ws\n".to_vec());
         fs.insert(
-            "/ws/.arsumbris/workspace.yaml",
+            "/ws/.2brain/workspace.yaml",
             b"edit:\n  - ws\n  - app\ndisabled:\n  - base\n".to_vec(),
         );
         fs.insert(
-            "/ws/app/.arsumbris/repo.yaml",
+            "/ws/app/.2brain/repo.yaml",
             b"name: app\ndeps:\n  - name: base\n".to_vec(),
         );
-        fs.insert("/ws/base/.arsumbris/repo.yaml", b"name: base\n".to_vec());
+        fs.insert("/ws/base/.2brain/repo.yaml", b"name: base\n".to_vec());
         fs.insert(
             "/ws/base/type/thing.type.yaml",
             b"fields:\n  title: String\n".to_vec(),
@@ -3777,9 +3777,9 @@ mod tests {
         // `discover:`: a manifest typo, a disabled overlay silences a DECLARED
         // member. Surfaced rather than left silently inert.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/ws/.arsumbris/repo.yaml", b"name: ws\n".to_vec());
+        fs.insert("/ws/.2brain/repo.yaml", b"name: ws\n".to_vec());
         fs.insert(
-            "/ws/.arsumbris/workspace.yaml",
+            "/ws/.2brain/workspace.yaml",
             b"edit:\n  - ws\ndisabled:\n  - ghost\n".to_vec(),
         );
         let kb = build(Path::new("/ws"), &fs).unwrap();
@@ -3809,14 +3809,11 @@ mod tests {
                     .collect::<String>()
             );
             let mut fs = MemoryFileSystem::new();
-            fs.insert("/ws/.arsumbris/repo.yaml", b"name: ws\n".to_vec());
-            fs.insert("/ws/.arsumbris/workspace.yaml", manifest.into_bytes());
-            fs.insert("/ws/mid/.arsumbris/repo.yaml", b"name: mid\n".to_vec());
+            fs.insert("/ws/.2brain/repo.yaml", b"name: ws\n".to_vec());
+            fs.insert("/ws/.2brain/workspace.yaml", manifest.into_bytes());
+            fs.insert("/ws/mid/.2brain/repo.yaml", b"name: mid\n".to_vec());
             fs.insert("/ws/mid/note.md", b"---\ntype: note\n---\n".to_vec());
-            fs.insert(
-                "/ws/mid/deep/.arsumbris/repo.yaml",
-                b"name: deep\n".to_vec(),
-            );
+            fs.insert("/ws/mid/deep/.2brain/repo.yaml", b"name: deep\n".to_vec());
             fs.insert("/ws/mid/deep/leaf.md", b"---\ntype: note\n---\n".to_vec());
             let kb = build(Path::new("/ws"), &fs).unwrap();
             assert!(
@@ -3838,15 +3835,12 @@ mod tests {
         // flagged: only the outermost undeclared repo warns, and its content, and
         // everything below it, contributes nothing.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/ws/.arsumbris/repo.yaml", b"name: ws\n".to_vec());
+        fs.insert("/ws/.2brain/repo.yaml", b"name: ws\n".to_vec());
         fs.insert("/ws/keep.md", b"---\ntype: note\n---\n".to_vec());
-        fs.insert(
-            "/ws/vendor/.arsumbris/repo.yaml",
-            b"name: vendor\n".to_vec(),
-        );
+        fs.insert("/ws/vendor/.2brain/repo.yaml", b"name: vendor\n".to_vec());
         fs.insert("/ws/vendor/v.md", b"---\ntype: note\n---\n".to_vec());
         fs.insert(
-            "/ws/vendor/inner/.arsumbris/repo.yaml",
+            "/ws/vendor/inner/.2brain/repo.yaml",
             b"name: inner\n".to_vec(),
         );
         fs.insert("/ws/vendor/inner/i.md", b"---\ntype: note\n---\n".to_vec());
@@ -3887,12 +3881,12 @@ mod tests {
         // folder-name-mismatch drift advisory. Before X, the folder-name sibling
         // probe missed it and it stayed unmounted.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/ws/.arsumbris/repo.yaml", b"name: ws\n".to_vec());
+        fs.insert("/ws/.2brain/repo.yaml", b"name: ws\n".to_vec());
         fs.insert(
-            "/ws/.arsumbris/workspace.yaml",
+            "/ws/.2brain/workspace.yaml",
             b"edit:\n  - ws\n  - lib\n".to_vec(),
         );
-        fs.insert("/ws/mylib/.arsumbris/repo.yaml", b"name: lib\n".to_vec());
+        fs.insert("/ws/mylib/.2brain/repo.yaml", b"name: lib\n".to_vec());
         fs.insert("/ws/mylib/note.md", b"---\ntype: note\n---\n".to_vec());
         let kb = build(Path::new("/ws"), &fs).unwrap();
         assert!(
@@ -3915,16 +3909,13 @@ mod tests {
         // the walk-resolve fixpoint guarantees it: `deep` (nested under `mid`) is a
         // watched root.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/ws/.arsumbris/repo.yaml", b"name: ws\n".to_vec());
+        fs.insert("/ws/.2brain/repo.yaml", b"name: ws\n".to_vec());
         fs.insert(
-            "/ws/.arsumbris/workspace.yaml",
+            "/ws/.2brain/workspace.yaml",
             b"edit:\n  - ws\n  - mid\n  - deep\n".to_vec(),
         );
-        fs.insert("/ws/mid/.arsumbris/repo.yaml", b"name: mid\n".to_vec());
-        fs.insert(
-            "/ws/mid/deep/.arsumbris/repo.yaml",
-            b"name: deep\n".to_vec(),
-        );
+        fs.insert("/ws/mid/.2brain/repo.yaml", b"name: mid\n".to_vec());
+        fs.insert("/ws/mid/deep/.2brain/repo.yaml", b"name: deep\n".to_vec());
         let (roots, _) = assembly_roots(Path::new("/ws"), &crate::repo::UserRegistry::new(), &fs);
         for expected in ["/ws", "/ws/mid", "/ws/mid/deep"] {
             assert!(
@@ -3977,11 +3968,11 @@ mod tests {
         // Each co-present member's type-def is in the fingerprint.
         assert!(fp.contains_key(Path::new("/ws/base/type/note.type.yaml")));
         assert!(fp.contains_key(Path::new("/ws/app/type/note.type.yaml")));
-        // Each member's registry, the walker ignores `.arsumbris/`.
-        assert!(fp.contains_key(Path::new("/ws/base/.arsumbris/repo.yaml")));
-        assert!(fp.contains_key(Path::new("/ws/app/.arsumbris/repo.yaml")));
+        // Each member's registry, the walker ignores `.2brain/`.
+        assert!(fp.contains_key(Path::new("/ws/base/.2brain/repo.yaml")));
+        assert!(fp.contains_key(Path::new("/ws/app/.2brain/repo.yaml")));
         // The entry manifest in `/ws`.
-        assert!(fp.contains_key(Path::new("/ws/.arsumbris/workspace.yaml")));
+        assert!(fp.contains_key(Path::new("/ws/.2brain/workspace.yaml")));
     }
 
     #[test]
@@ -4018,7 +4009,7 @@ mod tests {
         // Drop a member from the manifest: the member set, hence the rebuild, changes.
         let mut fs = scattered_fs();
         fs.insert(
-            "/ws/.arsumbris/workspace.yaml",
+            "/ws/.2brain/workspace.yaml",
             b"edit:\n  - ws\n  - base\n".to_vec(),
         );
         let after = fingerprint(Path::new("/ws"), &crate::repo::ConfigSource::Empty, &fs).unwrap();
@@ -4033,14 +4024,14 @@ mod tests {
     fn entry_only_fingerprint_is_unchanged_without_a_manifest() {
         // No manifest in the entry dir: assembly_roots returns the entry repo alone.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: solo\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: solo\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  title: String\n".to_vec(),
         );
         let fp = fingerprint(Path::new("/v"), &crate::repo::ConfigSource::Empty, &fs).unwrap();
         assert!(fp.contains_key(Path::new("/v/type/note.type.yaml")));
-        assert!(fp.contains_key(Path::new("/v/.arsumbris/repo.yaml")));
+        assert!(fp.contains_key(Path::new("/v/.2brain/repo.yaml")));
     }
 }
 
@@ -4057,7 +4048,7 @@ mod reuse_tests {
     /// A single-repo knowledge base: registry, one type-def, two instances.
     fn base_fs() -> MemoryFileSystem {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  title: String\n".to_vec(),
@@ -4084,7 +4075,7 @@ mod reuse_tests {
         let mut fs = MemoryFileSystem::new();
         // An unquoted `:` in the entry repo.yaml value breaks the parse.
         fs.insert(
-            "/v/.arsumbris/repo.yaml",
+            "/v/.2brain/repo.yaml",
             b"name: v\ndescription: text: colon\n".to_vec(),
         );
         match resolve_entry(Path::new("/v"), &fs) {
@@ -4154,14 +4145,11 @@ mod reuse_tests {
         // Under the old cache-gated assembly, `lib` stayed unwalked and dangled.
         let mut fs = MemoryFileSystem::new();
         fs.insert(
-            "/main/.arsumbris/repo.yaml",
+            "/main/.2brain/repo.yaml",
             b"name: main\ndeps:\n  - name: lib\n".to_vec(),
         );
         fs.insert("/main/type/mainthing.type.yaml", b"fields: {}\n".to_vec());
-        fs.insert(
-            "/scattered/lib/.arsumbris/repo.yaml",
-            b"name: lib\n".to_vec(),
-        );
+        fs.insert("/scattered/lib/.2brain/repo.yaml", b"name: lib\n".to_vec());
         fs.insert(
             "/scattered/lib/type/libthing.type.yaml",
             b"fields: {}\n".to_vec(),
@@ -4209,17 +4197,14 @@ mod reuse_tests {
         const QUALIFIED_PARENT: &str = "base::lib";
         let mut fs = MemoryFileSystem::new();
         fs.insert(
-            "/main/.arsumbris/repo.yaml",
+            "/main/.2brain/repo.yaml",
             b"name: main\ndeps:\n  - name: lib\n".to_vec(),
         );
         fs.insert(
             "/main/type/sub.type.yaml",
             b"extends: base::lib\nfields:\n  own: String\n".to_vec(),
         );
-        fs.insert(
-            "/scattered/lib/.arsumbris/repo.yaml",
-            b"name: lib\n".to_vec(),
-        );
+        fs.insert("/scattered/lib/.2brain/repo.yaml", b"name: lib\n".to_vec());
         fs.insert(
             "/scattered/lib/type/base.type.yaml",
             b"fields:\n  shared: String\n".to_vec(),
@@ -4376,7 +4361,7 @@ mod reuse_tests {
         // The after-delete fs: no `b.md`. `MemoryFileSystem` has no remove, so
         // construct the surviving set directly.
         let mut fs2 = MemoryFileSystem::new();
-        fs2.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs2.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs2.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  title: String\n".to_vec(),
@@ -4459,19 +4444,19 @@ mod reuse_tests {
         // Closure membership keys by (repo, type), so the two `base` keys stay
         // distinct, and a `child` instance is a member of both child and base.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             b"edit:\n  - v\n  - a\n  - b\n".to_vec(),
         );
-        fs.insert("/v/a/.arsumbris/repo.yaml", b"name: a\n".to_vec());
+        fs.insert("/v/a/.2brain/repo.yaml", b"name: a\n".to_vec());
         fs.insert(
             "/v/a/type/base.type.yaml",
             b"fields:\n  title: String\n".to_vec(),
         );
         fs.insert("/v/a/type/child.type.yaml", b"extends: base\n".to_vec());
         fs.insert("/v/a/x.md", b"---\ntype: child\ntitle: X\n---\n".to_vec());
-        fs.insert("/v/b/.arsumbris/repo.yaml", b"name: b\n".to_vec());
+        fs.insert("/v/b/.2brain/repo.yaml", b"name: b\n".to_vec());
         fs.insert(
             "/v/b/type/base.type.yaml",
             b"fields:\n  title: String\n".to_vec(),
@@ -4505,7 +4490,7 @@ mod reuse_tests {
         // src links to target through a typed slot, so it depends on target's
         // identity; nav links only navigationally, so it does not.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  link?: note*\n".to_vec(),

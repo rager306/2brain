@@ -1,7 +1,7 @@
 //! The value layer decides reference-ness by the SLOT, on every surface.
 //!
 //! A value container is a `reference` iff its slot admits one AND the value is
-//! exactly one whole-value `[[...]]` — [[type reference::au-type-system]]'s validated-reference
+//! exactly one whole-value `[[...]]` — [[type reference::tb-type-system]]'s validated-reference
 //! definition, applied uniformly. Frontmatter used to produce no references at
 //! all and the body gated on syntax, so the same target written on both
 //! surfaces yielded two structurally different containers, defeated the
@@ -50,7 +50,7 @@ fn write(root: &Path, rel: &str, content: &str) {
 fn kb(note_fields: &str, instance: &str) -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: v\n");
+    write(&root, ".2brain/repo.yaml", "name: v\n");
     write(&root, "type/paper.type.yaml", "fields:\n  t: String\n");
     write(
         &root,
@@ -111,7 +111,7 @@ fn frontmatter_reference_in_a_bare_slot_is_a_reference_container() {
 }
 
 /// The REPORTED case. A list slot yields one container PER ELEMENT, each a
-/// reference — [[type value container::au-type-system]]'s "a field's effective value is a LIST
+/// reference — [[type value container::tb-type-system]]'s "a field's effective value is a LIST
 /// of value containers". It used to be ONE container holding a sequence of raw
 /// strings, which is what silently emptied a consumer's tool lists.
 #[test]
@@ -135,7 +135,7 @@ fn frontmatter_reference_list_yields_one_reference_container_per_element() {
 
 /// THE BUG. The same target on both surfaces is ONE container with TWO
 /// contributions, and must NOT count twice against cardinality.
-/// [[type value container::au-type-system]]: "The same value in frontmatter and body is one
+/// [[type value container::tb-type-system]]: "The same value in frontmatter and body is one
 /// container, two contributions. It does not count twice against cardinality."
 #[test]
 fn the_same_reference_on_both_surfaces_collapses_and_does_not_exceed_cardinality() {
@@ -170,7 +170,7 @@ fn the_same_reference_on_both_surfaces_collapses_and_does_not_exceed_cardinality
 fn a_branded_scalar_collapses_a_bare_value_and_its_constructor() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: v\n");
+    write(&root, ".2brain/repo.yaml", "name: v\n");
     write(&root, "type/meter.type.yaml", "shape: Number\n");
     write(&root, "type/note.type.yaml", "fields:\n  length: meter\n");
     write(
@@ -211,7 +211,7 @@ fn a_branded_scalar_collapses_a_bare_value_and_its_constructor() {
 fn a_primitive_member_constructor_escapes_a_constructor_shaped_literal_end_to_end() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: v\n");
+    write(&root, ".2brain/repo.yaml", "name: v\n");
     write(&root, "type/label.type.yaml", "shape: String\n");
     write(&root, "type/stringy.type.yaml", "shape: <String | label>\n");
     write(&root, "type/note.type.yaml", "fields:\n  v: stringy\n");
@@ -247,7 +247,7 @@ fn a_primitive_member_constructor_escapes_a_constructor_shaped_literal_end_to_en
 fn a_written_brand_constructor_records_the_brand_side_channel() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: v\n");
+    write(&root, ".2brain/repo.yaml", "name: v\n");
     write(&root, "type/meter.type.yaml", "shape: Number\n");
     write(
         &root,
@@ -290,7 +290,7 @@ fn a_written_brand_constructor_records_the_brand_side_channel() {
 fn a_union_nominal_member_resolves_the_value_and_records_the_brand() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: v\n");
+    write(&root, ".2brain/repo.yaml", "name: v\n");
     write(&root, "type/label.type.yaml", "shape: String\n");
     write(&root, "type/stringy.type.yaml", "shape: <String | label>\n");
     write(&root, "type/note.type.yaml", "fields:\n  v: stringy\n");
@@ -326,7 +326,7 @@ fn a_union_nominal_member_resolves_the_value_and_records_the_brand() {
 fn an_unadmitted_constructor_is_a_faithful_parse_plus_a_mismatch() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: v\n");
+    write(&root, ".2brain/repo.yaml", "name: v\n");
     write(&root, "type/meter.type.yaml", "shape: Number\n");
     write(&root, "type/second.type.yaml", "shape: Number\n");
     write(&root, "type/note.type.yaml", "fields:\n  len: meter\n");
@@ -361,7 +361,7 @@ fn an_unadmitted_constructor_is_a_faithful_parse_plus_a_mismatch() {
 fn a_bare_value_at_an_overlapping_union_is_ambiguous_end_to_end() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: v\n");
+    write(&root, ".2brain/repo.yaml", "name: v\n");
     write(&root, "type/label.type.yaml", "shape: String\n");
     write(&root, "type/stringy.type.yaml", "shape: <String | label>\n");
     write(&root, "type/note.type.yaml", "fields:\n  v: stringy\n");
@@ -418,7 +418,7 @@ fn list_element_containers_carry_distinct_spans_in_source_order() {
 
 /// The NEGATIVE case that proves the gate is the SLOT, not the syntax. A
 /// whole-value wikilink in a `String` slot is the string `[[paper-a]]`, per
-/// [[type reference::au-type-system]] — it must NOT become a reference.
+/// [[type reference::tb-type-system]] — it must NOT become a reference.
 #[test]
 fn a_wikilink_in_a_string_slot_stays_a_scalar() {
     let (_dir, root) = kb(
@@ -550,7 +550,7 @@ fn an_empty_list_is_present_with_zero_containers() {
 
 /// Slot-gating the VALUE layer must not touch the NAVIGATIONAL layer. A
 /// `[[x]]` in a `String` slot is the literal string as a value, AND still a
-/// live edge in the graph — [[type reference::au-type-system]]'s two orthogonal properties.
+/// live edge in the graph — [[type reference::tb-type-system]]'s two orthogonal properties.
 /// Guards against a future gate accidentally suppressing navigation.
 #[test]
 fn a_string_slot_link_is_still_a_navigational_edge() {
@@ -611,7 +611,7 @@ fn a_plain_string_list_also_yields_one_container_per_element() {
 fn a_record_list_yields_inline_record_containers_per_element() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: v\n");
+    write(&root, ".2brain/repo.yaml", "name: v\n");
     write(&root, "type/step.type.yaml", "fields:\n  what: String\n");
     write(&root, "type/note.type.yaml", "fields:\n  steps: step[]\n");
     write(

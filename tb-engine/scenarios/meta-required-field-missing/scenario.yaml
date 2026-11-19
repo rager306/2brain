@@ -1,5 +1,5 @@
 title: "Meta sub-region missing a required field of its named type-def"
-spec_ref: "[[type-def meta::au-type-system]]"
+spec_ref: "[[type-def meta::tb-type-system]]"
 command: validate
 expected:
   codes:

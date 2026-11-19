@@ -4,7 +4,7 @@
 //! peer's type, see
 //! [[design - cross-repo type vocabulary - reference import and vendor as one spectrum over the repo qualifier]].
 //!
-//! au-core resolves only OWN (unqualified) names; the cross-repo fold resolves a
+//! tb-core resolves only OWN (unqualified) names; the cross-repo fold resolves a
 //! valid `::repo` peer type. This gate is the use-site author feedback that
 //! layers on top, the type-side sibling of [`crate::crossref`]: a `::repo` to an
 //! undeclared peer, a declared-but-unmounted peer, an empty `::`, or a present
@@ -52,7 +52,7 @@ pub const TYPE_REPO_UNAVAILABLE: DiagnosticCode =
 /// discovery / editing, but crossing its VOCABULARY needs it declared as a
 /// type-dependency, since `deps` folds into the closure-hash. Error. A plain
 /// VALUE link into a member stays permissive; only a TYPE crossing gates. The fix
-/// is to add the repo to this repo's `deps`. See [[repo yaml::au-type-system]].
+/// is to add the repo to this repo's `deps`. See [[repo yaml::tb-type-system]].
 pub const TYPE_REPO_NOT_A_DEPENDENCY: DiagnosticCode =
     DiagnosticCode::from_static("type-repo-not-a-dependency");
 /// A `::repo` type name names a present peer that has no such type-def — the
@@ -112,9 +112,9 @@ fn resolve_type_repo(
     });
     match resolve_repo_scope(repos, workspaces, source, repo_q) {
         RepoScope::Present(repo) => {
-            // The builtin `au-engine` repo is the universal peer: its `au.engine.*`
+            // The builtin `tb-engine` repo is the universal peer: its `tb.engine.*`
             // types cross without a dep declaration (every engine-schema file
-            // carries an implicit `::au-engine` claim).
+            // carries an implicit `::tb-engine` claim).
             if !repo.builtin && !crossable {
                 TypeRepoRef::NotADependency
             } else if graphs.of(&repo.name).contains(&TypeName(base.to_string())) {
@@ -266,7 +266,7 @@ fn emit(
 /// non-dependency member, or a missing type — the same peer gate the build's claim
 /// check emits, surfaced as a decision reason rather than a standing diagnostic.
 /// `None` means the mixin resolves; the caller proceeds to the value gate. A BARE
-/// (own-repo) mixin has no `::repo` to gate, so its resolution is au-core's
+/// (own-repo) mixin has no `::repo` to gate, so its resolution is tb-core's
 /// `unknown-type-claim`, caught by the value gate instead.
 /// See [[spec - ensure-mixin write directive - a governed write ensures a type-claim mixin idempotently, folded into the write's own commit]].
 pub(crate) fn gate_mixin_repo(
@@ -293,7 +293,7 @@ pub(crate) fn gate_mixin_repo(
     }
 }
 
-/// Gate a single claim or parent. An own (unqualified) claim is au-core's
+/// Gate a single claim or parent. An own (unqualified) claim is tb-core's
 /// concern and is skipped here.
 #[allow(clippy::too_many_arguments)]
 fn gate_claim(
@@ -346,7 +346,7 @@ fn collect_qualified<'a>(shape: &'a Shape, out: &mut Vec<&'a QualifiedName>) {
 
 /// Collect every `::repo`-qualified name a field shape reaches in a REFERENCE
 /// position (`*` / `&`), with its suffix char. The cross-repo sibling of
-/// au-core's own-repo reference walk, for gating a peer brand's referenceability:
+/// tb-core's own-repo reference walk, for gating a peer brand's referenceability:
 /// a nominal peer brand, or a peer union with a non-record member, cannot take a
 /// `*` / `&`. Bare-record positions are excluded — those are inline, always fine.
 fn collect_ref_qualified<'a>(shape: &'a Shape, out: &mut Vec<(&'a QualifiedName, char)>) {
@@ -791,20 +791,20 @@ mod tests {
     /// Build a two-repo workspace and return only its `::repo` type-gating
     /// diagnostics. `base` is present and owns `note { title }`; `ghost` is a
     /// declared peer with no repo in the tree (unmounted). `app` declares both
-    /// and carries the given files. au-core defers every qualified claim, so the
+    /// and carries the given files. tb-core defers every qualified claim, so the
     /// only diagnostics over these files are this pass's.
     fn type_diags(app_files: &[(&str, &str)]) -> Vec<Diagnostic> {
         let mut fs = MemoryFileSystem::new();
         // The entry is a content-free folder-repo composing base + app.
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
         fs.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             "edit:\n  - v\n  - base\n  - app\n",
         );
-        fs.insert("/v/base/.arsumbris/repo.yaml", "name: base\n");
+        fs.insert("/v/base/.2brain/repo.yaml", "name: base\n");
         fs.insert("/v/base/type/note.type.yaml", "fields:\n  title: String\n");
         fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
+            "/v/app/.2brain/repo.yaml",
             "name: app\ndeps:\n  - name: base\n  - name: ghost\n",
         );
         for (rel, content) in app_files {
@@ -853,14 +853,11 @@ mod tests {
     /// can toggle whether it declares `b` as a dep.
     fn a_claims_thing_from_b(a_repo_yaml: &str) -> Vec<Diagnostic> {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
-        fs.insert(
-            "/v/.arsumbris/workspace.yaml",
-            "edit:\n  - v\n  - a\n  - b\n",
-        );
-        fs.insert("/v/a/.arsumbris/repo.yaml", a_repo_yaml);
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/workspace.yaml", "edit:\n  - v\n  - a\n  - b\n");
+        fs.insert("/v/a/.2brain/repo.yaml", a_repo_yaml);
         fs.insert("/v/a/n.md", "---\ntype: thing::b\n---\n");
-        fs.insert("/v/b/.arsumbris/repo.yaml", "name: b\n");
+        fs.insert("/v/b/.2brain/repo.yaml", "name: b\n");
         fs.insert("/v/b/type/thing.type.yaml", "fields: {}\n");
         let kb = build(Path::new("/v"), &fs).unwrap();
         cross_repo_type_diagnostics(
@@ -927,7 +924,7 @@ mod tests {
     fn empty_repo_qualifier_is_type_repo_empty() {
         // Quoted: an unquoted `note::` is a YAML mapping-value error, so the
         // empty `::` only reaches the claim parse when quoted. At the field-shape
-        // position au-grammar rejects `foo::` as `shape-syntax-error`, so this
+        // position tb-grammar rejects `foo::` as `shape-syntax-error`, so this
         // code is a claim / parent concern.
         let src = "---\ntype: \"note::\"\n---\n";
         let diags = type_diags(&[("n.md", src)]);
@@ -990,14 +987,11 @@ mod tests {
         // seed test) or a field shape here: emit is the single choke point, so
         // every emission position carries the fix identically.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
-        fs.insert(
-            "/v/.arsumbris/workspace.yaml",
-            "edit:\n  - v\n  - a\n  - b\n",
-        );
-        fs.insert("/v/a/.arsumbris/repo.yaml", "name: a\n"); // no dep on b
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/workspace.yaml", "edit:\n  - v\n  - a\n  - b\n");
+        fs.insert("/v/a/.2brain/repo.yaml", "name: a\n"); // no dep on b
         fs.insert("/v/a/type/holder.type.yaml", "fields:\n  ref: thing::b*\n");
-        fs.insert("/v/b/.arsumbris/repo.yaml", "name: b\n");
+        fs.insert("/v/b/.2brain/repo.yaml", "name: b\n");
         fs.insert("/v/b/type/thing.type.yaml", "fields: {}\n");
         let kb = build(Path::new("/v"), &fs).unwrap();
         let diags = cross_repo_type_diagnostics(
@@ -1145,7 +1139,7 @@ mod tests {
 
     #[test]
     fn own_claims_are_not_gated() {
-        // A bare claim and a bare field shape are au-core's concern, untouched here.
+        // A bare claim and a bare field shape are tb-core's concern, untouched here.
         let diags = type_diags(&[
             ("n.md", "---\ntype: note\n---\n"),
             ("type/h.type.yaml", "fields:\n  r: note*\n"),
@@ -1159,15 +1153,15 @@ mod tests {
         // instance's slice of the whole-catalog pass, so the incremental path
         // recomputes one instance's `::repo` claim gating alone.
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", "name: v\n");
+        fs.insert("/v/.2brain/repo.yaml", "name: v\n");
         fs.insert(
-            "/v/.arsumbris/workspace.yaml",
+            "/v/.2brain/workspace.yaml",
             "edit:\n  - v\n  - base\n  - app\n",
         );
-        fs.insert("/v/base/.arsumbris/repo.yaml", "name: base\n");
+        fs.insert("/v/base/.2brain/repo.yaml", "name: base\n");
         fs.insert("/v/base/type/note.type.yaml", "fields:\n  title: String\n");
         fs.insert(
-            "/v/app/.arsumbris/repo.yaml",
+            "/v/app/.2brain/repo.yaml",
             "name: app\ndeps:\n  - name: base\n",
         );
         fs.insert("/v/app/n.md", "---\ntype: note::stranger\n---\n");

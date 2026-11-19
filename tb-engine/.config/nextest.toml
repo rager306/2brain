@@ -1,9 +1,9 @@
-# Nextest config for the au-engine workspace.
+# Nextest config for the tb-engine workspace.
 #
 # The daemon-socket integration tests spin up an FSEvents watcher plus a unix
 # socket over a fresh tempdir repo. Each test is isolated (its own tempdir, its
 # own socket), so running them in parallel is safe; the only risk is CPU /
-# file-watch contention, bounded by `slow-timeout`. au-engine's integration
+# file-watch contention, bounded by `slow-timeout`. tb-engine's integration
 # tests are one binary (`it`); nextest still parallelizes its tests by process.
 
 [profile.default]

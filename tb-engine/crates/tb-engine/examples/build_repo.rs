@@ -1,7 +1,7 @@
 //! Time a full repo build. Used to check cold-load scaling on large
 //! instances end-to-end (parse + validate + reference resolution + indexing).
 //!
-//! Run: `cargo run --release --example build_repo -p au-engine -- <repo-dir>`
+//! Run: `cargo run --release --example build_repo -p tb-engine -- <repo-dir>`
 
 use std::time::Instant;
 

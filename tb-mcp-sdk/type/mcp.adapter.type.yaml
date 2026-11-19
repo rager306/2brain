@@ -10,8 +10,8 @@
 # like `mcp.tool`), so a field would have no value carrier — and the engine has no tiered-name
 # concept, so the name is opaque (an adapter may be named `my-adapter`, not just `mcp.adapter.*`).
 #
-# DISCOVERY: a launcher (au-host) reads `subtypes('mcp.adapter')` straight off the ENGINE — the
-# kernel (au-mcp) never loads an adapter, an adapter has no plugin shape. Location resolves from
+# DISCOVERY: a launcher (tb-host) reads `subtypes('mcp.adapter')` straight off the ENGINE — the
+# kernel (tb-mcp) never loads an adapter, an adapter has no plugin shape. Location resolves from
 # the def's `source.file` (`packageRootOf`), like every other discovered node; the per-operation
 # entries ride `adapter-runtime-meta`.
 #
@@ -26,7 +26,7 @@ fields: {}
 # concrete adapter missing either fires `subtype-missing-required-meta` and surfaces via the
 # type view's `unmet_required_meta`, so a launcher GATES on it and skips a non-launchable /
 # unpresentable adapter rather than spawning a broken one. Mirrors `mcp.tool`'s required
-# `tool-presentation-meta`. Owned here (au-mcp-sdk, the contract owner).
+# `tool-presentation-meta`. Owned here (tb-mcp-sdk, the contract owner).
 meta:
   - required: adapter-runtime-meta
   - required: adapter-presentation-meta

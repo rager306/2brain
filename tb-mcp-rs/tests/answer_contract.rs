@@ -175,17 +175,12 @@ fn resources_read_serves_the_workflow_texts_without_the_engine() {
     ] {
         assert!(text.contains(part), "answer-shape lost {part}: {text}");
     }
-    // The legacy scheme stays accepted on read, the same one-release window the
-    // member resources document.
-    let legacy = request(
-        &mut client,
-        3,
-        "resources/read",
-        json!({"uri": "arsumbris://workflow/answer-shape"}),
-    );
-    assert_eq!(
-        legacy["result"]["contents"][0]["text"], contents[0]["text"],
-        "{legacy}"
+    // The retired scheme is refused (ADR-0005): only `2brain://` is a resource.
+    let old = format!("{}://workflow/answer-shape", concat!("arsum", "bris"));
+    let legacy = request(&mut client, 3, "resources/read", json!({"uri": old}));
+    assert!(
+        legacy.get("error").is_some() || legacy["result"]["isError"] == true,
+        "the old scheme is not a resource: {legacy}"
     );
 
     let write_gates = request(

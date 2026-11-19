@@ -5,8 +5,8 @@ adapter misbehaves: stop using it and fall back to the read-only path. Run on
 2026-11-13 against a disposable repository and a private engine; it passed.
 
 ```sh
-cd au-mcp-rs
-TB_ENGINE_BIN=../tb-engine/target/debug/au python3 scripts/rollback_rehearsal.py
+cd tb-mcp-rs
+TB_ENGINE_BIN=../tb-engine/target/debug/tb-engine python3 scripts/rollback_rehearsal.py
 ```
 
 ## What it proves
@@ -16,7 +16,7 @@ TB_ENGINE_BIN=../tb-engine/target/debug/au python3 scripts/rollback_rehearsal.py
 2. **The write is an engine commit, not adapter state.** The fixture gains
    exactly one commit and `git status --porcelain` is empty afterwards.
 3. **The adapter leaves no files behind.** The file list, excluding `.git` and
-   the engine's own `.arsumbris/au-engine` runtime directory, is unchanged.
+   the engine's own `.2brain/tb-engine` runtime directory, is unchanged.
 4. **Nothing is lost when the adapter stops.** A fresh adapter process, with no
    inherited state, reads the written text.
 5. **Rolling back to read-only is a launch flag, not a migration.** The same
@@ -25,7 +25,7 @@ TB_ENGINE_BIN=../tb-engine/target/debug/au python3 scripts/rollback_rehearsal.py
 
 ## What it does not prove
 
-- It does not exercise the existing Python bridge or the Node `au-mcp` daemon,
+- It does not exercise the existing Python bridge or the Node `tb-mcp` daemon,
   which speak to a different socket. Parity with them is separate work.
 - It does not rehearse a rollback of a negative outcome: a mutation whose reply
   was lost is covered by `tests/faults.rs`, and recovery by `tb_reconcile` plus
@@ -39,8 +39,8 @@ Rehearsed again on 2026-11-14 with the fork release binaries, against a new
 disposable repository and a private engine socket under a throwaway `HOME`:
 
 ```sh
-cd au-mcp-rs
-TB_ENGINE_BIN=/root/2brain/tb-engine/target/release/au \
+cd tb-mcp-rs
+TB_ENGINE_BIN=/root/2brain/tb-engine/target/release/tb-engine \
 TB_MCP_BIN=/root/2brain/tb-mcp-rs/target/release/tb-mcp-rs \
 python3 scripts/rollback_rehearsal.py
 ```
@@ -66,5 +66,5 @@ Its closing line was
 no failure output.
 
 What this run does not add to the section above: it still does not exercise the
-Python bridge or the Node `au-mcp` daemon, does not lose a mutation reply, and
+Python bridge or the Node `tb-mcp` daemon, does not lose a mutation reply, and
 touches no production socket or vault.

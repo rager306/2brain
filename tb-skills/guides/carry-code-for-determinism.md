@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Decide when to put an operation in code and how to make it usable by an agent.
 rule: Use code for an exact transformation or check. Give it explicit inputs, useful failure output and a verified invocation path.
 ---

@@ -5,8 +5,8 @@
 //! validates every instance, and keeps the result so consumers can read it
 //! many times without re-running the pipeline.
 //!
-//! au-core stays pure analysis (graph, closure, effective-shape, validate).
-//! au-cli renders. This crate owns the orchestration between them and the
+//! tb-core stays pure analysis (graph, closure, effective-shape, validate).
+//! tb-cli renders. This crate owns the orchestration between them and the
 //! state that orchestration produces.
 
 mod backlinks;
@@ -22,7 +22,6 @@ mod ensure_mixin;
 mod gitwatch;
 #[cfg(unix)]
 mod gitwriter;
-mod identity_migration;
 mod ignored_dir;
 mod incremental;
 #[cfg(unix)]
@@ -63,7 +62,6 @@ mod yaml_render;
 pub use backlinks::{Backlink, RefSurface};
 pub use build::{BuildError, build, build_reusing, default_package_cache_root, verify_entry};
 pub use engine::{Engine, EngineHandle, EngineState, Read, ReconcilePolicy, RefState};
-pub use identity_migration::{ClaimRewrite, rewrite_engine_claims};
 pub use ignored_dir::ensure_git_ignored_dir;
 // The incremental fast path, exposed only so `examples/rebuild_bench.rs` can
 // time the live recompute + clone-and-patch apply. Not part of the documented

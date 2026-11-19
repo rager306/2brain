@@ -1,5 +1,5 @@
 title: "A required field left as a null frontmatter anchor with no body contribution fires required-field-absent"
-spec_ref: "[[type-instance body contribution::au-type-system]]"
+spec_ref: "[[type-instance body contribution::tb-type-system]]"
 command: validate
 expected:
   codes:

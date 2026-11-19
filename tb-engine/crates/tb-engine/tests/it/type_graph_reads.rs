@@ -228,10 +228,10 @@ fn a_cross_repo_parent_renders_a_subtype_edge_to_the_peer_def() {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w("base/type/thing.type.yaml", "fields:\n  name: String\n");
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     w(

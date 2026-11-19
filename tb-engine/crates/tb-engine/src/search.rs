@@ -2749,7 +2749,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "measurement: cargo test --offline -p au-engine --lib search -- --ignored --nocapture"]
+    #[ignore = "measurement: cargo test --offline -p tb-engine --lib search -- --ignored --nocapture"]
     fn measure_build_and_query_latency() {
         use std::time::Instant;
 

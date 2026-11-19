@@ -18,7 +18,7 @@ the answer:
 
 | # | Direction | What it would change | Where it lives |
 |---|---|---|---|
-| A | **Thin hexagonal** — invert the seams that already exist | module borders inside `au-mcp-rs` | code |
+| A | **Thin hexagonal** — invert the seams that already exist | module borders inside `tb-mcp-rs` | code |
 | B | **Full onion** — domain crate + ports crate + adapters | crate graph | code + build |
 | C | **FSM control layer** — C1 in the runtime, C2 in the agent/prompt layer | mutation gate / skill procedures | code (C1), process artefacts (C2) |
 | D | **Ontology of the tool surface** — typed capability model | schemas, discovery, docs, tests | contract |
@@ -30,7 +30,7 @@ Trajectory and parallel tracks for the recommendation in §6: `docs/architecture
 
 ## 2. What the code is, measured
 
-### 2.1 Adapter `au-mcp-rs` (6 917 src lines, 8 878 test lines in 36 files)
+### 2.1 Adapter `tb-mcp-rs` (6 917 src lines, 8 878 test lines in 36 files)
 
 | file | lines | tests in file | production |
 |---|---:|---:|---:|
@@ -74,7 +74,7 @@ root.
 
 | crate | src lines | prod | tests in src | test files | pub fn / types |
 |---|---:|---:|---:|---:|---|
-| `au-engine` | 61 613 | 46 134 (75%) | 15 479 | 79 | 388 / 198 |
+| `tb-engine` | 61 613 | 46 134 (75%) | 15 479 | 79 | 388 / 198 |
 | `au-core` | 40 015 | 22 001 (55%) | 18 014 | 0 | 166 / 77 |
 | `au-grammar` | 4 968 | 2 376 | 2 592 | 0 | 19 / 15 |
 | `au-parser` | 4 035 | 2 073 | 1 962 | 0 | 25 / 14 |
@@ -85,8 +85,8 @@ root.
 
 The split at crate level is already hexagonal in spirit: `au-diagnostics → ∅`, then
 `grammar/parser/references` (11.6k lines of pure functions), then `au-core` (40k of
-analysis), then `au-engine` (61k of state and IO), then `au-cli` (1.2k of rendering).
-The problem is **inside** `au-engine`: repositories, build, incremental, git writer, package
+analysis), then `tb-engine` (61k of state and IO), then `au-cli` (1.2k of rendering).
+The problem is **inside** `tb-engine`: repositories, build, incremental, git writer, package
 cache, daemon, wire, mutation sagas and client in one crate —
 `serve.rs 16 772`, `wire.rs 5 759`, `build.rs 4 654`, `repo.rs 4 519`,
 `gitwriter.rs 3 279`, `resolution_build.rs 3 180`, `pkgcache.rs 3 148`, `incremental.rs 3 011`.
@@ -141,7 +141,7 @@ All of this was retrieved through `arsumbris-rs`, read-only, in this session.
 
 `tb-mcp-sdk/type/` contains `mcp.tool.type.yaml`, `mcp.inject.type.yaml`,
 `agent-profile.type.yaml`, `tool-access-meta.type.yaml`, `required-scope-meta.type.yaml`;
-`au-mcp-core/type/` contains one `mcp.tool.<verb>.type.yaml` per mutation. The model is:
+`tb-mcp-core/type/` contains one `mcp.tool.<verb>.type.yaml` per mutation. The model is:
 a tool's **fields are its input**; orchestration data goes into a typed `meta:`; discovery
 runs through `subtypes('mcp.tool')`; delivery has three classes — tool (on call), skill (on
 match), inject (always on, hard character budget).
@@ -175,7 +175,7 @@ instances, and the code does not read them.
    `hash`/`commits` bugs already fixed in the adapter, but on the engine side.
 2. **Argument names are not guessable:** `type_name`, not `type`; `origin_path`, not
    `origin`. Errors do list accepted fields, but the manual note (`manual/mcp-access.md`)
-   still documents 44 tools, the `mcp__arsumbris__` prefix, the `au-mcp` socket and
+   still documents 44 tools, the `mcp__arsumbris__` prefix, the `tb-mcp` socket and
    `active/outdated/superseded` statuses — a stale instruction file of exactly the kind the
    vault's own rule about instruction drift describes.
 3. **Path shape is inconsistent by verb:** absolute paths in `tb_hubs`/`tb_diagnostics`,
@@ -245,7 +245,7 @@ one-off rearrangement.
 ### B. Full onion — domain crate, ports crate, adapter crates
 
 What: `arsumbris-domain` (stages, policy reduction, payload rules, no IO),
-`arsumbris-ports` (traits), `au-mcp-rs` as one adapter, engine client as another.
+`arsumbris-ports` (traits), `tb-mcp-rs` as one adapter, engine client as another.
 
 Cost: the 51 handlers, the 531-line gate and the payload layer all move or get duplicated;
 crate boundaries in Rust also mean compile-time plumbing (`dyn` at the boundary, per the
@@ -388,7 +388,7 @@ Vault (read through `arsumbris-rs`, all `current` unless noted):
 `knowledge/mcp-tools-as-typescript-api-outperforms-direct-tool-calling.md`,
 `knowledge/tool-use.md`, `knowledge/index.md`, `inbox/arsumbris-fork-backlog.md`,
 `inbox/hermes-adapter-run-2026-11-15.md`, `manual/mcp-access.md` (stale),
-and the type definitions in `tb-mcp-sdk/type/` and `au-mcp-core/type/`.
+and the type definitions in `tb-mcp-sdk/type/` and `tb-mcp-core/type/`.
 
 External:
 1. V. Rentea, "Overengineering in Onion/Hexagonal Architectures" — victorrentea.ro.

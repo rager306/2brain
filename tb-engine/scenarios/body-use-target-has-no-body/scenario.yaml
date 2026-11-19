@@ -1,5 +1,5 @@
 title: "Child `use: T` where T has no body fires body-use-target-has-no-body (warning)"
-spec_ref: "[[type-def body use::au-type-system]]"
+spec_ref: "[[type-def body use::tb-type-system]]"
 command: validate
 expected:
   codes:

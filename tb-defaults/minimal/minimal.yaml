@@ -8,13 +8,13 @@
 # `type` names the view, its other fields are that view's config). A container names its children BY
 # REFERENCE (`[[^^id]]`) into the pool — it never embeds them. The layout tree is the reference graph;
 # there is no nesting on disk. Here: `grid` (a bento split) references `tree` and `doc`.
-type: composition::au-host-sdk
+type: composition::tb-host-sdk
 # Active keymaps (keybinds): the shipped default (⌘S save, ⌘K toggle palette). Drop this entry to turn the
 # shortcuts off; copy default.keymap.yaml into your vault to remap. Same-repo ref, no cross-repo.
 keymaps:
   - "[[default.keymap]]"
 windows:
-  - "[[^^au-window-primary]]"
+  - "[[^^tb-window-primary]]"
 # The shipped default viewer for a file kind (the explicit ladder's rung 2). Without it, opening an md
 # would surface the host chooser every time (md is eligible for both the editor and the reader); with it,
 # md opens in the editor; an unconfigured ambiguous kind opens the chooser.
@@ -23,10 +23,10 @@ viewer-defaults:
     - opens: md
       viewer: "[[editor-pane::editor]]"
 projections:
-  - type: window::au-host-sdk
+  - type: window::tb-host-sdk
     primary: true
     content: "[[^^grid]]"
-    ^: au-window-primary
+    ^: tb-window-primary
   - ^: grid
     type: bento::bento
     root:

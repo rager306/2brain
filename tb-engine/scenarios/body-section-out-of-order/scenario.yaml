@@ -1,5 +1,5 @@
 title: "Required sections present but reordered fires body-section-out-of-order"
-spec_ref: "[[type-def body section::au-type-system]]"
+spec_ref: "[[type-def body section::tb-type-system]]"
 command: validate
 expected:
   codes:

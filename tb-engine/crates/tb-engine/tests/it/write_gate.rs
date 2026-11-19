@@ -46,7 +46,7 @@ fn started() -> Harness {
     // Entry `v` composes itself (edit) plus `dep` (discover), overriding the
     // all-edit workspace.yaml that seed_repo/seed_workspace would write.
     fs::write(
-        root.join(".arsumbris/workspace.yaml"),
+        root.join(".2brain/workspace.yaml"),
         "type: tb.engine.workspace::tb-engine\nedit:\n  - v\ndiscover:\n  - dep\n",
     )
     .unwrap();
@@ -66,9 +66,9 @@ fn started() -> Harness {
 
     // The consumed `dep` member: its own folder-repo with a file to target.
     let dep = root.join("dep");
-    fs::create_dir_all(dep.join(".arsumbris")).unwrap();
+    fs::create_dir_all(dep.join(".2brain")).unwrap();
     fs::write(
-        dep.join(".arsumbris/repo.yaml"),
+        dep.join(".2brain/repo.yaml"),
         "name: dep\ntype: tb.engine.repo::tb-engine\n",
     )
     .unwrap();
@@ -193,12 +193,12 @@ fn composition_verbs_to_a_discover_member_reject_without_touching_disk() {
     // Nothing landed in the consumed member: its repo.yaml is byte-for-byte and no
     // workspace.yaml was created by a rejected write.
     assert_eq!(
-        fs::read_to_string(h.root.join("dep/.arsumbris/repo.yaml")).unwrap(),
+        fs::read_to_string(h.root.join("dep/.2brain/repo.yaml")).unwrap(),
         "name: dep\ntype: tb.engine.repo::tb-engine\n",
         "a rejected composition write leaves the consumed member's repo.yaml"
     );
     assert!(
-        !h.root.join("dep/.arsumbris/workspace.yaml").exists(),
+        !h.root.join("dep/.2brain/workspace.yaml").exists(),
         "a rejected composition write creates no workspace.yaml"
     );
 }
@@ -339,7 +339,7 @@ fn a_rename_whose_referrer_is_in_a_consumed_member_rejects_with_the_blocking_lis
     // And the promote-to-edit route unblocks: once `dep` is an edit member, the
     // same rename succeeds and rewrites the (now editable) referrer.
     fs::write(
-        h.root.join(".arsumbris/workspace.yaml"),
+        h.root.join(".2brain/workspace.yaml"),
         "type: tb.engine.workspace::tb-engine\nedit:\n  - v\n  - dep\n",
     )
     .unwrap();
@@ -377,7 +377,7 @@ fn set_ignores_into_a_consumed_member_rejects() {
         "reject names the consumed member: {msg:?}"
     );
     assert!(
-        !h.root.join("dep/.arsumbris/.auignore").exists(),
+        !h.root.join("dep/.2brain/.auignore").exists(),
         "a rejected set_ignores writes no file"
     );
 }
@@ -418,7 +418,7 @@ fn set_ignores_on_the_editable_entry_still_writes() {
         .unwrap();
     assert_eq!(resp["ready"], true, "the entry is editable: {resp:?}");
     assert!(
-        h.root.join(".arsumbris/.auignore").exists(),
+        h.root.join(".2brain/.auignore").exists(),
         "the entry set_ignores landed"
     );
 }

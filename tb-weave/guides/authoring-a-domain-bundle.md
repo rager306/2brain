@@ -1,6 +1,6 @@
 ---
-type: guide::au-agent-guides
-goal: configure a consumer's source-to-knowledge path using au-weave
+type: guide::tb-agent-guides
+goal: configure a consumer's source-to-knowledge path using tb-weave
 rule: Reuse suitable vocabulary and check the configured path on a real source.
 example:
 ---

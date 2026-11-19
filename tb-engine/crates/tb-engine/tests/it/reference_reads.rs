@@ -266,7 +266,7 @@ fn resolve_block_id_returns_the_typed_block_claim_and_span() {
 #[test]
 fn resolve_block_id_reaches_an_inline_record() {
     // `^: rec-1` on a claim-less record under `related?: assumption&[]`
-    // ([[type block-id::au-type-system]]) — the slot-pinned claim is the type_claim.
+    // ([[type block-id::tb-type-system]]) — the slot-pinned claim is the type_claim.
     let mut h = started();
     let resp = h
         .client
@@ -290,7 +290,7 @@ fn resolve_block_id_reaches_an_inline_record() {
 
 #[test]
 fn resolve_block_id_reaches_a_bare_marker() {
-    // A bare `^id` marker is navigationally addressable ([[type block-id::au-type-system]]);
+    // A bare `^id` marker is navigationally addressable ([[type block-id::tb-type-system]]);
     // the read is the one resolution surface, so it resolves with an
     // empty claim and `kind: marker` instead of returning null.
     let mut h = started();
@@ -317,7 +317,7 @@ fn resolve_block_id_reaches_a_bare_marker() {
 #[test]
 fn navigation_reads_resolve_the_local_form_against_the_origin() {
     // A LOCAL wikilink (empty target + a locating fragment: `[[^^id]]` / `[[^id]]`
-    // / `[[#head]]`) targets the file it appears in, per [[type reference::au-type-system]]. The
+    // / `[[#head]]`) targets the file it appears in, per [[type reference::tb-type-system]]. The
     // navigation reads honor it via `origin`, matching the validator and the
     // backlink index — a `[[^^id]]` block-referent in a file must resolve the same
     // whether or not the target name is spelled out.
@@ -439,7 +439,7 @@ fn resolve_block_id_reaches_a_record_in_a_nested_yaml_instance_by_bare_name() {
     // The session-log shape: a pure-YAML instance nested deep under
     // `operations/`, its list entries inline records carrying `^:` ids.
     // The bare extensionless target matches the file's stem
-    // ([[type reference::au-type-system]]), so `[[s-001^e-prompt]]` resolves cross-file.
+    // ([[type reference::tb-type-system]]), so `[[s-001^e-prompt]]` resolves cross-file.
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_repo(&root);
@@ -500,7 +500,7 @@ fn resolve_block_id_reaches_a_record_in_a_nested_yaml_instance_by_bare_name() {
 
 #[test]
 fn resolve_anchor_matches_heading_text_case_insensitively() {
-    // The engine owns anchor matching ([[type reference::au-type-system]]): exact
+    // The engine owns anchor matching ([[type reference::tb-type-system]]): exact
     // heading text, case-insensitive, first in document order.
     let mut h = started();
     let resp = h
@@ -569,7 +569,7 @@ fn anchors_lists_every_heading_in_document_order_with_its_level() {
 fn an_anchors_entry_excludes_the_trailing_marker_and_round_trips() {
     // `## Nested ^sec-nested` is addressable as `#Nested`, not
     // `#Nested ^sec-nested` — the served text is what resolve_anchor
-    // matches, so a consumer inserts it verbatim ([[type block-id::au-type-system]]).
+    // matches, so a consumer inserts it verbatim ([[type block-id::tb-type-system]]).
     let mut h = started();
     let resp = h
         .client
@@ -621,7 +621,7 @@ fn anchors_separates_an_unresolved_target_from_a_file_with_no_headings() {
 #[test]
 fn block_ids_lists_every_surface_in_document_order() {
     // research.md carries all three: a frontmatter `^:` record, a bare body
-    // marker, and a typed `[:field]` fence id ([[type block-id::au-type-system]]).
+    // marker, and a typed `[:field]` fence id ([[type block-id::tb-type-system]]).
     let mut h = started();
     let resp = h
         .client

@@ -1,4 +1,4 @@
-type: keymap::au-host-sdk
+type: keymap::tb-host-sdk
 keybinds:
   - chord:
       - key: backslash

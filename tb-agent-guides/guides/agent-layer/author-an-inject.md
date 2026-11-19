@@ -2,12 +2,12 @@
 type: guide
 goal: "Author standing context for an intended session profile."
 rule: "Create an inject instance with a justified scope, inspect its expansion, and verify the selected launch output."
-about: "[[mcp.inject::au-mcp-sdk]]"
+about: "[[mcp.inject::tb-mcp-sdk]]"
 ---
 
 # Author an inject
 
-Create a markdown instance of [[mcp.inject::au-mcp-sdk]] for standing context.
+Create a markdown instance of [[mcp.inject::tb-mcp-sdk]] for standing context.
 Supply:
 
 - Its name

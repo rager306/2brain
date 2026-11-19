@@ -1,5 +1,5 @@
 title: "A nested repo.yaml that will not parse names itself instead of vanishing"
-spec_ref: "[[spec - diagnostic codes::au-type-system^repo-registry-parse-error]]"
+spec_ref: "[[spec - diagnostic codes::tb-type-system^repo-registry-parse-error]]"
 command: validate
 expected:
   codes:

@@ -10,7 +10,7 @@ async function run(file, raw = readFileSync(new URL('./fixtures/pdf/' + file, im
 
 test('text PDF preserves source fields and summarizes extracted text', async () => {
   const source = await run('sample-text.pdf');
-  assert.match(source, /^type: pdf::au-ingest$/m);
+  assert.match(source, /^type: pdf::tb-ingest$/m);
   assert.doesNotMatch(source, /^pages:/m);
   assert.match(source, /^captured: 2026-08-02$/m);
   assert.match(source, /^tldr: Conversion test document$/m);

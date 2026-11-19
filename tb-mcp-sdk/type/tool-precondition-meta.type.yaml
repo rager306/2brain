@@ -2,10 +2,10 @@
 # a precondition by claiming a SUBTYPE of this in its `mcp.tool` subtype's `meta:` block
 # (never instance fields — meta is type-level, read off the def via the engine's `subtypes`
 # read, the same channel `plugin-runtime-meta` + `tool-presentation-meta` ride). A generic
-# mediator (au-mcp-redirect/tool-precondition) reads the block off the tool-def and gates
+# mediator (tb-mcp-redirect/tool-precondition) reads the block off the tool-def and gates
 # the call; the kernel holds NO knowledge of any specific tool.
 #
-# Owned here (au-mcp-sdk, the contract owner). ABSTRACT (schema 18): this base is never named
+# Owned here (tb-mcp-sdk, the contract owner). ABSTRACT (schema 18): this base is never named
 # in a `meta:` block directly — a tool declares a precondition by claiming a concrete SUBTYPE
 # that carries the shape (e.g. `read-precondition-meta` with `onFiles`). Meta is excluded from
 # the canonical hash, so a vendored copy drops it and discovery reads the OWNER copy. This
@@ -13,7 +13,7 @@
 # engine-validated, always-on floor that fires only for tools that DECLARE a precondition.
 #
 # Mixes in the schema-18 nominal-meta marker so its subtypes (e.g. `read-precondition-meta`)
-# are meta-legal by closure (`au.engine.meta::au-engine` is the universal `::au-engine` peer).
+# are meta-legal by closure (`tb.engine.meta::tb-engine` is the universal `::tb-engine` peer).
 abstract: true
 extends: tb.engine.meta::tb-engine
 fields: {}

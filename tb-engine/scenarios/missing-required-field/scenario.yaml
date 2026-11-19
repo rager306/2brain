@@ -1,5 +1,5 @@
 title: "Required field absent on instance"
-spec_ref: "[[type-instance fields::au-type-system]]"
+spec_ref: "[[type-instance fields::tb-type-system]]"
 command: validate
 expected:
   codes:

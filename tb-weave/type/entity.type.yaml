@@ -1,5 +1,5 @@
 #: A named thing the field points at, a system, person, benchmark, dataset, or tool.
-#: A woven-graph node over au-base-types `thing`, its value relational (what references it).
+#: A woven-graph node over tb-base-types `thing`, its value relational (what references it).
 #: Identity is the title + aliases; the body is the neutral placed description, free of truth-claims
 #: (those are `claim` nodes). A thin stub (a title + aliases + a tldr) is a legitimate state, it grows as
 #: sources recur. Even a stub places its one HOME edge, a reasoned link to the pattern, field, or work
@@ -13,4 +13,4 @@
 #: tight, screen-fit, the gist not a dump.
 #: Default new nodes to `entities/<entity name>.md` unless the consumer supplies another convention.
 #: Preserve existing node paths.
-extends: thing::au-base-types
+extends: thing::tb-base-types

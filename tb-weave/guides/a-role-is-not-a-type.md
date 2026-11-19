@@ -1,5 +1,5 @@
 ---
-type: guide.principle::au-agent-guides
+type: guide.principle::tb-agent-guides
 goal: choose how to represent a viewpoint over an existing subject
 rule: Reuse the subject's identity when a viewpoint changes independently of it.
 ---
@@ -12,7 +12,7 @@ A company can become a competitor without becoming a different company.
 Choose how to represent the viewpoint:
 
 - Use a computed view when existing knowledge can answer the query
-- Use a perspective record whose kind includes [[lens::au-base-types]] when the viewpoint needs its own evidence or history
+- Use a perspective record whose kind includes [[lens::tb-base-types]] when the viewpoint needs its own evidence or history
 
 The selected profile may already define this representation.
 Follow its contract when mining and weaving.

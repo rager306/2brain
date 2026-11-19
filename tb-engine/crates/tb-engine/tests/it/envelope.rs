@@ -70,8 +70,8 @@ fn read_surface_kb() -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
 
-    write(&root, ".arsumbris/repo.yaml", "name: v\n");
-    write(&root, ".arsumbris/.auignore", "build/\n");
+    write(&root, ".2brain/repo.yaml", "name: v\n");
+    write(&root, ".2brain/.auignore", "build/\n");
 
     write(
         &root,

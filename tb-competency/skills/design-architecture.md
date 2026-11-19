@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: design-architecture
 description: >-
   Explains how workspace mechanisms cooperate when their interactions need a separate design.
@@ -23,9 +23,9 @@ Establish the caller's intended behavior and constraints.
 Use current evidence and engine results.
 Deepen the owning contracts and implementations where a choice depends on them.
 
-Use [[compose-a-capability::au-agent-guides]] for cooperating mechanisms.
+Use [[compose-a-capability::tb-agent-guides]] for cooperating mechanisms.
 Consult other guides for the choices they address.
-For example, [[the-capability-pattern::au-agent-guides]] explains discovery and [[design-for-growth::au-agent-guides]] covers contract evolution.
+For example, [[the-capability-pattern::tb-agent-guides]] explains discovery and [[design-for-growth::tb-agent-guides]] covers contract evolution.
 
 Follow the architecture-design fields and body guidance.
 Connect each obligation to an owner and an operation that can fulfill it.
@@ -44,12 +44,12 @@ Compare candidates by their behavior and grounds.
 For a competency, inspect each design's own competencies relation.
 Backlinks narrow candidates but passing mentions do not establish scope.
 
-When discovery is needed, query architecture-design::au-competency with origins: ["file"].
+When discovery is needed, query architecture-design::tb-competency with origins: ["file"].
 Include subtypes and page completely before claiming no match.
 Use effective top-level values, including body contributions.
 Exclude nested look-alikes.
 
-Use [[qualify-colliding-fields::au-agent-guides]] when field origins collide.
+Use [[qualify-colliding-fields::tb-agent-guides]] when field origins collide.
 Resolve missing identity or fragment details through the engine.
 A block referent is not its containing question.
 Keep unreadable relations visible as incomplete evidence.

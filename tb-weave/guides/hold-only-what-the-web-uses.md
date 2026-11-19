@@ -1,5 +1,5 @@
 ---
-type: guide.principle::au-agent-guides
+type: guide.principle::tb-agent-guides
 goal: judge concepts and claims in the shipped research vocabulary
 rule: Admit a concept the graph names or a claim it reasons from, including a supported challenge to a held claim.
 ---

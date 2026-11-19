@@ -32,7 +32,7 @@ fn a_kb_resolves_a_hardwired_type_via_the_au_engine_peer() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     // No `deps:` — `::tb-engine` is a universal peer, not a declared one.
-    write(&root, ".arsumbris/repo.yaml", "name: myrepo\n");
+    write(&root, ".2brain/repo.yaml", "name: myrepo\n");
     // A def extending a hardwired engine type by its qualified name.
     write(
         &root,
@@ -61,7 +61,7 @@ fn a_kb_resolves_a_hardwired_type_via_the_au_engine_peer() {
 fn an_undefined_engine_name_is_peer_type_not_found_not_repo_unknown() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: myrepo\n");
+    write(&root, ".2brain/repo.yaml", "name: myrepo\n");
     write(
         &root,
         "type/badref.type.yaml",
@@ -86,9 +86,9 @@ fn an_undefined_engine_name_is_peer_type_not_found_not_repo_unknown() {
 fn engine_schema_files_are_typed_instance_nodes() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, "proj/.arsumbris/repo.yaml", "name: proj\n");
+    write(&root, "proj/.2brain/repo.yaml", "name: proj\n");
     write(&root, "proj/type/thing.type.yaml", "fields:\n  x: String\n");
-    write(&root, "proj/.arsumbris/workspace.yaml", "edit:\n  - proj\n");
+    write(&root, "proj/.2brain/workspace.yaml", "edit:\n  - proj\n");
     let kb = build(&root.join("proj"), &RealFileSystem).expect("build");
 
     let repos = tb_engine::wire::introspect_instances_of(
@@ -99,7 +99,7 @@ fn engine_schema_files_are_typed_instance_nodes() {
     assert!(
         repos
             .iter()
-            .any(|m| m.path.ends_with("proj/.arsumbris/repo.yaml")),
+            .any(|m| m.path.ends_with("proj/.2brain/repo.yaml")),
         "repo.yaml is an tb.engine.repo instance node: {:?}",
         repos.iter().map(|m| m.path.clone()).collect::<Vec<_>>()
     );
@@ -110,7 +110,7 @@ fn engine_schema_files_are_typed_instance_nodes() {
     );
     assert!(
         wss.iter()
-            .any(|m| m.path.ends_with(".arsumbris/workspace.yaml")),
+            .any(|m| m.path.ends_with(".2brain/workspace.yaml")),
         "the workspace file is an tb.engine.workspace instance node: {:?}",
         wss.iter().map(|m| m.path.clone()).collect::<Vec<_>>()
     );
@@ -214,20 +214,20 @@ fn a_repo_def_in_the_reserved_namespace_is_forward_reserved() {
     );
 }
 
-/// The engine-written `.arsumbris/repo.lock` is a typed instance node too: read
+/// The engine-written `.2brain/repo.lock` is a typed instance node too: read
 /// past the walk floor by targeted path and catalogued as `tb.engine.repo-lock`,
 /// so it is `instances_of`-queryable.
 #[test]
 fn the_state_locks_are_typed_instance_nodes() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, "proj/.arsumbris/repo.yaml", "name: proj\n");
+    write(&root, "proj/.2brain/repo.yaml", "name: proj\n");
     write(&root, "proj/type/thing.type.yaml", "fields:\n  x: String\n");
     // A well-formed engine-written lock self-describes with its written type, so
     // it neither drifts (`engine-schema-type-unwritten`) nor errors.
     write(
         &root,
-        "proj/.arsumbris/repo.lock",
+        "proj/.2brain/repo.lock",
         "type: tb.engine.repo-lock::tb-engine\npackages:\n  - name: library\n    remote: git@x\n    sha: 9f3a1c2e\n",
     );
     let kb = build(&root.join("proj"), &RealFileSystem).expect("build");
@@ -240,7 +240,7 @@ fn the_state_locks_are_typed_instance_nodes() {
     assert!(
         repo_locks
             .iter()
-            .any(|m| m.path.ends_with("proj/.arsumbris/repo.lock")),
+            .any(|m| m.path.ends_with("proj/.2brain/repo.lock")),
         "repo.lock is an tb.engine.repo-lock node: {:?}",
         repo_locks
             .iter()
@@ -249,7 +249,7 @@ fn the_state_locks_are_typed_instance_nodes() {
     );
     // Well-formed locks validate clean against their defs.
     assert!(
-        codes_for(&kb, &root.join("proj/.arsumbris/repo.lock")).is_empty(),
+        codes_for(&kb, &root.join("proj/.2brain/repo.lock")).is_empty(),
         "a well-formed repo.lock has no diagnostics"
     );
 }
@@ -261,16 +261,16 @@ fn the_state_locks_are_typed_instance_nodes() {
 fn a_corrupt_repo_lock_is_validated_against_its_def() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, "proj/.arsumbris/repo.yaml", "name: proj\n");
+    write(&root, "proj/.2brain/repo.yaml", "name: proj\n");
     write(&root, "proj/type/thing.type.yaml", "fields:\n  x: String\n");
     // A package entry omits the required `sha` (tb.engine.locked-package).
     write(
         &root,
-        "proj/.arsumbris/repo.lock",
+        "proj/.2brain/repo.lock",
         "packages:\n  - name: library\n    remote: git@x\n",
     );
     let kb = build(&root.join("proj"), &RealFileSystem).expect("build");
-    let codes = codes_for(&kb, &root.join("proj/.arsumbris/repo.lock"));
+    let codes = codes_for(&kb, &root.join("proj/.2brain/repo.lock"));
     assert!(
         codes
             .iter()
@@ -291,12 +291,12 @@ fn a_repo_yaml_dep_missing_its_name_is_validated_against_au_engine_dep() {
     // is a validated node, not just a catalogued blob.
     write(
         &root,
-        "proj/.arsumbris/repo.yaml",
+        "proj/.2brain/repo.yaml",
         "name: proj\ndeps:\n  - remote: git@x\n",
     );
     write(&root, "proj/type/thing.type.yaml", "fields:\n  x: String\n");
     let kb = build(&root.join("proj"), &RealFileSystem).expect("build");
-    let codes = codes_for(&kb, &root.join("proj/.arsumbris/repo.yaml"));
+    let codes = codes_for(&kb, &root.join("proj/.2brain/repo.yaml"));
     assert!(
         codes
             .iter()
@@ -312,9 +312,9 @@ fn a_repo_yaml_dep_missing_its_name_is_validated_against_au_engine_dep() {
 fn an_engine_schema_file_without_a_written_type_drifts() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: myrepo\n");
+    write(&root, ".2brain/repo.yaml", "name: myrepo\n");
     let kb = build(&root, &RealFileSystem).expect("build");
-    let codes = codes_for(&kb, &root.join(".arsumbris/repo.yaml"));
+    let codes = codes_for(&kb, &root.join(".2brain/repo.yaml"));
     assert!(
         codes.iter().any(|c| c == "engine-schema-type-unwritten"),
         "an unwritten engine-schema type drifts: {codes:?}"
@@ -328,11 +328,11 @@ fn a_written_floor_type_is_clean() {
     let root = fs::canonicalize(dir.path()).unwrap();
     write(
         &root,
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "type: tb.engine.repo::tb-engine\nname: myrepo\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
-    let codes = codes_for(&kb, &root.join(".arsumbris/repo.yaml"));
+    let codes = codes_for(&kb, &root.join(".2brain/repo.yaml"));
     assert!(
         !codes.iter().any(|c| c == "engine-schema-type-unwritten"),
         "a written type does not drift: {codes:?}"
@@ -353,11 +353,11 @@ fn a_wrong_floor_written_type_errors() {
     let root = fs::canonicalize(dir.path()).unwrap();
     write(
         &root,
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "type: tb.engine.workspace::tb-engine\nname: myrepo\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
-    let codes = codes_for(&kb, &root.join(".arsumbris/repo.yaml"));
+    let codes = codes_for(&kb, &root.join(".2brain/repo.yaml"));
     assert!(
         codes
             .iter()
@@ -380,11 +380,11 @@ fn a_mixin_written_type_including_the_floor_is_clean() {
     );
     write(
         &root,
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "type:\n  - tb.engine.repo::tb-engine\n  - my-config\nname: myrepo\nflavor: spicy\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
-    let codes = codes_for(&kb, &root.join(".arsumbris/repo.yaml"));
+    let codes = codes_for(&kb, &root.join(".2brain/repo.yaml"));
     assert!(
         !codes
             .iter()
@@ -405,7 +405,7 @@ fn a_mixin_written_type_including_the_floor_is_clean() {
 fn the_candidate_scan_offers_a_real_candidate_to_an_engine_schema_file() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: myrepo\n");
+    write(&root, ".2brain/repo.yaml", "name: myrepo\n");
     // A knowledge base type whose required `name` the repo.yaml already carries.
     write(
         &root,
@@ -418,7 +418,7 @@ fn the_candidate_scan_offers_a_real_candidate_to_an_engine_schema_file() {
     else {
         panic!("summary requested");
     };
-    let repo_yaml = root.join(".arsumbris/repo.yaml");
+    let repo_yaml = root.join(".2brain/repo.yaml");
     let entry = files
         .iter()
         .find(|f| repo_yaml.ends_with(&f.file) || f.file.ends_with("repo.yaml"))
@@ -445,11 +445,11 @@ fn a_mixed_in_extra_types_required_field_is_checked() {
     // Claims the floor plus `my-config`, but omits my-config's required `flavor`.
     write(
         &root,
-        ".arsumbris/repo.yaml",
+        ".2brain/repo.yaml",
         "type:\n  - tb.engine.repo::tb-engine\n  - my-config\nname: myrepo\n",
     );
     let kb = build(&root, &RealFileSystem).expect("build");
-    let codes = codes_for(&kb, &root.join(".arsumbris/repo.yaml"));
+    let codes = codes_for(&kb, &root.join(".2brain/repo.yaml"));
     assert!(
         codes.iter().any(|c| c == "required-field-absent"),
         "the extra type's required field is validated like any claim: {codes:?}"
@@ -465,73 +465,46 @@ fn a_mixed_in_extra_types_required_field_is_checked() {
 /// The canonical spelling resolves, and so does the legacy one.
 ///
 /// Release 2 renamed the namespace, so `tb.engine.repo::tb-engine` is what a
-/// writer emits and `au.engine.repo::au-engine` is what a release-1 tree holds.
-/// Both are ACCEPTED, not merely parsed: the file is clean, the claim is held
-/// canonically, and the member it describes is discovered as a real repo. Without
-/// the canonicalizer the legacy claim would find no def (`unknown-type-claim`),
-/// while the floor check sees an empty closure and skips, so the failure would be
-/// silent exactly where the migration gate looks. The two halves below are the
-/// same fixture with only the written spelling changed, which is what makes this
-/// a test of the migration window rather than of one spelling.
+/// An engine-schema claim in the one spelling is clean and resolves: the file is
+/// served with no diagnostic and the member it describes is discovered as a repo.
 #[test]
-fn an_engine_schema_claim_resolves_in_either_spelling() {
-    for written in ["tb.engine.repo::tb-engine", "au.engine.repo::au-engine"] {
-        let dir = tempfile::tempdir().unwrap();
-        let root = fs::canonicalize(dir.path()).unwrap();
-        crate::seed_workspace(&root, &["member"]);
-        write(
-            &root,
-            "member/.arsumbris/repo.yaml",
-            &format!("type: {written}\nname: member\n"),
-        );
-        // A conformant member README, so the only thing this fixture could be
-        // complaining about is the claim spelling under test.
-        crate::seed_readme(&root.join("member"));
-        let kb = build(&root, &RealFileSystem).expect("build");
+fn an_engine_schema_claim_resolves_to_the_builtin() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    crate::seed_workspace(&root, &["member"]);
+    let written = "tb.engine.repo::tb-engine";
+    write(
+        &root,
+        "member/.2brain/repo.yaml",
+        &format!("type: {written}\nname: member\n"),
+    );
+    crate::seed_readme(&root.join("member"));
+    let kb = build(&root, &RealFileSystem).expect("build");
 
-        let member_yaml = root.join("member/.arsumbris/repo.yaml");
-        let codes = codes_for(&kb, &member_yaml);
-        if written.starts_with("tb.") {
-            assert!(
-                codes.is_empty(),
-                "'{written}' is the canonical spelling, so it is clean: {codes:?}"
-            );
-        } else {
-            // Accepted, and NAMED: the data is right and the bytes are stale.
-            assert_eq!(
-                codes,
-                vec!["engine-schema-legacy-spelling".to_string()],
-                "the legacy spelling reads correctly and earns exactly one advisory"
-            );
-        }
-        // RESOLVED, not merely accepted: either spelling is held canonically.
-        let FileParse::Instance {
-            instance: Some(inst),
-            ..
-        } = kb.file_parse(&member_yaml).expect("catalogued")
-        else {
-            panic!("the repo.yaml is a parsed instance");
-        };
-        let claims: Vec<String> = inst.type_claim.iter().map(|c| c.authored()).collect();
-        assert_eq!(
-            claims,
-            vec!["tb.engine.repo::tb-engine".to_string()],
-            "'{written}' lands on the builtin's canonical identity"
-        );
-        // And discovery mounted the member, so its files are served as its own.
-        assert!(
-            kb.repos.by_name("member").is_some(),
-            "'{written}': the member is discovered"
-        );
-    }
+    let member_yaml = root.join("member/.2brain/repo.yaml");
+    let codes = codes_for(&kb, &member_yaml);
+    assert!(codes.is_empty(), "'{written}' is clean: {codes:?}");
+
+    let FileParse::Instance {
+        instance: Some(inst),
+        ..
+    } = kb.file_parse(&member_yaml).expect("catalogued")
+    else {
+        panic!("the repo.yaml is a parsed instance");
+    };
+    let claims: Vec<String> = inst.type_claim.iter().map(|c| c.authored()).collect();
+    assert_eq!(claims, vec![written.to_string()]);
+    assert!(
+        kb.repos.by_name("member").is_some(),
+        "the member is discovered"
+    );
 }
 
-/// An UNQUALIFIED hardwired name in either spelling lands on ONE node identity.
-/// The repo defines the canonical name itself, so a bare claim has an own-repo
-/// node to resolve to; the two spellings must produce the same closure-hash, not
-/// two nodes that look alike.
+/// An UNQUALIFIED hardwired name lands on ONE node identity: the repo defines the
+/// name itself, so a bare claim has an own-repo node to resolve to, and two
+/// instances of it share one closure-hash.
 #[test]
-fn an_unqualified_hardwired_name_resolves_identically_in_either_spelling() {
+fn an_unqualified_hardwired_name_resolves_to_the_builtin() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_repo(&root);
@@ -566,7 +539,7 @@ fn an_unqualified_hardwired_name_resolves_identically_in_either_spelling() {
         .find(|m| m.path.ends_with("b.md"))
         .expect("b.md lands on the same node");
     assert_eq!(a.name, b.name, "the same type name");
-    assert_eq!(a.hash, b.hash, "one node identity, two spellings");
+    assert_eq!(a.hash, b.hash, "both instances land on one node identity");
     assert_eq!(
         b.claim,
         vec!["tb.engine.repo".to_string()],

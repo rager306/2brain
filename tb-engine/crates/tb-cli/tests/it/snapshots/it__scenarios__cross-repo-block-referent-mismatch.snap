@@ -141,7 +141,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -160,7 +160,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-block-referent-mismatch/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/cross-repo-block-referent-mismatch/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -239,7 +239,7 @@ expression: rendered
                         },
                         "start": 10
                       },
-                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -272,7 +272,7 @@ expression: rendered
                         },
                         "start": 49
                       },
-                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -305,7 +305,7 @@ expression: rendered
                         },
                         "start": 58
                       },
-                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/.arsumbris/workspace.yaml"
+                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/.2brain/workspace.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -324,7 +324,7 @@ expression: rendered
             "field": "edit"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-block-referent-mismatch/.arsumbris/workspace.yaml",
+        "file": "<root>/scenarios/cross-repo-block-referent-mismatch/.2brain/workspace.yaml",
         "section_presence": null
       },
       {
@@ -418,7 +418,7 @@ expression: rendered
                         },
                         "start": 20
                       },
-                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/app/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/app/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -476,7 +476,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/app/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/app/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -495,7 +495,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-block-referent-mismatch/app/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/cross-repo-block-referent-mismatch/app/.2brain/repo.yaml",
         "section_presence": null
       },
       {
@@ -776,7 +776,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/base/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/cross-repo-block-referent-mismatch/base/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -795,7 +795,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/cross-repo-block-referent-mismatch/base/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/cross-repo-block-referent-mismatch/base/.2brain/repo.yaml",
         "section_presence": null
       }
     ]

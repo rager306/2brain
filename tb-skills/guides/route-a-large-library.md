@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Keep a large skill library findable without loading every description.
 rule: Narrow the active set when selection or context cost warrants it. A router needs a delivery path that actually controls which skills load.
 ---
@@ -33,7 +33,7 @@ Test requests near the boundary before adopting the hierarchy.
 In Ars Umbris, a launch profile can select a subset of discovered skills.
 A router's prose alone does not remove leaf descriptions from the launch context.
 Loading additional guidance during a task needs an available discovery and reading path.
-[[a-skill-is-launch-static::au-agent-guides]] explains the delivery layers.
+[[a-skill-is-launch-static::tb-agent-guides]] explains the delivery layers.
 
 A query can keep the candidate list current with the graph.
 It does not establish that the grouping or descriptions remain useful.

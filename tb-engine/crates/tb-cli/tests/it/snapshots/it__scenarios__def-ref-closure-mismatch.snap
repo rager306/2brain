@@ -141,7 +141,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/def-ref-closure-mismatch/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/def-ref-closure-mismatch/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -160,7 +160,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/def-ref-closure-mismatch/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/def-ref-closure-mismatch/.2brain/repo.yaml",
         "section_presence": null
       },
       {

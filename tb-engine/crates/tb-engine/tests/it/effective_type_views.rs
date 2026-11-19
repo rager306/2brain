@@ -28,7 +28,7 @@ fn fixture() -> (tempfile::TempDir, PathBuf) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w(
         "base/type/arity-meta.type.yaml",
         "extends: tb.engine.meta::tb-engine\nfields:\n  arity: Number\n",
@@ -42,7 +42,7 @@ fn fixture() -> (tempfile::TempDir, PathBuf) {
         "fields:\n  title: String\nmeta:\n  - type: arity-meta\n    arity: 7\n",
     );
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     let block = |n: u32| format!("meta:\n  - type: arity-meta::base\n    arity: {n}\n");

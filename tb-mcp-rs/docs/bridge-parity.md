@@ -6,7 +6,7 @@
 
 Measured by `scripts/bridge_parity.py` on 2026-11-13, re-run 2026-11-14 against
 the fork engine and the 51-tool adapter (see the last section). The script builds a
-disposable workspace, starts a private engine, the Node `au-mcp` daemon, the
+disposable workspace, starts a private engine, the Node `tb-mcp` daemon, the
 Python bridge, and the Rust adapter, then compares what each surface states.
 
 ## The surfaces are not the same shape
@@ -47,15 +47,15 @@ exactly.
   `tb_grep`, `tb_instances`, `tb_neighborhood`, `tb_references`,
   `tb_resolve_member`, `tb_resolved`, `tb_rollback_preview`, `tb_semantic_tokens`,
   `tb_search_tools`, `tb_describe_tool`, `tb_typed`, `tb_watch`.
-- The daemon compiles in **no tools**: without `au-mcp-core` mounted as a
+- The daemon compiles in **no tools**: without `tb-mcp-core` mounted as a
   workspace dependency it serves an empty tool list. That is a deployment fact a
   cutover has to carry over, not an adapter gap.
 
 ## Reproduce
 
 ```sh
-cd au-mcp-rs
-TB_ENGINE_BIN=../tb-engine/target/debug/au python3 scripts/bridge_parity.py
+cd tb-mcp-rs
+TB_ENGINE_BIN=../tb-engine/target/debug/tb-engine python3 scripts/bridge_parity.py
 ```
 
 The script requires `bun` for the Node daemon, uses a throwaway `HOME`, and
@@ -63,7 +63,7 @@ touches neither the production vault nor any real socket.
 
 ## Re-run, 2026-11-14 (fork engine, 51-tool adapter)
 
-The same script against the release binaries of the fork (`au-engine` at
+The same script against the release binaries of the fork (`tb-engine` at
 `ed5fce5`, adapter at the same commit):
 
 ```

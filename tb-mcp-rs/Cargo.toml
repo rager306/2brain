@@ -39,7 +39,7 @@ tempfile = "3"
 # largest single cost in the shared target directory (~2 GiB of the 8.8 GiB
 # measured on 2026-11-15) and buys nothing this project debugs with: backtraces
 # and panic messages keep their locations, step-through variable inspection does
-# not. `au-engine` sets the same for its workspace; the two share one target
+# not. `tb-engine` sets the same for its workspace; the two share one target
 # directory, so they must agree or the dependency graph is compiled twice.
 [profile.dev]
 debug = "line-tables-only"

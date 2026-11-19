@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Decide which instructions must constrain how a task is performed.
 rule: Keep a restriction when it protects a stated requirement. Explain the failure it prevents and how to check compliance.
 ---

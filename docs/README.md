@@ -111,7 +111,7 @@ are true of the commit it names. Grouped by the question they settle:
 - [`research/release-2-schema-2026-11-17.md`](research/release-2-schema-2026-11-17.md) — Release 2, tier C step 7: the engine schema moved to `tb.engine.*` and `::tb-engine`
 - [`research/release-2-window-2026-11-17.md`](research/release-2-window-2026-11-17.md) — The migration window, made observable (release 2, step 7b)
 - [`research/tier-c-inventory.md`](research/tier-c-inventory.md) — Tier C inventory: what the on-disk format change actually touches
-- [`research/tier-c-seams.md`](research/tier-c-seams.md) — Tier C seams: `.arsumbris` → `.2brain`, `au.engine.*` → `tb.engine.*`
+- [`research/tier-c-seams.md`](research/tier-c-seams.md) — Tier C seams: `.2brain` → `.2brain`, `tb.engine.*` → `tb.engine.*`
 
 ### External systems studied
 - [`research/arscontexta-design-2026-11-16.md`](research/arscontexta-design-2026-11-16.md) — Ars Contexta → 2brain: system design extraction

@@ -1,0 +1,33 @@
+type: tb.engine.repo::tb-engine
+name: tb-arscontexta-template
+description: An experimental workspace for developing knowledge and the guidance your agents use alongside it. Includes the standard app layout, a working profile and an initialization skill.
+deps:
+  - name: tb-base-types
+  - name: tb-writing-style
+  - name: tb-rules
+  - name: tb-agent-guides
+  - name: tb-skills
+  - name: tb-weave
+  - name: tb-govern
+  - name: tb-ingest
+  - name: tb-tree-research
+  - name: tb-mcp-sdk
+  - name: tb-competency
+  - name: agent-sessions
+  - name: tb-avatar
+  - name: tb-host-sdk
+  - name: tb-mcp-adapter-codex
+  - name: aup-reader
+  - name: aup-workspace-sidebar
+  - name: bento
+  - name: column
+  - name: editor
+  - name: file-tree
+  - name: force-graph
+  - name: intent
+  - name: media-viewers
+  - name: placeholder-picker
+  - name: sandwich
+  - name: tabs
+  - name: terminal
+  - name: tb-mcp-adapter-cc

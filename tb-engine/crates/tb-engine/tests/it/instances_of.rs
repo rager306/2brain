@@ -22,7 +22,7 @@ fn write(root: &Path, rel: &str, content: &str) {
 fn kb() -> (tempfile::TempDir, std::path::PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: test\n");
+    write(&root, ".2brain/repo.yaml", "name: test\n");
 
     write(&root, "type/plan.type.yaml", "fields:\n  phases: phase[]\n");
     write(
@@ -175,7 +175,7 @@ fn cross_repo_kb() -> (tempfile::TempDir, std::path::PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/note.type.yaml",
@@ -184,7 +184,7 @@ fn cross_repo_kb() -> (tempfile::TempDir, std::path::PathBuf) {
     write(&root, "base/type/dm.type.yaml", "fields: {}\n");
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -230,7 +230,7 @@ fn cross_repo_slot_pinned_kb() -> (tempfile::TempDir, std::path::PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/research-extraction.type.yaml",
@@ -243,7 +243,7 @@ fn cross_repo_slot_pinned_kb() -> (tempfile::TempDir, std::path::PathBuf) {
     );
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // The inline candidate omits `type:`, the slot `concept-candidate&[]` pins it.
@@ -289,7 +289,7 @@ fn cross_repo_mixin_host_kb() -> (tempfile::TempDir, std::path::PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/research-extraction.type.yaml",
@@ -303,7 +303,7 @@ fn cross_repo_mixin_host_kb() -> (tempfile::TempDir, std::path::PathBuf) {
     write(&root, "base/type/tag.type.yaml", "fields: {}\n");
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // A mixin host, slot-owner (`research-extraction`) listed SECOND; the candidate
@@ -348,7 +348,7 @@ fn cross_repo_deep_slot_pinned_kb() -> (tempfile::TempDir, std::path::PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_workspace(&root, &["base", "app"]);
-    write(&root, "base/.arsumbris/repo.yaml", "name: base\n");
+    write(&root, "base/.2brain/repo.yaml", "name: base\n");
     write(
         &root,
         "base/type/research-extraction.type.yaml",
@@ -366,7 +366,7 @@ fn cross_repo_deep_slot_pinned_kb() -> (tempfile::TempDir, std::path::PathBuf) {
     );
     write(
         &root,
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     write(
@@ -399,7 +399,7 @@ fn a_deeper_slot_pinned_peer_record_is_discovered() {
 fn family_kb() -> (tempfile::TempDir, std::path::PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: test\n");
+    write(&root, ".2brain/repo.yaml", "name: test\n");
 
     // Sealed family: parent non-claimable, leaf set closed.
     write(
@@ -558,7 +558,7 @@ fn the_wire_shape_serializes_as_specified() {
 fn instance_docstrings_surface_on_file_nested_and_meta() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
-    write(&root, ".arsumbris/repo.yaml", "name: test\n");
+    write(&root, ".2brain/repo.yaml", "name: test\n");
     write(&root, "type/step.type.yaml", "fields:\n  gate: String\n");
     write(&root, "type/flow.type.yaml", "fields:\n  steps: step[]\n");
     write(

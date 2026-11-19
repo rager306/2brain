@@ -1,9 +1,9 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: write-a-guide
 description: Authors or improves a typed Ars Umbris guide in the package that owns the advice. Use when a consumer wants to add a guide, turn a recurring design decision into guidance, or refine an existing guide's recommendation and examples. Produces the guide and checks its sources, graph contract and discovery. Use apply-writing-style for a prose-only rewrite, and write-a-skill for agent skill authoring.
 related-tools:
-  - "[[mcp.tool.au_agent_guide::au-agent-guides]]"
+  - "[[mcp.tool.tb_agent_guide::tb-agent-guides]]"
 ---
 
 # Write a guide
@@ -14,11 +14,11 @@ Use the owning package's source paths, not this skill's materialized directory.
 ## Find the decision
 
 Improve the guide that already owns the question.
-If the owner is unknown, find related guidance with au_agent_guide.
-[[a-guide-earns-its-slot::au-agent-guides]] helps judge whether advice needs its own guide.
+If the owner is unknown, find related guidance with tb_agent_guide.
+[[a-guide-earns-its-slot::tb-agent-guides]] helps judge whether advice needs its own guide.
 
 If the service is unavailable, use tb_instances_of.
-Set ofType to guide::au-agent-guides.
+Set ofType to guide::tb-agent-guides.
 Limit origins to files.
 
 **Check the sources**
@@ -37,8 +37,8 @@ Optional ways to resolve uncertainty:
 
 ## Author the guide
 
-Use [[guide::au-agent-guides]] or an existing kind that fits.
-The owning package needs au-agent-guides as a type dependency.
+Use [[guide::tb-agent-guides]] or an existing kind that fits.
+The owning package needs tb-agent-guides as a type dependency.
 Give the guide a goal.
 State a rule the reader can act on.
 Use about when a type helps identify the subject.
@@ -52,7 +52,7 @@ Qualify cross-package links.
 
 **Apply the voice**
 
-Follow [[write-a-useful-guide::au-agent-guides]] for the editorial standard.
+Follow [[write-a-useful-guide::tb-agent-guides]] for the editorial standard.
 Apply the consumer's active writing voice.
 
 Read the old guide in full.

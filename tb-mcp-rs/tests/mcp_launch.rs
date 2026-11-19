@@ -52,14 +52,14 @@ fn the_first_failed_connection_names_the_state_root_and_the_socket() {
         .find_map(|line| line.split_once("socket  "))
         .and_then(|(_, rest)| rest.split(" — ").next())
         .unwrap_or_else(|| panic!("no socket line: {reported}"));
-    let state_root = [".2brain", ".arsumbris"]
+    let state_root = [".2brain", ".2brain"]
         .iter()
         .map(|spelling| home.join(spelling))
         .find(|root| reported.contains(&root.display().to_string()))
         .unwrap_or_else(|| {
             panic!("the diagnosis must name a state root under {home:?}: {reported}")
         });
-    let run_dir = state_root.join("au-engine").join("run");
+    let run_dir = state_root.join("engine").join("run");
 
     assert!(
         reported.contains(&state_root.display().to_string()),
@@ -74,7 +74,7 @@ fn the_first_failed_connection_names_the_state_root_and_the_socket() {
         "the diagnosis must name the socket it tried, in {run_dir:?}: {reported}"
     );
     assert!(
-        reported.contains("au-engine/run/*.sock"),
+        reported.contains("engine/run/*.sock"),
         "the diagnosis must name the run directory it looked in: {reported}"
     );
     assert!(

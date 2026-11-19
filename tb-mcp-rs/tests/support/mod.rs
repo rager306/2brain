@@ -173,7 +173,7 @@ impl Client {
         let init = self.request(json!({
             "jsonrpc":"2.0","id":1,"method":"initialize",
             "params":{"protocolVersion":PROTOCOL_VERSION,"capabilities":{},
-                "clientInfo":{"name":"au-mcp-rs test","version":"1"}}
+                "clientInfo":{"name":"tb-mcp-rs test","version":"1"}}
         }));
         assert_eq!(init["id"], 1, "{init}");
         assert!(init.get("result").is_some(), "{init}");
@@ -374,8 +374,8 @@ impl Drop for Daemon {
 
 /// The first `.sock` a device area holds, under either identity spelling.
 fn socket_under(home: &Path) -> Option<PathBuf> {
-    for state in [".2brain", ".arsumbris"] {
-        let run = home.join(state).join("au-engine").join("run");
+    for state in [".2brain", ".2brain"] {
+        let run = home.join(state).join("engine").join("run");
         let Ok(entries) = fs::read_dir(&run) else {
             continue;
         };

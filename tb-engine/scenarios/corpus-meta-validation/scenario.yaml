@@ -1,5 +1,5 @@
 title: "Meta sub-region validation — corpus covering sealed-meta, required-field-on-meta, unknown-meta-type, and meta-field references"
-spec_ref: "[[type-def meta::au-type-system]]"
+spec_ref: "[[type-def meta::tb-type-system]]"
 command: validate
 expected:
   codes:

@@ -1,13 +1,13 @@
 // All graph interpretation comes from the engine. No filesystem scan or saved membership.
 import { isAbsolute, relative } from 'node:path'
-const CANDIDATE = 'candidate::au-weave'
-const EXTRACTION = 'extraction::au-weave'
-const MAP = 'map::au-base-types'
+const CANDIDATE = 'candidate::tb-weave'
+const EXTRACTION = 'extraction::tb-weave'
+const MAP = 'map::tb-base-types'
 const qualify = (name, repo) => name.includes('::') ? name : `${name}::${repo}`
 const sameType = (a, b) => a.name === b.name && a.hash === b.hash
 const fail = (message) => { throw new Error(message) }
 
-/** @param {import('@arsumbris/au-mcp-sdk').PluginContext} ctx */
+/** @param {import('@2brain/tb-mcp-sdk').PluginContext} ctx */
 export function createPlugin(ctx) {
   return {
     async invoke(input) {

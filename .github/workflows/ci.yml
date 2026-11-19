@@ -41,10 +41,10 @@ jobs:
       # and point the suite at it; a regression there is otherwise invisible to CI.
       - name: real-engine tests
         run: |
-          cargo build --manifest-path ../tb-engine/Cargo.toml -p tb-cli --bin au
+          cargo build --manifest-path ../tb-engine/Cargo.toml -p tb-cli --bin tb-engine
           target=$(cargo metadata --manifest-path ../tb-engine/Cargo.toml --format-version 1 --no-deps \
             | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')
-          TB_ENGINE_BIN="$target/debug/au" cargo test --test real_engine -- --ignored
+          TB_ENGINE_BIN="$target/debug/tb-engine" cargo test --test real_engine -- --ignored
 
   engine:
     name: Engine

@@ -12,7 +12,7 @@ It does not use the engine's own Rust client, so it proves the wire is consumabl
 
 Run:
 ```sh
-au daemon start <repo>                       # in another terminal
+tb-engine daemon start <repo>                       # in another terminal
 python3 examples/watch.py <repo> [channel]   # channel defaults to "changes"
 ```
 

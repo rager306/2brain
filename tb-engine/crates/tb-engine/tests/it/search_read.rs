@@ -623,11 +623,11 @@ fn a_default_search_answers_from_the_own_workspace_not_a_mounted_dependency() {
     let dir = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(dir.path()).unwrap();
     crate::seed_repo(&root);
-    fs::create_dir_all(root.join("dep/.arsumbris")).unwrap();
-    fs::write(root.join("dep/.arsumbris/repo.yaml"), "name: dep\n").unwrap();
+    fs::create_dir_all(root.join("dep/.2brain")).unwrap();
+    fs::write(root.join("dep/.2brain/repo.yaml"), "name: dep\n").unwrap();
     crate::seed_readme(&root.join("dep"));
     fs::write(
-        root.join(".arsumbris/workspace.yaml"),
+        root.join(".2brain/workspace.yaml"),
         "edit:\n  - v\ndiscover:\n  - dep\ntype: tb.engine.workspace::tb-engine\n",
     )
     .unwrap();

@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: Keep a growing skill library useful and distinguishable.
 rule: Keep skills that support real work and compare overlapping descriptions. Use observed selection and task results to decide what to trim.
 ---

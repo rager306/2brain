@@ -3,7 +3,7 @@
 //! dependency mounts. A write-path verb, not a `read`.
 //!
 //! The cache root is injected with a tempdir so the verb is hermetic, off the
-//! real `~/.arsumbris` cache. The dependency remote is a local git repo, so no
+//! real `~/.2brain` cache. The dependency remote is a local git repo, so no
 //! network is touched.
 
 #![cfg(unix)]
@@ -39,8 +39,8 @@ fn source_repo() -> (tempfile::TempDir, String) {
     git(p, &["config", "user.email", "tester@example.com"]);
     fs::create_dir_all(p.join("type")).unwrap();
     fs::write(p.join("type/thing.type.yaml"), "fields:\n  title: String\n").unwrap();
-    fs::create_dir_all(p.join(".arsumbris")).unwrap();
-    fs::write(p.join(".arsumbris/repo.yaml"), "name: thing-pkg\n").unwrap();
+    fs::create_dir_all(p.join(".2brain")).unwrap();
+    fs::write(p.join(".2brain/repo.yaml"), "name: thing-pkg\n").unwrap();
     git(p, &["add", "-A"]);
     git(p, &["commit", "-q", "-m", "v1"]);
     let sha = git(p, &["rev-parse", "HEAD"]);
@@ -66,9 +66,9 @@ fn started_with_dep(remote: &str) -> Harness {
     git(&ws, &["init", "-q", "-b", "main"]);
     git(&ws, &["config", "user.name", "Tester"]);
     git(&ws, &["config", "user.email", "tester@example.com"]);
-    fs::create_dir_all(ws.join("proj/.arsumbris")).unwrap();
+    fs::create_dir_all(ws.join("proj/.2brain")).unwrap();
     fs::write(
-        ws.join("proj/.arsumbris/repo.yaml"),
+        ws.join("proj/.2brain/repo.yaml"),
         format!("name: proj\ndeps:\n  - name: thing-pkg\n    remote: {remote}\n    ref: main\n"),
     )
     .unwrap();
@@ -80,7 +80,7 @@ fn started_with_dep(remote: &str) -> Harness {
     let sock_dir = tempfile::tempdir().unwrap();
     let socket = sock_dir.path().join("s");
 
-    // Point at the entry folder-repo directory: its `.arsumbris/workspace.yaml`
+    // Point at the entry folder-repo directory: its `.2brain/workspace.yaml`
     // declares `proj` as an editable member whose deps resolve.
     let mut engine = Engine::new(&ws, ConfigSource::Empty);
     // Hermetic: the resolver and the build share this tempdir, off the real cache.
@@ -132,7 +132,7 @@ fn resolve_fetches_locks_commits_and_mounts_a_dependency() {
     let head = git(&h.ws, &["rev-parse", "HEAD"]);
     assert_ne!(head, before, "the lock commit advances HEAD");
     assert_eq!(head, commit, "the response carries the lock commit");
-    let committed = git(&h.ws, &["show", "HEAD:proj/.arsumbris/repo.lock"]);
+    let committed = git(&h.ws, &["show", "HEAD:proj/.2brain/repo.lock"]);
     assert!(
         committed.contains(&sha),
         "the committed lock pins the resolved sha: {committed}"
@@ -216,9 +216,9 @@ fn resolve_reports_a_failed_dependency_with_a_code() {
 
 #[test]
 fn resolve_in_tree_mode_resolves_and_reopens_offline() {
-    // An entry folder-repo whose `.arsumbris/workspace.yaml` declares one editable
+    // An entry folder-repo whose `.2brain/workspace.yaml` declares one editable
     // member `proj`. resolve fetches each member's declared deps and writes that
-    // member's OWN .arsumbris/repo.lock, so it resolves and re-opens reproducibly.
+    // member's OWN .2brain/repo.lock, so it resolves and re-opens reproducibly.
     let (src, sha) = source_repo();
 
     let dir = tempfile::tempdir().unwrap();
@@ -228,8 +228,8 @@ fn resolve_in_tree_mode_resolves_and_reopens_offline() {
     git(&ws, &["config", "user.email", "tester@example.com"]);
     // A co-present repo `proj/` declaring one dependency by explicit remote. It
     // carries a type-def so the tree walk discovers it (the walk skips
-    // `.arsumbris/`, so a content-less repo would be invisible).
-    fs::create_dir_all(ws.join("proj/.arsumbris")).unwrap();
+    // `.2brain/`, so a content-less repo would be invisible).
+    fs::create_dir_all(ws.join("proj/.2brain")).unwrap();
     fs::create_dir_all(ws.join("proj/type")).unwrap();
     fs::write(
         ws.join("proj/type/projthing.type.yaml"),
@@ -237,7 +237,7 @@ fn resolve_in_tree_mode_resolves_and_reopens_offline() {
     )
     .unwrap();
     fs::write(
-        ws.join("proj/.arsumbris/repo.yaml"),
+        ws.join("proj/.2brain/repo.yaml"),
         format!(
             "name: proj\ndeps:\n  - name: thing-pkg\n    remote: {}\n    ref: main\n",
             src.path().to_string_lossy()
@@ -253,7 +253,7 @@ fn resolve_in_tree_mode_resolves_and_reopens_offline() {
     let sock_dir = tempfile::tempdir().unwrap();
     let socket = sock_dir.path().join("s");
 
-    // Point at the entry folder-repo directory: its `.arsumbris/workspace.yaml`
+    // Point at the entry folder-repo directory: its `.2brain/workspace.yaml`
     // declares `proj` as an editable member.
     let mut engine = Engine::new(&ws, ConfigSource::Empty);
     engine.set_package_cache_root(cache_packages.clone());
@@ -284,7 +284,7 @@ fn resolve_in_tree_mode_resolves_and_reopens_offline() {
         .as_str()
         .unwrap_or_else(|| panic!("a lock commit sha for proj: {resp}"));
     assert_eq!(git(&ws, &["rev-parse", "HEAD"]), commit);
-    let committed = git(&ws, &["show", "HEAD:proj/.arsumbris/repo.lock"]);
+    let committed = git(&ws, &["show", "HEAD:proj/.2brain/repo.lock"]);
     assert!(
         committed.contains(&sha),
         "proj's per-repo lock pins the resolved sha: {committed}"

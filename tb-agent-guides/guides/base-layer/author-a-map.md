@@ -2,7 +2,7 @@
 type: guide.gotcha
 goal: "Decide whether to author synthesis or compute a navigational index."
 rule: "Author the interpretation a reader needs, and compute membership when a deterministic relation already defines it."
-about: "[[map::au-base-types]]"
+about: "[[map::tb-base-types]]"
 ---
 
 # Choose what the map contributes
@@ -11,7 +11,7 @@ Author a map for the interpretation it gives the reader.
 That can matter over a handful of notes or a large cluster.
 Size alone does not decide.
 
-[[map::au-base-types]] is an open synthesis kind derived from idea.
+[[map::tb-base-types]] is an open synthesis kind derived from idea.
 Choose a form for the reader's task:
 
 - An argument showing how claims relate

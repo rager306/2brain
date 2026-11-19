@@ -95,10 +95,10 @@ use crate::{KnowledgeBase, RefSurface};
 /// role axis (an editable authoring surface), no longer location-derived. A
 /// consumer hides consumed members with `!editable` and scopes physical writes
 /// with `editable && local`. v15: the hardwired
-/// `au.engine.workspace` def is reshaped from a single `primary: String[+]`
+/// `tb.engine.workspace` def is reshaped from a single `primary: String[+]`
 /// selection to two optional lists, `edit?: String[]` and `discover?: String[]`,
-/// and a new `au.engine.workspace-lock` def (`packages?`, parallel to
-/// `au.engine.repo-lock`) pins the workspace's discover closure; a consumer
+/// and a new `tb.engine.workspace-lock` def (`packages?`, parallel to
+/// `tb.engine.repo-lock`) pins the workspace's discover closure; a consumer
 /// reads these on `type_system_reference` / `instances_of`. v14: (prior). v13:
 /// `instances_of` returns
 /// ALL instances of a type tagged by `origin` (file / nested inline record /
@@ -108,15 +108,15 @@ use crate::{KnowledgeBase, RefSurface};
 /// v12: a new `device_config`
 /// read exposes the per-user device-global engine-schema files (`repos.yaml`,
 /// `workspaces.yaml`), each file's path, content, and field-shape diagnostics
-/// against its hardwired `au.engine.*` def. v11: the workspace-wide type
+/// against its hardwired `tb.engine.*` def. v11: the workspace-wide type
 /// reads (`types`, `type_tree`, `type_counts`, `subtypes`, `list_imports`, and
 /// the repo-scoped `types` / `type_counts`) accept an optional `scope: all | own`
 /// argument (default `all`, unchanged); `own` hides every dependency and the
-/// `au.engine.*` builtin, surfacing only the user's own primary, editable repos.
+/// `tb.engine.*` builtin, surfacing only the user's own primary, editable repos.
 /// v10: the `resolve` frame
 /// replaces its single `commit` / `commit_error` scalars with per-repo
 /// `commits: { [repo]: sha }` / `commit_errors: { [repo]: message }` maps, one
-/// entry per editable repo whose own `.arsumbris/repo.lock` committed, since the
+/// entry per editable repo whose own `.2brain/repo.lock` committed, since the
 /// dependency lock moved from a per-workspace file to a per-repo one. v9: the
 /// `members` read
 /// replaces each member's `provenance` string with two booleans, a derived
@@ -142,8 +142,8 @@ const MAX_FRAME: usize = 16 << 20;
 /// never interleave a partial frame on the socket.
 type FrameTx = mpsc::Sender<Vec<u8>>;
 
-/// The per-entry socket path, `<state dir>/au-engine/run/<hash>.sock` — `~/.2brain` on a
-/// migrated or fresh home, `~/.arsumbris` on one that has not been migrated.
+/// The per-entry socket path, `<state dir>/engine/run/<hash>.sock` — `~/.2brain` on a
+/// migrated or fresh home, `~/.2brain` on one that has not been migrated.
 ///
 /// One endpoint per entry point, derivable by both the daemon and a consumer
 /// from the entry path alone, no configuration. `entry` is the absolute path the
@@ -175,7 +175,7 @@ pub fn socket_file_name(entry: &Path) -> String {
     format!("{:016x}.sock", hash.0)
 }
 
-/// The directory holding per-entry daemon sockets, `<state dir>/au-engine/run`.
+/// The directory holding per-entry daemon sockets, `<state dir>/engine/run`.
 ///
 /// Read from RAW `$HOME`, not the canonicalized [`crate::device_root`], because
 /// this path is a wire contract mirrored byte-for-byte by the SDK, which reads
@@ -188,7 +188,7 @@ fn sockets_dir() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
     crate::repo::state_dir_in(&home)
-        .join("au-engine")
+        .join(crate::repo::ENGINE_RUNTIME_DIR)
         .join("run")
 }
 
@@ -361,14 +361,14 @@ mod socket_path_tests {
     #[test]
     fn distinct_entries_derive_distinct_sockets() {
         let dir = socket_file_name(Path::new("/repo/kb"));
-        let manifest_a = socket_file_name(Path::new("/repo/kb/a/.arsumbris/workspace.yaml"));
-        let manifest_b = socket_file_name(Path::new("/repo/kb/b/.arsumbris/workspace.yaml"));
+        let manifest_a = socket_file_name(Path::new("/repo/kb/a/.2brain/workspace.yaml"));
+        let manifest_b = socket_file_name(Path::new("/repo/kb/b/.2brain/workspace.yaml"));
         assert_ne!(dir, manifest_a);
         assert_ne!(manifest_a, manifest_b);
     }
 
     /// The socket lives outside the knowledge base, under the device state dir's
-    /// `au-engine/run/`, so it never sits in a watched member tree. Which spelling that
+    /// `engine/run/`, so it never sits in a watched member tree. Which spelling that
     /// directory has is [`crate::repo::state_dir_in`]'s decision, not this test's.
     #[test]
     fn socket_is_under_state_run() {
@@ -376,7 +376,7 @@ mod socket_path_tests {
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
         let expected = crate::repo::state_dir_in(&home)
-            .join("au-engine")
+            .join(crate::repo::ENGINE_RUNTIME_DIR)
             .join("run")
             .join(socket_file_name(Path::new("/repo/kb")));
         assert_eq!(socket_path(Path::new("/repo/kb")), expected);
@@ -433,7 +433,7 @@ enum Request {
     /// The workspace's discovered cross-repo import set: one record per
     /// (importing repo, imported type identity), the fold-axis `::repo` types
     /// each repo authors. `scope: own` keeps only imports made by the user's own
-    /// repos and drops the automatic `au.engine.*` builtin fold (see
+    /// repos and drops the automatic `tb.engine.*` builtin fold (see
     /// [`ImportsArgs`]).
     Imports(ImportsArgs),
     /// Literal text search over the catalogued files, optionally scoped by repo
@@ -556,7 +556,7 @@ enum Request {
     },
     /// Resolve a `#head` anchor inside a target file to its heading; null
     /// when the target or anchor doesn't resolve. Matching per
-    /// [[type reference::au-type-system]]: case-insensitive exact heading text, first
+    /// [[type reference::tb-type-system]]: case-insensitive exact heading text, first
     /// match in document order. `origin` scopes the target's resolution as in
     /// `resolve_target`.
     ResolveAnchor {
@@ -642,7 +642,7 @@ enum Request {
     ResolveMember { path: String },
     /// The per-user device-global engine-schema files (`repos.yaml`,
     /// `workspaces.yaml`): each file's resolved path, content, and field-shape
-    /// diagnostics against its hardwired `au.engine.*` def. These sit outside
+    /// diagnostics against its hardwired `tb.engine.*` def. These sit outside
     /// every knowledge base, so the diagnostics land here, not on the `diagnostics` read.
     /// An entry is null when its path cannot be resolved (no per-user config
     /// directory). See
@@ -652,8 +652,8 @@ enum Request {
     /// `<scope>/<consumer>/config/<file>`: its resolved path, content, and
     /// field-shape diagnostics against a stamped `type`. Out-of-band by the verb,
     /// never a walked node, the shape `device_config` returns. Machine scope
-    /// resolves under `~/.arsumbris/`; repo scope under a declared member's
-    /// `.arsumbris/`. An unresolved `type` is stored-as-is with a
+    /// resolves under `~/.2brain/`; repo scope under a declared member's
+    /// `.2brain/`. An unresolved `type` is stored-as-is with a
     /// `config-type-unresolved` advisory. See
     /// [[spec - scoped config channel - a config read and set_config mutation over scope, consumer, file, type]].
     Config(ConfigArgs),
@@ -737,7 +737,7 @@ enum Request {
 
 /// The `scope` value on the wire: `all` (every mounted member) or `own` (the
 /// user's own primary, editable repos only — every dependency and the
-/// `au.engine.*` builtin hidden). This is the value a caller STATES. What a read
+/// `tb.engine.*` builtin hidden). This is the value a caller STATES. What a read
 /// answers when the caller states nothing is that read's [`ScopeDefault`],
 /// declared per read in [`ScopedArgs::DEFAULT`] and documented, with its reason,
 /// in `SCOPE_TABLE` below.
@@ -1293,13 +1293,13 @@ enum Mutation {
     /// graph mutation. It edits which content enters the graph, so it MAY orphan
     /// references (they become advisory diagnostics); the strict no-dangling
     /// contract is deliberately relaxed for it. The one sanctioned write under
-    /// `.arsumbris/`, and only to `<root>/.arsumbris/.auignore`. Validates the
+    /// `.2brain/`, and only to `<root>/.2brain/.auignore`. Validates the
     /// patterns up front (a malformed pattern rejects, nothing written), commits
     /// per mutation, and re-scopes. See
     /// [[spec - scope management surface - an ignores read and a set_ignores config mutation]].
     SetIgnores(SetIgnoresArgs),
     /// Register (write or update) one `{ name, remote, path }` entry in the
-    /// per-user registry (`~/.arsumbris/au-engine/config/repos.yaml`) — a CONFIG-sort
+    /// per-user registry (`<state root>/engine/config/repos.yaml`) — a CONFIG-sort
     /// mutation over a DEVICE-GLOBAL file, so NO git commit (the file is outside
     /// every repo), unlike `set_ignores`. The consumer-driven bootstrap for an
     /// unmounted peer: a folder picker supplies the path, `register` records it,
@@ -1309,8 +1309,8 @@ enum Mutation {
     Register(RegisterArgs),
     /// Write one CONSUMER config file under the scoped-config channel,
     /// `<scope>/<consumer>/config/<file>` — a CONFIG-sort mutation, the write dual
-    /// of the `config` read. A sanctioned bypass of the `.arsumbris/` write-guard,
-    /// like `set_ignores`: path-safety (and the reserved `au-engine` owner segment)
+    /// of the `config` read. A sanctioned bypass of the `.2brain/` write-guard,
+    /// like `set_ignores`: path-safety (and the reserved `tb-engine` owner segment)
     /// gate the two caller-controlled segments, the path is constructed directly.
     /// Repo scope commits per mutation through the saga; machine scope writes a
     /// device-global file with NO commit. The write injects `type: <declared>` so
@@ -1327,7 +1327,7 @@ enum Mutation {
     /// existing elements and their comments stay byte-identical.
     AppendRecord(AppendRecordArgs),
     /// Add a `{ name, remote?, ref? }` entry to a repo's `deps:` — a
-    /// COMPOSITION-sort mutation authoring `<member>/.arsumbris/repo.yaml`. A
+    /// COMPOSITION-sort mutation authoring `<member>/.2brain/repo.yaml`. A
     /// guard-bypass like `set_config`, but the file is a first-class node, so the
     /// change re-resolves the mounted set and rebuilds. Does NOT fetch: the new
     /// peer stays `peer-unmounted` until `resolve`. A duplicate name rejects. See
@@ -1337,7 +1337,7 @@ enum Mutation {
     /// dual of `add_dep`. An absent name rejects.
     RemoveDep(RemoveDepArgs),
     /// Add a member to a workspace's `edit:` or `discover:` — a COMPOSITION-sort
-    /// mutation authoring `<member>/.arsumbris/workspace.yaml`, created
+    /// mutation authoring `<member>/.2brain/workspace.yaml`, created
     /// self-complete when absent. A member already in either list rejects. See
     /// [[spec - composition authorship - governed list verbs author workspace members and repo deps, rebuilding on change]].
     AddWorkspaceMember(AddWorkspaceMemberArgs),
@@ -1601,7 +1601,7 @@ struct RenameTypeArgs {
 #[serde(deny_unknown_fields)]
 struct RegisterArgs {
     /// The repo name to register. Must equal the declared `name` in the target's
-    /// `.arsumbris/repo.yaml` (checked before writing).
+    /// `.2brain/repo.yaml` (checked before writing).
     name: String,
     /// The local path where the repo sits on this machine, absolute.
     path: String,
@@ -1614,10 +1614,10 @@ struct RegisterArgs {
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum ConfigScope {
-    /// `~/.arsumbris/<consumer>/config/<file>`, the personal device tier. The
+    /// `~/.2brain/<consumer>/config/<file>`, the personal device tier. The
     /// type resolves in the served entry's graph.
     Machine,
-    /// `<repo>/.arsumbris/<consumer>/config/<file>`, the committed repo tier. The
+    /// `<repo>/.2brain/<consumer>/config/<file>`, the committed repo tier. The
     /// type resolves in the owning member's graph.
     Repo,
 }
@@ -1629,13 +1629,13 @@ enum ConfigScope {
 struct ConfigArgs {
     scope: ConfigScope,
     /// The owner segment, a namespacing convention (`host-app`, `agent-tools`). Path-safe
-    /// and not the engine's own `au-engine`.
+    /// and not the engine's own `tb-engine`.
     consumer: String,
     /// The config filename under `<consumer>/config/`.
     file: String,
     #[serde(rename = "type")]
     type_name: String,
-    /// Repo scope: the member root whose `.arsumbris/` holds the file, a declared
+    /// Repo scope: the member root whose `.2brain/` holds the file, a declared
     /// member root (as `members` surfaces). Absent defaults to the served entry.
     /// Ignored at machine scope.
     #[serde(default)]
@@ -1654,7 +1654,7 @@ struct SetConfigArgs {
     file: String,
     #[serde(rename = "type")]
     type_name: String,
-    /// Repo scope: the member root whose `.arsumbris/` holds the file (a declared
+    /// Repo scope: the member root whose `.2brain/` holds the file (a declared
     /// member root). Absent defaults to the served entry. Ignored at machine scope.
     #[serde(default)]
     root: Option<String>,
@@ -2970,7 +2970,7 @@ struct ResolvedView {
     effective_values: Vec<wire::FieldValuesEntry>,
     section_presence: Option<Vec<wire::SectionPresenceEntry>>,
     body_events: Option<Vec<wire::BodyEventIntrospection>>,
-    /// Addressable inline records ([[type block-id::au-type-system]]); omitted when none.
+    /// Addressable inline records ([[type block-id::tb-type-system]]); omitted when none.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     record_block_ids: Vec<wire::RecordBlockIdIntrospection>,
     diagnostics: Vec<Diagnostic>,
@@ -3197,7 +3197,7 @@ struct PinRecordDto {
     /// The file holding the pin.
     source: String,
     /// The `^:` id of the enclosing inline record the pin sits in, when it does
-    /// — a nested-record site (au-provenance's spans nest inside a ledger file).
+    /// — a nested-record site (tb-provenance's spans nest inside a ledger file).
     /// Absent for a top-level frontmatter or body pin.
     #[serde(skip_serializing_if = "Option::is_none")]
     source_block_id: Option<String>,
@@ -3205,7 +3205,7 @@ struct PinRecordDto {
     span: wire::SpanRange,
     /// The field the pin fills, the innermost key for a nested value; a body
     /// `:field` attribution; or absent for an untyped prose pin. A consumer
-    /// filters by field (au-provenance keeps `read`) without a second read.
+    /// filters by field (tb-provenance keeps `read`) without a second read.
     #[serde(skip_serializing_if = "Option::is_none")]
     slot: Option<String>,
     /// Which surface the pin sits on: `frontmatter` or `body`.
@@ -3233,7 +3233,7 @@ struct ResolvedBlockDto {
     /// Empty for a navigational `marker` and for a claim-less record.
     type_claim: Vec<String>,
     span: wire::SpanRange,
-    /// Which addressable entity the id reached ([[type block-id::au-type-system]]):
+    /// Which addressable entity the id reached ([[type block-id::tb-type-system]]):
     /// `record` (inline `^:`), `typed_block` (`[:field]` fence), or
     /// `marker` (bare `^id` marker or untyped fence id) — navigational,
     /// never a typed-reference target.
@@ -3241,7 +3241,7 @@ struct ResolvedBlockDto {
 }
 
 /// A resolved `#head` anchor: the heading line. Navigational only,
-/// anchors are never type-bearing ([[type reference::au-type-system]]).
+/// anchors are never type-bearing ([[type reference::tb-type-system]]).
 #[derive(Debug, Serialize)]
 struct ResolvedAnchorDto {
     file_path: String,
@@ -3280,7 +3280,7 @@ struct BlockIdDto {
     /// The bare id, without its `^` sigil, as `[[file^id]]` spells it.
     id: String,
     /// Which addressable entity carries it, `resolve_block_id`'s vocabulary
-    /// verbatim ([[type block-id::au-type-system]]): `record` (inline `^:`), `typed_block`
+    /// verbatim ([[type block-id::tb-type-system]]): `record` (inline `^:`), `typed_block`
     /// (`[:field]` fence), or `marker` (bare `^id` marker or untyped fence
     /// id).
     ///
@@ -3302,7 +3302,7 @@ struct FileDto {
     /// The absolute path, the same address space every other read serves.
     path: String,
     /// The basename minus ONE extension, what a bare `[[name]]` resolves by
-    /// ([[type reference::au-type-system]]): `x.session.yaml` stems to `x.session`. Served so
+    /// ([[type reference::tb-type-system]]): `x.session.yaml` stems to `x.session`. Served so
     /// no consumer re-derives the strip-one-extension rule, and the
     /// extensionless-match rule with it. Not unique: two files sharing a stem
     /// are an ambiguous bare target, which resolution reports and this listing
@@ -3606,7 +3606,7 @@ impl Drop for ServeHandle {
 impl ServeHandle {
     /// Block until a `Shutdown` request arrives over the socket.
     ///
-    /// The daemon's foreground loop parks here; `au daemon stop` connecting and
+    /// The daemon's foreground loop parks here; `tb-engine daemon stop` connecting and
     /// sending the shutdown verb wakes it. Returns once asked to stop, or once
     /// the channel closes; dropping the handle then removes the socket.
     pub fn wait_for_shutdown(&self) {
@@ -4998,7 +4998,7 @@ fn require_git_reject(plan: &SagaPlan) -> Option<MutationReject> {
 /// `git` is the swappable mechanism; production passes `&ShellGit`. The port is
 /// injected so the saga's compensation logic is testable against a writer that
 /// fails a chosen member's commit. `marker_dir` is [`saga_marker_dir`] (the launch
-/// entry's `.arsumbris/au-engine/run/`), a single per-daemon location, where the intent marker opens and
+/// entry's `.2brain/engine/run/`), a single per-daemon location, where the intent marker opens and
 /// closes the saga across all its members. `moves` records each member's renames
 /// as `Moved:` trailers for the pinned-reference forward trace.
 fn apply_saga_with_moves<T>(
@@ -5388,7 +5388,7 @@ fn committed_moves(
 const INTENT_MARKER_NAME: &str = "saga.intent";
 
 /// The engine's saga-recovery directory under the launch entry root,
-/// `<root>/<identity dir>/au-engine/run/`. Holds the `saga.intent` marker and the
+/// `<root>/<identity dir>/engine/run/`. Holds the `saga.intent` marker and the
 /// `saga.failed.<id>` sentinels: ephemeral run-state, owner-namespaced under the
 /// engine, see
 /// [[spec - 2brain layout - a reserved multi-tenant device root, owner-namespaced with a category sublayer]].
@@ -5396,11 +5396,11 @@ const INTENT_MARKER_NAME: &str = "saga.intent";
 /// The identity directory is resolved by the WRITE rule, not spelled: a repository keeps the
 /// spelling it already has, and a repository that has neither is new, so it gets the current
 /// name. Spelling the legacy name here created a second identity directory inside a new
-/// repository — a `.arsumbris/au-engine/` beside its `.2brain/repo.yaml` — which the engine's
+/// repository — a `.2brain/tb-engine/` beside its `.2brain/repo.yaml` — which the engine's
 /// own reserved-root and migration checks then have to treat as a foreign body.
 fn saga_marker_dir(root: &Path) -> PathBuf {
     tb_parser::identity_dir_for_write_with(root, |dir| dir.exists())
-        .join("au-engine")
+        .join(crate::repo::ENGINE_RUNTIME_DIR)
         .join("run")
 }
 
@@ -5464,7 +5464,7 @@ mod saga_marker_dir_tests {
     use super::*;
 
     /// A new repository writes the current identity directory, so its run-state belongs there.
-    /// Spelling the legacy name would leave a `.arsumbris/au-engine/` inside a repository whose
+    /// Spelling the legacy name would leave a `.2brain/tb-engine/` inside a repository whose
     /// only identity directory is `.2brain`.
     #[test]
     fn a_new_repository_keeps_its_run_state_in_the_new_identity_directory() {
@@ -5474,27 +5474,12 @@ mod saga_marker_dir_tests {
         assert_eq!(
             saga_marker_dir(root),
             root.join(tb_parser::IDENTITY_DIR)
-                .join("au-engine")
+                .join(crate::repo::ENGINE_RUNTIME_DIR)
                 .join("run")
         );
     }
 
-    /// A repository that already has the legacy spelling keeps it: the write rule follows what
-    /// exists rather than migrating a repository as a side effect of a mutation.
-    #[test]
-    fn a_legacy_repository_keeps_its_run_state_where_it_already_is() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let root = tmp.path();
-        std::fs::create_dir_all(root.join(tb_parser::LEGACY_IDENTITY_DIR)).unwrap();
-        assert_eq!(
-            saga_marker_dir(root),
-            root.join(tb_parser::LEGACY_IDENTITY_DIR)
-                .join("au-engine")
-                .join("run")
-        );
-    }
-
-    /// A root with neither spelling is new, so the current name wins.
+    /// A root that has no identity directory yet gets the current name.
     #[test]
     fn a_root_with_neither_spelling_gets_the_current_name() {
         let tmp = tempfile::TempDir::new().unwrap();
@@ -5502,7 +5487,7 @@ mod saga_marker_dir_tests {
             saga_marker_dir(tmp.path()),
             tmp.path()
                 .join(tb_parser::CREATE_IDENTITY_DIR)
-                .join("au-engine")
+                .join(crate::repo::ENGINE_RUNTIME_DIR)
                 .join("run")
         );
     }
@@ -5520,7 +5505,7 @@ pub fn in_flight_saga_marker(root: &Path) -> Option<PathBuf> {
     [
         saga_marker_dir(root),
         root.join(tb_parser::IDENTITY_DIR)
-            .join("au-engine")
+            .join(crate::repo::ENGINE_RUNTIME_DIR)
             .join("run"),
     ]
     .into_iter()
@@ -5544,7 +5529,7 @@ pub fn in_flight_saga_marker(root: &Path) -> Option<PathBuf> {
 /// complete it.
 ///
 /// Engine-internal, under `marker_dir` ([`saga_marker_dir`], the launch entry's
-/// `.arsumbris/au-engine/run/`). That root is the entry repo's
+/// `.2brain/engine/run/`). That root is the entry repo's
 /// directory, an ancestor of every co-present member but not of a scattered member
 /// that sits elsewhere. Either way it is a single
 /// per-daemon location, so one marker spans the whole cross-repo saga, never one
@@ -6413,7 +6398,7 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 // still existed. The clean-at-HEAD precondition guarantees the
                 // file was present there, and the serialized write lock keeps
                 // this HEAD the deletion commit's parent. Captured before the
-                // saga runs, since the commit advances HEAD. au-provenance's
+                // saga runs, since the commit advances HEAD. tb-provenance's
                 // delete tombstone pins this so the file's last content reads
                 // back, see [[spec - git write path - commit-per-mutation as a
                 // local saga over the workspace's materialized repos]].
@@ -7349,7 +7334,7 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 // referrer that cannot hold a block-id is a rejected request,
                 // named in the response `detail`:
                 // - a `file*` slot references a whole file; `^block-id` is rejected
-                //   on it, see [[type-def shape file::au-type-system]].
+                //   on it, see [[type-def shape file::tb-type-system]].
                 // - a `[[file#head]]` anchor targets a heading in the deleted file.
                 let mut offenders: Vec<String> = Vec::new();
                 let mut note_offender = |source: &Path, span: tb_diagnostics::ByteRange| {
@@ -7884,9 +7869,9 @@ fn resolve_editable_member_root(
     }
 }
 
-/// Run a COMPOSITION-sort write over `<member>/.arsumbris/<file>`: resolve the
+/// Run a COMPOSITION-sort write over `<member>/.2brain/<file>`: resolve the
 /// editable member, splice via `produce`, CAS-write, commit per mutation, then
-/// rebuild. A `.arsumbris/` path forces a full re-resolve (`classify_dirty` →
+/// rebuild. A `.2brain/` path forces a full re-resolve (`classify_dirty` →
 /// `NeedsFull`), so the mounted set / identity change lands. The shared
 /// scaffolding for the composition-authorship verbs, the `set_config_repo` shape
 /// plus a rebuild (like `write_file`).
@@ -7932,7 +7917,7 @@ async fn composition_write(
             let new = produce(current.as_deref(), &write_path, &containing)?;
             crate::mutate::write_file(&write_path, &new, expected_hash.as_deref())
         })?;
-        // A `.arsumbris/` composition change re-resolves the whole mounted set.
+        // A `.2brain/` composition change re-resolves the whole mounted set.
         blocking_handle.rebuild_paths(saga_dirty_set(&plan));
         Ok::<_, crate::mutate::MutationReject>((hash, commits))
     })
@@ -7945,7 +7930,7 @@ async fn composition_write(
 }
 
 /// The `add_dep` composition mutation: add a `{ name, remote?, ref? }` entry to a
-/// repo's `deps:`, authoring `<member>/.arsumbris/repo.yaml`. Does NOT fetch; the
+/// repo's `deps:`, authoring `<member>/.2brain/repo.yaml`. Does NOT fetch; the
 /// new peer stays `peer-unmounted` until `resolve`. A duplicate `name` rejects.
 async fn add_dep(handle: &EngineHandle, args: AddDepArgs) -> serde_json::Value {
     let mut dep = serde_json::Map::new();
@@ -8006,7 +7991,7 @@ fn role_field(role: WorkspaceRole) -> &'static str {
 }
 
 /// The `add_workspace_member` composition mutation: add a member to a workspace's
-/// `edit:` or `discover:` list, authoring `<member>/.arsumbris/workspace.yaml`.
+/// `edit:` or `discover:` list, authoring `<member>/.2brain/workspace.yaml`.
 /// Creates the file (seeded with the containing repo in `edit:`) when absent. A
 /// member already in EITHER list rejects (use `set_workspace_member_role` to
 /// change a role). The containing repo cannot be a `discover` member.
@@ -8225,7 +8210,7 @@ async fn set_workspace_member_disabled(
 ///
 /// A DEVICE-GLOBAL write, the file sits outside every repo, so there is NO git
 /// commit, unlike `set_ignores`. The registry path comes from the engine's
-/// injected device root (a test tempdir) or the real `$HOME/.arsumbris`; absent
+/// injected device root (a test tempdir) or the real `$HOME/.2brain`; absent
 /// when `$HOME` is unset, which rejects (nowhere to write). The
 /// identity checks live in `register_entry`: a disagreeing remote, or a path
 /// whose `repo.yaml` declares another name, rejects as
@@ -8289,7 +8274,7 @@ enum ConfigWrite {
 
 /// The `set_config` mutation: write one consumer config file under the scoped
 /// channel, a whole `content` or a keyed `edit`. Path-safety (and the reserved
-/// `au-engine` owner segment) gate the two caller-controlled segments up front,
+/// `tb-engine` owner segment) gate the two caller-controlled segments up front,
 /// independent of scope. Repo scope commits per mutation through the saga; machine
 /// scope writes a device-global file with no commit.
 async fn set_config(handle: &EngineHandle, args: SetConfigArgs) -> serde_json::Value {
@@ -8375,8 +8360,8 @@ fn produce_config_content(
 }
 
 /// The machine-scope `set_config` write: a device-global file under
-/// `~/.arsumbris/<consumer>/config/<file>`, resolved from the engine's
-/// `ConfigSource` (a test tempdir, the real `$HOME/.arsumbris`, or nothing). NO
+/// `~/.2brain/<consumer>/config/<file>`, resolved from the engine's
+/// `ConfigSource` (a test tempdir, the real `$HOME/.2brain`, or nothing). NO
 /// git commit (the file sits outside every repo) and NO rebuild (it is not a
 /// graph node), the shape `register` uses. A cross-daemon file lock serializes
 /// concurrent writers of the one device-global file, and the produce-write is one
@@ -8424,10 +8409,10 @@ async fn set_config_machine(handle: &EngineHandle, ctx: SetConfigCtx) -> serde_j
     }
 }
 
-/// The repo-scope `set_config` write: construct `<member>/.arsumbris/<consumer>/
+/// The repo-scope `set_config` write: construct `<member>/.2brain/<consumer>/
 /// config/<file>` directly (a guard bypass, like `set_ignores`), inject `type:` so
 /// the file self-describes, `expected_hash` compare-and-set, then commit per
-/// mutation through the config-mutation saga. The file rides the `.arsumbris`
+/// mutation through the config-mutation saga. The file rides the `.2brain`
 /// floor, so it is out-of-band: no catalog entry, no re-scope, no rebuild — the
 /// graph is unaffected, so the held version does not move.
 async fn set_config_repo(handle: &EngineHandle, ctx: SetConfigCtx) -> serde_json::Value {
@@ -8439,7 +8424,7 @@ async fn set_config_repo(handle: &EngineHandle, ctx: SetConfigCtx) -> serde_json
         .as_deref()
         .map(|r| member_root_arg(handle.root(), r));
     // Resolve the owning member AND gate it on editability: repo-scope config is a
-    // committed write into the member's `.arsumbris/`, so a consumed (`discover` /
+    // committed write into the member's `.2brain/`, so a consumed (`discover` /
     // `dep`) member is not the engine's to author, exactly like any other write.
     // `Ok(None)` names no member, `Err` is the not-editable reject.
     let resolved = handle.read(move |v| {
@@ -8528,9 +8513,9 @@ async fn set_config_repo(handle: &EngineHandle, ctx: SetConfigCtx) -> serde_json
 /// so it MAY orphan references (advisory), and the strict no-dangling contract is
 /// relaxed for it deliberately.
 ///
-/// The `.arsumbris/` write-guard on the generic verbs stays absolute: this verb
+/// The `.2brain/` write-guard on the generic verbs stays absolute: this verb
 /// does not route through the guarded resolver, it constructs the SINGLE allowed
-/// path `<root>/.arsumbris/.auignore` from a validated member root and writes
+/// path `<root>/.2brain/.auignore` from a validated member root and writes
 /// that directly. So the exception is one tightly-scoped path, never a hole in
 /// the guard.
 ///
@@ -8538,7 +8523,7 @@ async fn set_config_repo(handle: &EngineHandle, ctx: SetConfigCtx) -> serde_json
 /// malformed pattern rejects with the reason, nothing written), write (or, for
 /// an empty list, remove) the file, commit per mutation via the saga (a shared
 /// `Mutation-Id` trailer, like any governed write), then re-scope — the
-/// `.arsumbris/` change forces a full re-walk (already wired) — and respond with
+/// `.2brain/` change forces a full re-walk (already wired) — and respond with
 /// fresh state.
 async fn set_ignores(handle: &EngineHandle, args: SetIgnoresArgs) -> serde_json::Value {
     // The caller `handle_mutation` already holds the write lock and gated on
@@ -8548,7 +8533,7 @@ async fn set_ignores(handle: &EngineHandle, args: SetIgnoresArgs) -> serde_json:
     // rejects: the `.auignore` is per-member-root.
     let member_root = member_root_arg(handle.root(), &args.root);
     // Resolve the owning member AND gate on editability: `.auignore` is a committed
-    // write into the member's `.arsumbris/`, so a consumed (`discover` / `dep`)
+    // write into the member's `.2brain/`, so a consumed (`discover` / `dep`)
     // member is not the engine's to author. `None` names no member.
     let member = handle
         .read(|v| {
@@ -8657,7 +8642,7 @@ struct ResolveSummary {
 
 /// The nearest ancestor directory of `path` that is a git working tree.
 ///
-/// The lock commits into the git tree that physically holds it, not the au-repo
+/// The lock commits into the git tree that physically holds it, not the tb-repo
 /// the catalog maps the manifest to: the workspace dir is the user's project repo
 /// whether or not it declares a `repo.yaml`.
 fn enclosing_git_root(path: &Path) -> Option<PathBuf> {
@@ -8690,7 +8675,7 @@ async fn handle_resolve(handle: &EngineHandle) -> serde_json::Value {
     let registry = crate::repo::load_user_registry(handle.config(), &tb_parser::RealFileSystem);
     // Resolve the assembled workspace's members (a `workspace.yaml` composition,
     // else the entry repo plus its `deps`), each editable member writing its own
-    // `.arsumbris/repo.lock` and the entry its `workspace.lock`.
+    // `.2brain/repo.lock` and the entry its `workspace.lock`.
     let manifest: Option<std::path::PathBuf> =
         crate::build::assembly_roots(handle.entry(), &registry, &tb_parser::RealFileSystem).1;
     let cache_root = match handle.package_cache_root() {
@@ -10013,7 +9998,7 @@ struct RecentCommitDto {
     commit: String,
     /// The owning working-tree root, the lane key.
     tree: String,
-    /// The au-repo member names living in that tree.
+    /// The tb-repo member names living in that tree.
     members: Vec<String>,
     author: AuthorDto,
     /// Committer date, unix seconds.
@@ -13172,7 +13157,7 @@ async fn dispatch(handle: &EngineHandle, req: Request) -> Response {
                 v.repos
                     .repos()
                     .iter()
-                    // The builtin `au-engine` repo is a type source, not a
+                    // The builtin `tb-engine` repo is a type source, not a
                     // workspace member (no real root), so it carries no ignores.
                     .filter(|r| !r.builtin)
                     .filter(|r| repo.as_deref().is_none_or(|want| r.name.as_str() == want))
@@ -13214,7 +13199,7 @@ async fn dispatch(handle: &EngineHandle, req: Request) -> Response {
             // come from the engine's stated `ConfigSource`: a test tempdir
             // (`Dir`), the env default (`User`), or nothing at all (`Empty`).
             // The field-shape check then runs under the lock on the held
-            // snapshot, where the builtin `au-engine` graph carries the defs.
+            // snapshot, where the builtin `tb-engine` graph carries the defs.
             let config = handle.config().clone();
             let repos_path = crate::repo::user_registry_path(&config);
             let workspaces_path = crate::repo::user_workspaces_path(&config);
@@ -13240,10 +13225,10 @@ async fn dispatch(handle: &EngineHandle, req: Request) -> Response {
 }
 
 /// The `config` read: one consumer config file under the scoped channel. Machine
-/// scope resolves the `.arsumbris` dir from the engine's `ConfigSource` and the
+/// scope resolves the `.2brain` dir from the engine's `ConfigSource` and the
 /// type in the served entry's graph; repo scope resolves under a declared member
 /// root (explicit `root`, else the entry) and the type in that member's graph.
-/// Path-safety and the reserved `au-engine` owner segment reject a bad segment
+/// Path-safety and the reserved `tb-engine` owner segment reject a bad segment
 /// with an `error` response, an unknown repo-scope `root` likewise.
 async fn config_response(handle: &EngineHandle, args: ConfigArgs) -> Response {
     // Path-safety is checked at the verb, independent of scope, so a malformed
@@ -13252,7 +13237,7 @@ async fn config_response(handle: &EngineHandle, args: ConfigArgs) -> Response {
         return Response::invalid(e);
     }
 
-    // Resolve the scope's `.arsumbris` dir and the graph the type resolves in,
+    // Resolve the scope's `.2brain` dir and the graph the type resolves in,
     // under one lock. A machine scope with no device root yields `None` dir.
     enum Scope {
         Ready(Option<PathBuf>, String),
@@ -14077,7 +14062,7 @@ enum SlotGate<'a> {
 ///
 /// Only the frontmatter pair needs the slot. A body edge is settled by the
 /// link's own syntax, and an EMBEDDED frontmatter link is settled by
-/// [[type reference::au-type-system]] at the value level, so neither can be `unknown`.
+/// [[type reference::tb-type-system]] at the value level, so neither can be `unknown`.
 fn classify_edge(edge: &crate::backlinks::SourceEdge, gate: SlotGate) -> &'static str {
     // A commit-referent (`[[::@sha]]` / `[[::repo@sha]]`) names a COMMIT, not a
     // file. It resolves to nothing but is NOT dangling, so it carries its own
@@ -14760,7 +14745,7 @@ fn wikilink_kind(
         };
     }
     // The LOCAL form (`[[^id]]` / `[[#head]]` / `[[^^id]]`) targets the source file
-    // itself, per [[type reference::au-type-system]], so it is never dangling. Resolving it against the
+    // itself, per [[type reference::tb-type-system]], so it is never dangling. Resolving it against the
     // repo index looks up an empty name and misreports it as broken.
     if w.is_local() && w.repo.is_none() {
         return SemanticTokenKind::WikilinkResolved {
@@ -14828,7 +14813,7 @@ fn resolve_navigation_target(
         return None;
     }
     // The LOCAL form (`[[^id]]` / `[[#head]]` / `[[^^id]]`, an empty target with a
-    // locating fragment) resolves to the origin file itself, per [[type reference::au-type-system]].
+    // locating fragment) resolves to the origin file itself, per [[type reference::tb-type-system]].
     // Name lookup is skipped, so it never dangles — the same resolution the backlink
     // index (`resolve_link`) and the validator (`is_local`) perform. Without an
     // origin there is no file to be local to, so it resolves nothing.
@@ -14903,7 +14888,7 @@ fn resolve_target_view(
 }
 
 /// Resolve `[[target^block-id]]` to its addressable entity per
-/// [[type block-id::au-type-system]]: an inline record carrying `^: id` (checked first,
+/// [[type block-id::tb-type-system]]: an inline record carrying `^: id` (checked first,
 /// frontmatter precedes the body), else the first body occurrence — a
 /// typed `[:field]` fence, an untyped fence id, or a bare `^id` marker.
 /// The read is the one resolution surface, navigation included; only an
@@ -14972,7 +14957,7 @@ fn resolve_block_id_view(
 }
 
 /// Resolve a `#head` anchor to its heading line in the target file.
-/// Matching is the engine's contract per [[type reference::au-type-system]] —
+/// Matching is the engine's contract per [[type reference::tb-type-system]] —
 /// case-insensitive exact heading text, first match in document order —
 /// so consumers never re-implement it client-side. `None` when the
 /// target doesn't resolve, isn't a markdown instance, or no heading
@@ -15033,7 +15018,7 @@ fn anchors_view(kb: &KnowledgeBase, target: &str, origin: Option<&Path>) -> Opti
 /// The catalogue IS the resolvable set — the reference index is built from it,
 /// so what is catalogued is what a wikilink can reach. That is why an ASSET
 /// appears: the walker records it by path and never reads it, precisely so
-/// `file*` resolves against it ([[type-def shape file::au-type-system]]). A consumer completing
+/// `file*` resolves against it ([[type-def shape file::tb-type-system]]). A consumer completing
 /// `[[` must be able to offer a target the validator accepts.
 ///
 /// A projection of the held catalogue, so no walk and no disk read.
@@ -15545,7 +15530,7 @@ fn files_view(
 /// Every addressable id in a target file, in document order — the listing dual
 /// of [`resolve_block_id_view`].
 ///
-/// Both surfaces of [[type block-id::au-type-system]] in one stream: frontmatter inline records
+/// Both surfaces of [[type block-id::tb-type-system]] in one stream: frontmatter inline records
 /// carrying `^:`, and body occurrences (fence ids and bare markers). Sorted by
 /// span, so frontmatter precedes the body the way the file does.
 ///
@@ -15741,7 +15726,7 @@ fn top_level_dirs_view(
     use std::collections::BTreeSet;
     let mut out: Vec<TopLevelDirDto> = Vec::new();
     for member in kb.repos.repos() {
-        // The builtin `au-engine` repo is a compiled-in type source with no
+        // The builtin `tb-engine` repo is a compiled-in type source with no
         // real root on disk, so it has no directories to report.
         if member.builtin {
             continue;
@@ -15865,7 +15850,7 @@ fn node_in_scope(
 /// Whether a catalog file is a knowledge-graph node. Engine-schema files
 /// (`repo.yaml`, the workspace manifest, the `repo.lock`) are substrate CONFIG,
 /// not knowledge, so they never count as a node, an orphan, or a component: a
-/// consumer's orphan list must not surface `.arsumbris/repo.yaml`, and a graph
+/// consumer's orphan list must not surface `.2brain/repo.yaml`, and a graph
 /// view must not draw it. The content kinds are type-defs, instances, and
 /// everything else the walk catalogues (notes and assets, both `Unclassified`).
 fn is_graph_node_kind(kind: tb_parser::FileKind) -> bool {
@@ -16937,7 +16922,7 @@ mod hub_ranking_tests {
     #[test]
     fn ranks_structural_over_navigational_and_excludes_leaves() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  title: String\n  rel: note*\n".to_vec(),
@@ -16995,7 +16980,7 @@ mod hub_ranking_tests {
     #[test]
     fn truncates_to_the_limit() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         // Ten notes each prose-linking the next, so ten targets have one edge.
         for i in 0..10 {
             let next = (i + 1) % 10;
@@ -17026,7 +17011,7 @@ mod graph_shape_tests {
     ///   `isolated`, and it joins the first island).
     fn known_shape_fs() -> MemoryFileSystem {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert("/v/a.md", b"see [[b]] and [[c]].\n".to_vec());
         fs.insert("/v/b.md", b"# b\n".to_vec());
         fs.insert("/v/c.md", b"# c\n".to_vec());
@@ -17042,7 +17027,7 @@ mod graph_shape_tests {
         let kb = crate::build::build(Path::new("/v"), &known_shape_fs()).unwrap();
         let s = graph_shape_view(&kb, None, wire::TypeScope::all(), true);
 
-        // The 7 content notes; `.arsumbris/repo.yaml` is engine-schema, not a node.
+        // The 7 content notes; `.2brain/repo.yaml` is engine-schema, not a node.
         assert_eq!(s.node_count, 7);
         // Three islands: {a,b,c,out}, {d,e}, {lonely}.
         assert_eq!(s.components, 3);
@@ -17093,7 +17078,7 @@ mod graph_shape_tests {
     #[test]
     fn splits_structural_from_navigational_edges() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  title: String\n  rel: note*\n".to_vec(),
@@ -17149,7 +17134,7 @@ mod graph_shape_tests {
     #[test]
     fn link_graph_edge_kinds_match_references_in() {
         let mut fs = MemoryFileSystem::new();
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs.insert(
             "/v/type/note.type.yaml",
             b"fields:\n  title: String\n  rel: note*\n".to_vec(),
@@ -17181,13 +17166,13 @@ mod graph_shape_tests {
     /// Two catalogs differing by one added prose link `a → b`.
     fn before_after() -> (LinkGraphView, LinkGraphView) {
         let mut before = MemoryFileSystem::new();
-        before.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        before.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         before.insert("/v/a.md", b"# a\n".to_vec());
         before.insert("/v/b.md", b"# b\n".to_vec());
         let kb1 = crate::build::build(Path::new("/v"), &before).unwrap();
 
         let mut after = MemoryFileSystem::new();
-        after.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        after.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         after.insert("/v/a.md", b"see [[b]].\n".to_vec());
         after.insert("/v/b.md", b"# b\n".to_vec());
         let kb2 = crate::build::build(Path::new("/v"), &after).unwrap();
@@ -18127,7 +18112,10 @@ mod saga_tests {
             members: members.iter().map(|(p, n)| member(p, n)).collect(),
         };
         write_intent_marker(
-            &marker_root.join(".arsumbris").join("au-engine").join("run"),
+            &marker_root
+                .join(".2brain")
+                .join(crate::repo::ENGINE_RUNTIME_DIR)
+                .join("run"),
             &plan,
             &[],
         )
@@ -18173,7 +18161,10 @@ mod saga_tests {
             members: nested_members(tree.path(), &subs),
         };
         write_intent_marker(
-            &ws.path().join(".arsumbris").join("au-engine").join("run"),
+            &ws.path()
+                .join(".2brain")
+                .join(crate::repo::ENGINE_RUNTIME_DIR)
+                .join("run"),
             &plan,
             &[],
         )
@@ -18267,8 +18258,8 @@ mod saga_tests {
         // The marker is cleared, so a second start is a no-op.
         assert!(
             !ws.path()
-                .join(".arsumbris")
-                .join("au-engine")
+                .join(".2brain")
+                .join(crate::repo::ENGINE_RUNTIME_DIR)
                 .join("run")
                 .join(INTENT_MARKER_NAME)
                 .exists(),
@@ -18303,8 +18294,8 @@ mod saga_tests {
         assert!(!rb.path().join("f.md").exists(), "rb not rolled back");
         assert!(
             !ws.path()
-                .join(".arsumbris")
-                .join("au-engine")
+                .join(".2brain")
+                .join(crate::repo::ENGINE_RUNTIME_DIR)
                 .join("run")
                 .join(INTENT_MARKER_NAME)
                 .exists(),
@@ -18331,8 +18322,8 @@ mod saga_tests {
         assert!(report.recovered.is_some(), "the marker was processed");
         assert!(
             !ws.path()
-                .join(".arsumbris")
-                .join("au-engine")
+                .join(".2brain")
+                .join(crate::repo::ENGINE_RUNTIME_DIR)
                 .join("run")
                 .join(INTENT_MARKER_NAME)
                 .exists(),
@@ -18347,8 +18338,8 @@ mod saga_tests {
         assert_eq!(report.failures[0].mutation_id, "m-confl");
         assert!(
             ws.path()
-                .join(".arsumbris")
-                .join("au-engine")
+                .join(".2brain")
+                .join(crate::repo::ENGINE_RUNTIME_DIR)
                 .join("run")
                 .join("saga.failed.m-confl")
                 .exists(),
@@ -18635,8 +18626,8 @@ mod saga_tests {
     fn a_folder_move_leaves_a_file_created_after_the_plan_uncommitted_in_its_source_dir() {
         let dir = init_repo();
         let p = fs::canonicalize(dir.path()).unwrap();
-        fs::create_dir_all(p.join(".arsumbris")).unwrap();
-        fs::write(p.join(".arsumbris/repo.yaml"), "name: r\n").unwrap();
+        fs::create_dir_all(p.join(".2brain")).unwrap();
+        fs::write(p.join(".2brain/repo.yaml"), "name: r\n").unwrap();
         fs::create_dir_all(p.join("d/empty")).unwrap();
         fs::write(p.join("d/a.md"), "a\n").unwrap();
         run(&p, &["add", "."]);
@@ -18742,7 +18733,11 @@ mod saga_tests {
         let ws = TempDir::new().unwrap();
         let (dir, plan) = folder_move_fixture();
         let p = dir.path().to_path_buf();
-        let marker_dir = ws.path().join(".arsumbris").join("au-engine").join("run");
+        let marker_dir = ws
+            .path()
+            .join(".2brain")
+            .join(crate::repo::ENGINE_RUNTIME_DIR)
+            .join("run");
         write_intent_marker(&marker_dir, &plan, &[]).unwrap();
         do_folder_move(&p, true);
         let report = recover_crashed_saga(ws.path());
@@ -18760,7 +18755,11 @@ mod saga_tests {
         let ws = TempDir::new().unwrap();
         let (dir, plan) = folder_move_fixture();
         let p = dir.path().to_path_buf();
-        let marker_dir = ws.path().join(".arsumbris").join("au-engine").join("run");
+        let marker_dir = ws
+            .path()
+            .join(".2brain")
+            .join(crate::repo::ENGINE_RUNTIME_DIR)
+            .join("run");
         write_intent_marker(&marker_dir, &plan, &[]).unwrap();
         do_folder_move(&p, true);
         // A file the saga never wrote lands in a directory it created.
@@ -18881,7 +18880,11 @@ mod saga_tests {
         let (dir, _) = repo_with_an_ignored_scratch();
         let p = dir.path().to_path_buf();
         let plan = ignored_move_plan(&p);
-        let marker_dir = ws.path().join(".arsumbris").join("au-engine").join("run");
+        let marker_dir = ws
+            .path()
+            .join(".2brain")
+            .join(crate::repo::ENGINE_RUNTIME_DIR)
+            .join("run");
 
         // The saga parked, opened its marker, wrote, then crashed before settling.
         let preimages = park_preimages(&marker_dir, &plan).unwrap();
@@ -19428,10 +19431,10 @@ mod verb_tests {
     ) {
         let dir = tempfile::tempdir().unwrap();
         let root = std::fs::canonicalize(dir.path()).unwrap().join("v");
-        std::fs::create_dir_all(root.join(".arsumbris")).unwrap();
+        std::fs::create_dir_all(root.join(".2brain")).unwrap();
         std::fs::write(
-            root.join(".arsumbris/repo.yaml"),
-            "name: v\ntype: au.engine.repo::au-engine\n",
+            root.join(".2brain/repo.yaml"),
+            "name: v\ntype: tb.engine.repo::tb-engine\n",
         )
         .unwrap();
         std::fs::write(root.join("a.md"), "see [[b]].\n").unwrap();

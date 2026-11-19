@@ -104,7 +104,7 @@ pub struct ResolvedNode {
     /// meta-surfacing walk inherits a peer parent's `meta:` through the fold
     /// without the peer's graph. `None` is no `meta:` key, `Some(vec![])` the
     /// `meta: []` suppression marker. Out of identity (the hash excludes it), like
-    /// the blocks themselves. See [[type-def meta::au-type-system]].
+    /// the blocks themselves. See [[type-def meta::tb-type-system]].
     pub meta_blocks: Option<Vec<MetaBlock>>,
 }
 
@@ -190,7 +190,7 @@ impl ResolutionGraph {
 
 /// Resolve a repo's own graph by its global name, the seam the fold crosses a
 /// `::repo` boundary through. The engine owns the workspace's repos, so only it
-/// can map a repo label to a graph; au-core stays repo-agnostic behind this.
+/// can map a repo label to a graph; tb-core stays repo-agnostic behind this.
 /// `None` for an absent / undeclared repo, so an unresolvable `::repo` edge folds
 /// to nothing and the engine's gate owns the diagnostic.
 pub trait PeerGraphResolver {

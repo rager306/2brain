@@ -125,7 +125,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/type-def-outside-type-dir/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/type-def-outside-type-dir/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -144,7 +144,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/type-def-outside-type-dir/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/type-def-outside-type-dir/.2brain/repo.yaml",
         "section_presence": null
       },
       {

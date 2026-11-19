@@ -5,7 +5,7 @@
 //! by target file, each edge tagged with the slot it fills.
 //!
 //! Only references that resolve to a file are indexed. Dangling and ambiguous
-//! references are already diagnosed by forward validation, see au-core's
+//! references are already diagnosed by forward validation, see tb-core's
 //! reference checks; the graph holds resolved edges, so this pass emits no
 //! diagnostics of its own.
 
@@ -28,7 +28,7 @@ pub enum RefSurface {
     /// A `#:` docstring on a type-def or instance declaration. Navigational
     /// only, so it shares the `navigational` kind with a body prose link; the
     /// surface is what distinguishes a documentation reference from a prose
-    /// mention. See [[type docstring::au-type-system]].
+    /// mention. See [[type docstring::tb-type-system]].
     Docstring,
 }
 
@@ -445,7 +445,7 @@ fn offset_in(parent: &str, child: &str) -> usize {
 /// itself.
 ///
 /// The local form is why this is one function rather than two call sites.
-/// [[type reference::au-type-system]]'s Local form is explicit that resolution skips name
+/// [[type reference::tb-type-system]]'s Local form is explicit that resolution skips name
 /// lookup, so it has no missing outcome — reporting it as dangling (which the
 /// forward read did while the index resolved it) contradicted the spec.
 fn resolve_link(
@@ -522,7 +522,7 @@ fn collect_value_edges(
                 let resolved = resolve_link(source, &link, repo_index, cross);
                 // `nl.raw` is the link's INNER text, so the comparison re-frames
                 // it. Whole-value versus embedded is a VALUE-level fact, settled
-                // by [[type reference::au-type-system]] without any type information: a link
+                // by [[type reference::tb-type-system]] without any type information: a link
                 // inside a longer string is part of that string, never a
                 // reference, whatever the slot admits.
                 let whole_value = raw.trim() == format!("[[{}]]", nl.raw);

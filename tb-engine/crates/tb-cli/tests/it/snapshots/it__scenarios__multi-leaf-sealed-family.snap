@@ -158,7 +158,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/multi-leaf-sealed-family/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/multi-leaf-sealed-family/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -177,7 +177,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/multi-leaf-sealed-family/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/multi-leaf-sealed-family/.2brain/repo.yaml",
         "section_presence": null
       },
       {

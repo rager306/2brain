@@ -10,7 +10,7 @@ tldr: Convert files into Markdown source notes. Keep the originals and add conve
 
 ## What this is
 
-`au-ingest` converts files into Markdown source notes in your 2Brain repo.
+`tb-ingest` converts files into Markdown source notes in your 2Brain repo.
 Each note links to its original file and records when you captured it.
 The original stays unchanged.
 
@@ -26,7 +26,7 @@ Scanned PDFs need OCR before import.
 **Install**
 
 Use Node 24 or newer.
-From the `au-ingest` package directory, install the converter dependencies:
+From the `tb-ingest` package directory, install the converter dependencies:
 
 ```sh
 npm install --prefix converters
@@ -34,8 +34,8 @@ npm install --prefix converters
 
 In your project:
 
-1. Add `au-ingest` to `deps` in `.arsumbris/repo.yaml`
-2. Add `au-ingest` to `discover` in `.arsumbris/workspace.yaml`
+1. Add `tb-ingest` to `deps` in `.2brain/repo.yaml`
+2. Add `tb-ingest` to `discover` in `.2brain/workspace.yaml`
 3. Reopen the workspace and select the `ingest` tool for your agent
 
 **Import**

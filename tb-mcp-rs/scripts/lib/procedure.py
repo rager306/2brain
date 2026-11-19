@@ -99,7 +99,7 @@ def check_one_commit(context: dict) -> str | None:
 # The engine keeps its own state inside the repo it serves; that is not the turn's work.
 # Both identity spellings are listed: a repository migrated to `.2brain` must not look like
 # stray work, and an un-migrated one must keep working.
-IGNORED_STATE = (".2brain/", ".arsumbris/", ".arscontexta/", ".claude/")
+IGNORED_STATE = (".2brain/", ".2brain/", ".arscontexta/", ".claude/")
 
 
 def check_no_stray_files(context: dict) -> str | None:
@@ -269,12 +269,12 @@ def selftest() -> int:
         os.remove(stray)
 
         # ...while engine state under its own directory must not.
-        engine_state = os.path.join(repo, ".arsumbris")
+        engine_state = os.path.join(repo, ".2brain")
         os.makedirs(engine_state, exist_ok=True)
         with open(os.path.join(engine_state, "repo.yaml"), "w", encoding="utf-8") as handle:
             handle.write("name: fixture\n")
         if not MUTATION_TURN.verify({**good, "target_path": target})[0]:
-            failures.append("engine state under .arsumbris/ was counted as stray work")
+            failures.append("engine state under .2brain/ was counted as stray work")
 
         expect_failure("unknown", {**good, "transcript_path": os.path.join(work, "none.txt")}, RECOVERY_TURN)
         expect_failure("no-retry", {**good, "write_calls_after_unknown": 1}, RECOVERY_TURN)

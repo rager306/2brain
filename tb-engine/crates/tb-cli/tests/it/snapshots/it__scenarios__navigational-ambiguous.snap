@@ -161,7 +161,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/navigational-ambiguous/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/navigational-ambiguous/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -180,7 +180,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/navigational-ambiguous/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/navigational-ambiguous/.2brain/repo.yaml",
         "section_presence": null
       },
       {

@@ -17,7 +17,7 @@ fn codes_of(diags: &[tb_diagnostics::Diagnostic]) -> Vec<&str> {
 
 /// Compose a sealed branch list onto an existing type-def. Lets tests
 /// re-use `type_def_with_fields` / `type_def_with_parents` and tack on a
-/// `sealed:` clause. (au-testkit's `type_def_sealed` only builds bare
+/// `sealed:` clause. (tb-testkit's `type_def_sealed` only builds bare
 /// sealed type-defs; we need parent+field+sealed combos.)
 fn with_sealed(mut td: TypeDef, branches: &[&str]) -> TypeDef {
     td.sealed = branches

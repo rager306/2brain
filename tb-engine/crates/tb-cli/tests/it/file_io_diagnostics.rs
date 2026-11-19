@@ -22,7 +22,7 @@ impl FakeFs {
         let mut fs = Self::default();
         // Every knowledge base entry must be a folder-repo. `/v` (basename `v`) carries a
         // matching `name: v`, so no folder-name-mismatch drift.
-        fs.insert("/v/.arsumbris/repo.yaml", b"name: v\n".to_vec());
+        fs.insert("/v/.2brain/repo.yaml", b"name: v\n".to_vec());
         fs
     }
 
@@ -297,8 +297,8 @@ fn broken_symlink_surfaces_a_walk_error() {
     // a `repo-walk-error` diagnostic.
     let tmp = tempfile::tempdir().unwrap();
     // The entry must be a folder-repo.
-    std::fs::create_dir_all(tmp.path().join(".arsumbris")).unwrap();
-    std::fs::write(tmp.path().join(".arsumbris/repo.yaml"), b"name: v\n").unwrap();
+    std::fs::create_dir_all(tmp.path().join(".2brain")).unwrap();
+    std::fs::write(tmp.path().join(".2brain/repo.yaml"), b"name: v\n").unwrap();
     std::fs::write(
         tmp.path().join("good.type.yaml"),
         b"fields:\n  description: String\n",
@@ -405,7 +405,7 @@ fn asset_binaries_are_not_parsed_but_stay_catalogued() {
         "asset binaries must not trigger yaml-parse-error; got {codes:?}"
     );
     assert!(!kb.instances.is_empty(), "good.md is still validated");
-    // PDF + PNG + good.md + note.type.yaml + the folder-repo's .arsumbris/repo.yaml
+    // PDF + PNG + good.md + note.type.yaml + the folder-repo's .2brain/repo.yaml
     // node = 5 catalogued files.
     assert_eq!(
         kb.catalog.size(),

@@ -1,8 +1,8 @@
-//! The au-testkit proptest invariants as one linked binary.
+//! The tb-testkit proptest invariants as one linked binary.
 //!
 //! Every former `tests/<name>.rs` is a submodule here, so the crate links
 //! one test binary and compiles proptest once. Run one former file with
-//! `cargo test -p au-testkit --test it <name>::`.
+//! `cargo test -p tb-testkit --test it <name>::`.
 
 mod body_scanner_invariants;
 mod body_typing_invariants;

@@ -1,7 +1,7 @@
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path'
 import { existsSync } from 'node:fs'
 
-const type = name => `${name}::au-tree-research`
+const type = name => `${name}::tb-tree-research`
 const identity = value => `${value.name}:${value.hash}`
 const inside = (root, path) => { const rel = relative(root, path); return !isAbsolute(rel) && rel !== '..' && !rel.startsWith(`..${sep}`) }
 const badQualification = new Set(['mixin-collision', 'mixed-bare-and-qualified-field', 'malformed-qualifier-key',
@@ -170,7 +170,7 @@ export function createPlugin({ broker }) {
       }
       const index = `${lines.join('\n')}\n`
       const content = existing ? replaceIndex(existing.instance, old.text, index) :
-        `---\ntype: map.computed-index::au-tree-research\ntldr: ${JSON.stringify('Computed map of the ' + fieldName + ' tree.')}\npremise: ${JSON.stringify(await link(notes.get(input.premise)))}\n---\n\n# Index\n\n${index}`
+        `---\ntype: map.computed-index::tb-tree-research\ntldr: ${JSON.stringify('Computed map of the ' + fieldName + ' tree.')}\npremise: ${JSON.stringify(await link(notes.get(input.premise)))}\n---\n\n# Index\n\n${index}`
       const result = { path, status: input.dry_run ? 'preview' : old?.text === content ? 'unchanged' : 'saved', warnings }
       if (input.dry_run) result.preview = content
       if (result.status === 'saved') {

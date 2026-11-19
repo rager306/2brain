@@ -88,32 +88,18 @@ fn help_and_info_agree_on_the_surface() {
 }
 
 /// A consumer who has only the installed binary must be able to reach the migration the
-/// engine documents. `au migrate identity` was the one engine subcommand `2brain` did not
+/// engine documents. `tb-engine migrate identity` was the one engine subcommand `2brain` did not
 /// re-export, so a workspace owner had to know a second binary existed.
 #[test]
-fn migrate_identity_is_reachable_from_the_installed_binary() {
+fn migrate_identity_is_reachable_and_reports_a_current_repository() {
     let temp = tempfile::tempdir().unwrap();
     let home = temp.path().join("home");
     std::fs::create_dir_all(&home).unwrap();
-    let repo = temp.path().join("legacy");
-    std::fs::create_dir_all(repo.join(".arsumbris")).unwrap();
-    let identity = repo.join(".arsumbris/repo.yaml");
-    let legacy = "type: au.engine.repo::au-engine\nname: legacy\n";
-    std::fs::write(&identity, legacy).unwrap();
-    for args in [
-        vec!["init", "-q", "-b", "main"],
-        vec!["config", "user.email", "migrate@example.test"],
-        vec!["config", "user.name", "migrate test"],
-        vec!["add", "-A"],
-        vec!["commit", "-q", "-m", "legacy"],
-    ] {
-        let git = Command::new("git")
-            .args(&args)
-            .current_dir(&repo)
-            .output()
-            .expect("git runs");
-        assert!(git.status.success(), "git {args:?}: {git:?}");
-    }
+    let repo = temp.path().join("repo");
+    std::fs::create_dir_all(repo.join(".2brain")).unwrap();
+    let identity = repo.join(".2brain/repo.yaml");
+    let repo_yaml = "type: tb.engine.repo::tb-engine\nname: repo\n";
+    std::fs::write(&identity, repo_yaml).unwrap();
 
     let run = unified()
         .args(["migrate", "identity"])
@@ -130,21 +116,21 @@ fn migrate_identity_is_reachable_from_the_installed_binary() {
         String::from_utf8_lossy(&run.stderr)
     );
     assert!(
-        stdout.contains("plan for 1 repository"),
-        "the plan names what it will do: {stdout}"
+        stdout.contains("1 repository"),
+        "it names the count: {stdout}"
     );
     assert!(
-        stdout.contains("legacy"),
-        "the plan names the repo: {stdout}"
+        stdout.contains("repo: current"),
+        "it names the repo: {stdout}"
     );
     assert!(
-        stdout.contains("dry run, nothing was written"),
-        "a dry run says so: {stdout}"
+        stdout.contains("nothing to do"),
+        "a current repository has nothing to migrate: {stdout}"
     );
     assert_eq!(
         std::fs::read_to_string(&identity).unwrap(),
-        legacy,
-        "a dry run must not touch the tree"
+        repo_yaml,
+        "the check must not touch the tree"
     );
 }
 
@@ -277,7 +263,7 @@ fn the_mcp_subcommand_documents_the_server_contract() {
 
 #[test]
 fn engine_subcommands_are_delegated_not_reimplemented() {
-    // `members` on a directory without `.arsumbris/repo.yaml` fails the same way
+    // `members` on a directory without `.2brain/repo.yaml` fails the same way
     // the engine's own binary does, which shows the delegation is real.
     let temp = tempfile::tempdir().unwrap();
     let output = unified().arg("members").arg(temp.path()).output().unwrap();

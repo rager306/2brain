@@ -204,7 +204,7 @@ pub(crate) fn validate_value_verdicts(
 ///
 /// Two callers, two scopes:
 /// - the `device_config` read passes `Some(BUILTIN_ENGINE_REPO)`, so a hardwired
-///   `au.engine.*` def (`repos.yaml` / `workspaces.yaml`) resolves in the builtin
+///   `tb.engine.*` def (`repos.yaml` / `workspaces.yaml`) resolves in the builtin
 ///   graph.
 /// - the scoped config channel passes the served entry (machine scope) or the
 ///   owning member (repo scope), so a CONSUMER type resolves in that graph; a
@@ -254,7 +254,7 @@ pub(crate) fn validate_device_file(
 /// returns the diagnostics with real byte spans.
 ///
 /// Frontmatter only: a `.md` body's diagnostics are not counted, so the gate's
-/// error-count delta is a frontmatter delta. au-workflow's plans are bodyless
+/// error-count delta is a frontmatter delta. tb-workflow's plans are bodyless
 /// typed-YAML, so this is exact for them; a body-bearing editor is a follow-up.
 pub(crate) fn validate_instance_content(
     kb: &KnowledgeBase,

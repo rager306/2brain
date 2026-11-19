@@ -1,5 +1,5 @@
 title: "Inline code starting with `[:` that deviates from `[:fieldName] value` fires malformed-attribution-marker"
-spec_ref: "[[type-instance body contribution::au-type-system]]"
+spec_ref: "[[type-instance body contribution::tb-type-system]]"
 command: validate
 expected:
   codes:

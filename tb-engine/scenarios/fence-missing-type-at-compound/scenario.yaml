@@ -1,5 +1,5 @@
 title: "A claim-less fence record at a compound slot must declare which branch it satisfies"
-spec_ref: "[[type-def shape record::au-type-system]], [[spec - diagnostic codes::au-type-system^inline-value-missing-type]]"
+spec_ref: "[[type-def shape record::tb-type-system]], [[spec - diagnostic codes::tb-type-system^inline-value-missing-type]]"
 command: validate
 expected:
   codes:

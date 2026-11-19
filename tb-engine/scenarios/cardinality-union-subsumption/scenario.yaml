@@ -1,5 +1,5 @@
 title: "`<T[] | T[+]>` slot — wider branch subsumes narrower"
-spec_ref: "[[type-def shape compound::au-type-system]]"
+spec_ref: "[[type-def shape compound::tb-type-system]]"
 command: graph
 expected:
   codes:

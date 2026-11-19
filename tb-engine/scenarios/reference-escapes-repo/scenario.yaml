@@ -1,5 +1,5 @@
 title: "A path target that leaves its repo is impossible, not merely missing"
-spec_ref: "[[type reference::au-type-system]]"
+spec_ref: "[[type reference::tb-type-system]]"
 command: validate
 expected:
   codes:

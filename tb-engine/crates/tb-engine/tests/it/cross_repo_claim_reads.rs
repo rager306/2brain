@@ -23,11 +23,11 @@ fn fixture() -> (tempfile::TempDir, PathBuf) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w("base/type/note.type.yaml", "fields:\n  detail?: any\n");
     w("base/type/dm.type.yaml", "fields: {}\n");
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // Top-level claim `note::base`; an inline record under `detail` claims
@@ -65,7 +65,7 @@ fn resolve_block_id_infers_the_owner_qualified_claim_for_a_slot_pinned_record() 
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w(
         "base/type/research-extraction.type.yaml",
         "fields:\n  concepts?: concept-candidate&[]\n",
@@ -75,7 +75,7 @@ fn resolve_block_id_infers_the_owner_qualified_claim_for_a_slot_pinned_record() 
         "fields:\n  salience?: String\n",
     );
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // A claim-less slot-pinned record carrying block-id c1, in a peer-claiming host.
@@ -123,7 +123,7 @@ fn value_layer_resolves_a_slot_pinned_cross_repo_nested_records_reference_field(
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w(
         "base/type/research-extraction.type.yaml",
         "fields:\n  concepts?: concept-candidate&[]\n",
@@ -135,7 +135,7 @@ fn value_layer_resolves_a_slot_pinned_cross_repo_nested_records_reference_field(
         "fields:\n  salience?: String\n  link?: file*\n",
     );
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     w("app/target.md", "a plain note\n");
@@ -210,7 +210,7 @@ fn value_layer_resolves_every_member_of_a_cross_repo_mixin_nested_record() {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w(
         "base/type/research-extraction.type.yaml",
         "fields:\n  concepts?: concept-candidate&[]\n",
@@ -223,7 +223,7 @@ fn value_layer_resolves_every_member_of_a_cross_repo_mixin_nested_record() {
     // observable only if that member's shape resolves.
     w("base/type/extra-tag.type.yaml", "fields:\n  link?: file*\n");
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     w("app/target.md", "a plain note\n");
@@ -280,10 +280,10 @@ fn closure_renders_a_cross_repo_ancestor_qualified() {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w("base/type/note.type.yaml", "fields:\n  detail?: any\n");
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // An app-owned subtype of a base type, and an instance claiming it bare.
@@ -328,10 +328,10 @@ fn closure_renders_a_cross_repo_diamond_as_two_identities() {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w("base/type/note.type.yaml", "fields:\n  detail?: any\n");
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // app's OWN `note`, diverged from base's by an extra field, so the two carry
@@ -382,10 +382,10 @@ fn closure_renders_an_in_sync_shared_identity_owner_relative() {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, content).unwrap();
     };
-    w("base/.arsumbris/repo.yaml", "name: base\n");
+    w("base/.2brain/repo.yaml", "name: base\n");
     w("base/type/note.type.yaml", "fields:\n  detail?: any\n");
     w(
-        "app/.arsumbris/repo.yaml",
+        "app/.2brain/repo.yaml",
         "name: app\ndeps:\n  - name: base\n",
     );
     // app's OWN note, byte-identical to base's -> same ClosureHash -> one node.

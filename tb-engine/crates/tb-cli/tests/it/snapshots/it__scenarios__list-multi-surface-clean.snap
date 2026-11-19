@@ -99,7 +99,7 @@ expression: rendered
                         },
                         "start": 6
                       },
-                      "file": "<root>/scenarios/list-multi-surface-clean/.arsumbris/repo.yaml"
+                      "file": "<root>/scenarios/list-multi-surface-clean/.2brain/repo.yaml"
                     },
                     "section_path": [],
                     "surface": "frontmatter",
@@ -118,7 +118,7 @@ expression: rendered
             "field": "name"
           }
         ],
-        "file": "<root>/scenarios/list-multi-surface-clean/.arsumbris/repo.yaml",
+        "file": "<root>/scenarios/list-multi-surface-clean/.2brain/repo.yaml",
         "section_presence": null
       },
       {

@@ -32,12 +32,12 @@ use crate::resolution::ResolutionGraph;
 use crate::typedef::{FieldDecl, FieldName, TypeDef, TypeName, TypeNameClaim};
 use crate::validate::CrossRepoResolver;
 
-/// Primitive shape names (spec [[type-def shape primitive::au-type-system]]). Reserved as type-def names — claiming
+/// Primitive shape names (spec [[type-def shape primitive::tb-type-system]]). Reserved as type-def names — claiming
 /// one as a user type-def's name is a load error. Also referenced by
 /// `primitive_typo_hint` for the lowercase-typo case in slot references.
 const PRIMITIVE_NAMES: &[&str] = &["String", "Number", "Boolean", "Date", "DateTime", "Url"];
 
-/// Built-in reference targets ([[type-def shape file::au-type-system]]) that resolve at validate time
+/// Built-in reference targets ([[type-def shape file::tb-type-system]]) that resolve at validate time
 /// without a corresponding type-def. Reserved as type-def names; slot-
 /// reference graph-presence checks skip these too.
 const BUILT_IN_REFERENCE_TARGETS: &[&str] = &["file", "any"];
@@ -151,7 +151,7 @@ fn check_brand_xor_record(td: &TypeDef, diags: &mut Vec<Diagnostic>) {
 /// Inheritance checks layered on top of the graph: redeclaration and
 /// sealed-family reachability.
 ///
-/// "Inherited-field removal" is listed in [[type validation::au-type-system]] as a load error but is
+/// "Inherited-field removal" is listed in [[type validation::tb-type-system]] as a load error but is
 /// structurally moot in V1 — there is no syntactic mechanism for a subtype to
 /// remove an inherited field, so the constraint is enforced by construction.
 /// If a removal mechanism is introduced later, it lands here.
@@ -165,7 +165,7 @@ pub fn run_inheritance_checks(graph: &TypeGraph) -> Vec<Diagnostic> {
     diags
 }
 
-/// Body-typing load checks ([[type-def body use::au-type-system]], [[type-def body fills::au-type-system]]): every `use: T` target is in
+/// Body-typing load checks ([[type-def body use::tb-type-system]], [[type-def body fills::tb-type-system]]): every `use: T` target is in
 /// the host's closure, splice graphs are acyclic, fills bind only to in-closure
 /// fields that exist, nested fills don't conflict with
 /// ancestor exclusivity.
@@ -189,13 +189,13 @@ pub fn run_body_typing_checks(graph: &TypeGraph) -> Vec<Diagnostic> {
 /// subtype's own `location` over a field or body inherited from a cross-repo
 /// parent (or spliced from a cross-repo `use:`) resolves the peer's contribution,
 /// the parity of the per-instance side ([[crates/tb-core/src/location_check.rs]]).
-/// Absent (the builtin schema, a non-importing repo, a direct au-core test), they
+/// Absent (the builtin schema, a non-importing repo, a direct tb-core test), they
 /// run over the own graph, where a `::repo` claim cannot resolve anyway.
 ///
 /// Runs POST-FOLD, so it does not gate the repo's abort: a broken `location`
 /// block is an advisory-placement defect, and suppressing every instance's
 /// validation over a filing-convention typo is disproportionate, per
-/// [[type open-world validation::au-type-system]].
+/// [[type open-world validation::tb-type-system]].
 pub fn run_location_checks(
     graph: &TypeGraph,
     resolution: Option<&ResolutionGraph>,
@@ -370,7 +370,7 @@ fn walk_fills<'a>(
     exclusive_stack: &mut Vec<ExclusiveFrame<'a>>,
     diags: &mut Vec<Diagnostic>,
 ) {
-    // Two-pass: [[type-def body fills::au-type-system]] body-level `fills!:` constrains every section at
+    // Two-pass: [[type-def body fills::tb-type-system]] body-level `fills!:` constrains every section at
     // this level regardless of its position within `items`. So we push
     // body-level exclusive frames first, walk sections second, then
     // pop the body-level frames.
@@ -443,7 +443,7 @@ fn check_fills_contract(
         let field_name = claim.name.as_str();
 
         // Conflict with any ancestor `fills!:` whose allowed-field set
-        // doesn't contain this claim. Per [[type-def body fills::au-type-system]]: a descendant claim is
+        // doesn't contain this claim. Per [[type-def body fills::tb-type-system]]: a descendant claim is
         // valid iff it's in EVERY enclosing exclusive ancestor's
         // allowed set. First violating ancestor wins the diagnostic
         // (closest declaration site is most actionable).
@@ -692,7 +692,7 @@ fn check_body_use_cycles(graph: &TypeGraph, diags: &mut Vec<Diagnostic>) {
     }
 }
 
-// ----- type-def parent claim: redundancy + mixin-collision ([[type-instance type::au-type-system]], [[type-def fields collision - auto-unify and qualified field::au-type-system]]) -----
+// ----- type-def parent claim: redundancy + mixin-collision ([[type-instance type::tb-type-system]], [[type-def fields collision - auto-unify and qualified field::tb-type-system]]) -----
 
 /// Type-def-level parallel of the validator's instance-claim redundant-
 /// claim warnings. Emits `duplicate-claim` and `subsumption-in-mixin` at
@@ -713,7 +713,7 @@ fn check_parent_redundant_claims(graph: &TypeGraph, td: &TypeDef, diags: &mut Ve
 
 // A type-def-level mixin-collision check (walk the parents' closures and emit
 // `mixin-collision` for a field whose origins disagree on shape) does not exist.
-// A divergent inherited field is LEGAL at a type-def ([[type-def fields collision - auto-unify and qualified field::au-type-system]]): the type is
+// A divergent inherited field is LEGAL at a type-def ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]): the type is
 // not broken, and the collision surfaces per-instance at a bare use, where it can
 // actually be resolved by a qualifier. So there is no type-graph-load
 // mixin-collision check; the validator emits it against an instance's claim list.
@@ -797,7 +797,7 @@ fn check_type_name_regex(td: &TypeDef, diags: &mut Vec<Diagnostic>) {
 fn check_reserved_type_name(td: &TypeDef, diags: &mut Vec<Diagnostic>) {
     let name = td.name.as_str();
     // `any` is checked before the reference-target list so it keeps its own
-    // detail even once it joins that list as a reference target ([[type-def shape any::au-type-system]]).
+    // detail even once it joins that list as a reference target ([[type-def shape any::tb-type-system]]).
     let detail = if name == "any" {
         "no-type slot shape"
     } else if name == "opaque" {
@@ -1104,7 +1104,7 @@ fn primitive_typo_hint(name: &str) -> Option<&'static str> {
         .find(|&p| name != p && name.eq_ignore_ascii_case(p))
 }
 
-// ----- subsumption-in-slot-union / -intersection (spec [[type-def shape compound::au-type-system]]) -----
+// ----- subsumption-in-slot-union / -intersection (spec [[type-def shape compound::tb-type-system]]) -----
 
 /// Slot-union subsumption check. Walks every field's shape; for each Union
 /// (bare or `<...>*` / `<...>&` CompoundReference) collects the reference-
@@ -1126,7 +1126,7 @@ fn check_slot_union_subsumption(td: &TypeDef, graph: &TypeGraph, diags: &mut Vec
 }
 
 /// Slot-intersection subsumption check, mirror of the union case (spec
-/// [[type-def shape compound::au-type-system]]): `<A & B>` where one branch's closure includes the other
+/// [[type-def shape compound::tb-type-system]]): `<A & B>` where one branch's closure includes the other
 /// collapses to the narrower branch. Same pairwise structure, same
 /// "wider branch flagged as redundant" convention.
 fn check_slot_intersection_subsumption(
@@ -1176,7 +1176,7 @@ fn check_slot_compound_subsumption(
                     }
                     // `nj` is the wider branch (it subsumes `ni`) when it is
                     // the universal `any` target, or it is an ancestor of
-                    // `ni` in the graph. `any*` ([[type-def shape any::au-type-system]]) accepts every
+                    // `ni` in the graph. `any*` ([[type-def shape any::tb-type-system]]) accepts every
                     // value any other reference branch would, including `file*`
                     // and any typed `T*`, so it subsumes them.
                     // Which branch is redundant depends on the operator:
@@ -1243,14 +1243,14 @@ fn format_subsumption_message(
     }
 }
 
-/// Cardinality-refinement subsumption (spec [[type-def shape compound::au-type-system]]): pairs of branches in
+/// Cardinality-refinement subsumption (spec [[type-def shape compound::tb-type-system]]): pairs of branches in
 /// the same Union/Intersection that share an `inner` shape but differ on
 /// `non_empty`. `T[+]` is a strict subset of `T[]`, so `<T[] | T[+]>`
 /// warns (wider subsumes narrower) and `<T[] & T[+]>` collapses to
 /// `T[+]` (the wider is redundant). Parallel to the closure-inclusion
-/// check above; same diagnostic codes since spec [[type-def shape compound::au-type-system]] treats both as
+/// check above; same diagnostic codes since spec [[type-def shape compound::tb-type-system]] treats both as
 /// one family ("strictly narrower constraint").
-/// `refinement-unsatisfiable`: a field whose value refinement ([[type-def field shape::au-type-system]])
+/// `refinement-unsatisfiable`: a field whose value refinement ([[type-def field shape::tb-type-system]])
 /// has a numeric meet that admits no value. A `Warning` on the field's shape;
 /// the validator suppresses the per-value `value-out-of-refinement` for such a slot.
 fn check_refinement_unsatisfiable(td: &TypeDef, diags: &mut Vec<Diagnostic>) {
@@ -1293,7 +1293,7 @@ fn check_refinement_unsatisfiable(td: &TypeDef, diags: &mut Vec<Diagnostic>) {
 
 /// `refinement-bad-shape` at load: a value refinement whose regex does not
 /// compile, or whose `Date` / `DateTime` bound literal is not a valid date.
-/// The parse-time shape errors are separate ([[type-def field shape::au-type-system]]).
+/// The parse-time shape errors are separate ([[type-def field shape::tb-type-system]]).
 fn check_refinement_load_errors(td: &TypeDef, diags: &mut Vec<Diagnostic>) {
     fn walk(shape: &Shape, out: &mut Option<String>) {
         if out.is_some() {
@@ -1556,7 +1556,7 @@ fn check_duplicate_meta(td: &TypeDef, diags: &mut Vec<Diagnostic>) {
         HashMap::new();
     // `Option<Vec<MetaBlock>>::iter().flatten()` yields `&MetaBlock`. The
     // None case (no `meta:` key) and the Some(vec![]) case (suppression
-    // marker per [[type-def meta::au-type-system]]) both flatten to an empty iterator — no duplicates.
+    // marker per [[type-def meta::tb-type-system]]) both flatten to an empty iterator — no duplicates.
     for block in td.meta_blocks.iter().flatten() {
         let key = (&block.type_name, block.repo.as_deref());
         let shown = match &block.repo {
@@ -1585,9 +1585,9 @@ fn check_duplicate_meta(td: &TypeDef, diags: &mut Vec<Diagnostic>) {
 // ----- field redeclaration -----
 
 /// Emit `field-redeclaration` for any field a type-def declares that an
-/// ancestor already declares (width-only subtyping, [[type subtyping width-only::au-type-system]]).
+/// ancestor already declares (width-only subtyping, [[type subtyping width-only::tb-type-system]]).
 ///
-/// This can co-fire with `mixin-collision` ([[type-def fields collision - auto-unify and qualified field::au-type-system]]) on one
+/// This can co-fire with `mixin-collision` ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]) on one
 /// type-def: the parents disagree on a field's shape AND the type-def
 /// redeclares it. The two are independent problems with independent fixes —
 /// removing the redeclaration leaves the parent disagreement, and reconciling
@@ -1790,7 +1790,7 @@ fn dfs(
     explored.insert(name.clone());
 }
 
-/// [[type-instance type::au-type-system]] redundant-claims rule.
+/// [[type-instance type::tb-type-system]] redundant-claims rule.
 ///
 /// Scans a `type:` claim list for two redundancy patterns:
 /// 1. **Duplicate claim** — repeated name in the list. Emits one
@@ -2054,7 +2054,7 @@ mod tests {
 
     fn run_location(defs: Vec<TypeDef>) -> Vec<Diagnostic> {
         // Own-graph path (no imports); the cross-repo path is exercised by an
-        // au-engine two-repo integration test.
+        // tb-engine two-repo integration test.
         super::run_location_checks(&build_graph(defs).graph, None, None)
     }
 
@@ -2243,7 +2243,7 @@ mod tests {
 
     #[test]
     fn bare_name_parent_claim_no_longer_flagged() {
-        // Rule 3 ([[type list form::au-type-system]]): bare scalar is the natural single-claim form on
+        // Rule 3 ([[type list form::tb-type-system]]): bare scalar is the natural single-claim form on
         // type-defs as well; no load error.
         let mut td = td_parents("decision", &["note"]);
         td.parent_claim = Some(ParentClaim {
@@ -2260,7 +2260,7 @@ mod tests {
     #[test]
     fn qualified_parent_is_deferred_not_absent() {
         // `type: base::peer` is a peer parent resolved by the cross-repo fold;
-        // au-core defers it, so `parent-references-absent-type` must not fire
+        // tb-core defers it, so `parent-references-absent-type` must not fire
         // even though `base` is absent from this own graph.
         let mut td = empty_td("child");
         td.parent_claim = Some(ParentClaim {
@@ -2756,7 +2756,7 @@ mod tests {
     #[test]
     fn def_ref_bound_to_absent_type_fires_slot_references_absent_type() {
         // `type<mcp.tool>*` names `mcp.tool` as a ceiling; if it's absent the
-        // bound is a dangling slot ([[type-def shape def-ref::au-type-system]]).
+        // bound is a dangling slot ([[type-def shape def-ref::tb-type-system]]).
         let diags = run(vec![td_with_def_ref_field(
             "mode",
             "propose_tool",
@@ -2772,7 +2772,7 @@ mod tests {
 
     #[test]
     fn pinned_reference_to_absent_type_fires_slot_references_absent_type() {
-        // `T*@` ([[type-def shape suffixes::au-type-system]]) wraps a reference; its bound type must
+        // `T*@` ([[type-def shape suffixes::tb-type-system]]) wraps a reference; its bound type must
         // exist, so the absent-type check descends through the pin.
         let pinned_field = TypeDef {
             shape: None,
@@ -3127,7 +3127,7 @@ mod tests {
     #[test]
     fn canonical_primitive_form_does_not_get_hint() {
         // The canonical form (`String`) is a recognized primitive in
-        // au-grammar — so `target: String` parses as
+        // tb-grammar — so `target: String` parses as
         // `Shape::Primitive(String)`, NOT `Shape::Record("String")`.
         // The slot-references-absent-type check never sees "String"
         // as a referenced name; the test is a regression lock against
@@ -3209,11 +3209,11 @@ mod tests {
         assert!(absent[0].message.contains("thesis"));
     }
 
-    // ----- subsumption-in-slot-union (spec [[type-def shape compound::au-type-system]]) -----
+    // ----- subsumption-in-slot-union (spec [[type-def shape compound::tb-type-system]]) -----
     //
     // Symmetric to `subsumption-in-mixin` but on slot-union branches.
     // Fires only when both endpoints are reference branches whose closures
-    // are comparable. Intersection slots are silent per [[type-def shape compound::au-type-system]].
+    // are comparable. Intersection slots are silent per [[type-def shape compound::tb-type-system]].
 
     fn ref_(name: &str) -> tb_grammar::Shape {
         tb_grammar::Shape::Reference(name.into())
@@ -3251,7 +3251,7 @@ mod tests {
 
     #[test]
     fn slot_union_any_star_subsumes_file_star() {
-        // `any*` ([[type-def shape any::au-type-system]]) is the universal reference target, wider than
+        // `any*` ([[type-def shape any::tb-type-system]]) is the universal reference target, wider than
         // `file*`, so `<file* | any*>` fires with `file*` redundant.
         let diags = run_struct(vec![td_with_typed_field(
             "ev",
@@ -3344,7 +3344,7 @@ mod tests {
     #[test]
     fn slot_intersection_with_subsumption_fires_warning() {
         // `<decision & decision.decided>` collapses to `decision.decided`
-        // per spec [[type-def shape compound::au-type-system]]; the wider `decision` branch is redundant.
+        // per spec [[type-def shape compound::tb-type-system]]; the wider `decision` branch is redundant.
         let diags = run_struct(vec![
             empty_td("decision"),
             td_parents("decision.decided", &["decision"]),
@@ -3375,7 +3375,7 @@ mod tests {
     #[test]
     fn slot_intersection_with_disjoint_branches_is_silent() {
         // `<decision & maturity>` — disjoint closures, intersection may
-        // be uninhabited in practice but spec [[type-def shape compound::au-type-system]] explicitly leaves
+        // be uninhabited in practice but spec [[type-def shape compound::tb-type-system]] explicitly leaves
         // uninhabitability unenforced. Only subsumption fires.
         let diags = run_struct(vec![
             empty_td("decision"),
@@ -3426,7 +3426,7 @@ mod tests {
 
     #[test]
     fn slot_union_with_cardinality_refinement_fires_warning() {
-        // [[type-def shape compound::au-type-system]]: `<T[] | T[+]>` — T[+] is a strict subset of T[]; the
+        // [[type-def shape compound::tb-type-system]]: `<T[] | T[+]>` — T[+] is a strict subset of T[]; the
         // wider branch subsumes the narrower. One warning per pair, same
         // code as closure-inclusion subsumption.
         let str_list = tb_grammar::Shape::List {
@@ -3459,7 +3459,7 @@ mod tests {
 
     #[test]
     fn slot_intersection_with_cardinality_refinement_fires_warning() {
-        // [[type-def shape compound::au-type-system]] mirror: `<T[] & T[+]>` collapses to T[+]; T[] is redundant.
+        // [[type-def shape compound::tb-type-system]] mirror: `<T[] & T[+]>` collapses to T[+]; T[] is redundant.
         let str_list = tb_grammar::Shape::List {
             inner: Box::new(tb_grammar::Shape::Primitive(tb_grammar::Primitive::String)),
             min: 0,
@@ -3776,7 +3776,7 @@ mod tests {
 
     #[test]
     fn type_def_with_diverging_parents_loads_clean() {
-        // A divergent inherited field is LEGAL at the type-def ([[type-def fields collision - auto-unify and qualified field::au-type-system]]):
+        // A divergent inherited field is LEGAL at the type-def ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]):
         // the type is not broken, and the collision can only be resolved
         // per-instance at a bare use. So the type-graph load fires nothing; the
         // validator emits `mixin-collision` against an instance's claim list.
@@ -3817,7 +3817,7 @@ mod tests {
         );
     }
 
-    // ----- [[type-def field shape::au-type-system]] / [[aspiration - type system ideas]] prose-extractability for `fills:` bindings -----
+    // ----- [[type-def field shape::tb-type-system]] / [[aspiration - type system ideas]] prose-extractability for `fills:` bindings -----
 
     fn td_with_body_fills(
         name: &str,
@@ -3906,7 +3906,7 @@ mod tests {
         run_body_typing_checks(&g)
     }
 
-    // ----- [[type-def body fills::au-type-system]] nested-exclusivity propagation for multi-field `fills!:` -----
+    // ----- [[type-def body fills::tb-type-system]] nested-exclusivity propagation for multi-field `fills!:` -----
 
     /// Build a type-def with a single String field `name` and a body
     /// shaped `[Section parent (fills! parent_fields) { Section child
@@ -4079,7 +4079,7 @@ mod tests {
         );
     }
 
-    // ----- `use:` cycle detection ([[type-def body use::au-type-system]] acyclicity) -----
+    // ----- `use:` cycle detection ([[type-def body use::tb-type-system]] acyclicity) -----
 
     /// TypeDef builder: name has body `[use: t1, use: t2, ...]`. Parent
     /// links each target so `use:` falls within the host's closure (a
@@ -4260,10 +4260,10 @@ mod tests {
         );
     }
 
-    // ----- [[type-def body fills::au-type-system]] body-level `fills!:` propagation -----
+    // ----- [[type-def body fills::tb-type-system]] body-level `fills!:` propagation -----
 
     /// Build a type-def whose body has both a body-level Fills item and
-    /// a single Section with its own fills. Used to drive the [[type-def body fills::au-type-system]]
+    /// a single Section with its own fills. Used to drive the [[type-def body fills::tb-type-system]]
     /// body-scope exclusivity check.
     fn td_with_body_level_fills_and_section(
         td_name: &str,
@@ -4354,7 +4354,7 @@ mod tests {
     }
 
     /// Body `[section: S (fills: b), fills!: a]` — body-level Fills
-    /// declared AFTER the section must still constrain it, since [[type-def body fills::au-type-system]]
+    /// declared AFTER the section must still constrain it, since [[type-def body fills::tb-type-system]]
     /// applies the constraint to the whole body regardless of position.
     #[test]
     fn body_level_fills_exclusive_constrains_section_before_it() {

@@ -222,7 +222,7 @@ fn body_and_value_tokens_for_a_typed_instance() {
 #[test]
 fn local_wikilinks_resolve_to_the_current_file() {
     // A local link (empty target + a locating fragment) targets the file it appears
-    // in, per [[type reference::au-type-system]], so none is broken. Resolving the empty name against
+    // in, per [[type reference::tb-type-system]], so none is broken. Resolving the empty name against
     // the repo index would have marked all three broken.
     let mut h = started();
     let toks = tokens(&mut h, "content/local.md");

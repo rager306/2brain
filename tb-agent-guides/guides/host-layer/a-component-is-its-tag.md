@@ -16,7 +16,7 @@ Typed metadata describes:
 - States
 - Parts
 
-Inspect [[au-button::au-component-catalog:example]] for a concrete contract.
+Inspect [[tb-button::tb-component-catalog:example]] for a concrete contract.
 
 **Supply the implementation through a set**
 

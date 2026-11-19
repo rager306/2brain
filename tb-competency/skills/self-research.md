@@ -1,8 +1,8 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: self-research
 description: >-
-  Investigates methods through au-tree-research to support workspace design choices.
+  Investigates methods through tb-tree-research to support workspace design choices.
   Use for a competency's missing methods, a gap returned by propose or interrupted research.
   Propose chooses local changes and improve implements them.
 ---
@@ -21,7 +21,7 @@ A direct brief needs no fabricated competency.
 
 Study the relevant discipline's methods.
 Keep candidate mechanisms open to comparison.
-Use [[a-kind-or-a-question::au-agent-guides]] when existing authoring guidance may settle the choice.
+Use [[a-kind-or-a-question::tb-agent-guides]] when existing authoring guidance may settle the choice.
 Research is useful when the missing method could change the design.
 
 Honor the caller's scope and budget.
@@ -39,14 +39,14 @@ A field can serve several competencies.
 Reuse a suitable field and recover unfinished preparation before creating another.
 Carry known scope forward and ask only about unresolved boundaries that affect the investigation.
 
-Use au-tree-research for the work it owns:
+Use tb-tree-research for the work it owns:
 
 | Need | Skill |
 | --- | --- |
-| Establish a field | [[research-premise::au-tree-research]] |
-| Develop missing questions | [[mediate::au-tree-research]] |
-| Answer a question or recover research | [[research::au-tree-research]] |
-| Update the field's map | [[refresh-map::au-tree-research]] |
+| Establish a field | [[research-premise::tb-tree-research]] |
+| Develop missing questions | [[mediate::tb-tree-research]] |
+| Answer a question or recover research | [[research::tb-tree-research]] |
+| Update the field's map | [[refresh-map::tb-tree-research]] |
 
 Read the selected skills and their current contracts before dependent work.
 Mediation invokes refresh-map, which requires refresh_research_map.
@@ -56,7 +56,7 @@ Report missing delivery and distinguish following source instructions from execu
 Supply the question, available evidence and stopping condition.
 Carry the caller's paths and writing guidance.
 Use the caller's profile or the active profile.
-With neither, use [[core-profile::au-writing-style]].
+With neither, use [[core-profile::tb-writing-style]].
 
 When a competency is supplied, preserve its existing research selection and add relevant whole-file questions where possible.
 The competency selects questions but is not their tree parent.
@@ -78,7 +78,7 @@ A catalogue of approaches does not settle the choice.
 Supported individual claims may still leave the comparison unanswered.
 
 Keep comparisons together when they need one explanation.
-Use [[keep-a-note-whole::au-agent-guides]] for that judgment.
+Use [[keep-a-note-whole::tb-agent-guides]] for that judgment.
 Let the difficulty of the choice determine depth.
 Shared sources do not excuse shallow answers to distinct questions.
 
@@ -124,7 +124,7 @@ Backlinks narrow candidates but do not establish a relation.
 
 Read effective top-level values, including body contributions.
 Exclude nested look-alikes and prose mentions.
-Use [[qualify-colliding-fields::au-agent-guides]] when origins collide.
+Use [[qualify-colliding-fields::tb-agent-guides]] when origins collide.
 If the view omits an authored value, read the qualified frontmatter and combine only same-origin contributions.
 
 Reuse resolved identities and diagnostics.
@@ -138,7 +138,7 @@ Treat unreadable relations as incomplete evidence, not empty selections.
 **Judge support**
 
 Read relevant articles and supplied evidence in full.
-Use [[research::au-tree-research]] and [[article::au-tree-research]] for article requirements and completion checks.
+Use [[research::tb-tree-research]] and [[article::tb-tree-research]] for article requirements and completion checks.
 Judge relevance and support beyond structural validity.
 
 Reuse adequate evidence without copying it.

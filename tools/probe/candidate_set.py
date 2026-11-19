@@ -69,7 +69,7 @@ SCOPES = ("own", "all")
 # The device registry the engine resolves members through. A copy needs its own
 # `HOME` and a registry with the one entry it owns re-pointed at the copy;
 # leaving it at `/root/vault` would make the private daemon index the live vault.
-STATE_REGISTRY = Path("/root/.2brain/au-engine/config/repos.yaml")
+STATE_REGISTRY = Path("/root/.2brain/tb-engine/config/repos.yaml")
 
 # The page size the capture pages with: `SEARCH_MAX_LIMIT`, so the fewest requests
 # cover the whole answer.
@@ -85,7 +85,7 @@ TIMED_PAGE = 1
 # predicate as `scope: own`, and a dependency pinned under `own` is the one case
 # where the two halves of `in_read_scope` disagree (the name matches, the role
 # does not).
-PINNED = [("entry repo", "vault", "own"), ("dependency repo", "au-mcp-sdk", "own")]
+PINNED = [("entry repo", "vault", "own"), ("dependency repo", "tb-mcp-sdk", "own")]
 
 # Two warm-up requests per (query, scope) before any measurement: the first frame
 # pays a page-fault and a cold socket.
@@ -101,7 +101,7 @@ def seed_registry(live: Path, copy: Path, home: Path) -> int:
     whose path IS the live source is re-pointed too. Leaving either at the served
     path would let the private daemon index the live vault.
     """
-    config = home / ".2brain/au-engine/config"
+    config = home / ".2brain/tb-engine/config"
     config.mkdir(parents=True, exist_ok=True)
     if not STATE_REGISTRY.exists():
         # An empty registry mounts the entry alone, so `scope: all` would have
@@ -485,7 +485,7 @@ def main() -> int:
     parser.add_argument(
         "--binary",
         type=Path,
-        default=Path(__file__).resolve().parents[2] / "tb-engine/target/release/au",
+        default=Path(__file__).resolve().parents[2] / "tb-engine/target/release/tb-engine",
         help="the engine binary to start on the copy (default: the workspace release build)",
     )
     parser.add_argument(

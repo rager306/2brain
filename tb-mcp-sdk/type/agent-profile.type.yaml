@@ -10,13 +10,13 @@
 # Both capability list fields are OPEN: the field's PRESENCE is the restriction. Absent means
 # the profile says nothing about that axis, so the session gets the hard default. Present
 # means the list is exhaustive; an empty list means none. See
-# [[decision - 2607222329 - an agent-profile is OPEN over tools, the tools field's presence is the restriction::au-host]].
+# [[decision - 2607222329 - an agent-profile is OPEN over tools, the tools field's presence is the restriction::tb-host]].
 #
-# OWNERSHIP: owned HERE (au-mcp-sdk, the agent contract SDK) — the agent-session vocabulary
-# is the agent layer's, beside the launcher + env contract. A harness launcher (au-host)
+# OWNERSHIP: owned HERE (tb-mcp-sdk, the agent contract SDK) — the agent-session vocabulary
+# is the agent layer's, beside the launcher + env contract. A harness launcher (tb-host)
 # CREATES / EDITS instances (its UI) and SPAWNS the launcher; it does not own the type.
-# See [[decision - 2608221130 - the agent launch surface is a two-layer model owned by the au-mcp family, au-mcp.yaml dropped::au-harness]]
-# and [[spec - agent launch surface - one owned env contract, hard defaults over profiles, a launcher split like gen::au-harness]].
+# See [[decision - 2608221130 - the agent launch surface is a two-layer model owned by the tb-mcp family, tb-mcp.yaml dropped::tb-harness]]
+# and [[spec - agent launch surface - one owned env contract, hard defaults over profiles, a launcher split like gen::tb-harness]].
 #: A named bundle of the capability surface an agent launches with — injected skills, always-on
 #: context, visible tools, and session governance. Quick-loaded at launch; the ad-hoc picker is
 #: an unsaved instance.
@@ -59,7 +59,7 @@ fields:
   hookConfig?: mcp.hook&[+]
   #: The adapter to launch with, as a def-ref to an mcp.adapter subtype (e.g. mcp.adapter.cc). Unlike the
   #: other axes, this is resolved LAUNCHER-SIDE, PRE-launch: the adapter is what SPAWNS the session, so a
-  #: harness launcher (au-host) reads it off the profile to pick which adapter to run — it is not resolved
+  #: harness launcher (tb-host) reads it off the profile to pick which adapter to run — it is not resolved
   #: daemon-side at session-open like `tools`/`hooks`. The launcher locates the adapter's dir from the
   #: def's `source.file` and its entries from `adapter-runtime-meta`. Absent = the launcher's default
   #: adapter (hard defaults over profiles). See [[spec - mcp.adapter type - the harness adapter as a discovered typed node]].

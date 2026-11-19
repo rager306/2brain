@@ -13,7 +13,7 @@ one per named meta type.
 A sub-region's `type:` names that type-def,
 the rest are its fields.
 
-The named type must be a META type, its closure mixes in `au.engine.meta::au-engine`.
+The named type must be a META type, its closure mixes in `tb.engine.meta::tb-engine`.
 - meta-ness is nominal, not positional, see [[type-def meta marker]].
 - a non-meta type is [[spec - diagnostic codes^non-meta-type-in-meta-position]].
 - the `-meta` suffix convention (`display-meta`, `runtime-meta`) is now a checked type relation, not just a name.

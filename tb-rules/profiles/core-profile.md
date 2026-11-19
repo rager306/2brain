@@ -1,7 +1,7 @@
 ---
 type:
   - rule-profile
-  - mcp.inject::au-mcp-sdk
+  - mcp.inject::tb-mcp-sdk
 name: core
 description: the always-on discipline floor, every rule injected on session start
 depth: 1

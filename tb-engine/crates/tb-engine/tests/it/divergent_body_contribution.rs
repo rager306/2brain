@@ -1,4 +1,4 @@
-//! A DIVERGENT field ([[type-def fields collision - auto-unify and qualified field::au-type-system]]) filled from the markdown BODY resolves per-origin
+//! A DIVERGENT field ([[type-def fields collision - auto-unify and qualified field::tb-type-system]]) filled from the markdown BODY resolves per-origin
 //! through a qualified contribution (`[:field{type}]`, `[[x:field{type}]]`, or a
 //! ```[:field{type}] fence`), the body twin of the frontmatter `field{type}` key.
 //! A BARE body contribution to a divergent field is a `mixin-collision`.

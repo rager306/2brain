@@ -1,5 +1,5 @@
 title: "Type-def uses type: for its parent instead of extends:"
-spec_ref: "[[type-def extends::au-type-system]]"
+spec_ref: "[[type-def extends::tb-type-system]]"
 command: graph
 expected:
   codes:

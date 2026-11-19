@@ -29,7 +29,7 @@ tracing = { workspace = true }
 hotpath = { version = "0.28", optional = true, features = ["hotpath", "json"] }
 
 [features]
-# Profiling is opt-in; see au-cli. Measure macros are noops without the feature.
+# Profiling is opt-in; see tb-cli. Measure macros are noops without the feature.
 # "json" adds the JSON report format (non-default in hotpath itself).
 hotpath = ["dep:hotpath"]
 
@@ -38,5 +38,5 @@ tb-testkit = { workspace = true }
 tempfile = { workspace = true }
 # The operation harness (`examples/op_bench.rs`) installs its own collecting
 # subscriber to read per-phase busy times in process. The daemon's own
-# subscriber lives in au-cli; this is a dev target only.
+# subscriber lives in tb-cli; this is a dev target only.
 tracing-subscriber = { workspace = true }

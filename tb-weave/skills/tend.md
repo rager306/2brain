@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: tend
 description: Audit the graph for duplicates, drift, coverage gaps and orphans, repair safe issues and develop its maps. Use for whole-graph maintenance or to create a starting map. New nodes belong to weave.
 ---
@@ -18,10 +18,10 @@ Hold risky changes for human review, following [[the-precision-asymmetry]]:
 ## Find pending work
 
 Read graph diagnostics, including warning details.
-Read the full `map::au-base-types` roster, including subtypes.
+Read the full `map::tb-base-types` roster, including subtypes.
 Reuse it while current.
 
-List `extraction::au-weave` instances with `tb_instances_of`.
+List `extraction::tb-weave` instances with `tb_instances_of`.
 Page through the full roster and select this graph's files.
 Read candidate lists with `tb_resolved`.
 
@@ -104,7 +104,7 @@ If woven nodes lack a home, use a suitable map kind from the consumer's vocabula
 Follow the consumer's home convention, defaulting to `map - start here.md`.
 Report a missing navigation contract if no suitable map kind exists.
 
-Read unfamiliar map guidance and [[author-a-map::au-agent-guides]].
+Read unfamiliar map guidance and [[author-a-map::tb-agent-guides]].
 Apply the map kind's guidance.
 
 When navigation becomes crowded, create a map for a useful region or relation.

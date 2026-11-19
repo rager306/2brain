@@ -1,7 +1,7 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: write-a-rule
-description: Authors one new writing-rule note in the house voice, capturing something you keep correcting by hand as one reusable move. Use when the human wants to add a writing rule, turn a recurring correction into a rule, or extend the voice with a new move. Do not use to rewrite a note (that is apply-writing-style), to audit one (that is check-writing-style), or for the discipline rules (those are au-rules).
+description: Authors one new writing-rule note in the house voice, capturing something you keep correcting by hand as one reusable move. Use when the human wants to add a writing rule, turn a recurring correction into a rule, or extend the voice with a new move. Do not use to rewrite a note (that is apply-writing-style), to audit one (that is check-writing-style), or for the discipline rules (those are tb-rules).
 ---
 
 # write-a-rule
@@ -25,9 +25,9 @@ If the title needs an "and", split it into two rules.
 
 ### 2. Read the craft and an example
 
-Read the `writing-rule` docstring with `tb_type {name: "writing-rule", repo: "au-writing-style"}`.
+Read the `writing-rule` docstring with `tb_type {name: "writing-rule", repo: "tb-writing-style"}`.
 
-Read [[say it plain::au-writing-style]] as the example.
+Read [[say it plain::tb-writing-style]] as the example.
 Use its shape to write your own content.
 
 ### 3. Write the rule
@@ -35,7 +35,7 @@ Use its shape to write your own content.
 Write the note in `rules/` in the intended authoring repo.
 Match the body shape you just read.
 
-In a consuming repo, claim `type: writing-rule::au-writing-style`.
+In a consuming repo, claim `type: writing-rule::tb-writing-style`.
 The example's local type claim belongs to its own repo.
 
 ### 4. Check the rule
@@ -43,13 +43,13 @@ The example's local type claim belongs to its own repo.
 Read the new file's diagnostics.
 Expect zero.
 
-Check that the rule appears in `tb_instances_of {ofType: "writing-rule::au-writing-style"}`.
+Check that the rule appears in `tb_instances_of {ofType: "writing-rule::tb-writing-style"}`.
 
 ### 5. Bundle the rule
 
 **Choose the profile**
 
-Find profiles with `tb_instances_of {ofType: "writing-profile::au-writing-style", resolve: true}`.
+Find profiles with `tb_instances_of {ofType: "writing-profile::tb-writing-style", resolve: true}`.
 Choose the intended profile.
 
 Read the profile and its outgoing references before editing it.

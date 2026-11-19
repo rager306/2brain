@@ -1,5 +1,5 @@
 ---
-type: mcp.skill::au-mcp-sdk
+type: mcp.skill::tb-mcp-sdk
 name: cut
 description: Judge a mined source's candidates against the premise and existing graph, and mark each a verdict with a one-line why. Use to cut a source extraction.
 ---

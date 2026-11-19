@@ -24,7 +24,7 @@ second executable to keep in step.
 
 The rule it applies, in order: an explicit `.sock` path is used as given; a workspace is resolved to the
 socket its canonical path hashes to; `$2BRAIN_SOCKET` wins when set. One socket per served workspace, under
-`~/.2brain/au-engine/run/` (or `~/.arsumbris/au-engine/run/` on a machine that has not created the new
+`~/.2brain/engine/run/` (or `~/.2brain/engine/run/` on a machine that has not created the new
 directory).
 
 ## 2b. Check what the binary says about itself
@@ -34,7 +34,7 @@ directory).
 2brain --version                    # version + build commit
 2brain info                         # MCP surface and launch defaults, no engine
 2brain info <engine.sock>           # the same, plus ready/schema/version/workspace
-2brain daemon status <entry>        # engine side, same as `au daemon status`
+2brain daemon status <entry>        # engine side, same as `tb-engine daemon status`
 2brain --help / --version / --info  # the MCP half alone
 ```
 
@@ -51,7 +51,7 @@ still exits 0 when the engine is unreachable, so it is safe in a health script.
 "2brain": {
   "type": "stdio",
   "command": "/usr/local/bin/2brain",
-  "args": ["mcp", "/root/.2brain/au-engine/run/adcfe8680a485529.sock"]
+  "args": ["mcp", "/root/.2brain/engine/run/adcfe8680a485529.sock"]
 }
 ```
 
@@ -64,7 +64,7 @@ with `mcp.list_connections()` and `mcp.list_tools("2brain")`.
 ```sh
 claude mcp add --scope local 2brain -- \
   /usr/local/bin/2brain mcp \
-  /root/.2brain/au-engine/run/adcfe8680a485529.sock
+  /root/.2brain/engine/run/adcfe8680a485529.sock
 claude mcp list          # expect: 2brain ... ✔ Connected
 ```
 
@@ -73,7 +73,7 @@ claude mcp list          # expect: 2brain ... ✔ Connected
 ```sh
 codex mcp add 2brain -- \
   /usr/local/bin/2brain mcp \
-  /root/.2brain/au-engine/run/adcfe8680a485529.sock
+  /root/.2brain/engine/run/adcfe8680a485529.sock
 codex mcp list           # expect: 2brain  ...  enabled
 ```
 
@@ -87,7 +87,7 @@ shape, not the handshake.
   "mcpServers": {
     "2brain": {
       "command": "/usr/local/bin/2brain",
-      "args": ["mcp", "/root/.2brain/au-engine/run/adcfe8680a485529.sock"]
+      "args": ["mcp", "/root/.2brain/engine/run/adcfe8680a485529.sock"]
     }
   }
 }
@@ -110,7 +110,7 @@ allowlist narrow:
 ```
 
 ```json
-"args": ["mcp", "/root/.2brain/au-engine/run/adcfe8680a485529.sock",
+"args": ["mcp", "/root/.2brain/engine/run/adcfe8680a485529.sock",
          "--policy", "/etc/2brain-policy.json",
          "--principal", "allspark"]
 ```

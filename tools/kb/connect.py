@@ -30,7 +30,7 @@ ADAPTER = os.environ.get("BRAIN_BIN", "/usr/local/bin/2brain")
 VAULT = Path(os.environ.get("BRAIN_VAULT", "/root/vault"))
 LINK = re.compile(r"\[\[([^\]|#]+)")
 TOPIC = re.compile(r'^\s*-\s*"?\[\[([^\]|#]+)\]\]"?\s*$', re.MULTILINE)
-SKIP_DIRS = {"ops", "self", "templates", ".git", ".2brain", ".arsumbris"}
+SKIP_DIRS = {"ops", "self", "templates", ".git", ".2brain", ".2brain"}
 
 
 def frontmatter_value(text: str, key: str) -> str:

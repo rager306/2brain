@@ -10,7 +10,7 @@
 //!   block close)
 //!
 //! The scanner is pure: bytes in, events out. No type-system knowledge — that
-//! happens in `au-core`. The scanner never panics on malformed input; it emits
+//! happens in `tb-core`. The scanner never panics on malformed input; it emits
 //! what it can and ignores the rest.
 
 use std::collections::BTreeMap;
@@ -47,7 +47,7 @@ pub enum BodyEvent<'a> {
     InlineCode { content: &'a str, span: ByteRange },
     /// Wikilink occurrence. `raw` is the text between the `[[` and `]]`;
     /// `span` covers the full span including delimiters. Parsing the raw
-    /// payload (target, fragments) belongs to `au-references`.
+    /// payload (target, fragments) belongs to `tb-references`.
     Wikilink { raw: &'a str, span: ByteRange },
     /// Bare `^id` marker on its own line. `id` is the identifier; `span`
     /// covers the marker line.
@@ -146,7 +146,7 @@ pub fn scan_body(src: &str) -> Vec<BodyEvent<'_>> {
 
         // `^id` markers attach own-line (the whole line is the marker)
         // or trailing (the line's last whitespace-separated token), per
-        // [[type block-id::au-type-system]]. The trailing token is excluded from the
+        // [[type block-id::tb-type-system]]. The trailing token is excluded from the
         // content the rest of the line scanning sees, so a heading's
         // text never carries its marker.
         let (content, trailing) = split_trailing_block_id(line);
@@ -191,7 +191,7 @@ pub fn scan_body(src: &str) -> Vec<BodyEvent<'_>> {
     events
 }
 
-/// Pair each event with the root-to-leaf section path enclosing it, per [[type value container::au-type-system]].
+/// Pair each event with the root-to-leaf section path enclosing it, per [[type value container::tb-type-system]].
 ///
 /// Path elements are formatted as `"<1-based-index-at-level> <heading text>"`;
 /// sibling indexing is scoped to the current parent and restarts under new
@@ -296,7 +296,7 @@ pub fn scan_wikilink_spans<'a>(
     // INVARIANT: `exclusions` are sorted by start and non-overlapping. The body
     // scanner (`scan_body`) builds them that way — a heading line is pure prose
     // (no inline code within), a fenced block absorbs its content, and
-    // inline-code zones are sequential, see [[type-instance body contribution::au-type-system]].
+    // inline-code zones are sequential, see [[type-instance body contribution::tb-type-system]].
     // That lets a forward-only zone index replace a per-byte scan over every
     // zone (which was O(n*m) on a zone-dense body), with no O(n) allocation.
     // If you change how exclusion zones are built, KEEP THEM sorted and
@@ -490,9 +490,9 @@ fn run_end(bytes: &[u8], start: usize) -> usize {
     end
 }
 
-/// Block-id grammar per [[type block-id::au-type-system]]: `[A-Za-z0-9_-]+`. One rule
+/// Block-id grammar per [[type block-id::tb-type-system]]: `[A-Za-z0-9_-]+`. One rule
 /// across both attachment surfaces — body `^id` markers (this module)
-/// and inline-record `^:` keys (au-core's instance parse).
+/// and inline-record `^:` keys (tb-core's instance parse).
 pub fn is_valid_block_id(s: &str) -> bool {
     !s.is_empty()
         && s.bytes()
@@ -510,7 +510,7 @@ fn parse_block_id_marker(line: &str) -> Option<&str> {
     }
 }
 
-/// Split a trailing `^id` marker off a line ([[type block-id::au-type-system]]).
+/// Split a trailing `^id` marker off a line ([[type block-id::tb-type-system]]).
 /// Returns the content before the marker plus `(id, byte offset of the
 /// `^`)`. The marker must be the line's last whitespace-separated token
 /// — `word^id` glued to text is prose, not a marker. Empty content is
@@ -989,7 +989,7 @@ mod tests {
 
     #[test]
     fn trailing_block_id_on_a_paragraph_line() {
-        // The same-line form per [[type block-id::au-type-system]] — the marker is the
+        // The same-line form per [[type block-id::tb-type-system]] — the marker is the
         // line's last whitespace-separated token, span covers the token.
         let src = "A paragraph, addressable. ^para-1\n";
         let events = scan_body(src);

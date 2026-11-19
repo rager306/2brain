@@ -1,5 +1,5 @@
 ---
-type: guide.principle::au-agent-guides
+type: guide.principle::tb-agent-guides
 goal: judge uncertain changes to shared knowledge
 rule: When evidence is thin, prefer an omission to a wrong addition in the shared graph.
 ---

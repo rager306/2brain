@@ -1,5 +1,5 @@
 ---
-type: guide::au-agent-guides
+type: guide::tb-agent-guides
 goal: author a domain's extraction profile and its candidate kinds
 rule: Define the kinds to mine through an extraction profile and typed candidate targets, then judge admission against the premise.
 example:

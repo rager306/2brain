@@ -52,19 +52,19 @@ changes that alter what existing calls return are listed in 2brain
   - a stamp or mixin on a type-def target now rejects the preview, as it
     rejects the write.
   - Additive, no `schema_version` bump.
-- CLI: `au members <entry> [--json]` resolves an entry's declared members
+- CLI: `tb-engine members <entry> [--json]` resolves an entry's declared members
   without a daemon, for a launcher's pre-start check.
   - per member: `role`, the `tier` that located it (`entry` / `sibling` /
     `registry` / `cache` / `unmounted` / `disabled`), `path`, and the
     member-outcome `code`.
   - `complete: false` with `incomplete` diagnostics when a locked dependency
     is not yet in the package cache.
-  - runs the build's own composition, so it answers what `au daemon start`
+  - runs the build's own composition, so it answers what `tb-engine daemon start`
     mounts. Reads only.
-  - refuses with exit `2` when `$HOME` is unset, as `au daemon start` does.
+  - refuses with exit `2` when `$HOME` is unset, as `tb-engine daemon start` does.
 - Wire: each `members` row (and `overview.members`) carries `tier`, the
   resolution tier that located it (`entry` / `sibling` / `registry` / `cache`
-  / `disabled`), the same value `au members` reports. Refines `local`.
+  / `disabled`), the same value `tb-engine members` reports. Refines `local`.
   Additive, no `schema_version` bump.
   - JSON contract in WIRE.md §Daemon-less member resolution. Additive, no
     `schema_version` bump.
@@ -172,9 +172,9 @@ changes that alter what existing calls return are listed in 2brain
   `rename` itself does. It used to return a product for a rename that would
   then refuse.
 - The engine's in-repo runtime output now ignores itself in git: the saga's
-  recovery state under `.arsumbris/au-engine/run/` (the intent marker, the
+  recovery state under `.2brain/engine/run/` (the intent marker, the
   parked copies of git-ignored files, the failure sentinels) and the
-  `TB_TRACE` output under `.arsumbris/au-engine/logs/trace/`.
+  `TB_TRACE` output under `.2brain/engine/logs/trace/`.
   - Each directory gets a `.gitignore` holding `*` when the engine creates it;
     an existing one is never overwritten.
   - Before, nothing ignored them, so a human's `git add -A` could commit them,
@@ -284,7 +284,7 @@ changes that alter what existing calls return are listed in 2brain
     (file + nested + meta), identical to `instances_of`'s no-arg set. It was
     file + nested (meta excluded). So a no-arg `instance_counts` now INCLUDES
     meta sites (a `meta:` block on a type-def, including the builtin
-    `au.engine.*` metas). Pass `origins:["file","nested"]` for the former
+    `tb.engine.*` metas). Pass `origins:["file","nested"]` for the former
     default.
   - `by_type` shape (`{ name, hash, type_owners, count }`) is unchanged.
   - No `schema_version` bump: the `origins` arg is additive and the default
@@ -336,7 +336,7 @@ changes that alter what existing calls return are listed in 2brain
 - Composition mutation verbs, the governed write path for a repo's deps and a
   workspace's composition: `add_dep`, `remove_dep`, `add_workspace_member`,
   `remove_workspace_member`, `set_workspace_member_role`.
-  - author `<member>/.arsumbris/repo.yaml` (`deps:`) and `.arsumbris/workspace.yaml`
+  - author `<member>/.2brain/repo.yaml` (`deps:`) and `.2brain/workspace.yaml`
     (`edit:` / `discover:`) through the channel, comment- and order-preserving,
     one commit per mutation, re-resolving the mounted set.
   - `add_workspace_member` creates `workspace.yaml` self-complete when absent.

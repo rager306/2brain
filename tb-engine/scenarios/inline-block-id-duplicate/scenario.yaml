@@ -1,5 +1,5 @@
 title: "An inline-record `^:` id colliding with a body `^id` marker fires block-id-duplicate"
-spec_ref: "[[type block-id::au-type-system]]"
+spec_ref: "[[type block-id::tb-type-system]]"
 command: validate
 expected:
   codes:

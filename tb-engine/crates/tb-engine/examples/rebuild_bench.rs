@@ -1,7 +1,7 @@
 //! Rebuild benchmark: from-scratch build vs the incremental fast path, across
 //! knowledge base sizes and topologies.
 //!
-//! Run: `cargo run --release --example rebuild_bench -p au-engine -- [sizes...]`
+//! Run: `cargo run --release --example rebuild_bench -p tb-engine -- [sizes...]`
 //! The `sizes` argument drives the single-repo sweep; the multi-repo sweeps use
 //! a fixed repo size and vary the repo count.
 //!
@@ -123,7 +123,7 @@ type Variant = (&'static str, Cross, bool, &'static [u8], &'static [u8]);
 
 /// Write an assembled workspace of `repo_count` repos, each `repo_size`
 /// instances, into `dir`. The entry is a content-free folder-repo; its
-/// `.arsumbris/workspace.yaml` lists it plus each member in `edit`. Members are
+/// `.2brain/workspace.yaml` lists it plus each member in `edit`. Members are
 /// co-present sibling subdirs, resolved by their `repo.yaml` markers, so no
 /// per-machine location file is needed.
 ///
@@ -144,7 +144,7 @@ fn write_workspace(dir: &Path, repo_count: usize, repo_size: usize, cross: Cross
     for k in 0..repo_count {
         edit.push_str(&format!("  - repo{k}\n"));
     }
-    std::fs::write(dir.join(".arsumbris").join("workspace.yaml"), edit).unwrap();
+    std::fs::write(dir.join(".2brain").join("workspace.yaml"), edit).unwrap();
 
     for k in 0..repo_count {
         let rdir = dir.join(format!("repo{k}"));
@@ -212,7 +212,7 @@ fn write_workspace(dir: &Path, repo_count: usize, repo_size: usize, cross: Cross
 }
 
 fn write_registry(repo: &Path, body: &str) {
-    let ars = repo.join(".arsumbris");
+    let ars = repo.join(".2brain");
     std::fs::create_dir_all(&ars).unwrap();
     std::fs::write(ars.join("repo.yaml"), body).unwrap();
 }
