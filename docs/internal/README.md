@@ -20,6 +20,7 @@ The rule that decides what belongs here:
 | `deploy-2026-11-16-batch.md` | the pending deploy batch: what a client sees, the swap steps, rollback; reconciled 2026-11-17, so the pending set is recomputed before a window |
 | `detach-and-consolidate.md` | the git operations that turned fourteen repositories into one |
 | `serving-parity.md` | the audit of what the retired Node/Python path served versus the Rust one |
+| `handoff-2026-11-19.md` | where the ADR-0005 rename and the review remediation stand: gates, live cutover, next slice, traps |
 | `w4.1-judgement-run-2026-11-16.md` | the run log of one judgement-layer evaluation |
 
 Design documents stay outside: `docs/architecture-plan.md`, `docs/trajectory.md`, `docs/naming.md`,
