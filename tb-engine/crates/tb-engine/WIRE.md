@@ -14,7 +14,7 @@ Unix domain socket, one endpoint per entry point.
 
 Socket path:
 - `<state root>/au-engine/run/<hash>.sock`, outside the repo. The `au-engine` there is the ENGINE PRODUCT's name for its state directory, not the schema namespace: the schema moved to `tb.engine.*` in release 2, while this per-user directory keeps its spelling until the state directory has its own migration (a rename would strand every running daemon's socket).
-- derived by `au_engine::socket_path(entry)`.
+- derived by `tb_engine::socket_path(entry)`.
 - `entry` is the absolute path the engine was pointed at: a folder-repo
   DIRECTORY (a repo carrying `.2brain/repo.yaml`, composed by its optional
   `.2brain/workspace.yaml`). A non-repo entry is refused before serving. Each

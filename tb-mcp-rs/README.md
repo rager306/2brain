@@ -46,7 +46,7 @@ One binary is built from this package:
 |---|---|---|
 | `2brain` | **one binary for both halves**: `daemon`, `open`, `members` (the engine), `mcp`, `info` (this server), and `init`, `doctor` (first run) | 23 MB |
 
-`2brain` delegates the engine subcommands to `au_cli` and the MCP subcommand
+`2brain` delegates the engine subcommands to `tb_cli` and the MCP subcommand
 to this crate, so the two halves cannot drift.
 
 ```sh

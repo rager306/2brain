@@ -219,8 +219,8 @@ Read through `arsumbris-rs` while preparing this:
    dependency for a project whose vault format is a contract; Oxigraph, the mature option,
    migrates its on-disk format between minor versions.
 6. **Nothing that is slow gets fixed.** The 133 ms grep is unaffected. The build is also not
-   graph-bound: profiling a 529-file cold build (1.1–1.3 s dev) puts `au_parser::body` at 18%
-   self time (~38% including inlined iterator tails) and `au_engine` graph/validate/resolve at
+   graph-bound: profiling a 529-file cold build (1.1–1.3 s dev) puts `tb_parser::body` at 18%
+   self time (~38% including inlined iterator tails) and `tb_engine` graph/validate/resolve at
    **2.2%** (`knowledge/tb-engine-build-profiling-2026-10.md`, hotpath + perf, 20 K samples).
    A graph store would optimize the 2.2% and leave the 98% where it is.
 

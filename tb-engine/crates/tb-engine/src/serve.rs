@@ -3725,6 +3725,7 @@ async fn serve_connection(
     // connection ends. Each is assigned a per-connection id in its ack.
     let mut session: JoinSet<()> = JoinSet::new();
     let mut next_subscription_id: u64 = 0;
+    let mut shutdown_after_flush = false;
 
     while let Some(frame) = read_frame_async(&mut read_half).await? {
         let mut value: serde_json::Value = match serde_json::from_slice(&frame) {
@@ -3756,12 +3757,22 @@ async fn serve_connection(
                 .to_string();
             match serde_json::from_value::<Request>(value) {
                 Ok(req) => {
-                    let response = handle_request(&handle, req, &shutdown_tx)
+                    // A `shutdown` read stops the daemon, but only AFTER this
+                    // reply is flushed: signalling here would race the writer
+                    // (the daemon drops its runtime and kills the frame before
+                    // it reaches the client). Record the intent and close the
+                    // read loop so the writer drains first.
+                    let is_shutdown = matches!(req, Request::Shutdown);
+                    let response = handle_request(&handle, req)
                         .instrument(tracing::info_span!("read", verb = %verb))
                         .await
                         .with_id(id);
                     let bytes = serde_json::to_vec(&response).expect("response serializes");
                     if frame_tx.send(bytes).await.is_err() {
+                        break;
+                    }
+                    if is_shutdown {
+                        shutdown_after_flush = true;
                         break;
                     }
                 }
@@ -3841,6 +3852,9 @@ async fn serve_connection(
     session.shutdown().await;
     drop(frame_tx);
     let _ = writer.await;
+    if shutdown_after_flush {
+        let _ = shutdown_tx.send(true);
+    }
     Ok(())
 }
 
@@ -12578,25 +12592,27 @@ mod test_hooks {
 ///
 /// The frame's write and the client's round trip are NOT counted; this is handler
 /// time, so a histogram says what the engine spent, not what the socket did.
-async fn handle_request(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx) -> Response {
+async fn handle_request(handle: &EngineHandle, req: Request) -> Response {
     let verb = req.verb();
     let started = Instant::now();
     // Test-only: an armed artificial delay proves the histogram times the
     // handler instead of recording a constant. A no-op outside `cfg(test)`.
     #[cfg(test)]
     test_hooks::delay(verb).await;
-    let response = dispatch(handle, req, shutdown_tx).await;
+    let response = dispatch(handle, req).await;
     crate::verb_metrics::record(verb, started.elapsed());
     response
 }
 
 /// The dispatch itself: one arm per verb, answering against the held state.
-async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx) -> Response {
+async fn dispatch(handle: &EngineHandle, req: Request) -> Response {
     match req {
         Request::PreviewMutation(args) => preview_mutation(handle, args).await,
         Request::Shutdown => {
-            let _ = shutdown_tx.send(true);
-            // `ready` tracks the ref's lifecycle so it stays coupled to
+            // The daemon is NOT signalled here: the signal must not race the
+            // response frame. `serve_connection` sends it only after the writer
+            // has flushed this reply, so a client that asked to shut down always
+            // receives the ack. `ready` tracks the ref's lifecycle so it stays coupled to
             // `version` (present exactly when Ready), like the `ready` probe.
             // The ack rides `result`, present regardless of readiness.
             let (_, ref_state) = handle.lifecycle();

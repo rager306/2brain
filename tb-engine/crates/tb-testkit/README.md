@@ -7,7 +7,7 @@ Property generators, builders, and adversarial fixtures for the type system.
 - `arb_type_name` / `arb_field_name` / `arb_enum_literal` / `arb_enum_shape` — proptest strategies bound to the spec regex.
 - `empty_type_def` / `type_def_with_parents` / `type_def_with_fields` / `type_def_with_enum_field` / `type_def_with_reference_field` / `type_def_with_list_field` / `type_def_sealed` — `TypeDef` builders.
 - `instance_bare(claim, fields)` / `instance_list(claims, fields)` / `instance_field(key, value)` / `instance_field_seq(key, elements)` — `Instance` and `InstanceField` builders.
-- `validate_simple(graph, instance)` / `validate_with(graph, idx, claims, instance)` — test-side wrappers around `au_core::validate` for callers that don't yet build a full `RepoIndex` / claims map.
+- `validate_simple(graph, instance)` / `validate_with(graph, idx, claims, instance)` — test-side wrappers around `tb_core::validate` for callers that don't yet build a full `RepoIndex` / claims map.
 - `cycle_of_size(n)` / `self_cycle(name)` — adversarial fixtures for cycle-detection tests.
 - `repogen` — seeded deterministic cross-repo workspace generator (`generate` / `generate_profile`, `Knobs`, `Profile`), byte-identical per `(knobs, seed)`, for the scale benchmarks and the correctness fuzzer.
 - `opcat` — the operation catalog, named repeatable write operations over a workspace, shared by the timing harness and the gate's rebuild-path assertions.

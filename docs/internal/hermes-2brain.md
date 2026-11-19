@@ -36,7 +36,7 @@ pointing at nothing. That is exactly what happened to `tb-mcp-rs/target/release/
 
 `mcp` takes a **target**, not a socket: a path ending in `.sock` is used as given, anything else
 is a workspace entry whose socket is derived exactly as `au daemon start` derives it
-(`au_engine::socket_path`: FNV-1a of the canonical entry path, `~/.arsumbris/au-engine/run/<hash>.sock`).
+(`tb_engine::socket_path`: FNV-1a of the canonical entry path, `<state dir>/au-engine/run/<hash>.sock`).
 So the configuration carries no hash and survives any change of the entry path's spelling, as long
 as it still canonicalizes to the same directory.
 

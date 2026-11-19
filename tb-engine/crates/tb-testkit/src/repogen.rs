@@ -2,8 +2,8 @@
 //! correctness fuzzing.
 //!
 //! Emits a FOLDER-REPO workspace: a content-free entry repo whose
-//! `.arsumbris/workspace.yaml` lists itself plus each member in `edit`, and
-//! `repo_count` co-present member subdirs resolved by their `.arsumbris/repo.yaml`
+//! `.2brain/workspace.yaml` lists itself plus each member in `edit`, and
+//! `repo_count` co-present member subdirs resolved by their `.2brain/repo.yaml`
 //! markers. A fraction of the members (`xref_density`) import `repo0`'s primary
 //! type (`deps:` + `type: t0::repo0`) and reference its instances, the realistic
 //! cross-repo compose site. Each repo carries a parent CHAIN of `closure_depth`
@@ -276,12 +276,12 @@ pub fn generate(dir: &Path, knobs: &Knobs, seed: u64) -> GenOutput {
 
     // The entry repo: content-free, a pure composition root. Its `workspace.yaml`
     // must list itself (else `workspace-omits-containing-repo`) plus every member.
-    write_file(&dir.join(".arsumbris/repo.yaml"), "name: bench\n");
+    write_file(&dir.join(".2brain/repo.yaml"), "name: bench\n");
     let mut edit = String::from("edit:\n  - bench\n");
     for k in 0..knobs.repo_count {
         edit.push_str(&format!("  - repo{k}\n"));
     }
-    write_file(&dir.join(".arsumbris/workspace.yaml"), &edit);
+    write_file(&dir.join(".2brain/workspace.yaml"), &edit);
 
     // Which members import `repo0`. `repo0` never imports (it is the source);
     // each later repo imports with probability `xref_density`, drawn in a fixed
@@ -308,7 +308,7 @@ fn gen_repo(dir: &Path, k: usize, knobs: &Knobs, imports: bool, out: &mut GenOut
     } else {
         format!("name: repo{k}\n")
     };
-    write_file(&rdir.join(".arsumbris/repo.yaml"), &repo_yaml);
+    write_file(&rdir.join(".2brain/repo.yaml"), &repo_yaml);
 
     // The parent chain `base0 <- base1 <- ... <- base{closure_depth-1}`. base0 is a
     // root; each deeper base extends the previous, so a leaf that extends the tip

@@ -29,7 +29,7 @@ LENGTH_PREFIX = struct.Struct(">I")
 
 
 def socket_path(entry: str) -> Path:
-    # Match au_engine::socket_path: the socket lives outside the repo, at
+    # Match tb_engine::socket_path: the socket lives outside the repo, at
     # ~/.arsumbris/au-engine/run/<hash>.sock, so a deep repo path never overruns the
     # Unix sun_path limit. <hash> is the FNV-1a-64 of the absolute entry path's
     # bytes, in 16 hex digits. Resolve symlinks first (realpath) so this hashes

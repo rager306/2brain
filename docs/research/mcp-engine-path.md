@@ -54,7 +54,7 @@ policy, audit) plus the client's own stdio round trip.
 
 - **Do not put the engine inside the adapter.** 72.6 MiB per session and a second writer.
 - **Do not pool connections.** No measured win, one new failure mode.
-- **Do not collapse the 52 tools into a generic `au_call`.** The typed surface is what makes the tool
+- **Do not collapse the 52 tools into a generic `tb_call`.** The typed surface is what makes the tool
   catalogue usable by a model; a passthrough would move schema errors from compile time to runtime.
 - **Do not delete the policy layer.** It is the only thing standing between a model and an unwritten,
   unreconciled vault.

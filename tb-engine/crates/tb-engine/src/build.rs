@@ -84,7 +84,10 @@ impl std::fmt::Display for BuildError {
                 Ok(())
             }
             BuildError::EntryReserved { .. } => {
-                write!(f, "~/.arsumbris is reserved for device config and data")
+                write!(
+                    f,
+                    "the device state root is reserved for device config and data"
+                )
             }
         }
     }
@@ -2364,7 +2367,7 @@ pub(crate) fn consistency_diagnostics(
                     crate::repo::MEMBER_AT_RESERVED_ROOT,
                     Span::new(ws.manifest_path.clone(), ByteRange::new(0, 0)),
                     format!(
-                        "workspace member '{}' resolves to the reserved device root ~/.arsumbris; it is excluded, the workspace opens over the rest",
+                        "workspace member '{}' resolves to the reserved device root; it is excluded, the workspace opens over the rest",
                         member.name.as_str()
                     ),
                     format!(

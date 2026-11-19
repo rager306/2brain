@@ -53,6 +53,25 @@ install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
 
 ### Fixed
 
+- **A `shutdown` read could lose its own acknowledgement** (engine). `dispatch` signalled the daemon on
+  `Request::Shutdown` before the reply frame reached the writer, so `wait_for_shutdown` woke and dropped
+  the runtime, killing the connection before the ack was flushed. A client calling `{ "read": "shutdown" }`
+  saw `UnexpectedEof` about two times in three. The read loop now records the intent, breaks so the writer
+  drains the reply, and only then signals — five consecutive runs of
+  `daemon::shutdown_read_couples_ready_and_version` pass.
+
+- **Live text still named the retired prefix** (engine, adapter, tooling). `tb_engine`/`tb_cli`/`tb_core`/
+  `tb_parser` READMEs and comments, the `~/.arsumbris` messages `EntryReserved`/`HomeUnset`/the open
+  warning printed, the `engine_schema` lock docs (which also had nested backticks from an earlier replace,
+  in the builtin type text and its captured fixture), the `repogen` fixture generator (wrote `.arsumbris/`
+  where a fresh repo gets `.2brain/`), `docs/internal/hermes-brief.md` (told Hermes to call
+  `2brain__au_overview`/`au_content`, names that answer `tool not found`), and the `tools/fsm` sample log
+  (`au_graph_health`, `au_validate_value`). Historical records — `CHANGELOG`, `docs/trajectory.md`,
+  `docs/research/`, `docs/internal/*` run logs, and the `au_list_imports → tb_imports` maps — are left as
+  written. Left by decision: the `au` binary name, `au.engine.*`/`.arsumbris/` on disk and the
+  `arsumbris://` parse alias (the compat window), and the content repos' `au-*` package names (tier C,
+  `docs/rebrand-plan.md`).
+
 - **The verification scripts delegated and then checked for tool names that do not exist** (tooling).
   `mutation-turn.sh`, `recovery-turn.sh`, `batch-turn.sh`, `rollback-turn.sh` and `model-turn.sh` ran an
   agent with `--allowedTools 'mcp__2brain__au_content,…'` and then grepped the transcript for

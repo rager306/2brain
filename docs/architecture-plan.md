@@ -219,7 +219,7 @@ Three things changed since 2c, and each one changes what to do next.
 2. **A cleanup lesson worth keeping.** Deleting `.cargo-target` while another `cargo` held the
    build lock made that build start restoring the directory; the target is shared by two workspaces
    and by other sessions on this host. Clean it only when idle. The "duplicate" crates in
-   `deps/` (16 `mio`, 14 `syn`, 12 `au_mcp_rs`) are the **feature matrix** — `clippy
+   `deps/` (16 `mio`, 14 `syn`, 12 `tb_mcp_rs`) are the **feature matrix** — `clippy
    --all-features` versus `test` versus release — not a misconfiguration, and not worth chasing.
 3. **T1 is closed but unmeasured on the real thing.** The engine tests prove behaviour; the
    acceptance in 2b (≤ 15 ms median on the eight probe queries, ≥ 5× faster than `tb_grep`) has

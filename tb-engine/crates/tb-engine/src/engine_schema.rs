@@ -434,7 +434,7 @@ fields:
     (
         "tb.engine.repos",
         "\
-#: The per-user registry, `the device-state `au-engine/config` (see `repo::state_dir_in`)/repos.yaml`, name to remote+path.
+#: The per-user registry, `<state dir>/au-engine/config/repos.yaml` (see `repo::state_dir_in`), name to remote+path.
 fields:
   repos?: tb.engine.registry-entry[]
 ",
@@ -442,7 +442,7 @@ fields:
     (
         "tb.engine.workspaces",
         "\
-#: The per-user workspaces index, `the device-state `au-engine/config` (see `repo::state_dir_in`)/workspaces.yaml`.
+#: The per-user workspaces index, `<state dir>/au-engine/config/workspaces.yaml` (see `repo::state_dir_in`).
 fields:
   workspaces?: tb.engine.workspace-entry[]
 ",
@@ -460,7 +460,7 @@ fields:
     (
         "tb.engine.repo-lock",
         "\
-#: The per-repo dependency lock, `.arsumbris/repo.lock`, engine-written.
+#: The per-repo dependency lock, `<identity dir>/repo.lock`, engine-written.
 fields:
   packages?: tb.engine.locked-package[]
 ",
@@ -468,7 +468,7 @@ fields:
     (
         "tb.engine.workspace-lock",
         "\
-#: The per-workspace discover lock, `.arsumbris/workspace.lock`, engine-written.
+#: The per-workspace discover lock, `<identity dir>/workspace.lock`, engine-written.
 fields:
   packages?: tb.engine.locked-package[]
 ",

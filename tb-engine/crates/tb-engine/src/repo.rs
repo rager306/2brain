@@ -867,10 +867,7 @@ pub struct HomeUnset;
 
 impl std::fmt::Display for HomeUnset {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "$HOME must be set to locate the device area ~/.arsumbris"
-        )
+        write!(f, "$HOME must be set to locate the device state root")
     }
 }
 

@@ -72,7 +72,7 @@ it is part of the spike, not an assumption.
 | **ingest: stale description** (backlog P0-3) | "does this description still match the body?" | `noul` | **spike now** — offline, bounded, six cents a pass, and it is a defect we already logged |
 | **ingest: type and topics** | "which of the nine types is this note?" | `choice` over 9 + `unclassified` | **spike with the same harness** — measured against the labels the notes already carry |
 | **ingest: duplicate check** | "is this note the same claim as that one?" | `noul` on a pair | **after** the two above: it needs the type axis to be trustworthy |
-| **retrieval: rerank top-k** | "is this note actually relevant to the query?" | `score` | **not in the serving path.** A network call cannot meet the ≤15 ms target T1 is held to; if wanted, it becomes an `au_rerank` tool the *agent* calls, never the server |
+| **retrieval: rerank top-k** | "is this note actually relevant to the query?" | `score` | **not in the serving path.** A network call cannot meet the ≤15 ms target T1 is held to; if wanted, it becomes a `tb_rerank` tool the *agent* calls, never the server |
 | **agent routing** | "which capability should handle this request?" | `choice` over 4 roles | optional, in the harness, after the roles exist |
 | **mutation approval** | "is this edit safe?" | any | **no.** A deterministic gate plus git is strictly stronger; adding a model to it removes the property that a refusal is reproducible |
 | **schema/wire validation** | "is this answer well-formed?" | any | **no.** That is what the declared schemas and the recursive type tests are for |

@@ -98,7 +98,7 @@
         "sealed": null
       },
       {
-        "doc": "The per-user registry, `the device-state `au-engine/config` (see `repo::state_dir_in`)/repos.yaml`, name to remote+path.",
+        "doc": "The per-user registry, `<state dir>/au-engine/config/repos.yaml` (see `repo::state_dir_in`), name to remote+path.",
         "hash": "3f35862c245ce57b",
         "name": "tb.engine.repos",
         "parents": [],
@@ -130,7 +130,7 @@
         "sealed": null
       },
       {
-        "doc": "The per-user workspaces index, `the device-state `au-engine/config` (see `repo::state_dir_in`)/workspaces.yaml`.",
+        "doc": "The per-user workspaces index, `<state dir>/au-engine/config/workspaces.yaml` (see `repo::state_dir_in`).",
         "hash": "a8fc56f3d7bfc445",
         "name": "tb.engine.workspaces",
         "parents": [],

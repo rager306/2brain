@@ -27,6 +27,31 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-19 — the name in the places that are read, and a shutdown ack that raced
+
+The follow-up to the measurement below: the inventory was sorted by **who reads the string**, and the
+split that mattered was not "code vs docs" but "live text vs historical record".
+
+**Live text that named the wrong thing, now fixed.** The `tb_engine` / `tb_cli` / `tb_core` / `tb_parser`
+READMEs and code comments called crates by their old names; three operator-facing engine messages
+(`EntryReserved`, `HomeUnset`, the `au open` empty-index warning) and the `engine_schema` lock docs spelled
+`~/.arsumbris/...` as the current path; `repogen` generated fixtures with `.arsumbris/` where a fresh repo
+gets `.2brain/`; `docs/internal/hermes-brief.md` told Hermes to call `2brain__au_overview` and `au_content`,
+which answer `tool not found`; the `tools/fsm` sample log carried `au_graph_health` / `au_validate_value`.
+The `engine_schema` strings also had nested backticks from an earlier find-and-replace, in both the source
+and the captured `tb_types.json` fixture.
+
+**A real race, not a naming issue.** `tb-cli --test it` failed `daemon::shutdown_read_couples_ready_and_version`
+about two runs in three with `UnexpectedEof`. The cause was in `serve`: `dispatch` sent the shutdown signal on
+`Request::Shutdown` **before** the reply frame was handed to the writer, so `wait_for_shutdown` woke, dropped
+the runtime, and killed the connection before the ack was flushed. The read loop now records the intent,
+breaks so the writer drains the reply, and only then signals shutdown — five consecutive exact-test runs pass.
+
+**Still not this wave, and why.** The `au` binary name, `au.engine.*` / `.arsumbris/` on disk and the
+`arsumbris://` parse alias are the compatibility window, closed by a release decision, not a rename. The
+content repos' `au-*` package names are tier C (below). Historical records keep their spelling: a record
+that cannot be resolved is worse than one that is frozen.
+
 ## 2026-11-19 — the `AU_` prefix, and four scripts that checked nothing
 
 The owner asked why the rename had not finished — specifically `AU_ENGINE_BIN` — and whether other traces

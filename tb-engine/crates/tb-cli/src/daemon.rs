@@ -191,7 +191,7 @@ pub fn open(name: &str) -> ExitCode {
             if known.is_empty() {
                 eprintln!(
                     "au open: no workspace named '{name}' — the per-user workspaces index \
-                     (~/.arsumbris/au-engine/config/workspaces.yaml) is empty or absent. Add a \
+                     (<state dir>/au-engine/config/workspaces.yaml) is empty or absent. Add a \
                      '- path: <workspace-repo folder>' entry, or point 'au daemon start' at the \
                      folder directly."
                 );
