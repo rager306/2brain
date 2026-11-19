@@ -51,6 +51,12 @@ doing them as one find-and-replace breaks the live vault.
    gate is `tb_diagnostics == 0` on the live vault afterwards. This is the only tier that changes files
    users have on disk, so it gets its own ADR.
 
+   **The finishing sequence is [ADR-0005](../tb-engine/doc/adr/0005-final-rename.md)** (2026-11-19). It
+   measures every remaining trace with `tools/kb/legacy_audit.py`, states that identity names move in one
+   commit (a `deps`/`name` mismatch is a build error), and makes the rename irreversible by deleting the
+   readers that accept the old spelling — not by keeping an alias. The vault itself carries **0**
+   `::au-*` wikilinks, so the link remap is repository-only.
+
 ### Tier D — wire contract (alias period)
 
 8. **Resource scheme** — **done 2026-11-16**: resources are emitted as `2brain://<member>/<path>` and the

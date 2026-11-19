@@ -12,6 +12,18 @@ source.
 
 ## [Unreleased]
 
+### Added
+
+- **`tools/kb/legacy_audit.py` and ADR-0005: the measured inventory of the old name and the plan to
+  finish it.** The tool classifies every surviving trace by its consumer — `live` (code or an operator
+  reads it now), `format` (on disk or wire, owned by a deployed reader), `content` (repository identity
+  and wikilinks), `history` (frozen records), `lineage` (the fork paragraph) — and `--check` fails on a
+  live trace. Measured 2026-11-19: live 59 (38 `au_agent_guide` in content repos, 21 binary `au`),
+  format 1572, content 1643, 288 `.arsumbris/` directories on disk; history 815 and lineage 9 stay by
+  design. ADR-0005 makes the rename irreversible by deleting the legacy readers in one atomic migration
+  (identity names are a join key, so names, `deps`, registry and wikilinks move together), and leaves the
+  live daemon cutover as a separate window under the runbook.
+
 ### Changed
 
 - **The engine schema moved to `tb.engine.*` and `::tb-engine`** (engine). The 12 hardwired type
