@@ -36,6 +36,15 @@ jobs:
       # it is a gate rather than a stretch goal: a feature that only compiles one way is not gated at all.
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test
+      # `cargo test` skips the `#[ignore]`d real-engine suite, which is the only place the socket
+      # path, the member gate and the cross-member grant run end to end. Build the engine binary
+      # and point the suite at it; a regression there is otherwise invisible to CI.
+      - name: real-engine tests
+        run: |
+          cargo build --manifest-path ../tb-engine/Cargo.toml -p tb-cli --bin au
+          target=$(cargo metadata --manifest-path ../tb-engine/Cargo.toml --format-version 1 --no-deps \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')
+          AU_ENGINE_BIN="$target/debug/au" cargo test --test real_engine -- --ignored
 
   engine:
     name: Engine

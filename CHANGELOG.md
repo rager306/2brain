@@ -43,6 +43,25 @@ and a `.2brain` repository identity produce, so the newest layout was the one co
 it now compares both spellings. Nothing moves on a migrated machine: existence still decides. Found by the
 install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
 
+### Fixed
+
+- **CI never ran the real-engine suite** (CI). `cargo test` skips the three `#[ignore]`d tests in
+  `tb-mcp-rs/tests/real_engine.rs`, which are the only place the socket path, the member gate and the
+  cross-member grant run end to end. The adapter job now builds the engine binary, resolves the shared
+  target directory through `cargo metadata`, and runs the suite with `AU_ENGINE_BIN`.
+
+- **The installer's fallback could hide an existing state root** (installer). When `/usr/local/bin`
+  refuses the engine, the fallback created `$HOME/.2brain/bin`. On a machine that still keeps its state
+  in `$HOME/.arsumbris`, creating `.2brain` makes `repo::state_dir_in` prefer the new, empty root, and the
+  old registry, sockets and logs become unreachable. The fallback now resolves the state root by the
+  engine's own rule — `$2BRAIN_HOME`, an existing `.2brain`, an existing `.arsumbris`, else `.2brain` —
+  and installs there.
+
+- **A user namespace under `au.engine.` raised a false deprecation warning** (engine). `legacy_spelling_diag`
+  flagged any claim whose namespace started with `au.engine`, including a knowledge base's own
+  `au.engine.custom` type, which canonicalization never rewrites and the migration never touches. The note
+  now fires only when the canonical form actually differs from the authored one.
+
 ### Security
 
 - **The member grant covers the remaining refactor verbs** (engine + server). `inline`, `promote` and

@@ -72,9 +72,24 @@ install -m 0755 -t "$bin_dir" "$server_target/2brain" 2>/dev/null ||
 
 engine_bin=$bin_dir/au
 if ! install -m 0755 -t "$bin_dir" "$engine_target/au" 2>/dev/null; then
-  engine_bin=$HOME/.2brain/bin/au
-  mkdir -p "$HOME/.2brain/bin"
-  install -m 0755 -t "$HOME/.2brain/bin" "$engine_target/au"
+  # The fallback must land in the state root the ENGINE will resolve, not in a fresh
+  # `$HOME/.2brain`: creating that beside an existing legacy `$HOME/.arsumbris` makes
+  # `repo::state_dir_in` prefer the new, empty root and hides the old registry, sockets and
+  # logs. Same rule as the engine: `$2BRAIN_HOME`, an existing `.2brain`, an existing
+  # `.arsumbris`, else `.2brain`.
+  state_root=${2BRAIN_HOME:-}
+  if [[ -z $state_root ]]; then
+    if [[ -d $HOME/.2brain ]]; then
+      state_root=$HOME/.2brain
+    elif [[ -d $HOME/.arsumbris ]]; then
+      state_root=$HOME/.arsumbris
+    else
+      state_root=$HOME/.2brain
+    fi
+  fi
+  engine_bin=$state_root/bin/au
+  mkdir -p "$state_root/bin"
+  install -m 0755 -t "$state_root/bin" "$engine_target/au"
   printf 'install.sh: kept the engine at %s, because %s refused it\n' "$engine_bin" "$bin_dir"
 fi
 

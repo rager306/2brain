@@ -265,6 +265,12 @@ pub(crate) fn legacy_spelling_diag(source: &Path, claim: &TypeNameClaim) -> Opti
         return None;
     }
     let canonical = canonical_query_name(&claim.authored());
+    // Canonicalization leaves a user namespace alone: `au.engine.custom` is a knowledge base's own
+    // type, not the builtin's, so the claim already reads exactly as it will keep reading. A note
+    // that says "the bytes are stale" about bytes nobody will rewrite is a false alarm.
+    if canonical == claim.authored() {
+        return None;
+    }
     Some(Diagnostic {
         code: ENGINE_SCHEMA_LEGACY_SPELLING,
         severity: Severity::Hint,
@@ -618,6 +624,29 @@ mod tests {
         "tb.engine.locked-package",
         "tb.engine.meta",
     ];
+
+    /// A user namespace that merely starts with the legacy prefix is NOT a legacy claim: it is the
+    /// knowledge base's own type, canonicalization leaves it alone, and the migration never touches
+    /// it. Nagging about it is a false alarm (review finding #24).
+    #[test]
+    fn a_user_namespace_under_the_legacy_prefix_is_not_flagged() {
+        use tb_core::TypeNameClaim;
+        let span = tb_diagnostics::ByteRange::new(0, 1);
+        let own = TypeNameClaim::parse("au.engine.custom", span);
+        assert!(
+            legacy_spelling_diag(std::path::Path::new("/v/x.md"), &own).is_none(),
+            "a user namespace is not the builtin's and must not be flagged"
+        );
+        let builtin = TypeNameClaim::parse("au.engine.repo::au-engine", span);
+        let diag = legacy_spelling_diag(std::path::Path::new("/v/x.md"), &builtin)
+            .expect("the builtin claim IS legacy and must be flagged");
+        assert_eq!(diag.code.as_str(), ENGINE_SCHEMA_LEGACY_SPELLING.as_str());
+        assert!(
+            diag.message.contains("tb.engine.repo::tb-engine"),
+            "the note names the canonical form: {}",
+            diag.message
+        );
+    }
 
     #[test]
     fn the_hardwired_set_is_exactly_the_finalized_leaf_names() {

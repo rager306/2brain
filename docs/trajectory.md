@@ -27,6 +27,33 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-19 — the gates that were not running
+
+Three of the review's findings were not defects in behaviour but holes in the machinery that would
+catch one. Fixed as one thin wave.
+
+**#1: CI never ran the real-engine suite.** `cargo test` in the adapter job skips the three
+`#[ignore]`d tests in `tests/real_engine.rs` — the only place a real engine socket, the member gate
+and the cross-member grant are exercised end to end. That is exactly the suite that had rotted
+silently until this session found it. CI now builds the engine binary, resolves the shared target
+directory through `cargo metadata` (the same rule the scripts learned), and runs the suite with
+`AU_ENGINE_BIN`.
+
+**#2: the installer could create the shadow it feared.** When `/usr/local/bin` refuses the engine,
+`install.sh` fell back to `$HOME/.2brain/bin`, creating that directory. On a machine whose state root
+is still `$HOME/.arsumbris`, `repo::state_dir_in` then prefers the new, empty `.2brain`, and the old
+registry, sockets and logs vanish from view. The fallback now resolves the state root by the engine's
+own rule and installs into it — the shell mirrors `state_dir_in` rather than guessing.
+
+**#24: a warning about bytes nobody would rewrite.** `legacy_spelling_diag` keyed on the written
+prefix, so a knowledge base's own `au.engine.custom` type was flagged as stale even though
+canonicalization leaves it alone and the migration never touches it. It now fires only when the
+canonical form differs from the authored one, with a test pinning both sides: `au.engine.custom`
+silent, `au.engine.repo::au-engine` flagged with the canonical form in the message.
+
+Gates: engine `--lib` **756** / 1 known root-only, `--test it` 744 / 3 known, `tb-cli` 36/0, fmt and
+clippy clean, links 814/0.
+
 ## 2026-11-19 — two access boundaries from the review, closed with tests
 
 The review's first recommendation was to close #7, #16 and #21 before anything else, and two of them

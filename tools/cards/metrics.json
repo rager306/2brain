@@ -8,7 +8,7 @@
       "date": "2026-11-19"
     },
     "engine_lib_tests": {
-      "value": 755,
+      "value": 756,
       "known_environment_failures": 1,
       "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --lib; value is the sum of `passed` across the 1 suites the log recorded",
       "date": "2026-11-19"
