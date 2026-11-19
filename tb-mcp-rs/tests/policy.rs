@@ -4,6 +4,7 @@ use std::{
     io::Read,
     os::unix::net::UnixListener,
     process::{Command, Stdio},
+    thread,
     time::Duration,
 };
 
@@ -11,7 +12,7 @@ use serde_json::{Value, json};
 
 mod support;
 
-use support::Client;
+use support::{Client, error_text, read_request, write_frame};
 
 fn assert_not_connected(listener: &UnixListener) {
     assert_eq!(
@@ -285,4 +286,79 @@ fn the_gate_order_is_observable_in_errors_and_audit() {
         stages.contains(&"denied:prior_read".to_owned()),
         "{stages:?}"
     );
+}
+
+/// A grant for the parent member must not authorise a write inside a NESTED member the policy
+/// never listed (review finding #21). The engine writes into the DEEPEST owning member, so the
+/// adapter has to ask who really owns the joined path, not trust the name in the arguments.
+#[test]
+fn a_path_owned_by_an_ungranted_nested_member_is_refused() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("parent");
+    let socket = temp.path().join("engine.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let listener_for_daemon = listener;
+    let policy_path = temp.path().join("policy.json");
+    std::fs::write(
+        &policy_path,
+        r#"{"allow_mutations":true,"members":["parent"]}"#,
+    )
+    .unwrap();
+    let root_string = root.to_str().unwrap().to_owned();
+    let daemon = thread::spawn(move || {
+        // tb_content read: members, then content.
+        let (mut members, _) = listener_for_daemon.accept().unwrap();
+        let _ = read_request(&mut members);
+        write_frame(
+            &mut members,
+            json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":5,
+                "result":{"members":[{"repo":"parent","root":root_string,"editable":true,
+                    "role":"entry","tier":"entry","scattered":false,"local":true,
+                    "disabled":false,"git":{"root":root_string,"tracked":true}}]}}),
+        );
+        let (mut content, _) = listener_for_daemon.accept().unwrap();
+        let _ = read_request(&mut content);
+        write_frame(
+            &mut content,
+            json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":6,
+                "result":{"content":{"text":"x","hash":"hash-1","commit":null}}}),
+        );
+        // The write arms itself: members, then the owner question, which answers the NESTED
+        // member. Nothing else may arrive: the refusal happens before the mutation.
+        let (mut members2, _) = listener_for_daemon.accept().unwrap();
+        let _ = read_request(&mut members2);
+        write_frame(
+            &mut members2,
+            json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":5,
+                "result":{"members":[{"repo":"parent","root":root_string,"editable":true,
+                    "role":"entry","tier":"entry","scattered":false,"local":true,
+                    "disabled":false,"git":{"root":root_string,"tracked":true}}]}}),
+        );
+        let (mut resolve, _) = listener_for_daemon.accept().unwrap();
+        let request = read_request(&mut resolve);
+        assert_eq!(request["read"], "resolve_member", "{request}");
+        write_frame(
+            &mut resolve,
+            json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":6,
+                "result":{"resolve_member":{"repo":"child","root":format!("{root_string}/child"),
+                    "editable":true,"local":true,"role":"edit"}}}),
+        );
+    });
+    let mut client = Client::start_with(&socket, &["--policy", policy_path.to_str().unwrap()]);
+    let _ = client.call(
+        2,
+        "tb_content",
+        json!({"repo":"parent","path":"child/note.md"}),
+    );
+    let reply = client.call(
+        3,
+        "tb_write_file",
+        json!({"repo":"parent","path":"child/note.md","content":"x","expected_hash":"hash-1"}),
+    );
+    let text = error_text(&reply);
+    assert!(
+        text.contains("child") && text.contains("does not permit"),
+        "the refusal names the ungranted owner: {text}"
+    );
+    daemon.join().unwrap();
 }

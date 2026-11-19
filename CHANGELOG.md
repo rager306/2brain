@@ -43,6 +43,21 @@ and a `.2brain` repository identity produce, so the newest layout was the one co
 it now compares both spellings. Nothing moves on a migrated machine: existence still decides. Found by the
 install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
 
+### Security
+
+- **A content read could leave its member** (engine). `content` took a path, joined it to the root and
+  read it: an absolute path outside every member was fetched, and a symlink inside a member that pointed
+  out was followed, so a read-only client could obtain any file the daemon's user can open. The read now
+  resolves through the member map first and checks the REAL path when the file exists, refusing both
+  cases; an absent path still answers a null read. (Review finding #7.)
+
+- **A member grant did not cover the member the engine actually writes** (server). A path can reach into
+  a nested editable member, and the engine assigns it to that member, while the adapter checked the
+  member named in the arguments. A policy granting the parent therefore authorised a write inside a
+  child it never listed. The adapter now asks the engine who owns the joined path and refuses when that
+  owner is not in the allowlist; asked only when a policy lists members, so a launch without one is
+  unchanged. (Review finding #21.)
+
 ### Fixed
 
 - **A batch that touches one path twice reported `reflected: false` forever** (engine). `reflected`

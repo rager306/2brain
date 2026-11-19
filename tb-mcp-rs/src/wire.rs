@@ -813,6 +813,41 @@ pub(crate) async fn resolve_editable(
         .ok_or_else(|| "resolved path is not valid UTF-8".to_owned())
 }
 
+/// Refuse a write whose path the ENGINE assigns to a member the launch's policy does not grant.
+///
+/// The member a caller NAMES is not always the member the engine writes: a path that reaches
+/// into a NESTED editable member belongs to that member, and the engine picks the deepest owner.
+/// A grant for the parent must not authorise a write inside a child the policy never listed
+/// (review finding #21). Asked only when the policy HAS an allowlist — without one every member
+/// is permitted, so the answer cannot change and the exchange would be pure cost.
+pub(crate) async fn enforce_owner_grant(
+    transport: &dyn EngineTransport,
+    absolute: &str,
+    named: &str,
+    allowed: &[String],
+) -> Result<(), String> {
+    let reply = read_engine(
+        transport,
+        json!({"read": "resolve_member", "id": 1, "path": absolute}),
+    )
+    .await?;
+    let owner = reply
+        .payload
+        .get("resolve_member")
+        .filter(|member| member.is_object())
+        .and_then(|member| member.get("repo"))
+        .and_then(Value::as_str);
+    match owner {
+        Some(owner) if owner != named && !allowed.iter().any(|member| member == owner) => {
+            Err(format!(
+                "the path belongs to member {owner}, which this launch's policy does not permit; \
+                 {named} is granted, {owner} is not"
+            ))
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Join a member's declared root with a client-supplied relative path.
 ///
 /// The path is validated by the caller; this only resolves the member and joins.

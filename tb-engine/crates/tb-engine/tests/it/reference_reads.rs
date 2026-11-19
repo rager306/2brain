@@ -97,6 +97,47 @@ fn started() -> Harness {
     }
 }
 
+/// A read may not escape its member's tree. `content` takes a path, and an absolute path or a
+/// symlink inside a member that points outside it used to be read straight from disk, so a
+/// read-only client could fetch any file the daemon's user can open.
+#[test]
+fn a_content_read_cannot_escape_its_member() {
+    let mut h = started();
+    // A second tempdir, so the file really is outside the served member.
+    let elsewhere = tempfile::tempdir().unwrap();
+    let outside = elsewhere.path().join("outside.txt");
+    fs::write(&outside, "secret\n").unwrap();
+
+    let absolute = h
+        .client
+        .query(&json!({"read": "content", "id": 1, "path": outside.to_str().unwrap()}))
+        .unwrap();
+    assert_eq!(
+        absolute["type"], "error",
+        "an absolute path outside the member: {absolute}"
+    );
+
+    let link = h._dir.path().join("content").join("inside-link.txt");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&outside, &link).unwrap();
+    let through_link = h
+        .client
+        .query(&json!({"read": "content", "id": 2, "path": link.to_str().unwrap()}))
+        .unwrap();
+    assert_eq!(
+        through_link["type"], "error",
+        "a symlink that leaves the member: {through_link}"
+    );
+
+    // A real file in the member still reads.
+    let inside = h._dir.path().join("content/decision.md");
+    let ok = h
+        .client
+        .query(&json!({"read": "content", "id": 3, "path": inside.to_str().unwrap()}))
+        .unwrap();
+    assert_ne!(ok["type"], "error", "{ok}");
+}
+
 #[test]
 fn outgoing_references_resolve_targets_in_source_order() {
     let mut h = started();

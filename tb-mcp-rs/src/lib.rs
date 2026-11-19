@@ -2887,6 +2887,13 @@ impl Server {
         let target = resolve_editable(self.transport.as_ref(), repo, path)
             .await
             .map_err(|error| Denial::new(policy::Stage::Editability, error))?;
+        // The member named is not always the member the engine writes; the check lives in the
+        // wire layer with the exchange it needs, and runs only when a policy lists members.
+        if let Some(allowed) = self.policy.member_allowlist() {
+            crate::wire::enforce_owner_grant(self.transport.as_ref(), &target, repo, allowed)
+                .await
+                .map_err(|message| Denial::new(policy::Stage::MemberGrant, message))?;
+        }
         Ok(ArmedFile { key, target })
     }
 

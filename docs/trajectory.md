@@ -27,6 +27,34 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-19 — two access boundaries from the review, closed with tests
+
+The review's first recommendation was to close #7, #16 and #21 before anything else, and two of them
+were small enough to do honestly in one pass.
+
+**#7 — a read could leave its member.** `Request::Content` took a path, joined it to the root and read
+the file. Nothing checked that the path was inside a member at all, so an absolute path anywhere on the
+host was readable, and a symlink inside a member that pointed out was followed. The read now resolves
+through `RepoMap::repo_of` and then, when the file exists, canonicalizes it and refuses when the REAL
+path leaves the member root. An absent path is still a null read, so a create flow is unaffected. Two
+cases are pinned in `reference_reads`: an absolute path outside every member, and a symlink that leaves
+one; a real member file still reads.
+
+**#21 — the grant named the wrong member.** The adapter checked `permits_member(repo)` on the member in
+the arguments, then asked the engine to resolve the path. A path that reaches into a nested editable
+member belongs to that member, and the engine writes it there — so a policy granting the parent
+authorised a write inside a child it never listed. `arm_file` now asks `resolve_member` who owns the
+joined path and refuses when the owner is not the named member and not in the allowlist. It asks only
+when the policy HAS an allowlist, because without one every member is permitted and the exchange would
+be pure cost; that also keeps the wire sequence of every policy-free launch exactly as it was. The
+exchange lives in `wire.rs`, and the call site is six lines — the one place this session raised the
+`lib.rs` ratchet rather than paying it down, with the reason recorded beside the constant.
+
+#16 (the cascade allowlist on the other refactor verbs) is NOT done: `rename_type` carries
+`allowed_members`, and `rename`, `inline` and `promote` do not. It is the same shape as #21 but the plan
+is computed inside each saga, so it needs the engine to accept and enforce the list per verb. Recorded
+in `docs/trajectory.md`'s queue rather than half-done.
+
 ## 2026-11-19 — an external review's forty findings, triaged and started
 
 A full external review landed 40 confirmed findings (22 P1, 18 P2) against `c5afba6`. I re-verified

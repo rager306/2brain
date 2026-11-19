@@ -2,7 +2,7 @@
   "generated_for": "2brain",
   "gates": {
     "adapter_tests": {
-      "value": 264,
+      "value": 265,
       "known_environment_failures": 0,
       "command": "cd tb-mcp-rs && cargo +1.99.0 test --offline; value is the sum of `passed` across the 46 suites the log recorded",
       "date": "2026-11-19"
@@ -14,7 +14,7 @@
       "date": "2026-11-19"
     },
     "engine_it_tests": {
-      "value": 742,
+      "value": 743,
       "known_environment_failures": 3,
       "command": "cd tb-engine && cargo +1.99.0 test --offline -p tb-engine --test it; value is the sum of `passed` across the 1 suites the log recorded",
       "date": "2026-11-19"

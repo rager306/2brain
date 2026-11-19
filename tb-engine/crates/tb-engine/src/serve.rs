@@ -12825,7 +12825,18 @@ async fn dispatch(handle: &EngineHandle, req: Request, shutdown_tx: &ShutdownTx)
             // Capture readiness and version under the held lock, drop it, then
             // read off the lock and off the executor, so disk IO never blocks
             // either the held state or a runtime worker.
-            let target = abs_arg(handle.root(), &path);
+            // Resolve through the member map first: a path outside every member, or one a
+            // symlink carries out of its member, is refused before any bytes are read.
+            let root = handle.root().to_path_buf();
+            let arg = path.clone();
+            let target = match handle
+                .read(move |v| resolve_read_target(v, &root, &arg))
+                .value()
+            {
+                Some(Ok(target)) => target,
+                Some(Err(message)) => return Response::invalid(message),
+                None => return Response::not_ready(),
+            };
             match handle.read(|_| ()) {
                 Read::NotReady => Response::not_ready(),
                 Read::Ready { version, .. } => {
@@ -13491,6 +13502,41 @@ fn abs_arg(root: &Path, arg: &str) -> PathBuf {
     } else {
         root.join(p)
     }
+}
+
+/// The file a `content`-family read may open: a path inside a declared member, resolved through
+/// the same lexical rule writes use, plus a symlink check. A lexical path can stay inside the
+/// member while a link on it points anywhere, and `std::fs::read` follows the link — so a
+/// read-only client could fetch any file the daemon's user can open. The check is on the REAL
+/// path, and only when the file exists: an absent path is answered as a null read by the caller.
+fn resolve_read_target(kb: &KnowledgeBase, root: &Path, arg: &str) -> Result<PathBuf, String> {
+    use std::path::Component;
+    let joined = abs_arg(root, arg);
+    let mut normalized = PathBuf::new();
+    for component in joined.components() {
+        match component {
+            Component::ParentDir => {
+                if !normalized.pop() {
+                    return Err(format!("path escapes the workspace: {arg}"));
+                }
+            }
+            Component::CurDir => {}
+            other => normalized.push(other),
+        }
+    }
+    let Some(member) = kb.repos.repo_of(&normalized) else {
+        return Err(format!("path is outside every workspace member: {arg}"));
+    };
+    if let Ok(real) = std::fs::canonicalize(&normalized) {
+        let member_root =
+            std::fs::canonicalize(&member.root).unwrap_or_else(|_| member.root.clone());
+        if !real.starts_with(&member_root) {
+            return Err(format!(
+                "path leaves its workspace member through a symlink: {arg}"
+            ));
+        }
+    }
+    Ok(normalized)
 }
 
 /// Read a path's content and FNV-1a hash off the held lock, the shape the

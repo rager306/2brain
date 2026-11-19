@@ -94,7 +94,13 @@ const ALLOWED: [(&str, &str); 17] = [
 // 4541 on 2026-11-18: `require_clean` reaches `tb_edit_file` and `tb_create_file` (ADR-0002) — a field with
 // its doc on each argument struct, and the conditional send on each request, the same shape `tb_write_file`
 // already paid for.
-const LIB_RS_PRODUCTION_BUDGET: usize = 4541;
+// 4548 on 2026-11-19: a mutation now asks the ENGINE which member owns the joined path and refuses
+// when that owner is not in the policy's allowlist (review finding #21) — the named member is not
+// always the one written, because a path can reach into a nested member. The check's exchange lives
+// in `wire.rs`; what stays here is the six-line call. Two earlier attempts at this budget were paid
+// down by dedup instead (the read-permit helper and `file_read_guard`), and the same was tried here:
+// moving the exchange itself out is exactly what happened, and these six lines are the call site.
+const LIB_RS_PRODUCTION_BUDGET: usize = 4548;
 
 fn src() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
