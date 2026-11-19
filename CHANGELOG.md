@@ -91,6 +91,14 @@ install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
 
 ### Fixed
 
+- **A failed rollback deleted the only surviving copy of an outside-git file** (engine, review #7).
+  The failed-saga path restored parked preimages and then dropped the preimage directory
+  unconditionally, and the startup sweep removed every `preimage.*` left behind — so when a restore
+  failed, the parked copy was gone too. A failed rollback now keeps both the intent marker and its
+  parked copies, and the startup sweep skips any `preimage.<id>` that has a `saga.failed.<id>`
+  sentinel. Recovery refuses to auto-retry such a saga, so the copies stay for an operator; a test
+  proves the sentinel-owned copy survives while an unrelated orphan is still swept.
+
 - **A committed saga could be rolled back by the next start** (engine, review #10). Closing a saga
   removed its intent marker best-effort and ignored the result, so a marker that survived a failed
   removal was read at the next start as an *interrupted* saga — recovery would revert a mutation the

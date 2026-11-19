@@ -5085,7 +5085,16 @@ fn apply_saga_with_moves<T>(
     // gone. A COMMITTED saga is marked settled durably first, because a marker
     // that survives a failed removal would otherwise be rolled back at the next
     // start — reverting a mutation the client was told succeeded.
-    if outcome.is_ok() {
+    // A failed rollback leaves a failure sentinel: the marker and the parked copies
+    // are the only recovery material left, so neither is removed. Recovery sees the
+    // sentinel and refuses to auto-retry, leaving them for an operator.
+    let incomplete_rollback = outcome.is_err()
+        && marker_dir
+            .join(failure_sentinel_name(&plan.mutation_id))
+            .exists();
+    if incomplete_rollback {
+        // Deliberately keep `marker` and `preimages`.
+    } else if outcome.is_ok() {
         match mark_intent_settled(&marker) {
             Ok(()) => {
                 let _ = remove_intent_marker(&marker);
@@ -5111,7 +5120,9 @@ fn apply_saga_with_moves<T>(
     } else {
         let _ = remove_intent_marker(&marker);
     }
-    drop_preimages(marker_dir, &plan.mutation_id);
+    if !incomplete_rollback {
+        drop_preimages(marker_dir, &plan.mutation_id);
+    }
     outcome
 }
 
@@ -5354,15 +5365,24 @@ fn drop_preimages(marker_dir: &Path, mutation_id: &str) {
     let _ = std::fs::remove_dir_all(preimage_dir(marker_dir, mutation_id));
 }
 
-/// Drop every saga's parked copies, the startup sweep after recovery.
+/// Drop parked copies the engine no longer needs, the startup sweep after recovery.
+///
+/// A saga with a `saga.failed.<id>` sentinel is NOT swept: its rollback did not
+/// complete, so its parked copies are the only surviving copy of a path outside
+/// git. Deleting them there would turn a failed rollback into data loss.
 fn sweep_preimages(marker_dir: &Path) {
     let Ok(entries) = std::fs::read_dir(marker_dir) else {
         return;
     };
     for entry in entries.flatten() {
-        if entry.file_name().to_string_lossy().starts_with("preimage.") {
-            let _ = std::fs::remove_dir_all(entry.path());
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Some(id) = name.strip_prefix("preimage.") else {
+            continue;
+        };
+        if marker_dir.join(failure_sentinel_name(id)).exists() {
+            continue;
         }
+        let _ = std::fs::remove_dir_all(entry.path());
     }
 }
 
@@ -18274,6 +18294,34 @@ mod saga_tests {
         ShellGit
             .commit(repo, &[PathBuf::from("f.md")], &message)
             .unwrap();
+    }
+
+    #[test]
+    fn a_failed_rollback_keeps_its_parked_copies() {
+        let ws = TempDir::new().unwrap();
+        let run = ws
+            .path()
+            .join(".2brain")
+            .join(crate::repo::ENGINE_RUNTIME_DIR)
+            .join("run");
+        // A saga whose rollback failed: the sentinel says an operator must step in,
+        // and the parked copy is the last surviving copy of an outside-git path.
+        let kept = preimage_dir(&run, "m-stuck");
+        fs::create_dir_all(&kept).unwrap();
+        fs::write(kept.join("copy"), "precious\n").unwrap();
+        fs::write(run.join(failure_sentinel_name("m-stuck")), "boom\n").unwrap();
+        // An unrelated orphan with no sentinel is still swept.
+        let orphan = preimage_dir(&run, "m-orphan");
+        fs::create_dir_all(&orphan).unwrap();
+
+        let report = recover_crashed_saga(ws.path());
+        assert_eq!(report.failures.len(), 1);
+        assert_eq!(
+            fs::read_to_string(kept.join("copy")).unwrap(),
+            "precious\n",
+            "a failed rollback keeps the only copy"
+        );
+        assert!(!orphan.exists(), "an orphan without a sentinel is swept");
     }
 
     #[test]
