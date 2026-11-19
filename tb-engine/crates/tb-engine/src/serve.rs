@@ -1853,6 +1853,10 @@ struct PromoteArgs {
     /// Optional stamps, folded into the newly-extracted file (`to`).
     #[serde(default)]
     stamps: Vec<Stamp>,
+    /// ADR-0003: the members the caller's policy grants. Sent only when the policy has an
+    /// allowlist; every member the saga writes must be in it.
+    #[serde(default)]
+    allowed_members: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1870,6 +1874,10 @@ struct InlineArgs {
     /// Optional stamps, folded into the host file (`into`) the content is pulled into.
     #[serde(default)]
     stamps: Vec<Stamp>,
+    /// ADR-0003: the members the caller's policy grants. Sent only when the policy has an
+    /// allowlist; every member the saga writes must be in it.
+    #[serde(default)]
+    allowed_members: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1884,6 +1892,10 @@ struct RenameBlockIdArgs {
     /// Optional stamps, folded into the host file (`path`).
     #[serde(default)]
     stamps: Vec<Stamp>,
+    /// ADR-0003: the members the caller's policy grants. Sent only when the policy has an
+    /// allowlist; every member the saga writes must be in it.
+    #[serde(default)]
+    allowed_members: Vec<String>,
 }
 
 /// A subscription request, tagged by `subscribe`, symmetric with [`Request`].
@@ -5379,6 +5391,61 @@ fn saga_marker_dir(root: &Path) -> PathBuf {
 }
 
 #[cfg(test)]
+mod grant_refusal_tests {
+    use super::*;
+
+    fn plan_with(members: &[&str]) -> SagaPlan {
+        SagaPlan {
+            mutation_id: "m".to_string(),
+            members: members
+                .iter()
+                .map(|name| SagaMember {
+                    tree_root: PathBuf::from(format!("/ws/{name}")),
+                    repo_names: vec![crate::repo::RepoName((*name).to_string())],
+                    paths: vec![PathBuf::from(format!("/ws/{name}/note.md"))],
+                    git: true,
+                })
+                .collect(),
+            not_written: Default::default(),
+            outside_git: Default::default(),
+            unclassified: None,
+            dirs: Default::default(),
+            attribution: Vec::new(),
+        }
+    }
+
+    /// No list is the ABSENCE of a grant, not a grant of nothing: a policy-free launch sends
+    /// nothing and every saga stays permitted.
+    #[test]
+    fn an_absent_grant_refuses_nothing() {
+        assert!(grant_refusal(&plan_with(&["ra", "rb"]), &[], "rename").is_none());
+    }
+
+    /// A grant that covers every member of the plan permits it.
+    #[test]
+    fn a_grant_covering_the_plan_permits_it() {
+        let allowed = vec!["ra".to_string(), "rb".to_string()];
+        assert!(grant_refusal(&plan_with(&["ra", "rb"]), &allowed, "rename").is_none());
+    }
+
+    /// A member outside the grant refuses, and every such member is named once.
+    #[test]
+    fn a_member_outside_the_grant_refuses_and_is_named() {
+        let allowed = vec!["ra".to_string()];
+        let reject = grant_refusal(&plan_with(&["ra", "rb", "rc"]), &allowed, "rename")
+            .expect("a member outside the grant must refuse");
+        assert!(
+            reject.message.contains("policy/member_grant"),
+            "{}",
+            reject.message
+        );
+        assert!(reject.message.contains("rb"), "{}", reject.message);
+        assert!(reject.message.contains("rc"), "{}", reject.message);
+        assert!(!reject.message.contains("ra,"), "{}", reject.message);
+    }
+}
+
+#[cfg(test)]
 mod saga_marker_dir_tests {
     use super::*;
 
@@ -6928,6 +6995,9 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 Ok(plan) => plan,
                 Err(reject) => return mutation_reject_frame(reject),
             };
+            if let Some(reject) = grant_refusal(&plan, &args.allowed_members, "promote") {
+                return mutation_reject_frame(reject);
+            }
             let marker_dir = saga_marker_dir(handle.root());
             let summary = format!("promote {} -> {}", args.path, args.to);
             let blocking_handle = handle.clone();
@@ -7371,6 +7441,9 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 Ok(plan) => plan,
                 Err(reject) => return mutation_reject_frame(reject),
             };
+            if let Some(reject) = grant_refusal(&plan, &args.allowed_members, "inline") {
+                return mutation_reject_frame(reject);
+            }
             let marker_dir = saga_marker_dir(handle.root());
             let summary = format!("inline {} into {}", args.path, args.into);
             let blocking_handle = handle.clone();
@@ -7655,6 +7728,9 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 Ok(plan) => plan,
                 Err(reject) => return mutation_reject_frame(reject),
             };
+            if let Some(reject) = grant_refusal(&plan, &args.allowed_members, "rename_block_id") {
+                return mutation_reject_frame(reject);
+            }
             let marker_dir = saga_marker_dir(handle.root());
             let summary = format!(
                 "rename block-id {} -> {} in {}",

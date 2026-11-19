@@ -1577,6 +1577,7 @@ impl Server {
         if let Some(at) = args.at {
             request["at"] = json!(at);
         }
+        crate::wire::with_member_grant(&mut request, self.policy.member_allowlist());
         self.finish_mutation(
             "tb_inline",
             &repo,
@@ -1650,6 +1651,7 @@ impl Server {
         if let Some(block_id) = args.block_id {
             request["block_id"] = json!(block_id);
         }
+        crate::wire::with_member_grant(&mut request, self.policy.member_allowlist());
         self.finish_mutation("tb_promote", &repo, request, [prepared.key])
             .await
     }
@@ -1891,21 +1893,20 @@ impl Server {
         Parameters(args): Parameters<RenameBlockIdArguments>,
         _ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        let block_id = args.block_id;
-        let to_block_id = args.to_block_id;
+        let (block_id, to_block_id) = (args.block_id, args.to_block_id);
+        let grant = self.policy.member_allowlist().map(<[String]>::to_vec);
         self.guarded_mutation(
             "tb_rename_block_id",
             args.repo,
             args.path,
             args.expected_hash,
             move |target| {
-                json!({
-                    "mutate": "rename_block_id",
-                    "id": 1,
-                    "path": target,
-                    "block_id": block_id,
-                    "to_block_id": to_block_id,
-                })
+                crate::wire::rename_block_id_request(
+                    target,
+                    &block_id,
+                    &to_block_id,
+                    grant.as_deref(),
+                )
             },
         )
         .await
@@ -1937,7 +1938,6 @@ impl Server {
             Ok(path) => path,
             Err(error) => return return_error(error),
         };
-        // Referrers can live in another member, so the grant travels (ADR-0003, #16).
         let grant = self.policy.member_allowlist().map(<[String]>::to_vec);
         self.guarded_mutation(
             "tb_rename",

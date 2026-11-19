@@ -34,6 +34,25 @@ pub(crate) fn rename_request(target: &str, to: &str, allowed: Option<&[String]>)
     request
 }
 
+/// The `rename_block_id` request for one armed target: the id swap plus, when the policy lists
+/// members, the grant the engine checks against the saga plan (ADR-0003, #16).
+pub(crate) fn rename_block_id_request(
+    target: &str,
+    block_id: &str,
+    to_block_id: &str,
+    allowed: Option<&[String]>,
+) -> Value {
+    let mut request = json!({
+        "mutate": "rename_block_id",
+        "id": 1,
+        "path": target,
+        "block_id": block_id,
+        "to_block_id": to_block_id,
+    });
+    with_member_grant(&mut request, allowed);
+    request
+}
+
 /// Attach the ADR-0003 member grant to a mutation that can write across members, only when the
 /// policy has an allowlist. `None` is the absence of a grant, not a grant of nothing.
 pub(crate) fn with_member_grant(request: &mut Value, allowed: Option<&[String]>) {

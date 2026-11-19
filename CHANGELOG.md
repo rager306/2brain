@@ -45,6 +45,14 @@ install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
 
 ### Security
 
+- **The member grant covers the remaining refactor verbs** (engine + server). `inline`, `promote` and
+  `rename_block_id` rewrite cross-file referrers too, and a referrer can live in another member; none of
+  them carried the grant, so a policy granting one member still let them write into another. All three now
+  accept `allowed_members` and check it against their saga plan through the same `grant_refusal`
+  `rename` uses. `inline`/`promote` refuse a cross-repo `path`/`into` by design, which does NOT bound
+  their writes: the referrers are what cross the member line. An absent list is the absence of a grant, so
+  a policy-free launch is unchanged.
+
 - **The member grant now covers `rename`'s cross-member cascade** (engine + server). `rename` rewrites
   every inbound referrer, and a referrer can live in another member; the engine checked editability but
   never the caller's grant, so a policy granting one member still rewrote and committed references in

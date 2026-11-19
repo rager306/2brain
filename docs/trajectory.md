@@ -57,8 +57,14 @@ granting `ra` still rewrote and committed links in `rb` and `rc`. `rename` accep
 is about to write, under the write lock — the rule ADR-0003 set for `rename_type`, now in a shared
 `grant_refusal` that any saga can call. The test drives the three-member workspace: refused with the
 member names when the grant covers only `ra`, and it lands when the grant covers all three. `inline` and
-`promote` are the same shape and remain open — they need the same field on their args and the same call
-before their saga.
+`promote` were the same shape and are now done too, with `rename_block_id`: all three rewrite cross-file
+referrers, and a cross-repo `path`/`into` guard does not bound that — the referrers are what cross the
+member line. Each carries `allowed_members` and calls the shared `grant_refusal` on its plan.
+
+**A note on the report.** Finding #16 named `inline` and `promote` as if the same-repo guard covered them.
+It does not; the guard bounds the two named paths, not the referrers the saga rewrites, which is why the
+fix belongs on the plan. Reading the code before trusting the framing is what turned a "already safe" line
+into a real hole.
 
 ## 2026-11-19 — an external review's forty findings, triaged and started
 
