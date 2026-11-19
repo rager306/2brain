@@ -247,14 +247,23 @@ test('captures and destinations cannot cross into mounted or undeclared nested r
   mkdirSync(join(f.workspace, 'undeclared/.arsumbris'), { recursive: true });
   writeFileSync(join(f.workspace, 'undeclared/.arsumbris/repo.yaml'), 'name: undeclared\n');
   copyFileSync(join(f.workspace, 'content/paper.pdf'), join(f.workspace, 'undeclared/paper.pdf'));
+  // A repo that already carries the current identity directory is refused too:
+  // the guard must follow the same rule the engine writes by, not only `.arsumbris`.
+  mkdirSync(join(f.workspace, 'current/.2brain'), { recursive: true });
+  writeFileSync(join(f.workspace, 'current/.2brain/repo.yaml'), 'name: current\n');
+  copyFileSync(join(f.workspace, 'content/paper.pdf'), join(f.workspace, 'current/paper.pdf'));
   for (const input of [
     { raw: 'nested/paper.pdf' }, { destination: 'nested/notes/paper.md' },
     { raw: 'undeclared/paper.pdf' }, { destination: 'undeclared/notes/paper.md' },
+    { raw: 'current/paper.pdf' }, { destination: 'current/notes/paper.md' },
   ]) {
     const result = await f.call(input);
     assert.equal(result.isError, true);
     assert.match(result.content.results[0].error, /another repository/);
   }
+  const metadata = await f.call({ destination: 'current/.2brain/capture.md' });
+  assert.equal(metadata.isError, true);
+  assert.match(metadata.content.results[0].error, /outside repository metadata/);
   assert.equal(f.writes.length, 0);
 });
 

@@ -4,6 +4,9 @@ import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
 import * as note from './note.mjs';
 
+/** The repository identity directory: `.2brain` now, `.arsumbris` before the rename. */
+export const IDENTITY_DIRS = Object.freeze(['.2brain', '.arsumbris']);
+
 export const LIMITS = Object.freeze({
   batch: 32,
   rawBytes: 64 * 1024 * 1024,

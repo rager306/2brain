@@ -3,7 +3,7 @@
 // create-if-absent guard: creation requires coordination with writers outside this plugin.
 import { lstatSync, realpathSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { LIMITS, stemOf, readRaw, hashOf } from './converters/ingest-core.mjs';
+import { LIMITS, IDENTITY_DIRS, stemOf, readRaw, hashOf } from './converters/ingest-core.mjs';
 import { runConverter } from './converters/run-converter.mjs';
 
 const active = new Set();
@@ -24,7 +24,7 @@ function checkedPath(entry, value, nestedRoots, { raw = false } = {}) {
   const base = within(root, lexical) ? root : entry;
   if (!within(base, lexical) || lexical === base) throw new Error('path is outside the served repository');
   const parts = relative(base, lexical).split(sep);
-  if (parts.some((part) => ['.git', '.arsumbris', '.agents', '.codex', '.claude', 'node_modules'].includes(part.toLowerCase()))) {
+  if (parts.some((part) => ['.git', ...IDENTITY_DIRS, '.agents', '.codex', '.claude', 'node_modules'].includes(part.toLowerCase()))) {
     throw new Error('captures and notes must be outside repository metadata and dependency directories');
   }
   let path = root;
@@ -34,7 +34,7 @@ function checkedPath(entry, value, nestedRoots, { raw = false } = {}) {
     if (info?.isSymbolicLink()) throw new Error('symlinked capture or destination paths are not supported');
     if (index < parts.length - 1 && info && !info.isDirectory()) throw new Error('path parent is not a directory');
     if (info) path = realpathSync(path); // Canonical casing also matters on case-insensitive filesystems.
-    if (info?.isDirectory() && (stat(join(path, '.git')) || stat(join(path, '.arsumbris/repo.yaml')))) {
+    if (info?.isDirectory() && (stat(join(path, '.git')) || IDENTITY_DIRS.some((dir) => stat(join(path, dir, 'repo.yaml'))))) {
       throw new Error('path belongs to another repository');
     }
   }
@@ -44,7 +44,7 @@ function checkedPath(entry, value, nestedRoots, { raw = false } = {}) {
   if ((raw && !info) || (info && !info.isFile())) throw new Error('path must name a regular file');
   if (!raw && info?.nlink > 1) throw new Error('destination has hard links; refusing to change other files');
   if (raw && info.size > LIMITS.rawBytes) throw new Error('raw exceeds 64 MiB');
-  if (/[\[\]#^|:\\\r\n]/.test(relative(root, path))) throw new Error('path contains Arsumbris reference syntax');
+  if (/[\[\]#^|:\\\r\n]/.test(relative(root, path))) throw new Error('path contains 2brain reference syntax');
   return path;
 }
 

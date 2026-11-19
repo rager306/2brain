@@ -9,7 +9,7 @@ function scalar(value) {
   return JSON.stringify(value);
 }
 
-/** Escape Arsumbris reference, contribution and anchor syntax in external text.
+/** Escape 2brain reference, contribution and anchor syntax in external text.
  * Escapes can be visible inside code blocks; the original bytes remain the authority. */
 export const literal = (value) => String(value)
   .replace(/(?<!\\)\[\[/g, '\\[[')

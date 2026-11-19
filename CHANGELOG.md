@@ -60,6 +60,15 @@ install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
   drains the reply, and only then signals — five consecutive runs of
   `daemon::shutdown_read_couples_ready_and_version` pass.
 
+- **The ingest guard only knew the legacy identity directory** (tooling). `tb-ingest/ingest.mjs`
+  refused writes into `.arsumbris/` but not into `.2brain/`, the directory a fresh repo gets, so a
+  capture could be written into the current identity directory the engine rejects; its repo-boundary
+  check also looked only for `.arsumbris/repo.yaml`, so a repo carrying `.2brain/` was not recognised.
+  Both now read a shared `IDENTITY_DIRS` (`.2brain`, `.arsumbris`), and the nested-repository test
+  covers the current spelling. `converters/engine.test.mjs` was removed: it imported
+  `tb-mcp-rs/src/daemon/broker.ts` and `@arsumbris/au-mcp-sdk`, both gone with the TypeScript daemon,
+  so it could not run and no runner referenced it.
+
 - **Live text still named the retired prefix** (engine, adapter, tooling). `tb_engine`/`tb_cli`/`tb_core`/
   `tb_parser` READMEs and comments, the `~/.arsumbris` messages `EntryReserved`/`HomeUnset`/the open
   warning printed, the `engine_schema` lock docs (which also had nested backticks from an earlier replace,
