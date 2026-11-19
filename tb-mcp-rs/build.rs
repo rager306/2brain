@@ -37,9 +37,9 @@ fn main() {
             println!("cargo:rerun-if-changed={}", git_dir.join(watched).display());
         }
     }
-    println!("cargo:rerun-if-env-changed=AU_BUILD_COMMIT");
+    println!("cargo:rerun-if-env-changed=TB_BUILD_COMMIT");
 
-    let commit = env::var("AU_BUILD_COMMIT")
+    let commit = env::var("TB_BUILD_COMMIT")
         .ok()
         .filter(|value| !value.is_empty())
         .or_else(|| git(crate_dir, &["rev-parse", "--short=12", "HEAD"]))
@@ -56,8 +56,8 @@ fn main() {
     let target = env::var("TARGET").unwrap_or_else(|_| "unknown".to_owned());
     let profile = env::var("PROFILE").unwrap_or_else(|_| "unknown".to_owned());
 
-    println!("cargo:rustc-env=AU_BUILD_COMMIT={commit}");
-    println!("cargo:rustc-env=AU_BUILD_DIRTY={dirty}");
-    println!("cargo:rustc-env=AU_BUILD_TARGET={target}");
-    println!("cargo:rustc-env=AU_BUILD_PROFILE={profile}");
+    println!("cargo:rustc-env=TB_BUILD_COMMIT={commit}");
+    println!("cargo:rustc-env=TB_BUILD_DIRTY={dirty}");
+    println!("cargo:rustc-env=TB_BUILD_TARGET={target}");
+    println!("cargo:rustc-env=TB_BUILD_PROFILE={profile}");
 }

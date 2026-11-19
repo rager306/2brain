@@ -14,24 +14,24 @@
 # Costs one small model turn on YOUR credentials, which is why it is a separate
 # script and not part of `client-matrix.sh`: that one must stay free and offline.
 #
-# The binaries default to the shared `.cargo-target` debug builds; AU_ENGINE_BIN /
-# AU_MCP_RS_BIN override the paths, and `claude` needs a working login.
+# The binaries default to the shared `.cargo-target` debug builds; TB_ENGINE_BIN /
+# TB_MCP_BIN override the paths, and `claude` needs a working login.
 set -euo pipefail
 
 # shellcheck source=scripts/lib/target-dir.sh
 source "$(dirname "$0")/lib/target-dir.sh"
 target_dir=$(cargo_target_dir)
 
-ENGINE=${AU_ENGINE_BIN:-$target_dir/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-$target_dir/debug/2brain}
-TURN_HOME=${AU_TURN_HOME:-$HOME}
+ENGINE=${TB_ENGINE_BIN:-$target_dir/debug/au}
+ADAPTER=${TB_MCP_BIN:-$target_dir/debug/2brain}
+TURN_HOME=${TB_TURN_HOME:-$HOME}
 
 if [[ ! -x $ENGINE ]]; then
-  echo "missing engine binary: $ENGINE (set AU_ENGINE_BIN)" >&2
+  echo "missing engine binary: $ENGINE (set TB_ENGINE_BIN)" >&2
   exit 1
 fi
 if [[ ! -x $ADAPTER ]]; then
-  echo "missing adapter: $ADAPTER (set AU_MCP_RS_BIN)" >&2
+  echo "missing adapter: $ADAPTER (set TB_MCP_BIN)" >&2
   exit 1
 fi
 command -v claude >/dev/null || { echo "claude is not installed" >&2; exit 1; }
@@ -58,16 +58,16 @@ transcript=$(cd "$repo" && HOME="$TURN_HOME" claude -p \
 unique-marker-7f3a. Then answer with one line: the path of the file that contains it
 and the text of that line.' \
   --mcp-config "$config" \
-  --allowedTools 'mcp__2brain__au_grep' \
+  --allowedTools 'mcp__2brain__tb_grep' \
   --output-format stream-json --verbose 2>&1 || true)
-AU_ANSWER_SOURCE=$root/transcript.jsonl
-printf '%s\n' "$transcript" >"$AU_ANSWER_SOURCE"
+TB_ANSWER_SOURCE=$root/transcript.jsonl
+printf '%s\n' "$transcript" >"$TB_ANSWER_SOURCE"
 
 status=0
 fail() { printf 'FAIL: %s\n' "$1" >&2; status=1; }
 
-if grep -q '"name":"mcp__2brain__au_grep"' <<<"$transcript"; then
-  echo "PASS: the model called mcp__2brain__au_grep"
+if grep -q '"name":"mcp__2brain__tb_grep"' <<<"$transcript"; then
+  echo "PASS: the model called mcp__2brain__tb_grep"
 else
   fail "no tb_grep tool call in the transcript"
 fi
@@ -85,7 +85,7 @@ fi
 # Same reasoning as the marker: the path appears in the model's own arguments and in
 # the tool result. The claim under test is that the ANSWER names the file, so the
 # final assistant text is the only place to look.
-final=$(python3 "$(dirname "$0")/lib/last_answer.py" --client claude "$AU_ANSWER_SOURCE" 2>/dev/null || true)
+final=$(python3 "$(dirname "$0")/lib/last_answer.py" --client claude "$TB_ANSWER_SOURCE" 2>/dev/null || true)
 if grep -q 'notes/a.md' <<<"$final"; then
   echo "PASS: the final answer names the file that holds the marker"
 else
@@ -98,9 +98,9 @@ else
   echo "PASS: no permission denial (the allow-list covered the call)"
 fi
 
-if [[ ${AU_TURN_TRANSCRIPT:-} ]]; then
-  printf '%s\n' "$transcript" >"$AU_TURN_TRANSCRIPT"
-  echo "transcript: $AU_TURN_TRANSCRIPT"
+if [[ ${TB_TURN_TRANSCRIPT:-} ]]; then
+  printf '%s\n' "$transcript" >"$TB_TURN_TRANSCRIPT"
+  echo "transcript: $TB_TURN_TRANSCRIPT"
 fi
 
 echo "---"

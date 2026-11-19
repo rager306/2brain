@@ -34,12 +34,12 @@ fields:
   #: = none; a subset = exactly those. A consumed dependency offers context, it never imposes it.
   inject?: mcp.inject*[]
   #: The tools the session may see, as def-refs to mcp.tool subtypes. The daemon resolves this
-  #: allowlist from the profile graph (there is no AU_MCP_TOOLS launch env). Absent = every
+  #: allowlist from the profile graph (there is no TB_MCP_TOOLS launch env). Absent = every
   #: discovered tool; an empty list = no tools; a subset = exactly those. Visibility is the whole
   #: axis — a tool's engine access is its own declaration on its def, with no human knob over it.
   tools?: type<mcp.tool>*[]
   #: The native tools this session may use, as a whitelist (the native-tool counterpart to `tools`).
-  #: Resolved DAEMON-SIDE from this profile at session-open, like `tools` (no AU_MCP_NATIVE_TOOLS env).
+  #: Resolved DAEMON-SIDE from this profile at session-open, like `tools` (no TB_MCP_NATIVE_TOOLS env).
   #: Tri-state: absent = every native tool
   #: (the hard default); an empty list = NO native tool; a list = ONLY those. A whitelist with no
   #: exceptions — nothing is implicitly allowed; the agent is pointed at the au_* gate tools for the

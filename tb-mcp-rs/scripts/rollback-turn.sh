@@ -13,9 +13,9 @@ set -euo pipefail
 source "$(dirname "$0")/lib/target-dir.sh"
 target_dir=$(cargo_target_dir)
 
-ENGINE=${AU_ENGINE_BIN:-$target_dir/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-$target_dir/debug/2brain}
-TURN_HOME=${AU_TURN_HOME:-$HOME}
+ENGINE=${TB_ENGINE_BIN:-$target_dir/debug/au}
+ADAPTER=${TB_MCP_BIN:-$target_dir/debug/2brain}
+TURN_HOME=${TB_TURN_HOME:-$HOME}
 
 [[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE" >&2; exit 1; }
 [[ -x $ADAPTER ]] || { echo "missing adapter: $ADAPTER" >&2; exit 1; }
@@ -74,7 +74,7 @@ transcript=$(cd "$repo" && HOME="$TURN_HOME" claude -p \
 anything else. Finish with one line: the files the revert would touch, and whether the
 preview says it is safe.' \
   --mcp-config "$config" \
-  --allowedTools 'mcp__2brain__au_content,mcp__2brain__au_rollback_preview' \
+  --allowedTools 'mcp__2brain__tb_content,mcp__2brain__tb_rollback_preview' \
   --output-format stream-json --verbose 2>&1 || true)
 
 status=0
@@ -84,14 +84,14 @@ pass() { printf 'PASS: %s\n' "$1"; }
 calls=$(grep -o '"name":"mcp__2brain__[a-z_]*"' <<<"$transcript" | sed 's/.*__//;s/"//' | tr '\n' ' ')
 echo "tool calls: ${calls:-none}"
 
-grep -q '"name":"mcp__2brain__au_content"' <<<"$transcript" \
+grep -q '"name":"mcp__2brain__tb_content"' <<<"$transcript" \
   && pass "the model read the file" || fail "no tb_content call"
-grep -q '"name":"mcp__2brain__au_rollback_preview"' <<<"$transcript" \
+grep -q '"name":"mcp__2brain__tb_rollback_preview"' <<<"$transcript" \
   && pass "the model asked for a rollback preview" || fail "no tb_rollback_preview call"
 # The commit must be the one tb_content reported, not something invented: the answer
 # is only meaningful if the model took the id from the engine.
 read_commit=$(grep -oE '"commit":"[0-9a-f]{40}"' <<<"$transcript" | head -1 | cut -d'"' -f4 || true)
-preview_arg=$(grep -oE '"name":"mcp__2brain__au_rollback_preview","input":\{"repo":"[^"]*","commit":"[0-9a-f]+"' <<<"$transcript" | grep -oE '[0-9a-f]{40}' | head -1 || true)
+preview_arg=$(grep -oE '"name":"mcp__2brain__tb_rollback_preview","input":\{"repo":"[^"]*","commit":"[0-9a-f]+"' <<<"$transcript" | grep -oE '[0-9a-f]{40}' | head -1 || true)
 if [[ -n $read_commit && $preview_arg == "$read_commit" ]]; then
   pass "the preview used the commit tb_content reported"
 else
@@ -111,7 +111,7 @@ final=$(python3 "$(dirname "$0")/lib/last_answer.py" --client claude "$root/tran
 grep -q 'a.md' <<<"$final" && pass "the final answer names the file the revert would touch" \
   || fail "the final answer does not name a.md (got: ${final:0:200})"
 
-[[ ${AU_TURN_TRANSCRIPT:-} ]] && printf '%s\n' "$transcript" >"$AU_TURN_TRANSCRIPT"
+[[ ${TB_TURN_TRANSCRIPT:-} ]] && printf '%s\n' "$transcript" >"$TB_TURN_TRANSCRIPT"
 echo "---"
 if [[ $status -eq 0 ]]; then
   echo "PASS: a model planned a revert from the engine's own history"

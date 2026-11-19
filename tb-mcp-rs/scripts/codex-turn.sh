@@ -20,12 +20,12 @@ set -euo pipefail
 source "$(dirname "$0")/lib/target-dir.sh"
 target_dir=$(cargo_target_dir)
 
-ENGINE=${AU_ENGINE_BIN:-$target_dir/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-$target_dir/debug/2brain}
-TURN_HOME=${AU_TURN_HOME:-$HOME}
+ENGINE=${TB_ENGINE_BIN:-$target_dir/debug/au}
+ADAPTER=${TB_MCP_BIN:-$target_dir/debug/2brain}
+TURN_HOME=${TB_TURN_HOME:-$HOME}
 
-[[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE (set AU_ENGINE_BIN)" >&2; exit 1; }
-[[ -x $ADAPTER ]] || { echo "missing adapter: $ADAPTER (set AU_MCP_RS_BIN)" >&2; exit 1; }
+[[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE (set TB_ENGINE_BIN)" >&2; exit 1; }
+[[ -x $ADAPTER ]] || { echo "missing adapter: $ADAPTER (set TB_MCP_BIN)" >&2; exit 1; }
 command -v codex >/dev/null || { echo "codex is not installed" >&2; exit 1; }
 ADAPTER=$(cd "$(dirname "$ADAPTER")" && pwd)/$(basename "$ADAPTER")
 
@@ -46,7 +46,7 @@ fi
 # command goes through a tee that records both directions when asked. That turns "the
 # client speaks some revision" into a fact read off the wire.
 tee=$root/mcp-wire.jsonl
-if [[ -n ${AU_TEE_TRANSCRIPT:-} ]]; then
+if [[ -n ${TB_TEE_TRANSCRIPT:-} ]]; then
   # Absolute, because the client spawns the server with its own working directory.
   tee_script=$(cd "$(dirname "$0")" && pwd)/stdio_tee.py
   server_cmd=(python3 "$tee_script" --record "$tee" -- "$ADAPTER" mcp "$socket")
@@ -90,8 +90,8 @@ grep -q 'notes/a.md' <<<"$final" \
   || fail "the final answer does not name notes/a.md (got: ${final:0:200})"
 
 # Which MCP revision this client negotiated, read off the wire when the tee is on.
-if [[ -n ${AU_TEE_TRANSCRIPT:-} && -s $tee ]]; then
-  cp "$tee" "$AU_TEE_TRANSCRIPT"
+if [[ -n ${TB_TEE_TRANSCRIPT:-} && -s $tee ]]; then
+  cp "$tee" "$TB_TEE_TRANSCRIPT"
   requested=$(python3 - "$tee" <<'PY'
 import json, sys
 for line in open(sys.argv[1]):
@@ -116,7 +116,7 @@ PY
   echo "protocol: client asked $requested, server answered ${answered:-?}"
 fi
 
-[[ ${AU_TURN_TRANSCRIPT:-} ]] && printf '%s\n' "$transcript" >"$AU_TURN_TRANSCRIPT"
+[[ ${TB_TURN_TRANSCRIPT:-} ]] && printf '%s\n' "$transcript" >"$TB_TURN_TRANSCRIPT"
 echo "---"
 if [[ $status -eq 0 ]]; then
   echo "PASS: one Codex model turn completed through the adapter"

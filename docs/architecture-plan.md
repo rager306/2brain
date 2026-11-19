@@ -247,7 +247,7 @@ the pieces are consequences of the last stretch rather than of the original plan
 
 | track | work | why now | surface | conflicts with |
 |---|---|---|---|---|
-| ~~**E** fixture hygiene~~ | **done `ea164f9`** — the trap was already there; what was missing is that a killed process group runs no trap. So `prepare_fixture` now reaps daemons whose fixture root no longer exists (proven: one real orphan, killed, `fixtures left: 0`), cleanup asks the engine to stop before signalling, and `AU_KEEP_FIXTURE=1` keeps a failing fixture | found 14 orphans | `scripts/lib/` | — |
+| ~~**E** fixture hygiene~~ | **done `ea164f9`** — the trap was already there; what was missing is that a killed process group runs no trap. So `prepare_fixture` now reaps daemons whose fixture root no longer exists (proven: one real orphan, killed, `fixtures left: 0`), cleanup asks the engine to stop before signalling, and `TB_KEEP_FIXTURE=1` keeps a failing fixture | found 14 orphans | `scripts/lib/` | — |
 | ~~**F** production parity~~ | **done 2026-11-16** — HEAD and the served binary are byte-identical on a frozen copy for 8/8 reads, so `search` is the whole delta and nothing must be regenerated for a swap | measured | `au-engine` + `/tmp` | — |
 | ~~**G** P3 procedures~~ | **done `2f8d29f`** — `procedure.py` with two state machines, `--selftest` proving twelve rejection cases, and `mutation-turn.sh` cross-checking its own assertions against the machine. Follow-up: remove the duplicate assertions after one live run confirms they agree | done | `scripts/` | — |
 

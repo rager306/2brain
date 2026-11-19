@@ -21,18 +21,18 @@ set -euo pipefail
 source "$(dirname "$0")/lib/target-dir.sh"
 target_dir=$(cargo_target_dir)
 
-ENGINE=${AU_ENGINE_BIN:-$target_dir/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-$target_dir/debug/2brain}
+ENGINE=${TB_ENGINE_BIN:-$target_dir/debug/au}
+ADAPTER=${TB_MCP_BIN:-$target_dir/debug/2brain}
 
-[[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE (set AU_ENGINE_BIN)" >&2; exit 1; }
-[[ -x $ADAPTER ]] || { echo "missing adapter: $ADAPTER (set AU_MCP_RS_BIN)" >&2; exit 1; }
+[[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE (set TB_ENGINE_BIN)" >&2; exit 1; }
+[[ -x $ADAPTER ]] || { echo "missing adapter: $ADAPTER (set TB_MCP_BIN)" >&2; exit 1; }
 ADAPTER=$(cd "$(dirname "$ADAPTER")" && pwd)/$(basename "$ADAPTER")
 
 # shellcheck source=scripts/lib/disposable-fixture.sh
 source "$(dirname "$0")/lib/disposable-fixture.sh"
 prepare_fixture
 
-export AU_PROXY_DEBUG=${AU_PROXY_DEBUG:-}
+export TB_PROXY_DEBUG=${TB_PROXY_DEBUG:-}
 proxy_sock=$root/proxy.sock
 python3 "$(dirname "$0")/lost_reply_proxy.py" --engine "$socket" --listen "$proxy_sock" \
   --drop mutate:write_file --drop-replies 1 >"$root/proxy.log" 2>&1 &
@@ -105,7 +105,7 @@ if ! grep -q 'dropped the reply to mutate:write_file' "$root/proxy.log"; then
   echo "FAIL: the proxy never dropped a write reply; see $root/proxy.log" >&2
   exit 1
 fi
-if [[ -n ${AU_PROXY_DEBUG:-} ]]; then
+if [[ -n ${TB_PROXY_DEBUG:-} ]]; then
   echo "--- proxy log:"
   cat "$root/proxy.log"
 fi

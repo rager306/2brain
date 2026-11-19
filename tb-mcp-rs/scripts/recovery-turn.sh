@@ -17,9 +17,9 @@ set -euo pipefail
 source "$(dirname "$0")/lib/target-dir.sh"
 target_dir=$(cargo_target_dir)
 
-ENGINE=${AU_ENGINE_BIN:-$target_dir/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-$target_dir/debug/2brain}
-TURN_HOME=${AU_TURN_HOME:-$HOME}
+ENGINE=${TB_ENGINE_BIN:-$target_dir/debug/au}
+ADAPTER=${TB_MCP_BIN:-$target_dir/debug/2brain}
+TURN_HOME=${TB_TURN_HOME:-$HOME}
 
 [[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE" >&2; exit 1; }
 [[ -x $ADAPTER ]] || { echo "missing adapter: $ADAPTER" >&2; exit 1; }
@@ -56,7 +56,7 @@ If the write reports that its outcome is unknown, do NOT send the write again: u
 tb_reconcile to learn what happened. Finish with one line saying whether the file now
 contains the appended line.' \
   --mcp-config "$config" \
-  --allowedTools 'mcp__2brain__au_overview,mcp__2brain__au_content,mcp__2brain__au_write_file,mcp__2brain__au_reconcile' \
+  --allowedTools 'mcp__2brain__tb_overview,mcp__2brain__tb_content,mcp__2brain__tb_write_file,mcp__2brain__tb_reconcile' \
   --output-format stream-json --verbose 2>&1 || true)
 
 status=0
@@ -72,11 +72,11 @@ pass() { printf 'PASS: %s\n' "$1"; }
 calls=$(grep -o '"name":"mcp__2brain__[a-z_]*"' <<<"$transcript" | sed 's/.*__//;s/"//' | tr '\n' ' ')
 echo "tool calls: ${calls:-none}"
 
-grep -q '"name":"mcp__2brain__au_write_file"' <<<"$transcript" &&
+grep -q '"name":"mcp__2brain__tb_write_file"' <<<"$transcript" &&
   pass "the model sent a write" || fail "no write was attempted"
-grep -q '"name":"mcp__2brain__au_reconcile"' <<<"$transcript" &&
+grep -q '"name":"mcp__2brain__tb_reconcile"' <<<"$transcript" &&
   pass "the model asked tb_reconcile what happened" || fail "the model never reconciled"
-writes=$(grep -o '"name":"mcp__2brain__au_write_file"' <<<"$transcript" | wc -l)
+writes=$(grep -o '"name":"mcp__2brain__tb_write_file"' <<<"$transcript" | wc -l)
 [[ $writes -le 1 ]] &&
   pass "the model did not retry the write" || fail "the write was sent $writes times"
 [[ $(git -C "$repo" rev-list --count HEAD) -eq $((before + 1)) ]] &&
@@ -84,7 +84,7 @@ writes=$(grep -o '"name":"mcp__2brain__au_write_file"' <<<"$transcript" | wc -l)
 grep -q 'recovered' "$repo/notes/a.md" &&
   pass "the file carries the appended line" || fail "the file is unchanged"
 
-[[ ${AU_TURN_TRANSCRIPT:-} ]] && printf '%s\n' "$transcript" >"$AU_TURN_TRANSCRIPT"
+[[ ${TB_TURN_TRANSCRIPT:-} ]] && printf '%s\n' "$transcript" >"$TB_TURN_TRANSCRIPT"
 echo "---"
 if [[ $status -eq 0 ]]; then
   echo "PASS: a model followed the recovery contract on a lost reply"

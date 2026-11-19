@@ -2,7 +2,7 @@
   "generated_for": "2brain",
   "gates": {
     "adapter_tests": {
-      "value": 266,
+      "value": 267,
       "known_environment_failures": 0,
       "command": "cd tb-mcp-rs && cargo +1.99.0 test --offline; value is the sum of `passed` across the 46 suites the log recorded",
       "date": "2026-11-19"

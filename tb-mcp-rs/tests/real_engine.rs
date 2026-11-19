@@ -258,7 +258,7 @@ fn build_fixture(temp: &Path) -> (PathBuf, PathBuf) {
 }
 
 // Build the engine separately: RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --manifest-path ../tb-engine/Cargo.toml -p au-cli --bin au
-// Then run: RUSTUP_HOME=/root/.rustup AU_ENGINE_BIN=../tb-engine/target/debug/au cargo +1.99.0 test --locked --test real_engine -- --ignored
+// Then run: RUSTUP_HOME=/root/.rustup TB_ENGINE_BIN=../tb-engine/target/debug/au cargo +1.99.0 test --locked --test real_engine -- --ignored
 /// The read fixtures replay every advertised read through the MCP layer against
 /// a real engine on a disposable repository. Paths are recorded relative to the
 /// fixture root as `$FIXTURE`, so the corpus does not carry machine paths.
@@ -368,9 +368,9 @@ fn normalize_commits(value: &Value) -> Value {
 }
 
 #[test]
-#[ignore = "requires AU_ENGINE_BIN; captures or verifies the synthetic read fixtures"]
+#[ignore = "requires TB_ENGINE_BIN; captures or verifies the synthetic read fixtures"]
 fn synthetic_read_fixtures_match_the_engine() {
-    let engine = std::env::var_os("AU_ENGINE_BIN").expect("set AU_ENGINE_BIN to the au binary");
+    let engine = std::env::var_os("TB_ENGINE_BIN").expect("set TB_ENGINE_BIN to the au binary");
     let capture = std::env::var_os("CAPTURE_FIXTURES").is_some();
     let temp = tempfile::Builder::new()
         .prefix("au-fixtures-")
@@ -565,9 +565,9 @@ fn reply_text(reply: &Value) -> String {
 }
 
 #[test]
-#[ignore = "requires AU_ENGINE_BIN pointing to a separately built au binary"]
+#[ignore = "requires TB_ENGINE_BIN pointing to a separately built au binary"]
 fn rename_type_refuses_a_cascade_outside_the_member_grant() {
-    let engine = std::env::var_os("AU_ENGINE_BIN").expect("set AU_ENGINE_BIN to the au binary");
+    let engine = std::env::var_os("TB_ENGINE_BIN").expect("set TB_ENGINE_BIN to the au binary");
     let temp = tempfile::Builder::new()
         .prefix("au-rename-type-grant-")
         .tempdir_in("/tmp")
@@ -699,9 +699,9 @@ fn rename_type_refuses_a_cascade_outside_the_member_grant() {
 }
 
 #[test]
-#[ignore = "requires AU_ENGINE_BIN pointing to a separately built au binary"]
+#[ignore = "requires TB_ENGINE_BIN pointing to a separately built au binary"]
 fn mcp_reads_match_real_engine_on_temporary_repo() {
-    let engine = std::env::var_os("AU_ENGINE_BIN").expect("set AU_ENGINE_BIN to the au binary");
+    let engine = std::env::var_os("TB_ENGINE_BIN").expect("set TB_ENGINE_BIN to the au binary");
     let temp = tempfile::Builder::new()
         .prefix("au-e2e-")
         .tempdir_in("/tmp")

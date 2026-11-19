@@ -27,6 +27,39 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-19 — the `AU_` prefix, and four scripts that checked nothing
+
+The owner asked why the rename had not finished — specifically `AU_ENGINE_BIN` — and whether other traces
+remained. The question exposed a classification error of mine. I had swept `arsumbris` / `.arsumbris` /
+`au_` once and put everything beginning `AU_` into "the compat window", which is wrong twice over: a
+compat window is about the ON-DISK FORMAT and the wire spelling a client may already depend on, while an
+operator environment variable is this repository's own tooling. Nothing outside this tree reads them.
+
+**What the sweep found once the boundary was drawn properly.**
+
+*Every `AU_*` variable is renamed.* 30 names, 45 files: `AU_TRACE` → `TB_TRACE`, `AU_IDLE_RECONCILE`,
+`AU_BUILD_COMMIT`, `AU_ENGINE_BIN`, `AU_MCP_RS_BIN`, the turn/transcript variables, the fixture and
+baseline ones. All of them are either read by this product as its own knob or set by its own scripts;
+none is a public contract. What stays `au`: the `au` BINARY name (`au daemon start`, the engine's own
+executable), the on-disk format (`au.engine.*`, `.arsumbris/`) while the window is open, and the
+`arsumbris://` parse alias — those are the compat window, and they are tracked as such.
+
+*Four verification scripts were checking for tools that do not exist.* `mutation-turn.sh`,
+`recovery-turn.sh`, `batch-turn.sh`, `rollback-turn.sh` and `model-turn.sh` passed
+`--allowedTools 'mcp__2brain__au_content,…'` to the agent and then grepped the transcript for
+`"name":"mcp__2brain__au_write_file"`. The adapter has advertised `tb_*` since the rename, so the grant
+allowed nothing and each check searched for a call that could never appear. Four scripts that always
+failed, and one of them — `model-turn.sh` — named `au_grep`, a tool that has never existed. They name the
+real tools now.
+
+*And a test so it cannot come back.* `every_tool_a_script_names_is_one_the_router_advertises` walks
+`tb-mcp-rs/scripts`, extracts every `mcp__2brain__<name>`, and fails when the router does not advertise
+it. I proved it by putting `au_content` back: the test failed naming the file and both lines, and passed
+again once restored.
+
+The lesson is the one this session keeps relearning: a sweep is only as good as its boundary. "Looks like
+the old name" is not a category; "who reads this string, and is that consumer inside this tree" is.
+
 ## 2026-11-19 — the gates that were not running
 
 Three of the review's findings were not defects in behaviour but holes in the machinery that would
@@ -37,7 +70,7 @@ catch one. Fixed as one thin wave.
 and the cross-member grant are exercised end to end. That is exactly the suite that had rotted
 silently until this session found it. CI now builds the engine binary, resolves the shared target
 directory through `cargo metadata` (the same rule the scripts learned), and runs the suite with
-`AU_ENGINE_BIN`.
+`TB_ENGINE_BIN`.
 
 **#2: the installer could create the shadow it feared.** When `/usr/local/bin` refuses the engine,
 `install.sh` fell back to `$HOME/.2brain/bin`, creating that directory. On a machine whose state root

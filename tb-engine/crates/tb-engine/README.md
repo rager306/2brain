@@ -82,7 +82,7 @@ In-memory, single-ref. A rebuild reads and re-parses only the changed files and
 reuses every other file's parse (keyed by content hash), so per-edit read and
 parse cost is bounded by what changed. The changed set comes from the writer:
 the mutation channel passes its exact target, the watcher passes its event
-paths. A configurable idle reconcile (`AU_IDLE_RECONCILE`, default on) does a
+paths. A configurable idle reconcile (`TB_IDLE_RECONCILE`, default on) does a
 whole-knowledge-base pass after the watcher goes quiet to catch silently-dropped events;
 disable it where every write goes through the mutation channel. For an instance
 edit, add, delete, or rename, the resolved analysis recomputes incrementally too:

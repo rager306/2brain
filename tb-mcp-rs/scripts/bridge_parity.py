@@ -17,10 +17,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from mcp_stdio import StdioMcp, is_error, tool_payload
 
-ENGINE = os.environ.get("AU_ENGINE_BIN", "../tb-engine/target/debug/au")
-ADAPTER = os.environ.get("AU_MCP_RS_BIN", "target/debug/tb-mcp-rs")
+ENGINE = os.environ.get("TB_ENGINE_BIN", "../tb-engine/target/debug/au")
+ADAPTER = os.environ.get("TB_MCP_BIN", "target/debug/tb-mcp-rs")
 BRIDGE = os.environ.get(
-    "AU_BRIDGE", str(Path(__file__).resolve().parents[2] / "au-mcp-bridge/bridge.py")
+    "TB_BRIDGE", str(Path(__file__).resolve().parents[2] / "au-mcp-bridge/bridge.py")
 )
 BUNDLE = Path(__file__).resolve().parents[2]
 TIMEOUT = 60.0
@@ -152,7 +152,7 @@ def main() -> int:
             raise SystemExit("the Node daemon never became ready")
 
         bridge = StdioMcp([sys.executable, BRIDGE], name="bridge", timeout=TIMEOUT,
-                          env=dict(env, AU_MCP_SOCKET=str(daemon_socket)))
+                          env=dict(env, TB_MCP_SOCKET=str(daemon_socket)))
         rust = StdioMcp([ADAPTER, str(engine_socket)], name="adapter", timeout=TIMEOUT)
         clients.extend((bridge, rust))
         bridge.start()

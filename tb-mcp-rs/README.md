@@ -91,7 +91,7 @@ The build identity comes from `build.rs` (`git rev-parse --short=12 HEAD`, plus 
 dirty check scoped to this crate). A tarball build without `.git` reports
 `unknown`. Rebuilds are triggered by `.git/HEAD`, the index, the reflog, and
 packed refs — HEAD alone does not change on a commit, and watching only HEAD left
-a rebuilt binary reporting the previous commit. `AU_BUILD_COMMIT` overrides the
+a rebuilt binary reporting the previous commit. `TB_BUILD_COMMIT` overrides the
 commit for reproducible packaging.
 
 ## Launch policy
@@ -232,7 +232,7 @@ a temporary `HOME`:
 ```sh
 cd ../tb-engine && RUSTUP_HOME=/root/.rustup cargo +1.99.0 build -p tb-cli --bin au
 cd ../tb-mcp-rs
-RUSTUP_HOME=/root/.rustup AU_ENGINE_BIN=../tb-engine/target/debug/au \
+RUSTUP_HOME=/root/.rustup TB_ENGINE_BIN=../tb-engine/target/debug/au \
   cargo +1.99.0 test --offline --test real_engine -- --ignored
 ```
 

@@ -10,7 +10,7 @@
 # Sourced, never executed:
 #
 #   source scripts/lib/target-dir.sh
-#   ENGINE=${AU_ENGINE_BIN:-$(cargo_target_dir)/debug/au}
+#   ENGINE=${TB_ENGINE_BIN:-$(cargo_target_dir)/debug/au}
 cargo_target_dir() {
   local crate answer
   crate=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)

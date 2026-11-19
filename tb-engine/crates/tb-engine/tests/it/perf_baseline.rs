@@ -4,7 +4,7 @@
 //! daemon read path (framing, the state lock, per-connection servicing), so it
 //! captures the effects the read-path fixes target, not just the read compute.
 //!
-//! Run it, sized by `AU_BASELINE_N` (default 2000):
+//! Run it, sized by `TB_BASELINE_N` (default 2000):
 //!   cargo test -p au-engine --test it perf_baseline -- --ignored --nocapture
 //!
 //! Re-run after each read-path action and compare. The numbers to watch:
@@ -164,7 +164,7 @@ fn probe(
 #[test]
 #[ignore = "benchmark, run explicitly with --ignored --nocapture"]
 fn read_latency_baseline() {
-    let n: usize = std::env::var("AU_BASELINE_N")
+    let n: usize = std::env::var("TB_BASELINE_N")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(2000);

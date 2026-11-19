@@ -11,11 +11,11 @@ import { once } from 'node:events';
 import { createRequire } from 'node:module';
 import { setTimeout as delay } from 'node:timers/promises';
 
-const { AU_ENGINE_BIN, AU_MCP_ROOT, AU_BASE_TYPES_ROOT } = process.env;
-if (!AU_ENGINE_BIN || !AU_MCP_ROOT || !AU_BASE_TYPES_ROOT) throw new Error('test:engine needs AU_ENGINE_BIN, AU_MCP_ROOT and AU_BASE_TYPES_ROOT');
-const { createEngineBroker } = await import(pathToFileURL(join(AU_MCP_ROOT, 'src/daemon/broker.ts')));
-const { discoverTools } = await import(pathToFileURL(join(AU_MCP_ROOT, 'src/daemon/discovery.ts')));
-const sdkRoot = resolve(dirname(createRequire(join(AU_MCP_ROOT, 'package.json')).resolve('@arsumbris/au-mcp-sdk')), '..');
+const { TB_ENGINE_BIN, TB_MCP_ROOT, TB_BASE_TYPES_ROOT } = process.env;
+if (!TB_ENGINE_BIN || !TB_MCP_ROOT || !TB_BASE_TYPES_ROOT) throw new Error('test:engine needs TB_ENGINE_BIN, TB_MCP_ROOT and TB_BASE_TYPES_ROOT');
+const { createEngineBroker } = await import(pathToFileURL(join(TB_MCP_ROOT, 'src/daemon/broker.ts')));
+const { discoverTools } = await import(pathToFileURL(join(TB_MCP_ROOT, 'src/daemon/discovery.ts')));
+const sdkRoot = resolve(dirname(createRequire(join(TB_MCP_ROOT, 'package.json')).resolve('@arsumbris/au-mcp-sdk')), '..');
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
 
@@ -43,7 +43,7 @@ test('real broker and engine: preview, history, no-op, refresh, literal text, an
     return root;
   };
   const base = repo('au-base-types');
-  for (const file of ['source', 'node']) copyFileSync(join(AU_BASE_TYPES_ROOT, 'type', file + '.type.yaml'), join(base, 'type', file + '.type.yaml'));
+  for (const file of ['source', 'node']) copyFileSync(join(TB_BASE_TYPES_ROOT, 'type', file + '.type.yaml'), join(base, 'type', file + '.type.yaml'));
   const sdk = repo('au-mcp-sdk');
   cpSync(join(sdkRoot, 'type'), join(sdk, 'type'), { recursive: true });
   const ingestRoot = repo('au-ingest', ['au-base-types', 'au-mcp-sdk']);
@@ -78,7 +78,7 @@ test('real broker and engine: preview, history, no-op, refresh, literal text, an
   broker = createEngineBroker(entry);
   let log = '';
   let spawnError;
-  child = spawn(AU_ENGINE_BIN, ['daemon', 'start', entry], { stdio: ['ignore', 'pipe', 'pipe'] });
+  child = spawn(TB_ENGINE_BIN, ['daemon', 'start', entry], { stdio: ['ignore', 'pipe', 'pipe'] });
   child.on('error', (error) => { spawnError = error; });
   for (const stream of [child.stdout, child.stderr]) stream.on('data', (chunk) => { if (log.length < 8000) log += chunk.toString().slice(0, 8000 - log.length); });
   let ready = false;

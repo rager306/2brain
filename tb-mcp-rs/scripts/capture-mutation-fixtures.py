@@ -33,7 +33,7 @@ Run from `tb-mcp-rs/`:
 
     python3 scripts/capture-mutation-fixtures.py
 
-`AU_ENGINE_BIN` / `AU_MCP_RS_BIN` select the binaries it drives; `--keep` leaves the
+`TB_ENGINE_BIN` / `TB_MCP_BIN` select the binaries it drives; `--keep` leaves the
 tempdir in place for inspection.
 """
 
@@ -59,8 +59,8 @@ from target_dir import cargo_target_dir  # noqa: E402
 CRATE = HERE.parent
 # The release builds in the repository's shared target directory (`.cargo/config.toml`).
 TARGET = cargo_target_dir()
-ENGINE = os.environ.get("AU_ENGINE_BIN", str(TARGET / "release/au"))
-ADAPTER = os.environ.get("AU_MCP_RS_BIN", str(TARGET / "release/2brain"))
+ENGINE = os.environ.get("TB_ENGINE_BIN", str(TARGET / "release/au"))
+ADAPTER = os.environ.get("TB_MCP_BIN", str(TARGET / "release/2brain"))
 REPO = "fixture"
 
 # The fixture, one file per capture so the captures stay independent. The two types and
@@ -304,7 +304,7 @@ def main() -> int:
 
     for binary in (ENGINE, ADAPTER):
         if not (Path(binary).is_file() and os.access(binary, os.X_OK)):
-            print(f"missing binary: {binary} (set AU_ENGINE_BIN / AU_MCP_RS_BIN)", file=sys.stderr)
+            print(f"missing binary: {binary} (set TB_ENGINE_BIN / TB_MCP_BIN)", file=sys.stderr)
             return 2
 
     out = Path(options.out)

@@ -16,10 +16,10 @@
 set -uo pipefail
 export HOME=/root
 
-DATE=${AU_SWAP_DATE:-$(date +%Y%m%d)}
+DATE=${TB_SWAP_DATE:-$(date +%Y%m%d)}
 BACKUPS=/root/backups
 INSTALLED=/root/.2brain/bin/au
-CANDIDATE=${AU_CANDIDATE:-/root/2brain/tb-engine/target/release/au}
+CANDIDATE=${TB_CANDIDATE:-/root/2brain/tb-engine/target/release/au}
 SERVICE=2brain-engine.service
 SOCKET=/root/.2brain/au-engine/run/adcfe8680a485529.sock
 PROBE=/root/2brain/tb-engine/scripts/engine_probe.py

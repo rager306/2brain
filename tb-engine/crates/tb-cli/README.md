@@ -27,7 +27,7 @@ Beyond that one topology check, the binary carries no read capabilities of its o
 
 ## Tracing
 
-`AU_TRACE=1 au daemon start <repo>` records per-operation timing.
+`TB_TRACE=1 au daemon start <repo>` records per-operation timing.
 
 - off by default. Unset, no subscriber runs and the engine pays nothing.
 - two outputs land under `<repo>/<identity dir>/au-engine/logs/trace/`, per run, named by start time.

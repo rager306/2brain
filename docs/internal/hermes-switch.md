@@ -17,8 +17,8 @@ Today `~/.hermes/config.yaml` points at the Python bridge:
     type: stdio
     command: python3
     env:
-      AU_MCP_SOCKET: /root/.arsumbris/au-mcp/run/adcfe8680a485529.sock
-      AU_MCP_NAME: arsumbris
+      TB_MCP_SOCKET: /root/.arsumbris/au-mcp/run/adcfe8680a485529.sock
+      TB_MCP_NAME: arsumbris
     args:
       - /root/arsumbris/au-mcp-bridge/bridge.py
 ```

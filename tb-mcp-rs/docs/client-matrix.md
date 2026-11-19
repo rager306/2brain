@@ -31,7 +31,7 @@ throwaway `HOME`, so no user or project configuration is read or written.
 
 ```sh
 cd au-mcp-rs
-AU_ENGINE_BIN=../tb-engine/target/debug/au ./scripts/client-matrix.sh
+TB_ENGINE_BIN=../tb-engine/target/debug/au ./scripts/client-matrix.sh
 ```
 
 The script exits non-zero when an installed client that offers a health check
@@ -44,8 +44,8 @@ Run again on this host with the fork release builds instead of the debug builds:
 
 ```sh
 cd au-mcp-rs
-AU_ENGINE_BIN=/root/2brain/tb-engine/target/release/au \
-AU_MCP_RS_BIN=/root/2brain/tb-mcp-rs/target/release/2brain \
+TB_ENGINE_BIN=/root/2brain/tb-engine/target/release/au \
+TB_MCP_BIN=/root/2brain/tb-mcp-rs/target/release/2brain \
 bash scripts/client-matrix.sh
 ```
 
@@ -80,7 +80,7 @@ EXIT:1
   then reported a failed connection. The path in the error is the adapter path
   with its parent directory prepended twice:
   `/root/arsumbris/tb-mcp-rs//root/arsumbris/...`. The script builds that
-  argument as `$OLDPWD/$ADAPTER`, and `AU_MCP_RS_BIN` was supplied as an
+  argument as `$OLDPWD/$ADAPTER`, and `TB_MCP_BIN` was supplied as an
   absolute path. No binary exists at the doubled path, so the spawn failed
   before the adapter ran.
 - Because the adapter never started, this run says nothing about whether the
@@ -96,7 +96,7 @@ EXIT:1
 ## Re-run 2026-11-14 (second): the ENOENT was ours, and Claude Code connects
 
 The failure above was a bug in `scripts/client-matrix.sh`, not a client or adapter
-problem: the script registered `"$OLDPWD/$ADAPTER"` while `AU_MCP_RS_BIN` was
+problem: the script registered `"$OLDPWD/$ADAPTER"` while `TB_MCP_BIN` was
 already absolute, so the path doubled (`/root/arsumbris/tb-mcp-rs//root/arsumbris/...`).
 Fixed by resolving the adapter path to absolute ONCE, before any client config is
 written, and passing that path to both `claude mcp add` and `codex mcp add`.

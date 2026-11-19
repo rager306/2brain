@@ -9,8 +9,8 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 // Use the runtime's own broker and discovery; no package-local wire client.
 test('native loading, map save and unchanged rerun',
-  { skip: !process.env.AU_MCP_ROOT, timeout: 60000 }, async () => {
-    const runtime = resolve(process.env.AU_MCP_ROOT)
+  { skip: !process.env.TB_MCP_ROOT, timeout: 60000 }, async () => {
+    const runtime = resolve(process.env.TB_MCP_ROOT)
     const { createEngineBroker } = await import(pathToFileURL(join(runtime, 'src/daemon/broker.ts')))
     const { discoverTools } = await import(pathToFileURL(join(runtime, 'src/daemon/discovery.ts')))
     const temporary = realpathSync(mkdtempSync(join(tmpdir(), 'research-map-')))

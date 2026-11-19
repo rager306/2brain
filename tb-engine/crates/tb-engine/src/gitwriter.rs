@@ -1597,7 +1597,7 @@ impl MessageFile {
                 PathBuf::from(dir)
             }
         };
-        let path = gitdir.join(format!("AU_COMMIT_MSG.{}", message.mutation_id.0));
+        let path = gitdir.join(format!("TB_COMMIT_MSG.{}", message.mutation_id.0));
         std::fs::write(&path, format_message(message)).map_err(|e| {
             GitWriteError::new(format!(
                 "cannot write the commit message to {}: {e}",
@@ -3052,7 +3052,7 @@ mod tests {
         let leftover = fs::read_dir(p.join(".git"))
             .unwrap()
             .flatten()
-            .any(|e| e.file_name().to_string_lossy().starts_with("AU_COMMIT_MSG"));
+            .any(|e| e.file_name().to_string_lossy().starts_with("TB_COMMIT_MSG"));
         assert!(!leftover, "the message file is removed after the commit");
         for q in &paths {
             fs::write(p.join(q), "changed\n").unwrap();

@@ -117,11 +117,11 @@ reap_orphaned_fixtures() {
 }
 
 cleanup_fixture() {
-  if [[ ${AU_KEEP_FIXTURE:-0} == 1 ]]; then
+  if [[ ${TB_KEEP_FIXTURE:-0} == 1 ]]; then
     # A kept fixture is not an orphan: drop the ownership record so a later run's
     # reaper leaves it alone.
     rm -f "$root/owner.pid"
-    echo "fixture kept: root=$root socket=$socket (AU_KEEP_FIXTURE=1)" >&2
+    echo "fixture kept: root=$root socket=$socket (TB_KEEP_FIXTURE=1)" >&2
     return 0
   fi
   # Ask the engine to stop first: it owns its pid file, and this works even when the

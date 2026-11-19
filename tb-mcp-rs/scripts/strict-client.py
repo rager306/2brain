@@ -33,8 +33,8 @@ from target_dir import cargo_target_dir  # noqa: E402
 
 # The release builds in the repository's shared target directory (`.cargo/config.toml`).
 TARGET = cargo_target_dir()
-ENGINE = os.environ.get("AU_ENGINE_BIN", str(TARGET / "release/au"))
-ADAPTER = os.environ.get("AU_MCP_RS_BIN", str(TARGET / "release/2brain"))
+ENGINE = os.environ.get("TB_ENGINE_BIN", str(TARGET / "release/au"))
+ADAPTER = os.environ.get("TB_MCP_BIN", str(TARGET / "release/2brain"))
 
 
 def disposable() -> tuple[str, dict, str]:

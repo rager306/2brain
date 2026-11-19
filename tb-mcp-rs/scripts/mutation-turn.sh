@@ -13,14 +13,14 @@
 #                 notes/a.md and the file, the git log, and its own answer agree.
 #                 The allow-list carries `tb_overview` too: a model asked to edit
 #                 one note orients itself first, and denying that would test the
-#                 allow-list rather than the server. AU_TURN_ONLY=1 runs this
+#                 allow-list rather than the server. TB_TURN_ONLY=1 runs this
 #                 scenario alone.
 #   2. read-only — the same adapter without grants; tb_write_file is not in the
 #                 tool list at all, so fail-closed is visible to the model, not just
 #                 to our tests.
 #
 # Costs two small model turns on YOUR credentials. The binaries default to the shared
-# `.cargo-target` debug builds (AU_ENGINE_BIN / AU_MCP_RS_BIN override), and `claude`
+# `.cargo-target` debug builds (TB_ENGINE_BIN / TB_MCP_BIN override), and `claude`
 # needs a working login.
 set -euo pipefail
 
@@ -28,12 +28,12 @@ set -euo pipefail
 source "$(dirname "$0")/lib/target-dir.sh"
 target_dir=$(cargo_target_dir)
 
-ENGINE=${AU_ENGINE_BIN:-$target_dir/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-$target_dir/debug/2brain}
-TURN_HOME=${AU_TURN_HOME:-$HOME}
+ENGINE=${TB_ENGINE_BIN:-$target_dir/debug/au}
+ADAPTER=${TB_MCP_BIN:-$target_dir/debug/2brain}
+TURN_HOME=${TB_TURN_HOME:-$HOME}
 
-[[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE (set AU_ENGINE_BIN)" >&2; exit 1; }
-[[ -x $ADAPTER ]] || { echo "missing adapter: $ADAPTER (set AU_MCP_RS_BIN)" >&2; exit 1; }
+[[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE (set TB_ENGINE_BIN)" >&2; exit 1; }
+[[ -x $ADAPTER ]] || { echo "missing adapter: $ADAPTER (set TB_MCP_BIN)" >&2; exit 1; }
 command -v claude >/dev/null || { echo "claude is not installed" >&2; exit 1; }
 
 ADAPTER=$(cd "$(dirname "$ADAPTER")" && pwd)/$(basename "$ADAPTER")
@@ -76,11 +76,11 @@ transcript=$(turn "$granted" \
    `find me: unique-marker-7f3a updated`. Keep every other line and the frontmatter
    exactly as they were.
 3. Answer one line: whether the write succeeded.' \
-'mcp__2brain__au_overview,mcp__2brain__au_content,mcp__2brain__au_write_file')
+'mcp__2brain__tb_overview,mcp__2brain__tb_content,mcp__2brain__tb_write_file')
 
-grep -q '"name":"mcp__2brain__au_content"' <<<"$transcript" &&
+grep -q '"name":"mcp__2brain__tb_content"' <<<"$transcript" &&
   pass "the model read before writing" || fail "no tb_content call"
-grep -q '"name":"mcp__2brain__au_write_file"' <<<"$transcript" &&
+grep -q '"name":"mcp__2brain__tb_write_file"' <<<"$transcript" &&
   pass "the model called tb_write_file" || fail "no tb_write_file call"
 grep -q 'unique-marker-7f3a updated' "$target" &&
   pass "the file on disk carries the new line" || fail "the file was not changed"
@@ -91,8 +91,8 @@ grep -q '"permission_denials":\[[^]]' <<<"$transcript" &&
   fail "a permission denial appeared in the granted run" || pass "no permission denial"
 
 echo
-if [[ ${AU_TURN_ONLY:-} == 1 ]]; then
-  echo "skipping scenario 2 (AU_TURN_ONLY=1)"
+if [[ ${TB_TURN_ONLY:-} == 1 ]]; then
+  echo "skipping scenario 2 (TB_TURN_ONLY=1)"
   echo "---"
   [[ $status -eq 0 ]] && echo "PASS: the granted write path works through a model"
   exit $status
@@ -104,9 +104,9 @@ transcript2=$(turn "$read_only" \
 'Use the 2brain MCP server to write the text "nope" into notes/b.md with
 tb_write_file. If that tool does not exist, list the write tools you DO have and do
 nothing else.' \
-'mcp__2brain__au_write_file')
+'mcp__2brain__tb_write_file')
 
-grep -q '"name":"mcp__2brain__au_write_file"' <<<"$transcript2" &&
+grep -q '"name":"mcp__2brain__tb_write_file"' <<<"$transcript2" &&
   fail "a read-only launch let the model call tb_write_file" ||
   pass "tb_write_file was never callable in a read-only launch"
 # The engine COMMITS every write, so a clean `git diff` proves nothing here: compare
@@ -142,8 +142,8 @@ if [[ $status -eq 0 ]]; then
 else
   echo "FAIL: the mutation path did not hold" >&2
 fi
-[[ ${AU_TURN_TRANSCRIPT:-} ]] && {
-  printf '%s\n' "$transcript" >"${AU_TURN_TRANSCRIPT}.granted.jsonl"
-  printf '%s\n' "$transcript2" >"${AU_TURN_TRANSCRIPT}.readonly.jsonl"
+[[ ${TB_TURN_TRANSCRIPT:-} ]] && {
+  printf '%s\n' "$transcript" >"${TB_TURN_TRANSCRIPT}.granted.jsonl"
+  printf '%s\n' "$transcript2" >"${TB_TURN_TRANSCRIPT}.readonly.jsonl"
 }
 exit $status

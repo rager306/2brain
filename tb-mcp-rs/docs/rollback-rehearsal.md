@@ -6,7 +6,7 @@ adapter misbehaves: stop using it and fall back to the read-only path. Run on
 
 ```sh
 cd au-mcp-rs
-AU_ENGINE_BIN=../tb-engine/target/debug/au python3 scripts/rollback_rehearsal.py
+TB_ENGINE_BIN=../tb-engine/target/debug/au python3 scripts/rollback_rehearsal.py
 ```
 
 ## What it proves
@@ -40,8 +40,8 @@ disposable repository and a private engine socket under a throwaway `HOME`:
 
 ```sh
 cd au-mcp-rs
-AU_ENGINE_BIN=/root/2brain/tb-engine/target/release/au \
-AU_MCP_RS_BIN=/root/2brain/tb-mcp-rs/target/release/tb-mcp-rs \
+TB_ENGINE_BIN=/root/2brain/tb-engine/target/release/au \
+TB_MCP_BIN=/root/2brain/tb-mcp-rs/target/release/tb-mcp-rs \
 python3 scripts/rollback_rehearsal.py
 ```
 

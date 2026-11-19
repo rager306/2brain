@@ -126,10 +126,10 @@ impl Default for ReconcilePolicy {
 
 impl ReconcilePolicy {
     /// Read the policy from the environment, the per-environment knob.
-    /// `AU_IDLE_RECONCILE=off` disables it; a positive integer sets the idle
+    /// `TB_IDLE_RECONCILE=off` disables it; a positive integer sets the idle
     /// window in seconds; unset or unparseable falls back to the default.
     pub fn from_env() -> Self {
-        Self::parse(std::env::var("AU_IDLE_RECONCILE").ok().as_deref())
+        Self::parse(std::env::var("TB_IDLE_RECONCILE").ok().as_deref())
     }
 
     fn parse(value: Option<&str>) -> Self {

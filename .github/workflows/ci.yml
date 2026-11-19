@@ -44,7 +44,7 @@ jobs:
           cargo build --manifest-path ../tb-engine/Cargo.toml -p tb-cli --bin au
           target=$(cargo metadata --manifest-path ../tb-engine/Cargo.toml --format-version 1 --no-deps \
             | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')
-          AU_ENGINE_BIN="$target/debug/au" cargo test --test real_engine -- --ignored
+          TB_ENGINE_BIN="$target/debug/au" cargo test --test real_engine -- --ignored
 
   engine:
     name: Engine

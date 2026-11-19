@@ -4363,11 +4363,11 @@ fn relative_path(path: &str) -> Result<(), &'static str> {
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The git commit this binary was built from, or `unknown` outside a checkout.
-const BUILD_COMMIT: &str = env!("AU_BUILD_COMMIT");
+const BUILD_COMMIT: &str = env!("TB_BUILD_COMMIT");
 /// Whether this crate's own tree was modified at build time.
-const BUILD_DIRTY: bool = matches!(env!("AU_BUILD_DIRTY").as_bytes(), b"true");
-const BUILD_TARGET: &str = env!("AU_BUILD_TARGET");
-const BUILD_PROFILE: &str = env!("AU_BUILD_PROFILE");
+const BUILD_DIRTY: bool = matches!(env!("TB_BUILD_DIRTY").as_bytes(), b"true");
+const BUILD_TARGET: &str = env!("TB_BUILD_TARGET");
+const BUILD_PROFILE: &str = env!("TB_BUILD_PROFILE");
 
 /// `0.1.0+<commit>`, with `.dirty` when the tree was modified.
 ///

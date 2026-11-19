@@ -10,7 +10,7 @@ The rehearsal proves the properties a rollback depends on:
    without a grant reads the file and refuses to write.
 
 Both binaries default to the debug builds in the repository's shared `.cargo-target`
-(`.cargo/config.toml`); AU_ENGINE_BIN / AU_MCP_RS_BIN override them:
+(`.cargo/config.toml`); TB_ENGINE_BIN / TB_MCP_BIN override them:
 
     python3 scripts/rollback_rehearsal.py
 
@@ -31,8 +31,8 @@ from mcp_stdio import StdioMcp, is_error, state_run_dir, tool_payload
 from target_dir import cargo_target_dir
 
 TARGET = cargo_target_dir()
-ENGINE = os.environ.get("AU_ENGINE_BIN", str(TARGET / "debug/au"))
-ADAPTER = os.environ.get("AU_MCP_RS_BIN", str(TARGET / "debug/2brain"))
+ENGINE = os.environ.get("TB_ENGINE_BIN", str(TARGET / "debug/au"))
+ADAPTER = os.environ.get("TB_MCP_BIN", str(TARGET / "debug/2brain"))
 TIMEOUT = 20.0
 
 
@@ -52,9 +52,9 @@ def step(message: str) -> None:
 
 def main() -> int:
     if not os.access(ENGINE, os.X_OK):
-        fail(f"missing engine binary: {ENGINE} (set AU_ENGINE_BIN)")
+        fail(f"missing engine binary: {ENGINE} (set TB_ENGINE_BIN)")
     if not os.access(ADAPTER, os.X_OK):
-        fail(f"missing adapter binary: {ADAPTER} (set AU_MCP_RS_BIN)")
+        fail(f"missing adapter binary: {ADAPTER} (set TB_MCP_BIN)")
 
     root = Path(tempfile.mkdtemp(prefix="au-rollback-"))
     home = root / "home"

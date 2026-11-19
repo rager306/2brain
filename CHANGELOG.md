@@ -43,12 +43,30 @@ and a `.2brain` repository identity produce, so the newest layout was the one co
 it now compares both spellings. Nothing moves on a migrated machine: existence still decides. Found by the
 install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
 
+### Changed
+
+- **Every operator environment variable lost its `AU_` prefix** (engine, server, tooling). `AU_TRACE`,
+  `AU_IDLE_RECONCILE`, `AU_BUILD_COMMIT`, `AU_ENGINE_BIN`, `AU_MCP_RS_BIN` and 25 siblings are
+  `TB_TRACE`, `TB_IDLE_RECONCILE`, … now. These are this repository's own operator surface — nothing
+  outside it reads them — and the old prefix was the last place a lowercase-name search still found the
+  retired project. A host that exported one keeps working only by exporting the new name.
+
 ### Fixed
+
+- **The verification scripts delegated and then checked for tool names that do not exist** (tooling).
+  `mutation-turn.sh`, `recovery-turn.sh`, `batch-turn.sh`, `rollback-turn.sh` and `model-turn.sh` ran an
+  agent with `--allowedTools 'mcp__2brain__au_content,…'` and then grepped the transcript for
+  `"name":"mcp__2brain__au_write_file"`. The adapter has advertised `tb_*` for a release, so the grant
+  covered no tool and every check searched for a call that could never appear: four scripts that always
+  failed, silently. They name the real tools now. A new test
+  (`every_tool_a_script_names_is_one_the_router_advertises`) walks `tb-mcp-rs/scripts` and fails on any
+  `mcp__2brain__<name>` the router does not advertise — proven by reintroducing `au_content` and watching
+  it fail.
 
 - **CI never ran the real-engine suite** (CI). `cargo test` skips the three `#[ignore]`d tests in
   `tb-mcp-rs/tests/real_engine.rs`, which are the only place the socket path, the member gate and the
   cross-member grant run end to end. The adapter job now builds the engine binary, resolves the shared
-  target directory through `cargo metadata`, and runs the suite with `AU_ENGINE_BIN`.
+  target directory through `cargo metadata`, and runs the suite with `TB_ENGINE_BIN`.
 
 - **The installer's fallback could hide an existing state root** (installer). When `/usr/local/bin`
   refuses the engine, the fallback created `$HOME/.2brain/bin`. On a machine that still keeps its state

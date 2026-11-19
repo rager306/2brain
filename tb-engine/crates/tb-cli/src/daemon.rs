@@ -226,7 +226,7 @@ pub fn start(entry: &Path) -> ExitCode {
         eprintln!("au: cannot serve {}: {e}", entry.display());
         return ExitCode::from(ENV_ERROR);
     }
-    // Operation tracing, off unless `AU_TRACE` is set. The guards flush the trace
+    // Operation tracing, off unless `TB_TRACE` is set. The guards flush the trace
     // and drain the log on shutdown, so they are held for the daemon's lifetime.
     let _trace_guards = install_tracing(&entry);
     // hotpath profiling, opt-in via the `hotpath` cargo feature (`cargo build
@@ -720,7 +720,7 @@ struct TraceGuards {
     _appender: tracing_appender::non_blocking::WorkerGuard,
 }
 
-/// Install the operation-tracing subscriber when `AU_TRACE` is set, writing a
+/// Install the operation-tracing subscriber when `TB_TRACE` is set, writing a
 /// Perfetto trace and a timing log under `<entry>/.arsumbris/au-engine/logs/trace/`,
 /// each named by the run's start time. `None` when tracing is off, the default,
 /// where no subscriber is installed and the span macros cost nothing.
@@ -729,7 +729,7 @@ struct TraceGuards {
 fn install_tracing(entry: &Path) -> Option<TraceGuards> {
     use tracing_subscriber::prelude::*;
 
-    std::env::var_os("AU_TRACE")?;
+    std::env::var_os("TB_TRACE")?;
     // The identity directory is resolved by the write rule, so an entry that already
     // carries a spelling keeps it and a new one gets the current name -- the same rule
     // the saga marker directory follows.
@@ -739,7 +739,7 @@ fn install_tracing(entry: &Path) -> Option<TraceGuards> {
         .join("trace");
     // Runtime output, never committed: the directory ignores itself.
     if let Err(e) = tb_engine::ensure_git_ignored_dir(&dir) {
-        eprintln!("au: AU_TRACE set but cannot create {}: {e}", dir.display());
+        eprintln!("au: TB_TRACE set but cannot create {}: {e}", dir.display());
         return None;
     }
     let stamp = std::time::SystemTime::now()
@@ -755,7 +755,7 @@ fn install_tracing(entry: &Path) -> Option<TraceGuards> {
     let log_file = match std::fs::File::create(dir.join(format!("timing-{stamp}.log"))) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("au: AU_TRACE set but cannot open the timing log: {e}");
+            eprintln!("au: TB_TRACE set but cannot open the timing log: {e}");
             return None;
         }
     };
@@ -773,7 +773,7 @@ fn install_tracing(entry: &Path) -> Option<TraceGuards> {
         .with(chrome)
         .with(timing)
         .init();
-    eprintln!("au: AU_TRACE on, tracing operations to {}", dir.display());
+    eprintln!("au: TB_TRACE on, tracing operations to {}", dir.display());
     Some(TraceGuards {
         _chrome: chrome_guard,
         _appender: appender_guard,

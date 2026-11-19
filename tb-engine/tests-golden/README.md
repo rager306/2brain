@@ -54,7 +54,7 @@ than through the probe, and it is checked on every `cargo test --test it` run â€
 structure and values. Regenerate it with:
 
 ```sh
-cd au-engine && AU_BLESS_SEARCH_CAPTURE=1 cargo +1.99.0 test -p tb-engine --test it search_read
+cd au-engine && TB_BLESS_SEARCH_CAPTURE=1 cargo +1.99.0 test -p tb-engine --test it search_read
 ```
 
 A probe run captures `search` against the vault under the same name, so it

@@ -535,7 +535,7 @@ fn a_source_page_pages_like_any_page() {
 
 // The golden capture: the served shape and its values against a fixed corpus,
 // checked on every run rather than only structurally. It is regenerable in
-// process (`AU_BLESS_SEARCH_CAPTURE=1`), which is why this one capture is
+// process (`TB_BLESS_SEARCH_CAPTURE=1`), which is why this one capture is
 // fixture-derived: a `search` score is a property of corpus statistics, so a
 // capture that can only be taken from the living vault cannot be compared
 // automatically at all.
@@ -551,7 +551,7 @@ fn the_search_capture_matches_the_engine() {
 
     let path =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests-golden/engine/tb_search.json");
-    if std::env::var_os("AU_BLESS_SEARCH_CAPTURE").is_some() {
+    if std::env::var_os("TB_BLESS_SEARCH_CAPTURE").is_some() {
         fs::write(&path, serde_json::to_string_pretty(&actual).unwrap() + "\n").unwrap();
         return;
     }

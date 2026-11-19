@@ -83,7 +83,7 @@ def serve_one(client: socket.socket, engine_path: str, drop: str | None) -> bool
         if reply is None:
             return False
         seen = verb_of(request)
-        if os.environ.get("AU_PROXY_DEBUG"):
+        if os.environ.get("TB_PROXY_DEBUG"):
             print(f"verb: {seen}", file=sys.stderr, flush=True)
         if drop is not None and seen == drop:
             print(f"dropped the reply to {drop}", file=sys.stderr, flush=True)

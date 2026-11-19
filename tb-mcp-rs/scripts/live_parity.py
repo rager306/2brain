@@ -34,8 +34,8 @@ from target_dir import cargo_target_dir  # noqa: E402
 # Both are the unified binary (`2brain mcp <target>`), so the argv is identical and the only difference
 # between the two processes is which build of the same code runs. The built one is the release
 # build in the repository's shared target directory (`.cargo/config.toml`).
-BUILT = os.environ.get("AU_2BRAIN_BUILT", str(cargo_target_dir() / "release/2brain"))
-INSTALLED = os.environ.get("AU_2BRAIN_BIN", "/usr/local/bin/2brain")
+BUILT = os.environ.get("TB_2BRAIN_BUILT", str(cargo_target_dir() / "release/2brain"))
+INSTALLED = os.environ.get("TB_2BRAIN_BIN", "/usr/local/bin/2brain")
 
 # Each row: a name, the tool, its arguments, and how to reduce the answer to the facts that must
 # match. The two processes run the same code, so a difference here means the installed binary is

@@ -174,7 +174,7 @@ changes that alter what existing calls return are listed in 2brain
 - The engine's in-repo runtime output now ignores itself in git: the saga's
   recovery state under `.arsumbris/au-engine/run/` (the intent marker, the
   parked copies of git-ignored files, the failure sentinels) and the
-  `AU_TRACE` output under `.arsumbris/au-engine/logs/trace/`.
+  `TB_TRACE` output under `.arsumbris/au-engine/logs/trace/`.
   - Each directory gets a `.gitignore` holding `*` when the engine creates it;
     an existing one is never overwritten.
   - Before, nothing ignored them, so a human's `git add -A` could commit them,

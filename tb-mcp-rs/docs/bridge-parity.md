@@ -55,7 +55,7 @@ exactly.
 
 ```sh
 cd au-mcp-rs
-AU_ENGINE_BIN=../tb-engine/target/debug/au python3 scripts/bridge_parity.py
+TB_ENGINE_BIN=../tb-engine/target/debug/au python3 scripts/bridge_parity.py
 ```
 
 The script requires `bun` for the Node daemon, uses a throwaway `HOME`, and

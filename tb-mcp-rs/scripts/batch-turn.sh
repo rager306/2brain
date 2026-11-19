@@ -15,9 +15,9 @@ set -euo pipefail
 source "$(dirname "$0")/lib/target-dir.sh"
 target_dir=$(cargo_target_dir)
 
-ENGINE=${AU_ENGINE_BIN:-$target_dir/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-$target_dir/debug/2brain}
-TURN_HOME=${AU_TURN_HOME:-$HOME}
+ENGINE=${TB_ENGINE_BIN:-$target_dir/debug/au}
+ADAPTER=${TB_MCP_BIN:-$target_dir/debug/2brain}
+TURN_HOME=${TB_TURN_HOME:-$HOME}
 
 [[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE" >&2; exit 1; }
 [[ -x $ADAPTER ]] || { echo "missing adapter: $ADAPTER" >&2; exit 1; }
@@ -44,7 +44,7 @@ file with tb_content to get its hash, then apply both changes with a single tb_b
 call (one write_file operation per file, each with its own hash). Finish with one line
 saying whether the batch applied.' \
   --mcp-config "$config" \
-  --allowedTools 'mcp__2brain__au_overview,mcp__2brain__au_content,mcp__2brain__au_batch,mcp__2brain__au_write_file' \
+  --allowedTools 'mcp__2brain__tb_overview,mcp__2brain__tb_content,mcp__2brain__tb_batch,mcp__2brain__tb_write_file' \
   --output-format stream-json --verbose 2>&1 || true)
 
 status=0
@@ -54,8 +54,8 @@ pass() { printf 'PASS: %s\n' "$1"; }
 calls=$(grep -o '"name":"mcp__2brain__[a-z_]*"' <<<"$transcript" | sed 's/.*__//;s/"//' | tr '\n' ' ')
 echo "tool calls: ${calls:-none}"
 
-batches=$(grep -o '"name":"mcp__2brain__au_batch"' <<<"$transcript" | wc -l)
-writes=$(grep -o '"name":"mcp__2brain__au_write_file"' <<<"$transcript" | wc -l)
+batches=$(grep -o '"name":"mcp__2brain__tb_batch"' <<<"$transcript" | wc -l)
+writes=$(grep -o '"name":"mcp__2brain__tb_write_file"' <<<"$transcript" | wc -l)
 [[ $batches -ge 1 ]] && pass "the model used tb_batch" || fail "no tb_batch call"
 [[ $writes -eq 0 ]] && pass "the model did not fall back to two single writes" \
   || fail "the model issued $writes single writes instead of one batch"
@@ -65,7 +65,7 @@ grep -q 'batched' "$repo/notes/a.md" && grep -q 'batched' "$repo/notes/b.md" \
 [[ $(git -C "$repo" rev-list --count HEAD) -eq $((before + 1)) ]] \
   && pass "the batch made exactly one engine commit" || fail "the engine made more than one commit"
 
-[[ ${AU_TURN_TRANSCRIPT:-} ]] && printf '%s\n' "$transcript" >"$AU_TURN_TRANSCRIPT"
+[[ ${TB_TURN_TRANSCRIPT:-} ]] && printf '%s\n' "$transcript" >"$TB_TURN_TRANSCRIPT"
 echo "---"
 if [[ $status -eq 0 ]]; then
   echo "PASS: a model chose the all-or-nothing path"
