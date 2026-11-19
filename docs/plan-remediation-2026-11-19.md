@@ -26,8 +26,8 @@ order the review recommends: data safety first, then boundaries, then contract, 
 | id | finding | decision | state |
 |---|---|---|---|
 | #10 | a committed saga could roll back if marker removal failed | write a durable `settled` line before removal; recovery never rolls back a settled marker; a failure sentinel also stops auto-retry | **fixed, tests added** |
+| #7 | a failed rollback deletes parked preimages | keep the marker and preimages; the sweep skips an id with a failure sentinel | **fixed, test added** |
 | #9 | old runtime journals (`au-engine/run`) invisible | `install.sh` moves the state directory once; recovery reads only the current directory (one rule) | install path done |
-| #7 | a failed rollback deletes parked preimages | keep the marker and preimages until recovery succeeds; sweep only sagas with no marker | next |
 | #4 | non-git `batch` is not atomic | decide: refuse a multi-op batch spanning a non-git member, or journal non-git paths | decision |
 | #8 | recovery cannot see a pre-rename journal | covered by the same state-directory move; a remaining marker is refused rather than guessed | covered by #9 |
 

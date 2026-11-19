@@ -42,7 +42,9 @@ the directory, and recovery treats a settled marker as complete. If neither mark
 be completed, a `saga.failed.<id>` sentinel is written and recovery refuses to auto-roll-back an id
 that has one — the documented "recovery does not auto-retry a failure" rule, now enforced before it
 can destroy data. Two tests pin it: a settled marker is not rolled back, and a sentinel-owned saga is
-left for an operator with its committed tree intact.
+left for an operator with its committed tree intact. `#7` followed in the same wave: a failed
+rollback now keeps its parked copies (the only surviving copy of an outside-git path), and the
+startup sweep skips an id with a failure sentinel instead of deleting its recovery material.
 
 **Also fixed, from the review's rename fallout** (commit `9c971d5`): `mcp_stdio.py`, `visit_bound.py`,
 `watch.py` and `swap-engine.sh` had all been rewritten to `tb-engine/run` by the blanket pass (the
@@ -50,7 +52,7 @@ runtime directory is `engine`), `tool-map.md` still promised the retired scheme,
 moves a pre-rename `<state>/au-engine` once so an upgrade keeps the registry and the saga journals,
 and CI runs `legacy_audit.py --check`.
 
-**Open, in wave order:** A — #7 (failed rollback deletes preimages), #4 (non-git batch atomicity);
+**Open, in wave order:** A — #4 (non-git batch atomicity, a decision gate);
 B — #5, #6, #16, #17, #19, #20 (boundaries); C — #11, #12, #14, #15, #26, #27 (reconcile); D — #13,
 #18, #32, #33, #34, #35 (payload); E — #25, #28, #38, #40, #42. Three decision gates need an owner:
 the offline identity migration (#2), the non-git batch policy (#4), and the unknown-outcome contract
