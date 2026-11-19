@@ -421,3 +421,70 @@ fn write_forwards_the_clean_check_rider_when_asked() {
     assert_ne!(write["result"]["isError"], true, "{write}");
     daemon.join().unwrap();
 }
+
+#[test]
+fn a_structured_only_read_arms_the_write_gate() {
+    // `--payload structured` sends the answer only in `structuredContent`, with no text
+    // block. The read gate must still learn the hash, or the caller's very next write is
+    // refused for a read it just made.
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("ws");
+    let socket = temp.path().join("engine.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let root_string = root.to_str().unwrap().to_owned();
+    let daemon = thread::spawn(move || {
+        let (mut members, _) = listener.accept().unwrap();
+        assert_eq!(
+            read_request(&mut members),
+            json!({"read":"members","id":1,"repo":"fixture"})
+        );
+        write_frame(&mut members, members_frame(&root_string, 5, true));
+        let (mut content, _) = listener.accept().unwrap();
+        let _ = read_request(&mut content);
+        write_frame(
+            &mut content,
+            json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":6,
+                "result":{"content":{"text":"old","hash":"hash-1","commit":null}}}),
+        );
+        // The write arms itself: one editability read, then the mutation.
+        let (mut members2, _) = listener.accept().unwrap();
+        assert_eq!(
+            read_request(&mut members2),
+            json!({"read":"members","id":1,"repo":"fixture"})
+        );
+        write_frame(&mut members2, members_frame(&root_string, 5, true));
+        let (mut mutate, _) = listener.accept().unwrap();
+        assert_eq!(
+            read_request(&mut mutate),
+            json!({"mutate":"write_file","id":1,"path":format!("{root_string}/notes/a.md"),
+                "content":"new text","expected_hash":"hash-1"}),
+            "the write reaches the engine, so the gate accepted the read it was given"
+        );
+        write_frame(
+            &mut mutate,
+            json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":7,
+                "result":{"path":format!("{root_string}/notes/a.md"),"hash":"hash-2",
+                    "diagnostics":[],"reflected":true,"commit":null,"commits":{},"untracked_files":[]}}),
+        );
+    });
+    let mut client = Client::start_with(&socket, &["--allow-mutations", "--payload", "structured"]);
+    let read = client.call_result(
+        2,
+        "tb_content",
+        json!({"repo":"fixture","path":"notes/a.md"}),
+    );
+    assert!(
+        read.get("content")
+            .and_then(|c| c.as_array())
+            .is_none_or(|c| c.is_empty()),
+        "structured mode sends no text block: {read}"
+    );
+    assert!(read["structuredContent"].is_object(), "{read}");
+    let write = client.call_result(
+        3,
+        "tb_write_file",
+        json!({"repo":"fixture","path":"notes/a.md","content":"new text","expected_hash":"hash-1"}),
+    );
+    assert_ne!(write["isError"], true, "{write}");
+    daemon.join().unwrap();
+}

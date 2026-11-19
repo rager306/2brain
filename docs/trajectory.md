@@ -27,6 +27,37 @@ permission fixtures are the known environmental failures), `fmt --check` and `cl
 on **both** halves, and `scripts/live_parity.py` against the installed binary. `tools/cards/metrics.json` carries
 dated counts; a number quoted without its date is a memory, not a measurement.
 
+## 2026-11-19 — an external review's forty findings, triaged and started
+
+A full external review landed 40 confirmed findings (22 P1, 18 P2) against `c5afba6`. I re-verified
+them against the tree instead of taking the list on faith, and split them into three groups.
+
+**Already closed by this session's own waves** — the fixture socket lookup (#13), and the state-root
+resolution that made several tooling findings real in the first place. Re-checking paid: the review was
+written against a revision two commits behind the tree.
+
+**Tooling and contract, fixed in this wave.** The verification scripts resolved Cargo's target
+directory by hand (`tb-engine/target`, `tb-mcp-rs/target`) though the shared directory is
+`.cargo-target`, and one of them trusted a symlink that is not tracked (#30, #31, #33); a shared
+resolver asks `cargo metadata` now. Fixture daemons outlived a killed runner and made the next run skip
+starting one (#32). `--payload structured` never armed the read gate because `served_hash` read only
+the text block (#19). One file-addressed read charged two read permits, so eight concurrent reads
+exhausted a limit of eight with four in flight (#36) — proven by a test that fails with "capacity
+reached" when the second charge is put back. A batch that writes one path twice compared every
+intermediate hash against a catalog that can hold only the last, so `reflected` was false forever
+(#28). The census now labels its link counts as syntactic regex counts rather than graph facts (#40).
+
+**NOT fixed here, and say so plainly.** The access-boundary findings (#7 symlink read escape, #16
+cascade allowlist on the other refactor verbs, #21 nested-member owner check) and the saga data-loss
+findings (#6, #9, #10, #11, #22) are real and open. They change `serve.rs`'s recovery machinery and the
+policy surface, which needs a deploy window and real-engine tests, not a pass at the end of a long
+session. The remaining P1/P2 items are likewise open; the report at
+`docs/reviews/20261119-024022-72fef655/` is the queue.
+
+Two Ratchet notes: the `lib.rs` budget held without being raised — the read-permit helper and a
+`file_read_guard` that replaces five identical argument-guard blocks paid for themselves — and the
+`tb-cli` it suite stays 36/0.
+
 ## 2026-11-19 — what is left of the old name, measured
 
 Asked to check for leftover `arsumbris` / `.arsumbris` / `au_` traces, I measured rather than grepped and

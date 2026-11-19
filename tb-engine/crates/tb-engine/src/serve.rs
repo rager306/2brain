@@ -11471,15 +11471,26 @@ fn batch_response(
     commits: SagaCommits,
 ) -> serde_json::Value {
     let paths: Vec<PathBuf> = targets.to_vec();
-    let written: Vec<(PathBuf, crate::ir::ContentHash)> = applied
-        .iter()
-        .filter_map(|entry| {
-            let hash = entry["hash"].as_str()?;
-            let path = PathBuf::from(entry["path"].as_str()?);
-            let value = u64::from_str_radix(hash, 16).ok()?;
-            Some((path, crate::ir::ContentHash(value)))
-        })
-        .collect();
+    // The FINAL hash per path, not one entry per op: `reflected` asks whether the held
+    // catalog agrees with what the batch left on disk. Two ops on one path write two
+    // hashes and the catalog can hold only the last, so keeping the intermediates makes
+    // `reflected` false forever. An order-preserving map collapses them to the last write.
+    let mut final_by_path: std::collections::BTreeMap<PathBuf, Option<crate::ir::ContentHash>> =
+        std::collections::BTreeMap::new();
+    for entry in applied {
+        let Some(path) = entry["path"].as_str() else {
+            continue;
+        };
+        // A null hash is a delete: the path's final state is "absent", and the catalog
+        // agreeing means no entry, not a match on an earlier write's hash.
+        let state = entry["hash"]
+            .as_str()
+            .and_then(|hash| u64::from_str_radix(hash, 16).ok())
+            .map(crate::ir::ContentHash);
+        final_by_path.insert(PathBuf::from(path), state);
+    }
+    let written: Vec<(PathBuf, Option<crate::ir::ContentHash>)> =
+        final_by_path.into_iter().collect();
     let read = handle.read(move |v| {
         let diagnostics: Vec<Diagnostic> = v
             .diagnostics()
@@ -11496,7 +11507,7 @@ fn batch_response(
             .collect();
         let reflected = written
             .iter()
-            .all(|(path, hash)| v.catalog.get(path).and_then(|e| e.hash) == Some(*hash));
+            .all(|(path, state)| v.catalog.get(path).and_then(|e| e.hash) == *state);
         (diagnostics, reflected)
     });
     let Read::Ready {

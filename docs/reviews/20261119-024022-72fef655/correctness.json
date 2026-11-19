@@ -1,0 +1,132 @@
+{
+  "reviewer": "correctness",
+  "findings": [
+    {
+      "title": "Non-git batches leave partial writes on rejection",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 11402,
+      "why_it_matters": "A batch against a member outside any Git working tree can report rejection after its first file has already changed, violating the adapter's all-or-nothing promise. Batch explicitly disables the Git precondition, but compensation and preimage parking both exclude non-Git members, so a later stale hash or failed edit leaves earlier writes in place and the held index is not rebuilt. Reject such batches before writing or journal and restore every non-Git target, including on crash recovery.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:11402:         let (applied, commits) = apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {",
+        "tb-engine/crates/tb-engine/src/serve.rs:4952:     let git_members: Vec<&SagaMember> = plan.members.iter().filter(|m| m.git).collect();",
+        "tb-engine/crates/tb-engine/src/serve.rs:5204:     for m in plan.members.iter().filter(|m| m.git) {",
+        "tb-engine/crates/tb-engine/src/serve.rs:5050:             let mut errors = compensate(git, &[], git_members, plan, &mutation_id);",
+        "tb-engine/crates/tb-engine/src/serve.rs:11423:     for (op, target) in ops.iter().zip(resolved) {",
+        "provenance: 4e7a70a6 rager306 2026-11-14 - batch saga call"
+      ],
+      "pre_existing": true,
+      "suggested_fix": "Require Git for multi-operation batches, or park and restore preimages for all non-Git paths in both live compensation and crash recovery before preserving non-Git batch support."
+    },
+    {
+      "title": "Failed rollback deletes the only parked preimages",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 5021,
+      "why_it_matters": "A failed rollback of a Git-ignored file can permanently lose its original contents: after restore_preimages reports an error, the saga still deletes the parked copy, and Git cannot recover that file. Crash recovery likewise sweeps the copies after a failed restore. Retaining both the journal and failed preimages gives the operator a way to repair the reported incomplete rollback.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5021:     drop_preimages(marker_dir, &plan.mutation_id);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5051:             errors.extend(restore_preimages(preimages));",
+        "tb-engine/crates/tb-engine/src/serve.rs:5239:             Some(parked) => abs",
+        "tb-engine/crates/tb-engine/src/serve.rs:5242:                 .and_then(|()| std::fs::copy(parked, &abs).map(|_| ())),",
+        "tb-engine/crates/tb-engine/src/serve.rs:5543:     sweep_preimages(&marker_dir);",
+        "provenance: 1134a28a ltOgt 2026-09-25 - saga preimage cleanup"
+      ],
+      "pre_existing": true,
+      "suggested_fix": "Keep failed preimage copies and their path mapping until an operator completes recovery; only remove the marker and copies after successful compensation, and exempt failed recoveries from startup sweeping."
+    },
+    {
+      "title": "Reconcile confuses present contents with mutation history",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2793,
+      "why_it_matters": "A lost-reply write that succeeded and was subsequently changed is reported not_applied, and the server re-arms a retry against the newer contents; the retry can overwrite another writer's update. Conversely, matching bytes can predate a failed or never-applied mutation, so applied is not proved either. A snapshot comparison cannot answer the promised historical outcome without a durable mutation identifier and journal or commit lookup.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2793:         let applied = match &expected {",
+        "tb-mcp-rs/src/lib.rs:2794:             None => current.is_null(),",
+        "tb-mcp-rs/src/lib.rs:2795:             Some(expected) => current_hash.as_deref() == Some(expected.as_str()),",
+        "tb-mcp-rs/src/lib.rs:2802:             self.ledger.record(key, hash);",
+        "tb-mcp-rs/src/lib.rs:2714:         description = \"Check what actually happened after an outcome_unknown mutation. Give the 16-hex-character hash the interrupted write should have produced, or expect_absent for a delete; a value that is not a digest is refused rather than compared. Returns outcome applied or not_applied with the file's current hash and commit; a not_applied answer re-arms the read-before-write guard with the current hash, so the caller can decide whether to retry. If you do not know the expected digest, read the file with tb_content and compare the text instead. This is a read: it never writes.\",",
+        "provenance: 97ae8210 rager306 2026-11-13 - reconciliation verdict"
+      ],
+      "pre_existing": true,
+      "suggested_fix": "Track a caller-known mutation identifier durably and reconcile against its recorded outcome; until then expose only current-state match or mismatch and preserve an unknown historical outcome rather than assert applied or not_applied."
+    },
+    {
+      "title": "Direct transport rejections bypass backpressure timeout",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/bounded_stdio.rs",
+      "line": 183,
+      "why_it_matters": "A client sending a stream of version-rejected pings and then stopping stdout reads can leave the MCP process stuck indefinitely instead of closing after the configured five-second backpressure deadline. These responses send directly to the bounded channel from receive, outside the timed semaphore acquisition, and the receive loop waits on a full channel with no timeout; the writer also adds semaphore permits for messages that never acquired them. Route locally generated errors through the same permit accounting and bounded timeout as ordinary replies.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/bounded_stdio.rs:183:                             && sender.send(rejection).await.is_err()",
+        "tb-mcp-rs/src/bounded_stdio.rs:159:         match timeout(self.bounds.outbound_wait, Arc::clone(&self.slots).acquire()).await {",
+        "tb-mcp-rs/src/bounded_stdio.rs:116:                 writer_slots.add_permits(1);",
+        "tb-mcp-rs/src/bounded_stdio.rs:187:                         continue;",
+        "provenance: ff6fbb51 rager306 2026-11-13 - bounded stdio transport"
+      ],
+      "pre_existing": true,
+      "suggested_fix": "Send receive-generated rejection frames through the same timed permit acquisition and writer accounting as ordinary responses, and terminate receive when the deadline expires."
+    },
+    {
+      "title": "Composed batch writes always report unreflected intermediate hashes",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 11497,
+      "why_it_matters": "A successful batch with two edits to one file reports reflected=false even after the final state is indexed, because the catalog cannot simultaneously equal the first and second intermediate hashes. Clients interpreting false as rebuild lag may wait forever even though no later rebuild can make that condition true. Compare only each path's final net state rather than every operation's intermediate hash.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:11497:         let reflected = written",
+        "tb-engine/crates/tb-engine/src/serve.rs:11499:             .all(|(path, hash)| v.catalog.get(path).and_then(|e| e.hash) == Some(*hash));",
+        "tb-engine/crates/tb-engine/src/serve.rs:11474:     let written: Vec<(PathBuf, crate::ir::ContentHash)> = applied",
+        "tb-engine/crates/tb-engine/src/serve.rs:11358: /// execute in the caller's order, which is why two ops on one path compose.",
+        "tb-engine/crates/tb-engine/WIRE.md:1200: - `reflected`: whether the held knowledge base already reflects this write. `true` in the common case (the rebuild committed). `false` means the disk write landed but the rebuild has not caught up, so `hash` and `diagnostics` predate the write — await a later `version` (the watcher re-drives the rebuild), do NOT re-issue the mutation (its `expected_hash` would now conflict). An idempotent no-op (`assign_block_id` on an already-addressed record) is always `true`, nothing was written to lag.",
+        "provenance: 59e94dbb rager306 2026-11-14 - batch response reflection"
+      ],
+      "pre_existing": true,
+      "suggested_fix": "Collapse operations by resolved path to their final hash or absence and compare the catalog against only that final state."
+    },
+    {
+      "title": "Identity migration rewrites YAML literal content as claims",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/identity_migration.rs",
+      "line": 175,
+      "why_it_matters": "Applying identity migration can silently change user-authored YAML text that merely documents an old type, for example a multiline description containing an indented `type: au.engine.repo::au-engine` example. The line scanner treats any indentation as a claim and cannot distinguish a YAML literal scalar from a mapping, despite promising to preserve non-claim bytes. Restrict byte splices to parser-identified claim values and preserve literal scalar text.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/identity_migration.rs:175:     let (key, rest) = trimmed.split_once(':')?;",
+        "tb-engine/crates/tb-engine/src/identity_migration.rs:176:     if !is_claim_key(key.trim_end()) {",
+        "tb-engine/crates/tb-engine/src/identity_migration.rs:152:     let indent = body.len() - body.trim_start().len();",
+        "tb-engine/crates/tb-cli/src/migrate.rs:290:     for file in files {",
+        "tb-engine/crates/tb-cli/src/migrate.rs:291:         collect_rewrites(root, &file, &mut rewrites);",
+        "provenance: 8438196e rager306 2026-11-16 - identity claim splice"
+      ],
+      "pre_existing": true,
+      "suggested_fix": "Use YAML syntax-aware value spans to rewrite only real type or extends claim nodes, leaving block scalars and unrelated mappings unchanged."
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

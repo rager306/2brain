@@ -1,0 +1,210 @@
+{
+  "reviewer": "data-migration",
+  "findings": [
+    {
+      "title": "Recover saga state under both identity spellings",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 5400,
+      "why_it_matters": "A crashed legacy saga can be missed when .2brain and .arsumbris coexist, leaving partially committed or dirty member trees unrecovered and allowing the identity migration to proceed despite an outstanding intent. When .2brain exists, saga_marker_dir selects it and the second array entry selects it again; startup recovery also checks only that selected directory. Read and recover both directories independently, including their preimages and failure sentinels.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Probe explicit .arsumbris/au-engine/run and .2brain/au-engine/run paths for intent and failure markers, and recover each existing journal without sweeping the other directory's preimages; test coexistence and both active journals.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5400 --         saga_marker_dir(root),",
+        "tb-engine/crates/tb-engine/src/serve.rs:5401 --         root.join(tb_parser::IDENTITY_DIR)",
+        "tb-engine/crates/tb-engine/src/serve.rs:5336 --     tb_parser::identity_dir_for_write_with(root, |dir| dir.exists())",
+        "tb-engine/crates/tb-engine/src/serve.rs:5539 --     let marker_dir = saga_marker_dir(root);",
+        "tb-engine/crates/tb-cli/src/migrate.rs:341 --     if let Some(marker) = tb_engine::in_flight_saga_marker(root) {",
+        "provenance: 8438196e rager306 2026-11-16, targeted blame"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Do not silently skip supported claim syntax",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/identity_migration.rs",
+      "line": 185,
+      "why_it_matters": "Repositories with quoted YAML type claims or flow-list type claims can be reported as already migrated while still containing legacy engine identities. The splice treats a whitespace-delimited token such as 'au.engine.repo::au-engine' or [au.engine.repo::au-engine] as the entire name, so it does not match; the engine accepts list claims, and future removal of legacy aliases then breaks those files. Detect and rewrite every supported YAML claim form, or explicitly refuse unsupported forms instead of silently reporting success.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Use parsed YAML claim spans to splice quoted scalars and flow/block sequences, including all supported claim keys; explicitly report and refuse any unrepresentable claim before migration is marked complete.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/identity_migration.rs:185 --     let (claim, tail) = split_claim(value);",
+        "tb-engine/crates/tb-engine/src/identity_migration.rs:394 --         assert_eq!(yaml(\"type: [au.engine.repo::au-engine]\\n\"), None);",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:310 --         TypeClaim::List { items, .. } => {",
+        "tb-engine/crates/tb-cli/src/migrate.rs:297 --         Outcome::AlreadyMigrated",
+        "provenance: 8438196e rager306 2026-11-16, targeted blame"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Restrict identity rewrites to actual claim fields",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/identity_migration.rs",
+      "line": 175,
+      "why_it_matters": "Running the migration can silently change user data that is not an engine identity claim. For example, an ordinary note's nested frontmatter mapping containing `example: { type: ... }` in block form is scanned just like its top-level type claim, and a legacy-looking nested value is rewritten and committed. Restricting splices to parser-identified claim nodes preserves unrelated YAML values.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Identify actual top-level instance type claims and type-definition claim fields from parsed YAML with source spans, and splice only those nodes; cover nested user values and YAML block scalar content.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/identity_migration.rs:175 --     let (key, rest) = trimmed.split_once(':')?;",
+        "tb-engine/crates/tb-engine/src/identity_migration.rs:176 --     if !is_claim_key(key.trim_end()) {",
+        "tb-engine/crates/tb-engine/src/identity_migration.rs:55 --         let spliced = if line_start >= region.start && line_start < region.end {",
+        "tb-engine/crates/tb-cli/src/migrate.rs:620 --         if let Err(e) = std::fs::write(root.join(&splice.written), &splice.next) {",
+        "provenance: 8438196e rager306 2026-11-16, targeted blame"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Report legacy claims in type definitions",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/parse.rs",
+      "line": 254,
+      "why_it_matters": "An operator can see zero legacy-spelling hints while a type definition still contains an old `extends`, `sealed`, or required-meta claim, so the advertised release-window diagnostic cannot establish that removing compatibility is safe. Type-definition parsing canonicalizes those claims without collecting the legacy diagnostics that instance parsing emits. Emit the advisory on authored type-definition claims before canonicalization.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Collect legacy_spelling_diag for each type definition's parents, sealed and required_meta claims before canonicalizing, preserving the original source spans and adding release-window integration tests.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/parse.rs:254 --         crate::engine_schema::canonical_schema_type_def(td);",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:289 --     canonicalize_claims(&mut td.parents);",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:290 --     canonicalize_claims(&mut td.sealed);",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:291 --     canonicalize_claims(&mut td.required_meta);",
+        "docs/research/release-2-window-2026-11-17.md:9 -- `engine-schema-legacy-spelling` — a `hint` on any written claim that spells `au.engine.*` or",
+        "provenance: ddee8f7c rager306 2026-11-16, targeted blame"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Do not flag retained custom namespace identities",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/engine_schema.rs",
+      "line": 258,
+      "why_it_matters": "A legitimate user-defined `au.engine.custom` claim is reported as stale even when its canonical name is unchanged and `au migrate identity` cannot rewrite it. This makes the diagnostic gate noisy or permanently nonzero for a supported pre-migration tree and tells the operator to apply a fix that does nothing. Check whether canonicalization actually changes the authored claim before emitting the legacy warning.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Emit the diagnostic only when canonical_query_name differs from the authored claim, and test custom namespace claims with local and non-builtin repo qualifiers.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:258 --     let name_is_legacy = claim",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:261 --         .strip_prefix(LEGACY_ENGINE_NAMESPACE)",
+        "tb-engine/crates/tb-engine/src/engine_schema.rs:267 --     let canonical = canonical_query_name(&claim.authored());",
+        "tb-engine/crates/tb-engine/src/identity_migration.rs:280 --             yaml(\"type: au.engine.custom\\n\"),",
+        "provenance: 74d3c626 rager306 2026-11-18, targeted blame"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Resolve rollback paths from the git worktree root",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 9795,
+      "why_it_matters": "For a workspace member nested in a monorepo, rollback_preview can mark a dirty or superseded path clean and safe. `git diff-tree` returns worktree-root-relative names such as `tb-mcp-sdk/type/...`, but the checks run `git -C tb-mcp-sdk` with those names, making git check `tb-mcp-sdk/tb-mcp-sdk/type/...` instead. Run the history and cleanliness checks from the worktree root, and expose member-relative paths consistently.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Resolve the git worktree top-level once, perform all commit-tree, path-history and cleanliness queries relative to it, and translate output to the selected member's root; test dirty and subsequently changed paths in a nested member.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:9795 --             .is_clean(root, std::slice::from_ref(&path))",
+        "tb-engine/crates/tb-engine/src/serve.rs:9798 --             .changed_since(root, commit, &path)",
+        "tb-engine/crates/tb-engine/src/gitwriter.rs:699 --                 os(\"diff-tree\"),",
+        "tb-engine/crates/tb-engine/src/gitwriter.rs:365 --     let mut cmd = Command::new(\"git\");",
+        "tb-engine/crates/tb-engine/src/gitwriter.rs:366 --     cmd.arg(\"-C\").arg(repo).env(\"GIT_LITERAL_PATHSPECS\", \"1\");",
+        "Observed `git -C tb-mcp-sdk diff-tree --root --no-commit-id --name-only -r 2f0110b79fae5d673e64c5f4b8f59db9e38bb9e6` yields `tb-mcp-sdk/type/adapter-presentation-meta.type.yaml`.",
+        "provenance: 015aedaa rager306 2026-11-14, targeted blame of enclosing preview"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Reject merge commits in rollback previews",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 9770,
+      "why_it_matters": "A preview of a merge commit can return `safe: true` with no paths even though reverting the merge requires a mainline parent and would change files. The preview accepts multiple parents, takes the first, and invokes `git diff-tree` without a merge diff option, which produces no paths for a merge. Reject merges explicitly unless the API takes a mainline and computes that exact parent diff.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Reject commits with more than one parent as unsupported, or add an explicit mainline parent argument and derive the preview from that parent's tree; add a merge-commit integration case.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:9770 --     let parent = parents.first().cloned();",
+        "tb-engine/crates/tb-engine/src/gitwriter.rs:688 --     /// commits are never merges, and `diff-tree` reports nothing for a merge, so",
+        "tb-engine/crates/tb-engine/src/serve.rs:9775 --     let mut safe = true;",
+        "tb-mcp-rs/src/lib.rs:988 --         description = \"Preview reverting one commit without touching anything: the paths it changed, whether a revert would restore the parent's bytes or delete the path, and whether each path is still safe (clean, and no later commit rewrote it). `safe` is false when any path is dirty or superseded, because a revert is all-or-nothing. Read-only: it is a plan, not an action.\",",
+        "provenance: 015aedaa rager306 2026-11-14, targeted blame"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Do not infer mutation history from current content",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2807,
+      "why_it_matters": "After a write succeeds and is subsequently reverted or overwritten, reconciliation reports `not_applied` and re-arms a retry even though the interrupted mutation did land. Conversely, matching bytes can predate the attempted operation. A current hash proves only current state, not historical outcome; a caller relying on the advertised result may undo a deliberate rollback or repeat an already-applied action.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Track a durable mutation ID and its commit/compensation state to answer historical application, or return an explicit unknown/diverged outcome whenever history cannot prove the result; describe the current hash separately and do not imply a retry is safe.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2807 --             \"outcome\": if applied { \"applied\" } else { \"not_applied\" },",
+        "tb-mcp-rs/src/lib.rs:2795 --             Some(expected) => current_hash.as_deref() == Some(expected.as_str()),",
+        "tb-mcp-rs/src/lib.rs:2802 --             self.ledger.record(key, hash);",
+        "tb-mcp-rs/src/lib.rs:2714 --         description = \"Check what actually happened after an outcome_unknown mutation. Give the 16-hex-character hash the interrupted write should have produced, or expect_absent for a delete; a value that is not a digest is refused rather than compared. Returns outcome applied or not_applied with the file's current hash and commit; a not_applied answer re-arms the read-before-write guard with the current hash, so the caller can decide whether to retry. If you do not know the expected digest, read the file with tb_content and compare the text instead. This is a read: it never writes.\","
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Avoid shadowing legacy state during fallback installation",
+      "severity": "P1",
+      "file": "install.sh",
+      "line": 76,
+      "why_it_matters": "A pre-migration installation can lose access to its existing registry and daemon socket immediately after the installer falls back to its private engine path. Creating `$HOME/.2brain/bin` makes `.2brain` exist, so the engine's state-root resolver prefers the newly empty directory over the populated `$HOME/.arsumbris`, rather than continuing to read the legacy state. This occurs when 2brain installs but replacing `au` fails, such as an executing au binary on Linux.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Install the fallback binary outside the state-root namespace, or resolve the existing state root with the same 2BRAIN_HOME/new/legacy precedence before creating directories; test an existing legacy-only home with a refused au replacement.",
+      "confidence": 100,
+      "evidence": [
+        "install.sh:76 --   mkdir -p \"$HOME/.2brain/bin\"",
+        "install.sh:74 -- if ! install -m 0755 -t \"$bin_dir\" \"$engine_target/au\" 2>/dev/null; then",
+        "tb-engine/crates/tb-engine/src/repo.rs:916 --             if new.exists() {",
+        "tb-engine/crates/tb-engine/src/repo.rs:920 --                 if legacy.exists() { legacy } else { new }",
+        "provenance: 92d8a7c4 rager306 2026-11-16, targeted blame"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Fail all-repository migration on unreadable registries",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-cli/src/migrate.rs",
+      "line": 127,
+      "why_it_matters": "A migration requested with `--all` can silently omit every repository in an unreadable or malformed registry and still succeed, or fall back to scanning the current directory as though it were the requested set. The shared registry parser deliberately degrades bad YAML to an empty map, and this caller also discards file-read errors. A success report therefore cannot establish that all registered repositories were migrated.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Distinguish absent optional registry files from unreadable or malformed ones, fail --all on invalid present inputs, and never substitute the current directory merely because the requested registry set is empty.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/migrate.rs:127 --             .and_then(|path| std::fs::read(path).ok())",
+        "tb-engine/crates/tb-cli/src/migrate.rs:129 --             .unwrap_or_default();",
+        "tb-engine/crates/tb-cli/src/migrate.rs:141 --     if named.is_empty() {",
+        "tb-engine/crates/tb-engine/src/repo.rs:815 -- /// Malformed input (bad UTF-8, bad YAML, or no `repos:` list) degrades to an",
+        "provenance: 8438196e rager306 2026-11-16, targeted blame"
+      ],
+      "pre_existing": true
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

@@ -1,0 +1,69 @@
+{
+  "reviewer": "security",
+  "findings": [
+    {
+      "title": "CWE-284: Nested members bypass mutation allowlists",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/wire.rs",
+      "line": 809,
+      "why_it_matters": "A client granted writes only to an editable parent member can read and then overwrite or delete a file owned by an ungranted nested editable member by supplying the parent repo and a path such as sub/note.md. The adapter checks the supplied repo name, then joins the relative path without checking its actual owning member; the engine deliberately routes the resulting path to the deepest member and checks editability, not the launch allowlist. Enforcing the allowlist against the engine's actual target owner closes the bypass, including for creates and batches.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Pass the policy member allowlist with every file mutation and have the engine verify the actual deepest owning member at execution time; reject a target owned by an ungranted member, including in each batch operation. Add an integration test with an allowed parent and an editable, denied nested member.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/wire.rs:809-810:     Path::new(root)\n        .join(relative)",
+        "tb-mcp-rs/src/lib.rs:2883:             permits_member: self.policy.permits_member(repo),",
+        "tb-engine/crates/tb-engine/src/mutate.rs:82-85:     // The owning member: the deepest declared repo root containing the path.\n    // Reads reach members this same way, so writes are symmetric; a path under\n    // no member is the real escape.\n    let Some(member) = repos.repo_of(&normalized) else {",
+        "tb-engine/crates/tb-engine/tests/it/mutate.rs:840-845:     // Parent folder-repo `v`, composing a nested member `sub`. `v` owns the git\n    // working tree; `sub` is its own folder-repo with NO `.git` of its own.\n    crate::seed_repo(&root);\n    fs::write(\n        root.join(\".arsumbris/workspace.yaml\"),\n        \"edit:\\n  - v\\n  - sub\\ntype: tb.engine.workspace::tb-engine\\n\",",
+        "provenance: 4b666252 rager306 2026-11-15, git blame on the path join"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "CWE-284: Refactor cascades write outside member grants",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 1932,
+      "why_it_matters": "A client allowed to rename a file in one member can cause references in other editable members to be rewritten and committed even when those members are excluded from its policy. The rename request carries no allowed-members list and the engine only blocks consumed, non-editable referrers; the same class affects other refactor cascades. Unlike rename_type, these operations never bind the executed write set to the launch grant.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Extend rename, rename_block_id, inline and promote to send the policy allowlist, and enforce it on every actual written member in the engine's executed saga plan, as rename_type already does. Add tests with an allowed source and an editable denied cross-member referrer, asserting the entire operation is refused without changes.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:1932:             move |target| json!({\"mutate\": \"rename\", \"id\": 1, \"path\": target, \"to\": to_absolute}),",
+        "tb-engine/crates/tb-engine/src/serve.rs:6367-6368:             let mut touched = vec![from.clone(), to.clone()];\n            touched.extend(referrers.keys().filter(|p| **p != from).cloned());",
+        "tb-engine/crates/tb-engine/src/serve.rs:4393-4394:         if let Some(repo) = v.repos.repo_of(path) {\n            if !crate::wire::member_role(v, &repo.name).editable() {",
+        "tb-engine/crates/tb-engine/tests/it/mutate.rs:4994-4997:     // Both referrers were rewritten to the new name, the ::ra qualifier kept.\n    for r in [\"rb\", \"rc\"] {\n        let doc = fs::read_to_string(h.root.join(r).join(\"doc.md\")).unwrap();\n        assert!(doc.contains(\"[[c::ra]]\"), \"{r} not rewritten: {doc}\");",
+        "tb-mcp-rs/src/lib.rs:1752-1753:         if let Some(members) = self.policy.member_allowlist() {\n            request[\"allowed_members\"] = json!(members);",
+        "provenance: 1488b390 rager306 2026-11-14, git blame on the rename request"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "CWE-22: Content reads follow links outside members",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 13489,
+      "why_it_matters": "A read-only MCP caller can retrieve any UTF-8 file the daemon user can read through an existing symlink under a served member, including production-vault notes or credentials outside that member. The adapter rejects absolute paths and '..' but only joins the member root; the engine then follows symlinks when it reads the resulting path. Resolving reads beneath the selected member without following escaping symlinks prevents the path from reaching the daemon user's unrelated files.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Carry the selected member identity into the engine content request and open the target relative to its root using a race-safe beneath-root/no-escaping-symlink operation; reject paths escaping the member. Add a read-only MCP integration test using a member symlink to an external directory and verify both file and directory symlink escapes fail.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:13489:     let bytes = std::fs::read(target).ok()?;",
+        "tb-mcp-rs/src/lib.rs:1168-1169:         if let Err(error) = relative_path(&args.path) {\n            return CallToolResult::error(vec![ContentBlock::text(error)]);",
+        "tb-mcp-rs/src/wire.rs:868-869:     let path = absolute_member_path(transport, repo, relative).await?;\n    read_engine(transport, json!({\"read\": \"content\", \"id\": 1, \"path\": path})).await",
+        "tb-mcp-rs/src/wire.rs:836-837:     Path::new(root)\n        .join(relative)",
+        "tb-engine/crates/tb-engine/tests/it/symlink_guards.rs:18-19: /// A served git repo with `files` plus a COMMITTED symlink `link` to an outside\n/// directory holding `outside`. The outside root rides along so a test checks",
+        "provenance: ^46f1238 ltOgt 2026-09-13, git blame on the engine content-dispatch read"
+      ],
+      "pre_existing": true
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

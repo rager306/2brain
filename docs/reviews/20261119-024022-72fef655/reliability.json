@@ -1,0 +1,127 @@
+{
+  "reviewer": "reliability",
+  "findings": [
+    {
+      "title": "Reconcile can declare a running mutation not applied",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2793,
+      "why_it_matters": "After a mutation times out or loses its reply, reconcile can return not_applied and arm a retry while the original mutation is still queued or executing; the first mutation can subsequently land. The engine continues handling the original connection after the adapter drops it, and its content reads do not take the mutation lock, so a point-in-time content comparison cannot establish the operation's final outcome. A durable operation identifier and an engine-side final-status/barrier check are needed before returning a definitive result.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Assign mutations durable request IDs and reconcile their final engine-side status after the mutation pipeline has finished; until then return an explicitly unknown outcome rather than not_applied or a retry-ready ledger entry.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2793:         let applied = match &expected {",
+        "tb-mcp-rs/src/lib.rs:2800-2802:             // A differing file is a fresh, coherent read: arm the guard so a\n            // deliberate retry does not need a second call.\n            self.ledger.record(key, hash);",
+        "tb-mcp-rs/src/wire.rs:773-775:     match tokio::time::timeout(timeout, mutate_engine(transport, request)).await {\n        Err(_) => Err(MutationFailure::Unknown(format!(\n            \"engine mutation timed out after {timeout:?}\"",
+        "tb-engine/crates/tb-engine/src/serve.rs:3787-3789:                     let mut frame = handle_mutation(&handle, m)\n                        .instrument(tracing::info_span!(\"mutation\", verb = %verb))\n                        .await;",
+        "tb-engine/crates/tb-engine/src/serve.rs:6038-6040:     // single-threaded model the intent marker and crash recovery rely on. Reads\n    // and subscriptions never take it.\n    let _write = handle.write_lock().lock().await;",
+        "provenance: 97ae8210 rager306 2026-11-13 introduced reconcile comparison"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Unreadable files reconcile as successfully deleted",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 13489,
+      "why_it_matters": "A delete with a lost reply can be reported as applied even though the file still exists but cannot be read, or now contains invalid UTF-8. The content read collapses every filesystem read error and UTF-8 failure to null, and reconcile interprets null as proof of absence. Distinguishing a confirmed not-found result from other failures prevents this false success.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Return null only for a confirmed NotFound; propagate permission, I/O, and UTF-8 errors through the content wire response so reconcile leaves the outcome unknown.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:13489:     let bytes = std::fs::read(target).ok()?;",
+        "tb-engine/crates/tb-engine/src/serve.rs:13498:     let content = String::from_utf8(bytes).ok()?;",
+        "tb-engine/crates/tb-engine/src/serve.rs:12824-12827:                     Response::ready(\n                        version,\n                        serde_json::json!({\n                            \"content\": serde_json::to_value(result).expect(\"result serializes\")",
+        "tb-mcp-rs/src/lib.rs:2794:             None => current.is_null(),",
+        "provenance: 46f1238 ltOgt 2026-09-13 boundary commit contains content read"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Mutation preflight reads can block the mutation slot forever",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 1670,
+      "why_it_matters": "If the engine accepts a connection but stops answering, a rename-type request can hang indefinitely while holding the adapter's only mutation permit, so every later mutation is rejected until the process is restarted. The 30-second timeout is applied only to the eventual mutation exchange, not the type and cascade preflight reads; ordinary file mutation editability and create preflights also use unbounded reads. Bounding the preflight exchanges releases capacity and returns a definite no-write error.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Apply the existing read deadline to every engine read in mutation preflight, including type/cascade, member resolution, and create absence checks, and ensure the held permit is released on timeout.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:1670-1674:         let read = read_engine(\n            self.transport.as_ref(),\n            json!({\"read\": \"type\", \"id\": 1, \"name\": args.old_name}),\n        )\n        .await;",
+        "tb-mcp-rs/src/lib.rs:1665:         let Ok(_permit) = self.mutation_slot.clone().try_acquire_owned() else {",
+        "tb-mcp-rs/src/lib.rs:1755:         match read_mutation_with_timeout(self.transport.as_ref(), request, ENGINE_READ_TIMEOUT)",
+        "tb-mcp-rs/src/wire.rs:792:     let members = read_engine(transport, json!({\"read\": \"members\", \"id\": 1, \"repo\": repo})).await?;",
+        "provenance: 24a7b108 rager306 2026-11-14 introduced rename-type preflight"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Internal stdio rejections bypass backpressure accounting",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/bounded_stdio.rs",
+      "line": 183,
+      "why_it_matters": "A client that stops draining stdout after sending repeated rejected versioned pings can leave the MCP process hung indefinitely, despite the promised five-second outbound timeout. The receive loop sends those rejections directly into the queue without consuming a slot or applying the timeout, and the writer nevertheless adds a slot for each one; the accounting can also grow beyond its intended bound. Route every response through the same permit and timeout path so saturation closes the connection.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Account for a slot for every internally generated rejection and bound queue insertion by outbound_wait, sharing the same send/backpressure logic as ordinary responses.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/bounded_stdio.rs:183:                             && sender.send(rejection).await.is_err()",
+        "tb-mcp-rs/src/bounded_stdio.rs:112-116:             while let Some(message) = queued.recv().await {\n                if sink.send(message).await.is_err() {\n                    break;\n                }\n                writer_slots.add_permits(1);",
+        "tb-mcp-rs/src/bounded_stdio.rs:158-159:     async fn receive(&mut self) -> Option<RxJsonRpcMessage<RoleServer>> {\n        match timeout(self.bounds.outbound_wait, Arc::clone(&self.slots).acquire()).await {",
+        "provenance: ff6fbb51 rager306 2026-11-13 added internal rejection path"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Adapter installer requires an ignored target symlink",
+      "severity": "P2",
+      "file": "tb-mcp-rs/scripts/install.sh",
+      "line": 25,
+      "why_it_matters": "On a clean checkout the adapter installer builds successfully but fails to install because it looks under tb-mcp-rs/target, which is ignored and is not created by Cargo configured to use the monorepo .cargo-target directory. The local symlink relied on by this script is not tracked. Resolve Cargo's target directory as the root installer does instead of relying on a machine-local symlink.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Resolve target_directory with cargo metadata after configuring the toolchain, matching the root install.sh, and install the release binary from that directory.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/scripts/install.sh:25: target=${CARGO_TARGET_DIR:-$here/target}",
+        "tb-mcp-rs/scripts/install.sh:38: install -m 0755 \"$target/release/2brain\" \"$prefix/bin/2brain\"",
+        ".cargo/config.toml:12: target-dir = \".cargo-target\"",
+        "tb-mcp-rs/.gitignore:6: /target",
+        "provenance: e038727c rager306 2026-11-15 introduced target path assumption"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Force stop can kill an unrelated reused PID",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-cli/src/daemon.rs",
+      "line": 507,
+      "why_it_matters": "After a daemon is killed without cleanup and its PID is reused, daemon stop --force can send SIGTERM and SIGKILL to an unrelated live process instead of the daemon. The pid file stores only a number and pid_alive checks existence, not process identity; the same stale record also prevents restarting the daemon. A lifetime lock plus verified process identity avoids treating recycled PIDs as daemon ownership.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Hold an OS lock for the daemon lifetime and bind any force-stop process reference to a verified process identity/start time; refuse to signal when ownership cannot be established.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-cli/src/daemon.rs:507:     let _ = signal_pid(pid, libc::SIGTERM);",
+        "tb-engine/crates/tb-cli/src/daemon.rs:159:         std::fs::write(&path, std::process::id().to_string())?;",
+        "tb-engine/crates/tb-cli/src/daemon.rs:108:     let rc = unsafe { libc::kill(pid, 0) };",
+        "tb-engine/crates/tb-cli/src/daemon.rs:509:         let _ = signal_pid(pid, libc::SIGKILL);",
+        "provenance: 46f1238 ltOgt 2026-09-13 boundary commit contains force-stop path"
+      ],
+      "pre_existing": true
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

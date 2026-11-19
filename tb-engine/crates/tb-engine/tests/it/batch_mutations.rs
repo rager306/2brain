@@ -206,6 +206,37 @@ fn batch_refuses_an_empty_or_oversized_list_and_an_unknown_op() {
 }
 
 #[test]
+fn a_batch_that_touches_one_path_twice_reports_reflected() {
+    // `reflected` says the held catalog agrees with every hash the batch wrote. Two ops on
+    // one path write two hashes, and the catalog can only hold the LAST one, so comparing
+    // every intermediate hash reports false forever — a consumer waiting for the write to
+    // be reflected would wait without end.
+    let (_dir, root) = seeded();
+    let mut h = harness(&root);
+    let one = format!("{}/notes/one.md", root.display());
+    let resp = h
+        .client
+        .query(&json!({
+            "mutate": "batch",
+            "ops": [
+                {"op": "write_file", "path": one, "content": "---\ntitle: one\n---\n\nstep 1\n"},
+                {"op": "write_file", "path": one, "content": "---\ntitle: one\n---\n\nstep 2\n"},
+            ]
+        }))
+        .unwrap();
+    assert_eq!(resp["type"], "response", "{resp}");
+    assert_eq!(
+        resp["result"]["reflected"], true,
+        "the catalog holds the final content, so every path is reflected: {resp}"
+    );
+    assert!(
+        fs::read_to_string(root.join("notes/one.md"))
+            .unwrap()
+            .contains("step 2")
+    );
+}
+
+#[test]
 fn require_clean_refuses_a_batch_and_names_the_op_that_would_dirty_it() {
     let (_dir, root) = seeded();
     let mut h = harness(&root);

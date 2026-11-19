@@ -147,3 +147,66 @@ fn overlapping_reads_keep_their_payload_and_version() {
 fn overlapping_error_is_isolated_and_server_recovers() {
     exercise_concurrent_reads(true);
 }
+
+/// Eight file-addressed reads in flight must all be answered. A tool that takes a permit and
+/// then calls a helper that takes a second charges one call twice, so the eighth call would be
+/// refused with "capacity reached" even though only four reads were in flight.
+#[test]
+fn eight_file_reads_in_flight_do_not_exhaust_the_read_capacity() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("ws");
+    let socket = temp.path().join("engine.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let root_string = root.to_str().unwrap().to_owned();
+
+    let daemon = thread::spawn(move || {
+        // Each call arms itself: a `members` exchange, then its own read. Eight calls in
+        // flight interleave, so answer by verb rather than by position.
+        for _ in 0..16 {
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(error) => panic!("accept failed: {error}"),
+                }
+            };
+            stream.set_read_timeout(Some(TIMEOUT)).unwrap();
+            stream.set_write_timeout(Some(TIMEOUT)).unwrap();
+            let mut len = [0; 4];
+            stream.read_exact(&mut len).unwrap();
+            let mut body = vec![0; u32::from_be_bytes(len) as usize];
+            stream.read_exact(&mut body).unwrap();
+            let request: Value = serde_json::from_slice(&body).unwrap();
+            let reply = if request["read"] == "members" {
+                json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":5,
+                    "result":{"members":[{"repo":"fixture","root":root_string,
+                        "editable":true,"role":"entry","tier":"entry","scattered":false,
+                        "local":true,"disabled":false,"git":{"root":root_string,"tracked":true}}]}})
+            } else {
+                json!({"type":"response","schema_version":29,"id":1,"ready":true,"version":6,
+                    "result":{"frontmatter":{}}})
+            };
+            respond(&mut stream, reply);
+        }
+    });
+
+    let mut client = Client::start(&socket);
+    for index in 0..8u32 {
+        client.send_call(
+            index + 100,
+            "tb_frontmatter",
+            json!({"repo":"fixture","path":format!("notes/{index}.md")}),
+        );
+    }
+    for index in 0..8u32 {
+        let reply = client.receive();
+        assert_ne!(
+            reply["result"]["isError"], true,
+            "read {index} was refused: {reply}"
+        );
+    }
+    daemon.join().unwrap();
+}

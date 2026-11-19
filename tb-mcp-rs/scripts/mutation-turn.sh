@@ -19,12 +19,17 @@
 #                 tool list at all, so fail-closed is visible to the model, not just
 #                 to our tests.
 #
-# Costs two small model turns on YOUR credentials. Requires AU_ENGINE_BIN,
-# AU_MCP_RS_BIN and `claude` with a working login.
+# Costs two small model turns on YOUR credentials. The binaries default to the shared
+# `.cargo-target` debug builds (AU_ENGINE_BIN / AU_MCP_RS_BIN override), and `claude`
+# needs a working login.
 set -euo pipefail
 
-ENGINE=${AU_ENGINE_BIN:-../tb-engine/target/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-target/debug/2brain}
+# shellcheck source=scripts/lib/target-dir.sh
+source "$(dirname "$0")/lib/target-dir.sh"
+target_dir=$(cargo_target_dir)
+
+ENGINE=${AU_ENGINE_BIN:-$target_dir/debug/au}
+ADAPTER=${AU_MCP_RS_BIN:-$target_dir/debug/2brain}
 TURN_HOME=${AU_TURN_HOME:-$HOME}
 
 [[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE (set AU_ENGINE_BIN)" >&2; exit 1; }

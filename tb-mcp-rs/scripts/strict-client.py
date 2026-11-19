@@ -29,10 +29,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from mcp_stdio import newest_socket  # noqa: E402
+from target_dir import cargo_target_dir  # noqa: E402
 
-ENGINE = os.environ.get("AU_ENGINE_BIN", "/root/2brain/tb-engine/target/release/au")
-ADAPTER = os.environ.get(
-    "AU_MCP_RS_BIN", str(Path(__file__).resolve().parent.parent / "target/release/2brain"))
+# The release builds in the repository's shared target directory (`.cargo/config.toml`).
+TARGET = cargo_target_dir()
+ENGINE = os.environ.get("AU_ENGINE_BIN", str(TARGET / "release/au"))
+ADAPTER = os.environ.get("AU_MCP_RS_BIN", str(TARGET / "release/2brain"))
 
 
 def disposable() -> tuple[str, dict, str]:

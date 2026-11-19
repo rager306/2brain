@@ -9,9 +9,10 @@ The rehearsal proves the properties a rollback depends on:
 3. Rolling back to read-only is a launch flag, not a migration: the same binary
    without a grant reads the file and refuses to write.
 
-Run with a built `au` engine and adapter:
+Both binaries default to the debug builds in the repository's shared `.cargo-target`
+(`.cargo/config.toml`); AU_ENGINE_BIN / AU_MCP_RS_BIN override them:
 
-    AU_ENGINE_BIN=../tb-engine/target/debug/au python3 scripts/rollback_rehearsal.py
+    python3 scripts/rollback_rehearsal.py
 
 Exit status is non-zero on the first failed expectation.
 """
@@ -27,9 +28,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from mcp_stdio import StdioMcp, is_error, state_run_dir, tool_payload
+from target_dir import cargo_target_dir
 
-ENGINE = os.environ.get("AU_ENGINE_BIN", "../tb-engine/target/debug/au")
-ADAPTER = os.environ.get("AU_MCP_RS_BIN", "target/debug/tb-mcp-rs")
+TARGET = cargo_target_dir()
+ENGINE = os.environ.get("AU_ENGINE_BIN", str(TARGET / "debug/au"))
+ADAPTER = os.environ.get("AU_MCP_RS_BIN", str(TARGET / "debug/2brain"))
 TIMEOUT = 20.0
 
 

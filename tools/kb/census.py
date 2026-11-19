@@ -8,8 +8,14 @@ Run it weekly and compare: a base that grows in notes but not in reachable, sour
     python3 tools/kb/census.py                 # human-readable
     python3 tools/kb/census.py --json          # the same numbers, for metrics.json
 
-The engine is asked for two things only — the isolated set and the broken links — because those are graph facts
-the filesystem cannot answer. Everything else is frontmatter, which is the actual contract.
+The engine is asked for the graph facts a text scan cannot answer: `tb_graph_health` for the whole graph, and
+`tb_references` for each note the regex calls unlinked. Frontmatter supplies the typing, source and status
+fields.
+
+The link counts in this file are SYNTACTIC: a regex over the bytes, so a link inside a fenced code block counts
+and an inline `topics: ["[[x]]"]` array is missed. They carry a `syntactic_` name for that reason. The
+graph-accurate link numbers come from the engine's `references` read (`tb_references` per note) and
+`tb_graph_health`.
 """
 
 from __future__ import annotations
@@ -91,17 +97,17 @@ def census() -> dict:
         "sourced": sum(1 for note in content if note["sourced"]),
         "described": sum(1 for note in content if note["described"]),
         "with_status_current": sum(1 for note in content if note["status"] == "current"),
-        "outbound_total": sum(outbound),
-        "outbound_median": statistics.median(outbound) if outbound else 0,
-        "no_outbound": sum(1 for count in outbound if count == 0),
-        "unlinked_paths": [note["path"] for note in content if note["outbound"] == 0],
-        "no_body_links": sum(1 for note in content if note["body_links"] == 0),
-        "no_topic_links": sum(1 for note in content if note["topic_links"] == 0),
+        "syntactic_outbound_total": sum(outbound),
+        "syntactic_outbound_median": statistics.median(outbound) if outbound else 0,
+        "syntactic_no_outbound": sum(1 for count in outbound if count == 0),
+        "syntactic_unlinked_paths": [note["path"] for note in content if note["outbound"] == 0],
+        "syntactic_no_body_links": sum(1 for note in content if note["body_links"] == 0),
+        "syntactic_no_topic_links": sum(1 for note in content if note["topic_links"] == 0),
         "freshness": {
             key: sum(1 for note in content if note["freshness"] == key)
             for key in ("evergreen", "stable", "slow", "volatile")
         },
-        "source": "frontmatter census of the vault; graph facts from the engine",
+        "source": "frontmatter census plus regex link counts over note text; graph facts from the engine",
     }
 
 
@@ -149,7 +155,7 @@ def main() -> int:
     data = census()
     data["graph"] = graph_facts()
     # The regex says "no link"; only the engine can say whether that is true, and whether anything points AT a note.
-    unlinked_by_regex = data.pop("unlinked_paths", [])
+    unlinked_by_regex = data.pop("syntactic_unlinked_paths", [])
     if unlinked_by_regex:
         env = dict(os.environ, HOME=os.environ.get("BRAIN_HOME", "/root"))
         with StdioMcp([ADAPTER, "mcp", str(VAULT)], name="kb-census-edges", env=env) as client:
@@ -172,10 +178,10 @@ def main() -> int:
     print(f"  described  {share('described')}")
     print(f"  sourced    {share('sourced')}")
     print(f"  status:current {share('with_status_current')}")
-    print(f"  links      {data['outbound_total']} total, median {data['outbound_median']} per note, "
-          f"{data['no_outbound']} with none")
-    print(f"             of which body links leave {data['no_body_links']} bare, "
-          f"`topics:` links leave {data['no_topic_links']} bare")
+    print(f"  file text  {data['syntactic_outbound_total']} [[wikilink]] matches (regex), "
+          f"median {data['syntactic_outbound_median']} per note, {data['syntactic_no_outbound']} with none")
+    print(f"             of which body text leaves {data['syntactic_no_body_links']} bare, "
+          f"`topics:` block lists leave {data['syntactic_no_topic_links']} bare")
     print("  freshness  " + ", ".join(f"{key} {count}" for key, count in data["freshness"].items()))
     engine = data.get("engine")
     if engine:

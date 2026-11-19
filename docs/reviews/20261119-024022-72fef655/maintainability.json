@@ -1,0 +1,67 @@
+{
+  "reviewer": "maintainability",
+  "findings": [
+    {
+      "title": "Starter adoption rewrites unrelated workspace member names",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/cli.rs",
+      "line": 479,
+      "why_it_matters": "Initializing from a custom starter can silently rename unrelated members and leave the resulting workspace unable to find its intended dependencies. For example, when the starter name is `sample`, this global substring replacement changes both an `edit: - sample` entry and a `discover: - sample-extra` entry. Rewrite only the exact self-name scalar in the edit list using the engine's YAML semantics so other names, quoted values, and comments are preserved.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Parse the workspace manifest using the engine's existing YAML representation, replace only edit-list entries whose complete scalar value equals the old repository name, and test prefix-sharing and quoted names.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/cli.rs:479:     let renamed = manifest_text.replace(&format!(\"- {previous}\"), &format!(\"- {name}\"));",
+        "tb-mcp-rs/src/cli.rs:540: /// a checkout keeps them in `tb-defaults/`, and the environment override wins so a",
+        "tb-mcp-rs/src/cli.rs:541: /// test — or a machine with its own starters — never depends on either.",
+        "provenance: 92d8a7c rager306 2026-11-16 feat(cli): `2brain init` and `2brain doctor`, and one install script for both halves"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Verification harnesses search the retired socket directory",
+      "severity": "P2",
+      "file": "tb-mcp-rs/scripts/lib/disposable-fixture.sh",
+      "line": 53,
+      "why_it_matters": "Client compatibility, model-turn, and other checks using the shared fixture time out before reaching their checks on a fresh home, even when the engine starts correctly. The fixture creates an empty HOME but searches only `.arsumbris`, whereas the engine selects `.2brain` when neither state directory exists; the mutation-fixture capture and rollback rehearsal repeat the same stale lookup. Deriving the socket using the engine's current state-directory selection restores these verification paths and avoids another rebrand-dependent copy.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Isolate 2BRAIN_HOME inside each temporary fixture and derive or query the daemon socket from that state root, updating the shared shell harness and the independent Python capture and rehearsal scripts.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/scripts/lib/disposable-fixture.sh:53:     socket=$(ls \"$HOME\"/.arsumbris/au-engine/run/*.sock 2>/dev/null | head -1 || true)",
+        "tb-mcp-rs/scripts/lib/disposable-fixture.sh:20:   export HOME=$root/home",
+        "tb-engine/crates/tb-engine/src/repo.rs:920:                 if legacy.exists() { legacy } else { new }",
+        "tb-mcp-rs/scripts/capture-mutation-fixtures.py:117:         for candidate in glob.glob(str(home / \".arsumbris/au-engine/run/*.sock\")):",
+        "tb-mcp-rs/scripts/rollback_rehearsal.py:90:         run_dir = home / \".arsumbris/au-engine/run\"",
+        "provenance: ca4846d rager306 2026-11-15 fix: the directory rename must not reach inside the state root"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Client verification builds and looks in different directories",
+      "severity": "P2",
+      "file": "tb-mcp-rs/scripts/client-matrix.sh",
+      "line": 12,
+      "why_it_matters": "A fresh checkout cannot run the client matrix with its documented engine override: it builds the adapter when the default executable is missing, but Cargo places the executable in the monorepo's shared `.cargo-target`, while the script continues looking in `tb-mcp-rs/target`. Other verification and fixture scripts also default to the old per-crate target directories, forcing operators to discover and override both binary paths manually. Resolve default binaries from the shared target directory so a successful build is actually used.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Set verification script defaults from the repository root's `.cargo-target/{debug,release}` for both `au` and `2brain`, and use the same resolved path after client-matrix builds the adapter.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/scripts/client-matrix.sh:12: ADAPTER=${AU_MCP_RS_BIN:-target/debug/2brain}",
+        "tb-mcp-rs/scripts/client-matrix.sh:20:   RUSTUP_HOME=${RUSTUP_HOME:-/root/.rustup} cargo +1.99.0 build --offline >/dev/null",
+        ".cargo/config.toml:12: target-dir = \".cargo-target\"",
+        "tb-mcp-rs/scripts/capture-mutation-fixtures.py:59: ENGINE = os.environ.get(\"AU_ENGINE_BIN\", str(CRATE.parent / \"tb-engine/target/release/au\"))",
+        "provenance: b8f5a9d rager306 2026-11-15 refactor: rename au-* crates to tb-*, and ship one binary instead of two; 5fd9d39 rager306 2026-11-16 fix(ci): the shared target directory is relative, so a checkout that is not /root/2brain builds"
+      ],
+      "pre_existing": true
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

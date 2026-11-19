@@ -93,7 +93,11 @@ def cards(metrics: dict) -> dict[str, tuple[str, list[tuple[str, str]], str]]:
             [
                 ("notes / of them drafts", f'{kb["notes"]} / {kb["drafts"]}'),
                 ("typed / sourced", f'{100 * kb["typed"] // kb["notes"]}% / {100 * kb["sourced"] // kb["notes"]}%'),
-                ("links, median per note", f'{kb["edges"]} · {kb["outbound_median"]:.0f}'),
+                (
+                    "links, median per note",
+                    f'{kb["edges"]} · '
+                    f'{kb.get("outbound_median", kb.get("syntactic_outbound_median", 0)):.0f}',
+                ),
                 ("no link at all / nothing points at it", f'{kb["notes_without_links"]} / {kb["zero_inbound"]}'),
             ],
             "measured by tools/kb/census.py, weekly",

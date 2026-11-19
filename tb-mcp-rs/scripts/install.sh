@@ -18,11 +18,6 @@ set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 prefix=${PREFIX:-/usr/local}
-# The crate's `target/` is a symlink into the shared `.cargo-target`
-# (`.cargo/config.toml`), so this path is where cargo actually writes without
-# asking cargo metadata — which needs the toolchain environment this script sets
-# up only for `build`.
-target=${CARGO_TARGET_DIR:-$here/target}
 
 cd "$here"
 # The runbook pins RUSTUP_HOME=/root/.rustup (`AGENTS.md`). Honour it when the
@@ -32,6 +27,16 @@ cd "$here"
 if [[ -z ${RUSTUP_HOME:-} ]]; then
   export RUSTUP_HOME=$([[ -d /root/.rustup ]] && echo /root/.rustup || echo "$HOME/.rustup")
 fi
+
+# One target directory for the whole monorepo (`.cargo/config.toml`), and the only
+# honest way to learn which one is to ask cargo: `tb-mcp-rs/target` is not a symlink
+# and does not exist on a clean checkout, so a hard-coded `$here/target` made the
+# install fail after a successful build. `CARGO_TARGET_DIR` and the config are both
+# honoured because the answer comes from cargo itself, as in the root `install.sh`.
+target=$(cargo +1.99.0 metadata --no-deps --format-version 1 2>/dev/null |
+  sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')
+[[ -n $target ]] || target=$(cd "$here/.." && pwd)/.cargo-target
+
 cargo +1.99.0 build --release --bin 2brain
 
 install -d "$prefix/bin"

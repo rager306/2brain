@@ -29,11 +29,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from mcp_stdio import StdioMcp, StdioMcpError, newest_socket, tool_payload  # noqa: E402
+from target_dir import cargo_target_dir  # noqa: E402
 
-CRATE = Path(__file__).resolve().parent.parent
 # Both are the unified binary (`2brain mcp <target>`), so the argv is identical and the only difference
-# between the two processes is which build of the same code runs.
-BUILT = os.environ.get("AU_2BRAIN_BUILT", str(CRATE / "target/release/2brain"))
+# between the two processes is which build of the same code runs. The built one is the release
+# build in the repository's shared target directory (`.cargo/config.toml`).
+BUILT = os.environ.get("AU_2BRAIN_BUILT", str(cargo_target_dir() / "release/2brain"))
 INSTALLED = os.environ.get("AU_2BRAIN_BIN", "/usr/local/bin/2brain")
 
 # Each row: a name, the tool, its arguments, and how to reduce the answer to the facts that must

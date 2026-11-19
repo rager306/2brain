@@ -1,0 +1,169 @@
+{
+ "run_id": "20261119-024022-72fef655",
+ "run_dir": "/tmp/compound-engineering-0/ce-code-review/20261119-024022-72fef655",
+ "skill_dir": "/root/.omp/plugins/cache/plugins/compound-engineering-plugin___compound-engineering___3.38.2/skills/ce-code-review",
+ "docs_root": "docs",
+ "mode": {
+  "agent": false,
+  "apply_local": false,
+  "grouping": "auto",
+  "depth": "full"
+ },
+ "invocation": {
+  "arguments": "use codebase-memory-mcp tools and conduct a full !! review of the repository (ce-code-review, full depth; ce-setup interlude completed first)",
+  "constraints": [
+   "Reviews must be saved inside the repository: after the run, copy report.md, review artifacts and metadata to docs/reviews/20261119-024022-72fef655/ (user request 2026-11-19).",
+   "Lean on codebase-memory-mcp tools (project root-2brain) for navigation (user request; steering broadcast delivered to all reviewers)."
+  ]
+ },
+ "scope": {
+  "mode": "standalone",
+  "base": "7ee72b1f879b09bec1c06bf7a42834f2d673261f",
+  "diff_a": "7ee72b1f879b09bec1c06bf7a42834f2d673261f",
+  "diff_b": null,
+  "pr": {
+   "number": null,
+   "url": null,
+   "title": null,
+   "body": null,
+   "base_ref_name": null,
+   "head_ref_oid": null,
+   "head_ref": null,
+   "base_ref": null,
+   "has_prior_comments": false
+  },
+  "branch": "main",
+  "head_sha": "c5afba6aa657a63079af6f9eb43cf852842bd25f",
+  "files": "/tmp/compound-engineering-0/ce-code-review/20261119-024022-72fef655/files.txt",
+  "diff": "/tmp/compound-engineering-0/ce-code-review/20261119-024022-72fef655/full.diff",
+  "tree_is_reviewed_head": true,
+  "untracked_excluded": [
+   ".compound-engineering/config.example.yaml",
+   ".compound-engineering/config.yaml",
+   "CODING_STANDARDS.md",
+   "REVIEW.md"
+  ]
+ },
+ "intent": {
+  "summary": "Full external review of the entire 2brain monorepo (Rust typed-knowledge-graph engine tb-engine + MCP adapter tb-mcp-rs + type system + content repos), explicitly requested by the user with codebase-memory-mcp as the navigation aid. Priorities: correctness of the production serving path (engine daemon + MCP adapter serving /root/vault), wire/type contract integrity, state-layout and migration-window defects, mutation-gate safety, search quality, daemon lifecycle. No path limits were stated.",
+  "confidence": "explicit"
+ },
+ "plan": {
+  "path": null,
+  "source": "none",
+  "requirements": [],
+  "implementation_units": [],
+  "settled_decisions": []
+ },
+ "roster": {
+  "selected": [
+   {
+    "reviewer": "correctness",
+    "tier": "session",
+    "reason": "always-on core"
+   },
+   {
+    "reviewer": "project-standards",
+    "tier": "session",
+    "reason": "root CODING_STANDARDS.md governs the whole tree"
+   },
+   {
+    "reviewer": "testing",
+    "tier": "session",
+    "reason": "43 adapter test files + real-engine suite and CI test surfaces present"
+   },
+   {
+    "reviewer": "maintainability",
+    "tier": "session",
+    "reason": "149,373 executable non-test lines, whole-tree structural pass"
+   },
+   {
+    "reviewer": "agent-native",
+    "tier": "session",
+    "reason": "MCP tool surface is the product core (36 read + 16 mutating tools)"
+   },
+   {
+    "reviewer": "security",
+    "tier": "session",
+    "reason": "fail-closed mutation gate, member/policy allowlists, socket ownership as OS user"
+   },
+   {
+    "reviewer": "performance",
+    "tier": "session",
+    "reason": "bm25 ranking, memchr wikilink scan, in-memory index, paging limits"
+   },
+   {
+    "reviewer": "api-contract",
+    "tier": "session",
+    "reason": "externally consumed MCP wire contract, schema 29, fixtures"
+   },
+   {
+    "reviewer": "data-migration",
+    "tier": "session",
+    "reason": "release-2 migration window, state-root rename, identity migration"
+   },
+   {
+    "reviewer": "reliability",
+    "tier": "session",
+    "reason": "daemon lifecycle, timeouts, cancellation, reconcile/ledger"
+   },
+   {
+    "reviewer": "adversarial",
+    "tier": "session",
+    "reason": "consequence-based lens: false-success of the mutation gate conceals persistent vault corruption; in-process fallback after cross-model peer skip"
+   }
+  ],
+  "standards": {
+   "criteria": [
+    "CODING_STANDARDS.md"
+   ],
+   "fallback_named": false,
+   "not_run_reason": null
+  },
+  "packs": {
+   "roots": [],
+   "errors": [],
+   "warnings": []
+  }
+ },
+ "collection": {
+  "returns": "/tmp/compound-engineering-0/ce-code-review/20261119-024022-72fef655/raw-returns.json",
+  "unstructured_returns": [],
+  "failed_reviewers": [],
+  "bound_exceeded": [],
+  "fast_pass": {
+   "emitted_preliminary": true,
+   "candidates": [
+    {
+     "title": "tb_candidates returns an unbounded unpaged all-types dump with no filter arguments",
+     "severity": "P1",
+     "file": "tb-mcp-rs/src/lib.rs",
+     "line": 2442
+    }
+   ]
+  }
+ },
+ "peer": {
+  "selected": true,
+  "target": "codex",
+  "route": "codex",
+  "preference_source": "default",
+  "outcome": "in-process-fallback",
+  "artifact": null,
+  "coverage": "cross-model pass not run: host serving family unattested (oh-my-pi session file names no first-party model for this runtime); the worker skipped before egress, so no reviewed content left the machine. adversarial lens: in-process fallback (cross-model peer not run: host serving family unattested); cross_model_route codex never sent, model_requested/effort_requested unverified, no receipt."
+ },
+ "review_policy": {
+  "path": null,
+  "sources": []
+ },
+ "coverage_notes": [
+  "Scope: standalone base:whole-tree — base is the root commit 7ee72b1; the 'change under review' is the entire tree (2641 tracked files, 358,927 changed lines, 149,373 executable non-test, size_band large, hard_block_full).",
+  "Working-tree REVIEW.md and CODING_STANDARDS.md are NEW untracked files created by ce-setup minutes before this review; no REVIEW.md exists at the base, so review_policy was not staged and the change's own policy version was NOT applied (Stage 1d).",
+  "Untracked files excluded from scope: .compound-engineering/config.example.yaml, .compound-engineering/config.yaml, CODING_STANDARDS.md, REVIEW.md.",
+  "full.diff equals the entire tree content vs the root commit and is staged at run_dir/full.diff; reviewers worked from files.txt plus direct workspace inspection (local scope, workspace reads valid).",
+  "Model tiering: the omp host exposes no per-spawn model/effort override, so every reviewer inherited the session model; no review_subagents config exists; any configured effort was not applied.",
+  "Requirements completeness: no plan document exists (docs/plans absent), plan_source none; requirements_completeness is null.",
+  "Peer receipt fields: not applicable (peer never sent); independence attestation does not exist for the in-process fallback, so its findings carry no promotion bonus.",
+  "fast-pass preliminary item (P1 tb_candidates unpaged/no-filter) was partially superseded during the run by verified persona findings (agent-native P1 lib.rs:2442, api-contract P2 serve.rs:2460): paging exists server-side (summary/limit/offset), the defect is the unbounded default plus no type filter; the fast-pass entry is capped at anchor 50 and dedups onto those."
+ ]
+}

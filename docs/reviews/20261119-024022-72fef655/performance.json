@@ -1,0 +1,78 @@
+{
+  "reviewer": "performance",
+  "findings": [
+    {
+      "title": "File-addressed reads consume two concurrency permits",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 3206,
+      "why_it_matters": "Concurrent file-addressed reads can be rejected as capacity reached well before eight actual calls are in flight; four calls in their second stage consume all eight permits, and a burst of eight can exhaust the pool before any reaches that stage. file_read and target_read retain their first permit while self.read tries to acquire another; tb_neighborhood does the same. Reusing the original permit for the entire operation restores the intended eight-call bound without removing overload protection.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Keep the first permit and invoke the cancellation-aware read_with_timeout path directly in file_read, target_read and tb_neighborhood, rather than calling the permit-acquiring read helper; add a concurrent test that holds eight file reads in flight.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:3206:         self.read(request, tool, ctx).await",
+        "tb-mcp-rs/src/lib.rs:3188:         let Ok(_permit) = self.read_slots.try_acquire() else {",
+        "tb-mcp-rs/src/lib.rs:3282:         let Ok(_permit) = self.read_slots.try_acquire() else {",
+        "tb-mcp-rs/src/lib.rs:62: const MAX_IN_FLIGHT_READS: usize = 8;",
+        "tb-mcp-rs/src/lib.rs:3229:         let Ok(_permit) = self.read_slots.try_acquire() else {",
+        "tb-mcp-rs/src/lib.rs:3250:         self.read(request, tool, ctx).await",
+        "tb-mcp-rs/src/lib.rs:2635:         let Ok(_permit) = self.read_slots.try_acquire() else {",
+        "tb-mcp-rs/src/lib.rs:2677:         self.read(request, \"tb_neighborhood\", ctx).await",
+        "provenance: 96715e02 rager306 2026-11-13 (file_read permit); d14924bc rager306 2026-11-16 (nested read call)"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Deleted dictionary terms prevent plural fallback",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/search.rs",
+      "line": 1256,
+      "why_it_matters": "After editing the last note containing a spelling, searching that spelling can return no results even though notes containing its singular or plural remain. Incremental removal deliberately retains the old dictionary entry with an empty posting block, but resolve_term treats that empty exact entry, or an empty alternative, as a successful lookup and never tries the live form. Ignore zero-posting entries when resolving each spelling so results agree with a freshly rebuilt index.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "In resolve_term consider an exact or alternative term only if its posting_count is nonzero, and add incremental-edit parity tests where the last occurrence of a queried spelling or first alternate disappears while another word form remains.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/search.rs:1256:         if let Some(&id) = self.term_ids.get(term) {",
+        "tb-engine/crates/tb-engine/src/search.rs:1257:             return Some(id);",
+        "tb-engine/crates/tb-engine/src/search.rs:1261:             .find_map(|form| self.term_ids.get(form).copied())",
+        "tb-engine/crates/tb-engine/src/search.rs:917:     /// are, not to the whole index. The vocabulary does not shrink: a term whose",
+        "tb-engine/crates/tb-engine/src/search.rs:918:     /// last document leaves keeps its map entry, and its block drops to no",
+        "tb-engine/crates/tb-engine/src/search.rs:1367:         self.index.remove(id);",
+        "provenance: c3c7ee40 rager306 2026-11-16 (word-form lookup); 3304c223 rager306 2026-11-16 (retained dictionary entry)"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Content continuation cannot fetch the next window",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 4320,
+      "why_it_matters": "A caller receiving a truncated content response cannot use its next_offset to continue: the input schema has no offset and each max_chars request always starts at character zero. Furthermore, the adapter obtains the entire engine response before truncating, so a small window cannot make a content response exceeding the 16 MiB frame limit readable. Exposing an offset and applying the window in the engine before framing gives callers bounded, resumable reads while retaining the whole-file hash.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Add a character offset to tb_content and its engine wire request, apply offset and max_chars before serialization while computing the whole-file hash, and return accurate total_chars and next_offset; test successive Unicode windows and content larger than the frame limit.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:4320:     payload[\"content\"][\"next_offset\"] = json!(max);",
+        "tb-mcp-rs/src/lib.rs:571: struct ContentArguments {",
+        "tb-mcp-rs/src/lib.rs:581:     max_chars: Option<usize>,",
+        "tb-mcp-rs/src/lib.rs:4316:     let window: String = text.chars().take(max).collect();",
+        "tb-mcp-rs/src/lib.rs:1184:             result = self.content_with_timeout(args.repo, args.path, ENGINE_READ_TIMEOUT) => {",
+        "tb-mcp-rs/src/lib.rs:1189:                     Some(max) => window_content(result, max, self.payload),",
+        "tb-mcp-rs/src/wire.rs:869:     read_engine(transport, json!({\"read\": \"content\", \"id\": 1, \"path\": path})).await",
+        "tb-mcp-rs/src/transport.rs:236:     if len > MAX_FRAME_BYTES {",
+        "tb-mcp-rs/src/transport.rs:28: pub(crate) const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;",
+        "provenance: 97ae8210 rager306 2026-11-13 (content arguments and window)"
+      ],
+      "pre_existing": true
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

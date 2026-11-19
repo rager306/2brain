@@ -1,0 +1,153 @@
+{
+  "reviewer": "adversarial",
+  "findings": [
+    {
+      "title": "Nested member paths bypass the mutation allowlist",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2883,
+      "why_it_matters": "A client granted writes only to an editable parent member can mutate an excluded editable nested member by supplying the parent's name and a path such as child/note.md. The adapter checks the supplied repo name, but the engine routes the resulting absolute path to its deepest owning member and checks only that member's workspace editability, not the adapter's allowlist. The same bypass applies to creates and batch operations, and the audit attributes the write to the parent.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Resolve the actual owning member for each absolute target and enforce the launch allowlist against that owner at the engine mutation boundary; reject mismatches with the declared member, and cover create, batch and paired operations as well.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2883:             permits_member: self.policy.permits_member(repo),",
+        "tb-mcp-rs/src/lib.rs:2888:         let target = resolve_editable(self.transport.as_ref(), repo, path)",
+        "tb-mcp-rs/src/wire.rs:836-837:     Path::new(root)\n        .join(relative)",
+        "tb-engine/crates/tb-engine/src/mutate.rs:54-55: /// owning member is the deepest declared repo root containing the normalized path; a\n/// path under no member is the real \"escapes the workspace\".",
+        "tb-engine/crates/tb-engine/src/serve.rs:3951-3953:     let role = crate::wire::member_role(kb, &member.name);\n    if !role.editable() {\n        return Err(not_editable_reject(&member.name, role));",
+        "provenance: 2f003398 rager306 2026-11-15 (targeted blame)"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Rename cascades write members outside the granted policy",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 1927,
+      "why_it_matters": "A caller permitted to rename a file in member A can change and commit references in editable member B even when B is excluded from the launch's member allowlist. The ordinary rename checks only the named source member; the engine gathers backlinks across members and rejects consumed members, but never receives or checks the policy allowlist for those referrers. Block-id rename has the same cross-member cascade issue, unlike rename_type, which forwards its allowlist to the engine.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Pass the launch's allowed_members to rename and rename_block_id and enforce it against the actual planned written members inside the engine's serialized mutation, as rename_type does; refuse the entire cascade before any write.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:1932:             move |target| json!({\"mutate\": \"rename\", \"id\": 1, \"path\": target, \"to\": to_absolute}),",
+        "tb-engine/crates/tb-engine/src/serve.rs:4006-4009:     for bl in v.backlinks(from) {\n        referrers\n            .entry(bl.source.clone())\n            .or_default()",
+        "tb-engine/crates/tb-engine/src/serve.rs:6386:                     if let Some(reject) = reject_if_consumed_referrers(",
+        "tb-engine/crates/tb-engine/src/serve.rs:6458:                             std::fs::write(path, &rewritten).map_err(|e| {",
+        "tb-mcp-rs/src/lib.rs:1752-1753:         if let Some(members) = self.policy.member_allowlist() {\n            request[\"allowed_members\"] = json!(members);",
+        "tb-mcp-rs/src/lib.rs:1890-1894:                     \"mutate\": \"rename_block_id\",\n                    \"id\": 1,\n                    \"path\": target,\n                    \"block_id\": block_id,\n                    \"to_block_id\": to_block_id,",
+        "provenance: 1488b390 rager306 2026-11-14 (targeted blame)"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Failed compensation destroys the only parked preimages",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 5021,
+      "why_it_matters": "If restoring an ignored, untracked file fails during compensation, the failed mutation leaves changed or partial bytes in the vault and then deletes the only parked copy of the original. The failure sentinel records an error but not the original contents, so an operator cannot restore that data from the saga; startup recovery likewise sweeps all preimages even when restoration failed. Retaining the journal and its preimages until compensation succeeds preserves a usable recovery path.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Keep the intent marker and parked copies whenever compensation or preimage restoration fails; preserve them across startup recovery and retry or provide an explicit manual-repair workflow before removing them.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5021:     drop_preimages(marker_dir, &plan.mutation_id);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5050-5053:             let mut errors = compensate(git, &[], git_members, plan, &mutation_id);\n            errors.extend(restore_preimages(preimages));\n            errors.extend(undo_dirs(&plan.dirs));\n            return Err(note_incomplete_rollback(",
+        "tb-engine/crates/tb-engine/src/serve.rs:5242:                 .and_then(|()| std::fs::copy(parked, &abs).map(|_| ())),",
+        "tb-engine/crates/tb-engine/src/serve.rs:5594-5599:     errors.extend(restore_preimages(&preimages));\n    errors.extend(undo_dirs(&dirs));\n    if !errors.is_empty() {\n        write_failure_sentinel(marker_dir, &mutation_id, &errors);\n    }\n    let _ = std::fs::remove_file(&marker_path);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5543:     sweep_preimages(&marker_dir);",
+        "provenance: 1134a28a ltOgt 2026-09-25 (targeted blame)"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Failed marker removal reverses an acknowledged mutation on restart",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 5633,
+      "why_it_matters": "When removing the intent marker fails after all commits succeed, the mutation still returns success, but the stale marker remains. On the next daemon start, crash recovery interprets that marker as an interrupted saga and reverts the already acknowledged commits; ignored-file preimages may also have been deleted. A transient filesystem error therefore turns a successful vault write into silent data loss after restart.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Make saga completion durable before acknowledging success: persist a completed state that recovery recognizes, propagate marker-close failures, and never discard preimages while a live marker can refer to them.",
+      "confidence": 75,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5633:     let _ = std::fs::remove_file(path);",
+        "tb-engine/crates/tb-engine/src/serve.rs:5020-5022:     remove_intent_marker(&marker);\n    drop_preimages(marker_dir, &plan.mutation_id);\n    outcome",
+        "tb-engine/crates/tb-engine/src/serve.rs:5582-5585:         match ShellGit.committed(&tree_root, &id) {\n            Ok(true) => match ShellGit.revert_commit(&tree_root, &id) {\n                Ok(()) => reverted.push(tree_root),\n                Err(e) => errors.push((tree_root, format!(\"revert failed: {}\", e.message))),",
+        "provenance: 46f1238 ltOgt 2026-09-13 (targeted blame)"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Reconcile declares an in-flight mutation not applied",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2795,
+      "why_it_matters": "A timed-out mutation can still be executing in the engine when reconcile reads the old bytes, reports not_applied, and re-arms the write gate. A retry can then run after the original and apply a non-idempotent edit twice; for example, replacing every x with xx can yield xxxx. The comparison also cannot prove a past write never landed if a subsequent writer changed the file, so a current hash must not be presented as an authoritative operation verdict.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Give mutations durable operation IDs and reconcile against the engine's terminal result after in-flight work settles; without such evidence return an explicitly unknown state and do not re-arm a retry based solely on current file content.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2795:             Some(expected) => current_hash.as_deref() == Some(expected.as_str()),",
+        "tb-mcp-rs/src/lib.rs:2799-2802:         } else if let Some(hash) = current_hash.clone() {\n            // A differing file is a fresh, coherent read: arm the guard so a\n            // deliberate retry does not need a second call.\n            self.ledger.record(key, hash);",
+        "tb-mcp-rs/src/wire.rs:773-775:     match tokio::time::timeout(timeout, mutate_engine(transport, request)).await {\n        Err(_) => Err(MutationFailure::Unknown(format!(\n            \"engine mutation timed out after {timeout:?}\"",
+        "tb-engine/crates/tb-engine/src/serve.rs:6036-6039:     // Serialize the write pipeline: one mutation at a time across every\n    // connection. Held across the whole saga and rebuild, this enforces the\n    // single-threaded model the intent marker and crash recovery rely on. Reads\n    // and subscriptions never take it.",
+        "tb-engine/crates/tb-engine/src/serve.rs:3787-3789:                     let mut frame = handle_mutation(&handle, m)\n                        .instrument(tracing::info_span!(\"mutation\", verb = %verb))\n                        .await;",
+        "tb-mcp-rs/src/lib.rs:1255-1257:                     \"old_string\": args.old_string,\n                    \"new_string\": args.new_string,\n                    \"replace_all\": args.replace_all,",
+        "provenance: 97ae8210 rager306 2026-11-13 (targeted blame)"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Symlinked member paths disclose files outside the workspace",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 13489,
+      "why_it_matters": "A read-only MCP client can read an OS-readable file outside any declared member when a member contains a symlink pointing there: repo=member and path=link/secret pass the relative-path check, are joined without resolving the link, and the engine reads the target directly. This crosses the advertised member-relative path scope and can expose /root/vault or other files accessible to the daemon; the disclaimer that workspace text is sensitive does not confine external paths.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Resolve content reads beneath the declared member with a race-resistant directory-relative open that refuses symlink escapes, and enforce the same containment at the engine read boundary; test file and directory symlinks to outside roots.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:13489:     let bytes = std::fs::read(target).ok()?;",
+        "tb-mcp-rs/src/lib.rs:1168-1169:         if let Err(error) = relative_path(&args.path) {\n            return CallToolResult::error(vec![ContentBlock::text(error)]);",
+        "tb-mcp-rs/src/wire.rs:836-837:     Path::new(root)\n        .join(relative)",
+        "tb-engine/crates/tb-engine/src/serve.rs:12817:             let target = abs_arg(handle.root(), &path);",
+        "provenance: 46f1238 ltOgt 2026-09-13 (targeted blame)"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Non-git write failure leaves truncated data despite rejection",
+      "severity": "P1",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 5204,
+      "why_it_matters": "A write to an editable member outside git is allowed, but its original bytes are not parked. If the direct overwrite truncates the file and then fails, for example because the filesystem fills, compensation has neither a git tree nor a preimage to restore, yet the adapter receives an engine rejection described as writing nothing. The vault file can therefore be partially overwritten or lost while the caller believes the operation did not happen.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Journal original bytes for non-git members too and restore them on failure and recovery, or reject non-git mutations until equivalent durable compensation is available; use atomic replacement rather than truncating the live file.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:5204:     for m in plan.members.iter().filter(|m| m.git) {",
+        "tb-engine/crates/tb-engine/src/serve.rs:4855-4858: /// `require_git` rejects the whole saga up front if any member is non-git: a\n/// structural refactor rewrites references across its members and compensates\n/// git-only, so a non-git member could not be rolled back. A simple single-file\n/// write passes `false`, its write-without-commit fallback is intended.",
+        "tb-engine/crates/tb-engine/src/serve.rs:6090-6094:                     apply_saga(&ShellGit, &marker_dir, &plan, summary, false, || {\n                        let written = crate::mutate::write_file(\n                            &blocking_path,\n                            &args.content,\n                            args.expected_hash.as_deref(),",
+        "tb-engine/crates/tb-engine/src/mutate.rs:148-149:     std::fs::write(target, content)\n        .map_err(|e| MutationReject::new(format!(\"cannot write {}: {e}\", target.display())))?;",
+        "tb-engine/crates/tb-engine/src/serve.rs:5050-5051:             let mut errors = compensate(git, &[], git_members, plan, &mutation_id);\n            errors.extend(restore_preimages(preimages));",
+        "provenance: 1134a28a ltOgt 2026-09-25 (targeted blame)"
+      ],
+      "pre_existing": true
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

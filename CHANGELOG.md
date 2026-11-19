@@ -45,6 +45,38 @@ install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
 
 ### Fixed
 
+- **A batch that touches one path twice reported `reflected: false` forever** (engine). `reflected`
+answers "does the held catalog agree with what the batch wrote", and it compared every op's hash,
+including the intermediate ones. The catalog can hold only the final content, so two writes to one
+path could never both match and a consumer waiting for the write to be reflected waited without end.
+It now compares the FINAL state per path — the last write's hash, or absence for a path the batch
+deleted.
+
+- **`--payload structured` left the read gate unarmed** (server). `tb_content` in structured mode
+sends the payload only in `structuredContent`, and `served_hash` read the text block alone, so the
+caller's very next write was refused for a read it had just made. The hash is now read from
+`structuredContent` first, then the text block.
+
+- **One file-addressed read cost two read permits** (server). `file_read` and `target_read` acquired a
+permit and then called `read`, which acquired a second, so eight concurrent reads exhausted a limit of
+eight with only four in flight. The engine exchange for a caller that already holds a permit is one
+helper now (`read_under_permit`), which is also where the cancellation arm lives; the three identical
+argument guards collapsed into `file_read_guard`. A new test runs eight `tb_frontmatter` calls
+concurrently and fails with "capacity reached" when the double charge is reintroduced.
+
+- **Verification scripts resolved the Cargo target directory by hand** (tooling). The shared
+`target-dir` is `.cargo-target` (`.cargo/config.toml`), but `client-matrix.sh` and eight sibling
+scripts defaulted to `tb-engine/target` / `tb-mcp-rs/target`; on a clean checkout those do not exist
+and the `tb-mcp-rs/target` symlink is untracked. A shared `lib/target-dir.sh` / `lib/target_dir.py`
+asks `cargo metadata` now, with the `.cargo-target` fallback and the env overrides kept.
+`tb-mcp-rs/scripts/install.sh` does the same instead of trusting the symlink, and `strict-client.py`
+no longer hardcodes an absolute checkout path.
+
+- **Fixture daemons outlived their runner** (tooling). A fixture killed without its EXIT trap left a
+live daemon and its directory, and the next run skipped starting a daemon merely because the
+directory existed. The fixture records its owner's pid, and the reap step kills a daemon whose owner
+is gone and removes the stale root, leaving live owners and kept fixtures alone.
+
 - **The verification scripts looked for the engine under the legacy state root** (tooling). Five scripts
 (`live_parity.py`, `strict-client.py`, `capture-mutation-fixtures.py`, `rollback_rehearsal.py`,
 `lib/disposable-fixture.sh`) joined `$HOME/.arsumbris/au-engine/run` by hand, and their fixtures wrote

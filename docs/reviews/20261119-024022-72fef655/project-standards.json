@@ -1,0 +1,136 @@
+{
+  "reviewer": "project-standards",
+  "findings": [
+    {
+      "title": "Fixture scripts still search the retired socket directory",
+      "severity": "P1",
+      "file": "tb-mcp-rs/scripts/lib/disposable-fixture.sh",
+      "line": 53,
+      "why_it_matters": "The nine client and model verification scripts using this fixture time out before testing anything on a fresh home: the current engine creates its socket under .2brain, while the fixture only looks under .arsumbris. Several standalone verification scripts repeat the same assumption. Discovering or consistently configuring the engine's state directory makes those checks exercise the actual current engine again.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Give each fixture an explicit private 2BRAIN_HOME and derive its socket directory from that location, or discover the engine state location including both legacy and current spellings; migrate the shared shell fixture and standalone Python fixtures together.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/scripts/lib/disposable-fixture.sh:53:     socket=$(ls \"$HOME\"/.arsumbris/au-engine/run/*.sock 2>/dev/null | head -1 || true)",
+        "CODING_STANDARDS.md:10-13: A rename or relocation updates every check that validates layout, and during a migration window a check accepts both the old and the new spelling instead of assuming one.",
+        "tb-mcp-rs/scripts/lib/disposable-fixture.sh:19-22 creates a new temporary home; tb-engine/crates/tb-engine/src/repo.rs:903-920 selects .2brain when neither directory exists; tb-engine/crates/tb-engine/src/serve.rs:186-192 uses that selection for the socket.",
+        "tb-mcp-rs/scripts/strict-client.py:59, bridge_parity.py:139, capture-mutation-fixtures.py:117 and rollback_rehearsal.py:90 also search only .arsumbris in their disposable homes.",
+        "provenance: ca4846d0 rager306 2026-11-15 (fixture socket lookup)."
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Timed-out fixture daemons survive orphan recovery",
+      "severity": "P2",
+      "file": "tb-mcp-rs/scripts/lib/disposable-fixture.sh",
+      "line": 80,
+      "why_it_matters": "When a fixture runner is killed without running its EXIT trap while its daemon survives, both the daemon and its fixture directory remain. The next run skips every daemon whose directory still exists, so it cannot reclaim this actual failure path and stale daemons accumulate. Tracking fixture ownership independently of directory existence allows later cleanup without killing an active fixture.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Record each fixture runner's identity in its private root and reap only daemons whose owning runner is no longer alive, including when the root still exists; clean the corresponding stale root after stopping the daemon.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/scripts/lib/disposable-fixture.sh:80:     [[ -d $root ]] && continue",
+        "CODING_STANDARDS.md:46-47: A fixture reaps everything it spawned, including on the path where its trap cannot run.",
+        "tb-mcp-rs/scripts/lib/disposable-fixture.sh:19 creates the root; lines 26-32 describe the EXIT-trap failure; lines 48-49 start the daemon; the root is removed only by cleanup_fixture at line 115.",
+        "provenance: ea164f93 rager306 2026-11-15 (orphan recovery)."
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Private engine tests inherit the external state override",
+      "severity": "P2",
+      "file": "tb-mcp-rs/tests/real_engine.rs",
+      "line": 385,
+      "why_it_matters": "On a machine with 2BRAIN_HOME set, the real-engine fixture writes its daemon socket to that external directory while the test waits only under its temporary HOME, then times out instead of exercising the engine. The supposedly private daemon also consults the external state location. Giving both child processes a fixture-owned state override keeps them isolated and makes the checks usable under the supported configuration.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Set 2BRAIN_HOME explicitly to a directory inside the temporary home, or remove it from every spawned fixture process, and keep daemon and adapter environments consistent across the real-engine tests.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/tests/real_engine.rs:385:             .env(\"HOME\", &home)",
+        "CODING_STANDARDS.md:43-45: A test that exercises the real engine stays real. When its fixture no longer runs, the test is fixed or deleted.",
+        "tb-mcp-rs/tests/real_engine.rs:53-70 only walks the temporary home, and line 392 waits for that directory; tb-engine/crates/tb-engine/src/repo.rs:911-913 gives inherited 2BRAIN_HOME precedence over HOME.",
+        "provenance: 264dbf78 rager306 2026-11-13 (fixture child environment)."
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Census reports scraped link counts as graph facts",
+      "severity": "P2",
+      "file": "tools/kb/census.py",
+      "line": 67,
+      "why_it_matters": "The weekly census can report a linked note as having no outbound links, and undercount links, when its topics use an inline array rather than a block list; code-fenced link text can conversely inflate the totals. The output presents these values as link totals and notes with none, even though the file itself acknowledges that only engine references resolve the full syntax. Deriving the graph metrics from engine references avoids misleading corpus-health comparisons.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Use tb_references or another authoritative engine graph read for outbound totals and no-outbound counts for the census population; keep any file-syntax-only counts explicitly separate and labelled.",
+      "confidence": 100,
+      "evidence": [
+        "tools/kb/census.py:67:         topic_links = [target.strip() for target in TOPIC.findall(text[: len(text) - len(body)])]",
+        "CODING_STANDARDS.md:17-19: Code that needs engine state or a count asks the engine, not a regex or text scan over files.",
+        "tools/kb/census.py:31-32 defines LINK and a TOPIC regex matching only block-list lines; lines 94-99 aggregate the scraped results; lines 175-178 display them as link counts.",
+        "tools/kb/census.py:109-113 explicitly notes that topics can be an inline array and that only the engine resolves the references.",
+        "provenance: cab17b4d rager306 2026-11-16 (topic-link scraping)."
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Search generates word forms on every dictionary miss",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/search.rs",
+      "line": 1259,
+      "why_it_matters": "Every search term absent from the exact dictionary allocates multiple candidate spellings and probes the dictionary repeatedly, including for words with no indexed form. This makes the spelling fallback per-query work instead of the single dictionary lookup required for the search hot path. Precomputing aliases retains the existing exact-match-first and word-form ordering while moving that work to index maintenance.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Maintain spelling aliases in the dictionary as terms are indexed or updated, preserving exact-term precedence and current fallback ordering, and resolve each query term with one lookup.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/search.rs:1259:         word_forms(term)",
+        "CODING_STANDARDS.md:29-30: Text normalization (plural forms and the like) lives in the dictionary and costs one lookup; it does not become per-query machinery.",
+        "tb-engine/crates/tb-engine/src/search.rs:1234-1239 resolves each distinct query term; lines 1255-1261 first do an exact lookup, then iterate over generated forms and perform more dictionary lookups; lines 1566-1587 allocate the forms.",
+        "provenance: c3c7ee40 rager306 2026-11-16 (word form resolution)."
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Strict client check defaults to a fixed checkout",
+      "severity": "P2",
+      "file": "tb-mcp-rs/scripts/strict-client.py",
+      "line": 30,
+      "why_it_matters": "Running the validating-client verification from a checkout outside /root/2brain fails to start its engine unless an otherwise unnecessary environment override is supplied. A path derived from the script's repository location lets the check run from another checkout, matching how its adapter path is already derived.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Derive the default engine path relative to Path(__file__).resolve() while retaining AU_ENGINE_BIN as the explicit override, matching the existing adapter path calculation.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/scripts/strict-client.py:30: ENGINE = os.environ.get(\"AU_ENGINE_BIN\", \"/root/2brain/tb-engine/target/release/au\")",
+        "CODING_STANDARDS.md:51-53: Configuration and CI code work from any checkout location. An absolute path that assumes one specific checkout directory is a defect; use paths relative to the repo or the configured location.",
+        "tb-mcp-rs/scripts/strict-client.py:31-32 already derives the adapter from the script path; line 54 executes ENGINE.",
+        "provenance: 27e59e9e rager306 2026-11-15 (engine default)."
+      ],
+      "pre_existing": true
+    }
+  ],
+  "rule_review": [
+    {"rule": "CODING_STANDARDS.md:10-13 state layout migration", "representative": "tb-mcp-rs/scripts/lib/disposable-fixture.sh:19-22,53; tb-engine/crates/tb-engine/src/repo.rs:903-920", "grade": "violation: fixture checks only legacy socket location"},
+    {"rule": "CODING_STANDARDS.md:17-19 engine versus scraping", "representative": "tools/kb/census.py:31-32,64-68,94-99,175-178", "grade": "violation: user-facing link metrics use regex counts"},
+    {"rule": "CODING_STANDARDS.md:20-22 one defined metric", "representative": "tools/kb/census.py:64-68,94-99,175-178; tb-engine/crates/tb-engine/src/serve.rs:3481-3492", "grade": "census labels combined body and topic links as total links and separately labels their components; no separate mixing finding beyond inaccurate graph counts"},
+    {"rule": "CODING_STANDARDS.md:26-28 quality floor", "representative": "tb-mcp-rs/src/describe.rs:24-55", "grade": "sample passes: all positive-scoring tool matches survive"},
+    {"rule": "CODING_STANDARDS.md:29-30 dictionary normalization", "representative": "tb-engine/crates/tb-engine/src/search.rs:1234-1239,1255-1261,1566-1587", "grade": "violation: per-query word-form generation and repeated lookups"},
+    {"rule": "CODING_STANDARDS.md:34-35 nullable fields and terminal page", "representative": "tb-mcp-rs/src/schemas.rs:33-34; tb-mcp-rs/tests/schema_types.rs:249-307; tb-engine/crates/tb-engine/tests/it/search_read.rs:228-254", "grade": "sample passes: nullable next_offset and terminal-page tests exist"},
+    {"rule": "CODING_STANDARDS.md:36-39 pinned descriptions", "representative": "tb-mcp-rs/src/describe.rs:79-105; tb-mcp-rs/tests/answer_contract.rs:314-319", "grade": "sample: concise tool list has a golden gate; selected registered descriptions contain a sentence or clause separator before the limit; no present cut-boundary defect established"},
+    {"rule": "CODING_STANDARDS.md:43-45 real-engine tests", "representative": "tb-mcp-rs/tests/real_engine.rs:46-70,370-392", "grade": "violation: inherited 2BRAIN_HOME makes the real-engine fixture wait in the wrong directory"},
+    {"rule": "CODING_STANDARDS.md:46-47 fixture reaping", "representative": "tb-mcp-rs/scripts/lib/disposable-fixture.sh:19-32,48-49,77-81,93-115", "grade": "violation: orphan recovery skips a live daemon whenever its orphaned fixture directory remains"},
+    {"rule": "CODING_STANDARDS.md:51-53 portable checkout configuration", "representative": "tb-mcp-rs/scripts/strict-client.py:30-32,54", "grade": "violation: verification engine default hardcodes /root/2brain"},
+    {"rule": "CODING_STANDARDS.md:57-58 precise ledger actor", "representative": "tb-mcp-rs/src/policy.rs:335-347; tb-mcp-rs/src/lib.rs:2894-2908", "grade": "sample passes: mutation records carry the specific tool parameter"}
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

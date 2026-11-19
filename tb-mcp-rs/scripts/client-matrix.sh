@@ -3,13 +3,18 @@
 # report what each client actually verified. Everything runs in a throwaway
 # HOME against a disposable repository: no production socket, no user config.
 #
-# Requires AU_ENGINE_BIN pointing at a built `au` binary. Exit status is
-# non-zero when an installed client that offers a non-interactive health check
-# reports anything other than a connected server.
+# AU_ENGINE_BIN and AU_MCP_RS_BIN override the built binaries; the defaults are
+# the debug builds in the shared `.cargo-target` (`.cargo/config.toml`). Exit
+# status is non-zero when an installed client that offers a non-interactive
+# health check reports anything other than a connected server.
 set -euo pipefail
 
-ENGINE=${AU_ENGINE_BIN:-../tb-engine/target/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-target/debug/2brain}
+# shellcheck source=scripts/lib/target-dir.sh
+source "$(dirname "$0")/lib/target-dir.sh"
+target_dir=$(cargo_target_dir)
+
+ENGINE=${AU_ENGINE_BIN:-$target_dir/debug/au}
+ADAPTER=${AU_MCP_RS_BIN:-$target_dir/debug/2brain}
 
 if [[ ! -x $ENGINE ]]; then
   echo "missing engine binary: $ENGINE (set AU_ENGINE_BIN)" >&2

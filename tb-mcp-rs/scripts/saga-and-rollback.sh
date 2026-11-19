@@ -12,8 +12,12 @@
 # revert restores or deletes it, and leave the tree and HEAD untouched.
 set -euo pipefail
 
-ENGINE=${AU_ENGINE_BIN:-../tb-engine/target/debug/au}
-ADAPTER=${AU_MCP_RS_BIN:-target/debug/2brain}
+# shellcheck source=scripts/lib/target-dir.sh
+source "$(dirname "$0")/lib/target-dir.sh"
+target_dir=$(cargo_target_dir)
+
+ENGINE=${AU_ENGINE_BIN:-$target_dir/debug/au}
+ADAPTER=${AU_MCP_RS_BIN:-$target_dir/debug/2brain}
 
 [[ -x $ENGINE ]] || { echo "missing engine binary: $ENGINE (set AU_ENGINE_BIN)" >&2; exit 1; }
 [[ -x $ADAPTER ]] || { echo "missing adapter: $ADAPTER (set AU_MCP_RS_BIN)" >&2; exit 1; }

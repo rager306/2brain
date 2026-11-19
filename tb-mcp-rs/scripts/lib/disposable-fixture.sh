@@ -17,6 +17,10 @@
 
 prepare_fixture() {
   root=$(mktemp -d /tmp/au-fixture-XXXXXX)
+  # The EXIT trap is what stops the daemon, and it does not run when the caller is
+  # killed. The owner pid is how a later run tells a live run's root from a dead one's:
+  # the directory's existence alone proves nothing.
+  printf '%s\n' "$$" >"$root/owner.pid"
   export HOME=$root/home
   export XDG_CONFIG_HOME=$root/config
   mkdir -p "$HOME" "$XDG_CONFIG_HOME"
@@ -28,7 +32,8 @@ prepare_fixture() {
   # An EXIT trap does not run when the caller is killed (a harness timeout sends the
   # whole process group a signal), and `au daemon start` may detach, so a trap alone
   # left fourteen orphans on this host by 2026-11-16. Reap the signature of that
-  # failure before adding another: a daemon whose fixture root no longer exists.
+  # failure before adding another: a daemon whose fixture root no longer exists, or
+  # whose owner pid is gone.
   reap_orphaned_fixtures
 
   repo=$root/fixture
@@ -50,15 +55,15 @@ prepare_fixture() {
 
   socket=
   for _ in $(seq 1 200); do
-    # Which spelling the state root has is the engine's decision, so ask the filesystem:
-# a fresh $HOME gets .2brain, a migrated one keeps .arsumbris.
-socket=""
-for state in .2brain .arsumbris; do
-  if [[ -d $HOME/$state/au-engine/run ]]; then
-    socket=$(ls "$HOME/$state/au-engine/run"/*.sock 2>/dev/null | head -1 || true)
-    [[ -n $socket ]] && break
-  fi
-done
+    # Which spelling the state root has is the engine's decision, so ask the filesystem
+    # each pass: a fresh $HOME gets .2brain, a migrated one keeps .arsumbris. A single
+    # pass outside the loop would read the directory before the daemon created it.
+    for state in .2brain .arsumbris; do
+      if [[ -d $HOME/$state/au-engine/run ]]; then
+        socket=$(ls "$HOME/$state/au-engine/run"/*.sock 2>/dev/null | head -1 || true)
+        [[ -n $socket ]] && break 2
+      fi
+    done
     # A socket file can exist before the daemon listens on it, so connect once:
     # `test -S` alone has produced "connection refused" races in these scripts.
     [[ -n $socket ]] && python3 -c '
@@ -78,15 +83,28 @@ except OSError:
   fi
 }
 
-# Kill daemons left behind by a fixture whose directory is gone.
+# Kill daemons left behind by a fixture whose run is over.
 #
 # Identified by argv, not by pid or by $daemon_pid: the daemon outlives the shell that
-# started it, and the root directory is the only reliable join between the two.
+# started it, and the root directory is the only reliable join between the two. A root
+# that still exists is not proof of life: a caller killed without its EXIT trap leaves
+# both the directory and the daemon, so the owner pid recorded at creation decides.
 reap_orphaned_fixtures() {
-  local pid root reaped=0
+  local pid root owner reaped=0
   while read -r pid root; do
-    [[ -d $root ]] && continue
+    if [[ -d $root ]]; then
+      # The scripts can run in parallel, so a surviving root may belong to a live run.
+      # A root with no owner file predates this rule or is being prepared right now;
+      # leave both alone rather than guess.
+      owner=$(cat "$root/owner.pid" 2>/dev/null) || continue
+      [[ -n $owner ]] || continue
+      kill -0 "$owner" 2>/dev/null && continue
+    fi
     kill "$pid" 2>/dev/null && reaped=$((reaped + 1))
+    # The daemon is gone; its fixture directory is the other half of the orphan.
+    if [[ $root == /tmp/au-fixture-* ]]; then
+      rm -rf "$root"
+    fi
   done < <(
     ps -eo pid=,args= 2>/dev/null |
       awk '/au daemon start \/tmp\/au-fixture-/ {
@@ -100,6 +118,9 @@ reap_orphaned_fixtures() {
 
 cleanup_fixture() {
   if [[ ${AU_KEEP_FIXTURE:-0} == 1 ]]; then
+    # A kept fixture is not an orphan: drop the ownership record so a later run's
+    # reaper leaves it alone.
+    rm -f "$root/owner.pid"
     echo "fixture kept: root=$root socket=$socket (AU_KEEP_FIXTURE=1)" >&2
     return 0
   fi

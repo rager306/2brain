@@ -54,10 +54,13 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "lib"))
 from mcp_stdio import StdioMcp, newest_socket  # noqa: E402
+from target_dir import cargo_target_dir  # noqa: E402
 
 CRATE = HERE.parent
-ENGINE = os.environ.get("AU_ENGINE_BIN", str(CRATE.parent / "tb-engine/target/release/au"))
-ADAPTER = os.environ.get("AU_MCP_RS_BIN", str(CRATE / "target/release/2brain"))
+# The release builds in the repository's shared target directory (`.cargo/config.toml`).
+TARGET = cargo_target_dir()
+ENGINE = os.environ.get("AU_ENGINE_BIN", str(TARGET / "release/au"))
+ADAPTER = os.environ.get("AU_MCP_RS_BIN", str(TARGET / "release/2brain"))
 REPO = "fixture"
 
 # The fixture, one file per capture so the captures stay independent. The two types and

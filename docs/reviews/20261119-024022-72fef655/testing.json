@@ -1,0 +1,93 @@
+{
+  "reviewer": "testing",
+  "findings": [
+    {
+      "title": "Run real-engine adapter tests in CI",
+      "severity": "P1",
+      "file": ".github/workflows/ci.yml",
+      "line": 38,
+      "why_it_matters": "Engine and adapter changes can merge while breaking their actual Unix-socket integration, fixture captures, or the cross-member mutation grant: the only CI adapter test command skips all three real-engine tests because they are ignored. The separate engine job cannot exercise the MCP adapter against the real daemon, so build the engine binary and explicitly run that suite in CI.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Build the current tb-cli package's au binary in the adapter job, set AU_ENGINE_BIN to its actual shared target path, and run cargo test --locked --test real_engine -- --ignored without CAPTURE_FIXTURES; update the stale package and target paths in the test's run instructions.",
+      "confidence": 100,
+      "evidence": [
+        ".github/workflows/ci.yml:38:       - run: cargo test",
+        "tb-mcp-rs/tests/real_engine.rs:371: #[ignore = \"requires AU_ENGINE_BIN; captures or verifies the synthetic read fixtures\"]",
+        "tb-mcp-rs/tests/real_engine.rs:568: #[ignore = \"requires AU_ENGINE_BIN pointing to a separately built au binary\"]",
+        "tb-mcp-rs/tests/real_engine.rs:702: #[ignore = \"requires AU_ENGINE_BIN pointing to a separately built au binary\"]",
+        "tb-engine/crates/tb-cli/Cargo.toml:2: name = \"tb-cli\"",
+        "tb-mcp-rs/tests/real_engine.rs:260: // Build the engine separately: RUSTUP_HOME=/root/.rustup cargo +1.99.0 build --manifest-path ../tb-engine/Cargo.toml -p au-cli --bin au",
+        "provenance: 54bdac6 rager306 2026-11-16 feat(readme): cards drawn from a measured file, and the first CI"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Discover the disposable daemon's current socket directory",
+      "severity": "P1",
+      "file": "tb-mcp-rs/scripts/lib/disposable-fixture.sh",
+      "line": 53,
+      "why_it_matters": "All nine verification scripts that share this fixture time out before exercising their client or mutation scenario on a fresh home. The fixture creates no legacy state directory, so the current engine writes its socket under .2brain, while the loop searches only .arsumbris. Resolve the socket from a deliberately configured isolated state root rather than hard-coding the retired name.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Set 2BRAIN_HOME to a directory under the fixture root for the daemon and clients, and discover the socket under that same directory's au-engine/run; keep the existing readiness probe and cleanup.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/scripts/lib/disposable-fixture.sh:53:     socket=$(ls \"$HOME\"/.arsumbris/au-engine/run/*.sock 2>/dev/null | head -1 || true)",
+        "tb-mcp-rs/scripts/lib/disposable-fixture.sh:20:   export HOME=$root/home",
+        "tb-mcp-rs/scripts/lib/disposable-fixture.sh:22:   mkdir -p \"$HOME\" \"$XDG_CONFIG_HOME\"",
+        "tb-engine/crates/tb-engine/src/repo.rs:920:                 if legacy.exists() { legacy } else { new }",
+        "tb-mcp-rs/scripts/client-matrix.sh:25: prepare_fixture",
+        "tb-mcp-rs/scripts/mutation-turn.sh:38: prepare_fixture",
+        "provenance: ca4846d rager306 2026-11-15 fix: the directory rename must not reach inside the state root"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Isolate real-engine tests from inherited state root",
+      "severity": "P2",
+      "file": "tb-mcp-rs/tests/real_engine.rs",
+      "line": 385,
+      "why_it_matters": "When the caller sets 2BRAIN_HOME, all three supposedly disposable real-engine tests start their daemon in that external state root instead of the temporary HOME. Their discovery loop only searches the temporary home, so the tests time out and can leave socket and pid files outside the temporary fixture after the forced child kill. Removing the inherited override or setting it explicitly inside the fixture makes discovery and cleanup agree.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "For every real-engine daemon and MCP child, remove inherited 2BRAIN_HOME or set it to an isolated path under the temporary home; add a regression case that invokes the harness with an external inherited override.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/tests/real_engine.rs:385:             .env(\"HOME\", &home)",
+        "tb-engine/crates/tb-engine/src/repo.rs:912:     match std::env::var_os(\"2BRAIN_HOME\") {",
+        "tb-engine/crates/tb-engine/src/repo.rs:913:         Some(explicit) if !explicit.is_empty() => PathBuf::from(explicit),",
+        "tb-mcp-rs/tests/real_engine.rs:392:     let socket = wait_ready(&state_run_dir(&home), &mut daemon.0);",
+        "tb-mcp-rs/tests/support/mod.rs:126:             command.env(\"HOME\", home).env_remove(\"2BRAIN_HOME\");",
+        "provenance: 264dbf7 rager306 2026-11-13 au-mcp-rs: record every read against a real engine"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Capture the search fixture from the real engine",
+      "severity": "P2",
+      "file": "tb-mcp-rs/tests/real_engine.rs",
+      "line": 265,
+      "why_it_matters": "Search fixture and schema tests can pass against a result the engine cannot produce, leaving ranked-search wire drift undetected. The fixture asserts that notes/b.md matches addressability, but the test workspace gives that note no body and the search index excludes bodyless notes; the real-engine capture case list never calls tb_search. Include search in the captured cases and assert that every committed read fixture has a real-engine capture case.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Add tb_search with the recorded arguments to fixture_cases, recapture its output from the current engine, and compare the case-name set with the committed synthetic fixture set so future tools cannot silently miss real-engine verification.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/tests/real_engine.rs:265: fn fixture_cases() -> [(&'static str, Value); 32] {",
+        "tb-mcp-rs/tests/fixture_schema.rs:45:     (\"tb_search\", \"search\"),",
+        "tb-mcp-rs/tests/fixtures/synthetic-reads/tb_search.json:19:           \"path\": \"$FIXTURE/fixture/notes/b.md\",",
+        "tb-mcp-rs/tests/real_engine.rs:234:     fs::write(repo.join(\"notes/b.md\"), \"---\\ntype: note\\n---\\n\").unwrap();",
+        "tb-engine/crates/tb-engine/src/search.rs:1525:     let body = body_of(parse)?;",
+        "provenance: d521a9a rager306 2026-11-15 wire-catalog: keep WIRE.md, the adapter surface and the fixture corpus from drifting"
+      ],
+      "pre_existing": true
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

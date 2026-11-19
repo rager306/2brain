@@ -1,0 +1,15 @@
+{"phase": "start", "stage": "scope", "ts": "2026-11-18T19:40:22.137525+00:00"}
+{"facts": {"depth": "full", "scope_mode": "base-whole-tree", "untracked_excluded": 4}, "phase": "end", "stage": "scope", "ts": "2026-11-18T19:40:37.350275+00:00"}
+{"phase": "start", "stage": "select", "ts": "2026-11-18T19:40:37.350275+00:00"}
+{"facts": {"peer_job": "20261118T194318Z-87074e39", "peer_route": "codex"}, "phase": "end", "reviewers": 10, "stage": "select", "ts": "2026-11-18T19:43:48.183977+00:00"}
+{"phase": "start", "stage": "dispatch", "ts": "2026-11-18T19:43:48.183977+00:00"}
+{"candidates": 57, "facts": {"adversarial_findings": 7, "peer_outcome": "in-process-fallback"}, "phase": "end", "stage": "dispatch", "ts": "2026-11-18T20:02:27.067346+00:00"}
+{"phase": "start", "stage": "merge", "ts": "2026-11-18T20:02:27.067346+00:00"}
+{"phase": "start", "stage": "merge", "ts": "2026-11-18T20:06:03.360167+00:00"}
+{"candidates": 0, "phase": "end", "stage": "merge", "ts": "2026-11-18T20:07:49.344863+00:00"}
+{"candidates": 40, "phase": "end", "stage": "merge", "ts": "2026-11-18T20:10:07.460313+00:00"}
+{"candidates": 40, "phase": "end", "stage": "merge", "ts": "2026-11-18T20:10:18.100967+00:00"}
+{"phase": "start", "stage": "validate", "ts": "2026-11-18T20:10:18.100967+00:00"}
+{"facts": {"selected": 40}, "phase": "end", "stage": "validate", "ts": "2026-11-18T20:15:53.168938+00:00"}
+{"phase": "start", "stage": "report", "ts": "2026-11-18T20:15:53.168938+00:00"}
+{"phase": "end", "stage": "report", "ts": "2026-11-18T20:18:15.827326+00:00"}

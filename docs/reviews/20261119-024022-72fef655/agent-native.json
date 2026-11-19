@@ -1,0 +1,106 @@
+{
+  "reviewer": "agent-native",
+  "findings": [
+    {
+      "title": "Structured-only reads never arm the mutation gate",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 4100,
+      "why_it_matters": "With --payload structured and mutations granted, an agent can successfully read a file and receive its hash but an edit, write or delete is refused with policy/prior_read. The successful result has no text block, while served_hash reads only that block, so the read is never recorded in the ledger. Extracting the hash from structured_content as well restores the documented read-before-write workflow without weakening the gate.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Read content.hash from structured_content when present, falling back to the text payload, and exercise read-then-mutate under all three payload modes.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:4100:     let text = result.content.first()?.as_text()?.text.clone();",
+        "tb-mcp-rs/src/lib.rs:4138-4139: PayloadMode::Structured sets response.structured_content without adding a content block.",
+        "tb-mcp-rs/src/lib.rs:1185-1186: only a hash returned by served_hash is recorded in the ledger.",
+        "tb-mcp-rs/src/gate.rs:65-70: an absent ledger entry produces the prior_read denial.",
+        "provenance: 97ae821 rager306 2026-11-13 - au-mcp-rs: add the unified arsumbris binary"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Content windows advertise an unusable continuation offset",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 4320,
+      "why_it_matters": "An agent reading a long file with max_chars receives next_offset but cannot request the remaining text: tb_content has no offset argument and rejects unknown fields. Repeating the call always starts at the beginning, while omitting max_chars requires fetching the entire file, defeating bounded reading and potentially exceeding the frame limit. Accepting an offset and applying it to the window makes the advertised continuation actionable.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Add a character offset argument to tb_content and slice from that offset, returning the actual next offset or null at the end; test multiple windows including Unicode and preserve the whole-file hash.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:4320:     payload[\"content\"][\"next_offset\"] = json!(max);",
+        "tb-mcp-rs/src/lib.rs:569-581: ContentArguments denies unknown fields and contains only repo, path, and max_chars.",
+        "tb-mcp-rs/src/lib.rs:4316: the window always uses text.chars().take(max).",
+        "provenance: 97ae821 rager306 2026-11-13 - au-mcp-rs: add the unified arsumbris binary"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Candidate scans default to an unbounded all-types dump",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2442,
+      "why_it_matters": "A normal tb_candidates call sends the full detail for every scanned file and type, producing multi-megabyte single-line responses on the production vault and overwhelming agent context or client output limits. Although summary and paging exist, neither is the default, and there is no type filter for the common task of finding candidates for a particular type; callers must retrieve and inspect the entire corpus across pages. Bounded defaults, explicit continuation metadata and an engine-side type filter make the tool usable without losing access to the remaining results.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Default to a bounded page and lightweight summary, expose explicit continuation metadata, and add an engine-side type-name filter with matching adapter schema and integration tests.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2442:         if let Some(limit) = args.limit {",
+        "tb-mcp-rs/src/lib.rs:404-415: CandidatesArguments denies unknown fields and exposes only summary, limit and offset, not type or type_name.",
+        "tb-engine/crates/tb-engine/src/serve.rs:2458-2460: an absent limit returns every scanned file.",
+        "docs/research/payload-modes.md:43-44: the live production vault measured tb_candidates at 3.1 MB in both mode.",
+        "provenance: 74e88f7 rager306 2026-11-14 - au-mcp-rs: four scan and resolution reads, roadmap re-verified"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Instance paging happens after the oversized engine response",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 2411,
+      "why_it_matters": "Requesting a small tb_instances page still forces the engine to serialize and transmit every resolved instance before the adapter slices it. The live vault already produced an 18.9 MB both-mode MCP answer unpaged; when the engine's single response exceeds the 16 MiB engine-frame ceiling, even limit=1 cannot return any page. Engine-side paging avoids both the transport failure and the repeated full-scan transfer.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Implement limit and offset in the engine instances read and forward them from tb_instances, returning count and continuation metadata without first materializing the full response.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:2411:         let result = self.read(json!({\"id\": 1}), \"tb_instances\", ctx).await;",
+        "tb-mcp-rs/src/lib.rs:2412-2420: page_array runs only after the complete engine read.",
+        "tb-engine/crates/tb-engine/src/serve.rs:12584-12587: the engine instances response serializes all instances.",
+        "tb-mcp-rs/src/transport.rs:28,236-237: engine frames are capped at 16 MiB and larger responses are refused.",
+        "docs/research/payload-modes.md:43-44: the live unpaged tb_instances response measured 18.9 MB in both mode, not the engine-frame size.",
+        "provenance: 2422082 rager306 2026-11-16 - refactor(mcp)!: tool names are tb_*, and the catalogue is regenerated from the binary"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Full tool schemas conflict with text-only results",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 4135,
+      "why_it_matters": "A schema-validating client using --tools full --payload text rejects successful tool calls because the advertised outputSchema requires structuredContent, but text mode returns only a text block. The repository records this exact failure for a real client, including its circuit breaker treating repeated failures as server unreachability. Keeping the advertised schemas and payload representation consistent prevents successful calls from being mistaken for failures.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "When text mode is selected, omit outputSchema from the advertised tool definitions even under the full profile, or reject the incompatible profile combination; document the behavior and test with a strict client.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:4135-4136:         PayloadMode::Text => {\n            response.content = vec![ContentBlock::text(payload.to_string())];",
+        "tb-mcp-rs/src/lib.rs:3402-3408: output schemas are removed only for the concise tool profile.",
+        "docs/research/payload-modes.md:125-137: a real schema-validating client reported 'Tool tb_overview has an output schema but did not return structured content' and its circuit breaker marked the server unreachable.",
+        "provenance: 97ae821 rager306 2026-11-13 - au-mcp-rs: add the unified arsumbris binary"
+      ],
+      "pre_existing": true
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

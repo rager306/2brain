@@ -1,0 +1,65 @@
+{
+  "reviewer": "api-contract",
+  "findings": [
+    {
+      "title": "Structured-only reads cannot authorize subsequent mutations",
+      "severity": "P1",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 4100,
+      "why_it_matters": "With the documented `--payload structured` mode, a successful `tb_content` returns its hash to the caller but every subsequent read-gated write, edit or delete is rejected as if the file had never been read. `served_hash` reads only the text content block, which this mode deliberately omits, so the read ledger is never populated. Extracting the hash from structured content first, with a text fallback, makes the gate independent of the selected response representation.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Read the content hash from `structured_content` when present, otherwise parse the text block; add read-then-mutate integration coverage for both, text and structured payload modes.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:4100:     let text = result.content.first()?.as_text()?.text.clone();",
+        "tb-mcp-rs/src/lib.rs:4138-4140: PayloadMode::Structured sets only `response.structured_content`; tb_content records a read only when served_hash returns Some at lines 1184-1186.",
+        "tb-mcp-rs/src/gate.rs:65-70 rejects a mutation without a recorded prior read.",
+        "provenance: 97ae821 rager306 2026-11-13 - au-mcp-rs: add the unified arsumbris binary"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Content continuation offsets cannot be supplied back",
+      "severity": "P2",
+      "file": "tb-mcp-rs/src/lib.rs",
+      "line": 4320,
+      "why_it_matters": "A caller that requests a bounded `tb_content` window receives `next_offset` but cannot retrieve the remaining text in another bounded call: the request schema has no offset field and rejects unknown fields. Repeating the call returns the same prefix; dropping the limit returns the entire file and defeats bounded retrieval. Accepting a character offset and applying it when constructing the window makes the advertised continuation usable.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Add an optional character offset to ContentArguments, slice from that offset, and return a nullable next_offset only while text remains; cover multi-page Unicode content and the final page.",
+      "confidence": 100,
+      "evidence": [
+        "tb-mcp-rs/src/lib.rs:4320:     payload[\"content\"][\"next_offset\"] = json!(max);",
+        "tb-mcp-rs/src/lib.rs:569-582 declares only repo, path and max_chars with `#[serde(deny_unknown_fields)]`; lines 4312-4317 always take the first `max` characters.",
+        "tb-mcp-rs/tests/budgets.rs:64-75 checks the first window and advertised continuation, but not consuming it.",
+        "provenance: 97ae821 rager306 2026-11-13 - au-mcp-rs: add the unified arsumbris binary"
+      ],
+      "pre_existing": true
+    },
+    {
+      "title": "Candidate scans default to unbounded full-detail replies",
+      "severity": "P2",
+      "file": "tb-engine/crates/tb-engine/src/serve.rs",
+      "line": 2460,
+      "why_it_matters": "An agent calling `tb_candidates` without optional arguments receives full candidate detail for the entire workspace; the review's live call produced roughly 1.4 MB in one response. This needlessly consumes client context and can eventually exceed the adapter's 16 MiB engine-frame limit, making the read fail as the workspace grows. Pagination exists but is opt-in, and concise discovery strips the parameter descriptions; a bounded default with explicit continuation makes the ordinary call safe without hiding further results.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "Default the MCP candidate call to a bounded page such as 50 files, expose total/offset/nullable next_offset in the candidate response schema, and document an explicit full scan or page through the complete set. Preserve engine compatibility deliberately if its unbounded wire contract must remain unchanged.",
+      "confidence": 100,
+      "evidence": [
+        "tb-engine/crates/tb-engine/src/serve.rs:2460:     limit: Option<usize>,",
+        "tb-engine/crates/tb-engine/src/serve.rs:2454-2459: summary defaults to full and an absent limit returns every scanned file; dispatch passes the optional limit unchanged at lines 12589-12595.",
+        "tb-engine/crates/tb-engine/src/wire.rs:1468-1472 uses `take(limit.unwrap_or(usize::MAX))`; tb-mcp-rs/src/lib.rs:2438-2446 forwards a limit only if supplied.",
+        "tb-mcp-rs/src/lib.rs:3402-3414 strips parameter descriptions from the default concise profile; the parent observed a roughly 1.4 MB response to the default live call.",
+        "provenance: 46f1238 ltOgt 2026-09-13 - release 0.0.1-alpha"
+      ],
+      "pre_existing": true
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

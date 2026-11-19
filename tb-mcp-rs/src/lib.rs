@@ -593,6 +593,30 @@ enum PayloadMode {
     Structured,
 }
 
+/// The refusals every file-addressed read answers before it touches the engine, in one place:
+/// an empty member, an empty path, a path that is not member-relative, and an already-cancelled
+/// request. Each is a local answer, so no transport is involved and the order is the contract.
+fn file_read_guard(repo: &str, path: &str, cancelled: bool) -> Result<(), CallToolResult> {
+    let refusal = |message: &str| {
+        Err(CallToolResult::error(vec![ContentBlock::text(
+            message.to_owned(),
+        )]))
+    };
+    if repo.is_empty() {
+        return refusal("'repo' must not be empty");
+    }
+    if path.is_empty() {
+        return refusal("'path' must not be empty");
+    }
+    if let Err(error) = relative_path(path) {
+        return refusal(error);
+    }
+    if cancelled {
+        return refusal("engine read cancelled");
+    }
+    Ok(())
+}
+
 /// How much of each tool definition the server advertises up front.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ToolProfile {
@@ -1159,17 +1183,8 @@ impl Server {
         Parameters(args): Parameters<ContentArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        if args.repo.is_empty() {
-            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
-        }
-        if args.path.is_empty() {
-            return CallToolResult::error(vec![ContentBlock::text("'path' must not be empty")]);
-        }
-        if let Err(error) = relative_path(&args.path) {
-            return CallToolResult::error(vec![ContentBlock::text(error)]);
-        }
-        if ctx.ct.is_cancelled() {
-            return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]);
+        if let Err(refusal) = file_read_guard(&args.repo, &args.path, ctx.ct.is_cancelled()) {
+            return refusal;
         }
         let Ok(_permit) = self.read_slots.try_acquire() else {
             return CallToolResult::error(vec![ContentBlock::text(
@@ -2547,17 +2562,8 @@ impl Server {
         Parameters(args): Parameters<ReferencesArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        if args.repo.is_empty() {
-            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
-        }
-        if args.path.is_empty() {
-            return CallToolResult::error(vec![ContentBlock::text("'path' must not be empty")]);
-        }
-        if let Err(error) = relative_path(&args.path) {
-            return CallToolResult::error(vec![ContentBlock::text(error)]);
-        }
-        if ctx.ct.is_cancelled() {
-            return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]);
+        if let Err(refusal) = file_read_guard(&args.repo, &args.path, ctx.ct.is_cancelled()) {
+            return refusal;
         }
         let Ok(_permit) = self.read_slots.try_acquire() else {
             return CallToolResult::error(vec![ContentBlock::text(
@@ -2620,17 +2626,8 @@ impl Server {
         Parameters(args): Parameters<NeighborhoodArguments>,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        if args.repo.is_empty() {
-            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
-        }
-        if args.path.is_empty() {
-            return CallToolResult::error(vec![ContentBlock::text("'path' must not be empty")]);
-        }
-        if let Err(error) = relative_path(&args.path) {
-            return CallToolResult::error(vec![ContentBlock::text(error)]);
-        }
-        if ctx.ct.is_cancelled() {
-            return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]);
+        if let Err(refusal) = file_read_guard(&args.repo, &args.path, ctx.ct.is_cancelled()) {
+            return refusal;
         }
         let Ok(_permit) = self.read_slots.try_acquire() else {
             return CallToolResult::error(vec![ContentBlock::text(
@@ -2674,7 +2671,9 @@ impl Server {
         if let Some(max_nodes) = args.max_nodes {
             request["max_nodes"] = json!(max_nodes);
         }
-        self.read(request, "tb_neighborhood", ctx).await
+        // The permit above is this read's; taking another would charge one call twice.
+        self.read_under_permit(request, "tb_neighborhood", ctx.ct.clone())
+            .await
     }
 
     #[tool(
@@ -3173,17 +3172,8 @@ impl Server {
         tool: &str,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        if args.repo.is_empty() {
-            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
-        }
-        if args.path.is_empty() {
-            return CallToolResult::error(vec![ContentBlock::text("'path' must not be empty")]);
-        }
-        if let Err(error) = relative_path(&args.path) {
-            return CallToolResult::error(vec![ContentBlock::text(error)]);
-        }
-        if ctx.ct.is_cancelled() {
-            return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]);
+        if let Err(refusal) = file_read_guard(&args.repo, &args.path, ctx.ct.is_cancelled()) {
+            return refusal;
         }
         let Ok(_permit) = self.read_slots.try_acquire() else {
             return CallToolResult::error(vec![ContentBlock::text(
@@ -3195,15 +3185,11 @@ impl Server {
                 absolute_member_path(self.transport.as_ref(), &args.repo, &args.path).await?;
             Ok::<Value, String>(json!({"id": 1, "path": path}))
         };
-        let request = tokio::select! {
-            biased;
-            _ = ctx.ct.cancelled() => return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]),
-            result = request => match result {
-                Ok(request) => request,
-                Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
-            },
+        let request = match request.await {
+            Ok(request) => request,
+            Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
         };
-        self.read(request, tool, ctx).await
+        self.read_under_permit(request, tool, ctx.ct.clone()).await
     }
 
     /// One target-addressed read: `anchors` and `block_ids` take a resolvable
@@ -3214,17 +3200,8 @@ impl Server {
         tool: &str,
         ctx: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        if args.repo.is_empty() {
-            return CallToolResult::error(vec![ContentBlock::text("'repo' must not be empty")]);
-        }
-        if args.path.is_empty() {
-            return CallToolResult::error(vec![ContentBlock::text("'path' must not be empty")]);
-        }
-        if let Err(error) = relative_path(&args.path) {
-            return CallToolResult::error(vec![ContentBlock::text(error)]);
-        }
-        if ctx.ct.is_cancelled() {
-            return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]);
+        if let Err(refusal) = file_read_guard(&args.repo, &args.path, ctx.ct.is_cancelled()) {
+            return refusal;
         }
         let Ok(_permit) = self.read_slots.try_acquire() else {
             return CallToolResult::error(vec![ContentBlock::text(
@@ -3239,15 +3216,11 @@ impl Server {
                 absolute_member_path(self.transport.as_ref(), &args.repo, &args.path).await?;
             Ok::<Value, String>(json!({"id": 1, "target": "", "origin": origin}))
         };
-        let request = tokio::select! {
-            biased;
-            _ = ctx.ct.cancelled() => return CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]),
-            result = request => match result {
-                Ok(request) => request,
-                Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
-            },
+        let request = match request.await {
+            Ok(request) => request,
+            Err(error) => return CallToolResult::error(vec![ContentBlock::text(error)]),
         };
-        self.read(request, tool, ctx).await
+        self.read_under_permit(request, tool, ctx.ct.clone()).await
     }
 
     /// The tools this launch may advertise, before any profile compacting.
@@ -3287,6 +3260,22 @@ impl Server {
         tokio::select! {
             biased;
             _ = ctx.ct.cancelled() => CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]),
+            result = self.read_with_timeout(request, tool, ENGINE_READ_TIMEOUT) => result,
+        }
+    }
+
+    /// One engine exchange for a caller that ALREADY holds a read permit: charging a second
+    /// would make one call cost two slots, so eight concurrent reads would exhaust a limit of
+    /// eight with half of them in flight.
+    async fn read_under_permit(
+        &self,
+        request: Value,
+        tool: &str,
+        cancellation: tokio_util::sync::CancellationToken,
+    ) -> CallToolResult {
+        tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => CallToolResult::error(vec![ContentBlock::text("engine read cancelled")]),
             result = self.read_with_timeout(request, tool, ENGINE_READ_TIMEOUT) => result,
         }
     }
@@ -4096,7 +4085,21 @@ fn serves_request(context: &RequestContext<RoleServer>) -> bool {
 }
 
 /// The content hash reported by a successful `tb_content` result.
+///
+/// The answer may carry the payload in `structuredContent` only (`--payload structured`), in a
+/// text block only (`text`), or in both. Reading the text block alone would leave the read gate
+/// unarmed in structured mode, so the caller's next write would be refused for a read it had
+/// just made. Structured wins because it is the payload itself; the text block is a serialized
+/// copy of the same value.
 fn served_hash(result: &CallToolResult) -> Option<String> {
+    if let Some(structured) = result.structured_content.as_ref()
+        && let Some(hash) = structured
+            .get("content")
+            .and_then(|content| content.get("hash"))
+            .and_then(Value::as_str)
+    {
+        return Some(hash.to_owned());
+    }
     let text = result.content.first()?.as_text()?.text.clone();
     let payload: Value = serde_json::from_str(&text).ok()?;
     payload
