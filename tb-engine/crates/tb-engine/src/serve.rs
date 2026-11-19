@@ -1806,6 +1806,10 @@ struct RenameArgs {
     path: String,
     /// The new path. v1 must resolve to the same repo as `path`.
     to: String,
+    /// ADR-0003 for a cross-member cascade: the members the caller's policy grants. Sent only
+    /// when the policy has an allowlist; every member the saga would write must be in it.
+    #[serde(default)]
+    allowed_members: Vec<String>,
     /// Optional stamps, folded into the RENAMED file (`to`) after the move, so a
     /// `{ type: file-change.rename, from }` record shares the rename's commit.
     #[serde(default)]
@@ -4875,6 +4879,42 @@ fn apply_saga<T>(
     )
 }
 
+/// The members a saga would write that the caller's grant does not cover, as a refusal.
+///
+/// ADR-0003 said the grant must be checked against the plan actually executed rather than a
+/// preview. `rename_type` does that for its own cascade; this is the same rule for any saga
+/// whose args carry `allowed_members`, and it reads the PLAN, so a referrer in another member
+/// cannot be rewritten outside the grant. An empty list is the absence of a grant, not a grant
+/// of nothing: a launch without a policy sends nothing and is unchanged.
+fn grant_refusal(
+    plan: &SagaPlan,
+    allowed: &[String],
+    verb: &str,
+) -> Option<crate::mutate::MutationReject> {
+    if allowed.is_empty() {
+        return None;
+    }
+    let mut outside: Vec<String> = Vec::new();
+    for member in &plan.members {
+        for repo in &member.repo_names {
+            if !allowed.iter().any(|name| name == repo.as_str())
+                && !outside.iter().any(|seen| seen == repo.as_str())
+            {
+                outside.push(repo.as_str().to_string());
+            }
+        }
+    }
+    if outside.is_empty() {
+        return None;
+    }
+    outside.sort();
+    Some(crate::mutate::MutationReject::new(format!(
+        "policy/member_grant: {verb} rewrites {} member(s) outside the grant: {}",
+        outside.len(),
+        outside.join(", ")
+    )))
+}
+
 /// Every precondition a saga checks before it opens, `None` when all hold.
 ///
 /// - git classified every touched path, see [`SagaPlan::unclassified`].
@@ -6397,6 +6437,9 @@ async fn handle_mutation(handle: &EngineHandle, m: Mutation) -> serde_json::Valu
                 Ok(plan) => plan,
                 Err(reject) => return mutation_reject_frame(reject),
             };
+            if let Some(reject) = grant_refusal(&plan, &args.allowed_members, "rename") {
+                return mutation_reject_frame(reject);
+            }
             let not_written = plan.not_written.clone();
             // The rollback removes the created destination and prunes each parent
             // it leaves empty, so a parent that existed, empty, would vanish.

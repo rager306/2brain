@@ -362,3 +362,77 @@ fn a_path_owned_by_an_ungranted_nested_member_is_refused() {
     );
     daemon.join().unwrap();
 }
+
+/// `tb_rename` rewrites inbound referrers, which can live in another member, so its request
+/// carries the policy's member allowlist the way `tb_rename_type` does (review finding #16) —
+/// and carries nothing when the policy has no allowlist, so a policy-free launch is unchanged.
+#[test]
+fn tb_rename_sends_the_member_grant_only_when_the_policy_has_one() {
+    for with_policy in [true, false] {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("parent");
+        let socket = temp.path().join("engine.sock");
+        let listener = UnixListener::bind(&socket).unwrap();
+        let root_string = root.to_str().unwrap().to_owned();
+        let daemon = thread::spawn(move || {
+            loop {
+                let (mut stream, _) = listener.accept().unwrap();
+                let request = read_request(&mut stream);
+                let reply = match request["read"].as_str() {
+                    Some("members") => json!({"type":"response","schema_version":29,"id":1,
+                    "ready":true,"version":5,"result":{"members":[{"repo":"parent",
+                        "root":root_string,"editable":true,"role":"entry","tier":"entry",
+                        "scattered":false,"local":true,"disabled":false,
+                        "git":{"root":root_string,"tracked":true}}]}}),
+                    Some("resolve_member") => json!({"type":"response","schema_version":29,"id":1,
+                    "ready":true,"version":5,"result":{"resolve_member":{"repo":"parent",
+                        "root":root_string,"editable":true,"local":true,"role":"entry"}}}),
+                    Some("content") => json!({"type":"response","schema_version":29,"id":1,
+                    "ready":true,"version":6,"result":{"content":{"text":"x",
+                        "hash":"hash-1","commit":null}}}),
+                    _ => {
+                        assert_eq!(request["mutate"], "rename", "{request}");
+                        assert_eq!(
+                            request
+                                .get("allowed_members")
+                                .cloned()
+                                .unwrap_or(Value::Null),
+                            if with_policy {
+                                json!(["parent"])
+                            } else {
+                                Value::Null
+                            },
+                            "the grant travels only when the policy lists members: {request}"
+                        );
+                        json!({"type":"response","schema_version":29,"id":1,"ready":true,
+                        "version":7,"result":{"path":format!("{root_string}/b.md"),
+                            "hash":"h2","diagnostics":[],"reflected":true,"commit":null,
+                            "commits":{},"untracked_files":[]}})
+                    }
+                };
+                write_frame(&mut stream, reply);
+            }
+        });
+        let policy_path = temp.path().join("policy.json");
+        std::fs::write(
+            &policy_path,
+            r#"{"allow_mutations":true,"members":["parent"]}"#,
+        )
+        .unwrap();
+        let mut extra: Vec<&str> = vec!["--allow-mutations"];
+        if with_policy {
+            extra.push("--policy");
+            extra.push(policy_path.to_str().unwrap());
+        }
+        let mut client = Client::start_with(&socket, &extra);
+        let _ = client.call(2, "tb_content", json!({"repo":"parent","path":"a.md"}));
+        let reply = client.call(
+            3,
+            "tb_rename",
+            json!({"repo":"parent","path":"a.md","to":"b.md","expected_hash":"hash-1"}),
+        );
+        assert_ne!(reply["result"]["isError"], true, "{reply}");
+        drop(client);
+        drop(daemon);
+    }
+}

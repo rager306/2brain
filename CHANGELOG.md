@@ -45,6 +45,15 @@ install acceptance in `docs/internal/install-from-checkout-2026-11-18.md`.
 
 ### Security
 
+- **The member grant now covers `rename`'s cross-member cascade** (engine + server). `rename` rewrites
+  every inbound referrer, and a referrer can live in another member; the engine checked editability but
+  never the caller's grant, so a policy granting one member still rewrote and committed references in
+  another. `rename` now accepts the optional `allowed_members` the adapter takes from the policy, and the
+  engine checks it against the saga PLAN it is about to write, under the write lock — the same rule
+  ADR-0003 set for `rename_type`. An empty list is the absence of a grant, not a grant of nothing, so a
+  policy-free launch sends nothing and its request is unchanged. (Review finding #16; `inline` and
+  `promote` are the same shape and remain open.)
+
 - **A content read could leave its member** (engine). `content` took a path, joined it to the root and
   read it: an absolute path outside every member was fetched, and a symlink inside a member that pointed
   out was followed, so a read-only client could obtain any file the daemon's user can open. The read now

@@ -90,6 +90,45 @@ fn request_verbs(block: &str, key: &str) -> BTreeSet<String> {
     verbs
 }
 
+/// The verbs a `wire::<name>_request` helper sends, for a tool whose block names no literal.
+///
+/// The block must call exactly one such helper; the helper's body is then scanned for its
+/// `"mutate"` value in `wire.rs`.
+fn wire_helper_verbs(block: &str, wire: &str) -> BTreeSet<String> {
+    let mut verbs = BTreeSet::new();
+    let mut at = 0;
+    while let Some(found) = block[at..].find("wire::") {
+        let after = at + found + "wire::".len();
+        let name: String = block[after..]
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        at = after;
+        if !name.ends_with("_request") {
+            continue;
+        }
+        if let Some(start) = wire.find(&format!("fn {name}(")) {
+            let body_start = wire[start..].find('{').map(|o| start + o).unwrap_or(start);
+            let mut depth = 0usize;
+            for (offset, ch) in wire[body_start..].char_indices() {
+                match ch {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            let body = &wire[body_start..body_start + offset];
+                            verbs.extend(request_verbs(body, "mutate"));
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    verbs
+}
+
 /// Every quoted string in `text`, in order.
 fn strings(text: &str) -> Vec<String> {
     let mut found = Vec::new();
@@ -131,6 +170,11 @@ fn verb_table() -> BTreeMap<String, BTreeSet<String>> {
 /// table says it reads and the mutation literals it builds.
 fn tools() -> Vec<Tool> {
     let source = read(&manifest_dir().join("src/lib.rs"));
+    // A tool may build its request in `wire.rs` (a helper shared with another verb), so a
+    // block with no literal `"mutate"` is followed through `wire::<name>_request` and the
+    // verbs are read from that function's body. One source of truth for the request shape,
+    // and the catalog still sees every verb a tool can send.
+    let wire = read(&manifest_dir().join("src/wire.rs"));
     let table = verb_table();
     let starts: Vec<usize> = source.match_indices("#[tool(").map(|(at, _)| at).collect();
     let last = source.find("#[tool_handler(").unwrap_or(source.len());
@@ -148,9 +192,13 @@ fn tools() -> Vec<Tool> {
                 })
                 .unwrap_or_default()
                 .to_owned();
+            let mut mutates = request_verbs(block, "mutate");
+            if mutates.is_empty() {
+                mutates = wire_helper_verbs(block, &wire);
+            }
             Tool {
                 reads: table.get(&name).cloned().unwrap_or_default(),
-                mutates: request_verbs(block, "mutate"),
+                mutates,
                 name,
             }
         })

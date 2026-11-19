@@ -50,10 +50,15 @@ be pure cost; that also keeps the wire sequence of every policy-free launch exac
 exchange lives in `wire.rs`, and the call site is six lines — the one place this session raised the
 `lib.rs` ratchet rather than paying it down, with the reason recorded beside the constant.
 
-#16 (the cascade allowlist on the other refactor verbs) is NOT done: `rename_type` carries
-`allowed_members`, and `rename`, `inline` and `promote` do not. It is the same shape as #21 but the plan
-is computed inside each saga, so it needs the engine to accept and enforce the list per verb. Recorded
-in `docs/trajectory.md`'s queue rather than half-done.
+**#16 — `rename` now carries the grant.** A rename rewrites every inbound referrer, and a referrer can
+live in another member; the engine checked editability but never the caller's grant, so a policy
+granting `ra` still rewrote and committed links in `rb` and `rc`. `rename` accepts the optional
+`allowed_members` the adapter takes from the policy, and the engine checks it against the saga PLAN it
+is about to write, under the write lock — the rule ADR-0003 set for `rename_type`, now in a shared
+`grant_refusal` that any saga can call. The test drives the three-member workspace: refused with the
+member names when the grant covers only `ra`, and it lands when the grant covers all three. `inline` and
+`promote` are the same shape and remain open — they need the same field on their args and the same call
+before their saga.
 
 ## 2026-11-19 — an external review's forty findings, triaged and started
 

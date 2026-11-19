@@ -4972,6 +4972,53 @@ fn three_repo_workspace() -> (tempfile::TempDir, PathBuf) {
     (dir, root)
 }
 
+/// A rename that rewrites referrers in other members must respect the caller's member grant
+/// (review finding #16). `rename_type` already carries `allowed_members`; `rename` did not, so a
+/// grant for `ra` still let it rewrite and commit `rb` and `rc`.
+#[test]
+fn a_rename_outside_the_member_grant_is_refused() {
+    let (dir, root) = three_repo_workspace();
+    let mut h = start(dir, root);
+
+    let resp = h
+        .client
+        .query(&json!({
+            "mutate": "rename",
+            "path": "ra/a.md",
+            "to": "ra/c.md",
+            "allowed_members": ["ra"],
+        }))
+        .unwrap();
+    assert_eq!(resp["type"], "error", "got {resp:?}");
+    let message = resp["error"].as_str().unwrap();
+    assert!(message.contains("policy/member_grant"), "{message}");
+    assert!(
+        message.contains("rb") && message.contains("rc"),
+        "the refusal names every member outside the grant: {message}"
+    );
+    // Nothing moved and no referrer changed.
+    assert!(h.root.join("ra/a.md").exists());
+    assert!(!h.root.join("ra/c.md").exists());
+    assert!(
+        fs::read_to_string(h.root.join("rb/doc.md"))
+            .unwrap()
+            .contains("[[a::ra]]")
+    );
+
+    // The same rename inside the grant still lands.
+    let allowed = h
+        .client
+        .query(&json!({
+            "mutate": "rename",
+            "path": "ra/a.md",
+            "to": "ra/c.md",
+            "allowed_members": ["ra", "rb", "rc"],
+        }))
+        .unwrap();
+    assert_eq!(allowed["ready"], true, "{allowed}");
+    assert!(h.root.join("ra/c.md").exists());
+}
+
 #[test]
 fn cross_repo_rename_commits_every_repo_with_one_mutation_id() {
     let (dir, root) = three_repo_workspace();

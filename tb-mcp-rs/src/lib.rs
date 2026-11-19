@@ -1764,9 +1764,7 @@ impl Server {
         // only when the policy has an allowlist: an absent policy permits every member,
         // and an engine that predates the argument refuses an unknown field rather than
         // running the write unguarded.
-        if let Some(members) = self.policy.member_allowlist() {
-            request["allowed_members"] = json!(members);
-        }
+        crate::wire::with_member_grant(&mut request, self.policy.member_allowlist());
         match read_mutation_with_timeout(self.transport.as_ref(), request, ENGINE_READ_TIMEOUT)
             .await
         {
@@ -1939,12 +1937,14 @@ impl Server {
             Ok(path) => path,
             Err(error) => return return_error(error),
         };
+        // Referrers can live in another member, so the grant travels (ADR-0003, #16).
+        let grant = self.policy.member_allowlist().map(<[String]>::to_vec);
         self.guarded_mutation(
             "tb_rename",
             repo,
             args.path,
             args.expected_hash,
-            move |target| json!({"mutate": "rename", "id": 1, "path": target, "to": to_absolute}),
+            move |target| crate::wire::rename_request(target, &to_absolute, grant.as_deref()),
         )
         .await
     }
