@@ -6,11 +6,11 @@ use std::path::PathBuf;
 #[cfg(unix)]
 use clap::{Parser, Subcommand};
 
-/// The `au` binary: the per-repo daemon and its management commands. Consumers
+/// The `tb-engine` binary: the per-repo daemon and its management commands. Consumers
 /// start a daemon and speak the wire (`crates/tb-engine/WIRE.md`) themselves.
 #[cfg(unix)]
 #[derive(Parser)]
-#[command(name = "au", version, about = "Ars Umbris engine daemon")]
+#[command(name = "tb-engine", version, about = "2brain engine daemon")]
 struct Cli {
     #[command(subcommand)]
     command: TopCommand,

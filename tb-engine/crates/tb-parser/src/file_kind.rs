@@ -176,7 +176,7 @@ mod tests {
     }
 
     #[test]
-    fn tb_workspace_suffix_is_not_recognized() {
+    fn retired_workspace_suffix_is_not_recognized() {
         // The interim `<name>.au-workspace.yaml` form is retired. Such a file is
         // now a plain pure-yaml file, path-unclassified; the one workspace
         // manifest is `.2brain/workspace.yaml`, read by targeted path.

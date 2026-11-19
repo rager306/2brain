@@ -73,21 +73,10 @@ install -m 0755 -t "$bin_dir" "$server_target/2brain" 2>/dev/null ||
 
 engine_bin=$bin_dir/tb-engine
 if ! install -m 0755 -t "$bin_dir" "$engine_target/tb-engine" 2>/dev/null; then
-  # The fallback must land in the state root the ENGINE will resolve, not in a fresh
-  # `$HOME/.2brain`: creating that beside an existing legacy `$HOME/.2brain` makes
-  # `repo::state_dir_in` prefer the new, empty root and hides the old registry, sockets and
-  # logs. Same rule as the engine: `$2BRAIN_HOME`, an existing `.2brain`, an existing
-  # `.2brain`, else `.2brain`.
-  state_root=${2BRAIN_HOME:-}
-  if [[ -z $state_root ]]; then
-    if [[ -d $HOME/.2brain ]]; then
-      state_root=$HOME/.2brain
-    elif [[ -d $HOME/.2brain ]]; then
-      state_root=$HOME/.2brain
-    else
-      state_root=$HOME/.2brain
-    fi
-  fi
+  # The fallback must land in the state root the ENGINE resolves: `$2BRAIN_HOME`, else
+  # `$HOME/.2brain` (`repo::state_dir_in`). Creating a second root would hide the registry,
+  # sockets and logs a running install already has.
+  state_root=${2BRAIN_HOME:-$HOME/.2brain}
   engine_bin=$state_root/bin/tb-engine
   mkdir -p "$state_root/bin"
   install -m 0755 -t "$state_root/bin" "$engine_target/tb-engine"

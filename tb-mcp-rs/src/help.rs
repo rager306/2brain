@@ -78,7 +78,7 @@ USAGE
     tb-mcp-rs --help | --version | --info [<engine-socket>]
 
 ARGUMENT
-    <engine-socket>   Unix socket of a running `au` engine daemon,
+    <engine-socket>   Unix socket of a running `tb-engine` engine daemon,
                       usually <state root>/engine/run/<hash>.sock
 
 OPTIONS

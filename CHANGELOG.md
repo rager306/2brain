@@ -34,6 +34,9 @@ source.
     files in `engine-namespace-reserved`.
   - `tools/kb/legacy_audit.py --check` now reports **0** live, 0 format, 0 content, 0 directories;
     the only remainder is dated records (`history`, 895) and the lineage paragraph (3).
+  - The install and diagnosis path follows the binary: `install.sh` resolves the state root as
+    `$2BRAIN_HOME` else `$HOME/.2brain` (no existence probing), and `doctor` looks for `tb-engine`
+    beside itself or on `PATH` instead of `au` — before this it still reported `/usr/local/bin/au`.
 
 ### Added
 

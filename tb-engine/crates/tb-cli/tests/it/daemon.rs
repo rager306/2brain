@@ -1,6 +1,6 @@
 //! The daemon binary starts over an entry, serves a read, and stops.
 //!
-//! Drives the real `au` binary end to end: `daemon start` boots and serves,
+//! Drives the real `tb-engine` binary end to end: `daemon start` boots and serves,
 //! a client reads over the per-entry hashed socket, and `daemon stop` tears it
 //! down, the process exiting and the socket removed. A directory entry and a
 //! `*.au-workspace.yaml` file entry are both exercised, under a fake `$HOME` so
@@ -64,7 +64,7 @@ fn socket_under(home: &Path, entry: &Path) -> std::path::PathBuf {
 
 /// Poll the socket until the daemon reports ready, returning the probe.
 ///
-/// The deadline is generous: the spawned `au` binary pays a one-time macOS
+/// The deadline is generous: the spawned `tb-engine` binary pays a one-time macOS
 /// first-exec security scan (~15s) on a freshly-linked build, so a 10s deadline
 /// can expire before the daemon's `main` even starts under a cold gate run. 30s
 /// matches the client read timeout and absorbs that scan.

@@ -758,7 +758,7 @@ pub fn doctor(target: &Path) -> ExitCode {
         },
         None => report.warn(
             "engine",
-            "no `au` beside 2brain or on PATH — `2brain daemon` does not need it, and ./install.sh installs it",
+            "no `tb-engine` beside 2brain or on PATH — `2brain daemon` does not need it, and ./install.sh installs it",
         ),
     }
 
@@ -891,21 +891,22 @@ fn plural(count: usize, noun: &str) -> String {
     }
 }
 
-/// The `au` binary beside this one, else the first one on `PATH`.
+/// The `tb-engine` binary beside this one, else the first one on `PATH`.
 fn engine_binary() -> Option<PathBuf> {
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Ok(executable) = std::env::current_exe()
         && let Some(bin) = executable.parent()
     {
-        candidates.push(bin.join("au"));
+        candidates.push(bin.join("tb-engine"));
     }
     if let Some(path) = std::env::var_os("PATH") {
-        candidates.extend(std::env::split_paths(&path).map(|directory| directory.join("au")));
+        candidates
+            .extend(std::env::split_paths(&path).map(|directory| directory.join("tb-engine")));
     }
     candidates.into_iter().find(|candidate| candidate.is_file())
 }
 
-/// The first line `au --version` prints, `None` when it does not run or refuses.
+/// The first line `tb-engine --version` prints, `None` when it does not run or refuses.
 fn engine_version(path: &Path) -> Option<String> {
     let output = Command::new(path)
         .arg("--version")

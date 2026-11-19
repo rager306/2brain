@@ -22,7 +22,7 @@ use clap::{Parser, Subcommand};
     version,
     about = "2brain engine daemon, MCP server, workspace init and doctor",
     long_about = "One binary for both halves: serve a typed-markdown workspace over the engine wire, \
-or expose it to agents over MCP. The engine commands behave exactly like `au`; the MCP command \
+or expose it to agents over MCP. The engine commands behave exactly like `tb-engine`; the MCP command \
 behaves exactly like the `tb-mcp-rs` binary."
 )]
 struct Cli {

@@ -56,6 +56,19 @@ directories; 895 history and 3 lineage remain, by design. Gates: engine `--lib` 
 root-only, `--test it` 744 / 3 known, `tb-cli --test it` 24 / 0, adapter 267 / 0 in 46 suites, fmt and
 clippy clean in both halves, docs links 815 / 0.
 
+**The live cutover, on this host.** Stopped `2brain-engine`, moved the runtime directory
+`~/.2brain/au-engine` -> `~/.2brain/engine`, installed `tb-engine` (`/usr/local/bin`, `~/.2brain/bin`)
+and the rebuilt `2brain`, rewrote the unit (`ExecStart`, `ExecStartPost`, log `logs/engine.log`), moved
+the old log, renamed the health script to `tb-engine-health.sh` and repointed cron at it, removed
+`/usr/local/bin/au`, `~/.2brain/bin/au`, the retired `~/.2brain/au-host` config, the stale
+`logs/au-mcp.log`, the `~/.arsumbris` symlink and the leftover `/root/vault/.arsumbris`. Hermes is a
+user unit: `XDG_RUNTIME_DIR=/run/user/0 systemctl --user restart hermes-gateway.service` brought its MCP
+server back on the new binary. `doctor /root/vault` is 7 ok / 0 warn; golden reads (`diagnostics`,
+`graph_health`, `hubs`) are byte-identical, and `overview` differs only because `tb-mcp-sdk` is now
+mounted instead of degraded. One compatibility symlink remains on purpose: `~/.2brain/au-engine ->
+engine`, kept by the three already-running client processes that were started with the old socket path;
+it is removed once those clients restart.
+
 ## 2026-11-19 — the name in the places that are read, and a shutdown ack that raced
 
 The follow-up to the measurement below: the inventory was sorted by **who reads the string**, and the
