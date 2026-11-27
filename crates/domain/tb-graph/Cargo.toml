@@ -9,6 +9,8 @@ publish.workspace = true
 [dependencies]
 tb-contracts = { workspace = true }
 tb-schema = { workspace = true }
+tb-syntax = { workspace = true }
+serde = { workspace = true }
 
 [lints]
 workspace = true

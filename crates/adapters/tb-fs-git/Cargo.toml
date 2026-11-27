@@ -8,7 +8,16 @@ publish.workspace = true
 
 [dependencies]
 tb-contracts = { workspace = true }
+tb-syntax = { workspace = true }
+tb-schema = { workspace = true }
+tb-graph = { workspace = true }
 tb-app = { workspace = true }
+ignore = { workspace = true }
+saphyr = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [lints]
 workspace = true
