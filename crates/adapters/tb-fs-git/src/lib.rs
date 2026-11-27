@@ -1,17 +1,398 @@
 //! Driven adapter: read-only workspace scanner with member confinement (SEM-18),
 //! strict UTF-8 decode reporting (SEM-04), and `.2brain/ignore` filtering.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::ffi::OsString;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::io::Read;
+use std::os::fd::{AsFd, OwnedFd};
+use std::os::unix::ffi::OsStrExt;
+use std::path::{Component, Path, PathBuf};
 
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
+use rustix::fs::{Mode, OFlags, open, openat, readlinkat};
+use rustix::io::Errno;
 use saphyr::{LoadableYamlNode, Scalar, Yaml};
-use tb_contracts::Locator;
+use tb_app::{IndexedFile, MemberMeta, StoreError, VaultSnapshot, WorkspaceStore};
+use tb_contracts::{
+    CasVerified, EvidenceReceipt, Generation, Locator, RevisionDigest, WriteGuardHash, WriteIntent,
+};
 use tb_graph::{GraphHealth, GraphShape, HubRow, TypedLinkGraph};
 use tb_schema::{Diagnostic, SchemaRegistry, Severity, parse_type_def};
-use tb_syntax::{EdgeKind, ParsedDocument, parse_document};
+use tb_search::SearchIndex;
+use tb_syntax::{EdgeKind, FrontmatterValue, ParsedDocument, parse_document};
 use thiserror::Error;
+
+/// Read-only (Phase 2) / read-write (Phase 3) confined filesystem workspace store.
+#[derive(Clone, Debug)]
+pub struct FsWorkspaceStore {
+    members: BTreeMap<String, PathBuf>,
+}
+
+impl FsWorkspaceStore {
+    #[must_use]
+    pub fn single(repo_name: impl Into<String>, canonical_root: PathBuf) -> Self {
+        let mut members = BTreeMap::new();
+        members.insert(repo_name.into(), canonical_root);
+        Self { members }
+    }
+
+    #[must_use]
+    pub fn member_root(&self, repo: &str) -> Option<&Path> {
+        self.members.get(repo).map(PathBuf::as_path)
+    }
+}
+
+impl WorkspaceStore for FsWorkspaceStore {
+    fn read_exact(&self, locator: &Locator) -> Result<(Vec<u8>, EvidenceReceipt), StoreError> {
+        let Some(canonical_root) = self.members.get(&locator.repo) else {
+            return Err(StoreError::NotFound(format!(
+                "unknown member '{}'",
+                locator.repo
+            )));
+        };
+        let candidate = canonical_root.join(&locator.path);
+        let bytes = match confined_read_bytes(canonical_root, &candidate) {
+            Ok(Some(b)) => b,
+            Ok(None) => {
+                return Err(StoreError::NotFound(format!(
+                    "{}/{}",
+                    locator.repo, locator.path
+                )));
+            }
+            Err(FsError::SymlinkEscape(p)) => {
+                return Err(StoreError::SymlinkEscape(p.display().to_string()));
+            }
+            Err(FsError::Io { path, source }) => {
+                return Err(StoreError::Io(format!("{}: {source}", path.display())));
+            }
+        };
+        let sha256 = RevisionDigest::of_bytes(&bytes);
+        let write_guard = WriteGuardHash::of_bytes(&bytes);
+        let total_bytes = bytes.len();
+        let receipt = EvidenceReceipt {
+            locator: locator.clone(),
+            sha256,
+            write_guard,
+            total_bytes,
+            byte_start: 0,
+            byte_end: total_bytes,
+            truncated: false,
+            generation: Generation(0),
+        };
+        Ok((bytes, receipt))
+    }
+
+    fn commit_verified(&self, _intent: WriteIntent<CasVerified>) -> Result<String, StoreError> {
+        Err(StoreError::Unsupported(
+            "mutations are wired in Phase 3".to_owned(),
+        ))
+    }
+
+    fn reload_snapshot(
+        &self,
+        next_generation: Generation,
+    ) -> Result<Option<VaultSnapshot>, StoreError> {
+        let Some(root) = self.members.values().next() else {
+            return Ok(None);
+        };
+        let snap = load_snapshot_with_generation(root, next_generation)
+            .map_err(|e| StoreError::Io(e.to_string()))?;
+        Ok(Some(snap))
+    }
+}
+
+/// Build an immutable [`VaultSnapshot`] and its confined [`FsWorkspaceStore`] from `root`.
+pub fn load_snapshot(root: &Path) -> Result<(FsWorkspaceStore, VaultSnapshot), FsError> {
+    load_snapshot_inner(root, Generation(1))
+}
+
+/// Reload an immutable [`VaultSnapshot`] at an explicit monotonically advancing [`Generation`].
+pub fn load_snapshot_with_generation(
+    root: &Path,
+    generation: Generation,
+) -> Result<VaultSnapshot, FsError> {
+    load_snapshot_inner(root, generation).map(|(_, snap)| snap)
+}
+
+fn load_snapshot_inner(
+    root: &Path,
+    generation: Generation,
+) -> Result<(FsWorkspaceStore, VaultSnapshot), FsError> {
+    let canonical_root = fs::canonicalize(root).map_err(|source| FsError::Io {
+        path: root.to_path_buf(),
+        source,
+    })?;
+
+    let mut all_diags: Vec<Diagnostic> = Vec::new();
+    let mut utf8_errors = 0usize;
+
+    let repo_name = read_repo_name(&canonical_root)?.unwrap_or_else(|| {
+        canonical_root
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("workspace")
+            .to_owned()
+    });
+    let gitignore = load_ignore_rules(
+        &canonical_root,
+        &repo_name,
+        &mut all_diags,
+        &mut utf8_errors,
+    )?;
+
+    let mut registry = SchemaRegistry::new();
+    let type_dir = canonical_root.join("type");
+    if let Some(real_type_dir) = confined_dir(&canonical_root, &type_dir)? {
+        let mut type_entries: Vec<PathBuf> = fs::read_dir(&real_type_dir)
+            .map_err(|source| FsError::Io {
+                path: real_type_dir.clone(),
+                source,
+            })?
+            .filter_map(|e| e.ok().map(|entry| entry.path()))
+            .collect();
+        type_entries.sort();
+
+        for path in type_entries {
+            let Some(fname) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            let Some(stem) = fname.strip_suffix(".type.yaml") else {
+                continue;
+            };
+            if gitignore
+                .matched_path_or_any_parents(&path, false)
+                .is_ignore()
+            {
+                continue;
+            }
+            let rel_posix = rel_posix_path(&canonical_root, &path);
+            match confined_read_bytes(&canonical_root, &path) {
+                Ok(Some(bytes)) => match std::str::from_utf8(&bytes) {
+                    Ok(raw) => match parse_type_def(&repo_name, stem, raw) {
+                        Ok(def) => registry.insert(def),
+                        Err(err) => all_diags.push(Diagnostic {
+                            repo: repo_name.clone(),
+                            path: rel_posix,
+                            byte_start: 0,
+                            code: "invalid-type-def".to_owned(),
+                            severity: Severity::Error,
+                            message: err.to_string(),
+                        }),
+                    },
+                    Err(_) => all_diags.push(Diagnostic {
+                        repo: repo_name.clone(),
+                        path: rel_posix,
+                        byte_start: 0,
+                        code: "invalid-utf8".to_owned(),
+                        severity: Severity::Error,
+                        message: "type definition contains invalid UTF-8 bytes".to_owned(),
+                    }),
+                },
+                Ok(None) => {}
+                Err(FsError::SymlinkEscape(_)) => all_diags.push(Diagnostic {
+                    repo: repo_name.clone(),
+                    path: rel_posix,
+                    byte_start: 0,
+                    code: "symlink-escape".to_owned(),
+                    severity: Severity::Error,
+                    message: "type definition symlink escapes member root".to_owned(),
+                }),
+                Err(FsError::Io { source, .. }) => all_diags.push(Diagnostic {
+                    repo: repo_name.clone(),
+                    path: rel_posix,
+                    byte_start: 0,
+                    code: "type-read-error".to_owned(),
+                    severity: Severity::Error,
+                    message: format!("failed to read type definition: {source}"),
+                }),
+            }
+        }
+    }
+
+    let mut stack = vec![canonical_root.clone()];
+    let mut files: BTreeMap<Locator, IndexedFile> = BTreeMap::new();
+    let mut path_index: BTreeMap<(String, String), Locator> = BTreeMap::new();
+    let mut stem_index: BTreeMap<(String, String), Vec<Locator>> = BTreeMap::new();
+
+    while let Some(dir) = stack.pop() {
+        let mut dir_entries: Vec<fs::DirEntry> = Vec::new();
+        for entry in fs::read_dir(&dir).map_err(|source| FsError::Io {
+            path: dir.clone(),
+            source,
+        })? {
+            dir_entries.push(entry.map_err(|source| FsError::Io {
+                path: dir.clone(),
+                source,
+            })?);
+        }
+        dir_entries.sort_by_key(|e| e.file_name());
+
+        for entry in dir_entries {
+            let path = entry.path();
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str == ".git" {
+                continue;
+            }
+            if dir == canonical_root.join(".2brain") && name_str == "engine" {
+                continue;
+            }
+            let Ok(ft) = entry.file_type() else {
+                continue;
+            };
+            let is_dir = ft.is_dir();
+            if gitignore
+                .matched_path_or_any_parents(&path, is_dir)
+                .is_ignore()
+            {
+                continue;
+            }
+            if ft.is_symlink() {
+                if !is_confined(&canonical_root, &path)? {
+                    continue;
+                }
+                if path.is_dir() {
+                    continue;
+                }
+            }
+            if is_dir {
+                stack.push(path);
+            } else if path.extension().and_then(|e| e.to_str()) == Some("md") {
+                let Ok(rel) = path.strip_prefix(&canonical_root) else {
+                    continue;
+                };
+                let rel_posix = rel.to_string_lossy().replace('\\', "/");
+                let Ok(loc) = Locator::new(&repo_name, &rel_posix) else {
+                    continue;
+                };
+                let bytes = match confined_read_bytes(&canonical_root, &path) {
+                    Ok(Some(b)) => b,
+                    Ok(None) | Err(FsError::SymlinkEscape(_)) => continue,
+                    Err(err) => return Err(err),
+                };
+                if bytes.iter().take(8192).any(|&b| b == 0) {
+                    continue;
+                }
+                let sha256 = RevisionDigest::of_bytes(&bytes);
+                let short_hash = WriteGuardHash::of_bytes(&bytes).to_hex();
+                match parse_document(&bytes) {
+                    Ok(doc) => {
+                        let diags = registry.validate_document(&repo_name, &rel_posix, &doc);
+                        all_diags.extend(diags);
+                        let raw_text = String::from_utf8(bytes).unwrap_or_default();
+                        let description =
+                            doc.frontmatter
+                                .as_ref()
+                                .and_then(|fm| match fm.get("description") {
+                                    Some(FrontmatterValue::String(s)) => Some(s.clone()),
+                                    _ => None,
+                                });
+                        let declared_type =
+                            doc.frontmatter
+                                .as_ref()
+                                .and_then(|fm| match fm.get("type") {
+                                    Some(FrontmatterValue::String(s)) => Some(s.clone()),
+                                    _ => None,
+                                });
+                        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                            stem_index
+                                .entry((repo_name.clone(), stem.to_owned()))
+                                .or_default()
+                                .push(loc.clone());
+                        }
+                        path_index.insert((repo_name.clone(), rel_posix.clone()), loc.clone());
+                        if let Some(no_ext) = rel_posix.strip_suffix(".md") {
+                            path_index.insert((repo_name.clone(), no_ext.to_owned()), loc.clone());
+                        }
+                        files.insert(
+                            loc.clone(),
+                            IndexedFile {
+                                locator: loc,
+                                sha256,
+                                short_hash,
+                                size_bytes: raw_text.len(),
+                                raw_text,
+                                doc,
+                                description,
+                                declared_type,
+                            },
+                        );
+                    }
+                    Err(_) => {
+                        all_diags.push(Diagnostic {
+                            repo: repo_name.clone(),
+                            path: rel_posix,
+                            byte_start: 0,
+                            code: "invalid-utf8".to_owned(),
+                            severity: Severity::Error,
+                            message: "file contains invalid UTF-8 bytes".to_owned(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    for matches in stem_index.values_mut() {
+        matches.sort();
+    }
+
+    let mut locators = Vec::with_capacity(files.len());
+    let mut edges: Vec<(Locator, Locator, EdgeKind)> = Vec::new();
+    for (loc, file) in &files {
+        locators.push(loc.clone());
+        for link in &file.doc.wikilinks {
+            if let Some(target_repo) = &link.repo
+                && target_repo != &repo_name
+            {
+                continue;
+            }
+            if let Some(target_loc) = path_index.get(&(repo_name.clone(), link.target.clone())) {
+                edges.push((loc.clone(), target_loc.clone(), link.kind));
+            } else if let Some(matches) = stem_index.get(&(repo_name.clone(), link.target.clone()))
+                && matches.len() == 1
+            {
+                edges.push((loc.clone(), matches[0].clone(), link.kind));
+            }
+        }
+    }
+
+    let graph = TypedLinkGraph::build(locators, &edges);
+    let search = SearchIndex::build(files.values().map(|f| {
+        (
+            f.locator.clone(),
+            f.body(),
+            f.description.as_deref().unwrap_or(""),
+        )
+    }));
+
+    let mut members = BTreeMap::new();
+    members.insert(
+        repo_name.clone(),
+        MemberMeta {
+            repo: repo_name.clone(),
+            root: canonical_root.display().to_string(),
+            role: "primary".to_owned(),
+            deps: registry.deps_of(&repo_name),
+        },
+    );
+
+    let store = FsWorkspaceStore::single(repo_name, canonical_root);
+    let snapshot = VaultSnapshot {
+        generation,
+        members,
+        files,
+        registry,
+        graph,
+        search,
+        diagnostics: all_diags,
+        path_index,
+        stem_index,
+    };
+
+    Ok((store, snapshot))
+}
 
 #[derive(Debug, Error)]
 pub enum FsError {
@@ -390,43 +771,192 @@ fn confined_dir(canonical_root: &Path, path: &Path) -> Result<Option<PathBuf>, F
     }
 }
 
-/// Read a file only after verifying that its canonical target stays inside `canonical_root`.
+/// Read a file via dirfd-relative `openat(..., O_NOFOLLOW)` starting from `canonical_root`,
+/// eliminating TOCTOU path-replacement windows between confinement validation and reading.
 fn confined_read_bytes(canonical_root: &Path, path: &Path) -> Result<Option<Vec<u8>>, FsError> {
-    match fs::symlink_metadata(path) {
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(source) => {
-            return Err(FsError::Io {
-                path: path.to_path_buf(),
-                source,
-            });
-        }
-        Ok(_) => {}
-    }
-    let real = match fs::canonicalize(path) {
-        Ok(real) => real,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-            return Err(FsError::SymlinkEscape(path.to_path_buf()));
-        }
-        Err(source) => {
-            return Err(FsError::Io {
-                path: path.to_path_buf(),
-                source,
-            });
-        }
-    };
-    if !real.starts_with(canonical_root) {
+    const MAX_SYMLINK_HOPS: usize = 16;
+
+    let Ok(rel) = path.strip_prefix(canonical_root) else {
         return Err(FsError::SymlinkEscape(path.to_path_buf()));
-    }
-    let meta = fs::metadata(&real).map_err(|source| FsError::Io {
-        path: real.clone(),
-        source,
+    };
+    let root_fd: OwnedFd = open(
+        canonical_root,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|errno| FsError::Io {
+        path: canonical_root.to_path_buf(),
+        source: std::io::Error::from_raw_os_error(errno.raw_os_error()),
     })?;
-    if !meta.is_file() {
+
+    let mut queue: VecDeque<OsString> = VecDeque::new();
+    for comp in rel.components() {
+        match comp {
+            Component::Normal(seg) => queue.push_back(seg.to_os_string()),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(FsError::SymlinkEscape(path.to_path_buf()));
+            }
+        }
+    }
+    if queue.is_empty() {
         return Ok(None);
     }
-    fs::read(&real)
-        .map(Some)
-        .map_err(|source| FsError::Io { path: real, source })
+
+    let mut dir_stack: Vec<OwnedFd> = Vec::new();
+    let mut hops = 0usize;
+
+    while let Some(seg) = queue.pop_front() {
+        if seg == "." {
+            continue;
+        }
+        if seg == ".." {
+            if dir_stack.pop().is_none() {
+                return Err(FsError::SymlinkEscape(path.to_path_buf()));
+            }
+            continue;
+        }
+        let cur_fd = dir_stack.last().map_or(root_fd.as_fd(), OwnedFd::as_fd);
+        let is_last = queue.is_empty();
+
+        if !is_last {
+            match openat(
+                cur_fd,
+                seg.as_os_str(),
+                OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+                Mode::empty(),
+            ) {
+                Ok(child_fd) => dir_stack.push(child_fd),
+                Err(Errno::NOENT) => return Ok(None),
+                Err(Errno::LOOP | Errno::NOTDIR) => {
+                    match readlinkat(cur_fd, seg.as_os_str(), Vec::new()) {
+                        Ok(target_cstr) => {
+                            hops += 1;
+                            if hops > MAX_SYMLINK_HOPS {
+                                return Err(FsError::SymlinkEscape(path.to_path_buf()));
+                            }
+                            let target_os = std::ffi::OsStr::from_bytes(target_cstr.as_bytes());
+                            expand_confined_symlink(
+                                canonical_root,
+                                Path::new(target_os),
+                                path,
+                                &mut dir_stack,
+                                &mut queue,
+                            )?;
+                        }
+                        Err(Errno::INVAL) => return Ok(None),
+                        Err(Errno::NOENT) => return Ok(None),
+                        Err(errno) => {
+                            return Err(FsError::Io {
+                                path: path.to_path_buf(),
+                                source: std::io::Error::from_raw_os_error(errno.raw_os_error()),
+                            });
+                        }
+                    }
+                }
+                Err(errno) => {
+                    return Err(FsError::Io {
+                        path: path.to_path_buf(),
+                        source: std::io::Error::from_raw_os_error(errno.raw_os_error()),
+                    });
+                }
+            }
+        } else {
+            match openat(
+                cur_fd,
+                seg.as_os_str(),
+                OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC | OFlags::NONBLOCK,
+                Mode::empty(),
+            ) {
+                Ok(fd) => {
+                    let mut file = fs::File::from(fd);
+                    let meta = file.metadata().map_err(|source| FsError::Io {
+                        path: path.to_path_buf(),
+                        source,
+                    })?;
+                    if !meta.is_file() {
+                        return Ok(None);
+                    }
+                    let mut buf = Vec::with_capacity(meta.len() as usize);
+                    file.read_to_end(&mut buf).map_err(|source| FsError::Io {
+                        path: path.to_path_buf(),
+                        source,
+                    })?;
+                    return Ok(Some(buf));
+                }
+                Err(Errno::NOENT) => return Ok(None),
+                Err(Errno::LOOP) => {
+                    let target_cstr =
+                        readlinkat(cur_fd, seg.as_os_str(), Vec::new()).map_err(|errno| {
+                            FsError::Io {
+                                path: path.to_path_buf(),
+                                source: std::io::Error::from_raw_os_error(errno.raw_os_error()),
+                            }
+                        })?;
+                    hops += 1;
+                    if hops > MAX_SYMLINK_HOPS {
+                        return Err(FsError::SymlinkEscape(path.to_path_buf()));
+                    }
+                    let target_os = std::ffi::OsStr::from_bytes(target_cstr.as_bytes());
+                    expand_confined_symlink(
+                        canonical_root,
+                        Path::new(target_os),
+                        path,
+                        &mut dir_stack,
+                        &mut queue,
+                    )?;
+                }
+                Err(errno) => {
+                    return Err(FsError::Io {
+                        path: path.to_path_buf(),
+                        source: std::io::Error::from_raw_os_error(errno.raw_os_error()),
+                    });
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn expand_confined_symlink(
+    canonical_root: &Path,
+    target: &Path,
+    orig_path: &Path,
+    dir_stack: &mut Vec<OwnedFd>,
+    queue: &mut VecDeque<OsString>,
+) -> Result<(), FsError> {
+    let mut prefix: Vec<OsString> = Vec::new();
+    if target.is_absolute() {
+        let Ok(stripped) = target.strip_prefix(canonical_root) else {
+            return Err(FsError::SymlinkEscape(orig_path.to_path_buf()));
+        };
+        dir_stack.clear();
+        for comp in stripped.components() {
+            match comp {
+                Component::Normal(s) => prefix.push(s.to_os_string()),
+                Component::ParentDir => prefix.push(OsString::from("..")),
+                Component::CurDir => {}
+                Component::RootDir | Component::Prefix(_) => {
+                    return Err(FsError::SymlinkEscape(orig_path.to_path_buf()));
+                }
+            }
+        }
+    } else {
+        for comp in target.components() {
+            match comp {
+                Component::Normal(s) => prefix.push(s.to_os_string()),
+                Component::ParentDir => prefix.push(OsString::from("..")),
+                Component::CurDir => {}
+                Component::RootDir | Component::Prefix(_) => {
+                    return Err(FsError::SymlinkEscape(orig_path.to_path_buf()));
+                }
+            }
+        }
+    }
+    for seg in prefix.into_iter().rev() {
+        queue.push_front(seg);
+    }
+    Ok(())
 }
 
 fn read_repo_name(canonical_root: &Path) -> Result<Option<String>, FsError> {
@@ -596,5 +1126,49 @@ mod tests {
                 .iter()
                 .any(|d| d.code == "unresolved-qualified-link")
         );
+    }
+
+    #[test]
+    fn dirfd_confinement_allows_internal_symlink_and_refuses_escape() {
+        let outer = tempfile::tempdir().unwrap();
+        let outside = outer.path().join("outside.md");
+        fs::write(&outside, "secret outside bytes\n").unwrap();
+
+        let ws = outer.path().join("ws");
+        fs::create_dir_all(ws.join("notes")).unwrap();
+        fs::write(ws.join("notes/real.md"), "inside note\n").unwrap();
+        symlink("real.md", ws.join("notes/internal-link.md")).unwrap();
+        symlink("../../outside.md", ws.join("notes/rel-escape.md")).unwrap();
+
+        let (store, _snap) = load_snapshot(&ws).unwrap();
+        let ok_loc = Locator::new("ws", "notes/internal-link.md").unwrap();
+        let (bytes, _) = store.read_exact(&ok_loc).unwrap();
+        assert_eq!(bytes, b"inside note\n");
+
+        let esc_loc = Locator::new("ws", "notes/rel-escape.md").unwrap();
+        let err = store.read_exact(&esc_loc).unwrap_err();
+        assert!(matches!(err, StoreError::SymlinkEscape(_)));
+    }
+
+    #[test]
+    fn context_refreshes_snapshot_after_external_edit() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("note.md"), "alpha original uniquev1\n").unwrap();
+
+        let (store, snap) = load_snapshot(dir.path()).unwrap();
+        let repo = snap.members.keys().next().unwrap().clone();
+        let app = tb_app::App::new(store, snap);
+        assert_eq!(app.generation(), Generation(1));
+
+        // Simulate external edit on disk without telling App directly.
+        fs::write(dir.path().join("note.md"), "alpha updated uniquev2\n").unwrap();
+
+        // Context detects SHA-256 drift on the selected fragment, reloads Generation(2),
+        // and serves fresh bytes (never stale original text).
+        let ctx = app.context("alpha", Some(&repo), 5, 500).unwrap();
+        assert_eq!(ctx["context"]["generation"], 2);
+        let text = ctx["context"]["fragments"][0]["text"].as_str().unwrap();
+        assert!(text.contains("uniquev2"), "stale text returned: {text}");
+        assert!(!text.contains("uniquev1"));
     }
 }

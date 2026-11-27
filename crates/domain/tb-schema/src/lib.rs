@@ -277,6 +277,42 @@ impl SchemaRegistry {
         self.defs.is_empty()
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = &TypeDef> {
+        self.defs.values()
+    }
+
+    #[must_use]
+    pub fn deps_of(&self, repo: &str) -> Vec<String> {
+        self.deps
+            .get(repo)
+            .map(|set| set.iter().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    #[must_use]
+    pub fn subtypes_of(&self, repo: &str, target_name: &str) -> Vec<&TypeDef> {
+        self.defs
+            .values()
+            .filter(|def| {
+                def.extends
+                    .as_ref()
+                    .is_some_and(|(parent_name, parent_repo)| {
+                        parent_name == target_name
+                            && parent_repo.as_deref().is_none_or(|r| r == repo)
+                    })
+            })
+            .collect()
+    }
+
+    pub fn validate_field_value(
+        &self,
+        from_repo: &str,
+        expr: &FieldTypeExpr,
+        val: &FrontmatterValue,
+    ) -> Result<(), String> {
+        self.validate_value(from_repo, expr, val)
+    }
+
     /// Resolve a type reference (`name` or `name::repo`) visible from `from_repo`.
     #[must_use]
     pub fn resolve(&self, from_repo: &str, type_ref: &str) -> Option<&TypeDef> {

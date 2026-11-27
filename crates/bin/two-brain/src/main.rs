@@ -1,9 +1,13 @@
 //! Composition root producing the single `2brain` binary (MIT).
 
 use std::path::PathBuf;
-use std::time::Instant;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use clap::{Parser, Subcommand};
+use notify::{RecursiveMode, Watcher};
+use tb_app::App;
+use tb_mcp::{LaunchPolicy, TwoBrainMcp};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -24,6 +28,21 @@ enum Command {
     Check {
         /// Path to the workspace directory.
         path: PathBuf,
+    },
+    /// Serve MCP 2.0 (2026-07-28 stateless + legacy + SEP-2640 skills) over stdio.
+    Mcp {
+        /// Load the workspace directly in-process (zero IPC daemon needed).
+        #[arg(long = "in-process")]
+        in_process: Option<PathBuf>,
+        /// Enable the 11 core mutating tools (fail-closed by default).
+        #[arg(long = "allow-mutations")]
+        allow_mutations: bool,
+        /// Enable repository dependency mutations (requires --allow-mutations).
+        #[arg(long = "allow-composition")]
+        allow_composition: bool,
+        /// Enable workspace member shape mutations (requires --allow-mutations).
+        #[arg(long = "allow-workspace-shape")]
+        allow_workspace_shape: bool,
     },
 }
 
@@ -89,6 +108,90 @@ fn main() {
                     eprintln!("error: {err}");
                     std::process::exit(1);
                 }
+            }
+        }
+        Command::Mcp {
+            in_process,
+            allow_mutations,
+            allow_composition,
+            allow_workspace_shape,
+        } => {
+            let Some(workspace) = in_process else {
+                eprintln!(
+                    "error: pass --in-process <workspace> (Unix-socket daemon transport is wired in Phase 3)"
+                );
+                std::process::exit(2);
+            };
+            let (store, snapshot) = match tb_fs_git::load_snapshot(&workspace) {
+                Ok(pair) => pair,
+                Err(err) => {
+                    eprintln!("error loading workspace '{}': {err}", workspace.display());
+                    std::process::exit(1);
+                }
+            };
+            let app = Arc::new(App::new(store, snapshot));
+            let policy = LaunchPolicy {
+                allow_mutations,
+                allow_composition,
+                allow_workspace_shape,
+            };
+            let server = TwoBrainMcp::new(Arc::clone(&app), policy);
+            let runtime = match tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(rt) => rt,
+                Err(err) => {
+                    eprintln!("error starting runtime: {err}");
+                    std::process::exit(1);
+                }
+            };
+            let watch_root = workspace.clone();
+            let result = runtime.block_on(async move {
+                // Keep snapshot fresh on external edits via debounced filesystem watcher.
+                let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(16);
+                let mut watcher =
+                    notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+                        if let Ok(ev) = res {
+                            let relevant = ev.paths.iter().any(|p| {
+                                !p.components().any(|c| c.as_os_str() == ".git")
+                                    && !p.to_string_lossy().contains(".2brain/engine")
+                            });
+                            if relevant {
+                                let _ = tx.try_send(());
+                            }
+                        }
+                    })
+                    .ok();
+                if let Some(ref mut w) = watcher {
+                    let _ = w.watch(&watch_root, RecursiveMode::Recursive);
+                }
+                let app_bg = Arc::clone(&app);
+                let bg_root = watch_root.clone();
+                let refresh_task = tokio::spawn(async move {
+                    while rx.recv().await.is_some() {
+                        tokio::time::sleep(Duration::from_millis(50)).await;
+                        while rx.try_recv().is_ok() {}
+                        let next_gen = app_bg.generation().next();
+                        let root_clone = bg_root.clone();
+                        if let Ok(Ok(fresh)) = tokio::task::spawn_blocking(move || {
+                            tb_fs_git::load_snapshot_with_generation(&root_clone, next_gen)
+                        })
+                        .await
+                        {
+                            app_bg.swap_snapshot(fresh);
+                        }
+                    }
+                });
+
+                let res = server.serve_stdio().await;
+                drop(watcher);
+                refresh_task.abort();
+                res
+            });
+            if let Err(err) = result {
+                eprintln!("mcp server error: {err}");
+                std::process::exit(1);
             }
         }
     }

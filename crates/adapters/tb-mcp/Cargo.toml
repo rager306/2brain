@@ -10,6 +10,11 @@ publish.workspace = true
 tb-contracts = { workspace = true }
 tb-app = { workspace = true }
 tb-skills = { workspace = true }
+rmcp = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
 
 [lints]
 workspace = true

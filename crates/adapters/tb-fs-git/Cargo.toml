@@ -11,8 +11,10 @@ tb-contracts = { workspace = true }
 tb-syntax = { workspace = true }
 tb-schema = { workspace = true }
 tb-graph = { workspace = true }
+tb-search = { workspace = true }
 tb-app = { workspace = true }
 ignore = { workspace = true }
+rustix = { workspace = true }
 saphyr = { workspace = true }
 thiserror = { workspace = true }
 
