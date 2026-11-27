@@ -4,11 +4,11 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::fd::{AsFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -80,6 +80,9 @@ impl WorkspaceStore for FsWorkspaceStore {
             Err(FsError::Io { path, source }) => {
                 return Err(StoreError::Io(format!("{}: {source}", path.display())));
             }
+            Err(FsError::InvalidGitRef(msg)) => {
+                return Err(StoreError::InvalidEdit(msg));
+            }
         };
         let sha256 = RevisionDigest::of_bytes(&bytes);
         let write_guard = WriteGuardHash::of_bytes(&bytes);
@@ -117,6 +120,19 @@ impl WorkspaceStore for FsWorkspaceStore {
         let snap = load_snapshot_with_generation(root, next_generation)
             .map_err(|e| StoreError::Io(e.to_string()))?;
         Ok(Some(snap))
+    }
+
+    fn load_snapshot_at_git_ref(
+        &self,
+        repo: &str,
+        git_ref: &str,
+    ) -> Result<VaultSnapshot, StoreError> {
+        let canonical_root = self.root_for(repo)?;
+        load_snapshot_at_git_ref(canonical_root, git_ref).map_err(|e| match e {
+            FsError::InvalidGitRef(msg) => StoreError::InvalidEdit(msg),
+            FsError::SymlinkEscape(p) => StoreError::SymlinkEscape(p.display().to_string()),
+            FsError::Io { path, source } => StoreError::Io(format!("{}: {source}", path.display())),
+        })
     }
 
     fn create_file(
@@ -396,6 +412,9 @@ fn verify_live_cas(
         }
         Err(FsError::Io { path, source }) => {
             return Err(StoreError::Io(format!("{}: {source}", path.display())));
+        }
+        Err(FsError::InvalidGitRef(msg)) => {
+            return Err(StoreError::InvalidEdit(msg));
         }
     };
     let live_guard = WriteGuardHash::of_bytes(&bytes).to_hex();
@@ -704,6 +723,14 @@ fn load_snapshot_inner(
                     severity: Severity::Error,
                     message: format!("failed to read type definition: {source}"),
                 }),
+                Err(FsError::InvalidGitRef(msg)) => all_diags.push(Diagnostic {
+                    repo: repo_name.clone(),
+                    path: rel_posix,
+                    byte_start: 0,
+                    code: "type-read-error".to_owned(),
+                    severity: Severity::Error,
+                    message: msg,
+                }),
             }
         }
     }
@@ -902,6 +929,496 @@ pub enum FsError {
     },
     #[error("symlink escapes member root: {0}")]
     SymlinkEscape(PathBuf),
+    #[error("invalid git ref: {0}")]
+    InvalidGitRef(String),
+}
+
+fn validate_git_ref(git_ref: &str) -> Result<(), FsError> {
+    if git_ref.is_empty() || git_ref.len() > 256 {
+        return Err(FsError::InvalidGitRef(
+            "git ref must be 1..=256 characters".into(),
+        ));
+    }
+    if git_ref.starts_with('-') {
+        return Err(FsError::InvalidGitRef(
+            "git ref cannot start with '-'".into(),
+        ));
+    }
+    if git_ref.contains("..") || git_ref.contains("@{") {
+        return Err(FsError::InvalidGitRef(
+            "git ref cannot contain range or reflog operators".into(),
+        ));
+    }
+    if git_ref.bytes().any(|b| {
+        b <= 0x20
+            || b == 0x7f
+            || matches!(
+                b,
+                b'\\' | b':' | b'?' | b'*' | b'[' | b';' | b'|' | b'&' | b'\0'
+            )
+    }) {
+        return Err(FsError::InvalidGitRef(
+            "git ref contains forbidden characters".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Load a read-only [`VaultSnapshot`] purely from Git object storage at `git_ref`
+/// (`HEAD~1`, commit SHA, tag, or branch) without mutating the working tree.
+pub fn load_snapshot_at_git_ref(root: &Path, git_ref: &str) -> Result<VaultSnapshot, FsError> {
+    validate_git_ref(git_ref)?;
+    let canonical_root = fs::canonicalize(root).map_err(|source| FsError::Io {
+        path: root.to_path_buf(),
+        source,
+    })?;
+
+    let rev_spec = format!("{git_ref}^{{commit}}");
+    let rev_out = Command::new("git")
+        .arg("-C")
+        .arg(&canonical_root)
+        .args(["rev-parse", "--verify", "--end-of-options", &rev_spec])
+        .output()
+        .map_err(|source| FsError::Io {
+            path: canonical_root.clone(),
+            source,
+        })?;
+    if !rev_out.status.success() {
+        let stderr = String::from_utf8_lossy(&rev_out.stderr).trim().to_owned();
+        return Err(FsError::InvalidGitRef(format!(
+            "cannot resolve git ref '{git_ref}': {stderr}"
+        )));
+    }
+    let commit_sha = String::from_utf8_lossy(&rev_out.stdout).trim().to_owned();
+    if commit_sha.len() < 40 || !commit_sha.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(FsError::InvalidGitRef(format!(
+            "unexpected commit sha '{commit_sha}'"
+        )));
+    }
+
+    let ls_out = Command::new("git")
+        .arg("-C")
+        .arg(&canonical_root)
+        .args(["ls-tree", "-r", "-z", "--full-tree", &commit_sha])
+        .output()
+        .map_err(|source| FsError::Io {
+            path: canonical_root.clone(),
+            source,
+        })?;
+    if !ls_out.status.success() {
+        let stderr = String::from_utf8_lossy(&ls_out.stderr).trim().to_owned();
+        return Err(FsError::InvalidGitRef(format!(
+            "git ls-tree failed: {stderr}"
+        )));
+    }
+
+    // Parse NUL-terminated `ls-tree` records: `<mode> <type> <oid>\t<path>`.
+    // Fail closed on malformed or unterminated records so a corrupted stream can never
+    // silently produce a partial historical snapshot.
+    if !ls_out.stdout.is_empty() && !ls_out.stdout.ends_with(&[0]) {
+        return Err(FsError::Io {
+            path: canonical_root.clone(),
+            source: std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "git ls-tree output was not NUL-terminated",
+            ),
+        });
+    }
+    let mut selected: Vec<(String, String)> = Vec::new(); // (rel_posix_path, oid)
+    let raw_entries = ls_out.stdout.strip_suffix(&[0]).unwrap_or(&ls_out.stdout);
+    if !raw_entries.is_empty() {
+        for entry in raw_entries.split(|&b| b == 0) {
+            let Some(tab_pos) = entry.iter().position(|&b| b == b'\t') else {
+                return Err(FsError::Io {
+                    path: canonical_root.clone(),
+                    source: std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "malformed git ls-tree record: missing tab delimiter",
+                    ),
+                });
+            };
+            let header = std::str::from_utf8(&entry[..tab_pos]).map_err(|e| FsError::Io {
+                path: canonical_root.clone(),
+                source: std::io::Error::new(std::io::ErrorKind::InvalidData, e),
+            })?;
+            let Ok(rel_path) = std::str::from_utf8(&entry[tab_pos + 1..]) else {
+                continue;
+            };
+            let mut parts = header.split_ascii_whitespace();
+            let (Some(mode), Some(kind), Some(oid), None) =
+                (parts.next(), parts.next(), parts.next(), parts.next())
+            else {
+                return Err(FsError::Io {
+                    path: canonical_root.clone(),
+                    source: std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!("malformed git ls-tree header: '{header}'"),
+                    ),
+                });
+            };
+            if oid.len() < 40 || !oid.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(FsError::Io {
+                    path: canonical_root.clone(),
+                    source: std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!("malformed git ls-tree oid: '{oid}'"),
+                    ),
+                });
+            }
+            // Skip symlinks (120000), gitlinks/submodules (160000), and non-blobs.
+            if kind != "blob" || mode == "120000" || mode == "160000" {
+                continue;
+            }
+            if rel_path.starts_with(".git/") || rel_path.starts_with(".2brain/engine/") {
+                continue;
+            }
+            let wanted = rel_path == ".2brain/repo.yaml"
+                || rel_path == ".2brain/ignore"
+                || (rel_path.starts_with("type/")
+                    && rel_path.ends_with(".type.yaml")
+                    && !rel_path["type/".len()..].contains('/'))
+                || rel_path.ends_with(".md");
+            if wanted {
+                selected.push((rel_path.to_owned(), oid.to_owned()));
+            }
+        }
+    }
+    selected.sort_by(|a, b| a.0.cmp(&b.0));
+
+    // Fetch all selected blobs in a single `git cat-file --batch` pass (fail closed on any truncation).
+    let blobs = read_git_blobs_batch(&canonical_root, &selected)?;
+
+    let mut repo_name = canonical_root
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("workspace")
+        .to_owned();
+    if let Some(repo_yaml_bytes) = blobs.get(".2brain/repo.yaml")
+        && let Ok(text) = std::str::from_utf8(repo_yaml_bytes)
+        && let Ok(docs) = Yaml::load_from_str(text)
+        && let Some(Yaml::Mapping(map)) = docs.first()
+    {
+        for (k, v) in map {
+            if let (Yaml::Value(Scalar::String(ks)), Yaml::Value(Scalar::String(vs))) = (k, v)
+                && ks.as_ref() == "name"
+                && !vs.is_empty()
+            {
+                repo_name = vs.to_string();
+            }
+        }
+    }
+
+    // Apply `.2brain/ignore` from the selected commit with identical path+parent rules to live scans.
+    let mut all_diags: Vec<Diagnostic> = Vec::new();
+    let mut ignore_builder = GitignoreBuilder::new(&canonical_root);
+    if let Some(ignore_bytes) = blobs.get(".2brain/ignore") {
+        match std::str::from_utf8(ignore_bytes) {
+            Ok(text) => {
+                for line in text.lines() {
+                    if let Err(err) = ignore_builder.add_line(None, line) {
+                        all_diags.push(Diagnostic {
+                            repo: repo_name.clone(),
+                            path: ".2brain/ignore".to_owned(),
+                            byte_start: 0,
+                            code: "invalid-ignore".to_owned(),
+                            severity: Severity::Error,
+                            message: err.to_string(),
+                        });
+                    }
+                }
+            }
+            Err(_) => {
+                all_diags.push(Diagnostic {
+                    repo: repo_name.clone(),
+                    path: ".2brain/ignore".to_owned(),
+                    byte_start: 0,
+                    code: "invalid-utf8".to_owned(),
+                    severity: Severity::Error,
+                    message: "ignore file contains invalid UTF-8 bytes".to_owned(),
+                });
+            }
+        }
+    }
+    let gitignore = ignore_builder
+        .build()
+        .unwrap_or_else(|_| Gitignore::empty());
+    let is_ignored = |rel_path: &str| {
+        gitignore
+            .matched_path_or_any_parents(canonical_root.join(rel_path), false)
+            .is_ignore()
+    };
+
+    let mut registry = SchemaRegistry::new();
+    for (rel_path, bytes) in &blobs {
+        if is_ignored(rel_path) {
+            continue;
+        }
+        if let Some(stem) = rel_path
+            .strip_prefix("type/")
+            .and_then(|rest| rest.strip_suffix(".type.yaml"))
+            && !stem.contains('/')
+            && let Ok(raw) = std::str::from_utf8(bytes)
+            && let Ok(def) = parse_type_def(&repo_name, stem, raw)
+        {
+            registry.insert(def);
+        }
+    }
+
+    let mut files: BTreeMap<Locator, IndexedFile> = BTreeMap::new();
+    let mut path_index: BTreeMap<(String, String), Locator> = BTreeMap::new();
+    let mut stem_index: BTreeMap<(String, String), Vec<Locator>> = BTreeMap::new();
+
+    for (rel_posix, bytes) in &blobs {
+        if !rel_posix.ends_with(".md")
+            || is_ignored(rel_posix)
+            || bytes.iter().take(8192).any(|&b| b == 0)
+        {
+            continue;
+        }
+        let Ok(loc) = Locator::new(&repo_name, rel_posix) else {
+            continue;
+        };
+        let sha256 = RevisionDigest::of_bytes(bytes);
+        let short_hash = WriteGuardHash::of_bytes(bytes).to_hex();
+        match parse_document(bytes) {
+            Ok(doc) => {
+                all_diags.extend(registry.validate_document(&repo_name, rel_posix, &doc));
+                let raw_text = String::from_utf8(bytes.clone()).unwrap_or_default();
+                let description =
+                    doc.frontmatter
+                        .as_ref()
+                        .and_then(|fm| match fm.get("description") {
+                            Some(FrontmatterValue::String(s)) => Some(s.clone()),
+                            _ => None,
+                        });
+                let declared_type = doc
+                    .frontmatter
+                    .as_ref()
+                    .and_then(|fm| match fm.get("type") {
+                        Some(FrontmatterValue::String(s)) => Some(s.clone()),
+                        _ => None,
+                    });
+                let file_name = rel_posix.rsplit('/').next().unwrap_or(rel_posix);
+                if let Some(stem) = file_name.strip_suffix(".md") {
+                    stem_index
+                        .entry((repo_name.clone(), stem.to_owned()))
+                        .or_default()
+                        .push(loc.clone());
+                }
+                path_index.insert((repo_name.clone(), rel_posix.clone()), loc.clone());
+                if let Some(no_ext) = rel_posix.strip_suffix(".md") {
+                    path_index.insert((repo_name.clone(), no_ext.to_owned()), loc.clone());
+                }
+                files.insert(
+                    loc.clone(),
+                    IndexedFile {
+                        locator: loc,
+                        sha256,
+                        short_hash,
+                        size_bytes: raw_text.len(),
+                        raw_text,
+                        doc,
+                        description,
+                        declared_type,
+                    },
+                );
+            }
+            Err(_) => {
+                all_diags.push(Diagnostic {
+                    repo: repo_name.clone(),
+                    path: rel_posix.clone(),
+                    byte_start: 0,
+                    code: "invalid-utf8".to_owned(),
+                    severity: Severity::Error,
+                    message: "file contains invalid UTF-8 bytes".to_owned(),
+                });
+            }
+        }
+    }
+
+    for matches in stem_index.values_mut() {
+        matches.sort();
+    }
+
+    let mut locators = Vec::with_capacity(files.len());
+    let mut edges: Vec<(Locator, Locator, EdgeKind)> = Vec::new();
+    for (loc, file) in &files {
+        locators.push(loc.clone());
+        for link in &file.doc.wikilinks {
+            if let Some(target_repo) = &link.repo
+                && target_repo != &repo_name
+            {
+                continue;
+            }
+            if let Some(target_loc) = path_index.get(&(repo_name.clone(), link.target.clone())) {
+                edges.push((loc.clone(), target_loc.clone(), link.kind));
+            } else if let Some(matches) = stem_index.get(&(repo_name.clone(), link.target.clone()))
+                && matches.len() == 1
+            {
+                edges.push((loc.clone(), matches[0].clone(), link.kind));
+            }
+        }
+    }
+
+    let graph = TypedLinkGraph::build(locators, &edges);
+    let search = SearchIndex::build(files.values().map(|f| {
+        (
+            f.locator.clone(),
+            f.body(),
+            f.description.as_deref().unwrap_or(""),
+        )
+    }));
+
+    let mut members = BTreeMap::new();
+    members.insert(
+        repo_name.clone(),
+        MemberMeta {
+            repo: repo_name.clone(),
+            root: canonical_root.display().to_string(),
+            role: "primary".to_owned(),
+            deps: registry.deps_of(&repo_name),
+        },
+    );
+
+    Ok(VaultSnapshot {
+        generation: Generation(0),
+        members,
+        files,
+        registry,
+        graph,
+        search,
+        diagnostics: all_diags,
+        path_index,
+        stem_index,
+    })
+}
+
+fn read_git_blobs_batch(
+    canonical_root: &Path,
+    selected: &[(String, String)],
+) -> Result<BTreeMap<String, Vec<u8>>, FsError> {
+    let mut out = BTreeMap::new();
+    if selected.is_empty() {
+        return Ok(out);
+    }
+
+    let mut child = Command::new("git")
+        .arg("-C")
+        .arg(canonical_root)
+        .args(["cat-file", "--batch"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|source| FsError::Io {
+            path: canonical_root.to_path_buf(),
+            source,
+        })?;
+
+    let mut stdin = child.stdin.take().ok_or_else(|| FsError::Io {
+        path: canonical_root.to_path_buf(),
+        source: std::io::Error::other("git cat-file stdin unavailable"),
+    })?;
+    let stdout = child.stdout.take().ok_or_else(|| FsError::Io {
+        path: canonical_root.to_path_buf(),
+        source: std::io::Error::other("git cat-file stdout unavailable"),
+    })?;
+
+    let read_res: Result<BTreeMap<String, Vec<u8>>, std::io::Error> = std::thread::scope(|s| {
+        let writer = s.spawn(move || -> std::io::Result<()> {
+            for (_, oid) in selected {
+                stdin.write_all(oid.as_bytes())?;
+                stdin.write_all(b"\n")?;
+            }
+            stdin.flush()?;
+            drop(stdin);
+            Ok(())
+        });
+
+        let mut reader = BufReader::new(stdout);
+        let mut header = String::new();
+        for (rel_path, expected_oid) in selected {
+            header.clear();
+            let n = reader.read_line(&mut header)?;
+            if n == 0 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    format!("git cat-file --batch ended prematurely before reading '{rel_path}'"),
+                ));
+            }
+            if !header.ends_with('\n') {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    format!("git cat-file --batch header missing newline for '{rel_path}'"),
+                ));
+            }
+            let trimmed = header.trim_end_matches(['\r', '\n']);
+            let mut parts = trimmed.split_ascii_whitespace();
+            let (Some(got_oid), Some(kind), Some(size_str), None) =
+                (parts.next(), parts.next(), parts.next(), parts.next())
+            else {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("malformed git cat-file --batch header for '{rel_path}': '{trimmed}'"),
+                ));
+            };
+            if got_oid != expected_oid || kind != "blob" {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "unexpected git object for '{rel_path}': expected {expected_oid} blob, got {got_oid} {kind}"
+                    ),
+                ));
+            }
+            let size: usize = size_str
+                .parse()
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            let mut buf = vec![0u8; size];
+            reader.read_exact(&mut buf)?;
+            // Consume exact trailing LF emitted by `git cat-file --batch`.
+            let mut nl = [0u8; 1];
+            reader.read_exact(&mut nl)?;
+            if nl[0] != b'\n' {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("missing trailing LF delimiter after git blob '{rel_path}'"),
+                ));
+            }
+            out.insert(rel_path.clone(), buf);
+        }
+
+        let writer_res = writer
+            .join()
+            .map_err(|_| std::io::Error::other("git cat-file writer thread panicked"))?;
+        writer_res?;
+        if out.len() != selected.len() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                format!(
+                    "git cat-file returned {} of {} requested blobs",
+                    out.len(),
+                    selected.len()
+                ),
+            ));
+        }
+        Ok(out)
+    });
+
+    let status = child.wait().map_err(|source| FsError::Io {
+        path: canonical_root.to_path_buf(),
+        source,
+    })?;
+    let blobs = read_res.map_err(|source| FsError::Io {
+        path: canonical_root.to_path_buf(),
+        source,
+    })?;
+    if !status.success() {
+        return Err(FsError::Io {
+            path: canonical_root.to_path_buf(),
+            source: std::io::Error::other(format!("git cat-file --batch exited with {status}")),
+        });
+    }
+    Ok(blobs)
 }
 
 #[derive(Clone, Debug)]
@@ -1021,6 +1538,16 @@ pub fn check_workspace(root: &Path) -> Result<CheckSummary, FsError> {
                         code: "type-read-error".to_owned(),
                         severity: Severity::Error,
                         message: format!("failed to read type definition: {source}"),
+                    });
+                }
+                Err(FsError::InvalidGitRef(msg)) => {
+                    all_diags.push(Diagnostic {
+                        repo: repo_name.clone(),
+                        path: rel_posix,
+                        byte_start: 0,
+                        code: "type-read-error".to_owned(),
+                        severity: Severity::Error,
+                        message: msg,
                     });
                 }
             }
@@ -1704,6 +2231,100 @@ mod tests {
             (r_a.is_ok() && matches!(r_b, Err(StoreError::CasMismatch(_))))
                 || (r_b.is_ok() && matches!(r_a, Err(StoreError::CasMismatch(_)))),
             "expected exactly one winner and one CasMismatch, got a={r_a:?}, b={r_b:?}"
+        );
+    }
+
+    #[test]
+    fn git_ref_loader_rejects_unsafe_refs_and_diffs_historical_commit_without_checkout() {
+        for bad in [
+            "-n",
+            "--upload-pack=x",
+            "HEAD..main",
+            "HEAD@{0}",
+            "a b",
+            "x:y",
+            "",
+        ] {
+            assert!(
+                validate_git_ref(bad).is_err(),
+                "expected git ref '{bad}' to be rejected"
+            );
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let run_git = |args: &[&str]| {
+            let st = Command::new("git")
+                .arg("-C")
+                .arg(root)
+                .args(args)
+                .status()
+                .unwrap();
+            assert!(st.success(), "git {args:?} failed");
+        };
+        run_git(&["init", "-q"]);
+        run_git(&["config", "user.name", "Test"]);
+        run_git(&["config", "user.email", "test@example.com"]);
+        fs::create_dir_all(root.join(".2brain")).unwrap();
+        fs::write(root.join(".2brain/ignore"), "secret.md\n").unwrap();
+        fs::write(root.join("secret.md"), "ignored secret note\n").unwrap();
+        fs::write(root.join("source.md"), "source v1\n").unwrap();
+        fs::write(root.join("derived.md"), "depends on [[source]]\n").unwrap();
+        run_git(&["add", "."]);
+        run_git(&["commit", "-q", "-m", "v1"]);
+
+        // Commit v2 modifies source.md and adds extra.md; derived.md stays untouched.
+        fs::write(root.join("source.md"), "source v2 updated\n").unwrap();
+        fs::write(root.join("extra.md"), "links [[source]]\n").unwrap();
+        run_git(&["add", "."]);
+        run_git(&["commit", "-q", "-m", "v2"]);
+
+        let (store, snap) = load_snapshot(root).unwrap();
+        let app = tb_app::App::new(store, snap);
+        let diff_json = app.diff_graphs("HEAD~1", None, None, 10).unwrap();
+        let d = &diff_json["diff_graphs"];
+        assert_eq!(d["added_nodes_count"], 1);
+        assert_eq!(d["removed_nodes_count"], 0);
+        assert_eq!(d["modified_nodes_count"], 1);
+        assert_eq!(d["decay_candidates"][0]["locator"]["path"], "derived.md");
+
+        // Unchanged HEAD -> WORKING_TREE must NOT report ignored `secret.md` as removed.
+        let clean_diff = app.diff_graphs("HEAD", None, None, 10).unwrap();
+        assert_eq!(clean_diff["diff_graphs"]["removed_nodes_count"], 0);
+        assert_eq!(clean_diff["diff_graphs"]["added_nodes_count"], 0);
+    }
+
+    #[test]
+    fn ambiguous_conflicts_with_stem_surfaces_explicit_ambiguous_reference_warning() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("a")).unwrap();
+        fs::create_dir_all(root.join("b")).unwrap();
+        fs::write(
+            root.join("a/decision.md"),
+            "---\ntype: claim\npolarity: positive\n---\nPole A\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("b/decision.md"),
+            "---\ntype: claim\npolarity: positive\n---\nPole B\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("counter.md"),
+            "---\ntype: claim\npolarity: negative\nconflicts_with: decision\n---\nCounter\n",
+        )
+        .unwrap();
+
+        let (store, snap) = load_snapshot(root).unwrap();
+        let app = tb_app::App::new(store, snap);
+        let audit = app.audit_contradictions(Some("2026-11-28"), 20).unwrap();
+        let conflicts = audit["audit_contradictions"]["conflicts"]
+            .as_array()
+            .unwrap();
+        assert!(
+            conflicts.iter().any(|c| c["kind"] == "ambiguous_reference"),
+            "expected explicit ambiguous_reference warning, got {conflicts:?}"
         );
     }
 }

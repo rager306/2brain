@@ -42,6 +42,37 @@ enum Command {
         #[arg(long = "limit", default_value_t = 5)]
         limit: usize,
     },
+    /// Audit D03 claims, R14 temporal validity, and Polysingularity contradictions.
+    AuditClaims {
+        /// Path to the workspace directory.
+        path: PathBuf,
+        /// Optional ISO-8601 date (`YYYY-MM-DD`) to evaluate temporal validity against.
+        #[arg(long = "as-of")]
+        as_of: Option<String>,
+        /// Maximum conflicts to print.
+        #[arg(long = "limit", default_value_t = 25)]
+        limit: usize,
+    },
+    /// Analyze Hub Fragility (articulation points & overloaded MOC map+satellite splits).
+    Fragility {
+        /// Path to the workspace directory.
+        path: PathBuf,
+        /// Maximum fragile hubs to print.
+        #[arg(long = "limit", default_value_t = 15)]
+        limit: usize,
+    },
+    /// Compute structural & topological Difference Graph (`G(T1) -> G(T2)`) and Change-Driven Decay.
+    Diff {
+        /// Path to the workspace directory (must be a Git repository).
+        path: PathBuf,
+        /// Baseline Git ref (e.g. `HEAD~10`, commit SHA, tag).
+        from_ref: String,
+        /// Optional target Git ref (defaults to live working tree).
+        to_ref: Option<String>,
+        /// Maximum rows per section.
+        #[arg(long = "limit", default_value_t = 10)]
+        limit: usize,
+    },
     /// Run or inspect the Unix-socket workspace daemon.
     Daemon {
         #[command(subcommand)]
@@ -131,6 +162,16 @@ fn main() {
             peel_top_k,
             limit,
         } => run_analyze(&path, peel_top_k, limit),
+        Command::AuditClaims { path, as_of, limit } => {
+            run_audit_claims(&path, as_of.as_deref(), limit);
+        }
+        Command::Fragility { path, limit } => run_fragility(&path, limit),
+        Command::Diff {
+            path,
+            from_ref,
+            to_ref,
+            limit,
+        } => run_diff(&path, &from_ref, to_ref.as_deref(), limit),
         Command::Daemon { command } => match command {
             DaemonCommand::Start { workspace } => run_daemon_start(&workspace),
             DaemonCommand::Status { workspace } => run_daemon_status(&workspace),
@@ -281,6 +322,155 @@ fn run_analyze(path: &std::path::Path, peel_top_k: usize, limit: usize) {
     println!("  fragile_hubs (articulation points):");
     for h in &topo.fragile_hubs {
         println!("    {} deg={}", h.locator.path, h.degree);
+    }
+}
+
+fn run_audit_claims(path: &std::path::Path, as_of: Option<&str>, limit: usize) {
+    let started = Instant::now();
+    let (_, snap) = match tb_fs_git::load_snapshot(path) {
+        Ok(pair) => pair,
+        Err(err) => {
+            eprintln!("error loading workspace: {err}");
+            std::process::exit(1);
+        }
+    };
+    let claims = tb_app::extract_claims(&snap);
+    let report = tb_cognition::audit_contradictions(&claims, as_of, limit);
+    let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
+    println!("2brain audit-claims ({elapsed_ms:.1} ms)");
+    println!(
+        "  claims       total={} active={} expired={} not_yet_valid={} superseded={} unknown_window={} as_of={}",
+        report.temporal_summary.total_claims,
+        report.temporal_summary.active,
+        report.temporal_summary.expired,
+        report.temporal_summary.not_yet_valid,
+        report.temporal_summary.superseded,
+        report.temporal_summary.unknown_window,
+        report.temporal_summary.as_of.as_deref().unwrap_or("none"),
+    );
+    println!("  conflicts    total={}", report.total_conflicts);
+    for c in &report.conflicts {
+        println!(
+            "    [{}] ({}/{:?}) {}",
+            c.conflict_id, c.severity, c.kind, c.explanation
+        );
+    }
+}
+
+fn run_fragility(path: &std::path::Path, limit: usize) {
+    let started = Instant::now();
+    let (_, snap) = match tb_fs_git::load_snapshot(path) {
+        Ok(pair) => pair,
+        Err(err) => {
+            eprintln!("error loading workspace: {err}");
+            std::process::exit(1);
+        }
+    };
+    let kinds: std::collections::BTreeMap<_, _> = snap
+        .files
+        .iter()
+        .map(|(loc, f)| (loc.clone(), f.declared_type.clone()))
+        .collect();
+    let report = tb_cognition::analyze_fragility(&snap.graph, &kinds, limit);
+    let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
+    println!("2brain fragility ({elapsed_ms:.1} ms)");
+    println!(
+        "  summary      nodes={} edges={} articulation_points={} bridges={} overloaded_hubs={}",
+        report.total_nodes,
+        report.total_edges,
+        report.articulation_point_count,
+        report.bridge_edge_count,
+        report.overloaded_hub_count
+    );
+    for h in &report.fragile_hubs {
+        let hints: Vec<&str> = h.satellite_hints.iter().map(|l| l.path.as_str()).collect();
+        println!(
+            "    {} deg={} fragments={} detached={} largest_island={} action={} hints=[{}]",
+            h.locator.path,
+            h.degree,
+            h.fragmentation_components,
+            h.detached_nodes,
+            h.largest_detached_island,
+            h.recommended_action,
+            hints.join(", ")
+        );
+    }
+}
+
+fn run_diff(path: &std::path::Path, from_ref: &str, to_ref: Option<&str>, limit: usize) {
+    let started = Instant::now();
+    let before = match tb_fs_git::load_snapshot_at_git_ref(path, from_ref) {
+        Ok(snap) => snap,
+        Err(err) => {
+            eprintln!("error loading baseline git ref '{from_ref}': {err}");
+            std::process::exit(1);
+        }
+    };
+    let after = match to_ref {
+        Some(r) => match tb_fs_git::load_snapshot_at_git_ref(path, r) {
+            Ok(snap) => snap,
+            Err(err) => {
+                eprintln!("error loading target git ref '{r}': {err}");
+                std::process::exit(1);
+            }
+        },
+        None => match tb_fs_git::load_snapshot(path) {
+            Ok((_, snap)) => snap,
+            Err(err) => {
+                eprintln!("error loading working workspace: {err}");
+                std::process::exit(1);
+            }
+        },
+    };
+    let before_meta = tb_app::snapshot_node_meta(&before);
+    let after_meta = tb_app::snapshot_node_meta(&after);
+    let diff = tb_cognition::diff_snapshots(
+        &before.graph,
+        &before_meta,
+        &after.graph,
+        &after_meta,
+        limit,
+    );
+    let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
+    println!(
+        "2brain diff {} -> {} ({elapsed_ms:.1} ms)",
+        from_ref,
+        to_ref.unwrap_or("WORKING_TREE")
+    );
+    println!(
+        "  nodes        +{} -{} ~{} (total {} -> {})",
+        diff.added_nodes_count,
+        diff.removed_nodes_count,
+        diff.modified_nodes_count,
+        diff.topology_delta.nodes_before,
+        diff.topology_delta.nodes_after,
+    );
+    println!(
+        "  edges        +{} -{} (total {} -> {}, delta_Q={:+.4}, delta_bridges={:+})",
+        diff.added_edges_count,
+        diff.removed_edges_count,
+        diff.topology_delta.edges_before,
+        diff.topology_delta.edges_after,
+        diff.topology_delta.delta_modularity,
+        diff.topology_delta.delta_bridges,
+    );
+    println!(
+        "  decay        candidates={} durable_protected={}",
+        diff.decay_candidates.len(),
+        diff.durable_protected_count
+    );
+    for d in &diff.decay_candidates {
+        println!(
+            "    {} (durable={}): {}",
+            d.locator.path, d.durable_kind, d.reason
+        );
+    }
+    println!("  top_movers (betweenness):");
+    for m in &diff.top_movers {
+        println!(
+            "    {} [{}] bc {:.4} -> {:.4} ({:+.4})",
+            m.locator.path, m.role, m.bc_before, m.bc_after, m.delta_bc
+        );
     }
 }
 

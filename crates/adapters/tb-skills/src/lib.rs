@@ -276,17 +276,20 @@ const SAFE_EDIT_SKILL: &str = "\
 const COGNITIVE_EXPLORE_SKILL: &str = "\
 # Cognitive Explore
 
-1. Inspect global topology via `tb_overview`, `tb_hubs`, and `tb_graph_health`.
-2. Expand around anchor concepts with `tb_neighborhood` and `tb_references`.
-3. Use `tb_context` to assemble bounded revision-consistent evidence packs with explicit `why` assessments.
+1. Start with `tb_orient` (when `--allow-cognitive` is enabled) or `tb_overview`, `tb_hubs`, and `tb_graph_health`.
+2. Run `tb_analyze_topology` for Brandes gateways, Leiden+NMI+Null Callon communities, and Peel-the-Onion hidden hubs.
+3. Run `tb_detect_gaps` for Dual-Layer (Link ⊕ Rare-IDF) structural blind spots and `tb_fragility_report` for overloaded MOC hubs.
+4. Compare snapshots across git history with `tb_diff_graphs` (supports `async_task: true` under MCP 2.0 SEP-2663 tasks).
+5. Expand anchor concepts with `tb_neighborhood` and assemble bounded evidence packs with `tb_context`; audit draft answers via `tb_audit_bias`.
 ";
 
 const CONTRADICTION_AUDIT_SKILL: &str = "\
 # Contradiction Audit
 
 1. Run `tb_diagnostics` for schema violations, unresolved links, and ambiguous stems.
-2. Cross-check opposing notes directly via `tb_content`; present tensions explicitly rather than averaging them.
-3. Mark unverified dimensions honestly (`unassessed` / `unavailable`) instead of reporting empty conflict lists.
+2. Run `tb_audit_contradictions` (with optional `as_of` ISO date) to surface explicit `conflicts_with` edges, implicit polarity clashes, supersession cycles, and expired active claims.
+3. Preserve Polysingularity: cross-check both poles via `tb_content` and present tensions explicitly rather than averaging them.
+4. Mark unverified dimensions honestly (`unassessed` / `unavailable`) instead of reporting empty conflict lists.
 ";
 
 const SESSION_HANDOFF_SKILL: &str = "\

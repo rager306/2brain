@@ -21,6 +21,19 @@ use tb_graph::TypedLinkGraph;
 use tb_search::SearchIndex;
 use tb_syntax::tokenize;
 
+pub mod claims;
+pub mod evolution;
+
+pub use claims::{
+    AmbiguousClaimRef, ClaimRecord, ContradictionAuditReport, ContradictionItem, ContradictionKind,
+    ContradictionPole, Modality, Polarity, TemporalStatus, TemporalSummary, audit_contradictions,
+    conflict_id, is_claim_relevant, parse_iso_date_prefix,
+};
+pub use evolution::{
+    BetweennessMover, DecayCandidate, EdgeDiffEntry, FragilityReport, HubFragilityEntry,
+    SnapshotDiffReport, SnapshotNodeMeta, TopologyDelta, analyze_fragility, diff_snapshots,
+};
+
 /// One node's Brandes centrality and conceptual gateway metrics.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GatewayRow {

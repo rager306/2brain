@@ -11,8 +11,11 @@ use arc_swap::ArcSwap;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tb_cognition::{
-    OrientHint, TopologyReport, analyze_topology as run_topology,
-    audit_response_bias as run_bias_audit, build_orient_hint, detect_structural_gaps as run_gaps,
+    AmbiguousClaimRef, ClaimRecord, Modality, OrientHint, Polarity, SnapshotNodeMeta,
+    TopologyReport, analyze_fragility as run_fragility, analyze_topology as run_topology,
+    audit_contradictions as run_contradictions, audit_response_bias as run_bias_audit,
+    build_orient_hint, detect_structural_gaps as run_gaps, diff_snapshots as run_diff,
+    is_claim_relevant,
 };
 use tb_contracts::{
     Assessment, CasVerified, EvidenceReceipt, Generation, Locator, RevisionDigest, WriteIntent,
@@ -130,6 +133,17 @@ pub trait WorkspaceStore: Send + Sync {
         _next_generation: Generation,
     ) -> Result<Option<VaultSnapshot>, StoreError> {
         Ok(None)
+    }
+
+    /// Optional read-only historical snapshot loaded at a Git commit/ref (`tb_diff_graphs`).
+    fn load_snapshot_at_git_ref(
+        &self,
+        _repo: &str,
+        _git_ref: &str,
+    ) -> Result<VaultSnapshot, StoreError> {
+        Err(StoreError::Unsupported(
+            "load_snapshot_at_git_ref unsupported".into(),
+        ))
     }
 
     fn create_file(
@@ -1503,6 +1517,93 @@ impl<W: WorkspaceStore> App<W> {
         }))
     }
 
+    /// `tb_audit_contradictions`: pure-domain D03 Claim Layer + R14 Temporal Validity +
+    /// Polysingularity Contradiction Audit (preserves both poles).
+    pub fn audit_contradictions(
+        &self,
+        as_of: Option<&str>,
+        limit: usize,
+    ) -> Result<Value, AppError> {
+        let snap = self.snapshot();
+        let gen_before = snap.generation;
+        let claims = extract_claims(&snap);
+        let report = run_contradictions(&claims, as_of, limit);
+        if self.snapshot.load().generation != gen_before {
+            return Err(AppError::SnapshotStale);
+        }
+        Ok(json!({
+            "audit_contradictions": report,
+            "generation": gen_before.0,
+        }))
+    }
+
+    /// `tb_fragility_report`: Hub Fragility & Overloaded MOC `map + satellite` Split Analysis.
+    pub fn fragility_report(&self, limit: usize) -> Result<Value, AppError> {
+        let snap = self.snapshot();
+        let gen_before = snap.generation;
+        let kinds: BTreeMap<Locator, Option<String>> = snap
+            .files
+            .iter()
+            .map(|(loc, f)| (loc.clone(), f.declared_type.clone()))
+            .collect();
+        let report = run_fragility(&snap.graph, &kinds, limit);
+        if self.snapshot.load().generation != gen_before {
+            return Err(AppError::SnapshotStale);
+        }
+        Ok(json!({
+            "fragility_report": report,
+            "generation": gen_before.0,
+        }))
+    }
+
+    /// `tb_diff_graphs`: structural & topological Difference Graph (`G(T1) -> G(T2)`)
+    /// plus Change-Driven Decay candidates (never decays durable types by age alone).
+    pub fn diff_graphs(
+        &self,
+        from_ref: &str,
+        to_ref: Option<&str>,
+        repo: Option<&str>,
+        limit: usize,
+    ) -> Result<Value, AppError> {
+        let repo_name = repo
+            .map(str::to_owned)
+            .or_else(|| self.snapshot().members.keys().next().cloned())
+            .ok_or_else(|| AppError::NotFound("no workspace member".into()))?;
+        let before_snap = self.store.load_snapshot_at_git_ref(&repo_name, from_ref)?;
+        let before_meta = snapshot_node_meta(&before_snap);
+
+        let (after_snap, gen_fence): (Arc<VaultSnapshot>, Option<Generation>) = match to_ref {
+            Some(r) => (
+                Arc::new(self.store.load_snapshot_at_git_ref(&repo_name, r)?),
+                None,
+            ),
+            None => {
+                let s = self.snapshot();
+                let g = s.generation;
+                (s, Some(g))
+            }
+        };
+        let after_meta = snapshot_node_meta(&after_snap);
+        let report = run_diff(
+            &before_snap.graph,
+            &before_meta,
+            &after_snap.graph,
+            &after_meta,
+            limit,
+        );
+        if let Some(g) = gen_fence
+            && self.snapshot.load().generation != g
+        {
+            return Err(AppError::SnapshotStale);
+        }
+        Ok(json!({
+            "diff_graphs": report,
+            "from_ref": from_ref,
+            "to_ref": to_ref.unwrap_or("WORKING_TREE"),
+            "generation": gen_fence.map(|g| g.0),
+        }))
+    }
+
     /// Refresh the snapshot synchronously after a committed mutation.
     fn refresh_after_mutation(&self) {
         let next_gen = self.generation().next();
@@ -1986,6 +2087,16 @@ impl<W: WorkspaceStore + 'static> AppDispatcher for App<W> {
                 }
                 self.audit_bias(&locs, response_text)
             }
+            "audit_contradictions" => {
+                self.audit_contradictions(opt_str("as_of"), opt_usize("limit", 50))
+            }
+            "fragility_report" => self.fragility_report(opt_usize("limit", 20)),
+            "diff_graphs" => self.diff_graphs(
+                req_str("from_ref")?,
+                opt_str("to_ref"),
+                opt_str("repo"),
+                opt_usize("limit", 20),
+            ),
             "preview_mutation" | "reconcile" | "rollback_preview" | "watch" => Ok(json!({
                 verb: {
                     "status": "ok",
@@ -2076,6 +2187,212 @@ fn string_set_arg(args: &serde_json::Map<String, Value>, key: &str) -> HashSet<S
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// Extract per-node metadata + SHA-256 revision for Difference Graph & Change-Driven Decay.
+#[must_use]
+pub fn snapshot_node_meta(snap: &VaultSnapshot) -> Vec<SnapshotNodeMeta> {
+    snap.files
+        .values()
+        .map(|f| SnapshotNodeMeta {
+            locator: f.locator.clone(),
+            sha256: f.sha256.to_hex(),
+            kind: f.declared_type.clone(),
+            status: f
+                .doc
+                .frontmatter
+                .as_ref()
+                .and_then(|fm| fm.get("status"))
+                .and_then(fm_as_str)
+                .map(str::to_owned),
+        })
+        .collect()
+}
+
+/// Extract normalized `D03`/`R14` [`ClaimRecord`]s from a [`VaultSnapshot`].
+#[must_use]
+pub fn extract_claims(snap: &VaultSnapshot) -> Vec<ClaimRecord> {
+    let mut claims = Vec::new();
+    for f in snap.files.values() {
+        let fm = f.doc.frontmatter.as_ref();
+        let kind = f.declared_type.clone().or_else(|| {
+            fm.and_then(|m| m.get("kind"))
+                .and_then(fm_as_str)
+                .map(str::to_owned)
+        });
+        let status = fm
+            .and_then(|m| m.get("status"))
+            .and_then(fm_as_str)
+            .map(str::to_owned);
+        let raw_polarity = fm.and_then(|m| m.get("polarity")).and_then(fm_as_str);
+        let raw_modality = fm
+            .and_then(|m| m.get("modality"))
+            .and_then(fm_as_str)
+            .or(kind.as_deref());
+        let claim_key = fm
+            .and_then(|m| m.get("claim_key").or_else(|| m.get("subject")))
+            .and_then(fm_as_str)
+            .map(str::to_owned);
+        let valid_from = fm
+            .and_then(|m| {
+                m.get("valid_from").and_then(fm_as_str).or_else(|| {
+                    if let Some(FrontmatterValue::Map(vt)) = m.get("valid_time") {
+                        vt.get("from").and_then(fm_as_str)
+                    } else {
+                        None
+                    }
+                })
+            })
+            .map(str::to_owned);
+        let valid_to = fm
+            .and_then(|m| {
+                m.get("valid_to").and_then(fm_as_str).or_else(|| {
+                    if let Some(FrontmatterValue::Map(vt)) = m.get("valid_time") {
+                        vt.get("to").and_then(fm_as_str)
+                    } else {
+                        None
+                    }
+                })
+            })
+            .map(str::to_owned);
+        let observed_at = fm
+            .and_then(|m| m.get("observed_at").or_else(|| m.get("observed_time")))
+            .and_then(fm_as_str)
+            .map(str::to_owned);
+
+        let mut ambiguous_references = Vec::new();
+        let supersedes = fm
+            .and_then(|m| m.get("supersedes"))
+            .map(|v| {
+                resolve_fm_targets(
+                    snap,
+                    &f.locator.repo,
+                    "supersedes",
+                    v,
+                    &mut ambiguous_references,
+                )
+            })
+            .unwrap_or_default();
+        let conflicts_with = fm
+            .and_then(|m| m.get("conflicts_with"))
+            .map(|v| {
+                resolve_fm_targets(
+                    snap,
+                    &f.locator.repo,
+                    "conflicts_with",
+                    v,
+                    &mut ambiguous_references,
+                )
+            })
+            .unwrap_or_default();
+
+        let relevant = is_claim_relevant(
+            kind.as_deref(),
+            raw_polarity.is_some(),
+            valid_from.is_some() || valid_to.is_some(),
+            !supersedes.is_empty()
+                || !conflicts_with.is_empty()
+                || !ambiguous_references.is_empty(),
+        );
+        if !relevant {
+            continue;
+        }
+
+        let polarity = Polarity::parse(raw_polarity);
+        let modality = Modality::parse(raw_modality);
+
+        claims.push(ClaimRecord {
+            locator: f.locator.clone(),
+            sha256: f.sha256.to_hex(),
+            kind,
+            status,
+            claim_key,
+            polarity,
+            modality,
+            valid_from,
+            valid_to,
+            observed_at,
+            supersedes,
+            conflicts_with,
+            ambiguous_references,
+            summary: f.description.clone(),
+        });
+    }
+    claims
+}
+
+fn fm_as_str(v: &FrontmatterValue) -> Option<&str> {
+    match v {
+        FrontmatterValue::String(s) => Some(s.as_str()),
+        _ => None,
+    }
+}
+
+fn resolve_fm_targets(
+    snap: &VaultSnapshot,
+    default_repo: &str,
+    field: &str,
+    val: &FrontmatterValue,
+    ambiguous_out: &mut Vec<AmbiguousClaimRef>,
+) -> Vec<Locator> {
+    let mut raw_strings = Vec::new();
+    match val {
+        FrontmatterValue::String(s) => raw_strings.push(s.as_str()),
+        FrontmatterValue::Seq(items) => {
+            for item in items {
+                if let FrontmatterValue::String(s) = item {
+                    raw_strings.push(s.as_str());
+                }
+            }
+        }
+        _ => {}
+    }
+    let mut out = Vec::new();
+    for raw in raw_strings {
+        let cleaned = raw
+            .trim()
+            .trim_start_matches("[[")
+            .trim_end_matches("]]")
+            .split('|')
+            .next()
+            .unwrap_or("")
+            .split('#')
+            .next()
+            .unwrap_or("")
+            .trim();
+        if cleaned.is_empty() {
+            continue;
+        }
+        let (target_repo, target_path) = if let Some((t, r)) = cleaned.split_once("::") {
+            (r.trim(), t.trim())
+        } else {
+            (default_repo, cleaned)
+        };
+        if let Some(loc) = snap
+            .path_index
+            .get(&(target_repo.to_owned(), target_path.to_owned()))
+        {
+            out.push(loc.clone());
+        } else if let Some(matches) = snap
+            .stem_index
+            .get(&(target_repo.to_owned(), target_path.to_owned()))
+        {
+            if matches.len() == 1 {
+                out.push(matches[0].clone());
+            } else if matches.len() > 1 {
+                ambiguous_out.push(AmbiguousClaimRef {
+                    field: field.to_owned(),
+                    raw_target: cleaned.to_owned(),
+                    candidates: matches.clone(),
+                });
+            }
+        } else if let Ok(loc) = Locator::new(target_repo, target_path) {
+            out.push(loc);
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
 }
 
 fn file_stem(rel_path: &str) -> &str {

@@ -10,22 +10,24 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rmcp::model::{
-    CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock,
-    GetPromptRequestParams, GetPromptResponse, GetPromptResult, GetSkillRequestParams,
-    GetSkillResult, Implementation, ListPromptsResult, ListResourcesResult, ListSkillsResult,
-    ListToolsResult, PaginatedRequestParams, Prompt, PromptArgument, PromptMessage,
-    ProtocolVersion, ReadResourceDirectoryRequestParams, ReadResourceDirectoryResult,
-    ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult, Resource,
-    ResourceContents, Role, ServerCapabilities, ServerConfig, Skill, SkillFrontmatter,
-    SkillResource, SkillResources, Tool,
+    CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
+    ContentBlock, CreateTaskResult, GetPromptRequestParams, GetPromptResponse, GetPromptResult,
+    GetSkillRequestParams, GetSkillResult, GetTaskParams, GetTaskResult, Implementation,
+    ListPromptsResult, ListResourcesResult, ListSkillsResult, ListToolsResult,
+    PaginatedRequestParams, Prompt, PromptArgument, PromptMessage, ProtocolVersion,
+    ReadResourceDirectoryRequestParams, ReadResourceDirectoryResult, ReadResourceRequestParams,
+    ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, Role, ServerCapabilities,
+    ServerConfig, Skill, SkillFrontmatter, SkillResource, SkillResources, Tool, UpdateTaskParams,
 };
 use rmcp::service::RequestContext;
+use rmcp::task_manager::{TaskExit, TaskManager, TaskOptions};
 use rmcp::{ErrorData as McpError, RoleServer, ServerHandler, ServiceExt};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use tb_app::{AppDispatcher, AppError, VaultSnapshot};
 use tb_skills::SkillCatalog;
 use thiserror::Error;
+use tokio::sync::Semaphore;
 
 /// Protocol versions supported: MCP 2.0 stateless (`2026-07-28`) plus legacy handshakes.
 const SUPPORTED_PROTOCOL_VERSIONS: &[ProtocolVersion] = &[
@@ -39,6 +41,20 @@ const SUPPORTED_PROTOCOL_VERSIONS: &[ProtocolVersion] = &[
 const SERVER_INSTRUCTIONS: &str = "Read-only access to a 2brain v2 workspace (MIT), plus gated mutations and SEP-2640 skills. Start with tb_overview, tb_members, tb_types, or skills/list. Partial tb_content reads never arm writes (SEM-02); complete reads arm both stateful ReadLedger and stateless HMAC read_receipt. tb_search is BM25+proximity and tb_grep is literal substring search (SEM-09).";
 
 const READ_RECEIPT_TTL_SECS: u64 = 900;
+const MAX_CONCURRENT_TASKS: usize = 8;
+
+fn is_cognitive_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "tb_orient"
+            | "tb_analyze_topology"
+            | "tb_detect_gaps"
+            | "tb_audit_bias"
+            | "tb_audit_contradictions"
+            | "tb_fragility_report"
+            | "tb_diff_graphs"
+    )
+}
 
 #[derive(Debug, Error)]
 pub enum McpServerError {
@@ -206,6 +222,8 @@ pub struct TwoBrainMcp {
     ledger: Arc<Mutex<ReadLedger>>,
     signer: ReceiptSigner,
     tools: Arc<Vec<Tool>>,
+    tasks: TaskManager,
+    task_slots: Arc<Semaphore>,
 }
 
 impl TwoBrainMcp {
@@ -221,6 +239,8 @@ impl TwoBrainMcp {
             ledger: Arc::new(Mutex::new(ReadLedger::default())),
             signer,
             tools,
+            tasks: TaskManager::new(),
+            task_slots: Arc::new(Semaphore::new(MAX_CONCURRENT_TASKS)),
         })
     }
 
@@ -312,7 +332,13 @@ impl TwoBrainMcp {
                 let verb = name.strip_prefix("tb_").unwrap_or(name);
                 map_mutation(self.dispatcher.call_mutation(verb, args))
             }
-            "tb_orient" | "tb_analyze_topology" | "tb_detect_gaps" | "tb_audit_bias" => {
+            "tb_orient"
+            | "tb_analyze_topology"
+            | "tb_detect_gaps"
+            | "tb_audit_bias"
+            | "tb_audit_contradictions"
+            | "tb_fragility_report"
+            | "tb_diff_graphs" => {
                 if !self.policy.allow_cognitive {
                     return err_text(
                         "policy/launch_grant: cognitive analytics tools require --allow-cognitive",
@@ -431,6 +457,7 @@ impl ServerHandler for TwoBrainMcp {
             .enable_prompts()
             .enable_resources()
             .enable_skills_with_directory_read()
+            .enable_tasks()
             .build();
         ServerConfig::new(capabilities)
             .with_server_info(Implementation::new("2brain", env!("CARGO_PKG_VERSION")))
@@ -452,16 +479,93 @@ impl ServerHandler for TwoBrainMcp {
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let empty = Map::new();
         let args = request.arguments.as_ref().unwrap_or(&empty).clone();
         let name = request.name.into_owned();
+
+        let wants_async_task = args
+            .get("async_task")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let client_supports_tasks = context
+            .client_capabilities()
+            .is_some_and(|caps| caps.supports_tasks());
+
+        if wants_async_task && client_supports_tasks && is_cognitive_tool(&name) {
+            if !self.policy.allow_cognitive {
+                return Ok(CallToolResponse::Complete(err_text(
+                    "policy/launch_grant: cognitive analytics tools require --allow-cognitive",
+                )));
+            }
+            let Ok(permit) = Arc::clone(&self.task_slots).try_acquire_owned() else {
+                return Ok(CallToolResponse::Complete(err_text(format!(
+                    "policy/task_quota: at most {MAX_CONCURRENT_TASKS} concurrent async tasks permitted"
+                ))));
+            };
+            let this = self.clone();
+            let task_name = name.clone();
+            let task = self.tasks.spawn(
+                TaskOptions::new().with_status_message(format!("running {task_name}")),
+                move |ctx| {
+                    Box::pin(async move {
+                        if ctx.is_cancel_requested() {
+                            drop(permit);
+                            return Err(TaskExit::Cancelled);
+                        }
+                        let res = tokio::task::spawn_blocking(move || {
+                            let _slot = permit;
+                            this.dispatch_tool(&name, &args)
+                        })
+                        .await
+                        .map_err(|e| {
+                            TaskExit::Error(McpError::internal_error(
+                                format!("tool worker panicked: {e}"),
+                                None,
+                            ))
+                        })?;
+                        if ctx.is_cancel_requested() {
+                            return Err(TaskExit::Cancelled);
+                        }
+                        Ok(res)
+                    })
+                },
+            );
+            return Ok(CallToolResponse::Task(CreateTaskResult::new(task)));
+        }
+
         let this = self.clone();
         let result = tokio::task::spawn_blocking(move || this.dispatch_tool(&name, &args))
             .await
             .unwrap_or_else(|e| err_text(format!("tool worker panicked: {e}")));
         Ok(CallToolResponse::Complete(result))
+    }
+
+    async fn get_task(
+        &self,
+        request: GetTaskParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, McpError> {
+        let detailed = self.tasks.get_task(&request.task_id)?;
+        Ok(GetTaskResult::new(detailed))
+    }
+
+    async fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        self.tasks
+            .update_task(&request.task_id, request.input_responses)
+    }
+
+    async fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        self.tasks.cancel_task(&request.task_id)
     }
 
     async fn list_prompts(
@@ -893,6 +997,18 @@ fn build_tool_catalog(policy: LaunchPolicy) -> Vec<Tool> {
                 "tb_audit_bias",
                 "Audit a draft answer against source notes to surface omitted blind-spot clusters.",
             ),
+            make_tool(
+                "tb_audit_contradictions",
+                "Audit D03 claims, R14 temporal validity, and Polysingularity contradictions (preserves both poles).",
+            ),
+            make_tool(
+                "tb_fragility_report",
+                "Analyze articulation-point hub fragility and recommend overloaded MOC map+satellite splits.",
+            ),
+            make_tool(
+                "tb_diff_graphs",
+                "Compare two Git snapshots (G(T1) -> G(T2)) for topological drift and Change-Driven Decay.",
+            ),
         ]);
     }
 
@@ -937,7 +1053,7 @@ mod tests {
             allow_cognitive: true,
             ..LaunchPolicy::default()
         });
-        assert_eq!(cognitive.len(), 42);
+        assert_eq!(cognitive.len(), 45);
     }
 
     #[test]
@@ -990,6 +1106,9 @@ mod tests {
             "tb_orient",
             "tb_tb_orient",
             "tb_tb_analyze_topology",
+            "tb_tb_audit_contradictions",
+            "tb_tb_fragility_report",
+            "tb_tb_diff_graphs",
             "tb_tb_write_file",
         ] {
             let res = server.dispatch_tool(sneaky, &empty);
@@ -999,5 +1118,66 @@ mod tests {
                 "expected '{sneaky}' to be refused under default read-only launch policy"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn sep2663_task_manager_runs_cognitive_tool_and_reports_completed_state() {
+        let app = Arc::new(App::new(DummyStore, VaultSnapshot::empty()));
+        let server = TwoBrainMcp::new(
+            app,
+            LaunchPolicy {
+                allow_cognitive: true,
+                ..LaunchPolicy::default()
+            },
+        );
+        assert!(server.get_info().capabilities.supports_tasks());
+
+        let this = server.clone();
+        let task = server.tasks.spawn(
+            TaskOptions::new().with_status_message("running tb_fragility_report"),
+            move |_ctx| {
+                Box::pin(async move {
+                    let empty = Map::new();
+                    Ok(this.dispatch_tool("tb_fragility_report", &empty))
+                })
+            },
+        );
+
+        let mut completed = false;
+        for _ in 0..40 {
+            let detailed = server
+                .tasks
+                .get_task(&task.task_id)
+                .expect("spawned task must be observable immediately");
+            if detailed.task.status == rmcp::model::TaskStatus::Completed {
+                completed = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(completed, "SEP-2663 task should reach Completed state");
+    }
+
+    #[test]
+    fn task_slot_semaphore_enforces_exact_concurrency_cap_atomically() {
+        let app = Arc::new(App::new(DummyStore, VaultSnapshot::empty()));
+        let server = TwoBrainMcp::new(app, LaunchPolicy::default());
+        let mut held = Vec::new();
+        for _ in 0..MAX_CONCURRENT_TASKS {
+            held.push(
+                Arc::clone(&server.task_slots)
+                    .try_acquire_owned()
+                    .expect("slot within quota must succeed"),
+            );
+        }
+        assert!(
+            Arc::clone(&server.task_slots).try_acquire_owned().is_err(),
+            "admission beyond MAX_CONCURRENT_TASKS must fail closed"
+        );
+        held.pop();
+        assert!(
+            Arc::clone(&server.task_slots).try_acquire_owned().is_ok(),
+            "releasing a finished worker permit must re-open admission"
+        );
     }
 }

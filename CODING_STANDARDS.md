@@ -34,7 +34,13 @@ Defect classes caught by adversarial review and fixed by structural invariants:
 
 9. **Strict Prefix Stripping, Generation Fences & Unambiguous Hash Encoding (`tb-mcp`, `tb-app`, `tb-cognition`):**
    - Never use `trim_start_matches` for MCP tool name dispatch (use `strip_prefix` after verifying exact tool membership in the advertised launch catalog).
-   - Always recheck `self.snapshot.load().generation == gen_before` before caching or releasing derived analytics (`orient`, `analyze_topology`, `detect_gaps`, `audit_bias`).
-   - Always length-prefix variable-length fields in SHA-256 identifiers (`question_id`) rather than joining with literal delimiters.
+   - Always recheck `self.snapshot.load().generation == gen_before` before caching or releasing derived analytics (`orient`, `analyze_topology`, `detect_gaps`, `audit_bias`, `audit_contradictions`, `fragility_report`, `diff_graphs`).
+   - Always length-prefix variable-length fields in SHA-256 identifiers (`question_id`, `conflict_id`) rather than joining with literal delimiters.
+
+10. **Strict Git-Object Parity, Atomic Concurrency Quotas & Explicit Ambiguity (`tb-fs-git`, `tb-mcp`, `tb-app`, `tb-cognition`):**
+   - Historical Git snapshot loaders (`load_snapshot_at_git_ref`) must apply `.2brain/ignore` from the selected commit with the same path-and-parent rules as live scans, and must fail closed on premature EOF, malformed/mismatched `ls-tree` or `cat-file --batch` headers, writer errors, or non-zero child exit status — never returning a truncated partial snapshot.
+   - Enforce concurrent async MCP task quotas with an atomic `tokio::sync::Semaphore` permit held until the blocking worker finishes, never a non-atomic check-then-spawn counter.
+   - Never coerce an ambiguous duplicate stem in `conflicts_with` / `supersedes` into a synthetic fallback `Locator`; emit an explicit `AmbiguousReference` contradiction warning naming all candidate poles.
+
 
 
