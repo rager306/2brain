@@ -1,0 +1,24 @@
+[package]
+name = "two-brain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "2brain"
+path = "src/main.rs"
+
+[dependencies]
+tb-contracts = { workspace = true }
+tb-app = { workspace = true }
+tb-fs-git = { workspace = true }
+tb-journal = { workspace = true }
+tb-skills = { workspace = true }
+tb-ipc = { workspace = true }
+tb-mcp = { workspace = true }
+clap = { workspace = true }
+
+[lints]
+workspace = true

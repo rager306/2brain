@@ -1,0 +1,15 @@
+[package]
+name = "tb-mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+tb-contracts = { workspace = true }
+tb-app = { workspace = true }
+tb-skills = { workspace = true }
+
+[lints]
+workspace = true

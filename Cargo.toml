@@ -1,0 +1,71 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/domain/tb-contracts",
+    "crates/domain/tb-syntax",
+    "crates/domain/tb-schema",
+    "crates/domain/tb-graph",
+    "crates/domain/tb-search",
+    "crates/domain/tb-cognition",
+    "crates/app/tb-app",
+    "crates/adapters/tb-fs-git",
+    "crates/adapters/tb-journal",
+    "crates/adapters/tb-skills",
+    "crates/adapters/tb-ipc",
+    "crates/adapters/tb-mcp",
+    "crates/bin/two-brain",
+]
+
+[workspace.package]
+version = "0.2.0-dev"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+tb-contracts = { path = "crates/domain/tb-contracts" }
+tb-syntax = { path = "crates/domain/tb-syntax" }
+tb-schema = { path = "crates/domain/tb-schema" }
+tb-graph = { path = "crates/domain/tb-graph" }
+tb-search = { path = "crates/domain/tb-search" }
+tb-cognition = { path = "crates/domain/tb-cognition" }
+tb-app = { path = "crates/app/tb-app" }
+tb-fs-git = { path = "crates/adapters/tb-fs-git" }
+tb-journal = { path = "crates/adapters/tb-journal" }
+tb-skills = { path = "crates/adapters/tb-skills" }
+tb-ipc = { path = "crates/adapters/tb-ipc" }
+tb-mcp = { path = "crates/adapters/tb-mcp" }
+
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.11"
+thiserror = "2"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+multiple_unsafe_ops_per_block = "warn"
+undocumented_unsafe_blocks = "warn"
+dbg_macro = "warn"
+todo = "warn"
+wildcard_imports = "warn"
+
+[profile.dev]
+opt-level = 0
+debug = "line-tables-only"
+incremental = false
+
+[profile.dev.package."*"]
+opt-level = 2
+debug = false
+incremental = false
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
