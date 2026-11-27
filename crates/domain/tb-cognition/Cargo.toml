@@ -8,8 +8,11 @@ publish.workspace = true
 
 [dependencies]
 tb-contracts = { workspace = true }
+tb-syntax = { workspace = true }
 tb-graph = { workspace = true }
 tb-search = { workspace = true }
+serde = { workspace = true }
+sha2 = { workspace = true }
 
 [lints]
 workspace = true

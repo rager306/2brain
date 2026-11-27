@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 tb-contracts = { workspace = true }
+tb-cognition = { workspace = true }
 tb-app = { workspace = true }
 tb-fs-git = { workspace = true }
 tb-journal = { workspace = true }

@@ -1119,9 +1119,12 @@ dependencies = [
 name = "tb-cognition"
 version = "0.2.0-dev"
 dependencies = [
+ "serde",
+ "sha2",
  "tb-contracts",
  "tb-graph",
  "tb-search",
+ "tb-syntax",
 ]
 
 [[package]]
@@ -1366,6 +1369,7 @@ dependencies = [
  "notify",
  "serde_json",
  "tb-app",
+ "tb-cognition",
  "tb-contracts",
  "tb-fs-git",
  "tb-ipc",

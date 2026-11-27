@@ -4,12 +4,16 @@
 //! Depends ONLY on `crates/domain/*`. Concrete I/O adapters live in
 //! `crates/adapters/*` and are wired once in `crates/bin/two-brain`.
 
-use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::sync::{Arc, Mutex};
 
 use arc_swap::ArcSwap;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use tb_cognition::{
+    OrientHint, TopologyReport, analyze_topology as run_topology,
+    audit_response_bias as run_bias_audit, build_orient_hint, detect_structural_gaps as run_gaps,
+};
 use tb_contracts::{
     Assessment, CasVerified, EvidenceReceipt, Generation, Locator, RevisionDigest, WriteIntent,
 };
@@ -376,6 +380,8 @@ pub struct App<W: WorkspaceStore> {
     store: W,
     snapshot: ArcSwap<VaultSnapshot>,
     outcomes: Arc<dyn OutcomePort>,
+    orient_cache: Mutex<Option<(Generation, OrientHint)>>,
+    topology_cache: Mutex<Option<(Generation, usize, usize, TopologyReport)>>,
 }
 
 impl<W: WorkspaceStore> App<W> {
@@ -385,6 +391,8 @@ impl<W: WorkspaceStore> App<W> {
             store,
             snapshot: ArcSwap::from_pointee(initial),
             outcomes: Arc::new(DisabledOutcomePort),
+            orient_cache: Mutex::new(None),
+            topology_cache: Mutex::new(None),
         }
     }
 
@@ -394,6 +402,8 @@ impl<W: WorkspaceStore> App<W> {
             store,
             snapshot: ArcSwap::from_pointee(initial),
             outcomes,
+            orient_cache: Mutex::new(None),
+            topology_cache: Mutex::new(None),
         }
     }
 
@@ -1384,6 +1394,115 @@ impl<W: WorkspaceStore> App<W> {
         Ok(json!({ "mutation_outcome": obs }))
     }
 
+    /// `tb_orient`: generation-fenced ~400-token Structural Contextual Hint.
+    pub fn orient(&self, suppressed_question_ids: &HashSet<String>) -> Result<Value, AppError> {
+        let snap = self.snapshot();
+        let gen_before = snap.generation;
+        if suppressed_question_ids.is_empty()
+            && let Ok(guard) = self.orient_cache.lock()
+            && let Some((cached_gen, hint)) = guard.as_ref()
+            && *cached_gen == gen_before
+        {
+            if self.snapshot.load().generation != gen_before {
+                return Err(AppError::SnapshotStale);
+            }
+            return Ok(json!({ "orient": hint, "generation": gen_before.0, "cached": true }));
+        }
+        let hint = build_orient_hint(
+            &snap.graph,
+            &snap.search,
+            snap.files.iter().map(|(loc, f)| (loc, f.body())),
+            suppressed_question_ids,
+        );
+        // Generation fence: refuse to cache or release analytics computed against a superseded snapshot.
+        if self.snapshot.load().generation != gen_before {
+            return Err(AppError::SnapshotStale);
+        }
+        if suppressed_question_ids.is_empty()
+            && let Ok(mut guard) = self.orient_cache.lock()
+        {
+            *guard = Some((gen_before, hint.clone()));
+        }
+        Ok(json!({ "orient": hint, "generation": gen_before.0, "cached": false }))
+    }
+
+    /// `tb_analyze_topology`: generation-fenced Brandes, Gateways, Leiden+NMI+Null, Callon, Peel.
+    pub fn analyze_topology(&self, peel_top_k: usize, limit: usize) -> Result<Value, AppError> {
+        let snap = self.snapshot();
+        let gen_before = snap.generation;
+        let peel_k = peel_top_k.clamp(1, 20);
+        let top_n = limit.clamp(1, 30);
+        if let Ok(guard) = self.topology_cache.lock()
+            && let Some((g, pk, lim, report)) = guard.as_ref()
+            && *g == gen_before
+            && *pk == peel_k
+            && *lim == top_n
+        {
+            if self.snapshot.load().generation != gen_before {
+                return Err(AppError::SnapshotStale);
+            }
+            return Ok(json!({
+                "analyze_topology": report,
+                "generation": gen_before.0,
+                "cached": true,
+            }));
+        }
+        let report = run_topology(&snap.graph, peel_k, top_n);
+        if self.snapshot.load().generation != gen_before {
+            return Err(AppError::SnapshotStale);
+        }
+        if let Ok(mut guard) = self.topology_cache.lock() {
+            *guard = Some((gen_before, peel_k, top_n, report.clone()));
+        }
+        Ok(json!({
+            "analyze_topology": report,
+            "generation": gen_before.0,
+            "cached": false,
+        }))
+    }
+
+    /// `tb_detect_gaps`: Dual-Layer Link ⊕ Rare-IDF Discrepancy with Anti-Tautology & Negative Memory.
+    pub fn detect_gaps(
+        &self,
+        suppressed_question_ids: &HashSet<String>,
+        limit: usize,
+    ) -> Result<Value, AppError> {
+        let snap = self.snapshot();
+        let gen_before = snap.generation;
+        let report = run_gaps(
+            &snap.graph,
+            &snap.search,
+            snap.files.iter().map(|(loc, f)| (loc, f.body())),
+            suppressed_question_ids,
+            limit.clamp(1, 30),
+        );
+        if self.snapshot.load().generation != gen_before {
+            return Err(AppError::SnapshotStale);
+        }
+        Ok(json!({
+            "detect_gaps": report,
+            "generation": gen_before.0,
+        }))
+    }
+
+    /// `tb_audit_bias`: deterministic source-cluster coverage vs blind spots for a draft answer.
+    pub fn audit_bias(&self, locators: &[Locator], response_text: &str) -> Result<Value, AppError> {
+        let snap = self.snapshot();
+        let gen_before = snap.generation;
+        let sources: Vec<(&Locator, &str)> = locators
+            .iter()
+            .filter_map(|loc| snap.files.get(loc).map(|f| (&f.locator, f.body())))
+            .collect();
+        let report = run_bias_audit(sources, response_text);
+        if self.snapshot.load().generation != gen_before {
+            return Err(AppError::SnapshotStale);
+        }
+        Ok(json!({
+            "audit_bias": report,
+            "generation": gen_before.0,
+        }))
+    }
+
     /// Refresh the snapshot synchronously after a committed mutation.
     fn refresh_after_mutation(&self) {
         let next_gen = self.generation().next();
@@ -1835,6 +1954,38 @@ impl<W: WorkspaceStore + 'static> AppDispatcher for App<W> {
                 opt_usize("max_chars_per_note", 1200),
             ),
             "mutation_outcome" => self.mutation_outcome(req_str("request_id")?),
+            "orient" => {
+                let suppressed = string_set_arg(args, "suppressed_question_ids");
+                self.orient(&suppressed)
+            }
+            "analyze_topology" => {
+                self.analyze_topology(opt_usize("peel_top_k", 5), opt_usize("limit", 10))
+            }
+            "detect_gaps" => {
+                let suppressed = string_set_arg(args, "suppressed_question_ids");
+                self.detect_gaps(&suppressed, opt_usize("limit", 15))
+            }
+            "audit_bias" => {
+                let response_text = req_str("response_text")?;
+                let default_repo = self.default_repo_name().unwrap_or_default();
+                let mut locs = Vec::new();
+                if let Some(arr) = args.get("sources").and_then(Value::as_array) {
+                    for item in arr {
+                        if let Some(obj) = item.as_object()
+                            && let Some(path) = obj.get("path").and_then(Value::as_str)
+                        {
+                            let repo = obj
+                                .get("repo")
+                                .and_then(Value::as_str)
+                                .unwrap_or(&default_repo);
+                            if let Ok(loc) = Locator::new(repo, path) {
+                                locs.push(loc);
+                            }
+                        }
+                    }
+                }
+                self.audit_bias(&locs, response_text)
+            }
             "preview_mutation" | "reconcile" | "rollback_preview" | "watch" => Ok(json!({
                 verb: {
                     "status": "ok",
@@ -1913,6 +2064,18 @@ impl<W: WorkspaceStore + 'static> AppDispatcher for App<W> {
             ))),
         }
     }
+}
+
+fn string_set_arg(args: &serde_json::Map<String, Value>, key: &str) -> HashSet<String> {
+    args.get(key)
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn file_stem(rel_path: &str) -> &str {

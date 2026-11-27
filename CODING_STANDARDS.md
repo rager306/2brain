@@ -32,3 +32,9 @@ Defect classes caught by adversarial review and fixed by structural invariants:
    - Acquire an exclusive `fs4` `<socket>.lock` BEFORE unlinking any stale socket; set `0700` on the run directory and `0600` on the bound Unix socket.
    - Generate HMAC signing keys exclusively from the OS CSPRNG (`getrandom::fill`) and fail startup if entropy is unavailable.
 
+9. **Strict Prefix Stripping, Generation Fences & Unambiguous Hash Encoding (`tb-mcp`, `tb-app`, `tb-cognition`):**
+   - Never use `trim_start_matches` for MCP tool name dispatch (use `strip_prefix` after verifying exact tool membership in the advertised launch catalog).
+   - Always recheck `self.snapshot.load().generation == gen_before` before caching or releasing derived analytics (`orient`, `analyze_topology`, `detect_gaps`, `audit_bias`).
+   - Always length-prefix variable-length fields in SHA-256 identifiers (`question_id`) rather than joining with literal delimiters.
+
+

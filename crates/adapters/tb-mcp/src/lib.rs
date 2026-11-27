@@ -53,6 +53,7 @@ pub struct LaunchPolicy {
     pub allow_composition: bool,
     pub allow_workspace_shape: bool,
     pub outcome_registry: bool,
+    pub allow_cognitive: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -288,7 +289,7 @@ impl TwoBrainMcp {
                 if !self.policy.allow_mutations {
                     return err_text("policy/launch_grant: mutations are disabled");
                 }
-                let verb = name.trim_start_matches("tb_");
+                let verb = name.strip_prefix("tb_").unwrap_or(name);
                 map_mutation(self.dispatcher.call_mutation(verb, args))
             }
             "tb_add_dep" | "tb_remove_dep" => {
@@ -297,7 +298,7 @@ impl TwoBrainMcp {
                         "policy/launch_grant: composition mutations require --allow-mutations and --allow-composition",
                     );
                 }
-                let verb = name.trim_start_matches("tb_");
+                let verb = name.strip_prefix("tb_").unwrap_or(name);
                 map_mutation(self.dispatcher.call_mutation(verb, args))
             }
             "tb_add_workspace_member"
@@ -308,14 +309,27 @@ impl TwoBrainMcp {
                         "policy/launch_grant: workspace-shape mutations require --allow-mutations and --allow-workspace-shape",
                     );
                 }
-                let verb = name.trim_start_matches("tb_");
+                let verb = name.strip_prefix("tb_").unwrap_or(name);
                 map_mutation(self.dispatcher.call_mutation(verb, args))
             }
-            other if other.starts_with("tb_") => {
-                let verb = other.trim_start_matches("tb_");
+            "tb_orient" | "tb_analyze_topology" | "tb_detect_gaps" | "tb_audit_bias" => {
+                if !self.policy.allow_cognitive {
+                    return err_text(
+                        "policy/launch_grant: cognitive analytics tools require --allow-cognitive",
+                    );
+                }
+                let verb = name.strip_prefix("tb_").unwrap_or(name);
                 map_app(self.dispatcher.call_read(verb, args))
             }
-            _ => err_text(format!("unknown tool '{name}'")),
+            other => {
+                if !self.tools.iter().any(|t| t.name.as_ref() == other) {
+                    return err_text(format!("unknown tool '{other}'"));
+                }
+                let Some(verb) = other.strip_prefix("tb_") else {
+                    return err_text(format!("unknown tool '{other}'"));
+                };
+                map_app(self.dispatcher.call_read(verb, args))
+            }
         }
     }
 
@@ -861,6 +875,27 @@ fn build_tool_catalog(policy: LaunchPolicy) -> Vec<Tool> {
         }
     }
 
+    if policy.allow_cognitive {
+        tools.extend([
+            make_tool(
+                "tb_orient",
+                "Return a compact ~400-token structural contextual hint (communities, gateways, peel bridges, gaps).",
+            ),
+            make_tool(
+                "tb_analyze_topology",
+                "Run CSR Brandes betweenness, conceptual gateways, Leiden+NMI+Null Callon communities, and Peel-the-Onion.",
+            ),
+            make_tool(
+                "tb_detect_gaps",
+                "Detect Dual-Layer (Link ⊕ Rare-IDF) structural gaps with template & anti-tautology filters.",
+            ),
+            make_tool(
+                "tb_audit_bias",
+                "Audit a draft answer against source notes to surface omitted blind-spot clusters.",
+            ),
+        ]);
+    }
+
     tools
 }
 
@@ -894,8 +929,15 @@ mod tests {
             allow_composition: true,
             allow_workspace_shape: true,
             outcome_registry: false,
+            allow_cognitive: false,
         });
         assert_eq!(full.len(), 54);
+
+        let cognitive = build_tool_catalog(LaunchPolicy {
+            allow_cognitive: true,
+            ..LaunchPolicy::default()
+        });
+        assert_eq!(cognitive.len(), 42);
     }
 
     #[test]
@@ -937,5 +979,25 @@ mod tests {
                 .verify(&tampered, "vault", "ops/task.md", "1122334455667788")
                 .is_err()
         );
+    }
+
+    #[test]
+    fn repeated_prefix_cannot_bypass_cognitive_or_mutation_grants() {
+        let app = Arc::new(App::new(DummyStore, VaultSnapshot::empty()));
+        let server = TwoBrainMcp::new(app, LaunchPolicy::default());
+        let empty = Map::new();
+        for sneaky in [
+            "tb_orient",
+            "tb_tb_orient",
+            "tb_tb_analyze_topology",
+            "tb_tb_write_file",
+        ] {
+            let res = server.dispatch_tool(sneaky, &empty);
+            assert_eq!(
+                res.is_error,
+                Some(true),
+                "expected '{sneaky}' to be refused under default read-only launch policy"
+            );
+        }
     }
 }

@@ -31,6 +31,17 @@ enum Command {
         /// Path to the workspace directory.
         path: PathBuf,
     },
+    /// Run InfraNodus & cognitive topology + dual-layer gap analysis on a workspace.
+    Analyze {
+        /// Path to the workspace directory.
+        path: PathBuf,
+        /// Number of top-betweenness hubs to mask for Peel-the-Onion.
+        #[arg(long = "peel-top-k", default_value_t = 5)]
+        peel_top_k: usize,
+        /// Maximum rows per section.
+        #[arg(long = "limit", default_value_t = 5)]
+        limit: usize,
+    },
     /// Run or inspect the Unix-socket workspace daemon.
     Daemon {
         #[command(subcommand)]
@@ -60,6 +71,9 @@ enum Command {
         /// Acknowledge durable outcome-registry tracking for request_id mutations.
         #[arg(long = "outcome-registry")]
         outcome_registry: bool,
+        /// Enable the 4 v2 cognitive analytics tools (tb_orient, tb_analyze_topology, tb_detect_gaps, tb_audit_bias).
+        #[arg(long = "allow-cognitive")]
+        allow_cognitive: bool,
     },
 }
 
@@ -112,6 +126,11 @@ fn main() {
             println!("  layers       domain (0 I/O) -> app (ports) -> adapters -> cli");
         }
         Command::Check { path } => run_check(&path),
+        Command::Analyze {
+            path,
+            peel_top_k,
+            limit,
+        } => run_analyze(&path, peel_top_k, limit),
         Command::Daemon { command } => match command {
             DaemonCommand::Start { workspace } => run_daemon_start(&workspace),
             DaemonCommand::Status { workspace } => run_daemon_status(&workspace),
@@ -148,12 +167,14 @@ fn main() {
             allow_composition,
             allow_workspace_shape,
             outcome_registry,
+            allow_cognitive,
         } => {
             let policy = LaunchPolicy {
                 allow_mutations,
                 allow_composition,
                 allow_workspace_shape,
                 outcome_registry,
+                allow_cognitive,
             };
             if let Some(workspace) = in_process {
                 run_mcp_in_process(&workspace, policy);
@@ -166,6 +187,100 @@ fn main() {
                 std::process::exit(2);
             }
         }
+    }
+}
+
+fn run_analyze(path: &std::path::Path, peel_top_k: usize, limit: usize) {
+    let load_start = Instant::now();
+    let (_, snap) = match tb_fs_git::load_snapshot(path) {
+        Ok(pair) => pair,
+        Err(err) => {
+            eprintln!("error loading workspace: {err}");
+            std::process::exit(1);
+        }
+    };
+    let load_ms = load_start.elapsed().as_secs_f64() * 1000.0;
+
+    let topo_start = Instant::now();
+    let topo = tb_cognition::analyze_topology(&snap.graph, peel_top_k, limit);
+    let topo_ms = topo_start.elapsed().as_secs_f64() * 1000.0;
+
+    let gap_start = Instant::now();
+    let gaps = tb_cognition::detect_structural_gaps(
+        &snap.graph,
+        &snap.search,
+        snap.files.iter().map(|(loc, f)| (loc, f.body())),
+        &std::collections::HashSet::new(),
+        limit,
+    );
+    let gap_ms = gap_start.elapsed().as_secs_f64() * 1000.0;
+
+    println!(
+        "2brain analyze (load={load_ms:.1} ms, topology={topo_ms:.1} ms, gaps={gap_ms:.1} ms)"
+    );
+    println!(
+        "  graph        nodes={} edges={} communities={} Q={:.4} (null={:.4}±{:.4}, Z={:.2}) NMI={:.3} (min={:.3})",
+        topo.node_count,
+        topo.edge_count,
+        topo.communities.community_count,
+        topo.communities.modularity,
+        topo.communities.null_mean_modularity,
+        topo.communities.null_std_modularity,
+        topo.communities.modularity_z_score,
+        topo.communities.mean_nmi,
+        topo.communities.min_nmi,
+    );
+    println!("  top_communities:");
+    for c in &topo.communities.communities {
+        let reps: Vec<&str> = c.representatives.iter().map(|l| l.path.as_str()).collect();
+        println!(
+            "    #{} size={} ext={} dens={:.3} quadrant={:?} reps={}",
+            c.id,
+            c.size,
+            c.external_edges,
+            c.density,
+            c.quadrant,
+            reps.join(", ")
+        );
+    }
+    println!("  top_gateways (bc/deg):");
+    for g in &topo.top_gateways {
+        println!(
+            "    {} bc={:.4} deg={} ratio={:.4}",
+            g.locator.path, g.betweenness, g.degree, g.gateway_ratio
+        );
+    }
+    println!(
+        "  peel_the_onion (masked={} residual_communities={}):",
+        topo.peel.masked_hubs.len(),
+        topo.peel.residual_community_count
+    );
+    for g in &topo.peel.residual_gateways {
+        println!(
+            "    {} bc={:.4} deg={} ratio={:.4}",
+            g.locator.path, g.betweenness, g.degree, g.gateway_ratio
+        );
+    }
+    println!(
+        "  dual_layer_gaps (evaluated={} anti_tautology_filtered={} template_terms_filtered={}):",
+        gaps.candidate_pairs_evaluated,
+        gaps.filtered_by_anti_tautology,
+        gaps.template_terms_filtered
+    );
+    for gap in &gaps.gaps {
+        println!(
+            "    [{}] {} <-> {} (sim={:.3}, dist={:?}, terms={})",
+            gap.question_id,
+            gap.from.path,
+            gap.to.path,
+            gap.lexical_similarity,
+            gap.graph_distance,
+            gap.shared_terms.join(",")
+        );
+    }
+    println!("  fragile_hubs (articulation points):");
+    for h in &topo.fragile_hubs {
+        println!("    {} deg={}", h.locator.path, h.degree);
     }
 }
 
