@@ -3,17 +3,24 @@
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::ffi::OsString;
-use std::fs;
-use std::io::Read;
+use std::fs::{self, OpenOptions};
+use std::io::{Read, Write};
 use std::os::fd::{AsFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
+use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
+use fs4::fs_std::FileExt;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
-use rustix::fs::{Mode, OFlags, open, openat, readlinkat};
+use rustix::fs::{
+    AtFlags, Mode, OFlags, RenameFlags, fsync, mkdirat, open, openat, readlinkat, renameat,
+    renameat_with, statat, unlinkat,
+};
 use rustix::io::Errno;
 use saphyr::{LoadableYamlNode, Scalar, Yaml};
-use tb_app::{IndexedFile, MemberMeta, StoreError, VaultSnapshot, WorkspaceStore};
+use tb_app::{IndexedFile, MemberMeta, MutationReceipt, StoreError, VaultSnapshot, WorkspaceStore};
 use tb_contracts::{
     CasVerified, EvidenceReceipt, Generation, Locator, RevisionDigest, WriteGuardHash, WriteIntent,
 };
@@ -23,10 +30,13 @@ use tb_search::SearchIndex;
 use tb_syntax::{EdgeKind, FrontmatterValue, ParsedDocument, parse_document};
 use thiserror::Error;
 
-/// Read-only (Phase 2) / read-write (Phase 3) confined filesystem workspace store.
+static TEMP_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// Confined filesystem and Git workspace store (read-only + atomic CAS mutations).
 #[derive(Clone, Debug)]
 pub struct FsWorkspaceStore {
     members: BTreeMap<String, PathBuf>,
+    write_lock: Arc<Mutex<()>>,
 }
 
 impl FsWorkspaceStore {
@@ -34,23 +44,27 @@ impl FsWorkspaceStore {
     pub fn single(repo_name: impl Into<String>, canonical_root: PathBuf) -> Self {
         let mut members = BTreeMap::new();
         members.insert(repo_name.into(), canonical_root);
-        Self { members }
+        Self {
+            members,
+            write_lock: Arc::new(Mutex::new(())),
+        }
     }
 
     #[must_use]
     pub fn member_root(&self, repo: &str) -> Option<&Path> {
         self.members.get(repo).map(PathBuf::as_path)
     }
+
+    fn root_for(&self, repo: &str) -> Result<&PathBuf, StoreError> {
+        self.members
+            .get(repo)
+            .ok_or_else(|| StoreError::NotFound(format!("unknown member '{repo}'")))
+    }
 }
 
 impl WorkspaceStore for FsWorkspaceStore {
     fn read_exact(&self, locator: &Locator) -> Result<(Vec<u8>, EvidenceReceipt), StoreError> {
-        let Some(canonical_root) = self.members.get(&locator.repo) else {
-            return Err(StoreError::NotFound(format!(
-                "unknown member '{}'",
-                locator.repo
-            )));
-        };
+        let canonical_root = self.root_for(&locator.repo)?;
         let candidate = canonical_root.join(&locator.path);
         let bytes = match confined_read_bytes(canonical_root, &candidate) {
             Ok(Some(b)) => b,
@@ -83,10 +97,14 @@ impl WorkspaceStore for FsWorkspaceStore {
         Ok((bytes, receipt))
     }
 
-    fn commit_verified(&self, _intent: WriteIntent<CasVerified>) -> Result<String, StoreError> {
-        Err(StoreError::Unsupported(
-            "mutations are wired in Phase 3".to_owned(),
-        ))
+    fn commit_verified(&self, intent: WriteIntent<CasVerified>) -> Result<String, StoreError> {
+        let receipt = self.write_file_cas(
+            intent.locator(),
+            &intent.expected_guard().to_hex(),
+            intent.new_content(),
+            &format!("2brain: write {}", intent.locator().path),
+        )?;
+        Ok(receipt.commit.unwrap_or(receipt.hash))
     }
 
     fn reload_snapshot(
@@ -99,6 +117,486 @@ impl WorkspaceStore for FsWorkspaceStore {
         let snap = load_snapshot_with_generation(root, next_generation)
             .map_err(|e| StoreError::Io(e.to_string()))?;
         Ok(Some(snap))
+    }
+
+    fn create_file(
+        &self,
+        locator: &Locator,
+        content: &str,
+        commit_message: &str,
+    ) -> Result<MutationReceipt, StoreError> {
+        let canonical_root = self.root_for(&locator.repo)?;
+        let _lock = acquire_workspace_write_lock(&self.write_lock, canonical_root)?;
+        let (parent_fd, file_name) = open_confined_parent_dir(canonical_root, &locator.path, true)?;
+        if statat(&parent_fd, &file_name, AtFlags::SYMLINK_NOFOLLOW).is_ok() {
+            return Err(StoreError::AlreadyExists(format!(
+                "{}/{}",
+                locator.repo, locator.path
+            )));
+        }
+        atomic_write_in_dirfd(&parent_fd, &file_name, content.as_bytes())?;
+        let commit = match git_commit_paths(
+            canonical_root,
+            &[locator.path.as_str()],
+            commit_message,
+        ) {
+            Ok(c) => c,
+            Err(git_err) => {
+                return match unlinkat(&parent_fd, &file_name, AtFlags::empty()) {
+                    Ok(()) => Err(git_err),
+                    Err(unlink_err) => Err(StoreError::PostEffectFailure(format!(
+                        "git commit failed ({git_err}) and rollback unlink failed ({unlink_err})"
+                    ))),
+                };
+            }
+        };
+        let bytes = content.as_bytes();
+        Ok(MutationReceipt {
+            repo: locator.repo.clone(),
+            path: locator.path.clone(),
+            sha256: RevisionDigest::of_bytes(bytes).to_hex(),
+            hash: WriteGuardHash::of_bytes(bytes).to_hex(),
+            commit,
+        })
+    }
+
+    fn write_file_cas(
+        &self,
+        locator: &Locator,
+        expected_hash: &str,
+        content: &str,
+        commit_message: &str,
+    ) -> Result<MutationReceipt, StoreError> {
+        let canonical_root = self.root_for(&locator.repo)?;
+        let _lock = acquire_workspace_write_lock(&self.write_lock, canonical_root)?;
+        let target = canonical_root.join(&locator.path);
+        let prior_bytes = verify_live_cas(canonical_root, &target, locator, expected_hash)?;
+        let (parent_fd, file_name) =
+            open_confined_parent_dir(canonical_root, &locator.path, false)?;
+        reject_symlink_leaf(&parent_fd, &file_name)?;
+        atomic_write_in_dirfd(&parent_fd, &file_name, content.as_bytes())?;
+        let commit = match git_commit_paths(
+            canonical_root,
+            &[locator.path.as_str()],
+            commit_message,
+        ) {
+            Ok(c) => c,
+            Err(git_err) => {
+                return match atomic_write_in_dirfd(&parent_fd, &file_name, &prior_bytes) {
+                    Ok(()) => Err(git_err),
+                    Err(restore_err) => Err(StoreError::PostEffectFailure(format!(
+                        "git commit failed ({git_err}) and rollback restore failed ({restore_err})"
+                    ))),
+                };
+            }
+        };
+        let bytes = content.as_bytes();
+        Ok(MutationReceipt {
+            repo: locator.repo.clone(),
+            path: locator.path.clone(),
+            sha256: RevisionDigest::of_bytes(bytes).to_hex(),
+            hash: WriteGuardHash::of_bytes(bytes).to_hex(),
+            commit,
+        })
+    }
+
+    fn edit_file_cas(
+        &self,
+        locator: &Locator,
+        expected_hash: &str,
+        old_str: &str,
+        new_str: &str,
+        commit_message: &str,
+    ) -> Result<MutationReceipt, StoreError> {
+        let canonical_root = self.root_for(&locator.repo)?;
+        let _lock = acquire_workspace_write_lock(&self.write_lock, canonical_root)?;
+        let target = canonical_root.join(&locator.path);
+        let live_bytes = verify_live_cas(canonical_root, &target, locator, expected_hash)?;
+        let live_text = std::str::from_utf8(&live_bytes)
+            .map_err(|_| StoreError::InvalidUtf8(format!("{}/{}", locator.repo, locator.path)))?;
+        if old_str.is_empty() || !live_text.contains(old_str) {
+            return Err(StoreError::InvalidEdit(
+                "target text not found in current file".to_owned(),
+            ));
+        }
+        let updated = live_text.replacen(old_str, new_str, 1);
+        let (parent_fd, file_name) =
+            open_confined_parent_dir(canonical_root, &locator.path, false)?;
+        reject_symlink_leaf(&parent_fd, &file_name)?;
+        atomic_write_in_dirfd(&parent_fd, &file_name, updated.as_bytes())?;
+        let commit = match git_commit_paths(
+            canonical_root,
+            &[locator.path.as_str()],
+            commit_message,
+        ) {
+            Ok(c) => c,
+            Err(git_err) => {
+                return match atomic_write_in_dirfd(&parent_fd, &file_name, &live_bytes) {
+                    Ok(()) => Err(git_err),
+                    Err(restore_err) => Err(StoreError::PostEffectFailure(format!(
+                        "git commit failed ({git_err}) and rollback restore failed ({restore_err})"
+                    ))),
+                };
+            }
+        };
+        let bytes = updated.as_bytes();
+        Ok(MutationReceipt {
+            repo: locator.repo.clone(),
+            path: locator.path.clone(),
+            sha256: RevisionDigest::of_bytes(bytes).to_hex(),
+            hash: WriteGuardHash::of_bytes(bytes).to_hex(),
+            commit,
+        })
+    }
+
+    fn delete_file_cas(
+        &self,
+        locator: &Locator,
+        expected_hash: &str,
+        commit_message: &str,
+    ) -> Result<Option<String>, StoreError> {
+        let canonical_root = self.root_for(&locator.repo)?;
+        let _lock = acquire_workspace_write_lock(&self.write_lock, canonical_root)?;
+        let target = canonical_root.join(&locator.path);
+        let prior_bytes = verify_live_cas(canonical_root, &target, locator, expected_hash)?;
+        let (parent_fd, file_name) =
+            open_confined_parent_dir(canonical_root, &locator.path, false)?;
+        reject_symlink_leaf(&parent_fd, &file_name)?;
+        unlinkat(&parent_fd, &file_name, AtFlags::empty())
+            .map_err(|e| StoreError::Io(format!("unlinkat {}: {e}", locator.path)))?;
+        match git_commit_paths(canonical_root, &[locator.path.as_str()], commit_message) {
+            Ok(c) => Ok(c),
+            Err(git_err) => match atomic_write_in_dirfd(&parent_fd, &file_name, &prior_bytes) {
+                Ok(()) => Err(git_err),
+                Err(restore_err) => Err(StoreError::PostEffectFailure(format!(
+                    "git commit failed ({git_err}) and rollback restore failed ({restore_err})"
+                ))),
+            },
+        }
+    }
+
+    fn rename_file_cas(
+        &self,
+        from: &Locator,
+        to: &Locator,
+        expected_hash: &str,
+        commit_message: &str,
+    ) -> Result<MutationReceipt, StoreError> {
+        if from.repo != to.repo {
+            return Err(StoreError::InvalidEdit(
+                "rename must stay within the same repository".to_owned(),
+            ));
+        }
+        let canonical_root = self.root_for(&from.repo)?;
+        let _lock = acquire_workspace_write_lock(&self.write_lock, canonical_root)?;
+        let src = canonical_root.join(&from.path);
+        let live_bytes = verify_live_cas(canonical_root, &src, from, expected_hash)?;
+        let (src_parent_fd, src_name) =
+            open_confined_parent_dir(canonical_root, &from.path, false)?;
+        reject_symlink_leaf(&src_parent_fd, &src_name)?;
+        let (dst_parent_fd, dst_name) = open_confined_parent_dir(canonical_root, &to.path, true)?;
+        if statat(&dst_parent_fd, &dst_name, AtFlags::SYMLINK_NOFOLLOW).is_ok() {
+            return Err(StoreError::AlreadyExists(format!(
+                "{}/{}",
+                to.repo, to.path
+            )));
+        }
+        renameat_with(
+            &src_parent_fd,
+            &src_name,
+            &dst_parent_fd,
+            &dst_name,
+            RenameFlags::NOREPLACE,
+        )
+        .map_err(|errno| {
+            if errno == Errno::EXIST {
+                StoreError::AlreadyExists(format!("{}/{}", to.repo, to.path))
+            } else {
+                StoreError::Io(format!("renameat {} -> {}: {errno}", from.path, to.path))
+            }
+        })?;
+        let commit = match git_commit_paths(
+            canonical_root,
+            &[from.path.as_str(), to.path.as_str()],
+            commit_message,
+        ) {
+            Ok(c) => c,
+            Err(git_err) => {
+                return match renameat(&dst_parent_fd, &dst_name, &src_parent_fd, &src_name) {
+                    Ok(()) => Err(git_err),
+                    Err(rb_err) => Err(StoreError::PostEffectFailure(format!(
+                        "git commit failed ({git_err}) and rollback rename failed ({rb_err})"
+                    ))),
+                };
+            }
+        };
+        Ok(MutationReceipt {
+            repo: to.repo.clone(),
+            path: to.path.clone(),
+            sha256: RevisionDigest::of_bytes(&live_bytes).to_hex(),
+            hash: WriteGuardHash::of_bytes(&live_bytes).to_hex(),
+            commit,
+        })
+    }
+}
+
+struct WorkspaceWriteLock<'a> {
+    _in_proc: std::sync::MutexGuard<'a, ()>,
+    _file_lock: fs::File,
+}
+
+/// Acquire BOTH the in-process mutex and the interprocess `fs4` lock on `<root>/.2brain/engine/write.lock`.
+fn acquire_workspace_write_lock<'a>(
+    in_proc_mutex: &'a Mutex<()>,
+    canonical_root: &Path,
+) -> Result<WorkspaceWriteLock<'a>, StoreError> {
+    let in_proc = in_proc_mutex
+        .lock()
+        .map_err(|_| StoreError::Io("workspace write lock poisoned".into()))?;
+    let engine_dir = canonical_root.join(".2brain").join("engine");
+    fs::create_dir_all(&engine_dir)
+        .map_err(|e| StoreError::Io(format!("{}: {e}", engine_dir.display())))?;
+    let lock_path = engine_dir.join("write.lock");
+    if let Ok(meta) = fs::symlink_metadata(&lock_path)
+        && meta.file_type().is_symlink()
+    {
+        return Err(StoreError::SymlinkEscape(lock_path.display().to_string()));
+    }
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+        .map_err(|e| StoreError::Io(format!("{}: {e}", lock_path.display())))?;
+    file.lock_exclusive()
+        .map_err(|e| StoreError::Io(format!("lock_exclusive {}: {e}", lock_path.display())))?;
+    Ok(WorkspaceWriteLock {
+        _in_proc: in_proc,
+        _file_lock: file,
+    })
+}
+
+fn verify_live_cas(
+    canonical_root: &Path,
+    target: &Path,
+    locator: &Locator,
+    expected_hash: &str,
+) -> Result<Vec<u8>, StoreError> {
+    let bytes = match confined_read_bytes(canonical_root, target) {
+        Ok(Some(b)) => b,
+        Ok(None) => {
+            return Err(StoreError::NotFound(format!(
+                "{}/{}",
+                locator.repo, locator.path
+            )));
+        }
+        Err(FsError::SymlinkEscape(p)) => {
+            return Err(StoreError::SymlinkEscape(p.display().to_string()));
+        }
+        Err(FsError::Io { path, source }) => {
+            return Err(StoreError::Io(format!("{}: {source}", path.display())));
+        }
+    };
+    let live_guard = WriteGuardHash::of_bytes(&bytes).to_hex();
+    let live_sha = RevisionDigest::of_bytes(&bytes).to_hex();
+    let expected_norm = expected_hash
+        .strip_prefix("sha256:")
+        .unwrap_or(expected_hash);
+    if expected_norm != live_guard && !expected_norm.eq_ignore_ascii_case(&live_sha) {
+        return Err(StoreError::CasMismatch(format!(
+            "expected_hash '{expected_hash}' does not match current file guard '{live_guard}'"
+        )));
+    }
+    Ok(bytes)
+}
+
+/// Open the parent directory of `rel_path` strictly via `openat(..., O_NOFOLLOW | O_DIRECTORY)`
+/// starting from `canonical_root`, optionally creating missing subdirectories via `mkdirat`.
+fn open_confined_parent_dir(
+    canonical_root: &Path,
+    rel_path: &str,
+    create_parents: bool,
+) -> Result<(OwnedFd, OsString), StoreError> {
+    let mut comps: Vec<OsString> = Vec::new();
+    for comp in Path::new(rel_path).components() {
+        match comp {
+            Component::Normal(seg) => comps.push(seg.to_os_string()),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(StoreError::SymlinkEscape(rel_path.to_owned()));
+            }
+        }
+    }
+    let Some(file_name) = comps.pop() else {
+        return Err(StoreError::InvalidEdit("empty target path".to_owned()));
+    };
+    let mut cur_fd: OwnedFd = open(
+        canonical_root,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|e| StoreError::Io(format!("open root {}: {e}", canonical_root.display())))?;
+
+    for dir_seg in comps {
+        match openat(
+            &cur_fd,
+            dir_seg.as_os_str(),
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        ) {
+            Ok(next_fd) => cur_fd = next_fd,
+            Err(Errno::NOENT) if create_parents => {
+                match mkdirat(
+                    &cur_fd,
+                    dir_seg.as_os_str(),
+                    Mode::from_bits_truncate(0o755),
+                ) {
+                    Ok(()) | Err(Errno::EXIST) => {}
+                    Err(e) => {
+                        return Err(StoreError::Io(format!(
+                            "mkdirat {}: {e}",
+                            dir_seg.to_string_lossy()
+                        )));
+                    }
+                }
+                cur_fd = openat(
+                    &cur_fd,
+                    dir_seg.as_os_str(),
+                    OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+                    Mode::empty(),
+                )
+                .map_err(|errno| {
+                    if matches!(errno, Errno::LOOP | Errno::NOTDIR) {
+                        StoreError::SymlinkEscape(rel_path.to_owned())
+                    } else {
+                        StoreError::Io(format!(
+                            "openat created dir {}: {errno}",
+                            dir_seg.to_string_lossy()
+                        ))
+                    }
+                })?;
+            }
+            Err(Errno::LOOP | Errno::NOTDIR) => {
+                return Err(StoreError::SymlinkEscape(rel_path.to_owned()));
+            }
+            Err(Errno::NOENT) => return Err(StoreError::NotFound(rel_path.to_owned())),
+            Err(errno) => {
+                return Err(StoreError::Io(format!(
+                    "openat dir {}: {errno}",
+                    dir_seg.to_string_lossy()
+                )));
+            }
+        }
+    }
+    Ok((cur_fd, file_name))
+}
+
+fn reject_symlink_leaf(parent_fd: &OwnedFd, file_name: &OsString) -> Result<(), StoreError> {
+    if let Ok(st) = statat(parent_fd, file_name.as_os_str(), AtFlags::SYMLINK_NOFOLLOW)
+        && (st.st_mode & 0o170000) == 0o120000
+    {
+        return Err(StoreError::SymlinkEscape(
+            file_name.to_string_lossy().into_owned(),
+        ));
+    }
+    Ok(())
+}
+
+/// Zero-TOCTOU atomic write strictly inside an already-opened confined parent directory FD.
+fn atomic_write_in_dirfd(
+    parent_fd: &OwnedFd,
+    file_name: &OsString,
+    bytes: &[u8],
+) -> Result<(), StoreError> {
+    let seq = TEMP_SEQ.fetch_add(1, Ordering::Relaxed);
+    let tmp_name = OsString::from(format!(".2brain-write-{}-{seq}.tmp", std::process::id()));
+    let fd = openat(
+        parent_fd,
+        tmp_name.as_os_str(),
+        OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::from_bits_truncate(0o644),
+    )
+    .map_err(|e| StoreError::Io(format!("openat temp file: {e}")))?;
+    let mut file = fs::File::from(fd);
+    if let Err(err) = file.write_all(bytes).and_then(|()| file.sync_all()) {
+        let _ = unlinkat(parent_fd, tmp_name.as_os_str(), AtFlags::empty());
+        return Err(StoreError::Io(format!("write/sync temp file: {err}")));
+    }
+    drop(file);
+    if let Err(err) = renameat(
+        parent_fd,
+        tmp_name.as_os_str(),
+        parent_fd,
+        file_name.as_os_str(),
+    ) {
+        let _ = unlinkat(parent_fd, tmp_name.as_os_str(), AtFlags::empty());
+        return Err(StoreError::Io(format!("renameat temp file: {err}")));
+    }
+    let _ = fsync(parent_fd);
+    Ok(())
+}
+
+fn git_commit_paths(
+    canonical_root: &Path,
+    rel_paths: &[&str],
+    message: &str,
+) -> Result<Option<String>, StoreError> {
+    if !canonical_root.join(".git").exists() {
+        return Ok(None);
+    }
+    let mut add = Command::new("git");
+    add.arg("-C")
+        .arg(canonical_root)
+        .arg("add")
+        .arg("-A")
+        .arg("--");
+    for p in rel_paths {
+        add.arg(p);
+    }
+    let add_out = add
+        .output()
+        .map_err(|e| StoreError::Io(format!("git add failed to spawn: {e}")))?;
+    if !add_out.status.success() {
+        return Err(StoreError::Io(format!(
+            "git add failed: {}",
+            String::from_utf8_lossy(&add_out.stderr)
+        )));
+    }
+    let mut commit = Command::new("git");
+    commit.arg("-C").arg(canonical_root).args([
+        "-c",
+        "user.name=2brain",
+        "-c",
+        "user.email=2brain@local",
+        "commit",
+        "-q",
+        "-m",
+        message,
+        "--",
+    ]);
+    for p in rel_paths {
+        commit.arg(p);
+    }
+    let commit_out = commit
+        .output()
+        .map_err(|e| StoreError::Io(format!("git commit failed to spawn: {e}")))?;
+    if !commit_out.status.success() {
+        let stderr = String::from_utf8_lossy(&commit_out.stderr);
+        if !stderr.contains("nothing to commit") {
+            return Err(StoreError::Io(format!("git commit failed: {stderr}")));
+        }
+    }
+    let rev = Command::new("git")
+        .arg("-C")
+        .arg(canonical_root)
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .map_err(|e| StoreError::Io(format!("git rev-parse failed: {e}")))?;
+    if rev.status.success() {
+        Ok(Some(String::from_utf8_lossy(&rev.stdout).trim().to_owned()))
+    } else {
+        Ok(None)
     }
 }
 
@@ -1170,5 +1668,42 @@ mod tests {
         let text = ctx["context"]["fragments"][0]["text"].as_str().unwrap();
         assert!(text.contains("uniquev2"), "stale text returned: {text}");
         assert!(!text.contains("uniquev1"));
+    }
+
+    #[test]
+    fn independent_store_instances_serialize_cas_via_interprocess_write_lock() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("note.md"), "rev1\n").unwrap();
+        let canonical = fs::canonicalize(dir.path()).unwrap();
+        let store_a = FsWorkspaceStore::single("ws", canonical.clone());
+        let store_b = FsWorkspaceStore::single("ws", canonical);
+        let loc = Locator::new("ws", "note.md").unwrap();
+        let (_, r1) = store_a.read_exact(&loc).unwrap();
+        let guard = r1.write_guard.to_hex();
+
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let b1 = std::sync::Arc::clone(&barrier);
+        let b2 = std::sync::Arc::clone(&barrier);
+        let loc1 = loc.clone();
+        let loc2 = loc.clone();
+        let g1 = guard.clone();
+        let g2 = guard;
+
+        let t1 = std::thread::spawn(move || {
+            b1.wait();
+            store_a.write_file_cas(&loc1, &g1, "rev2-a\n", "a")
+        });
+        let t2 = std::thread::spawn(move || {
+            b2.wait();
+            store_b.write_file_cas(&loc2, &g2, "rev2-b\n", "b")
+        });
+
+        let r_a = t1.join().unwrap();
+        let r_b = t2.join().unwrap();
+        assert!(
+            (r_a.is_ok() && matches!(r_b, Err(StoreError::CasMismatch(_))))
+                || (r_b.is_ok() && matches!(r_a, Err(StoreError::CasMismatch(_)))),
+            "expected exactly one winner and one CasMismatch, got a={r_a:?}, b={r_b:?}"
+        );
     }
 }

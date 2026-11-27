@@ -39,6 +39,8 @@ tb-mcp = { path = "crates/adapters/tb-mcp" }
 
 arc-swap = "1.9"
 clap = { version = "4", features = ["derive"] }
+fs4 = "0.12"
+getrandom = "0.4"
 ignore = "0.4"
 memchr = "2.8"
 notify = "8"

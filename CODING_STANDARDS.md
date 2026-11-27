@@ -19,3 +19,16 @@ Defect classes caught by adversarial review and fixed by structural invariants:
 
 5. **Pure-Domain Miri Invariant (`crates/domain/*`):**
    - All 6 domain crates (`tb-contracts`, `tb-syntax`, `tb-schema`, `tb-graph`, `tb-search`, `tb-cognition`) carry zero I/O, zero `tokio`, and must pass `cargo miri test`.
+
+6. **Interprocess Write Locking & Zero-TOCTOU Dirfd Mutations (`tb-fs-git`):**
+   - Hold both an in-process mutex and an interprocess `fs4` `write.lock` across CAS verification, filesystem mutation, and Git commit.
+   - Perform all file creates, atomic temp-writes, unlinks, and renames strictly via dirfd-relative `rustix::fs::{openat, mkdirat, unlinkat, renameat, renameat_with}` (`O_NOFOLLOW`) — never pathname-based `fs::remove_file`/`fs::rename` after validation.
+
+7. **Honest Post-Effect Failures & Durable Replay (`tb-app`, `tb-journal`, `tb-fs-git`):**
+   - Never mark a mutation `Rejected` in the durable outcome registry after disk state has already changed; compensate/restore pre-effect bytes on Git failure, and report `OutcomeUnknown` (`Executing`) if rollback itself fails.
+   - Never ignore `append_response` errors after writing `Committed`; propagate failure so callers know replayability is unconfirmed.
+
+8. **Daemon Socket Ownership & CSPRNG Keys (`tb-ipc`, `tb-mcp`):**
+   - Acquire an exclusive `fs4` `<socket>.lock` BEFORE unlinking any stale socket; set `0700` on the run directory and `0600` on the bound Unix socket.
+   - Generate HMAC signing keys exclusively from the OS CSPRNG (`getrandom::fill`) and fail startup if entropy is unavailable.
+

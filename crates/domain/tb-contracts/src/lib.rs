@@ -262,6 +262,11 @@ impl WriteIntent<CasVerified> {
     }
 
     #[must_use]
+    pub fn expected_guard(&self) -> WriteGuardHash {
+        self.expected_guard
+    }
+
+    #[must_use]
     pub fn new_content(&self) -> &str {
         &self.new_content
     }

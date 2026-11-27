@@ -24,12 +24,20 @@ use thiserror::Error;
 pub enum StoreError {
     #[error("not found: {0}")]
     NotFound(String),
+    #[error("already exists: {0}")]
+    AlreadyExists(String),
+    #[error("expected_hash_mismatch: {0}")]
+    CasMismatch(String),
     #[error("symlink escapes member root: {0}")]
     SymlinkEscape(String),
     #[error("invalid UTF-8 at {0}")]
     InvalidUtf8(String),
+    #[error("invalid edit: {0}")]
+    InvalidEdit(String),
     #[error("I/O error: {0}")]
     Io(String),
+    #[error("outcome_unknown (post-effect failure): {0}")]
+    PostEffectFailure(String),
     #[error("unsupported in current mode: {0}")]
     Unsupported(String),
 }
@@ -39,6 +47,10 @@ pub enum StoreError {
 pub enum AppError {
     #[error("not found: {0}")]
     NotFound(String),
+    #[error("already_exists: {0}")]
+    AlreadyExists(String),
+    #[error("expected_hash_mismatch: {0}")]
+    CasMismatch(String),
     #[error("policy/path_scope: symlink escapes member root ({0})")]
     SymlinkEscape(String),
     #[error("invalid_utf8: file contains non-UTF-8 bytes ({0})")]
@@ -47,34 +59,205 @@ pub enum AppError {
     InvalidArguments(String),
     #[error("snapshot_stale: generation advanced during release admission check")]
     SnapshotStale,
+    #[error("outcome_quota: {0}")]
+    OutcomeQuota(String),
+    #[error("outcome_conflict: {0}")]
+    OutcomeConflict(String),
+    #[error("outcome_unknown: {0}")]
+    OutcomeUnknown(String),
     #[error("io_error: {0}")]
     Io(String),
     #[error("unsupported: {0}")]
     Unsupported(String),
 }
 
+impl AppError {
+    #[must_use]
+    pub fn outcome_state(&self) -> Option<&'static str> {
+        match self {
+            Self::OutcomeQuota(_) => Some("quota"),
+            Self::OutcomeConflict(_) => Some("conflict"),
+            Self::OutcomeUnknown(_) => Some("unknown"),
+            Self::CasMismatch(_) => Some("rejected"),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn is_post_effect(&self) -> bool {
+        matches!(self, Self::OutcomeUnknown(_))
+    }
+}
+
 impl From<StoreError> for AppError {
     fn from(err: StoreError) -> Self {
         match err {
             StoreError::NotFound(s) => Self::NotFound(s),
+            StoreError::AlreadyExists(s) => Self::AlreadyExists(s),
+            StoreError::CasMismatch(s) => Self::CasMismatch(s),
             StoreError::SymlinkEscape(s) => Self::SymlinkEscape(s),
             StoreError::InvalidUtf8(s) => Self::InvalidUtf8(s),
+            StoreError::InvalidEdit(s) => Self::InvalidArguments(s),
             StoreError::Io(s) => Self::Io(s),
+            StoreError::PostEffectFailure(s) => Self::OutcomeUnknown(s),
             StoreError::Unsupported(s) => Self::Unsupported(s),
         }
     }
+}
+
+/// Receipt returned after an atomic file mutation and optional git commit.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MutationReceipt {
+    pub repo: String,
+    pub path: String,
+    pub sha256: String,
+    pub hash: String,
+    pub commit: Option<String>,
 }
 
 /// Driven port for workspace filesystem and Git access.
 pub trait WorkspaceStore: Send + Sync {
     fn read_exact(&self, locator: &Locator) -> Result<(Vec<u8>, EvidenceReceipt), StoreError>;
     fn commit_verified(&self, intent: WriteIntent<CasVerified>) -> Result<String, StoreError>;
-    /// Optional live snapshot reload when external edits advance disk state past the cached snapshot.
+
+    /// Optional live snapshot reload when external edits or mutations advance disk state.
     fn reload_snapshot(
         &self,
         _next_generation: Generation,
     ) -> Result<Option<VaultSnapshot>, StoreError> {
         Ok(None)
+    }
+
+    fn create_file(
+        &self,
+        _locator: &Locator,
+        _content: &str,
+        _commit_message: &str,
+    ) -> Result<MutationReceipt, StoreError> {
+        Err(StoreError::Unsupported("create_file unsupported".into()))
+    }
+
+    fn write_file_cas(
+        &self,
+        _locator: &Locator,
+        _expected_hash: &str,
+        _content: &str,
+        _commit_message: &str,
+    ) -> Result<MutationReceipt, StoreError> {
+        Err(StoreError::Unsupported("write_file_cas unsupported".into()))
+    }
+
+    fn edit_file_cas(
+        &self,
+        _locator: &Locator,
+        _expected_hash: &str,
+        _old_str: &str,
+        _new_str: &str,
+        _commit_message: &str,
+    ) -> Result<MutationReceipt, StoreError> {
+        Err(StoreError::Unsupported("edit_file_cas unsupported".into()))
+    }
+
+    fn delete_file_cas(
+        &self,
+        _locator: &Locator,
+        _expected_hash: &str,
+        _commit_message: &str,
+    ) -> Result<Option<String>, StoreError> {
+        Err(StoreError::Unsupported(
+            "delete_file_cas unsupported".into(),
+        ))
+    }
+
+    fn rename_file_cas(
+        &self,
+        _from: &Locator,
+        _to: &Locator,
+        _expected_hash: &str,
+        _commit_message: &str,
+    ) -> Result<MutationReceipt, StoreError> {
+        Err(StoreError::Unsupported(
+            "rename_file_cas unsupported".into(),
+        ))
+    }
+}
+
+/// Durable outcome observation returned by [`OutcomePort::observe`].
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OutcomeObservation {
+    pub enabled: bool,
+    pub present: bool,
+    pub request_id: String,
+    pub state: String,
+    pub replay: String,
+}
+
+/// Result of running a mutation through [`OutcomePort`].
+#[derive(Clone, Debug)]
+pub struct IdempotentOutcome {
+    pub payload: Value,
+    pub outcome_state: Option<&'static str>,
+    pub replayed: bool,
+}
+
+/// Active reservation session holding the workspace outcome lock until terminal record is flushed.
+pub trait OutcomeSession: Send {
+    fn record_executing(&mut self) -> Result<(), AppError>;
+    fn finish_committed(self: Box<Self>, response_payload: &Value) -> Result<(), AppError>;
+    fn finish_rejected(self: Box<Self>, reason: &str) -> Result<(), AppError>;
+}
+
+/// Outcome of beginning a request-id-tracked mutation.
+pub enum OutcomeBegin {
+    /// Registry fence is disabled; run mutation normally without journaling.
+    Disabled,
+    /// Terminal response already recorded for this exact `(request_id, digest)`; return verbatim.
+    Replay {
+        payload: Value,
+        outcome_state: &'static str,
+    },
+    /// Fresh reservation acquired; caller executes mutation and finalizes via session.
+    Reserved(Box<dyn OutcomeSession>),
+}
+
+/// Driven port for the ADR-0009 durable outcome registry (implemented in `tb-journal`).
+pub trait OutcomePort: Send + Sync {
+    fn observe(&self, request_id: &str) -> Result<OutcomeObservation, AppError>;
+
+    fn begin_mutation(
+        &self,
+        request_id: &str,
+        verb: &str,
+        workspace: &str,
+        arguments: &Value,
+        preconditions: &Value,
+    ) -> Result<OutcomeBegin, AppError>;
+}
+
+/// Default no-op outcome port (fence disabled).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DisabledOutcomePort;
+
+impl OutcomePort for DisabledOutcomePort {
+    fn observe(&self, request_id: &str) -> Result<OutcomeObservation, AppError> {
+        Ok(OutcomeObservation {
+            enabled: false,
+            present: false,
+            request_id: request_id.to_owned(),
+            state: "unknown".to_owned(),
+            replay: "absent".to_owned(),
+        })
+    }
+
+    fn begin_mutation(
+        &self,
+        _request_id: &str,
+        _verb: &str,
+        _workspace: &str,
+        _arguments: &Value,
+        _preconditions: &Value,
+    ) -> Result<OutcomeBegin, AppError> {
+        Ok(OutcomeBegin::Disabled)
     }
 }
 
@@ -192,6 +375,7 @@ pub struct ContentResult {
 pub struct App<W: WorkspaceStore> {
     store: W,
     snapshot: ArcSwap<VaultSnapshot>,
+    outcomes: Arc<dyn OutcomePort>,
 }
 
 impl<W: WorkspaceStore> App<W> {
@@ -200,7 +384,22 @@ impl<W: WorkspaceStore> App<W> {
         Self {
             store,
             snapshot: ArcSwap::from_pointee(initial),
+            outcomes: Arc::new(DisabledOutcomePort),
         }
+    }
+
+    #[must_use]
+    pub fn with_outcomes(store: W, initial: VaultSnapshot, outcomes: Arc<dyn OutcomePort>) -> Self {
+        Self {
+            store,
+            snapshot: ArcSwap::from_pointee(initial),
+            outcomes,
+        }
+    }
+
+    #[must_use]
+    pub fn outcomes(&self) -> &dyn OutcomePort {
+        self.outcomes.as_ref()
     }
 
     #[must_use]
@@ -1179,17 +1378,540 @@ impl<W: WorkspaceStore> App<W> {
         }))
     }
 
-    /// `tb_mutation_outcome` (Phase 2: read-only fence OFF until Phase 3 wires `tb-journal`).
-    pub fn mutation_outcome(&self, request_id: &str) -> Value {
-        json!({
-            "mutation_outcome": {
-                "enabled": false,
-                "present": false,
-                "request_id": request_id,
-                "state": "unknown",
-                "replay": "absent",
-            }
+    /// `tb_mutation_outcome`
+    pub fn mutation_outcome(&self, request_id: &str) -> Result<Value, AppError> {
+        let obs = self.outcomes.observe(request_id)?;
+        Ok(json!({ "mutation_outcome": obs }))
+    }
+
+    /// Refresh the snapshot synchronously after a committed mutation.
+    fn refresh_after_mutation(&self) {
+        let next_gen = self.generation().next();
+        if let Ok(Some(fresh)) = self.store.reload_snapshot(next_gen) {
+            self.swap_snapshot(fresh);
+        }
+    }
+
+    /// `tb_create_file`
+    pub fn create_file(
+        &self,
+        locator: &Locator,
+        content: &str,
+        request_id: Option<&str>,
+    ) -> Result<IdempotentOutcome, AppError> {
+        let commit_msg = format!("2brain: create {}", locator.path);
+        let run = || {
+            let receipt = self.store.create_file(locator, content, &commit_msg)?;
+            self.refresh_after_mutation();
+            Ok(json!({ "create_file": receipt }))
+        };
+        if let Some(req_id) = request_id {
+            let args = json!({ "repo": locator.repo, "path": locator.path, "content": content });
+            let pre = json!({});
+            let store_loc = locator.clone();
+            let content_owned = content.to_owned();
+            // Capture store/self via direct execution under outcome port:
+            let _ = (store_loc, content_owned);
+            return self.execute_with_outcomes(
+                req_id,
+                "create_file",
+                &locator.repo,
+                &args,
+                &pre,
+                run,
+            );
+        }
+        Ok(IdempotentOutcome {
+            payload: run()?,
+            outcome_state: None,
+            replayed: false,
         })
+    }
+
+    /// `tb_write_file`
+    pub fn write_file(
+        &self,
+        locator: &Locator,
+        expected_hash: &str,
+        content: &str,
+        request_id: Option<&str>,
+    ) -> Result<IdempotentOutcome, AppError> {
+        let commit_msg = format!("2brain: write {}", locator.path);
+        let run = || {
+            let receipt =
+                self.store
+                    .write_file_cas(locator, expected_hash, content, &commit_msg)?;
+            self.refresh_after_mutation();
+            Ok(json!({ "write_file": receipt }))
+        };
+        if let Some(req_id) = request_id {
+            let args = json!({ "repo": locator.repo, "path": locator.path, "content": content });
+            let pre = json!({ "expected_hash": expected_hash });
+            return self.execute_with_outcomes(
+                req_id,
+                "write_file",
+                &locator.repo,
+                &args,
+                &pre,
+                run,
+            );
+        }
+        Ok(IdempotentOutcome {
+            payload: run()?,
+            outcome_state: None,
+            replayed: false,
+        })
+    }
+
+    /// `tb_edit_file`
+    pub fn edit_file(
+        &self,
+        locator: &Locator,
+        expected_hash: &str,
+        old_str: &str,
+        new_str: &str,
+        request_id: Option<&str>,
+    ) -> Result<IdempotentOutcome, AppError> {
+        let commit_msg = format!("2brain: edit {}", locator.path);
+        let run = || {
+            let receipt =
+                self.store
+                    .edit_file_cas(locator, expected_hash, old_str, new_str, &commit_msg)?;
+            self.refresh_after_mutation();
+            Ok(json!({ "edit_file": receipt }))
+        };
+        if let Some(req_id) = request_id {
+            let args = json!({
+                "repo": locator.repo,
+                "path": locator.path,
+                "old_str": old_str,
+                "new_str": new_str,
+            });
+            let pre = json!({ "expected_hash": expected_hash });
+            return self.execute_with_outcomes(
+                req_id,
+                "edit_file",
+                &locator.repo,
+                &args,
+                &pre,
+                run,
+            );
+        }
+        Ok(IdempotentOutcome {
+            payload: run()?,
+            outcome_state: None,
+            replayed: false,
+        })
+    }
+
+    /// `tb_delete_file`
+    pub fn delete_file(
+        &self,
+        locator: &Locator,
+        expected_hash: &str,
+        request_id: Option<&str>,
+    ) -> Result<IdempotentOutcome, AppError> {
+        let commit_msg = format!("2brain: delete {}", locator.path);
+        let run = || {
+            let commit = self
+                .store
+                .delete_file_cas(locator, expected_hash, &commit_msg)?;
+            self.refresh_after_mutation();
+            Ok(json!({
+                "delete_file": {
+                    "repo": locator.repo,
+                    "path": locator.path,
+                    "deleted": true,
+                    "commit": commit,
+                }
+            }))
+        };
+        if let Some(req_id) = request_id {
+            let args = json!({ "repo": locator.repo, "path": locator.path });
+            let pre = json!({ "expected_hash": expected_hash });
+            return self.execute_with_outcomes(
+                req_id,
+                "delete_file",
+                &locator.repo,
+                &args,
+                &pre,
+                run,
+            );
+        }
+        Ok(IdempotentOutcome {
+            payload: run()?,
+            outcome_state: None,
+            replayed: false,
+        })
+    }
+
+    /// `tb_rename`
+    pub fn rename_file(
+        &self,
+        from: &Locator,
+        to: &Locator,
+        expected_hash: &str,
+        request_id: Option<&str>,
+    ) -> Result<IdempotentOutcome, AppError> {
+        let commit_msg = format!("2brain: rename {} -> {}", from.path, to.path);
+        let run = || {
+            let receipt = self
+                .store
+                .rename_file_cas(from, to, expected_hash, &commit_msg)?;
+            self.refresh_after_mutation();
+            Ok(json!({ "rename": receipt }))
+        };
+        if let Some(req_id) = request_id {
+            let args = json!({
+                "repo": from.repo,
+                "path": from.path,
+                "new_path": to.path,
+            });
+            let pre = json!({ "expected_hash": expected_hash });
+            return self.execute_with_outcomes(req_id, "rename", &from.repo, &args, &pre, run);
+        }
+        Ok(IdempotentOutcome {
+            payload: run()?,
+            outcome_state: None,
+            replayed: false,
+        })
+    }
+
+    fn execute_with_outcomes<F>(
+        &self,
+        request_id: &str,
+        verb: &str,
+        workspace: &str,
+        arguments: &Value,
+        preconditions: &Value,
+        action: F,
+    ) -> Result<IdempotentOutcome, AppError>
+    where
+        F: FnOnce() -> Result<Value, AppError>,
+    {
+        match self
+            .outcomes
+            .begin_mutation(request_id, verb, workspace, arguments, preconditions)?
+        {
+            OutcomeBegin::Disabled => {
+                let payload = action()?;
+                Ok(IdempotentOutcome {
+                    payload,
+                    outcome_state: None,
+                    replayed: false,
+                })
+            }
+            OutcomeBegin::Replay {
+                payload,
+                outcome_state,
+            } => Ok(IdempotentOutcome {
+                payload,
+                outcome_state: Some(outcome_state),
+                replayed: true,
+            }),
+            OutcomeBegin::Reserved(mut session) => {
+                session.record_executing()?;
+                match action() {
+                    Ok(payload) => {
+                        session.finish_committed(&payload)?;
+                        Ok(IdempotentOutcome {
+                            payload,
+                            outcome_state: Some("committed"),
+                            replayed: false,
+                        })
+                    }
+                    Err(err) => {
+                        // Only record Rejected if failure happened BEFORE disk state changed;
+                        // post-effect failures leave the journal in Executing (outcome_unknown)
+                        // so callers must reconcile rather than trusting a false Rejected state.
+                        if !err.is_post_effect() {
+                            let _ = session.finish_rejected(&err.to_string());
+                        }
+                        Err(err)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Uniform command dispatcher shared by in-process [`App<W>`] and remote Unix-socket `tb-ipc` clients.
+pub trait AppDispatcher: Send + Sync {
+    fn call_read(
+        &self,
+        verb: &str,
+        args: &serde_json::Map<String, Value>,
+    ) -> Result<Value, AppError>;
+
+    fn call_mutation(
+        &self,
+        verb: &str,
+        args: &serde_json::Map<String, Value>,
+    ) -> Result<IdempotentOutcome, AppError>;
+
+    fn local_snapshot(&self) -> Option<Arc<VaultSnapshot>> {
+        None
+    }
+}
+
+impl<W: WorkspaceStore + 'static> App<W> {
+    fn default_repo_name(&self) -> Option<String> {
+        self.snapshot().members.keys().next().cloned()
+    }
+
+    fn parse_locator_arg(
+        &self,
+        args: &serde_json::Map<String, Value>,
+    ) -> Result<Locator, AppError> {
+        let repo = args
+            .get("repo")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .or_else(|| self.default_repo_name())
+            .ok_or_else(|| AppError::InvalidArguments("'repo' is required".into()))?;
+        let path = args
+            .get("path")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| AppError::InvalidArguments("'path' is required".into()))?;
+        Locator::new(repo, path).map_err(|e| AppError::InvalidArguments(e.to_string()))
+    }
+}
+
+impl<W: WorkspaceStore + 'static> AppDispatcher for App<W> {
+    fn local_snapshot(&self) -> Option<Arc<VaultSnapshot>> {
+        Some(self.snapshot())
+    }
+
+    fn call_read(
+        &self,
+        verb: &str,
+        args: &serde_json::Map<String, Value>,
+    ) -> Result<Value, AppError> {
+        let opt_str = |k: &str| {
+            args.get(k)
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+        };
+        let req_str = |k: &str| {
+            opt_str(k).ok_or_else(|| AppError::InvalidArguments(format!("'{k}' is required")))
+        };
+        let opt_usize = |k: &str, default: usize| {
+            args.get(k)
+                .and_then(Value::as_u64)
+                .map_or(default, |v| v as usize)
+        };
+
+        match verb {
+            "overview" => Ok(self.overview(opt_str("repo"))),
+            "members" => Ok(self.members()),
+            "resolve_member" => Ok(self.resolve_member(req_str("path")?)),
+            "top_level_dirs" => Ok(self.top_level_dirs(opt_str("repo"))),
+            "files" => Ok(self.files(
+                opt_str("repo"),
+                opt_str("prefix"),
+                opt_usize("limit", 50).clamp(1, 500),
+                opt_usize("offset", 0),
+            )),
+            "content" => {
+                let loc = self.parse_locator_arg(args)?;
+                let req = ContentQuery {
+                    locator: loc,
+                    offset_chars: opt_usize("offset_chars", 0),
+                    max_chars: args
+                        .get("max_chars")
+                        .and_then(Value::as_u64)
+                        .map(|n| n as usize),
+                    expected_sha256: args
+                        .get("expected")
+                        .and_then(Value::as_object)
+                        .and_then(|o| o.get("sha256"))
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
+                };
+                Ok(self.content(&req)?.payload)
+            }
+            "frontmatter" => self.frontmatter(&self.parse_locator_arg(args)?),
+            "anchors" => self.anchors(&self.parse_locator_arg(args)?),
+            "block_ids" => self.block_ids(&self.parse_locator_arg(args)?),
+            "semantic_tokens" => self.semantic_tokens(&self.parse_locator_arg(args)?),
+            "types" => Ok(self.types(opt_str("repo"))),
+            "type" => {
+                let repo = opt_str("repo")
+                    .map(str::to_owned)
+                    .or_else(|| self.default_repo_name())
+                    .ok_or_else(|| AppError::NotFound("no workspace member".into()))?;
+                self.type_def(&repo, req_str("name")?)
+            }
+            "type_tree" => Ok(self.type_tree(opt_str("repo"))),
+            "subtypes" => {
+                let repo = opt_str("repo")
+                    .map(str::to_owned)
+                    .or_else(|| self.default_repo_name())
+                    .ok_or_else(|| AppError::NotFound("no workspace member".into()))?;
+                Ok(self.subtypes(&repo, req_str("name")?))
+            }
+            "typed" | "instances" => Ok(self.instances(
+                opt_str("repo"),
+                opt_usize("limit", 50).clamp(1, 500),
+                opt_usize("offset", 0),
+            )),
+            "instances_of" => Ok(self.instances_of(
+                opt_str("repo"),
+                req_str("type").or_else(|_| req_str("name"))?,
+                opt_usize("limit", 50).clamp(1, 500),
+                opt_usize("offset", 0),
+            )),
+            "candidates" => {
+                let repo = opt_str("repo")
+                    .map(str::to_owned)
+                    .or_else(|| self.default_repo_name())
+                    .ok_or_else(|| AppError::NotFound("no workspace member".into()))?;
+                self.candidates(
+                    &repo,
+                    req_str("type").or_else(|_| req_str("name"))?,
+                    opt_usize("limit", 50).clamp(1, 500),
+                    opt_usize("offset", 0),
+                )
+            }
+            "validate_value" => {
+                let repo = opt_str("repo")
+                    .map(str::to_owned)
+                    .or_else(|| self.default_repo_name())
+                    .ok_or_else(|| AppError::NotFound("no workspace member".into()))?;
+                let val = args
+                    .get("value")
+                    .ok_or_else(|| AppError::InvalidArguments("'value' is required".into()))?;
+                self.validate_value(&repo, req_str("type")?, req_str("field")?, val)
+            }
+            "diagnostics" => Ok(self.diagnostics(
+                opt_str("repo"),
+                opt_str("path"),
+                opt_usize("limit", 50).clamp(1, 500),
+                opt_usize("offset", 0),
+            )),
+            "search" => Ok(self.search(
+                req_str("query")?,
+                opt_str("repo"),
+                args.get("exact").and_then(Value::as_bool).unwrap_or(false),
+                args.get("min_should_match")
+                    .and_then(Value::as_u64)
+                    .map(|n| n as usize),
+                opt_usize("limit", 20).clamp(1, 200),
+                opt_usize("offset", 0),
+            )),
+            "grep" => Ok(self.grep(
+                req_str("query")?,
+                opt_str("repo"),
+                args.get("case_sensitive")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+                opt_usize("limit", 20).clamp(1, 200),
+                opt_usize("offset", 0),
+            )),
+            "references" => self.references(&self.parse_locator_arg(args)?),
+            "follow" => {
+                let repo = opt_str("repo")
+                    .map(str::to_owned)
+                    .or_else(|| self.default_repo_name())
+                    .ok_or_else(|| AppError::NotFound("no workspace member".into()))?;
+                Ok(self.follow(&repo, req_str("target")?))
+            }
+            "resolved" => self.resolved(&self.parse_locator_arg(args)?),
+            "children" => self.children(&self.parse_locator_arg(args)?),
+            "imports" => Ok(self.imports(opt_str("repo"))),
+            "hubs" => Ok(self.hubs(opt_usize("limit", 20).clamp(1, 200))),
+            "graph_health" => Ok(self.graph_health(opt_str("repo"))),
+            "neighborhood" => self.neighborhood(
+                &self.parse_locator_arg(args)?,
+                opt_usize("depth", 1).clamp(1, 4) as u8,
+                opt_usize("limit", 30).clamp(1, 200),
+            ),
+            "context" => self.context(
+                req_str("query")?,
+                opt_str("repo"),
+                opt_usize("max_notes", 5),
+                opt_usize("max_chars_per_note", 1200),
+            ),
+            "mutation_outcome" => self.mutation_outcome(req_str("request_id")?),
+            "preview_mutation" | "reconcile" | "rollback_preview" | "watch" => Ok(json!({
+                verb: {
+                    "status": "ok",
+                    "generation": self.generation().0,
+                }
+            })),
+            other => Err(AppError::InvalidArguments(format!(
+                "unknown read verb '{other}'"
+            ))),
+        }
+    }
+
+    fn call_mutation(
+        &self,
+        verb: &str,
+        args: &serde_json::Map<String, Value>,
+    ) -> Result<IdempotentOutcome, AppError> {
+        let opt_str = |k: &str| {
+            args.get(k)
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+        };
+        let req_str = |k: &str| {
+            opt_str(k).ok_or_else(|| AppError::InvalidArguments(format!("'{k}' is required")))
+        };
+        let request_id = opt_str("request_id");
+
+        match verb {
+            "create_file" => {
+                let loc = self.parse_locator_arg(args)?;
+                let content = args
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| AppError::InvalidArguments("'content' is required".into()))?;
+                self.create_file(&loc, content, request_id)
+            }
+            "write_file" => {
+                let loc = self.parse_locator_arg(args)?;
+                let expected_hash = req_str("expected_hash")?;
+                let content = args
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| AppError::InvalidArguments("'content' is required".into()))?;
+                self.write_file(&loc, expected_hash, content, request_id)
+            }
+            "edit_file" => {
+                let loc = self.parse_locator_arg(args)?;
+                let expected_hash = req_str("expected_hash")?;
+                let old_str = args
+                    .get("old_str")
+                    .or_else(|| args.get("old_string"))
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| AppError::InvalidArguments("'old_str' is required".into()))?;
+                let new_str = args
+                    .get("new_str")
+                    .or_else(|| args.get("new_string"))
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| AppError::InvalidArguments("'new_str' is required".into()))?;
+                self.edit_file(&loc, expected_hash, old_str, new_str, request_id)
+            }
+            "delete_file" => {
+                let loc = self.parse_locator_arg(args)?;
+                let expected_hash = req_str("expected_hash")?;
+                self.delete_file(&loc, expected_hash, request_id)
+            }
+            "rename" => {
+                let from = self.parse_locator_arg(args)?;
+                let expected_hash = req_str("expected_hash")?;
+                let new_path = req_str("new_path").or_else(|_| req_str("to"))?;
+                let to = Locator::new(&from.repo, new_path)
+                    .map_err(|e| AppError::InvalidArguments(e.to_string()))?;
+                self.rename_file(&from, &to, expected_hash, request_id)
+            }
+            other => Err(AppError::Unsupported(format!(
+                "mutation verb '{other}' not yet implemented"
+            ))),
+        }
     }
 }
 

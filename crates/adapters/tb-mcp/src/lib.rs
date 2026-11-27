@@ -1,10 +1,13 @@
 //! Driving adapter: MCP 2.0 (`2026-07-28` stateless core + legacy handshake),
 //! SEP-2640 Skills (`skills/list`, `skills/get`, `resources/directory/read`),
-//! 38/54 progressive tool surface, and fail-closed SEM-02 write gate (`ReadLedger`).
+//! 38/54 progressive tool surface, stateful `ReadLedger` AND stateless HMAC-SHA256
+//! `read_receipt` fail-closed SEM-02 write gate.
 
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use rmcp::model::{
     CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock,
@@ -19,8 +22,8 @@ use rmcp::model::{
 use rmcp::service::RequestContext;
 use rmcp::{ErrorData as McpError, RoleServer, ServerHandler, ServiceExt};
 use serde_json::{Map, Value, json};
-use tb_app::{App, AppError, ContentQuery, WorkspaceStore};
-use tb_contracts::Locator;
+use sha2::{Digest, Sha256};
+use tb_app::{AppDispatcher, AppError, VaultSnapshot};
 use tb_skills::SkillCatalog;
 use thiserror::Error;
 
@@ -33,7 +36,9 @@ const SUPPORTED_PROTOCOL_VERSIONS: &[ProtocolVersion] = &[
     ProtocolVersion::V_2026_07_28,
 ];
 
-const SERVER_INSTRUCTIONS: &str = "Read-only access to a 2brain v2 workspace (MIT), plus gated mutations and SEP-2640 skills. Start with tb_overview, tb_members, tb_types, or skills/list. Partial tb_content reads never arm writes (SEM-02); tb_search is BM25+proximity and tb_grep is literal substring search (SEM-09).";
+const SERVER_INSTRUCTIONS: &str = "Read-only access to a 2brain v2 workspace (MIT), plus gated mutations and SEP-2640 skills. Start with tb_overview, tb_members, tb_types, or skills/list. Partial tb_content reads never arm writes (SEM-02); complete reads arm both stateful ReadLedger and stateless HMAC read_receipt. tb_search is BM25+proximity and tb_grep is literal substring search (SEM-09).";
+
+const READ_RECEIPT_TTL_SECS: u64 = 900;
 
 #[derive(Debug, Error)]
 pub enum McpServerError {
@@ -47,6 +52,7 @@ pub struct LaunchPolicy {
     pub allow_mutations: bool,
     pub allow_composition: bool,
     pub allow_workspace_shape: bool,
+    pub outcome_registry: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -69,6 +75,10 @@ impl ReadLedger {
         );
     }
 
+    fn invalidate(&mut self, repo: &str, path: &str) {
+        self.armed.remove(&(repo.to_owned(), path.to_owned()));
+    }
+
     fn verify_write(&self, repo: &str, path: &str, expected_hash: &str) -> Result<(), String> {
         let Some(armed) = self.armed.get(&(repo.to_owned(), path.to_owned())) else {
             return Err(
@@ -85,25 +95,137 @@ impl ReadLedger {
     }
 }
 
-/// Thin driving MCP adapter over [`App<W>`] + [`SkillCatalog`].
+/// Stateless HMAC-SHA256 signer for MCP 2.0 `read_receipt` tokens.
 #[derive(Clone)]
-pub struct TwoBrainMcp<W: WorkspaceStore + 'static> {
-    app: Arc<App<W>>,
+struct ReceiptSigner {
+    key: [u8; 32],
+}
+
+impl ReceiptSigner {
+    fn try_ephemeral() -> Result<Self, McpServerError> {
+        let mut key = [0u8; 32];
+        getrandom::fill(&mut key).map_err(|e| {
+            McpServerError::Transport(format!("OS CSPRNG entropy unavailable: {e}"))
+        })?;
+        Ok(Self { key })
+    }
+
+    fn sign(&self, repo: &str, path: &str, short_hash: &str, sha256: &str) -> String {
+        let exp = now_unix_secs().saturating_add(READ_RECEIPT_TTL_SECS);
+        let payload = format!("v1|{exp}|{repo}|{path}|{short_hash}|{sha256}|whole");
+        let tag = hmac_sha256_hex(&self.key, payload.as_bytes());
+        format!("{payload}|{tag}")
+    }
+
+    fn verify(
+        &self,
+        token: &str,
+        repo: &str,
+        path: &str,
+        expected_hash: &str,
+    ) -> Result<(), String> {
+        let Some((payload, tag)) = token.rsplit_once('|') else {
+            return Err("policy/prior_read: malformed read_receipt".to_owned());
+        };
+        let expected_tag = hmac_sha256_hex(&self.key, payload.as_bytes());
+        if !ct_eq(tag.as_bytes(), expected_tag.as_bytes()) {
+            return Err("policy/prior_read: invalid read_receipt signature".to_owned());
+        }
+        let parts: Vec<&str> = payload.split('|').collect();
+        if parts.len() != 7 || parts[0] != "v1" || parts[6] != "whole" {
+            return Err("policy/prior_read: invalid read_receipt payload".to_owned());
+        }
+        let exp: u64 = parts[1]
+            .parse()
+            .map_err(|_| "policy/prior_read: invalid read_receipt expiry".to_owned())?;
+        if now_unix_secs() > exp {
+            return Err(
+                "policy/prior_read: read_receipt expired; re-read with tb_content".to_owned(),
+            );
+        }
+        if parts[2] != repo || parts[3] != path {
+            return Err(
+                "policy/prior_read: read_receipt does not match target (repo, path)".to_owned(),
+            );
+        }
+        if expected_hash != parts[4] && !expected_hash.eq_ignore_ascii_case(parts[5]) {
+            return Err("policy/freshness: expected_hash does not match read_receipt".to_owned());
+        }
+        Ok(())
+    }
+}
+
+fn now_unix_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// RFC 2104 HMAC-SHA256 over pure `sha2` (zero extra dependencies).
+fn hmac_sha256_hex(key: &[u8; 32], data: &[u8]) -> String {
+    let mut ipad = [0x36u8; 64];
+    let mut opad = [0x5cu8; 64];
+    for i in 0..32 {
+        ipad[i] ^= key[i];
+        opad[i] ^= key[i];
+    }
+    let mut inner = Sha256::new();
+    inner.update(ipad);
+    inner.update(data);
+    let inner_hash = inner.finalize();
+
+    let mut outer = Sha256::new();
+    outer.update(opad);
+    outer.update(inner_hash);
+    let digest = outer.finalize();
+    let mut hex = String::with_capacity(64);
+    for b in digest {
+        let _ = write!(hex, "{b:02x}");
+    }
+    hex
+}
+
+fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (&x, &y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
+/// Thin driving MCP adapter over [`AppDispatcher`] (in-process OR Unix-socket daemon) + [`SkillCatalog`].
+#[derive(Clone)]
+pub struct TwoBrainMcp {
+    dispatcher: Arc<dyn AppDispatcher>,
     policy: LaunchPolicy,
     ledger: Arc<Mutex<ReadLedger>>,
+    signer: ReceiptSigner,
     tools: Arc<Vec<Tool>>,
 }
 
-impl<W: WorkspaceStore + 'static> TwoBrainMcp<W> {
-    #[must_use]
-    pub fn new(app: Arc<App<W>>, policy: LaunchPolicy) -> Self {
+impl TwoBrainMcp {
+    pub fn try_new(
+        dispatcher: Arc<dyn AppDispatcher>,
+        policy: LaunchPolicy,
+    ) -> Result<Self, McpServerError> {
         let tools = Arc::new(build_tool_catalog(policy));
-        Self {
-            app,
+        let signer = ReceiptSigner::try_ephemeral()?;
+        Ok(Self {
+            dispatcher,
             policy,
             ledger: Arc::new(Mutex::new(ReadLedger::default())),
+            signer,
             tools,
-        }
+        })
+    }
+
+    #[must_use]
+    pub fn new(dispatcher: Arc<dyn AppDispatcher>, policy: LaunchPolicy) -> Self {
+        Self::try_new(dispatcher, policy).expect("OS CSPRNG entropy must be available")
     }
 
     /// Serve MCP over stdio until EOF.
@@ -120,212 +242,15 @@ impl<W: WorkspaceStore + 'static> TwoBrainMcp<W> {
     }
 
     fn skill_catalog(&self) -> SkillCatalog {
-        let snap = self.app.snapshot();
-        SkillCatalog::from_snapshot(&snap)
-    }
-
-    fn default_repo(&self) -> Option<String> {
-        self.app.snapshot().members.keys().next().cloned()
+        if let Some(snap) = self.dispatcher.local_snapshot() {
+            SkillCatalog::from_snapshot(&snap)
+        } else {
+            SkillCatalog::from_snapshot(&VaultSnapshot::empty())
+        }
     }
 
     fn dispatch_tool(&self, name: &str, args: &Map<String, Value>) -> CallToolResult {
         match name {
-            "tb_overview" => ok_json(self.app.overview(opt_str(args, "repo"))),
-            "tb_members" => ok_json(self.app.members()),
-            "tb_resolve_member" => match req_str(args, "path") {
-                Ok(p) => ok_json(self.app.resolve_member(p)),
-                Err(e) => err_text(e),
-            },
-            "tb_top_level_dirs" => ok_json(self.app.top_level_dirs(opt_str(args, "repo"))),
-            "tb_files" => {
-                let limit = opt_usize(args, "limit", 50).clamp(1, 500);
-                let offset = opt_usize(args, "offset", 0);
-                ok_json(self.app.files(
-                    opt_str(args, "repo"),
-                    opt_str(args, "prefix"),
-                    limit,
-                    offset,
-                ))
-            }
-            "tb_content" => self.handle_content(args),
-            "tb_frontmatter" => match self.parse_locator(args) {
-                Ok(loc) => map_app(self.app.frontmatter(&loc)),
-                Err(e) => err_text(e),
-            },
-            "tb_anchors" => match self.parse_locator(args) {
-                Ok(loc) => map_app(self.app.anchors(&loc)),
-                Err(e) => err_text(e),
-            },
-            "tb_block_ids" => match self.parse_locator(args) {
-                Ok(loc) => map_app(self.app.block_ids(&loc)),
-                Err(e) => err_text(e),
-            },
-            "tb_semantic_tokens" => match self.parse_locator(args) {
-                Ok(loc) => map_app(self.app.semantic_tokens(&loc)),
-                Err(e) => err_text(e),
-            },
-            "tb_types" => ok_json(self.app.types(opt_str(args, "repo"))),
-            "tb_type" => {
-                let repo = opt_str(args, "repo")
-                    .map(str::to_owned)
-                    .or_else(|| self.default_repo());
-                match (repo, req_str(args, "name")) {
-                    (Some(r), Ok(n)) => map_app(self.app.type_def(&r, n)),
-                    (None, _) => err_text("no workspace member available"),
-                    (_, Err(e)) => err_text(e),
-                }
-            }
-            "tb_type_tree" => ok_json(self.app.type_tree(opt_str(args, "repo"))),
-            "tb_subtypes" => {
-                let repo = opt_str(args, "repo")
-                    .map(str::to_owned)
-                    .or_else(|| self.default_repo());
-                match (repo, req_str(args, "name")) {
-                    (Some(r), Ok(n)) => ok_json(self.app.subtypes(&r, n)),
-                    (None, _) => err_text("no workspace member available"),
-                    (_, Err(e)) => err_text(e),
-                }
-            }
-            "tb_typed" | "tb_instances" => {
-                let limit = opt_usize(args, "limit", 50).clamp(1, 500);
-                let offset = opt_usize(args, "offset", 0);
-                ok_json(self.app.instances(opt_str(args, "repo"), limit, offset))
-            }
-            "tb_instances_of" => {
-                let limit = opt_usize(args, "limit", 50).clamp(1, 500);
-                let offset = opt_usize(args, "offset", 0);
-                match req_str(args, "type").or_else(|_| req_str(args, "name")) {
-                    Ok(t) => {
-                        ok_json(
-                            self.app
-                                .instances_of(opt_str(args, "repo"), t, limit, offset),
-                        )
-                    }
-                    Err(e) => err_text(e),
-                }
-            }
-            "tb_candidates" => {
-                let limit = opt_usize(args, "limit", 50).clamp(1, 500);
-                let offset = opt_usize(args, "offset", 0);
-                let repo = opt_str(args, "repo")
-                    .map(str::to_owned)
-                    .or_else(|| self.default_repo());
-                match (
-                    repo,
-                    req_str(args, "type").or_else(|_| req_str(args, "name")),
-                ) {
-                    (Some(r), Ok(t)) => map_app(self.app.candidates(&r, t, limit, offset)),
-                    (None, _) => err_text("no workspace member available"),
-                    (_, Err(e)) => err_text(e),
-                }
-            }
-            "tb_validate_value" => {
-                let repo = opt_str(args, "repo")
-                    .map(str::to_owned)
-                    .or_else(|| self.default_repo());
-                match (
-                    repo,
-                    req_str(args, "type"),
-                    req_str(args, "field"),
-                    args.get("value"),
-                ) {
-                    (Some(r), Ok(t), Ok(f), Some(v)) => {
-                        map_app(self.app.validate_value(&r, t, f, v))
-                    }
-                    (None, _, _, _) => err_text("no workspace member available"),
-                    (_, Err(e), _, _) | (_, _, Err(e), _) => err_text(e),
-                    (_, _, _, None) => err_text("'value' is required"),
-                }
-            }
-            "tb_diagnostics" => {
-                let limit = opt_usize(args, "limit", 50).clamp(1, 500);
-                let offset = opt_usize(args, "offset", 0);
-                ok_json(self.app.diagnostics(
-                    opt_str(args, "repo"),
-                    opt_str(args, "path"),
-                    limit,
-                    offset,
-                ))
-            }
-            "tb_search" => match req_str(args, "query") {
-                Ok(q) => {
-                    let limit = opt_usize(args, "limit", 20).clamp(1, 200);
-                    let offset = opt_usize(args, "offset", 0);
-                    let exact = args.get("exact").and_then(Value::as_bool).unwrap_or(false);
-                    let msm = args
-                        .get("min_should_match")
-                        .and_then(Value::as_u64)
-                        .map(|n| n as usize);
-                    ok_json(
-                        self.app
-                            .search(q, opt_str(args, "repo"), exact, msm, limit, offset),
-                    )
-                }
-                Err(e) => err_text(e),
-            },
-            "tb_grep" => match req_str(args, "query") {
-                Ok(q) => {
-                    let limit = opt_usize(args, "limit", 20).clamp(1, 200);
-                    let offset = opt_usize(args, "offset", 0);
-                    let cs = args
-                        .get("case_sensitive")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(false);
-                    ok_json(self.app.grep(q, opt_str(args, "repo"), cs, limit, offset))
-                }
-                Err(e) => err_text(e),
-            },
-            "tb_references" => match self.parse_locator(args) {
-                Ok(loc) => map_app(self.app.references(&loc)),
-                Err(e) => err_text(e),
-            },
-            "tb_follow" => {
-                let repo = opt_str(args, "repo")
-                    .map(str::to_owned)
-                    .or_else(|| self.default_repo());
-                match (repo, req_str(args, "target")) {
-                    (Some(r), Ok(t)) => ok_json(self.app.follow(&r, t)),
-                    (None, _) => err_text("no workspace member available"),
-                    (_, Err(e)) => err_text(e),
-                }
-            }
-            "tb_resolved" => match self.parse_locator(args) {
-                Ok(loc) => map_app(self.app.resolved(&loc)),
-                Err(e) => err_text(e),
-            },
-            "tb_children" => match self.parse_locator(args) {
-                Ok(loc) => map_app(self.app.children(&loc)),
-                Err(e) => err_text(e),
-            },
-            "tb_imports" => ok_json(self.app.imports(opt_str(args, "repo"))),
-            "tb_hubs" => {
-                let limit = opt_usize(args, "limit", 20).clamp(1, 200);
-                ok_json(self.app.hubs(limit))
-            }
-            "tb_graph_health" => ok_json(self.app.graph_health(opt_str(args, "repo"))),
-            "tb_neighborhood" => match self.parse_locator(args) {
-                Ok(loc) => {
-                    let depth = opt_usize(args, "depth", 1).clamp(1, 4) as u8;
-                    let limit = opt_usize(args, "limit", 30).clamp(1, 200);
-                    map_app(self.app.neighborhood(&loc, depth, limit))
-                }
-                Err(e) => err_text(e),
-            },
-            "tb_context" => match req_str(args, "query") {
-                Ok(q) => {
-                    let max_notes = opt_usize(args, "max_notes", 5);
-                    let max_chars = opt_usize(args, "max_chars_per_note", 1200);
-                    map_app(
-                        self.app
-                            .context(q, opt_str(args, "repo"), max_notes, max_chars),
-                    )
-                }
-                Err(e) => err_text(e),
-            },
-            "tb_mutation_outcome" => match req_str(args, "request_id") {
-                Ok(id) => ok_json(self.app.mutation_outcome(id)),
-                Err(e) => err_text(e),
-            },
             "tb_describe_tool" => match req_str(args, "name") {
                 Ok(tool_name) => match self.tools.iter().find(|t| t.name.as_ref() == tool_name) {
                     Some(t) => ok_json(json!({ "describe_tool": t })),
@@ -352,25 +277,19 @@ impl<W: WorkspaceStore + 'static> TwoBrainMcp<W> {
                 }
                 Err(e) => err_text(e),
             },
-            "tb_preview_mutation" | "tb_reconcile" | "tb_rollback_preview" | "tb_watch" => {
-                ok_json(json!({
-                    name.trim_start_matches("tb_"): {
-                        "status": "phase3_pending",
-                        "generation": self.app.generation().0,
-                    }
-                }))
-            }
-            "tb_write_file" | "tb_edit_file" | "tb_delete_file" => {
-                self.handle_guarded_write_gate(name, args)
-            }
-            "tb_create_file" | "tb_rename" | "tb_assign_block_id" | "tb_rename_block_id"
-            | "tb_rename_type" | "tb_inline" | "tb_promote" | "tb_batch" => {
+            "tb_content" => self.handle_content(args),
+            "tb_create_file" => self.handle_create_file(args),
+            "tb_write_file" => self.handle_guarded_mutation("write_file", args),
+            "tb_edit_file" => self.handle_guarded_mutation("edit_file", args),
+            "tb_delete_file" => self.handle_guarded_mutation("delete_file", args),
+            "tb_rename" => self.handle_guarded_mutation("rename", args),
+            "tb_assign_block_id" | "tb_rename_block_id" | "tb_rename_type" | "tb_inline"
+            | "tb_promote" | "tb_batch" => {
                 if !self.policy.allow_mutations {
                     return err_text("policy/launch_grant: mutations are disabled");
                 }
-                err_text(format!(
-                    "phase3_pending: '{name}' write execution is wired in Phase 3"
-                ))
+                let verb = name.trim_start_matches("tb_");
+                map_mutation(self.dispatcher.call_mutation(verb, args))
             }
             "tb_add_dep" | "tb_remove_dep" => {
                 if !self.policy.allow_mutations || !self.policy.allow_composition {
@@ -378,9 +297,8 @@ impl<W: WorkspaceStore + 'static> TwoBrainMcp<W> {
                         "policy/launch_grant: composition mutations require --allow-mutations and --allow-composition",
                     );
                 }
-                err_text(format!(
-                    "phase3_pending: '{name}' composition mutation is wired in Phase 3"
-                ))
+                let verb = name.trim_start_matches("tb_");
+                map_mutation(self.dispatcher.call_mutation(verb, args))
             }
             "tb_add_workspace_member"
             | "tb_remove_workspace_member"
@@ -390,84 +308,109 @@ impl<W: WorkspaceStore + 'static> TwoBrainMcp<W> {
                         "policy/launch_grant: workspace-shape mutations require --allow-mutations and --allow-workspace-shape",
                     );
                 }
-                err_text(format!(
-                    "phase3_pending: '{name}' workspace-shape mutation is wired in Phase 3"
-                ))
+                let verb = name.trim_start_matches("tb_");
+                map_mutation(self.dispatcher.call_mutation(verb, args))
+            }
+            other if other.starts_with("tb_") => {
+                let verb = other.trim_start_matches("tb_");
+                map_app(self.dispatcher.call_read(verb, args))
             }
             _ => err_text(format!("unknown tool '{name}'")),
         }
     }
 
     fn handle_content(&self, args: &Map<String, Value>) -> CallToolResult {
-        let loc = match self.parse_locator(args) {
-            Ok(l) => l,
-            Err(e) => return err_text(e),
-        };
-        let offset_chars = opt_usize(args, "offset_chars", 0);
-        let max_chars = args
-            .get("max_chars")
-            .and_then(Value::as_u64)
-            .map(|n| n as usize);
-        let expected_sha256 = args
-            .get("expected")
-            .and_then(Value::as_object)
-            .and_then(|o| o.get("sha256"))
-            .and_then(Value::as_str)
-            .map(str::to_owned);
-
-        let req = ContentQuery {
-            locator: loc.clone(),
-            offset_chars,
-            max_chars,
-            expected_sha256,
-        };
-        match self.app.content(&req) {
-            Ok(res) => {
-                // SEM-02: ONLY a complete, non-truncated read arms the write ledger.
-                if !res.truncated
-                    && let Ok(mut ledger) = self.ledger.lock()
+        match self.dispatcher.call_read("content", args) {
+            Ok(mut payload) => {
+                let Some(content_obj) = payload.get_mut("content").and_then(Value::as_object_mut)
+                else {
+                    return ok_json(payload);
+                };
+                let truncated = content_obj
+                    .get("truncated")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true);
+                // SEM-02: ONLY a complete, non-truncated read arms the stateful ledger
+                // AND emits a stateless MCP 2.0 HMAC `read_receipt`.
+                if !truncated
+                    && let (Some(repo), Some(path), Some(short_hash), Some(sha256)) = (
+                        content_obj
+                            .get("repo")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned),
+                        content_obj
+                            .get("path")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned),
+                        content_obj
+                            .get("hash")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned),
+                        content_obj
+                            .get("sha256")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned),
+                    )
                 {
-                    ledger.record_whole_read(&loc.repo, &loc.path, res.hash, res.sha256);
+                    let receipt = self.signer.sign(&repo, &path, &short_hash, &sha256);
+                    content_obj.insert("read_receipt".into(), json!(receipt));
+                    if let Ok(mut ledger) = self.ledger.lock() {
+                        ledger.record_whole_read(&repo, &path, short_hash, sha256);
+                    }
                 }
-                ok_json(res.payload)
+                ok_json(payload)
             }
             Err(err) => err_text(err.to_string()),
         }
     }
 
-    fn handle_guarded_write_gate(&self, name: &str, args: &Map<String, Value>) -> CallToolResult {
+    fn handle_create_file(&self, args: &Map<String, Value>) -> CallToolResult {
         if !self.policy.allow_mutations {
             return err_text("policy/launch_grant: mutations are disabled");
         }
-        let loc = match self.parse_locator(args) {
-            Ok(l) => l,
+        map_mutation(self.dispatcher.call_mutation("create_file", args))
+    }
+
+    fn handle_guarded_mutation(&self, verb: &str, args: &Map<String, Value>) -> CallToolResult {
+        if !self.policy.allow_mutations {
+            return err_text("policy/launch_grant: mutations are disabled");
+        }
+        let repo = match req_str(args, "repo") {
+            Ok(r) => r,
+            Err(e) => return err_text(e),
+        };
+        let path = match req_str(args, "path") {
+            Ok(p) => p,
             Err(e) => return err_text(e),
         };
         let expected_hash = match req_str(args, "expected_hash") {
             Ok(h) => h,
             Err(e) => return err_text(e),
         };
-        if let Ok(ledger) = self.ledger.lock()
-            && let Err(reason) = ledger.verify_write(&loc.repo, &loc.path, expected_hash)
+
+        // Fail-closed SEM-02 gate: accept EITHER a valid stateless HMAC `read_receipt`
+        // (MCP 2.0 stateless mode) OR an armed whole-file `ReadLedger` entry (legacy mode).
+        if let Some(receipt) = opt_str(args, "read_receipt") {
+            if let Err(reason) = self.signer.verify(receipt, repo, path, expected_hash) {
+                return err_text(reason);
+            }
+        } else if let Ok(ledger) = self.ledger.lock()
+            && let Err(reason) = ledger.verify_write(repo, path, expected_hash)
         {
             return err_text(reason);
         }
-        err_text(format!(
-            "phase3_pending: '{name}' passed SEM-02/freshness gate; atomic write commit is wired in Phase 3"
-        ))
-    }
 
-    fn parse_locator(&self, args: &Map<String, Value>) -> Result<Locator, String> {
-        let repo = opt_str(args, "repo")
-            .map(str::to_owned)
-            .or_else(|| self.default_repo())
-            .ok_or_else(|| "policy/arguments: 'repo' is required".to_owned())?;
-        let path = req_str(args, "path")?;
-        Locator::new(repo, path).map_err(|e| format!("policy/path_scope: {e}"))
+        let res = self.dispatcher.call_mutation(verb, args);
+        if res.is_ok()
+            && let Ok(mut ledger) = self.ledger.lock()
+        {
+            ledger.invalidate(repo, path);
+        }
+        map_mutation(res)
     }
 }
 
-impl<W: WorkspaceStore + 'static> ServerHandler for TwoBrainMcp<W> {
+impl ServerHandler for TwoBrainMcp {
     fn get_info(&self) -> ServerConfig {
         let capabilities = ServerCapabilities::builder()
             .enable_tools()
@@ -498,8 +441,12 @@ impl<W: WorkspaceStore + 'static> ServerHandler for TwoBrainMcp<W> {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let empty = Map::new();
-        let args = request.arguments.as_ref().unwrap_or(&empty);
-        let result = self.dispatch_tool(request.name.as_ref(), args);
+        let args = request.arguments.as_ref().unwrap_or(&empty).clone();
+        let name = request.name.into_owned();
+        let this = self.clone();
+        let result = tokio::task::spawn_blocking(move || this.dispatch_tool(&name, &args))
+            .await
+            .unwrap_or_else(|e| err_text(format!("tool worker panicked: {e}")));
         Ok(CallToolResponse::Complete(result))
     }
 
@@ -703,6 +650,13 @@ fn err_text(msg: impl Into<String>) -> CallToolResult {
 fn map_app(res: Result<Value, AppError>) -> CallToolResult {
     match res {
         Ok(v) => ok_json(v),
+        Err(e) => err_text(e.to_string()),
+    }
+}
+
+fn map_mutation(res: Result<tb_app::IdempotentOutcome, AppError>) -> CallToolResult {
+    match res {
+        Ok(out) => ok_json(out.payload),
         Err(e) => err_text(e.to_string()),
     }
 }
@@ -912,13 +866,13 @@ fn build_tool_catalog(policy: LaunchPolicy) -> Vec<Tool> {
 
 const WORKFLOW_ANSWER_SHAPE: &str = "# Answer shape\n\n1. Direct answer first.\n2. Backing cited by (repo, path) from full tb_content reads.\n3. Implications in reader vocabulary.\n4. Tensions stated explicitly.\n5. Concrete next explorations.\n6. Sources consulted with counts.\n";
 
-const WORKFLOW_WRITE_GATES: &str = "# Write gates\n\nFail-closed order: launch_grant -> arguments -> path_scope -> member_grant -> prior_read (whole file only, SEM-02) -> freshness (expected_hash CAS).\n";
+const WORKFLOW_WRITE_GATES: &str = "# Write gates\n\nFail-closed order: launch_grant -> arguments -> path_scope -> member_grant -> prior_read (whole file only, SEM-02; stateful ReadLedger or stateless HMAC read_receipt) -> freshness (expected_hash CAS).\n";
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tb_app::{StoreError, VaultSnapshot};
-    use tb_contracts::{CasVerified, EvidenceReceipt, WriteIntent};
+    use tb_app::{App, StoreError, WorkspaceStore};
+    use tb_contracts::{CasVerified, EvidenceReceipt, Locator, WriteIntent};
 
     struct DummyStore;
     impl WorkspaceStore for DummyStore {
@@ -939,6 +893,7 @@ mod tests {
             allow_mutations: true,
             allow_composition: true,
             allow_workspace_shape: true,
+            outcome_registry: false,
         });
         assert_eq!(full.len(), 54);
     }
@@ -952,5 +907,35 @@ mod tests {
         rmcp::model::validate_skills(&skills)
             .expect("all built-in skills must pass SEP-2640 validate()");
         assert_eq!(skills.len(), 5);
+    }
+
+    #[test]
+    fn stateless_hmac_read_receipt_validates_and_rejects_tampering() {
+        let signer = ReceiptSigner::try_ephemeral().expect("CSPRNG must succeed");
+        let token = signer.sign(
+            "vault",
+            "ops/task.md",
+            "1122334455667788",
+            "a".repeat(64).as_str(),
+        );
+        signer
+            .verify(&token, "vault", "ops/task.md", "1122334455667788")
+            .expect("valid receipt must verify");
+        assert!(
+            signer
+                .verify(&token, "vault", "ops/other.md", "1122334455667788")
+                .is_err()
+        );
+        assert!(
+            signer
+                .verify(&token, "vault", "ops/task.md", "deadbeefdeadbeef")
+                .is_err()
+        );
+        let tampered = format!("{token}0");
+        assert!(
+            signer
+                .verify(&tampered, "vault", "ops/task.md", "1122334455667788")
+                .is_err()
+        );
     }
 }
