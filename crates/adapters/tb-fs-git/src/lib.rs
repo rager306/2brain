@@ -1155,6 +1155,7 @@ pub fn refresh_snapshot_incremental(
     let mut stem_index = prev.stem_index.clone();
     let mut all_diags = prev.diagnostics.clone();
     let mut indexed_symlinks = prev.indexed_symlinks.clone();
+    let mut search = prev.search.clone();
 
     // Load ignore matchers per touched member only.
     let mut ignore_by_repo: HashMap<String, Gitignore> = HashMap::new();
@@ -1168,6 +1169,7 @@ pub fn refresh_snapshot_incremental(
         // Remove stale entries for this locator before re-reading.
         files.remove(&loc);
         indexed_symlinks.remove(&loc);
+        search.remove_document(&loc);
         path_index.remove(&(repo.clone(), rel_posix.clone()));
         if let Some(no_ext) = rel_posix.strip_suffix(".md") {
             path_index.remove(&(repo.clone(), no_ext.to_owned()));
@@ -1244,19 +1246,22 @@ pub fn refresh_snapshot_incremental(
                 if let Some(no_ext) = rel_posix.strip_suffix(".md") {
                     path_index.insert((repo.clone(), no_ext.to_owned()), loc.clone());
                 }
-                files.insert(
+                let indexed = IndexedFile {
+                    locator: loc.clone(),
+                    sha256,
+                    short_hash,
+                    size_bytes: raw_text.len(),
+                    raw_text,
+                    doc,
+                    description,
+                    declared_type,
+                };
+                search.upsert_document(
                     loc.clone(),
-                    IndexedFile {
-                        locator: loc,
-                        sha256,
-                        short_hash,
-                        size_bytes: raw_text.len(),
-                        raw_text,
-                        doc,
-                        description,
-                        declared_type,
-                    },
+                    indexed.body(),
+                    indexed.description.as_deref().unwrap_or(""),
                 );
+                files.insert(loc, indexed);
             }
             Err(_) => {
                 all_diags.push(Diagnostic {
@@ -1292,14 +1297,17 @@ pub fn refresh_snapshot_incremental(
         }
     }
 
+    if search.needs_compaction() {
+        search = SearchIndex::build(files.values().map(|f| {
+            (
+                f.locator.clone(),
+                f.body(),
+                f.description.as_deref().unwrap_or(""),
+            )
+        }));
+    }
+
     let graph = TypedLinkGraph::build(locators, &edges);
-    let search = SearchIndex::build(files.values().map(|f| {
-        (
-            f.locator.clone(),
-            f.body(),
-            f.description.as_deref().unwrap_or(""),
-        )
-    }));
 
     Ok(VaultSnapshot {
         generation,

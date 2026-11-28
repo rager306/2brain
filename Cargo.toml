@@ -17,7 +17,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT"
@@ -38,13 +38,18 @@ tb-ipc = { path = "crates/adapters/tb-ipc" }
 tb-mcp = { path = "crates/adapters/tb-mcp" }
 
 arc-swap = "1.9"
+bytes = "1"
 clap = { version = "4", features = ["derive"] }
 fs4 = "0.12"
 getrandom = "0.4"
+http = "1"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio", "http1"] }
 ignore = "0.4"
 memchr = "2.8"
 notify = "8"
-rmcp = { version = "3.9", features = ["transport-io"] }
+rmcp = { version = "3.9", features = ["transport-io", "transport-streamable-http-server"] }
 rustix = { version = "1.1", features = ["fs"] }
 saphyr = "0.0.6"
 serde = { version = "1", features = ["derive"] }
@@ -52,7 +57,8 @@ serde_json = "1"
 sha2 = "0.11"
 tempfile = "3"
 thiserror = "2"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "sync", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "net", "signal", "sync", "time"] }
+tokio-util = "0.7"
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "warn"

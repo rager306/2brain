@@ -1,5 +1,8 @@
 //! Composition root producing the single `2brain` binary (MIT).
 
+mod bench;
+
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -9,7 +12,7 @@ use notify::{RecursiveMode, Watcher};
 use tb_app::{App, AppDispatcher};
 use tb_ipc::IpcClient;
 use tb_journal::FileOutcomeStore;
-use tb_mcp::{LaunchPolicy, TwoBrainMcp};
+use tb_mcp::{HttpServerConfig, LaunchPolicy, TwoBrainMcp};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -83,13 +86,39 @@ enum Command {
         #[command(subcommand)]
         command: OutcomesCommand,
     },
-    /// Serve MCP 2.0 (2026-07-28 stateless + legacy + SEP-2640 skills + SEP-2663 tasks) over stdio.
+    /// Read-only performance benchmark on a workspace (cold load, incremental refresh, BM25, cognitive suite, RSS).
+    Bench {
+        /// Path to the workspace directory.
+        path: PathBuf,
+        /// Number of repeated iterations for incremental/search timings.
+        #[arg(long = "iterations", default_value_t = 5)]
+        iterations: usize,
+        /// Emit machine-readable JSON output.
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Serve MCP 2.0 (2026-07-28 stateless + legacy + SEP-2640 skills + SEP-2663 tasks) over stdio or Streamable HTTP.
     Mcp {
         /// Unix socket path OR workspace directory of a running `2brain daemon` (omit with --in-process or --info).
         socket: Option<PathBuf>,
         /// Load the workspace directly in-process (zero IPC daemon needed).
         #[arg(long = "in-process")]
         in_process: Option<PathBuf>,
+        /// Serve MCP 2.0 over Streamable HTTP at `<ip>:<port>` instead of stdio (e.g. `127.0.0.1:8787`).
+        #[arg(long = "http")]
+        http: Option<SocketAddr>,
+        /// Path to a file containing the Bearer auth token for `--http` (alternative to `TWOBRAIN_HTTP_TOKEN` env var).
+        #[arg(long = "http-token-file")]
+        http_token_file: Option<PathBuf>,
+        /// Additional allowed `Host` header entries for `--http` DNS-rebinding protection (repeatable).
+        #[arg(long = "http-allow-host")]
+        http_allow_hosts: Vec<String>,
+        /// Allowed RFC 6454 browser `Origin` entries for `--http` (repeatable; empty rejects all browser origins).
+        #[arg(long = "http-allow-origin")]
+        http_allow_origins: Vec<String>,
+        /// Enable stateful legacy HTTP sessions (`Mcp-Session-Id` + `GET /mcp` SSE) for pre-2026-07-28 clients.
+        #[arg(long = "http-legacy-sessions")]
+        http_legacy_sessions: bool,
         /// Enable the 11 core mutating tools (fail-closed by default).
         #[arg(long = "allow-mutations")]
         allow_mutations: bool,
@@ -102,7 +131,7 @@ enum Command {
         /// Acknowledge durable outcome-registry tracking for request_id mutations.
         #[arg(long = "outcome-registry")]
         outcome_registry: bool,
-        /// Enable the 7 v2 cognitive & epistemic tools (tb_orient, tb_analyze_topology, tb_detect_gaps, tb_audit_bias, tb_audit_contradictions, tb_fragility_report, tb_diff_graphs).
+        /// Enable the 9 v2 cognitive & epistemic tools (tb_orient, tb_analyze_topology, tb_detect_gaps, tb_audit_bias, tb_audit_contradictions, tb_fragility_report, tb_diff_graphs, tb_record_decision, tb_list_decisions).
         #[arg(long = "allow-cognitive")]
         allow_cognitive: bool,
         /// Optional audit principal label (accepted for client compatibility; not authentication).
@@ -216,9 +245,19 @@ fn main() {
                 );
             }
         },
+        Command::Bench {
+            path,
+            iterations,
+            json,
+        } => bench::run_bench(&path, iterations, json),
         Command::Mcp {
             socket,
             in_process,
+            http,
+            http_token_file,
+            http_allow_hosts,
+            http_allow_origins,
+            http_legacy_sessions,
             allow_mutations,
             allow_composition,
             allow_workspace_shape,
@@ -251,10 +290,33 @@ fn main() {
                 println!(
                     "  protocol     MCP 2026-07-28 (stateless) + legacy + SEP-2640 skills + SEP-2663 tasks"
                 );
+                println!("  transports   stdio (default), streamable-http (--http <ip>:<port>)");
                 return;
             }
+            let http_cfg = match http {
+                Some(bind_addr) => {
+                    let bearer_token = match resolve_http_token(http_token_file.as_deref()) {
+                        Ok(t) => t,
+                        Err(err) => {
+                            eprintln!("error loading HTTP auth token: {err}");
+                            std::process::exit(2);
+                        }
+                    };
+                    let mut cfg = HttpServerConfig::loopback(bind_addr);
+                    cfg.bearer_token = bearer_token;
+                    cfg.allowed_hosts = http_allow_hosts;
+                    cfg.allowed_origins = http_allow_origins;
+                    cfg.legacy_session_mode = http_legacy_sessions;
+                    if let Err(err) = cfg.validate() {
+                        eprintln!("error validating HTTP configuration: {err}");
+                        std::process::exit(2);
+                    }
+                    Some(cfg)
+                }
+                None => None,
+            };
             if let Some(workspace) = in_process {
-                run_mcp_in_process(&workspace, policy);
+                run_mcp_in_process(&workspace, policy, http_cfg);
             } else if let Some(target) = socket {
                 let resolved_sock = if target.is_dir() {
                     match std::fs::canonicalize(&target) {
@@ -267,7 +329,7 @@ fn main() {
                 } else {
                     target
                 };
-                run_mcp_over_socket(&resolved_sock, policy);
+                run_mcp_over_socket(&resolved_sock, policy, http_cfg);
             } else {
                 eprintln!(
                     "error: pass <socket-or-workspace> or --in-process <workspace> to '2brain mcp'"
@@ -631,7 +693,36 @@ fn run_daemon_status(workspace: &std::path::Path) {
     }
 }
 
-fn run_mcp_over_socket(socket: &std::path::Path, policy: LaunchPolicy) {
+fn resolve_http_token(token_file: Option<&std::path::Path>) -> Result<Option<String>, String> {
+    if let Some(path) = token_file {
+        let raw = std::fs::read_to_string(path)
+            .map_err(|e| format!("cannot read token file '{}': {e}", path.display()))?;
+        let token = raw.trim_end_matches(['\r', '\n']).to_owned();
+        if token.trim().is_empty() {
+            return Err(format!("token file '{}' is empty", path.display()));
+        }
+        return Ok(Some(token));
+    }
+    match std::env::var("TWOBRAIN_HTTP_TOKEN") {
+        Ok(raw) => {
+            let token = raw.trim_end_matches(['\r', '\n']).to_owned();
+            if token.trim().is_empty() {
+                return Err("TWOBRAIN_HTTP_TOKEN is set but empty".to_owned());
+            }
+            Ok(Some(token))
+        }
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(std::env::VarError::NotUnicode(_)) => {
+            Err("TWOBRAIN_HTTP_TOKEN is not valid UTF-8".to_owned())
+        }
+    }
+}
+
+fn run_mcp_over_socket(
+    socket: &std::path::Path,
+    policy: LaunchPolicy,
+    http_cfg: Option<HttpServerConfig>,
+) {
     let client: Arc<dyn AppDispatcher> = Arc::new(IpcClient::new(socket.to_path_buf()));
     let server = match TwoBrainMcp::try_new(client, policy) {
         Ok(s) => s,
@@ -641,13 +732,21 @@ fn run_mcp_over_socket(socket: &std::path::Path, policy: LaunchPolicy) {
         }
     };
     let runtime = build_runtime();
-    if let Err(err) = runtime.block_on(server.serve_stdio()) {
+    let result = match http_cfg {
+        Some(cfg) => runtime.block_on(server.serve_http(cfg)),
+        None => runtime.block_on(server.serve_stdio()),
+    };
+    if let Err(err) = result {
         eprintln!("mcp server error: {err}");
         std::process::exit(1);
     }
 }
 
-fn run_mcp_in_process(workspace: &std::path::Path, policy: LaunchPolicy) {
+fn run_mcp_in_process(
+    workspace: &std::path::Path,
+    policy: LaunchPolicy,
+    http_cfg: Option<HttpServerConfig>,
+) {
     let canonical = match std::fs::canonicalize(workspace) {
         Ok(c) => c,
         Err(err) => {
@@ -676,7 +775,10 @@ fn run_mcp_in_process(workspace: &std::path::Path, policy: LaunchPolicy) {
     let runtime = build_runtime();
     let result = runtime.block_on(async move {
         let (_watcher, refresh_task) = spawn_watcher(canonical, Arc::clone(&app));
-        let res = server.serve_stdio().await;
+        let res = match http_cfg {
+            Some(cfg) => server.serve_http(cfg).await,
+            None => server.serve_stdio().await,
+        };
         refresh_task.abort();
         res
     });

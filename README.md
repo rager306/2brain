@@ -4,7 +4,7 @@ Clean-room, **MIT-licensed**, single-binary typed knowledge graph and cognitive 
 
 ## Highlights
 
-- **Single binary (`2brain`)**: combines the workspace daemon (`2brain daemon`), stdio MCP 2.0 server (`2brain mcp`), durable outcome registry management (`2brain outcomes`), and standalone graph/epistemic analytics CLI (`check`, `analyze`, `audit-claims`, `fragility`, `diff`).
+- **Single binary (`2brain`)**: combines the workspace daemon (`2brain daemon`), stdio & Streamable HTTP MCP 2.0 server (`2brain mcp`), durable outcome registry management (`2brain outcomes`), read-only benchmark profiler (`2brain bench`), and standalone graph/epistemic analytics CLI (`check`, `analyze`, `audit-claims`, `fragility`, `diff`).
 - **Hexagonal / Onion monorepo (13 crates)** with CI-enforced compile-time layer boundaries (`scripts/check_layer_deps.py`):
   - **`crates/domain/*`** (zero I/O, zero `tokio`, `miri`-verified):
     - `tb-contracts`: 5 distinct identities (`NodeId`, `TermId`, `TypeId`, `Generation`, `RevisionDigest`), `Assessment<T>`, typestate `WriteIntent<Unchecked -> ReadVerified -> CasVerified>`, `OutcomeState`.
@@ -19,7 +19,7 @@ Clean-room, **MIT-licensed**, single-binary typed knowledge graph and cognitive 
     - `tb-journal`: CRC-32 framed durable outcome journal, crash-safe `usage.json` + `usage.dirty`, and workspace `registry.lock`.
     - `tb-skills`: **SEP-2640** `skill://` catalog (5 built-in skills + dynamic vault projection for `mcp.skill` and promoted `pattern` notes) with verified SHA-256 digests.
     - `tb-ipc`: big-endian `u32` framed Unix-socket daemon with exclusive `<socket>.lock` and `0700`/`0600` permissions.
-    - `tb-mcp`: **MCP 2.0 (`2026-07-28` stateless core + legacy `2024-11-05..2025-11-25`)**, **SEP-2640 Skills**, **SEP-2663 Tasks** (`io.modelcontextprotocol/tasks` via `rmcp::TaskManager` + atomic `Semaphore` concurrency cap), fail-closed 38/54 tool surface (+7 opt-in cognitive tools via `--allow-cognitive`), and stateful `ReadLedger` + stateless CSPRNG HMAC-SHA256 `read_receipt` write gate (SEM-02).
+    - `tb-mcp`: **MCP 2.0 (`2026-07-28` stateless core + legacy `2024-11-05..2025-11-25`)** over **stdio** and **Streamable HTTP** (`--http`, fail-closed non-loopback Bearer auth, DNS-rebinding `Host` & `Origin` guards, `/healthz`), **SEP-2640 Skills**, **SEP-2663 Tasks + Elicitation** (`io.modelcontextprotocol/tasks` via `rmcp::TaskManager` + atomic `Semaphore` concurrency cap), fail-closed 38/54 tool surface (+9 opt-in cognitive tools via `--allow-cognitive`, including persistent `D07/D11` Negative Memory), full JSON schemas (`--tools concise|full`), structured `reason_code`/`recovery_hint` errors, and stateful `ReadLedger` + stateless CSPRNG HMAC-SHA256 `read_receipt` write gate (SEM-02).
   - **`crates/bin/two-brain`**: composition root producing the single `2brain` binary.
 
 ## Quick Start
@@ -53,6 +53,12 @@ cargo build --release -p two-brain --bin 2brain
 # Serve MCP 2.0 over stdio (connecting to daemon OR standalone --in-process)
 2brain mcp /path/to/vault
 2brain mcp --in-process /path/to/vault --allow-cognitive
+
+# Serve MCP 2.0 over Streamable HTTP (loopback-only by default; non-loopback requires TWOBRAIN_HTTP_TOKEN or --http-token-file)
+2brain mcp /path/to/vault --http 127.0.0.1:8787 --allow-cognitive
+
+# Run read-only workspace performance benchmark (cold load, incremental reload, BM25, cognitive suite, RSS)
+2brain bench /path/to/vault --iterations 5
 ```
 
 ## Verification & Quality Gates

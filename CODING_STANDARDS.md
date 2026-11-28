@@ -60,6 +60,11 @@ Defect classes caught by adversarial review and fixed by structural invariants:
    - Incremental snapshot refreshes (`refresh_snapshot_incremental`) must update ALL containing members when member roots overlap, and must refresh tracked symlink aliases (`indexed_symlinks`) whenever any workspace file changes so aliases never hold stale content.
    - Never discard `TrySendError::Full` in a bounded filesystem watcher channel; set an atomic `overflowed` flag + `Notify` wakeup and atomically clear it before running a forced full reload so bursts can never drop an update.
 
+15. **HTTP Slow-Body Bounds, Incremental Search Parity & Pre-Indexed Fast-Path Guards (`tb-mcp`, `tb-search`, `tb-cognition`):**
+   - Never rely on `header_read_timeout` alone on Streamable HTTP listeners; enforce a bounded per-request `POST` timeout (`408 Request Timeout` + `Connection: close`) so stalled request bodies cannot pin connection semaphore permits indefinitely.
+   - Break BM25 score ties deterministically by canonical `Locator` (not insertion-order `doc_id`) and compact incremental `SearchIndex` tombstones once dead slots cross compaction thresholds so long-running watchers never drift in ranking order or leak vocabulary.
+   - Never trust locator membership alone when taking a pre-indexed fast path (`detect_structural_gaps` over `SearchIndex`); verify exact body digest parity (`body_matches`) and fall back to exact `u32` tokenization if any body digest differs or any `u16` posting hits `u16::MAX`.
+
 
 
 

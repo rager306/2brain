@@ -409,57 +409,120 @@ pub fn detect_structural_gaps<'a>(
         };
     }
 
-    // 1. Document frequency + Template Detector (reject boilerplate & >25% DF terms).
-    let mut doc_term_sets: Vec<HashMap<String, u32>> = Vec::with_capacity(n_docs);
-    let mut df: HashMap<String, usize> = HashMap::new();
-    for &(_, body) in &doc_list {
-        let mut counts: HashMap<String, u32> = HashMap::new();
-        for tok in tokenize(body) {
-            if tok.term.chars().count() < 4 || is_template_token(&tok.term) {
-                continue;
-            }
-            *counts.entry(tok.term).or_insert(0) += 1;
-        }
-        for term in counts.keys() {
-            *df.entry(term.clone()).or_insert(0) += 1;
-        }
-        doc_term_sets.push(counts);
-    }
-
+    // 1. Document frequency + Template Detector (reject boilerplate & >25% DF terms)
+    //    + compact top-16 rare-term IDF vectors per document.
+    //    Fast path: reuse pre-tokenized body postings from `SearchIndex` with zero re-tokenization.
     let max_df = ((n_docs as f64) * 0.25).ceil().max(2.0) as usize;
     let mut template_terms_filtered = 0usize;
-    let mut term_idf: HashMap<String, f64> = HashMap::new();
-    for (term, freq) in &df {
-        if *freq < 2 || *freq > max_df {
-            if *freq > max_df {
-                template_terms_filtered += 1;
-            }
-            continue;
-        }
-        let idf = ((n_docs as f64 + 1.0) / (*freq as f64 + 1.0)).ln() + 1.0;
-        term_idf.insert(term.clone(), idf);
-    }
-
-    // 2. Build compact top-16 rare-term IDF vector per document + inverted postings for rare terms.
     let mut doc_vecs: Vec<Vec<(String, f64)>> = Vec::with_capacity(n_docs);
     let mut doc_norms: Vec<f64> = vec![0.0; n_docs];
-    let mut postings: HashMap<&str, Vec<(usize, f64)>> = HashMap::new();
 
-    for (idx, counts) in doc_term_sets.iter().enumerate() {
-        let mut weighted: Vec<(String, f64)> = counts
+    let can_use_search_index = !search.is_empty()
+        && doc_list
             .iter()
-            .filter_map(|(t, &tf)| {
-                let &idf = term_idf.get(t)?;
-                let w = (1.0 + (tf as f64).ln()) * idf;
-                Some((t.clone(), w))
-            })
+            .all(|(loc, body)| search.body_matches(loc, body));
+
+    let mut used_fast_path = false;
+    if can_use_search_index {
+        let loc_to_idx: HashMap<&Locator, usize> = doc_list
+            .iter()
+            .enumerate()
+            .map(|(i, (loc, _))| (*loc, i))
             .collect();
-        weighted.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-        weighted.truncate(16);
-        let norm = weighted.iter().map(|(_, w)| w * w).sum::<f64>().sqrt();
-        doc_norms[idx] = norm;
-        doc_vecs.push(weighted);
+        let mut raw_doc_vecs: Vec<Vec<(&str, f64)>> = vec![Vec::new(); n_docs];
+        let mut matched: Vec<(usize, u16)> = Vec::new();
+        let mut saw_saturated_tf = false;
+        let mut fast_template_filtered = 0usize;
+        search.for_each_body_term(|term, postings| {
+            if saw_saturated_tf || term.chars().count() < 4 || is_template_token(term) {
+                return;
+            }
+            matched.clear();
+            for &(loc, tf) in postings {
+                if let Some(&idx) = loc_to_idx.get(loc) {
+                    if tf == u16::MAX {
+                        saw_saturated_tf = true;
+                        return;
+                    }
+                    matched.push((idx, tf));
+                }
+            }
+            let freq = matched.len();
+            if freq > max_df {
+                fast_template_filtered += 1;
+                return;
+            }
+            if freq < 2 {
+                return;
+            }
+            let idf = ((n_docs as f64 + 1.0) / (freq as f64 + 1.0)).ln() + 1.0;
+            for &(idx, tf) in &matched {
+                let w = (1.0 + f64::from(tf).ln()) * idf;
+                raw_doc_vecs[idx].push((term, w));
+            }
+        });
+        if !saw_saturated_tf {
+            template_terms_filtered = fast_template_filtered;
+            for (idx, mut weighted) in raw_doc_vecs.into_iter().enumerate() {
+                weighted.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(b.0)));
+                weighted.truncate(16);
+                doc_norms[idx] = weighted.iter().map(|(_, w)| w * w).sum::<f64>().sqrt();
+                doc_vecs.push(
+                    weighted
+                        .into_iter()
+                        .map(|(t, w)| (t.to_owned(), w))
+                        .collect(),
+                );
+            }
+            used_fast_path = true;
+        }
     }
+    if !used_fast_path {
+        let mut doc_term_sets: Vec<HashMap<String, u32>> = Vec::with_capacity(n_docs);
+        let mut df: HashMap<String, usize> = HashMap::new();
+        for &(_, body) in &doc_list {
+            let mut counts: HashMap<String, u32> = HashMap::new();
+            for tok in tokenize(body) {
+                if tok.term.chars().count() < 4 || is_template_token(&tok.term) {
+                    continue;
+                }
+                *counts.entry(tok.term).or_insert(0) += 1;
+            }
+            for term in counts.keys() {
+                *df.entry(term.clone()).or_insert(0) += 1;
+            }
+            doc_term_sets.push(counts);
+        }
+
+        let mut term_idf: HashMap<String, f64> = HashMap::new();
+        for (term, freq) in &df {
+            if *freq < 2 || *freq > max_df {
+                if *freq > max_df {
+                    template_terms_filtered += 1;
+                }
+                continue;
+            }
+            let idf = ((n_docs as f64 + 1.0) / (*freq as f64 + 1.0)).ln() + 1.0;
+            term_idf.insert(term.clone(), idf);
+        }
+
+        for (idx, counts) in doc_term_sets.iter().enumerate() {
+            let mut weighted: Vec<(String, f64)> = counts
+                .iter()
+                .filter_map(|(t, &tf)| {
+                    let &idf = term_idf.get(t)?;
+                    let w = (1.0 + (tf as f64).ln()) * idf;
+                    Some((t.clone(), w))
+                })
+                .collect();
+            weighted.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+            weighted.truncate(16);
+            doc_norms[idx] = weighted.iter().map(|(_, w)| w * w).sum::<f64>().sqrt();
+            doc_vecs.push(weighted);
+        }
+    }
+
+    let mut postings: HashMap<&str, Vec<(usize, f64)>> = HashMap::new();
     for (idx, vec) in doc_vecs.iter().enumerate() {
         for (term, weight) in vec {
             postings
@@ -469,9 +532,9 @@ pub fn detect_structural_gaps<'a>(
         }
     }
 
-    // 3. Accumulate candidate pairs sharing >= 2 rare signature terms.
-    let mut pair_dots: HashMap<(usize, usize), (f64, Vec<String>)> = HashMap::new();
-    for (term, list) in &postings {
+    // 3. Accumulate candidate pairs sharing >= 2 rare signature terms (zero String cloning until top-K).
+    let mut pair_dots: HashMap<(usize, usize), (f64, Vec<&str>)> = HashMap::new();
+    for (&term, list) in &postings {
         // Bound hub-term pair explosion deterministically.
         if list.len() > 40 {
             continue;
@@ -482,13 +545,13 @@ pub fn detect_structural_gaps<'a>(
                 let key = if d1 < d2 { (d1, d2) } else { (d2, d1) };
                 let entry = pair_dots.entry(key).or_insert_with(|| (0.0, Vec::new()));
                 entry.0 += w1 * w2;
-                entry.1.push((*term).to_owned());
+                entry.1.push(term);
             }
         }
     }
 
     let candidate_pairs_evaluated = pair_dots.len();
-    let mut scored: Vec<(usize, usize, f64, Vec<String>)> = pair_dots
+    let mut scored: Vec<(usize, usize, f64, Vec<&str>)> = pair_dots
         .into_iter()
         .filter_map(|((i, j), (dot, mut terms))| {
             if terms.len() < 2 {
@@ -502,7 +565,7 @@ pub fn detect_structural_gaps<'a>(
             if sim < 0.15 {
                 return None;
             }
-            terms.sort();
+            terms.sort_unstable();
             terms.dedup();
             Some((i, j, sim, terms))
         })
@@ -542,7 +605,7 @@ pub fn detect_structural_gaps<'a>(
         let probe_query = shared_terms
             .iter()
             .take(3)
-            .cloned()
+            .copied()
             .collect::<Vec<_>>()
             .join(" ");
         let existing_bridges = search.query(&probe_query, true, None, None, 5);
@@ -561,7 +624,11 @@ pub fn detect_structural_gaps<'a>(
             to: loc_b.clone(),
             graph_distance: dist,
             lexical_similarity: sim,
-            shared_terms: shared_terms.into_iter().take(6).collect(),
+            shared_terms: shared_terms
+                .into_iter()
+                .take(6)
+                .map(str::to_owned)
+                .collect(),
             tautology_filtered: false,
         });
     }

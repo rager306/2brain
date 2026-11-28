@@ -9,7 +9,10 @@ use std::fmt::Write as _;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub mod http;
 pub mod schemas;
+
+pub use http::{BoundHttpServer, HttpServerConfig};
 
 use rmcp::model::{
     CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,

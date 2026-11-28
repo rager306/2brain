@@ -842,6 +842,17 @@ impl<const N: usize> Bm25Index<N> {
 pub struct SearchIndex {
     index: Bm25Index<2>,
     locators: Vec<Locator>,
+    body_hashes: Vec<u64>,
+    locator_to_doc: HashMap<Locator, usize>,
+}
+
+fn fnv1a64(bytes: &[u8]) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for &b in bytes {
+        hash ^= u64::from(b);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    hash
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -859,6 +870,8 @@ impl SearchIndex {
         collected.sort_by(|a, b| a.0.cmp(&b.0));
 
         let mut locators = Vec::with_capacity(collected.len());
+        let mut body_hashes = Vec::with_capacity(collected.len());
+        let mut locator_to_doc = HashMap::with_capacity(collected.len());
         let mut index = Bm25Index::new(default_weights());
         for (locator, body, description) in collected {
             if body.is_empty() && description.is_empty() {
@@ -866,19 +879,108 @@ impl SearchIndex {
             }
             let doc_id = locators.len();
             index.add(doc_id, [body, description]);
+            locator_to_doc.insert(locator.clone(), doc_id);
             locators.push(locator);
+            body_hashes.push(fnv1a64(body.as_bytes()));
         }
-        Self { index, locators }
+        Self {
+            index,
+            locators,
+            body_hashes,
+            locator_to_doc,
+        }
+    }
+
+    /// Incrementally insert or replace a single document without re-tokenizing the rest of the corpus.
+    pub fn upsert_document(&mut self, locator: Locator, body: &str, description: &str) {
+        if body.is_empty() && description.is_empty() {
+            self.remove_document(&locator);
+            return;
+        }
+        let hash = fnv1a64(body.as_bytes());
+        if let Some(&doc_id) = self.locator_to_doc.get(&locator) {
+            self.index.add(doc_id, [body, description]);
+            self.body_hashes[doc_id] = hash;
+        } else {
+            let doc_id = self.locators.len();
+            self.index.add(doc_id, [body, description]);
+            self.locator_to_doc.insert(locator.clone(), doc_id);
+            self.locators.push(locator);
+            self.body_hashes.push(hash);
+        }
+    }
+
+    /// Incrementally remove a single document from the live index.
+    pub fn remove_document(&mut self, locator: &Locator) {
+        if let Some(&doc_id) = self.locator_to_doc.get(locator) {
+            self.index.remove(doc_id);
+            self.body_hashes[doc_id] = 0;
+        }
+    }
+
+    /// Returns true when deleted tombstones exceed compaction thresholds and callers should rebuild
+    /// from live documents to reclaim dead slots and orphaned vocabulary.
+    #[must_use]
+    pub fn needs_compaction(&self) -> bool {
+        let total = self.locators.len();
+        let live = self.index.len();
+        let dead = total.saturating_sub(live);
+        dead >= 64 && dead.saturating_mul(4) >= total
+    }
+
+    /// Returns true if `locator` is currently live in this search index.
+    #[must_use]
+    pub fn contains_locator(&self, locator: &Locator) -> bool {
+        self.locator_to_doc
+            .get(locator)
+            .is_some_and(|&doc_id| self.index.docs.get(doc_id).is_some_and(|slot| slot.alive))
+    }
+
+    /// Returns true iff this index's stored body postings for `locator` match `body` byte-for-byte
+    /// (by FNV-1a64 digest; empty bodies match when absent or indexed with an empty body).
+    #[must_use]
+    pub fn body_matches(&self, locator: &Locator, body: &str) -> bool {
+        let hash = fnv1a64(body.as_bytes());
+        match self.locator_to_doc.get(locator) {
+            Some(&doc_id) if self.index.docs.get(doc_id).is_some_and(|slot| slot.alive) => {
+                self.body_hashes.get(doc_id) == Some(&hash)
+            }
+            _ => body.is_empty(),
+        }
+    }
+
+    /// Visit every indexed term with at least one live body-field (`field 0`) posting.
+    /// Reuses an internal scratch buffer to avoid per-term heap allocations.
+    pub fn for_each_body_term<'a>(&'a self, mut visit: impl FnMut(&'a str, &[(&'a Locator, u16)])) {
+        let mut buf: Vec<(&'a Locator, u16)> = Vec::new();
+        for (term, &term_id) in &self.index.term_ids {
+            buf.clear();
+            let block = &self.index.postings[term_id as usize];
+            if block.posting_count() == 0 {
+                continue;
+            }
+            for posting in block.postings() {
+                if posting.tf[0] > 0 {
+                    let doc_idx = posting.doc as usize;
+                    if self.index.docs.get(doc_idx).is_some_and(|slot| slot.alive) {
+                        buf.push((&self.locators[doc_idx], posting.tf[0]));
+                    }
+                }
+            }
+            if !buf.is_empty() {
+                visit(term.as_str(), &buf);
+            }
+        }
     }
 
     #[must_use]
     pub fn len(&self) -> usize {
-        self.locators.len()
+        self.index.len()
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.locators.is_empty()
+        self.index.is_empty()
     }
 
     #[must_use]
@@ -913,8 +1015,13 @@ impl SearchIndex {
                 let stem = file_stem(&self.locators[hit.doc_id].path);
                 hit.score *= title_multiplier(title_coverage(&rare, stem));
             }
-            sort_hits(&mut hits);
         }
+        // Always break score ties deterministically by canonical Locator (independent of incremental doc_id order).
+        hits.sort_by(|a, b| {
+            b.score
+                .total_cmp(&a.score)
+                .then_with(|| self.locators[a.doc_id].cmp(&self.locators[b.doc_id]))
+        });
 
         hits.into_iter()
             .take(limit)
@@ -1234,5 +1341,51 @@ mod tests {
         let terms = distinct_terms("needle");
         let snip = excerpt(&body, &terms, 40);
         assert!(snip.contains("needle"), "excerpt was: {snip}");
+    }
+
+    #[test]
+    fn incremental_upsert_and_remove_match_full_rebuild() {
+        let a = Locator::new("vault", "a.md").unwrap();
+        let b = Locator::new("vault", "b.md").unwrap();
+        let c = Locator::new("vault", "c.md").unwrap();
+
+        // Insert `b` first and `a` later with identical score to verify Locator tie-breaking parity.
+        let mut inc = SearchIndex::build([
+            (b.clone(), "graph modularity bridge", "topology"),
+            (c.clone(), "old content", "old"),
+        ]);
+        inc.upsert_document(a.clone(), "quantum lattice mechanics", "notes");
+        inc.upsert_document(c.clone(), "quantum lattice mechanics", "notes");
+        inc.remove_document(&b);
+
+        let rebuilt = SearchIndex::build([
+            (a.clone(), "quantum lattice mechanics", "notes"),
+            (c.clone(), "quantum lattice mechanics", "notes"),
+        ]);
+
+        assert_eq!(inc.len(), 2);
+        assert_eq!(rebuilt.len(), 2);
+        assert!(!inc.contains_locator(&b));
+        assert!(inc.body_matches(&a, "quantum lattice mechanics"));
+        assert!(!inc.body_matches(&a, "mutated body text"));
+        assert!(inc.body_matches(&b, ""));
+        assert!(!inc.body_matches(&b, "non-empty"));
+
+        for q in ["quantum", "lattice", "modularity", "bridge"] {
+            let lhs = inc.query(q, false, None, None, 10);
+            let rhs = rebuilt.query(q, false, None, None, 10);
+            assert_eq!(lhs.len(), rhs.len(), "query '{q}' len mismatch");
+            for (l, r) in lhs.iter().zip(rhs.iter()) {
+                assert_eq!(l.locator, r.locator, "query '{q}' locator order mismatch");
+                assert_eq!(l.matched_terms, r.matched_terms);
+                assert_eq!(l.weak, r.weak);
+                assert!(
+                    (l.score - r.score).abs() < 1e-12,
+                    "query '{q}' score drift: {} vs {}",
+                    l.score,
+                    r.score
+                );
+            }
+        }
     }
 }
