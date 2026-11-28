@@ -74,6 +74,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
       - name: Download built artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -84,6 +88,36 @@ jobs:
           cd release-assets
           cat *.sha256 > SHA256SUMS.txt
           sha256sum -c SHA256SUMS.txt
+      - name: Extract release notes from CHANGELOG.md
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re, subprocess
+
+          tag = os.environ["TAG_NAME"]
+          out = pathlib.Path("release-notes.md")
+          changelog = pathlib.Path("CHANGELOG.md")
+          notes = ""
+          if changelog.exists():
+              text = changelog.read_text(encoding="utf-8")
+              m = re.search(rf"^## \[{re.escape(tag)}\][^\n]*\n(.*?)(?=^## \[|\Z)", text, re.M | re.S)
+              if m:
+                  notes = m.group(1).strip()
+                  notes = re.sub(r"\n---\s*$", "", notes).strip()
+          if not notes:
+              prev = subprocess.run(
+                  ["git", "describe", "--tags", "--abbrev=0", f"{tag}^"],
+                  capture_output=True, text=True,
+              )
+              rev_range = f"{prev.stdout.strip()}..{tag}" if prev.returncode == 0 and prev.stdout.strip() else tag
+              log = subprocess.check_output(
+                  ["git", "log", "--no-merges", "--pretty=format:- %s (%h)", rev_range],
+                  text=True,
+              ).strip()
+              notes = f"### Changes\n{log}" if log else f"Release {tag}"
+          out.write_text(notes + "\n", encoding="utf-8")
+          PY
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -91,10 +125,11 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           if gh release view "$TAG_NAME" --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release edit "$TAG_NAME" --repo "$GH_REPO" --title "2brain $TAG_NAME" --notes-file release-notes.md
             gh release upload "$TAG_NAME" release-assets/* --repo "$GH_REPO" --clobber
           else
             gh release create "$TAG_NAME" release-assets/* \
               --repo "$GH_REPO" \
               --title "2brain $TAG_NAME" \
-              --generate-notes
+              --notes-file release-notes.md
           fi
