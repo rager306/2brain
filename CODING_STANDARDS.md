@@ -70,6 +70,11 @@ Defect classes caught by adversarial review and fixed by structural invariants:
    - Bind `--refresh` CAS `expected_hash` to the gated `VaultSnapshot` (never re-reading disk before commit) and execute multi-note ingest batches atomically under one `write.lock` + one Git commit with compensating rollback (`FsWorkspaceStore::commit_ingest_batch`).
    - Reject malformed Markdown frontmatter and malformed CSV quoting fail-closed; resolve batch links against a merged post-batch `(path_index, stem_index)`; preserve unconsumed JSON fields; re-escape `<`/`>` and Markdown link punctuation after HTML entity decoding so active HTML cannot be reintroduced.
 
+17. **MCP Ingest Target Derivation Parity, Replay-First Outcomes & Writable Default Repo (`tb-mcp`, `tb-app`, `two-brain`):**
+   - Derive refresh target paths in `TwoBrainMcp::handle_ingest` via `tb_app::ingest::convert_source` (the exact same converter as `App::ingest_payload`) before enforcing SEM-02 prior-read checks and ledger invalidation so JSON/JSONL `slug`/`title` overrides can never bypass SEM-02.
+   - Run snapshot-dependent admission and CAS checks inside `execute_with_outcomes` so `request_id` retries replay committed outcomes instead of failing on post-commit disk state, and bound durable outcome responses under the 64 KiB journal frame limit.
+   - Select the default writable ingest repository strictly from `own`/`primary`/`editable` members (failing closed on zero or ambiguous matches) so omitted `repo` arguments never land in a `dependency` member.
+
 
 
 

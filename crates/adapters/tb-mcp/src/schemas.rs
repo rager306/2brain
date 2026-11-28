@@ -451,6 +451,30 @@ pub fn full_schema_for(name: &str) -> Arc<Map<String, Value>> {
                 "target_kind": { "type": "string", "enum": ["question", "conflict"] }
             }
         }),
+        "tb_ingest" => json!({
+            "type": "object",
+            "required": ["content", "stem"],
+            "properties": {
+                "content": { "type": "string", "description": "Inline UTF-8 payload to convert and ingest (max 2 MiB)" },
+                "stem": { "type": "string", "description": "Base filename stem or title used to derive target slug" },
+                "format": { "type": "string", "enum": ["md", "txt", "html", "csv", "json", "jsonl"], "default": "md" },
+                "dest": { "type": "string", "default": "inbox", "description": "Destination folder inside target repo" },
+                "repo": { "type": "string", "description": "Target member repo (required when refresh=true)" },
+                "type": { "type": "string", "description": "Default frontmatter type when source omits one" },
+                "date": { "type": "string", "description": "Optional capture date (YYYY-MM-DD)" },
+                "source": { "type": "string", "description": "Optional provenance label" },
+                "allow_unresolved_links": { "type": "boolean", "default": false },
+                "allow_ambiguous_links": { "type": "boolean", "default": false },
+                "refresh": { "type": "boolean", "default": false, "description": "Overwrite existing target(s); requires SEM-02 prior read + expected_hash/expected_hashes" },
+                "expected_hash": { "type": "string", "description": "CAS hash for single-target refresh" },
+                "expected_hashes": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Map of target path -> CAS hash for multi-target refresh" },
+                "read_receipt": { "type": "string", "description": "Stateless MCP 2.0 HMAC read_receipt for single-target refresh" },
+                "read_receipts": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Map of target path -> read_receipt for multi-target refresh" },
+                "dedup_threshold": { "type": "number", "description": "Optional BM25 score threshold to reject near-duplicates" },
+                "dry_run": { "type": "boolean", "default": false },
+                "request_id": { "type": "string", "description": "Optional idempotency key for ADR-0009 outcome registry" }
+            }
+        }),
         _ => json!({ "type": "object", "properties": {} }),
     };
 
@@ -463,7 +487,7 @@ pub fn classify_error_with_hint(msg: &str) -> (&'static str, &'static str) {
     if msg.contains("policy/launch_grant") {
         (
             "launch_grant",
-            "Restart '2brain mcp' with the required capability flag (--allow-mutations, --allow-composition, --allow-workspace-shape, or --allow-cognitive).",
+            "Restart '2brain mcp' with the required capability flag (--allow-mutations, --allow-composition, --allow-workspace-shape, --allow-ingest, or --allow-cognitive).",
         )
     } else if msg.contains("policy/prior_read") {
         (

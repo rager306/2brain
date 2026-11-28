@@ -30,10 +30,19 @@ struct Cli {
 enum Command {
     /// Print build, architecture, and protocol surface details.
     Info,
-    /// Read-only parse, schema validation, and CSR graph health check on a workspace.
+    /// Read-only parse, schema validation, CSR graph health, and description quality check on a workspace.
     Check {
         /// Path to the workspace directory.
         path: PathBuf,
+        /// List individual notes with missing, weak, or stale (disconnected) frontmatter descriptions.
+        #[arg(long = "audit-descriptions")]
+        audit_descriptions: bool,
+        /// Maximum number of description audit findings to list.
+        #[arg(long = "limit", default_value_t = 25)]
+        limit: usize,
+        /// Emit machine-readable JSON output.
+        #[arg(long = "json")]
+        json: bool,
     },
     /// Run InfraNodus & cognitive topology + dual-layer gap analysis on a workspace.
     Analyze {
@@ -169,6 +178,9 @@ enum Command {
         /// Enable workspace member shape mutations (implies --allow-mutations).
         #[arg(long = "allow-workspace-shape")]
         allow_workspace_shape: bool,
+        /// Enable the fail-closed inline `tb_ingest` MCP tool (implies --allow-mutations).
+        #[arg(long = "allow-ingest")]
+        allow_ingest: bool,
         /// Acknowledge durable outcome-registry tracking for request_id mutations.
         #[arg(long = "outcome-registry")]
         outcome_registry: bool,
@@ -241,7 +253,12 @@ fn main() {
             );
             println!("  layers       domain (0 I/O) -> app (ports) -> adapters -> cli");
         }
-        Command::Check { path } => run_check(&path),
+        Command::Check {
+            path,
+            audit_descriptions,
+            limit,
+            json,
+        } => run_check(&path, audit_descriptions, limit, json),
         Command::Analyze {
             path,
             peel_top_k,
@@ -331,6 +348,7 @@ fn main() {
             allow_mutations,
             allow_composition,
             allow_workspace_shape,
+            allow_ingest,
             outcome_registry,
             allow_cognitive,
             principal,
@@ -340,11 +358,13 @@ fn main() {
             info,
         } => {
             let _ = (principal, payload, policy_file);
-            let effective_mutations = allow_mutations || allow_composition || allow_workspace_shape;
+            let effective_mutations =
+                allow_mutations || allow_composition || allow_workspace_shape || allow_ingest;
             let policy = LaunchPolicy {
                 allow_mutations: effective_mutations,
                 allow_composition,
                 allow_workspace_shape,
+                allow_ingest,
                 outcome_registry,
                 allow_cognitive,
                 full_schemas: tools.eq_ignore_ascii_case("full"),
@@ -355,7 +375,7 @@ fn main() {
                     env!("CARGO_PKG_VERSION")
                 );
                 println!(
-                    "  tools        54 core (38 read-only, 16 mutating) + 9 opt-in cognitive (--allow-cognitive)"
+                    "  tools        54 core (38 read-only, 16 mutating) + 9 cognitive (--allow-cognitive) + 1 ingest (--allow-ingest)"
                 );
                 println!(
                     "  protocol     MCP 2026-07-28 (stateless) + legacy + SEP-2640 skills + SEP-2663 tasks"
@@ -653,53 +673,107 @@ fn run_diff(path: &std::path::Path, from_ref: &str, to_ref: Option<&str>, limit:
     }
 }
 
-fn run_check(path: &std::path::Path) {
+fn run_check(path: &std::path::Path, audit_descriptions: bool, limit: usize, as_json: bool) {
     let started = Instant::now();
-    match tb_fs_git::check_workspace(path) {
-        Ok(summary) => {
-            let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
-            println!(
-                "2brain check '{}' ({:.1} ms)",
-                summary.repo_name, elapsed_ms
-            );
-            println!(
-                "  corpus       {} markdown files, {} types loaded",
-                summary.markdown_files, summary.types_loaded
-            );
-            println!(
-                "  diagnostics  {} schema, {} unresolved local links, {} ambiguous links, {} unresolved qualified links, {} utf8 errors, {} symlink refusals",
-                summary.schema_diagnostics,
-                summary.broken_links,
-                summary.ambiguous_links,
-                summary.unresolved_qualified_links,
-                summary.utf8_errors,
-                summary.symlink_refusals
-            );
-            println!(
-                "  graph_shape  nodes={} edges={} (structural={} navigational={}) components={} largest={} isolated={} density={:.2}",
-                summary.shape.node_count,
-                summary.shape.edge_count,
-                summary.shape.edges_structural,
-                summary.shape.edges_navigational,
-                summary.shape.components,
-                summary.shape.largest_component,
-                summary.shape.isolated,
-                summary.shape.density
-            );
-            println!(
-                "  graph_health cycles={} dead_ends={} sources={} bridges={} articulation_points={} triangles={} transitivity={:.4}",
-                summary.health.directed_cycles,
-                summary.health.dead_ends,
-                summary.health.sources,
-                summary.health.bridges.len(),
-                summary.health.articulation_points.len(),
-                summary.health.triangles,
-                summary.health.transitivity
-            );
-        }
+    let summary = match tb_fs_git::check_workspace(path) {
+        Ok(s) => s,
         Err(err) => {
             eprintln!("error: {err}");
             std::process::exit(1);
+        }
+    };
+    let desc_report = tb_fs_git::load_snapshot(path).ok().map(|(_, snap)| {
+        let report_limit = if audit_descriptions { limit } else { 0 };
+        tb_app::ingest::audit_descriptions(&snap, None, report_limit)
+    });
+    let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
+
+    if as_json {
+        let payload = serde_json::json!({
+            "repo": summary.repo_name,
+            "elapsed_ms": elapsed_ms,
+            "corpus": {
+                "markdown_files": summary.markdown_files,
+                "types_loaded": summary.types_loaded,
+            },
+            "diagnostics": {
+                "schema": summary.schema_diagnostics,
+                "broken_links": summary.broken_links,
+                "ambiguous_links": summary.ambiguous_links,
+                "unresolved_qualified_links": summary.unresolved_qualified_links,
+                "utf8_errors": summary.utf8_errors,
+                "symlink_refusals": summary.symlink_refusals,
+            },
+            "graph_shape": summary.shape,
+            "graph_health": summary.health,
+            "descriptions": desc_report,
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&payload).expect("json serialization")
+        );
+        return;
+    }
+
+    println!(
+        "2brain check '{}' ({:.1} ms)",
+        summary.repo_name, elapsed_ms
+    );
+    println!(
+        "  corpus       {} markdown files, {} types loaded",
+        summary.markdown_files, summary.types_loaded
+    );
+    println!(
+        "  diagnostics  {} schema, {} unresolved local links, {} ambiguous links, {} unresolved qualified links, {} utf8 errors, {} symlink refusals",
+        summary.schema_diagnostics,
+        summary.broken_links,
+        summary.ambiguous_links,
+        summary.unresolved_qualified_links,
+        summary.utf8_errors,
+        summary.symlink_refusals
+    );
+    println!(
+        "  graph_shape  nodes={} edges={} (structural={} navigational={}) components={} largest={} isolated={} density={:.2}",
+        summary.shape.node_count,
+        summary.shape.edge_count,
+        summary.shape.edges_structural,
+        summary.shape.edges_navigational,
+        summary.shape.components,
+        summary.shape.largest_component,
+        summary.shape.isolated,
+        summary.shape.density
+    );
+    println!(
+        "  graph_health cycles={} dead_ends={} sources={} bridges={} articulation_points={} triangles={} transitivity={:.4}",
+        summary.health.directed_cycles,
+        summary.health.dead_ends,
+        summary.health.sources,
+        summary.health.bridges.len(),
+        summary.health.articulation_points.len(),
+        summary.health.triangles,
+        summary.health.transitivity
+    );
+    if let Some(ref rep) = desc_report {
+        println!(
+            "  descriptions total={} ok={} missing={} weak={} stale={}",
+            rep.summary.total,
+            rep.summary.ok,
+            rep.summary.missing,
+            rep.summary.weak,
+            rep.summary.stale
+        );
+        if audit_descriptions {
+            for finding in &rep.findings {
+                let kind = match finding.kind {
+                    tb_app::ingest::DescriptionIssueKind::Missing => "missing",
+                    tb_app::ingest::DescriptionIssueKind::Weak => "weak",
+                    tb_app::ingest::DescriptionIssueKind::Stale => "stale",
+                };
+                match &finding.description {
+                    Some(d) => println!("    [{kind}] {} ({d})", finding.locator.path),
+                    None => println!("    [{kind}] {}", finding.locator.path),
+                }
+            }
         }
     }
 }

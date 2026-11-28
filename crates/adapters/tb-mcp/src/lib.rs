@@ -76,6 +76,7 @@ pub struct LaunchPolicy {
     pub allow_mutations: bool,
     pub allow_composition: bool,
     pub allow_workspace_shape: bool,
+    pub allow_ingest: bool,
     pub outcome_registry: bool,
     pub allow_cognitive: bool,
     pub full_schemas: bool,
@@ -328,6 +329,7 @@ impl TwoBrainMcp {
                 map_mutation(self.dispatcher.call_mutation("rename_type", args))
             }
             "tb_batch" => self.handle_batch(args),
+            "tb_ingest" => self.handle_ingest(args),
             "tb_add_dep" | "tb_remove_dep" => {
                 if !self.policy.allow_mutations || !self.policy.allow_composition {
                     return err_text(
@@ -498,6 +500,136 @@ impl TwoBrainMcp {
         }
         let res = self.dispatcher.call_mutation("batch", args);
         if res.is_ok()
+            && let Ok(mut ledger) = self.ledger.lock()
+        {
+            for (repo, path) in &to_invalidate {
+                ledger.invalidate(repo, path);
+            }
+        }
+        map_mutation(res)
+    }
+
+    fn handle_ingest(&self, args: &Map<String, Value>) -> CallToolResult {
+        if !self.policy.allow_mutations || !self.policy.allow_ingest {
+            return err_text(
+                "policy/launch_grant: ingest mutations require --allow-mutations and --allow-ingest",
+            );
+        }
+        let dry_run = args
+            .get("dry_run")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let refresh = args
+            .get("refresh")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+
+        let mut to_invalidate: Vec<(String, String)> = Vec::new();
+        if refresh && !dry_run {
+            let repo = match req_str(args, "repo") {
+                Ok(r) => r,
+                Err(_) => {
+                    return err_text(
+                        "policy/arguments: 'repo' is required when refresh=true so SEM-02 prior-read can be verified",
+                    );
+                }
+            };
+            let content = match req_str(args, "content") {
+                Ok(c) => c,
+                Err(e) => return err_text(e),
+            };
+            let stem = match args
+                .get("stem")
+                .or_else(|| args.get("title"))
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                Some(s) => s,
+                None => return err_text("policy/arguments: 'stem' (or 'title') is required"),
+            };
+            let format_str = opt_str(args, "format").unwrap_or("md");
+            let format = match tb_app::ingest::IngestFormat::parse_flag(format_str) {
+                Ok(f) => f.unwrap_or(tb_app::ingest::IngestFormat::Markdown),
+                Err(e) => return err_text(format!("policy/arguments: {e}")),
+            };
+            let dest = opt_str(args, "dest").unwrap_or("inbox");
+            let conv_opts = tb_app::ingest::ConvertOptions {
+                repo: repo.to_owned(),
+                dest_dir: dest.to_owned(),
+                default_type: opt_str(args, "type").map(str::to_owned),
+                captured_date: opt_str(args, "date").map(str::to_owned),
+                source_label: opt_str(args, "source").unwrap_or(stem).to_owned(),
+            };
+            // Derive the EXACT target paths using the same converter as `App::ingest_payload` so
+            // JSON/JSONL `slug`/`title` records can never bypass SEM-02 prior-read verification.
+            let drafts = match tb_app::ingest::convert_source(
+                stem,
+                format,
+                content.as_bytes(),
+                &conv_opts,
+            ) {
+                Ok(d) => d,
+                Err(e) => return err_text(format!("policy/arguments: {e}")),
+            };
+
+            let mut hash_entries: Vec<(String, String)> = Vec::new();
+            if let Some(map) = args.get("expected_hashes").and_then(Value::as_object) {
+                for (path, val) in map {
+                    let Some(h) = val.as_str() else {
+                        return err_text(format!(
+                            "policy/arguments: expected_hashes['{path}'] must be a string"
+                        ));
+                    };
+                    hash_entries.push((path.clone(), h.to_owned()));
+                }
+            }
+            if let Some(single_hash) = opt_str(args, "expected_hash") {
+                if drafts.len() != 1 {
+                    return err_text(
+                        "policy/arguments: multi-record refresh requires 'expected_hashes' map keyed by target path",
+                    );
+                }
+                let actual_path = drafts[0].locator.path.clone();
+                if !hash_entries.iter().any(|(p, _)| p == &actual_path) {
+                    hash_entries.push((actual_path, single_hash.to_owned()));
+                }
+            }
+            if hash_entries.is_empty() {
+                return err_text(
+                    "policy/prior_read: refresh=true requires expected_hash (or expected_hashes map) armed by a whole tb_content read (SEM-02)",
+                );
+            }
+
+            let receipts_map = args.get("read_receipts").and_then(Value::as_object);
+            let single_receipt = opt_str(args, "read_receipt");
+            for (path, expected_hash) in &hash_entries {
+                let receipt = receipts_map
+                    .and_then(|m| m.get(path))
+                    .and_then(Value::as_str)
+                    .or(if hash_entries.len() == 1 {
+                        single_receipt
+                    } else {
+                        None
+                    });
+                if let Some(tok) = receipt {
+                    if let Err(reason) = self.signer.verify(tok, repo, path, expected_hash) {
+                        return err_text(format!("{path}: {reason}"));
+                    }
+                } else if let Ok(ledger) = self.ledger.lock() {
+                    if let Err(reason) = ledger.verify_write(repo, path, expected_hash) {
+                        return err_text(format!("{path}: {reason}"));
+                    }
+                } else {
+                    return err_text("internal: read ledger lock poisoned");
+                }
+                to_invalidate.push((repo.to_owned(), path.clone()));
+            }
+        }
+
+        let res = self.dispatcher.call_mutation("ingest", args);
+        if res.is_ok()
+            && !dry_run
             && let Ok(mut ledger) = self.ledger.lock()
         {
             for (repo, path) in &to_invalidate {
@@ -1147,6 +1279,12 @@ fn build_tool_catalog(policy: LaunchPolicy) -> Vec<Tool> {
                 ),
             ]);
         }
+        if policy.allow_ingest {
+            tools.push(make_tool(
+                "tb_ingest",
+                "Convert inline md/txt/html/csv/json/jsonl payloads into typed notes with fail-closed schema/link/dedup/description gates.",
+            ));
+        }
     }
 
     if policy.allow_cognitive {
@@ -1228,11 +1366,19 @@ mod tests {
             allow_mutations: true,
             allow_composition: true,
             allow_workspace_shape: true,
+            allow_ingest: false,
             outcome_registry: false,
             allow_cognitive: false,
             full_schemas: false,
         });
         assert_eq!(full.len(), 54);
+
+        let with_ingest = build_tool_catalog(LaunchPolicy {
+            allow_mutations: true,
+            allow_ingest: true,
+            ..LaunchPolicy::default()
+        });
+        assert!(with_ingest.iter().any(|t| t.name.as_ref() == "tb_ingest"));
 
         let cognitive = build_tool_catalog(LaunchPolicy {
             allow_cognitive: true,
@@ -1482,5 +1628,74 @@ mod tests {
             tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         }
         assert!(completed, "task must complete after elicitation response");
+    }
+
+    #[test]
+    fn tb_ingest_enforces_launch_grant_and_sem02_refresh_gate() {
+        let app: Arc<dyn AppDispatcher> = Arc::new(App::new(DummyStore, VaultSnapshot::empty()));
+
+        // 1. Refused without --allow-ingest even when --allow-mutations is on.
+        let no_ingest = TwoBrainMcp::new(
+            Arc::clone(&app),
+            LaunchPolicy {
+                allow_mutations: true,
+                ..LaunchPolicy::default()
+            },
+        );
+        let args = json!({
+            "content": "# Hello\n\nBody text for ingest test.\n",
+            "stem": "hello"
+        });
+        let denied = no_ingest.dispatch_tool("tb_ingest", args.as_object().unwrap());
+        assert_eq!(denied.is_error, Some(true));
+        assert_eq!(
+            denied.structured_content.unwrap()["reason_code"],
+            "launch_grant"
+        );
+
+        // 2. With --allow-ingest, refresh=true without SEM-02 prior read is refused.
+        let with_ingest = TwoBrainMcp::new(
+            app,
+            LaunchPolicy {
+                allow_mutations: true,
+                allow_ingest: true,
+                ..LaunchPolicy::default()
+            },
+        );
+        let refresh_args = json!({
+            "repo": "vault",
+            "content": "# Updated\n\nBody text for refresh test.\n",
+            "stem": "hello",
+            "refresh": true,
+            "expected_hash": "1122334455667788"
+        });
+        let refused = with_ingest.dispatch_tool("tb_ingest", refresh_args.as_object().unwrap());
+        assert_eq!(refused.is_error, Some(true));
+        assert_eq!(
+            refused.structured_content.unwrap()["reason_code"],
+            "prior_read"
+        );
+
+        // 3. Arming only the `stem` path cannot bypass SEM-02 when JSON overrides `slug`.
+        with_ingest.ledger.lock().unwrap().record_whole_read(
+            "vault",
+            "inbox/decoy.md",
+            "1122334455667788".to_owned(),
+            "a".repeat(64),
+        );
+        let json_slug_bypass = json!({
+            "repo": "vault",
+            "format": "json",
+            "stem": "decoy",
+            "content": "{\"slug\":\"real-target\",\"title\":\"Real\",\"body\":\"Body text\"}",
+            "refresh": true,
+            "expected_hash": "1122334455667788"
+        });
+        let blocked = with_ingest.dispatch_tool("tb_ingest", json_slug_bypass.as_object().unwrap());
+        assert_eq!(blocked.is_error, Some(true));
+        assert_eq!(
+            blocked.structured_content.unwrap()["reason_code"],
+            "prior_read"
+        );
     }
 }

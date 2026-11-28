@@ -36,14 +36,7 @@ use thiserror::Error;
 
 static TEMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
-/// One atomic file write inside [`FsWorkspaceStore::commit_ingest_batch`].
-#[derive(Clone, Debug)]
-pub struct IngestWriteOp {
-    pub locator: Locator,
-    pub content: String,
-    /// `None` for create (fails if target exists); `Some(short_hash)` for CAS refresh.
-    pub expected_hash: Option<String>,
-}
+pub use tb_app::ingest::IngestWriteOp;
 
 /// Confined filesystem and Git workspace store (single-repo or multi-member `workspace.yaml`).
 #[derive(Clone, Debug)]
@@ -496,6 +489,15 @@ impl WorkspaceStore for FsWorkspaceStore {
                 ))),
             },
         }
+    }
+
+    fn commit_ingest_batch(
+        &self,
+        repo: &str,
+        items: &[IngestWriteOp],
+        commit_message: &str,
+    ) -> Result<Vec<MutationReceipt>, StoreError> {
+        FsWorkspaceStore::commit_ingest_batch(self, repo, items, commit_message)
     }
 
     fn rename_file_cas(

@@ -89,13 +89,13 @@ pub fn run_ingest(args: IngestCliArgs) {
             }
             r
         }
-        None => snapshot
-            .members
-            .values()
-            .find(|m| m.role == "editable")
-            .or_else(|| snapshot.members.values().next())
-            .map(|m| m.repo.clone())
-            .unwrap_or_else(|| "vault".to_owned()),
+        None => match tb_app::ingest::resolve_default_writable_repo(&snapshot) {
+            Ok(r) => r,
+            Err(err) => {
+                eprintln!("error: {err}");
+                std::process::exit(2);
+            }
+        },
     };
 
     let (base_dir_fd, collected) = match open_and_collect_sources(&args.source, explicit_format) {

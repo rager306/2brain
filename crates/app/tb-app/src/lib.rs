@@ -217,6 +217,18 @@ pub trait WorkspaceStore: Send + Sync {
         ))
     }
 
+    /// Atomically commit a batch of ingest writes under one write lock and one Git commit.
+    fn commit_ingest_batch(
+        &self,
+        _repo: &str,
+        _items: &[ingest::IngestWriteOp],
+        _commit_message: &str,
+    ) -> Result<Vec<MutationReceipt>, StoreError> {
+        Err(StoreError::Unsupported(
+            "commit_ingest_batch unsupported".into(),
+        ))
+    }
+
     /// Read-only preview of files affected by reverting a Git commit (`tb_rollback_preview`).
     fn git_commit_preview(
         &self,
@@ -1332,12 +1344,14 @@ impl<W: WorkspaceStore> App<W> {
         let snap = self.snapshot();
         let shape = snap.graph.shape();
         let health = snap.graph.health();
+        let desc = ingest::audit_descriptions(&snap, repo, 0).summary;
         json!({
             "graph_health": {
                 "repo": repo,
                 "scope": "workspace",
                 "shape": shape,
                 "health": health,
+                "descriptions": desc,
             }
         })
     }
@@ -2462,10 +2476,282 @@ impl<W: WorkspaceStore + 'static> AppDispatcher for App<W> {
                     request_id,
                 )
             }
+            "ingest" => self.ingest_payload(args, request_id),
             other => Err(AppError::Unsupported(format!(
                 "unknown mutation verb '{other}'"
             ))),
         }
+    }
+}
+
+const MAX_MCP_INGEST_BYTES: usize = 2 * 1024 * 1024; // 2 MiB inline MCP payload cap
+const MAX_DURABLE_RESPONSE_BYTES: usize = 48 * 1024; // Stays safely under 64 KiB journal frame cap
+
+impl<W: WorkspaceStore> App<W> {
+    /// Fail-closed inline ingest (`tb_ingest`) converting text/md/html/csv/json/jsonl payloads,
+    /// enforcing schema/link/duplicate/description gates, requiring explicit CAS `expected_hash`
+    /// for every refresh target, and committing atomically via `WorkspaceStore::commit_ingest_batch`.
+    pub fn ingest_payload(
+        &self,
+        args: &serde_json::Map<String, Value>,
+        request_id: Option<&str>,
+    ) -> Result<IdempotentOutcome, AppError> {
+        let content = args
+            .get("content")
+            .and_then(Value::as_str)
+            .ok_or_else(|| AppError::InvalidArguments("'content' string is required".into()))?;
+        if content.len() > MAX_MCP_INGEST_BYTES {
+            return Err(AppError::InvalidArguments(format!(
+                "ingest content exceeds max inline size ({} > {MAX_MCP_INGEST_BYTES} bytes)",
+                content.len()
+            )));
+        }
+        let format_str = args.get("format").and_then(Value::as_str).unwrap_or("md");
+        let format = ingest::IngestFormat::parse_flag(format_str)
+            .map_err(|e| AppError::InvalidArguments(e.to_string()))?
+            .unwrap_or(ingest::IngestFormat::Markdown);
+        let stem = args
+            .get("stem")
+            .or_else(|| args.get("title"))
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| AppError::InvalidArguments("'stem' (or 'title') is required".into()))?;
+        let dest = args.get("dest").and_then(Value::as_str).unwrap_or("inbox");
+        let initial_snap = self.snapshot();
+        let target_repo = match args.get("repo").and_then(Value::as_str) {
+            Some(r) => {
+                if !initial_snap.members.contains_key(r) {
+                    return Err(AppError::NotFound(format!("unknown repo '{r}'")));
+                }
+                r.to_owned()
+            }
+            None => ingest::resolve_default_writable_repo(&initial_snap)
+                .map_err(AppError::InvalidArguments)?,
+        };
+        let default_type = args
+            .get("type")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned);
+        let captured_date = args
+            .get("date")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned);
+        let source_label = args
+            .get("source")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(stem)
+            .to_owned();
+        let dry_run = args
+            .get("dry_run")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let refresh = args
+            .get("refresh")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let allow_unresolved_links = args
+            .get("allow_unresolved_links")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let allow_ambiguous_links = args
+            .get("allow_ambiguous_links")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let dedup_score_threshold = args.get("dedup_threshold").and_then(Value::as_f64);
+
+        let conv_opts = ingest::ConvertOptions {
+            repo: target_repo.clone(),
+            dest_dir: dest.to_owned(),
+            default_type,
+            captured_date,
+            source_label,
+        };
+        let drafts = ingest::convert_source(stem, format, content.as_bytes(), &conv_opts)
+            .map_err(|e| AppError::InvalidArguments(e.to_string()))?;
+
+        let mut batch_locators = BTreeSet::new();
+        let mut duplicate_targets = BTreeSet::new();
+        for d in &drafts {
+            if !batch_locators.insert(d.locator.clone()) {
+                duplicate_targets.insert(d.locator.clone());
+            }
+        }
+
+        let gate_opts = ingest::IngestGateOptions {
+            allow_unresolved_links,
+            allow_ambiguous_links,
+            refresh_existing: refresh,
+            dedup_score_threshold,
+        };
+
+        if dry_run {
+            let mut reports = Vec::with_capacity(drafts.len());
+            for d in &drafts {
+                let mut rep =
+                    ingest::evaluate_ingest_draft(&initial_snap, d, &batch_locators, &gate_opts);
+                if duplicate_targets.contains(&d.locator) {
+                    rep.admitted = false;
+                    rep.errors.push(format!(
+                        "batch_collision: multiple records map to target '{}'",
+                        d.locator.path
+                    ));
+                }
+                reports.push(rep);
+            }
+            let all_admitted = reports.iter().all(|r| r.admitted);
+            return Ok(IdempotentOutcome {
+                payload: json!({
+                    "ingest": {
+                        "ok": all_admitted,
+                        "dry_run": true,
+                        "repo": target_repo,
+                        "written": 0,
+                        "reports": reports,
+                    }
+                }),
+                outcome_state: None,
+                replayed: false,
+            });
+        }
+
+        // Collect explicit caller CAS hashes before entering outcome replay so preconditions are
+        // stably bound to the request digest.
+        let mut expected_hashes: BTreeMap<String, String> = BTreeMap::new();
+        if let Some(map) = args.get("expected_hashes").and_then(Value::as_object) {
+            for (k, v) in map {
+                if let Some(h) = v.as_str() {
+                    expected_hashes.insert(k.clone(), h.to_owned());
+                }
+            }
+        }
+        if let Some(single_hash) = args.get("expected_hash").and_then(Value::as_str)
+            && drafts.len() == 1
+        {
+            expected_hashes
+                .entry(drafts[0].locator.path.clone())
+                .or_insert_with(|| single_hash.to_owned());
+        }
+
+        let repo_for_commit = target_repo.clone();
+        let durable_bound = request_id.is_some();
+        // Run snapshot-dependent gating, CAS checks, and commit INSIDE `run` so outcome-registry
+        // retries with the same `request_id` replay cleanly instead of failing on post-commit state.
+        let run = || {
+            let snap = self.snapshot();
+            let mut reports = Vec::with_capacity(drafts.len());
+            for d in &drafts {
+                let mut rep = ingest::evaluate_ingest_draft(&snap, d, &batch_locators, &gate_opts);
+                if duplicate_targets.contains(&d.locator) {
+                    rep.admitted = false;
+                    rep.errors.push(format!(
+                        "batch_collision: multiple records map to target '{}'",
+                        d.locator.path
+                    ));
+                }
+                reports.push(rep);
+            }
+
+            if !reports.iter().all(|r| r.admitted) {
+                let summary: Vec<String> = reports
+                    .iter()
+                    .filter(|r| !r.admitted)
+                    .map(|r| format!("{}: {}", r.locator.path, r.errors.join("; ")))
+                    .collect();
+                return Err(AppError::InvalidArguments(format!(
+                    "ingest gate rejected batch: {}",
+                    summary.join(" | ")
+                )));
+            }
+
+            let mut ops = Vec::with_capacity(drafts.len());
+            for (d, rep) in drafts.iter().zip(reports.iter()) {
+                let expected_hash = if rep.action == "refresh" {
+                    let caller_hash = expected_hashes.get(&d.locator.path).ok_or_else(|| {
+                        AppError::InvalidArguments(format!(
+                            "policy/freshness: refresh target '{}' requires expected_hash (or expected_hashes[\"{}\"])",
+                            d.locator.path, d.locator.path
+                        ))
+                    })?;
+                    if let Some(existing) = snap.files.get(&d.locator)
+                        && caller_hash != &existing.short_hash
+                        && !caller_hash.eq_ignore_ascii_case(&existing.sha256.to_hex())
+                    {
+                        return Err(AppError::CasMismatch(format!(
+                            "expected_hash_mismatch on '{}': expected '{}', actual '{}'",
+                            d.locator.path, caller_hash, existing.short_hash
+                        )));
+                    }
+                    Some(caller_hash.clone())
+                } else {
+                    None
+                };
+                ops.push(ingest::IngestWriteOp {
+                    locator: d.locator.clone(),
+                    content: d.content.clone(),
+                    expected_hash,
+                });
+            }
+
+            let commit_msg = format!("2brain: ingest {} note(s)", ops.len());
+            let receipts = self
+                .store
+                .commit_ingest_batch(&repo_for_commit, &ops, &commit_msg)?;
+            self.refresh_after_mutation();
+
+            let commit_sha = receipts.first().and_then(|r| r.commit.clone());
+            let full_payload = json!({
+                "ingest": {
+                    "ok": true,
+                    "dry_run": false,
+                    "repo": repo_for_commit,
+                    "written": receipts.len(),
+                    "receipts": receipts,
+                    "reports": reports,
+                }
+            });
+            // Keep durable outcome-registry replay responses safely under the 64 KiB journal frame limit.
+            if durable_bound && serde_json::to_vec(&full_payload).is_err_and(|_| true)
+                || (durable_bound
+                    && serde_json::to_vec(&full_payload)
+                        .is_ok_and(|b| b.len() > MAX_DURABLE_RESPONSE_BYTES))
+            {
+                return Ok(json!({
+                    "ingest": {
+                        "ok": true,
+                        "dry_run": false,
+                        "repo": repo_for_commit,
+                        "written": ops.len(),
+                        "commit": commit_sha,
+                        "summary_only": true,
+                    }
+                }));
+            }
+            Ok(full_payload)
+        };
+        if let Some(req_id) = request_id {
+            let args_val = Value::Object(args.clone());
+            let pre = json!({ "expected_hashes": expected_hashes });
+            return self.execute_with_outcomes(
+                req_id,
+                "ingest",
+                &target_repo,
+                &args_val,
+                &pre,
+                run,
+            );
+        }
+        Ok(IdempotentOutcome {
+            payload: run()?,
+            outcome_state: None,
+            replayed: false,
+        })
     }
 }
 

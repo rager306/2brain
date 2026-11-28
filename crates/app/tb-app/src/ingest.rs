@@ -21,6 +21,120 @@ use thiserror::Error;
 
 use crate::{LinkResolution, VaultSnapshot};
 
+/// One atomic file write inside `WorkspaceStore::commit_ingest_batch`.
+#[derive(Clone, Debug)]
+pub struct IngestWriteOp {
+    pub locator: Locator,
+    pub content: String,
+    /// `None` for create (fails if target exists); `Some(short_hash)` for CAS refresh.
+    pub expected_hash: Option<String>,
+}
+
+/// Classification for workspace-wide frontmatter description quality audits.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DescriptionIssueKind {
+    Missing,
+    Weak,
+    Stale,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DescriptionAuditSummary {
+    pub total: usize,
+    pub ok: usize,
+    pub missing: usize,
+    pub weak: usize,
+    pub stale: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DescriptionAuditFinding {
+    pub locator: Locator,
+    pub kind: DescriptionIssueKind,
+    pub description: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DescriptionAuditReport {
+    pub summary: DescriptionAuditSummary,
+    pub findings: Vec<DescriptionAuditFinding>,
+}
+
+/// Audit frontmatter `description` freshness and quality across a [`VaultSnapshot`] (0 I/O).
+#[must_use]
+pub fn audit_descriptions(
+    snapshot: &VaultSnapshot,
+    repo: Option<&str>,
+    limit: usize,
+) -> DescriptionAuditReport {
+    let mut summary = DescriptionAuditSummary::default();
+    let mut findings = Vec::new();
+
+    for (loc, file) in &snapshot.files {
+        if let Some(r) = repo
+            && loc.repo != r
+        {
+            continue;
+        }
+        summary.total += 1;
+        let desc_opt = file.description.as_deref().map(str::trim);
+        let issue = match desc_opt {
+            None | Some("") => {
+                summary.missing += 1;
+                Some((DescriptionIssueKind::Missing, None))
+            }
+            Some(desc) => {
+                if is_weak_description(desc) {
+                    summary.weak += 1;
+                    Some((DescriptionIssueKind::Weak, Some(truncate_chars(desc, 96))))
+                } else if is_lexically_disconnected(desc, file.body()) {
+                    summary.stale += 1;
+                    Some((DescriptionIssueKind::Stale, Some(truncate_chars(desc, 96))))
+                } else {
+                    summary.ok += 1;
+                    None
+                }
+            }
+        };
+        if let Some((kind, description)) = issue
+            && findings.len() < limit
+        {
+            findings.push(DescriptionAuditFinding {
+                locator: loc.clone(),
+                kind,
+                description,
+            });
+        }
+    }
+
+    DescriptionAuditReport { summary, findings }
+}
+
+/// Select the unique writable member repository (`own`, `primary`, or legacy `editable`) when
+/// callers omit `repo`. Fails closed if zero or multiple writable members exist so writes can
+/// never silently land in a `dependency` member.
+pub fn resolve_default_writable_repo(snapshot: &VaultSnapshot) -> Result<String, String> {
+    let mut writable: Vec<&str> = snapshot
+        .members
+        .values()
+        .filter(|m| matches!(m.role.as_str(), "own" | "primary" | "editable"))
+        .map(|m| m.repo.as_str())
+        .collect();
+    writable.sort_unstable();
+    match writable.len() {
+        1 => Ok(writable[0].to_owned()),
+        0 => Err(
+            "no writable ('own'/'primary') workspace member found; pass 'repo' explicitly"
+                .to_owned(),
+        ),
+        _ => Err(format!(
+            "ambiguous default repo across multiple writable members [{}]; pass 'repo' explicitly",
+            writable.join(", ")
+        )),
+    }
+}
+
 /// Supported clean-room ingest formats.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -1294,7 +1408,7 @@ fn render_csv_markdown_table(rows: &[Vec<String>]) -> String {
     out
 }
 
-fn is_stale_or_weak_description(desc: &str, body: &str) -> bool {
+fn is_weak_description(desc: &str) -> bool {
     let trimmed = desc.trim();
     if trimmed.chars().count() < 16 {
         return true;
@@ -1307,7 +1421,13 @@ fn is_stale_or_weak_description(desc: &str, body: &str) -> bool {
     {
         return true;
     }
-    let desc_terms: HashSet<String> = tokenize(trimmed)
+    !tokenize(trimmed)
+        .into_iter()
+        .any(|t| t.term.chars().count() >= 4)
+}
+
+fn is_lexically_disconnected(desc: &str, body: &str) -> bool {
+    let desc_terms: HashSet<String> = tokenize(desc.trim())
         .into_iter()
         .map(|t| t.term)
         .filter(|t| t.chars().count() >= 4)
@@ -1324,6 +1444,10 @@ fn is_stale_or_weak_description(desc: &str, body: &str) -> bool {
         return false;
     }
     desc_terms.is_disjoint(&body_terms)
+}
+
+fn is_stale_or_weak_description(desc: &str, body: &str) -> bool {
+    is_weak_description(desc) || is_lexically_disconnected(desc, body)
 }
 
 fn build_dedup_probe(body: &str, description: &str) -> String {
@@ -1586,5 +1710,53 @@ mod tests {
                 .content
                 .contains("[\\[x\\]](https://ex.com/%28a%29)")
         );
+    }
+
+    #[test]
+    fn audit_descriptions_classifies_ok_missing_weak_and_stale_notes() {
+        let mut snap = sample_snapshot();
+        let make_file = |path: &str, raw: &str, desc: Option<&str>| {
+            let loc = Locator::new("vault", path).unwrap();
+            let doc = parse_document(raw.as_bytes()).unwrap();
+            (
+                loc.clone(),
+                IndexedFile {
+                    locator: loc,
+                    sha256: RevisionDigest::of_bytes(raw.as_bytes()),
+                    short_hash: "aaaa1111bbbb2222".to_owned(),
+                    size_bytes: raw.len(),
+                    raw_text: raw.to_owned(),
+                    doc,
+                    description: desc.map(str::to_owned),
+                    declared_type: None,
+                },
+            )
+        };
+        let (l1, f1) = make_file(
+            "notes/missing.md",
+            "# Missing\n\nSome content here.\n",
+            None,
+        );
+        let (l2, f2) = make_file(
+            "notes/weak.md",
+            "# Weak\n\nDetailed architecture notes.\n",
+            Some("TODO fix later"),
+        );
+        let (l3, f3) = make_file(
+            "notes/stale.md",
+            "# Rust Graph\n\nCompressed sparse row topology metrics.\n",
+            Some("Completely unrelated bananas pineapple smoothie recipe"),
+        );
+        snap.files.insert(l1, f1);
+        snap.files.insert(l2, f2);
+        snap.files.insert(l3, f3);
+
+        let report = audit_descriptions(&snap, None, 10);
+        assert_eq!(report.summary.total, 4);
+        assert_eq!(report.summary.ok, 1);
+        assert_eq!(report.summary.missing, 1);
+        assert_eq!(report.summary.weak, 1);
+        assert_eq!(report.summary.stale, 1);
+        assert_eq!(report.findings.len(), 3);
     }
 }
