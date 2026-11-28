@@ -28,6 +28,13 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Run workspace test suite
         run: cargo test --workspace
+      - name: Validate truthful capability registry (U1/R23)
+        run: python3 tools/check_capabilities.py
+      - name: Run isolated black-box semantic acceptance suite (14 cases + SEM-48)
+        run: |
+          cargo build -p two-brain --bin 2brain
+          BIN="$(cargo metadata --format-version=1 --no-deps | python3 -c 'import sys,json; print(json.load(sys.stdin)["target_directory"])')/debug/2brain"
+          python3 tools/semantic/run_semantic_suite.py --bin "$BIN"
       - name: Check MIT-compatible licenses (cargo-deny)
         uses: EmbarkStudios/cargo-deny-action@v2
         with:

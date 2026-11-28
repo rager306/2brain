@@ -23,6 +23,8 @@ use tb_syntax::tokenize;
 
 pub mod claims;
 pub mod evolution;
+pub mod experience;
+pub mod experiment;
 pub mod investigation;
 
 pub use claims::{
@@ -33,6 +35,16 @@ pub use claims::{
 pub use evolution::{
     BetweennessMover, DecayCandidate, EdgeDiffEntry, FragilityReport, HubFragilityEntry,
     SnapshotDiffReport, SnapshotNodeMeta, TopologyDelta, analyze_fragility, diff_snapshots,
+};
+pub use experience::{
+    EpisodeObservation, ExperienceArm, LessonCandidate, PROMOTION_SCHEMA_VERSION,
+    PromotionEvaluation, PromotionPolicy, PromotionReason, PromotionVerdict,
+    evaluate_experience_promotion,
+};
+pub use experiment::{
+    EXPERIMENT_SCHEMA_VERSION, ExperimentEvaluation, ExperimentPolicy, ExperimentVerdict,
+    PairedTaskOutcome, PprConfig, PprRankEntry, PprSolverReport, SolverStopReason,
+    evaluate_paired_experiment, run_bounded_ppr_solver,
 };
 pub use investigation::{
     CandidateRoute, ControllerDecision, InvestigationAttempt, InvestigationBudget,

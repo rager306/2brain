@@ -1566,6 +1566,7 @@ dependencies = [
  "tb-journal",
  "tb-mcp",
  "tb-skills",
+ "tb-syntax",
  "tempfile",
  "tokio",
 ]

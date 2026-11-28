@@ -742,6 +742,172 @@ def capture_ae17_task_handoff(binary: Path) -> dict[str, Any]:
         }
 
 
+def capture_ae18_experience_promotion(binary: Path) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="tb-ae18-") as td:
+        p_self = Path(td) / "self_corrob.json"
+        p_self.write_text(
+            json.dumps(
+                {
+                    "lesson": {
+                        "lesson_id": "l-self",
+                        "scope_label": "rule-exception",
+                        "source_episode_ids": ["ep-1"],
+                        "source_families": ["fam-train"],
+                        "requested_grants": ["read"],
+                        "rollback_ref": "git:rb-1",
+                    },
+                    "observations": [
+                        {"episode_id": "ep-1", "task_id": "t1", "family": "fam-train", "arm": "no_memory", "fulfilled": False, "critical_violation": False, "tokens_used": 100},
+                        {"episode_id": "ep-1", "task_id": "t1", "family": "fam-train", "arm": "raw_episode", "fulfilled": False, "critical_violation": False, "tokens_used": 100},
+                        {"episode_id": "ep-1", "task_id": "t1", "family": "fam-train", "arm": "candidate_lesson", "fulfilled": True, "critical_violation": False, "tokens_used": 100},
+                    ],
+                    "policy": {"min_holdout_tasks": 4, "min_holdout_families": 2, "min_gain_margin": 0.2, "max_token_overhead_ratio": 1.3, "baseline_grants": ["read"]},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        p_grant = Path(td) / "grant_expand.json"
+        p_grant.write_text(
+            json.dumps(
+                {
+                    "lesson": {
+                        "lesson_id": "l-grant",
+                        "scope_label": "rule-exception",
+                        "source_episode_ids": ["ep-0"],
+                        "source_families": ["fam-train"],
+                        "requested_grants": ["read", "mutations"],
+                        "rollback_ref": "git:rb-2",
+                    },
+                    "observations": [
+                        {"episode_id": "e1", "task_id": "t1", "family": "fam-h1", "arm": "no_memory", "fulfilled": False, "critical_violation": False, "tokens_used": 100},
+                        {"episode_id": "e2", "task_id": "t1", "family": "fam-h1", "arm": "raw_episode", "fulfilled": False, "critical_violation": False, "tokens_used": 100},
+                        {"episode_id": "e3", "task_id": "t1", "family": "fam-h1", "arm": "candidate_lesson", "fulfilled": True, "critical_violation": False, "tokens_used": 100},
+                    ],
+                    "policy": {"min_holdout_tasks": 1, "min_holdout_families": 1, "min_gain_margin": 0.1, "max_token_overhead_ratio": 1.5, "baseline_grants": ["read"]},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        holdout_obs = []
+        for idx, (tid, fam, base_ok) in enumerate(
+            [("t1", "fam-h1", True), ("t2", "fam-h1", False), ("t3", "fam-h2", True), ("t4", "fam-h2", False)]
+        ):
+            holdout_obs.extend(
+                [
+                    {"episode_id": f"nm-{idx}", "task_id": tid, "family": fam, "arm": "no_memory", "fulfilled": base_ok, "critical_violation": False, "tokens_used": 100},
+                    {"episode_id": f"rw-{idx}", "task_id": tid, "family": fam, "arm": "raw_episode", "fulfilled": base_ok, "critical_violation": False, "tokens_used": 120},
+                    {"episode_id": f"cd-{idx}", "task_id": tid, "family": fam, "arm": "candidate_lesson", "fulfilled": True, "critical_violation": False, "tokens_used": 110},
+                ]
+            )
+        p_promote = Path(td) / "promote.json"
+        p_promote.write_text(
+            json.dumps(
+                {
+                    "lesson": {
+                        "lesson_id": "l-valid",
+                        "scope_label": "rule-exception",
+                        "source_episode_ids": ["ep-0"],
+                        "source_families": ["fam-train"],
+                        "requested_grants": ["read"],
+                        "rollback_ref": "git:rb-3",
+                    },
+                    "observations": holdout_obs,
+                    "policy": {"min_holdout_tasks": 4, "min_holdout_families": 2, "min_gain_margin": 0.2, "max_token_overhead_ratio": 1.3, "baseline_grants": ["read"]},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        c_self = run_cli(binary, ["experiment", "evaluate-lesson", str(p_self), "--json"])
+        c_grant = run_cli(binary, ["experiment", "evaluate-lesson", str(p_grant), "--json"])
+        c_promote = run_cli(binary, ["experiment", "evaluate-lesson", str(p_promote), "--json"])
+        return {
+            "case_id": "AE18",
+            "family": "experience_promotion",
+            "seed_meta": {},
+            "observations": [c_self, c_grant, c_promote],
+        }
+
+
+def capture_ae19_20_experiment_and_ppr(binary: Path) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="tb-ae19-") as td:
+        ws = Path(td) / "vault"
+        (ws / "notes").mkdir(parents=True)
+        (ws / "notes" / "target_a.md").write_text("---\ndescription: Target A\n---\nTarget A.\n", encoding="utf-8")
+        (ws / "notes" / "target_b.md").write_text("---\ndescription: Target B\n---\nTarget B.\n", encoding="utf-8")
+        (ws / "notes" / "seed_a.md").write_text(
+            "---\ndescription: Original A\norigin: origin-A\n---\nLinks to [[target_a]].\n",
+            encoding="utf-8",
+        )
+        ppr_args = ["experiment", "ppr", str(ws), "--seed", "notes/seed_a.md"]
+        for i in range(10):
+            name = f"dup_b_{i}.md"
+            (ws / "notes" / name).write_text(
+                f"---\ndescription: Copy {i} of B\norigin: origin-B\n---\nLinks to [[target_b]].\n",
+                encoding="utf-8",
+            )
+            ppr_args.extend(["--seed", f"notes/{name}"])
+        ppr_args.append("--json")
+        c_ppr = run_cli(binary, ppr_args)
+
+        p_arm = Path(td) / "arm_regress.json"
+        p_arm.write_text(
+            json.dumps(
+                {
+                    "policy": {
+                        "experiment_id": "exp-rank-vs-answer",
+                        "arm_name": "ppr-selector",
+                        "rollback_ref": "git:disable-ppr",
+                        "min_tasks": 2,
+                        "min_families": 2,
+                        "min_utility_gain": 0.1,
+                        "max_token_overhead_ratio": 1.5,
+                        "min_null_z_score": 2.0,
+                    },
+                    "outcomes": [
+                        {
+                            "task_id": "t1",
+                            "family": "fam-1",
+                            "budget_cap_tokens": 2000,
+                            "baseline_fulfilled": True,
+                            "candidate_fulfilled": False,
+                            "baseline_critical_violation": False,
+                            "candidate_critical_violation": False,
+                            "baseline_rank_score": 0.45,
+                            "candidate_rank_score": 0.96,
+                            "baseline_tokens": 500,
+                            "candidate_tokens": 510,
+                        },
+                        {
+                            "task_id": "t2",
+                            "family": "fam-2",
+                            "budget_cap_tokens": 2000,
+                            "baseline_fulfilled": True,
+                            "candidate_fulfilled": True,
+                            "baseline_critical_violation": False,
+                            "candidate_critical_violation": False,
+                            "baseline_rank_score": 0.55,
+                            "candidate_rank_score": 0.99,
+                            "baseline_tokens": 500,
+                            "candidate_tokens": 510,
+                        },
+                    ],
+                    "null_z_score": 3.4,
+                }
+            ),
+            encoding="utf-8",
+        )
+        c_arm = run_cli(binary, ["experiment", "evaluate-arm", str(p_arm), "--json"])
+        return {
+            "case_id": "AE19-20",
+            "family": "optional_experiments_ppr",
+            "seed_meta": {},
+            "observations": [c_ppr, c_arm],
+        }
+
+
 CASES = [
     capture_sem01_unicode_receipt,
     capture_sem02_write_guard,
@@ -752,6 +918,8 @@ CASES = [
     capture_ae04_ae08_context_conflicts,
     capture_ae15_granted_procedures,
     capture_ae17_task_handoff,
+    capture_ae18_experience_promotion,
+    capture_ae19_20_experiment_and_ppr,
     capture_ae24_revocation_egress_audit,
     capture_ae25_backup_restore,
     capture_adr0009_durable_outcomes,

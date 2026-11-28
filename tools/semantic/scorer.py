@@ -278,6 +278,43 @@ def score_ae17(case: dict[str, Any]) -> dict[str, Any]:
     return a.finalize("fulfilled", "honest")
 
 
+def score_ae18(case: dict[str, Any]) -> dict[str, Any]:
+    a = CaseAssessment("AE18", case.get("family", ""))
+    c_self, c_grant, c_promote = case["observations"]
+    j_self = json.loads(c_self.get("stdout") or "{}")
+    j_grant = json.loads(c_grant.get("stdout") or "{}")
+    j_promote = json.loads(c_promote.get("stdout") or "{}")
+
+    a.check("self_corroboration_rejected", j_self.get("verdict") == "reject" and j_self.get("paired_holdout_tasks") == 0)
+    a.check("training_observations_excluded", j_self.get("excluded_training_observations") == 3)
+    a.check(
+        "grant_expansion_rejected",
+        j_grant.get("verdict") == "reject"
+        and any(r.get("code") == "grant_expansion" for r in j_grant.get("reasons", [])),
+    )
+    a.check("valid_holdout_promoted", j_promote.get("verdict") == "promote")
+    a.check("holdout_families_separate", len(j_promote.get("holdout_families", [])) == 2)
+    return a.finalize("fulfilled", "honest")
+
+
+def score_ae19_20(case: dict[str, Any]) -> dict[str, Any]:
+    a = CaseAssessment("AE19-20", case.get("family", ""))
+    c_ppr, c_arm = case["observations"]
+    j_ppr = json.loads(c_ppr.get("stdout") or "{}")
+    j_arm = json.loads(c_arm.get("stdout") or "{}")
+
+    scores = {r["locator"]["path"]: r["score"] for r in j_ppr.get("ranked", [])}
+    sa = scores.get("notes/target_a.md", -1.0)
+    sb = scores.get("notes/target_b.md", -1.0)
+
+    a.check("ppr_marked_diagnostic_only", j_ppr.get("diagnostic_only") is True)
+    a.check("ppr_converged", (j_ppr.get("stop_reason") or {}).get("reason") == "converged")
+    a.check("ppr_deduplicated_origins", j_ppr.get("unique_seed_origins") == 2)
+    a.check("ten_copy_amplification_blocked", sa > 0.0 and sb > 0.0 and abs(sa - sb) < 0.05)
+    a.check("rank_gain_cannot_override_answer_regression", j_arm.get("verdict") == "retain_baseline")
+    return a.finalize("fulfilled", "honest")
+
+
 SCORERS = {
     "SEM-01": score_sem01,
     "SEM-02": score_sem02,
@@ -288,6 +325,8 @@ SCORERS = {
     "AE04-08": score_ae04_ae08,
     "AE15": score_ae15,
     "AE17": score_ae17,
+    "AE18": score_ae18,
+    "AE19-20": score_ae19_20,
     "AE24": score_ae24,
     "AE25": score_ae25,
     "ADR-0009": score_adr0009,

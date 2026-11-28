@@ -70,6 +70,11 @@ cargo build --release -p two-brain --bin 2brain
 2brain task create /path/to/vault --id release-prep --title "Audit release" --scope-repo vault --obligation publish=false
 2brain procedure run /path/to/vault ./procedure.json --dry-run --grant mutations --grant procedures
 
+# G5 verified experience promotion (U13), paired experiment gate & diagnostic origin-dedup PPR (U14)
+2brain experiment evaluate-lesson ./lesson-eval.json --baseline-grant read --json
+2brain experiment evaluate-arm ./paired-arm.json --json
+2brain experiment ppr /path/to/vault --seed notes/seed.md --json
+
 # Run read-only workspace performance benchmark (cold load, incremental reload, BM25, cognitive suite, RSS)
 2brain bench /path/to/vault --iterations 5
 ```
@@ -83,7 +88,7 @@ just gate
 # Miri UB check across pure-domain crates
 just miri
 
-# Truthful capability registry validation & isolated black-box semantic suite (12 cases + SEM-48 control)
+# Truthful capability registry validation & isolated black-box semantic suite (14 cases + SEM-48 control)
 python3 tools/check_capabilities.py
 python3 tools/semantic/run_semantic_suite.py --bin target/release/2brain
 ```

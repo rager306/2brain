@@ -134,6 +134,11 @@ enum Command {
         #[command(subcommand)]
         command: ProcedureCommand,
     },
+    /// Run G5 evaluation gates (U13 verified experience promotion, U14 paired experiments & diagnostic PPR).
+    Experiment {
+        #[command(subcommand)]
+        command: ExperimentCommand,
+    },
     /// Read-only performance benchmark on a workspace (cold load, incremental refresh, BM25, cognitive suite, RSS).
     Bench {
         /// Path to the workspace directory.
@@ -400,6 +405,55 @@ enum ProcedureCommand {
     },
 }
 
+#[derive(Debug, Subcommand)]
+enum ExperimentCommand {
+    /// Evaluate a U13/AE18 experience promotion candidate JSON (`{lesson, observations, policy}`).
+    EvaluateLesson {
+        /// Path to the JSON evaluation input file.
+        input: PathBuf,
+        /// Trusted baseline grants overriding `policy.baseline_grants` from input JSON (repeatable).
+        #[arg(long = "baseline-grant")]
+        baseline_grants: Vec<String>,
+        /// Trusted allowed scopes overriding `policy.allowed_scopes` from input JSON (repeatable).
+        #[arg(long = "allowed-scope")]
+        allowed_scopes: Vec<String>,
+        /// Emit machine-readable JSON report.
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Evaluate a U14/AE19-20 paired experiment JSON (`{policy, outcomes, null_z_score}`).
+    EvaluateArm {
+        /// Path to the JSON evaluation input file.
+        input: PathBuf,
+        /// Emit machine-readable JSON report.
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Run diagnostic bounded Personalized PageRank (CV4/M23) with duplicate-origin normalization.
+    Ppr {
+        /// Path to the workspace directory.
+        workspace: PathBuf,
+        /// Seed note path(s) (`path` or `repo::path`, repeatable).
+        #[arg(long = "seed", required = true)]
+        seeds: Vec<String>,
+        /// Damping factor alpha in (0, 1).
+        #[arg(long = "damping", default_value_t = 0.85)]
+        damping: f64,
+        /// Maximum iterations.
+        #[arg(long = "max-iter", default_value_t = 100)]
+        max_iter: usize,
+        /// Disable duplicate-origin seed normalization (for ablation comparisons).
+        #[arg(long = "no-origin-dedup")]
+        no_origin_dedup: bool,
+        /// Maximum ranked rows to return.
+        #[arg(long = "limit", default_value_t = 20)]
+        limit: usize,
+        /// Emit machine-readable JSON report.
+        #[arg(long = "json")]
+        json: bool,
+    },
+}
+
 fn main() {
     let cli = Cli::parse();
     match cli.command {
@@ -556,6 +610,7 @@ fn main() {
         Command::Restore { backup, to, json } => backup::run_restore(&backup, &to, json),
         Command::Task { command } => run_task_command(command),
         Command::Procedure { command } => run_procedure_command(command),
+        Command::Experiment { command } => run_experiment_command(command),
         Command::Bench {
             path,
             iterations,
@@ -1442,6 +1497,209 @@ fn run_procedure_command(command: ProcedureCommand) {
                 Err(err) => {
                     eprintln!("procedure error: {err}");
                     std::process::exit(1);
+                }
+            }
+        }
+    }
+}
+
+fn run_experiment_command(command: ExperimentCommand) {
+    match command {
+        ExperimentCommand::EvaluateLesson {
+            input,
+            baseline_grants,
+            allowed_scopes,
+            json,
+        } => {
+            #[derive(serde::Deserialize)]
+            struct LessonEvalInput {
+                lesson: tb_cognition::LessonCandidate,
+                observations: Vec<tb_cognition::EpisodeObservation>,
+                #[serde(default)]
+                policy: tb_cognition::PromotionPolicy,
+            }
+            let raw = match std::fs::read_to_string(&input) {
+                Ok(s) => s,
+                Err(err) => {
+                    eprintln!("error reading '{}': {err}", input.display());
+                    std::process::exit(2);
+                }
+            };
+            let mut parsed: LessonEvalInput = match serde_json::from_str(&raw) {
+                Ok(v) => v,
+                Err(err) => {
+                    eprintln!("error parsing lesson evaluation JSON: {err}");
+                    std::process::exit(2);
+                }
+            };
+            if !baseline_grants.is_empty() {
+                parsed.policy.baseline_grants = baseline_grants;
+            }
+            if !allowed_scopes.is_empty() {
+                parsed.policy.allowed_scopes = allowed_scopes;
+            }
+            let report = tb_cognition::evaluate_experience_promotion(
+                &parsed.lesson,
+                &parsed.observations,
+                &parsed.policy,
+            );
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&report).expect("json serialization")
+                );
+            } else {
+                println!(
+                    "experience '{}' verdict={:?} holdout_tasks={} families={} excluded_training={}",
+                    report.lesson_id,
+                    report.verdict,
+                    report.paired_holdout_tasks,
+                    report.holdout_families.len(),
+                    report.excluded_training_observations
+                );
+            }
+        }
+        ExperimentCommand::EvaluateArm { input, json } => {
+            #[derive(serde::Deserialize)]
+            struct ArmEvalInput {
+                policy: tb_cognition::ExperimentPolicy,
+                outcomes: Vec<tb_cognition::PairedTaskOutcome>,
+                #[serde(default)]
+                null_z_score: Option<f64>,
+            }
+            let raw = match std::fs::read_to_string(&input) {
+                Ok(s) => s,
+                Err(err) => {
+                    eprintln!("error reading '{}': {err}", input.display());
+                    std::process::exit(2);
+                }
+            };
+            let parsed: ArmEvalInput = match serde_json::from_str(&raw) {
+                Ok(v) => v,
+                Err(err) => {
+                    eprintln!("error parsing experiment evaluation JSON: {err}");
+                    std::process::exit(2);
+                }
+            };
+            let report = tb_cognition::evaluate_paired_experiment(
+                &parsed.policy,
+                &parsed.outcomes,
+                parsed.null_z_score,
+            );
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&report).expect("json serialization")
+                );
+            } else {
+                println!(
+                    "experiment '{}' arm='{}' verdict={:?} tasks={} families={}",
+                    report.experiment_id,
+                    report.arm_name,
+                    report.verdict,
+                    report.task_count,
+                    report.families.len()
+                );
+            }
+        }
+        ExperimentCommand::Ppr {
+            workspace,
+            seeds,
+            damping,
+            max_iter,
+            no_origin_dedup,
+            limit,
+            json,
+        } => {
+            let (_, snap) = match tb_fs_git::load_snapshot(&workspace) {
+                Ok(pair) => pair,
+                Err(err) => {
+                    eprintln!("error loading workspace '{}': {err}", workspace.display());
+                    std::process::exit(1);
+                }
+            };
+            let default_repo = snap
+                .members
+                .keys()
+                .next()
+                .cloned()
+                .unwrap_or_else(|| "vault".to_owned());
+            let mut seed_locs = Vec::with_capacity(seeds.len());
+            for raw in &seeds {
+                let (repo, path) = match raw.split_once("::") {
+                    Some((r, p)) => (r, p),
+                    None => (default_repo.as_str(), raw.as_str()),
+                };
+                match tb_contracts::Locator::new(repo, path) {
+                    Ok(loc) => seed_locs.push(loc),
+                    Err(err) => {
+                        eprintln!("invalid seed locator '{raw}': {err}");
+                        std::process::exit(2);
+                    }
+                }
+            }
+            let mut origins = std::collections::BTreeMap::new();
+            for (loc, file) in &snap.files {
+                let origin_id = if let Some(fm) = file.doc.frontmatter.as_ref()
+                    && let Some(origin_val) = fm.get("origin").or_else(|| fm.get("source"))
+                    && let tb_syntax::FrontmatterValue::String(s) = origin_val
+                    && !s.trim().is_empty()
+                {
+                    format!("meta:{}", s.trim().to_ascii_lowercase())
+                } else {
+                    // Content-identity fallback: identical copies without explicit origin metadata
+                    // collapse onto one normalized content SHA-256 origin so they cannot amplify rank.
+                    let norm_body: String =
+                        file.body().split_whitespace().collect::<Vec<_>>().join(" ");
+                    let digest =
+                        tb_contracts::RevisionDigest::of_bytes(norm_body.as_bytes()).to_hex();
+                    format!("content_sha256:{digest}")
+                };
+                origins.insert(loc.clone(), origin_id);
+            }
+            let cfg = tb_cognition::PprConfig {
+                damping,
+                tolerance: 1e-6,
+                max_iterations: max_iter,
+                deduplicate_origins: !no_origin_dedup,
+                top_k: limit.clamp(1, 200),
+            };
+            let report =
+                tb_cognition::run_bounded_ppr_solver(&snap.graph, &seed_locs, &origins, &cfg);
+            if matches!(
+                report.stop_reason,
+                tb_cognition::SolverStopReason::UnresolvedSeeds { .. }
+                    | tb_cognition::SolverStopReason::InvalidConfig { .. }
+            ) {
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&report).expect("json serialization")
+                    );
+                } else {
+                    eprintln!("ppr error: {:?}", report.stop_reason);
+                }
+                std::process::exit(2);
+            }
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&report).expect("json serialization")
+                );
+            } else {
+                println!(
+                    "ppr (diagnostic_only={}) stop={:?} iters={} unique_origins={} top={}",
+                    report.diagnostic_only,
+                    report.stop_reason,
+                    report.iterations_run,
+                    report.unique_seed_origins,
+                    report.ranked.len()
+                );
+                for row in &report.ranked {
+                    println!(
+                        "  {:.6}  {}/{}  [origin={}]",
+                        row.score, row.locator.repo, row.locator.path, row.origin_id
+                    );
                 }
             }
         }

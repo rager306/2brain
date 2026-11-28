@@ -85,6 +85,11 @@ Defect classes caught by adversarial review and fixed by structural invariants:
    - Authorize BOTH the persisted `TaskPacket` scope and the proposed scope inside the same locked checkpoint transaction (`TaskScopeGuard`), and NEVER allow an MCP caller to drop critical obligations (`allow_drop_critical` must never be taken from MCP request arguments).
    - Separate post-effect `OutcomeUnknown` (`operation_outcome: "unknown"`) from definite `failed` rejections in `RunReceipt`, require a successfully reloaded snapshot plus verified file/link existence for `ZeroDiagnostics` and `LinkResolves` postconditions (marking unavailable evidence `"unverified"`), and block `InvestigationSession::decide_next` on `pending_reconciliation` unconditionally before criterion evaluation or route selection.
 
+20. **G5 Statistical Integrity, Checked Accounting & Fail-Closed Origin/Seed Validation (`tb-cognition`, `two-brain`):**
+   - Reject duplicate `(task_id, arm)` observations, duplicate `task_id` experiment rows, conflicting `task_id -> family` assignments, reused holdout `episode_id`s, zero sample minimums, non-finite thresholds/metrics (`min_null_z_score`, rank scores), and undefined zero-baseline token overheads before any promotion decision; exclude the entire `task_id` whenever any of its arms is training-contaminated, and evaluate critical regressions before pairing.
+   - Accumulate token totals with checked `u128` arithmetic so large counts can neither panic in debug nor wrap in release.
+   - Never silently drop unresolved PPR seed locators (`SolverStopReason::UnresolvedSeeds`), and fall back to normalized content SHA-256 origin digests when explicit provenance metadata is omitted so unlabelled duplicate copies cannot amplify graph rank.
+
 
 
 

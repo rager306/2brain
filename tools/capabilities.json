@@ -260,15 +260,26 @@
       "requirements": ["R18"],
       "states": {
         "specified": true,
-        "implemented": false,
-        "wired": false,
-        "tested": false,
-        "rehearsed": false,
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
         "enabled": false
       },
-      "notes": "Deferred until sufficient verified episodes exist for G5 holdout evaluation.",
-      "paths": [],
-      "tests": []
+      "notes": "G5 promotion evaluator shipped and rehearsed via '2brain experiment evaluate-lesson'; live auto-promotion stays disabled until production holdout episodes accumulate.",
+      "paths": [
+        "crates/domain/tb-cognition/src/experience.rs",
+        "crates/bin/two-brain/src/main.rs",
+        "tools/semantic/capture.py",
+        "tools/semantic/scorer.py"
+      ],
+      "tests": [
+        "training_only_self_corroboration_is_rejected",
+        "grant_expansion_and_held_out_exception_regression_are_rejected",
+        "duplicate_gaming_zero_minimums_and_zero_baseline_tokens_cannot_promote",
+        "family_separated_holdout_gain_promotes_and_insufficient_sample_is_inconclusive",
+        "AE18"
+      ]
     },
     {
       "id": "U14",
@@ -276,15 +287,24 @@
       "requirements": ["R19", "R20"],
       "states": {
         "specified": true,
-        "implemented": false,
-        "wired": false,
-        "tested": false,
-        "rehearsed": false,
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
         "enabled": false
       },
-      "notes": "Deferred to G5 experiment promotion track.",
-      "paths": [],
-      "tests": []
+      "notes": "G5 paired experiment evaluator and diagnostic origin-dedup PPR solver shipped via '2brain experiment evaluate-arm|ppr'; optional serving arms remain disabled by default.",
+      "paths": [
+        "crates/domain/tb-cognition/src/experiment.rs",
+        "crates/bin/two-brain/src/main.rs",
+        "tools/semantic/capture.py",
+        "tools/semantic/scorer.py"
+      ],
+      "tests": [
+        "ppr_deduplicates_ten_copy_origin_amplification_and_rejects_unresolved_seeds",
+        "improved_ranking_with_worse_supported_answer_and_duplicate_or_nan_inputs_retain_baseline",
+        "AE19-20"
+      ]
     }
   ]
 }
