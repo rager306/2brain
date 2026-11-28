@@ -35,7 +35,9 @@ use tb_contracts::{
 };
 use tb_graph::{Direction, TypedLinkGraph};
 use tb_schema::{Diagnostic, SchemaRegistry};
-use tb_search::{EXCERPT_CHARS, SearchIndex, distinct_terms, excerpt, grep_text};
+use tb_search::{
+    EXCERPT_CHARS, SearchIndex, distinct_terms, excerpt, grep_text, parse_iso_date_exact,
+};
 use tb_syntax::{Anchor, FrontmatterValue, ParsedDocument};
 use thiserror::Error;
 
@@ -1109,7 +1111,7 @@ impl<W: WorkspaceStore> App<W> {
         })
     }
 
-    /// `tb_search` (BM25 + proximity + rare-IDF escape + excerpts)
+    /// `tb_search` (BM25 + proximity + rare-IDF escape + type-aware freshness + enrichment + excerpts)
     pub fn search(
         &self,
         query: &str,
@@ -1119,10 +1121,53 @@ impl<W: WorkspaceStore> App<W> {
         limit: usize,
         offset: usize,
     ) -> Value {
+        self.search_with_options(
+            query,
+            repo,
+            exact,
+            min_should_match,
+            None,
+            false,
+            limit,
+            offset,
+        )
+        .expect("default search options without as_of cannot fail validation")
+    }
+
+    /// `tb_search` with explicit `as_of` (`YYYY-MM-DD`) and `ignore_freshness` controls.
+    #[allow(clippy::too_many_arguments)]
+    pub fn search_with_options(
+        &self,
+        query: &str,
+        repo: Option<&str>,
+        exact: bool,
+        min_should_match: Option<usize>,
+        as_of: Option<&str>,
+        ignore_freshness: bool,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Value, AppError> {
+        let ref_days = match as_of {
+            Some(raw) => Some(parse_iso_date_exact(raw).ok_or_else(|| {
+                AppError::InvalidArguments(format!(
+                    "invalid 'as_of' date '{raw}' (expected strict YYYY-MM-DD)"
+                ))
+            })?),
+            None => std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok()
+                .map(|d| (d.as_secs() / 86_400) as i64),
+        };
         let snap = self.snapshot();
-        let all_hits = snap
-            .search
-            .query(query, exact, min_should_match, repo, usize::MAX);
+        let all_hits = snap.search.query_with_options(
+            query,
+            exact,
+            min_should_match,
+            repo,
+            ref_days,
+            !ignore_freshness,
+            usize::MAX,
+        );
         let total = all_hits.len();
         let terms = distinct_terms(query);
         let matches: Vec<Value> = all_hits
@@ -1138,6 +1183,7 @@ impl<W: WorkspaceStore> App<W> {
                     "repo": hit.locator.repo,
                     "path": hit.locator.path,
                     "score": hit.score,
+                    "freshness_multiplier": hit.freshness_multiplier,
                     "matched_terms": hit.matched_terms,
                     "weak": hit.weak,
                     "description": file.and_then(|f| f.description.as_deref()),
@@ -1146,16 +1192,18 @@ impl<W: WorkspaceStore> App<W> {
             })
             .collect();
         let next_offset = (offset + matches.len() < total).then_some(offset + matches.len());
-        json!({
+        Ok(json!({
             "search": {
                 "query": query,
                 "exact": exact,
+                "as_of": as_of,
+                "ignore_freshness": ignore_freshness,
                 "matches": matches,
             },
             "total": total,
             "offset": offset,
             "next_offset": next_offset,
-        })
+        }))
     }
 
     /// `tb_grep` (SEM-09: strictly literal substring search, never BM25 conjunction)
@@ -2395,16 +2443,20 @@ impl<W: WorkspaceStore + 'static> AppDispatcher for App<W> {
                 opt_usize("limit", 50).clamp(1, 500),
                 opt_usize("offset", 0),
             )),
-            "search" => Ok(self.search(
+            "search" => self.search_with_options(
                 req_str("query")?,
                 opt_str("repo"),
                 args.get("exact").and_then(Value::as_bool).unwrap_or(false),
                 args.get("min_should_match")
                     .and_then(Value::as_u64)
                     .map(|n| n as usize),
+                opt_str("as_of"),
+                args.get("ignore_freshness")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
                 opt_usize("limit", 20).clamp(1, 200),
                 opt_usize("offset", 0),
-            )),
+            ),
             "grep" => Ok(self.grep(
                 req_str("query")?,
                 opt_str("repo"),

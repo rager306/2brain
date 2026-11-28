@@ -315,13 +315,132 @@ def score_ae19_20(case: dict[str, Any]) -> dict[str, Any]:
     return a.finalize("fulfilled", "honest")
 
 
+def score_sem05(case: dict[str, Any]) -> dict[str, Any]:
+    a = CaseAssessment("SEM-05", case.get("family", ""))
+    ctx = ((case["observations"][0].get("structured") or {}).get("context") or {})
+    paths = {f.get("path") for f in ctx.get("fragments") or []}
+    a.check("rule_included", "notes/retention_rule.md" in paths)
+    a.check("exception_included", "notes/audit_exception.md" in paths)
+    return a.finalize("fulfilled", "honest")
+
+
+def score_sem06(case: dict[str, Any]) -> dict[str, Any]:
+    a = CaseAssessment("SEM-06", case.get("family", ""))
+    ctx = ((case["observations"][0].get("structured") or {}).get("context") or {})
+    texts = " ".join(f.get("text") or "" for f in ctx.get("fragments") or [])
+    a.check("negation_preserved", "MUST NOT auto-merge" in texts)
+    a.check("qualifier_preserved", "human sign-off" in texts)
+    return a.finalize("fulfilled", "honest")
+
+
+def score_sem13(case: dict[str, Any]) -> dict[str, Any]:
+    a = CaseAssessment("SEM-13", case.get("family", ""))
+    tight = ((case["observations"][0].get("structured") or {}).get("context") or {})
+    ample = ((case["observations"][1].get("structured") or {}).get("context") or {})
+    tight_why = tight.get("why") or {}
+    ample_paths = {f.get("path") for f in ample.get("fragments") or []}
+    a.check("tight_budget_discloses_missingness", (tight_why.get("missingness") or {}).get("status") == "incomplete")
+    a.check("tight_budget_discloses_incomplete_conflicts", (tight_why.get("conflicts") or {}).get("status") == "incomplete")
+    a.check("ample_budget_hydrates_carveout", "notes/vip_carveout.md" in ample_paths)
+    return a.finalize("fulfilled", "honest")
+
+
+def score_sem17(case: dict[str, Any]) -> dict[str, Any]:
+    a = CaseAssessment("SEM-17", case.get("family", ""))
+    ok_orion, unfiltered, deny_polaris = case["observations"]
+    blob_orion = json.dumps(ok_orion, ensure_ascii=False)
+    blob_unfiltered = json.dumps(unfiltered, ensure_ascii=False)
+    blob_polaris = json.dumps(deny_polaris, ensure_ascii=False)
+    a.check("orion_search_ok", ok_orion.get("is_error") is False and "ORION_ONLY_TOKEN" in blob_orion)
+    a.check("polaris_never_in_orion_results", "POLARIS_SECRET_TOKEN" not in blob_orion)
+    a.check(
+        "unfiltered_search_blocks_polaris_leak",
+        unfiltered.get("is_error") is True
+        and (unfiltered.get("structured") or {}).get("reason_code") == "revoked"
+        and "POLARIS_SECRET_TOKEN" not in blob_unfiltered,
+    )
+    a.check("polaris_direct_read_revoked", deny_polaris.get("is_error") is True and (deny_polaris.get("structured") or {}).get("reason_code") == "revoked")
+    a.check("polaris_bytes_never_leaked", "POLARIS_SECRET_TOKEN" not in blob_polaris)
+    return a.finalize("fulfilled", "honest")
+
+
+def score_sem25(case: dict[str, Any]) -> dict[str, Any]:
+    a = CaseAssessment("SEM-25", case.get("family", ""))
+    audit_2025, audit_2026, ctx_obs = case["observations"]
+    rep_2025 = ((audit_2025.get("structured") or {}).get("audit_contradictions") or {})
+    rep_2026 = ((audit_2026.get("structured") or {}).get("audit_contradictions") or {})
+    t_2025 = rep_2025.get("temporal_summary") or {}
+    t_2026 = rep_2026.get("temporal_summary") or {}
+    ctx = ((ctx_obs.get("structured") or {}).get("context") or {})
+    sup = ((ctx.get("why") or {}).get("supersession") or {})
+    a.check(
+        "audit_2025_reports_future_v2",
+        audit_2025.get("is_error") is False
+        and t_2025.get("not_yet_valid", 0) >= 1
+        and t_2025.get("expired", 0) == 0,
+    )
+    a.check(
+        "audit_2026_reports_expired_or_superseded_v1",
+        audit_2026.get("is_error") is False
+        and (t_2026.get("expired", 0) >= 1 or t_2026.get("superseded", 0) >= 1)
+        and t_2026.get("not_yet_valid", 0) == 0
+        and t_2026.get("active", 0) >= 1,
+    )
+    a.check("supersession_surfaced_available", sup.get("status") == "available")
+    a.check("v2_supersedes_v1_noted", any("v2.md" in s and "v1.md" in s for s in sup.get("items") or []))
+    return a.finalize("fulfilled", "honest")
+
+
+def score_sem41(case: dict[str, Any]) -> dict[str, Any]:
+    a = CaseAssessment("SEM-41", case.get("family", ""))
+    denied, verified = case["observations"]
+    receipt = (verified.get("structured") or {}).get("run_receipt") or {}
+    a.check("injected_text_grants_no_rights", denied.get("is_error") is True and (denied.get("structured") or {}).get("reason_code") == "launch_grant")
+    a.check("snapshot_postconditions_verified", receipt.get("verified_success") is True and receipt.get("postcondition_outcome") == "verified")
+    a.check("zero_diagnostics_and_link_resolves_checked", len(receipt.get("postconditions") or []) == 2 and all(p.get("status") == "verified" for p in receipt.get("postconditions") or []))
+    return a.finalize("fulfilled", "honest")
+
+
+def score_sem99(case: dict[str, Any]) -> dict[str, Any]:
+    a = CaseAssessment("SEM-99", case.get("family", ""))
+    q_fresh, q_raw, q_enrich = case["observations"]
+    fresh_matches = (((q_fresh.get("structured") or {}).get("search") or {}).get("matches") or [])
+    raw_matches = (((q_raw.get("structured") or {}).get("search") or {}).get("matches") or [])
+    enrich_matches = (((q_enrich.get("structured") or {}).get("search") or {}).get("matches") or [])
+
+    by_path = {m.get("path"): m for m in fresh_matches}
+    old_guide = by_path.get("patterns/old_guide.md") or {}
+    old_log = by_path.get("inbox/old_log.md") or {}
+    a.check("current_durable_ranked_first", len(fresh_matches) >= 3 and fresh_matches[0].get("path") == "patterns/current_guide.md")
+    a.check(
+        "superseded_ranked_last",
+        len(fresh_matches) >= 3
+        and fresh_matches[-1].get("path") == "patterns/old_guide.md"
+        and abs(old_guide.get("freshness_multiplier", 0.0) - 0.05) < 1e-9,
+    )
+    a.check(
+        "aged_transient_decayed",
+        bool(old_log) and 0.15 <= old_log.get("freshness_multiplier", 1.0) < 0.35,
+    )
+    a.check("ignore_freshness_restores_unit_multiplier", len(raw_matches) == 3 and all(abs(m.get("freshness_multiplier", 0.0) - 1.0) < 1e-9 for m in raw_matches))
+    a.check("enrichment_paraphrase_recall_hits_guide", len(enrich_matches) == 1 and enrich_matches[0].get("path") == "patterns/current_guide.md")
+    return a.finalize("fulfilled", "na")
+
+
 SCORERS = {
     "SEM-01": score_sem01,
     "SEM-02": score_sem02,
     "SEM-03": score_sem03,
     "SEM-04": score_sem04,
+    "SEM-05": score_sem05,
+    "SEM-06": score_sem06,
     "SEM-09": score_sem09,
+    "SEM-13": score_sem13,
+    "SEM-17": score_sem17,
     "SEM-18": score_sem18,
+    "SEM-25": score_sem25,
+    "SEM-41": score_sem41,
+    "SEM-99": score_sem99,
     "AE04-08": score_ae04_ae08,
     "AE15": score_ae15,
     "AE17": score_ae17,

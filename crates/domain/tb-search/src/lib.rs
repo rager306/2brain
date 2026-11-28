@@ -42,6 +42,15 @@ const BODY_WEIGHT: f64 = 1.0;
 /// Default weight of field 1 (frontmatter description).
 const DESCRIPTION_WEIGHT: f64 = 3.0;
 
+/// Default weight of field 2 (frontmatter enrichment: keywords, search_questions, aliases).
+const ENRICHMENT_WEIGHT: f64 = 2.0;
+
+/// Half-life in days for transient notes (inbox, sessions, daily logs).
+const TRANSIENT_HALF_LIFE_DAYS: f64 = 120.0;
+
+/// Lower floor for transient time decay so old unique notes remain discoverable.
+const MIN_TRANSIENT_TIME_FACTOR: f64 = 0.15;
+
 /// IDF threshold at which a matched term counts as rare rather than common.
 pub const RARE_IDF: f64 = 2.0;
 
@@ -837,13 +846,182 @@ impl<const N: usize> Bm25Index<N> {
     }
 }
 
-/// Servable two-field (`body`, `description`) BM25 index bound to canonical [`Locator`]s.
+/// Type-aware freshness metadata per indexed document (Backlog P1-5, 0 I/O, Miri-clean).
+///
+/// Status multipliers: `current=1.0`, `aging=0.7`, `stale=0.3`, `superseded=0.05`.
+/// Durable notes (patterns, ADRs, references, or explicit `freshness: durable`) never decay with age;
+/// transient notes (`freshness: transient`, `inbox/`, sessions) decay with a 120-day half-life.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FreshnessMeta {
+    pub status_mult: f64,
+    pub is_transient: bool,
+    pub doc_epoch_days: Option<i64>,
+}
+
+impl Default for FreshnessMeta {
+    fn default() -> Self {
+        Self {
+            status_mult: 1.0,
+            is_transient: false,
+            doc_epoch_days: None,
+        }
+    }
+}
+
+impl FreshnessMeta {
+    #[must_use]
+    pub fn from_fields(
+        status: Option<&str>,
+        freshness: Option<&str>,
+        doc_type: Option<&str>,
+        rel_path: &str,
+        date_str: Option<&str>,
+    ) -> Self {
+        let status_mult = match status.map(|s| s.trim().to_ascii_lowercase()).as_deref() {
+            Some("aging" | "draft" | "review") => 0.7,
+            Some("stale" | "deprecated") => 0.3,
+            Some("superseded" | "archived" | "rejected") => 0.05,
+            _ => 1.0,
+        };
+
+        let explicit_freshness = freshness.map(|s| s.trim().to_ascii_lowercase());
+        let is_transient = match explicit_freshness.as_deref() {
+            Some("durable" | "evergreen" | "permanent") => false,
+            Some("transient" | "ephemeral" | "daily") => true,
+            _ => {
+                let dtype = doc_type.map(|s| s.trim().to_ascii_lowercase());
+                match dtype.as_deref() {
+                    Some(
+                        "pattern" | "adr" | "decision" | "reference" | "rule" | "architecture"
+                        | "concept" | "guide" | "standard" | "skill" | "mcp.skill" | "mcp.tool"
+                        | "error-fix",
+                    ) => false,
+                    Some("inbox" | "session" | "daily" | "log" | "meeting" | "scratch") => true,
+                    _ => {
+                        let lower_path = rel_path.to_ascii_lowercase();
+                        lower_path.starts_with("inbox/")
+                            || lower_path.starts_with("sessions/")
+                            || lower_path.starts_with("daily/")
+                            || lower_path.starts_with("journal/")
+                    }
+                }
+            }
+        };
+
+        let doc_epoch_days = date_str.and_then(parse_iso_epoch_days);
+        Self {
+            status_mult,
+            is_transient,
+            doc_epoch_days,
+        }
+    }
+
+    #[must_use]
+    pub fn multiplier_as_of(&self, reference_epoch_days: Option<i64>) -> f64 {
+        let time_factor = if self.is_transient {
+            match (reference_epoch_days, self.doc_epoch_days) {
+                (Some(ref_d), Some(doc_d)) => {
+                    let age = ref_d.saturating_sub(doc_d);
+                    if age <= 0 {
+                        1.0
+                    } else {
+                        0.5_f64
+                            .powf((age as f64) / TRANSIENT_HALF_LIFE_DAYS)
+                            .max(MIN_TRANSIENT_TIME_FACTOR)
+                    }
+                }
+                _ => 1.0,
+            }
+        } else {
+            1.0
+        };
+        (self.status_mult * time_factor).clamp(0.01, 1.0)
+    }
+}
+
+/// Parse an exact ISO-8601 `YYYY-MM-DD` string into Unix epoch days (1970-01-01 = 0).
+/// Rejects trailing garbage, signs (`+`/`-` in digits), and invalid calendar dates.
+#[must_use]
+pub fn parse_iso_date_exact(raw: &str) -> Option<i64> {
+    let trimmed = raw.trim();
+    if trimmed.len() != 10 {
+        return None;
+    }
+    parse_iso_ymd_checked(trimmed.as_bytes())
+}
+
+/// Parse an ISO-8601 `YYYY-MM-DD` date or `YYYY-MM-DD[T ]...` timestamp into Unix epoch days.
+/// Strictly validates ASCII digits and calendar bounds including leap years.
+#[must_use]
+pub fn parse_iso_epoch_days(raw: &str) -> Option<i64> {
+    let trimmed = raw.trim();
+    let bytes = trimmed.as_bytes();
+    if bytes.len() < 10 {
+        return None;
+    }
+    if bytes.len() > 10 && !matches!(bytes[10], b'T' | b't' | b' ') {
+        return None;
+    }
+    parse_iso_ymd_checked(&bytes[..10])
+}
+
+fn parse_iso_ymd_checked(bytes: &[u8]) -> Option<i64> {
+    if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+        return None;
+    }
+    for &idx in &[0usize, 1, 2, 3, 5, 6, 8, 9] {
+        if !bytes[idx].is_ascii_digit() {
+            return None;
+        }
+    }
+    let s = std::str::from_utf8(bytes).ok()?;
+    let year: i64 = s.get(0..4)?.parse().ok()?;
+    let month: u32 = s.get(5..7)?.parse().ok()?;
+    let day: u32 = s.get(8..10)?.parse().ok()?;
+    if !(1..=12).contains(&month) || day == 0 {
+        return None;
+    }
+    let is_leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    let max_day = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if is_leap => 29,
+        2 => 28,
+        _ => return None,
+    };
+    if day > max_day {
+        return None;
+    }
+    // Howard Hinnant's civil-to-days algorithm (exact over Gregorian proleptic calendar).
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = y.div_euclid(400);
+    let yoe = (y - era * 400) as u64;
+    let m = u64::from(month);
+    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + u64::from(day) - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    Some(era * 146_097 + (doe as i64) - 719_468)
+}
+
+/// Rich document input for [`SearchIndex::build_rich`] and [`SearchIndex::upsert_rich_document`].
+#[derive(Clone, Debug)]
+pub struct SearchDocInput<'a> {
+    pub locator: Locator,
+    pub body: &'a str,
+    pub description: &'a str,
+    pub enrichment: &'a str,
+    pub freshness: FreshnessMeta,
+}
+
+/// Servable three-field (`body`, `description`, `enrichment`) BM25 index with type-aware freshness
+/// bound to canonical [`Locator`]s.
 #[derive(Debug, Clone)]
 pub struct SearchIndex {
-    index: Bm25Index<2>,
+    index: Bm25Index<3>,
     locators: Vec<Locator>,
     body_hashes: Vec<u64>,
+    freshness: Vec<FreshnessMeta>,
     locator_to_doc: HashMap<Locator, usize>,
+    default_reference_days: Option<i64>,
 }
 
 fn fnv1a64(bytes: &[u8]) -> u64 {
@@ -861,52 +1039,97 @@ pub struct SearchHit {
     pub score: f64,
     pub matched_terms: usize,
     pub weak: bool,
+    pub freshness_multiplier: f64,
 }
 
 impl SearchIndex {
-    /// Build from an iterator of `(Locator, body, description)` sorted by `Locator`.
+    /// Build from an iterator of `(Locator, body, description)` sorted by `Locator`
+    /// (backwards-compatible shorthand with empty enrichment and neutral freshness).
     pub fn build<'a>(docs: impl IntoIterator<Item = (Locator, &'a str, &'a str)>) -> Self {
-        let mut collected: Vec<(Locator, &str, &str)> = docs.into_iter().collect();
-        collected.sort_by(|a, b| a.0.cmp(&b.0));
+        Self::build_rich(
+            docs.into_iter()
+                .map(|(locator, body, description)| SearchDocInput {
+                    locator,
+                    body,
+                    description,
+                    enrichment: "",
+                    freshness: FreshnessMeta::default(),
+                }),
+            None,
+        )
+    }
+
+    /// Build from rich documents carrying enrichment (`keywords`, `search_questions`) and
+    /// type-aware [`FreshnessMeta`], sorted deterministically by `Locator`.
+    pub fn build_rich<'a>(
+        docs: impl IntoIterator<Item = SearchDocInput<'a>>,
+        default_reference_days: Option<i64>,
+    ) -> Self {
+        let mut collected: Vec<SearchDocInput<'a>> = docs.into_iter().collect();
+        collected.sort_by(|a, b| a.locator.cmp(&b.locator));
 
         let mut locators = Vec::with_capacity(collected.len());
         let mut body_hashes = Vec::with_capacity(collected.len());
+        let mut freshness = Vec::with_capacity(collected.len());
         let mut locator_to_doc = HashMap::with_capacity(collected.len());
         let mut index = Bm25Index::new(default_weights());
-        for (locator, body, description) in collected {
-            if body.is_empty() && description.is_empty() {
+        for doc in collected {
+            if doc.body.is_empty() && doc.description.is_empty() && doc.enrichment.is_empty() {
                 continue;
             }
             let doc_id = locators.len();
-            index.add(doc_id, [body, description]);
-            locator_to_doc.insert(locator.clone(), doc_id);
-            locators.push(locator);
-            body_hashes.push(fnv1a64(body.as_bytes()));
+            index.add(doc_id, [doc.body, doc.description, doc.enrichment]);
+            locator_to_doc.insert(doc.locator.clone(), doc_id);
+            locators.push(doc.locator);
+            body_hashes.push(fnv1a64(doc.body.as_bytes()));
+            freshness.push(doc.freshness);
         }
         Self {
             index,
             locators,
             body_hashes,
+            freshness,
             locator_to_doc,
+            default_reference_days,
         }
     }
 
-    /// Incrementally insert or replace a single document without re-tokenizing the rest of the corpus.
+    /// Update the default reference day used by [`SearchIndex::query`] for transient decay.
+    pub fn set_default_reference_days(&mut self, days: Option<i64>) {
+        self.default_reference_days = days;
+    }
+
+    /// Incrementally insert or replace a single document (empty enrichment, neutral freshness).
     pub fn upsert_document(&mut self, locator: Locator, body: &str, description: &str) {
-        if body.is_empty() && description.is_empty() {
-            self.remove_document(&locator);
+        self.upsert_rich_document(SearchDocInput {
+            locator,
+            body,
+            description,
+            enrichment: "",
+            freshness: FreshnessMeta::default(),
+        });
+    }
+
+    /// Incrementally insert or replace a single rich document without re-tokenizing the corpus.
+    pub fn upsert_rich_document(&mut self, doc: SearchDocInput<'_>) {
+        if doc.body.is_empty() && doc.description.is_empty() && doc.enrichment.is_empty() {
+            self.remove_document(&doc.locator);
             return;
         }
-        let hash = fnv1a64(body.as_bytes());
-        if let Some(&doc_id) = self.locator_to_doc.get(&locator) {
-            self.index.add(doc_id, [body, description]);
+        let hash = fnv1a64(doc.body.as_bytes());
+        if let Some(&doc_id) = self.locator_to_doc.get(&doc.locator) {
+            self.index
+                .add(doc_id, [doc.body, doc.description, doc.enrichment]);
             self.body_hashes[doc_id] = hash;
+            self.freshness[doc_id] = doc.freshness;
         } else {
             let doc_id = self.locators.len();
-            self.index.add(doc_id, [body, description]);
-            self.locator_to_doc.insert(locator.clone(), doc_id);
-            self.locators.push(locator);
+            self.index
+                .add(doc_id, [doc.body, doc.description, doc.enrichment]);
+            self.locator_to_doc.insert(doc.locator.clone(), doc_id);
+            self.locators.push(doc.locator);
             self.body_hashes.push(hash);
+            self.freshness.push(doc.freshness);
         }
     }
 
@@ -915,6 +1138,7 @@ impl SearchIndex {
         if let Some(&doc_id) = self.locator_to_doc.get(locator) {
             self.index.remove(doc_id);
             self.body_hashes[doc_id] = 0;
+            self.freshness[doc_id] = FreshnessMeta::default();
         }
     }
 
@@ -992,6 +1216,30 @@ impl SearchIndex {
         repo_filter: Option<&str>,
         limit: usize,
     ) -> Vec<SearchHit> {
+        self.query_with_options(
+            query,
+            exact,
+            min_should_match,
+            repo_filter,
+            self.default_reference_days,
+            true,
+            limit,
+        )
+    }
+
+    /// Query BM25 with explicit type-aware freshness controls (`reference_days` and `apply_freshness`).
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn query_with_options(
+        &self,
+        query: &str,
+        exact: bool,
+        min_should_match: Option<usize>,
+        repo_filter: Option<&str>,
+        reference_days: Option<i64>,
+        apply_freshness: bool,
+        limit: usize,
+    ) -> Vec<SearchHit> {
         let admitted_buf: Option<Vec<bool>> =
             repo_filter.map(|repo| self.locators.iter().map(|loc| loc.repo == repo).collect());
         let mask = match &admitted_buf {
@@ -1010,26 +1258,42 @@ impl SearchIndex {
             .into_iter()
             .filter(|term| self.index.term_idf(term).is_some_and(|idf| idf >= RARE_IDF))
             .collect();
-        if !rare.is_empty() {
-            for hit in &mut hits {
+        let mut mults: Vec<f64> = Vec::with_capacity(hits.len());
+        for hit in &mut hits {
+            if !rare.is_empty() {
                 let stem = file_stem(&self.locators[hit.doc_id].path);
                 hit.score *= title_multiplier(title_coverage(&rare, stem));
             }
+            let fmult = if apply_freshness {
+                self.freshness
+                    .get(hit.doc_id)
+                    .copied()
+                    .unwrap_or_default()
+                    .multiplier_as_of(reference_days)
+            } else {
+                1.0
+            };
+            hit.score *= fmult;
+            mults.push(fmult);
         }
+
+        let mut paired: Vec<(Hit, f64)> = hits.into_iter().zip(mults).collect();
         // Always break score ties deterministically by canonical Locator (independent of incremental doc_id order).
-        hits.sort_by(|a, b| {
+        paired.sort_by(|(a, _), (b, _)| {
             b.score
                 .total_cmp(&a.score)
                 .then_with(|| self.locators[a.doc_id].cmp(&self.locators[b.doc_id]))
         });
 
-        hits.into_iter()
+        paired
+            .into_iter()
             .take(limit)
-            .map(|hit| SearchHit {
+            .map(|(hit, freshness_multiplier)| SearchHit {
                 locator: self.locators[hit.doc_id].clone(),
                 score: hit.score,
                 matched_terms: hit.matched_terms,
                 weak: hit.weak(),
+                freshness_multiplier,
             })
             .collect()
     }
@@ -1269,6 +1533,7 @@ fn default_weights<const N: usize>() -> [f64; N] {
     std::array::from_fn(|field| match field {
         0 => BODY_WEIGHT,
         1 => DESCRIPTION_WEIGHT,
+        2 => ENRICHMENT_WEIGHT,
         _ => BODY_WEIGHT,
     })
 }
@@ -1387,5 +1652,116 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn type_aware_freshness_and_enrichment_fields_rank_correctly() {
+        assert_eq!(parse_iso_epoch_days("1970-01-01"), Some(0));
+        assert_eq!(parse_iso_date_exact("1970-01-01"), Some(0));
+        assert_eq!(parse_iso_date_exact("2026-11-28garbage"), None);
+        assert_eq!(parse_iso_date_exact("2026-+1-01"), None);
+        assert_eq!(
+            parse_iso_epoch_days("2026-11-28T12:00:00Z"),
+            parse_iso_date_exact("2026-11-28")
+        );
+        assert_eq!(parse_iso_epoch_days("2026-11-28garbage"), None);
+        assert_eq!(parse_iso_epoch_days("2026-02-30"), None);
+        assert_eq!(parse_iso_epoch_days("2026-13-01"), None);
+
+        let ref_day = parse_iso_epoch_days("2026-11-28").unwrap();
+        let current_durable = Locator::new("vault", "patterns/retry.md").unwrap();
+        let superseded_durable = Locator::new("vault", "patterns/retry-old.md").unwrap();
+        let aged_transient = Locator::new("vault", "inbox/retry-log.md").unwrap();
+        let explicit_durable_inbox = Locator::new("vault", "inbox/backlog.md").unwrap();
+
+        let idx = SearchIndex::build_rich(
+            [
+                SearchDocInput {
+                    locator: current_durable.clone(),
+                    body: "Backoff jitter prevents thundering herds.",
+                    description: "Retry pattern",
+                    enrichment: "exponential backoff circuit breaker how to stop retry storms",
+                    freshness: FreshnessMeta::from_fields(
+                        Some("current"),
+                        None,
+                        Some("pattern"),
+                        "patterns/retry.md",
+                        Some("2025-01-01"),
+                    ),
+                },
+                SearchDocInput {
+                    locator: superseded_durable.clone(),
+                    body: "Backoff jitter prevents thundering herds.",
+                    description: "Retry pattern",
+                    enrichment: "",
+                    freshness: FreshnessMeta::from_fields(
+                        Some("superseded"),
+                        None,
+                        Some("pattern"),
+                        "patterns/retry-old.md",
+                        Some("2026-11-27"),
+                    ),
+                },
+                SearchDocInput {
+                    locator: aged_transient.clone(),
+                    body: "Backoff jitter prevents thundering herds.",
+                    description: "Retry pattern",
+                    enrichment: "",
+                    freshness: FreshnessMeta::from_fields(
+                        Some("current"),
+                        None,
+                        Some("inbox"),
+                        "inbox/retry-log.md",
+                        Some("2026-03-31"), // ~242 days old (~2 half-lives -> ~0.25)
+                    ),
+                },
+                SearchDocInput {
+                    locator: explicit_durable_inbox.clone(),
+                    body: "Backoff jitter prevents thundering herds.",
+                    description: "Retry pattern",
+                    enrichment: "",
+                    freshness: FreshnessMeta::from_fields(
+                        Some("current"),
+                        Some("durable"),
+                        Some("extract"),
+                        "inbox/backlog.md",
+                        Some("2025-01-01"),
+                    ),
+                },
+            ],
+            Some(ref_day),
+        );
+
+        let hits = idx.query("thundering herds", false, None, None, 10);
+        assert_eq!(hits.len(), 4);
+        // Durable notes keep 1.0 despite being from 2025; aged transient decays (~0.25); superseded is 0.05.
+        let by_loc: HashMap<&Locator, &SearchHit> = hits.iter().map(|h| (&h.locator, h)).collect();
+        assert!((by_loc[&current_durable].freshness_multiplier - 1.0).abs() < 1e-12);
+        assert!((by_loc[&explicit_durable_inbox].freshness_multiplier - 1.0).abs() < 1e-12);
+        assert!(by_loc[&aged_transient].freshness_multiplier < 0.30);
+        assert!(by_loc[&aged_transient].freshness_multiplier > 0.20);
+        assert!((by_loc[&superseded_durable].freshness_multiplier - 0.05).abs() < 1e-12);
+        assert_eq!(hits.last().unwrap().locator, superseded_durable);
+
+        // Enrichment field (field 2) matches paraphrase terms absent from body & description!
+        let enrich_hits = idx.query("circuit breaker storms", false, None, None, 5);
+        assert_eq!(enrich_hits.len(), 1);
+        assert_eq!(enrich_hits[0].locator, current_durable);
+
+        // ignore_freshness=true (apply_freshness=false) restores 1.0 multiplier across all docs.
+        let raw_hits = idx.query_with_options(
+            "thundering herds",
+            false,
+            None,
+            None,
+            Some(ref_day),
+            false,
+            10,
+        );
+        assert!(
+            raw_hits
+                .iter()
+                .all(|h| (h.freshness_multiplier - 1.0).abs() < 1e-12)
+        );
     }
 }

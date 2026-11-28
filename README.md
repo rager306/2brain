@@ -11,7 +11,7 @@ Clean-room, **MIT-licensed**, single-binary typed knowledge graph and cognitive 
     - `tb-syntax`: strict UTF-8 decoding (SEM-04), `saphyr` YAML 1.2 frontmatter, `memchr` `[[wikilink]]` scanner, headings + `^block-ids`, EN/RU tokenizer.
     - `tb-schema`: `*.type.yaml` schema parser, inheritance, cross-repo qualification, deterministic validation diagnostics.
     - `tb-graph`: `u32` Compressed Sparse Row (`TypedLinkGraph`), iterative Tarjan SCC/bridges/articulation points, exact triangles/transitivity, bounded N-hop neighborhood.
-    - `tb-search`: delta-varint BM25 + body proximity + rare-IDF title lift + word forms + slice-safe excerpts, separated from literal `grep_text` (SEM-09).
+    - `tb-search`: three-field (`body`, `description`, frontmatter `keywords`/`search_questions` enrichment) delta-varint BM25 + body proximity + rare-IDF title lift + type-aware freshness decay (`current=1.0`, `aging=0.7`, `stale=0.3`, `superseded=0.05`; durable notes exempt from age decay, transient notes 120-day half-life) + word forms + slice-safe excerpts, separated from literal `grep_text` (SEM-09).
     - `tb-cognition`: CSR Brandes betweenness & Conceptual Gateways (`bc/deg`), Peel-the-Onion hub masking, 5-seed Leiden-connected modularity + NMI + Maslov-Sneppen null-model Z-score, Callon quadrants, Dual-Layer (`TypedLinkGraph ⊕ Rare-IDF`) structural gaps with anti-tautology & negative memory, LLM Bias Audit, `D03`/`R14` Claim Layer & Polysingularity Contradiction Audit, Git Difference Graph + Change-Driven Decay, and Hub Fragility analysis.
   - **`crates/app/tb-app`**: hexagonal ports, immutable `VaultSnapshot` behind `ArcSwap`, generation-fenced cognitive caches, release-admission SHA-256 verification on `tb_context`, and idempotent mutation orchestration.
   - **`crates/adapters/*`**:
@@ -88,7 +88,7 @@ just gate
 # Miri UB check across pure-domain crates
 just miri
 
-# Truthful capability registry validation & isolated black-box semantic suite (14 cases + SEM-48 control)
+# Truthful capability registry validation & isolated black-box semantic suite (21 cases + SEM-48 control)
 python3 tools/check_capabilities.py
 python3 tools/semantic/run_semantic_suite.py --bin target/release/2brain
 ```

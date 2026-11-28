@@ -30,7 +30,7 @@ use tb_contracts::{
 };
 use tb_graph::{GraphHealth, GraphShape, HubRow, TypedLinkGraph};
 use tb_schema::{Diagnostic, SchemaRegistry, Severity, parse_type_def};
-use tb_search::SearchIndex;
+use tb_search::{FreshnessMeta, SearchDocInput, SearchIndex};
 use tb_syntax::{EdgeKind, FrontmatterValue, ParsedDocument, parse_document};
 use thiserror::Error;
 
@@ -1396,11 +1396,15 @@ pub fn refresh_snapshot_incremental(
                     description,
                     declared_type,
                 };
-                search.upsert_document(
-                    loc.clone(),
-                    indexed.body(),
-                    indexed.description.as_deref().unwrap_or(""),
-                );
+                let enrich = extract_enrichment_text(&indexed);
+                let fresh = extract_freshness_meta(&indexed);
+                search.upsert_rich_document(SearchDocInput {
+                    locator: loc.clone(),
+                    body: indexed.body(),
+                    description: indexed.description.as_deref().unwrap_or(""),
+                    enrichment: &enrich,
+                    freshness: fresh,
+                });
                 files.insert(loc, indexed);
             }
             Err(_) => {
@@ -1437,14 +1441,11 @@ pub fn refresh_snapshot_incremental(
         }
     }
 
+    let today_days = current_utc_epoch_days();
     if search.needs_compaction() {
-        search = SearchIndex::build(files.values().map(|f| {
-            (
-                f.locator.clone(),
-                f.body(),
-                f.description.as_deref().unwrap_or(""),
-            )
-        }));
+        search = build_rich_search_index(&files, today_days);
+    } else {
+        search.set_default_reference_days(today_days);
     }
 
     let graph = TypedLinkGraph::build(locators, &edges);
@@ -1905,13 +1906,7 @@ fn load_snapshot_inner(
     }
 
     let graph = TypedLinkGraph::build(locators, &edges);
-    let search = SearchIndex::build(files.values().map(|f| {
-        (
-            f.locator.clone(),
-            f.body(),
-            f.description.as_deref().unwrap_or(""),
-        )
-    }));
+    let search = build_rich_search_index(&files, current_utc_epoch_days());
 
     let store = FsWorkspaceStore::multi(canonical_root, store_members);
     let snapshot = VaultSnapshot {
@@ -2272,13 +2267,7 @@ pub fn load_snapshot_at_git_ref(root: &Path, git_ref: &str) -> Result<VaultSnaps
     }
 
     let graph = TypedLinkGraph::build(locators, &edges);
-    let search = SearchIndex::build(files.values().map(|f| {
-        (
-            f.locator.clone(),
-            f.body(),
-            f.description.as_deref().unwrap_or(""),
-        )
-    }));
+    let search = build_rich_search_index(&files, current_utc_epoch_days());
 
     let mut members = BTreeMap::new();
     members.insert(
@@ -3058,6 +3047,97 @@ fn load_ignore_rules(
         }
     }
     Ok(builder.build().unwrap_or_else(|_| Gitignore::empty()))
+}
+
+fn current_utc_epoch_days() -> Option<i64> {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|d| (d.as_secs() / 86_400) as i64)
+}
+
+fn fm_string<'a>(
+    fm: &'a BTreeMap<String, tb_syntax::FrontmatterValue>,
+    keys: &[&str],
+) -> Option<&'a str> {
+    for &k in keys {
+        if let Some(tb_syntax::FrontmatterValue::String(s)) = fm.get(k) {
+            let t = s.trim();
+            if !t.is_empty() {
+                return Some(t);
+            }
+        }
+    }
+    None
+}
+
+fn extract_enrichment_text(file: &IndexedFile) -> String {
+    let Some(fm) = file.doc.frontmatter.as_ref() else {
+        return String::new();
+    };
+    let mut parts: Vec<&str> = Vec::new();
+    for key in ["keywords", "search_questions", "questions", "aliases"] {
+        match fm.get(key) {
+            Some(tb_syntax::FrontmatterValue::String(s)) => {
+                let t = s.trim();
+                if !t.is_empty() {
+                    parts.push(t);
+                }
+            }
+            Some(tb_syntax::FrontmatterValue::Seq(items)) => {
+                for item in items {
+                    if let tb_syntax::FrontmatterValue::String(s) = item {
+                        let t = s.trim();
+                        if !t.is_empty() {
+                            parts.push(t);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    parts.join(" ")
+}
+
+fn extract_freshness_meta(file: &IndexedFile) -> FreshnessMeta {
+    let Some(fm) = file.doc.frontmatter.as_ref() else {
+        return FreshnessMeta::from_fields(
+            None,
+            None,
+            file.declared_type.as_deref(),
+            &file.locator.path,
+            None,
+        );
+    };
+    let status = fm_string(fm, &["status"]);
+    let freshness = fm_string(fm, &["freshness"]);
+    let doc_type = file
+        .declared_type
+        .as_deref()
+        .or_else(|| fm_string(fm, &["type"]));
+    let date_str = fm_string(fm, &["updated", "modified", "captured", "created", "date"]);
+    FreshnessMeta::from_fields(status, freshness, doc_type, &file.locator.path, date_str)
+}
+
+fn build_rich_search_index(
+    files: &BTreeMap<Locator, IndexedFile>,
+    reference_days: Option<i64>,
+) -> SearchIndex {
+    let owned: Vec<(&IndexedFile, String, FreshnessMeta)> = files
+        .values()
+        .map(|f| (f, extract_enrichment_text(f), extract_freshness_meta(f)))
+        .collect();
+    SearchIndex::build_rich(
+        owned.iter().map(|(f, enrich, fresh)| SearchDocInput {
+            locator: f.locator.clone(),
+            body: f.body(),
+            description: f.description.as_deref().unwrap_or(""),
+            enrichment: enrich.as_str(),
+            freshness: *fresh,
+        }),
+        reference_days,
+    )
 }
 
 #[cfg(test)]

@@ -100,10 +100,14 @@ pub fn full_schema_for(name: &str) -> Arc<Map<String, Value>> {
             "type": "object",
             "required": ["query"],
             "properties": {
-                "query": { "type": "string", "description": "BM25 + proximity search query" },
+                "query": { "type": "string", "description": "BM25 + proximity + type-aware freshness search query" },
                 "repo": { "type": "string" },
-                "type": { "type": "string", "description": "Optional type filter" },
-                "limit": { "type": "integer", "minimum": 1, "maximum": 100 }
+                "exact": { "type": "boolean", "default": false, "description": "Require all query terms to match" },
+                "min_should_match": { "type": "integer", "minimum": 1 },
+                "as_of": { "type": "string", "description": "Optional YYYY-MM-DD reference date for transient freshness decay" },
+                "ignore_freshness": { "type": "boolean", "default": false, "description": "Disable type-aware freshness multipliers to inspect raw lexical BM25" },
+                "limit": { "type": "integer", "minimum": 1, "maximum": 200 },
+                "offset": { "type": "integer", "minimum": 0 }
             }
         }),
         "tb_grep" => json!({
