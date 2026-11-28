@@ -383,6 +383,7 @@ pub struct VaultSnapshot {
     pub diagnostics: Vec<Diagnostic>,
     pub path_index: BTreeMap<(String, String), Locator>,
     pub stem_index: BTreeMap<(String, String), Vec<Locator>>,
+    pub indexed_symlinks: BTreeSet<Locator>,
 }
 
 impl VaultSnapshot {
@@ -398,6 +399,7 @@ impl VaultSnapshot {
             diagnostics: Vec::new(),
             path_index: BTreeMap::new(),
             stem_index: BTreeMap::new(),
+            indexed_symlinks: BTreeSet::new(),
         }
     }
 

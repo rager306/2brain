@@ -735,14 +735,33 @@ fn spawn_watcher(
     Option<notify::RecommendedWatcher>,
     tokio::task::JoinHandle<()>,
 ) {
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(16);
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<PathBuf>>(64);
+    let overflowed = Arc::new(AtomicBool::new(false));
+    let wake = Arc::new(tokio::sync::Notify::new());
+    let overflowed_cb = Arc::clone(&overflowed);
+    let wake_cb = Arc::clone(&wake);
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         if let Ok(ev) = res {
             if !is_mutating_fs_event(&ev.kind) {
                 return;
             }
-            if ev.paths.iter().any(|p| is_relevant_watch_path(p)) {
-                let _ = tx.try_send(());
+            let relevant: Vec<PathBuf> = ev
+                .paths
+                .into_iter()
+                .filter(|p| is_relevant_watch_path(p))
+                .collect();
+            if !relevant.is_empty() {
+                match tx.try_send(relevant) {
+                    Ok(()) => {}
+                    Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                        // Record overflow and wake the consumer so a full reload is guaranteed
+                        // even if a burst filled the channel mid-scan.
+                        overflowed_cb.store(true, Ordering::SeqCst);
+                        wake_cb.notify_one();
+                    }
+                    Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {}
+                }
             }
         }
     })
@@ -751,16 +770,33 @@ fn spawn_watcher(
         let _ = w.watch(&watch_root, RecursiveMode::Recursive);
     }
     let task = tokio::spawn(async move {
-        while rx.recv().await.is_some() {
-            tokio::time::sleep(Duration::from_millis(80)).await;
-            while rx.try_recv().is_ok() {}
-            let next_gen = app.generation().next();
+        loop {
+            let mut changed: Vec<PathBuf> = tokio::select! {
+                maybe = rx.recv() => match maybe {
+                    Some(paths) => paths,
+                    None => break,
+                },
+                () = wake.notified() => Vec::new(),
+            };
+            tokio::time::sleep(Duration::from_millis(60)).await;
+            while let Ok(more) = rx.try_recv() {
+                changed.extend(more);
+            }
+            // Clear overflow BEFORE scanning so any concurrent overflow arriving during the
+            // scan sets the flag again and re-notifies `wake` for a follow-up full pass.
+            let force_full = overflowed.swap(false, Ordering::SeqCst);
+            let prev = app.snapshot();
+            let next_gen = prev.generation.next();
             let root_clone = watch_root.clone();
-            if let Ok(Ok(fresh)) = tokio::task::spawn_blocking(move || {
-                tb_fs_git::load_snapshot_with_generation(&root_clone, next_gen)
+            let res = tokio::task::spawn_blocking(move || {
+                if force_full {
+                    tb_fs_git::load_snapshot_with_generation(&root_clone, next_gen)
+                } else {
+                    tb_fs_git::refresh_snapshot_incremental(&root_clone, &prev, &changed, next_gen)
+                }
             })
-            .await
-            {
+            .await;
+            if let Ok(Ok(fresh)) = res {
                 app.swap_snapshot(fresh);
             }
         }

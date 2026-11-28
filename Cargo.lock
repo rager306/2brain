@@ -1101,7 +1101,7 @@ dependencies = [
 
 [[package]]
 name = "tb-app"
-version = "0.2.0-dev"
+version = "0.3.0"
 dependencies = [
  "arc-swap",
  "serde",
@@ -1117,7 +1117,7 @@ dependencies = [
 
 [[package]]
 name = "tb-cognition"
-version = "0.2.0-dev"
+version = "0.3.0"
 dependencies = [
  "serde",
  "sha2",
@@ -1129,7 +1129,7 @@ dependencies = [
 
 [[package]]
 name = "tb-contracts"
-version = "0.2.0-dev"
+version = "0.3.0"
 dependencies = [
  "serde",
  "sha2",
@@ -1138,7 +1138,7 @@ dependencies = [
 
 [[package]]
 name = "tb-fs-git"
-version = "0.2.0-dev"
+version = "0.3.0"
 dependencies = [
  "fs4",
  "ignore",
@@ -1157,7 +1157,7 @@ dependencies = [
 
 [[package]]
 name = "tb-graph"
-version = "0.2.0-dev"
+version = "0.3.0"
 dependencies = [
  "serde",
  "tb-contracts",
@@ -1167,7 +1167,7 @@ dependencies = [
 
 [[package]]
 name = "tb-ipc"
-version = "0.2.0-dev"
+version = "0.3.0"
 dependencies = [
  "fs4",
  "serde",
@@ -1180,7 +1180,7 @@ dependencies = [
 
 [[package]]
 name = "tb-journal"
-version = "0.2.0-dev"
+version = "0.3.0"
 dependencies = [
  "fs4",
  "serde",
@@ -1194,7 +1194,7 @@ dependencies = [
 
 [[package]]
 name = "tb-mcp"
-version = "0.2.0-dev"
+version = "0.3.0"
 dependencies = [
  "getrandom",
  "rmcp",
@@ -1210,7 +1210,7 @@ dependencies = [
 
 [[package]]
 name = "tb-schema"
-version = "0.2.0-dev"
+version = "0.3.0"
 dependencies = [
  "saphyr",
  "serde",
@@ -1221,7 +1221,7 @@ dependencies = [
 
 [[package]]
 name = "tb-search"
-version = "0.2.0-dev"
+version = "0.3.0"
 dependencies = [
  "serde",
  "tb-contracts",
@@ -1230,7 +1230,7 @@ dependencies = [
 
 [[package]]
 name = "tb-skills"
-version = "0.2.0-dev"
+version = "0.3.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1242,7 +1242,7 @@ dependencies = [
 
 [[package]]
 name = "tb-syntax"
-version = "0.2.0-dev"
+version = "0.3.0"
 dependencies = [
  "memchr",
  "saphyr",
@@ -1363,7 +1363,7 @@ dependencies = [
 
 [[package]]
 name = "two-brain"
-version = "0.2.0-dev"
+version = "0.3.0"
 dependencies = [
  "clap",
  "notify",

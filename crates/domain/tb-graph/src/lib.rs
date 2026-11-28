@@ -666,4 +666,54 @@ mod tests {
         assert!(!nb.truncated);
         assert_eq!(nb.nodes, vec![loc("c"), loc("a"), loc("d")]);
     }
+
+    #[test]
+    fn randomized_csr_graphs_preserve_symmetry_degree_conservation_and_component_bounds() {
+        let mut seed: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = || -> usize {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed as usize
+        };
+        for _ in 0..40 {
+            let n = (next() % 14) + 2;
+            let nodes: Vec<Locator> = (0..n).map(|i| loc(&format!("n{i}"))).collect();
+            let m = next() % (n * 3);
+            let mut edges = Vec::with_capacity(m);
+            for _ in 0..m {
+                let u = next() % n;
+                let v = next() % n;
+                let k = if next().is_multiple_of(3) {
+                    EdgeKind::Field
+                } else {
+                    EdgeKind::Navigational
+                };
+                edges.push((nodes[u].clone(), nodes[v].clone(), k));
+            }
+            let g = TypedLinkGraph::build(nodes, &edges);
+            let shape = g.shape();
+            assert_eq!(shape.node_count, n);
+            assert_eq!(shape.edge_count, m);
+            let out_sum: usize = (0..n)
+                .map(|i| g.out_neighbors(NodeId(i as u32)).0.len())
+                .sum();
+            let in_sum: usize = (0..n)
+                .map(|i| g.in_neighbors(NodeId(i as u32)).0.len())
+                .sum();
+            assert_eq!(out_sum, m);
+            assert_eq!(in_sum, m);
+            for u in 0..n {
+                for &v in g.undirected_neighbors(NodeId(u as u32)) {
+                    assert!(
+                        g.undirected_neighbors(v).contains(&NodeId(u as u32)),
+                        "undirected CSR adjacency must be symmetric"
+                    );
+                }
+            }
+            assert!(shape.components >= 1 && shape.components <= n);
+            let health = g.health();
+            assert!(health.transitivity >= 0.0 && health.transitivity <= 1.0001);
+        }
+    }
 }

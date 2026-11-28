@@ -1069,6 +1069,252 @@ pub fn load_snapshot_with_generation(
     load_snapshot_inner(root, generation).map(|(_, snap)| snap)
 }
 
+/// Incrementally refresh a [`VaultSnapshot`] when a bounded set of `.md` files changed on disk,
+/// avoiding re-reading untouched notes. Automatically falls back to a full reload if any
+/// schema (`*.type.yaml`), manifest (`workspace.yaml`, `repo.yaml`, `ignore`), directory, or
+/// large batch (> 16 paths) changed.
+pub fn refresh_snapshot_incremental(
+    root: &Path,
+    prev: &VaultSnapshot,
+    changed_paths: &[PathBuf],
+    generation: Generation,
+) -> Result<VaultSnapshot, FsError> {
+    if changed_paths.is_empty() || changed_paths.len() > 16 || prev.members.is_empty() {
+        return load_snapshot_with_generation(root, generation);
+    }
+
+    // Deduplicate and classify every changed path; any non-markdown or structural path
+    // triggers a full reload for exactness.
+    let mut member_roots: Vec<(String, PathBuf)> = prev
+        .members
+        .iter()
+        .map(|(repo, meta)| (repo.clone(), PathBuf::from(&meta.root)))
+        .collect();
+    // Longest-prefix match first in case a member root is nested under workspace_root.
+    member_roots.sort_by_key(|(_, p)| std::cmp::Reverse(p.as_os_str().len()));
+
+    let mut targets: Vec<(String, PathBuf, String)> = Vec::new(); // (repo, member_root, rel_posix)
+    let mut seen: std::collections::BTreeSet<(String, String)> = std::collections::BTreeSet::new();
+
+    for raw_path in changed_paths {
+        let fname = raw_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if fname == "workspace.yaml"
+            || fname == "repo.yaml"
+            || fname == "ignore"
+            || fname.ends_with(".type.yaml")
+            || raw_path.is_dir()
+        {
+            return load_snapshot_with_generation(root, generation);
+        }
+        if !fname.ends_with(".md") {
+            continue;
+        }
+        let matching_members: Vec<&(String, PathBuf)> = member_roots
+            .iter()
+            .filter(|(_, mroot)| raw_path.starts_with(mroot))
+            .collect();
+        if matching_members.is_empty() {
+            return load_snapshot_with_generation(root, generation);
+        }
+        // Refresh EVERY containing member when member roots overlap (nested members).
+        for (repo, member_root) in matching_members {
+            let Ok(rel) = raw_path.strip_prefix(member_root) else {
+                return load_snapshot_with_generation(root, generation);
+            };
+            let rel_posix = rel.to_string_lossy().replace('\\', "/");
+            if rel_posix.starts_with(".git/") || rel_posix.starts_with(".2brain/engine/") {
+                continue;
+            }
+            if seen.insert((repo.clone(), rel_posix.clone())) {
+                targets.push((repo.clone(), member_root.clone(), rel_posix));
+            }
+        }
+    }
+
+    // If any symlink aliases exist in the workspace, refresh them too whenever a target note
+    // changes so symlinked aliases never retain stale content or edges.
+    if !targets.is_empty() && !prev.indexed_symlinks.is_empty() {
+        for sym_loc in &prev.indexed_symlinks {
+            if let Some(meta) = prev.members.get(&sym_loc.repo) {
+                let mroot = PathBuf::from(&meta.root);
+                if seen.insert((sym_loc.repo.clone(), sym_loc.path.clone())) {
+                    targets.push((sym_loc.repo.clone(), mroot, sym_loc.path.clone()));
+                }
+            }
+        }
+    }
+
+    if targets.is_empty() {
+        let mut unchanged = prev.clone();
+        unchanged.generation = generation;
+        return Ok(unchanged);
+    }
+
+    let mut files = prev.files.clone();
+    let mut path_index = prev.path_index.clone();
+    let mut stem_index = prev.stem_index.clone();
+    let mut all_diags = prev.diagnostics.clone();
+    let mut indexed_symlinks = prev.indexed_symlinks.clone();
+
+    // Load ignore matchers per touched member only.
+    let mut ignore_by_repo: HashMap<String, Gitignore> = HashMap::new();
+    let mut utf8_errors = 0usize;
+
+    for (repo, member_root, rel_posix) in &targets {
+        let Ok(loc) = Locator::new(repo, rel_posix) else {
+            continue;
+        };
+
+        // Remove stale entries for this locator before re-reading.
+        files.remove(&loc);
+        indexed_symlinks.remove(&loc);
+        path_index.remove(&(repo.clone(), rel_posix.clone()));
+        if let Some(no_ext) = rel_posix.strip_suffix(".md") {
+            path_index.remove(&(repo.clone(), no_ext.to_owned()));
+        }
+        let file_name = rel_posix.rsplit('/').next().unwrap_or(rel_posix);
+        if let Some(stem) = file_name.strip_suffix(".md")
+            && let Some(vec) = stem_index.get_mut(&(repo.clone(), stem.to_owned()))
+        {
+            vec.retain(|l| l != &loc);
+            if vec.is_empty() {
+                stem_index.remove(&(repo.clone(), stem.to_owned()));
+            }
+        }
+        all_diags.retain(|d| !(d.repo == *repo && d.path == *rel_posix));
+
+        let gitignore = if let Some(ig) = ignore_by_repo.get(repo) {
+            ig
+        } else {
+            let mut ig_diags = Vec::new();
+            let ig = load_ignore_rules(member_root, repo, &mut ig_diags, &mut utf8_errors)?;
+            ignore_by_repo.insert(repo.clone(), ig);
+            &ignore_by_repo[repo]
+        };
+
+        let full_path = member_root.join(rel_posix);
+        if gitignore
+            .matched_path_or_any_parents(&full_path, false)
+            .is_ignore()
+        {
+            continue;
+        }
+        let bytes = match confined_read_bytes(member_root, &full_path) {
+            Ok(Some(b)) => b,
+            Ok(None) | Err(FsError::SymlinkEscape(_)) => continue,
+            Err(err) => return Err(err),
+        };
+        if bytes.iter().take(8192).any(|&b| b == 0) {
+            continue;
+        }
+        if fs::symlink_metadata(&full_path).is_ok_and(|m| m.file_type().is_symlink()) {
+            indexed_symlinks.insert(loc.clone());
+        }
+
+        let sha256 = RevisionDigest::of_bytes(&bytes);
+        let short_hash = WriteGuardHash::of_bytes(&bytes).to_hex();
+        match parse_document(&bytes) {
+            Ok(doc) => {
+                let diags = prev.registry.validate_document(repo, rel_posix, &doc);
+                all_diags.extend(diags);
+                let raw_text = String::from_utf8(bytes).unwrap_or_default();
+                let description =
+                    doc.frontmatter
+                        .as_ref()
+                        .and_then(|fm| match fm.get("description") {
+                            Some(FrontmatterValue::String(s)) => Some(s.clone()),
+                            _ => None,
+                        });
+                let declared_type = doc
+                    .frontmatter
+                    .as_ref()
+                    .and_then(|fm| match fm.get("type") {
+                        Some(FrontmatterValue::String(s)) => Some(s.clone()),
+                        _ => None,
+                    });
+                if let Some(stem) = file_name.strip_suffix(".md") {
+                    let entry = stem_index
+                        .entry((repo.clone(), stem.to_owned()))
+                        .or_default();
+                    entry.push(loc.clone());
+                    entry.sort();
+                    entry.dedup();
+                }
+                path_index.insert((repo.clone(), rel_posix.clone()), loc.clone());
+                if let Some(no_ext) = rel_posix.strip_suffix(".md") {
+                    path_index.insert((repo.clone(), no_ext.to_owned()), loc.clone());
+                }
+                files.insert(
+                    loc.clone(),
+                    IndexedFile {
+                        locator: loc,
+                        sha256,
+                        short_hash,
+                        size_bytes: raw_text.len(),
+                        raw_text,
+                        doc,
+                        description,
+                        declared_type,
+                    },
+                );
+            }
+            Err(_) => {
+                all_diags.push(Diagnostic {
+                    repo: repo.clone(),
+                    path: rel_posix.clone(),
+                    byte_start: 0,
+                    code: "invalid-utf8".to_owned(),
+                    severity: Severity::Error,
+                    message: "file contains invalid UTF-8 bytes".to_owned(),
+                });
+            }
+        }
+    }
+
+    let mut locators = Vec::with_capacity(files.len());
+    let mut edges: Vec<(Locator, Locator, EdgeKind)> = Vec::new();
+    for (loc, file) in &files {
+        locators.push(loc.clone());
+        for link in &file.doc.wikilinks {
+            let target_repo = link.repo.as_deref().unwrap_or(&loc.repo);
+            if !prev.members.contains_key(target_repo) {
+                continue;
+            }
+            if let Some(target_loc) = path_index.get(&(target_repo.to_owned(), link.target.clone()))
+            {
+                edges.push((loc.clone(), target_loc.clone(), link.kind));
+            } else if let Some(matches) =
+                stem_index.get(&(target_repo.to_owned(), link.target.clone()))
+                && matches.len() == 1
+            {
+                edges.push((loc.clone(), matches[0].clone(), link.kind));
+            }
+        }
+    }
+
+    let graph = TypedLinkGraph::build(locators, &edges);
+    let search = SearchIndex::build(files.values().map(|f| {
+        (
+            f.locator.clone(),
+            f.body(),
+            f.description.as_deref().unwrap_or(""),
+        )
+    }));
+
+    Ok(VaultSnapshot {
+        generation,
+        members: prev.members.clone(),
+        files,
+        registry: prev.registry.clone(),
+        graph,
+        search,
+        diagnostics: all_diags,
+        path_index,
+        stem_index,
+        indexed_symlinks,
+    })
+}
+
 #[derive(Clone, Debug)]
 struct WorkspaceManifestEntry {
     name: String,
@@ -1258,6 +1504,8 @@ fn load_snapshot_inner(
     let mut files: BTreeMap<Locator, IndexedFile> = BTreeMap::new();
     let mut path_index: BTreeMap<(String, String), Locator> = BTreeMap::new();
     let mut stem_index: BTreeMap<(String, String), Vec<Locator>> = BTreeMap::new();
+    let mut indexed_symlinks: std::collections::BTreeSet<Locator> =
+        std::collections::BTreeSet::new();
     let mut members: BTreeMap<String, MemberMeta> = BTreeMap::new();
     let mut store_members: BTreeMap<String, PathBuf> = BTreeMap::new();
 
@@ -1402,6 +1650,9 @@ fn load_snapshot_inner(
                     if bytes.iter().take(8192).any(|&b| b == 0) {
                         continue;
                     }
+                    if ft.is_symlink() {
+                        indexed_symlinks.insert(loc.clone());
+                    }
                     let sha256 = RevisionDigest::of_bytes(&bytes);
                     let short_hash = WriteGuardHash::of_bytes(&bytes).to_hex();
                     match parse_document(&bytes) {
@@ -1525,6 +1776,7 @@ fn load_snapshot_inner(
         diagnostics: all_diags,
         path_index,
         stem_index,
+        indexed_symlinks,
     };
 
     Ok((store, snapshot))
@@ -1901,6 +2153,7 @@ pub fn load_snapshot_at_git_ref(root: &Path, git_ref: &str) -> Result<VaultSnaps
         diagnostics: all_diags,
         path_index,
         stem_index,
+        indexed_symlinks: std::collections::BTreeSet::new(),
     })
 }
 
@@ -3245,6 +3498,67 @@ mod tests {
         assert!(
             app2.record_decision("q_next", "question", "dismiss", "nope", None)
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn incremental_refresh_matches_full_reload_across_create_edit_and_delete() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        fs::write(root.join("a.md"), "Alpha links [[b]].\n").unwrap();
+        fs::write(root.join("b.md"), "Beta original.\n").unwrap();
+
+        let (_, s1) = load_snapshot(&root).unwrap();
+        assert_eq!(s1.files.len(), 2);
+        assert_eq!(s1.graph.edge_count(), 1);
+
+        // Create c.md and edit b.md -> incremental refresh must match fresh full scan.
+        fs::write(root.join("c.md"), "Gamma links [[a]] and [[b]].\n").unwrap();
+        fs::write(root.join("b.md"), "Beta edited unique_token_v2.\n").unwrap();
+        let inc_add = refresh_snapshot_incremental(
+            &root,
+            &s1,
+            &[root.join("c.md"), root.join("b.md")],
+            Generation(2),
+        )
+        .unwrap();
+        let full_add = load_snapshot_with_generation(&root, Generation(2)).unwrap();
+        assert_eq!(inc_add.files.len(), full_add.files.len());
+        assert_eq!(inc_add.graph.edge_count(), full_add.graph.edge_count());
+        assert_eq!(
+            inc_add
+                .search
+                .query("unique_token_v2", false, None, None, 5)
+                .len(),
+            full_add
+                .search
+                .query("unique_token_v2", false, None, None, 5)
+                .len()
+        );
+
+        // Delete c.md -> incremental refresh removes node and edges cleanly.
+        fs::remove_file(root.join("c.md")).unwrap();
+        let inc_del =
+            refresh_snapshot_incremental(&root, &inc_add, &[root.join("c.md")], Generation(3))
+                .unwrap();
+        let full_del = load_snapshot_with_generation(&root, Generation(3)).unwrap();
+        assert_eq!(inc_del.files.len(), full_del.files.len());
+        assert_eq!(inc_del.graph.edge_count(), full_del.graph.edge_count());
+
+        // Confined symlink alias must also refresh when its target is edited.
+        std::os::unix::fs::symlink(root.join("b.md"), root.join("alias.md")).unwrap();
+        let s_sym = load_snapshot_with_generation(&root, Generation(4)).unwrap();
+        assert!(!s_sym.indexed_symlinks.is_empty());
+        fs::write(root.join("b.md"), "Beta v3_symlink_sync.\n").unwrap();
+        let inc_sym =
+            refresh_snapshot_incremental(&root, &s_sym, &[root.join("b.md")], Generation(5))
+                .unwrap();
+        let repo = inc_sym.members.keys().next().unwrap().clone();
+        assert!(
+            inc_sym.files[&Locator::new(&repo, "alias.md").unwrap()]
+                .raw_text
+                .contains("v3_symlink_sync"),
+            "symlink alias must reflect target edit after incremental refresh"
         );
     }
 }

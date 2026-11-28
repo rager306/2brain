@@ -56,6 +56,11 @@ Defect classes caught by adversarial review and fixed by structural invariants:
    - Never silently skip malformed JSONL lines in `review-decisions.jsonl`; fail closed on both read and pre-append validation so corrupted Negative Memory cannot silently restore dismissed items.
    - In SEP-2663 tasks that commit state (`tb_record_decision`), check cancellation before dispatch and never turn an already-committed write into `TaskExit::Cancelled`.
 
+14. **Incremental Refresh Exactness & Overflow-Safe Watcher Queues (`tb-fs-git`, `two-brain`):**
+   - Incremental snapshot refreshes (`refresh_snapshot_incremental`) must update ALL containing members when member roots overlap, and must refresh tracked symlink aliases (`indexed_symlinks`) whenever any workspace file changes so aliases never hold stale content.
+   - Never discard `TrySendError::Full` in a bounded filesystem watcher channel; set an atomic `overflowed` flag + `Notify` wakeup and atomically clear it before running a forced full reload so bursts can never drop an update.
+
+
 
 
 

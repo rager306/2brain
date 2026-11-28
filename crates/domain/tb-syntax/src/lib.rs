@@ -647,4 +647,66 @@ mod tests {
             Anchor::Block { id, .. } if id == "blk-42"
         ));
     }
+
+    #[test]
+    fn randomized_markdown_and_wikilinks_never_panic_and_preserve_utf8_span_invariants() {
+        let alphabet = [
+            "---",
+            "\n",
+            "[[",
+            "]]",
+            "|",
+            "#",
+            "^",
+            "::",
+            ":",
+            "`",
+            "```",
+            "type: note",
+            "Привёт",
+            "αβγ",
+            " ",
+            "a-1",
+            "block_2",
+            "field",
+            "x",
+        ];
+        let mut seed: u64 = 0x51a7_c0de_2026_1128;
+        let mut next = || -> usize {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed as usize
+        };
+        for _ in 0..80 {
+            let len = (next() % 40) + 1;
+            let mut doc = String::new();
+            for _ in 0..len {
+                doc.push_str(alphabet[next() % alphabet.len()]);
+            }
+            let parsed = parse_document(doc.as_bytes()).expect("valid UTF-8 must parse");
+            for wl in &parsed.wikilinks {
+                assert!(wl.byte_start <= wl.byte_end && wl.byte_end <= doc.len());
+                assert!(doc.is_char_boundary(wl.byte_start));
+                assert!(doc.is_char_boundary(wl.byte_end));
+            }
+            for a in &parsed.anchors {
+                let (s, e) = match a {
+                    Anchor::Heading {
+                        byte_start,
+                        byte_end,
+                        ..
+                    }
+                    | Anchor::Block {
+                        byte_start,
+                        byte_end,
+                        ..
+                    } => (*byte_start, *byte_end),
+                };
+                assert!(s <= e && e <= doc.len());
+                assert!(doc.is_char_boundary(s));
+                assert!(doc.is_char_boundary(e));
+            }
+        }
+    }
 }
