@@ -1171,7 +1171,6 @@ dependencies = [
  "fs4",
  "serde",
  "serde_json",
- "sha2",
  "tb-app",
  "tb-contracts",
  "thiserror",

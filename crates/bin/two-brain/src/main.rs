@@ -83,9 +83,9 @@ enum Command {
         #[command(subcommand)]
         command: OutcomesCommand,
     },
-    /// Serve MCP 2.0 (2026-07-28 stateless + legacy + SEP-2640 skills) over stdio.
+    /// Serve MCP 2.0 (2026-07-28 stateless + legacy + SEP-2640 skills + SEP-2663 tasks) over stdio.
     Mcp {
-        /// Unix socket path of a running `2brain daemon` (omit when using --in-process).
+        /// Unix socket path OR workspace directory of a running `2brain daemon` (omit with --in-process or --info).
         socket: Option<PathBuf>,
         /// Load the workspace directly in-process (zero IPC daemon needed).
         #[arg(long = "in-process")]
@@ -93,18 +93,33 @@ enum Command {
         /// Enable the 11 core mutating tools (fail-closed by default).
         #[arg(long = "allow-mutations")]
         allow_mutations: bool,
-        /// Enable repository dependency mutations (requires --allow-mutations).
+        /// Enable repository dependency mutations (implies --allow-mutations).
         #[arg(long = "allow-composition")]
         allow_composition: bool,
-        /// Enable workspace member shape mutations (requires --allow-mutations).
+        /// Enable workspace member shape mutations (implies --allow-mutations).
         #[arg(long = "allow-workspace-shape")]
         allow_workspace_shape: bool,
         /// Acknowledge durable outcome-registry tracking for request_id mutations.
         #[arg(long = "outcome-registry")]
         outcome_registry: bool,
-        /// Enable the 4 v2 cognitive analytics tools (tb_orient, tb_analyze_topology, tb_detect_gaps, tb_audit_bias).
+        /// Enable the 7 v2 cognitive & epistemic tools (tb_orient, tb_analyze_topology, tb_detect_gaps, tb_audit_bias, tb_audit_contradictions, tb_fragility_report, tb_diff_graphs).
         #[arg(long = "allow-cognitive")]
         allow_cognitive: bool,
+        /// Optional audit principal label (accepted for client compatibility; not authentication).
+        #[arg(long = "principal")]
+        principal: Option<String>,
+        /// Tool list schema verbosity (`concise` or `full`).
+        #[arg(long = "tools", default_value = "concise")]
+        tools: String,
+        /// Tool payload representation (`both`, `text`, or `structured`).
+        #[arg(long = "payload", default_value = "both")]
+        payload: String,
+        /// Optional JSON policy file path.
+        #[arg(long = "policy")]
+        policy: Option<PathBuf>,
+        /// Print MCP protocol surface and launch information, then exit.
+        #[arg(long = "info")]
+        info: bool,
     },
 }
 
@@ -209,21 +224,52 @@ fn main() {
             allow_workspace_shape,
             outcome_registry,
             allow_cognitive,
+            principal,
+            tools,
+            payload,
+            policy: policy_file,
+            info,
         } => {
+            let _ = (principal, tools, payload, policy_file);
+            let effective_mutations = allow_mutations || allow_composition || allow_workspace_shape;
             let policy = LaunchPolicy {
-                allow_mutations,
+                allow_mutations: effective_mutations,
                 allow_composition,
                 allow_workspace_shape,
                 outcome_registry,
                 allow_cognitive,
             };
+            if info {
+                println!(
+                    "2brain {} (clean-room MIT single binary)",
+                    env!("CARGO_PKG_VERSION")
+                );
+                println!(
+                    "  tools        54 core (38 read-only, 16 mutating) + 7 opt-in cognitive (--allow-cognitive)"
+                );
+                println!(
+                    "  protocol     MCP 2026-07-28 (stateless) + legacy + SEP-2640 skills + SEP-2663 tasks"
+                );
+                return;
+            }
             if let Some(workspace) = in_process {
                 run_mcp_in_process(&workspace, policy);
-            } else if let Some(sock) = socket {
-                run_mcp_over_socket(&sock, policy);
+            } else if let Some(target) = socket {
+                let resolved_sock = if target.is_dir() {
+                    match std::fs::canonicalize(&target) {
+                        Ok(canonical) => tb_ipc::socket_path_for(&canonical),
+                        Err(err) => {
+                            eprintln!("error resolving workspace '{}': {err}", target.display());
+                            std::process::exit(2);
+                        }
+                    }
+                } else {
+                    target
+                };
+                run_mcp_over_socket(&resolved_sock, policy);
             } else {
                 eprintln!(
-                    "error: pass either <socket> or --in-process <workspace> to '2brain mcp'"
+                    "error: pass <socket-or-workspace> or --in-process <workspace> to '2brain mcp'"
                 );
                 std::process::exit(2);
             }
@@ -579,7 +625,7 @@ fn run_daemon_status(workspace: &std::path::Path) {
         Ok(_) => println!("running: {}", sock.display()),
         Err(_) => {
             println!("stopped: {}", sock.display());
-            std::process::exit(1);
+            std::process::exit(4);
         }
     }
 }

@@ -11,7 +11,6 @@ use std::time::Duration;
 
 use fs4::fs_std::FileExt;
 use serde_json::{Map, Value, json};
-use sha2::{Digest, Sha256};
 use tb_app::{AppDispatcher, AppError, IdempotentOutcome};
 use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -49,20 +48,16 @@ pub fn run_dir() -> PathBuf {
     PathBuf::from("/tmp/.2brain/engine/run")
 }
 
-/// Deterministic Unix socket path for `canonical_workspace_root`.
+/// Deterministic Unix socket path for `canonical_workspace_root` (64-bit FNV-1a hex,
+/// matching existing client/daemon socket conventions).
 #[must_use]
 pub fn socket_path_for(canonical_workspace_root: &Path) -> PathBuf {
-    let name = canonical_workspace_root
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("workspace");
-    let hash = Sha256::digest(canonical_workspace_root.to_string_lossy().as_bytes());
-    let mut suffix = String::with_capacity(12);
-    for b in &hash[..6] {
-        use std::fmt::Write as _;
-        let _ = write!(suffix, "{b:02x}");
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for &b in canonical_workspace_root.to_string_lossy().as_bytes() {
+        hash ^= u64::from(b);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
     }
-    run_dir().join(format!("{name}-{suffix}.sock"))
+    run_dir().join(format!("{hash:016x}.sock"))
 }
 
 /// Exclusive daemon ownership lock preventing a second daemon from hijacking a live socket.
@@ -380,5 +375,15 @@ mod tests {
         assert!(matches!(second, Err(IpcError::AlreadyRunning(_))));
         drop(first);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn socket_path_uses_deterministic_16_hex_fnv1a64_name() {
+        let p = socket_path_for(Path::new("/tmp/sample-vault"));
+        let fname = p.file_name().and_then(|n| n.to_str()).unwrap();
+        assert!(fname.ends_with(".sock"));
+        let stem = fname.strip_suffix(".sock").unwrap();
+        assert_eq!(stem.len(), 16);
+        assert!(stem.bytes().all(|b| b.is_ascii_hexdigit()));
     }
 }
