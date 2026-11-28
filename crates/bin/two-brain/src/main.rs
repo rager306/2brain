@@ -698,6 +698,35 @@ fn build_runtime() -> tokio::runtime::Runtime {
     }
 }
 
+fn is_mutating_fs_event(kind: &notify::EventKind) -> bool {
+    use notify::EventKind;
+    use notify::event::{AccessKind, AccessMode, ModifyKind};
+    match kind {
+        EventKind::Create(_) | EventKind::Remove(_) => true,
+        EventKind::Modify(ModifyKind::Metadata(_)) => false,
+        EventKind::Modify(_) => true,
+        EventKind::Access(AccessKind::Close(AccessMode::Write)) => true,
+        EventKind::Access(_) | EventKind::Any | EventKind::Other => false,
+    }
+}
+
+fn is_relevant_watch_path(path: &std::path::Path) -> bool {
+    if path.components().any(|c| c.as_os_str() == ".git") {
+        return false;
+    }
+    let lossy = path.to_string_lossy();
+    if lossy.contains(".2brain/engine") || lossy.contains(".2brain\\engine") {
+        return false;
+    }
+    let fname = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    fname.ends_with(".md")
+        || fname.ends_with(".type.yaml")
+        || fname == "repo.yaml"
+        || fname == "ignore"
+        || fname == "workspace.yaml"
+        || path.is_dir()
+}
+
 fn spawn_watcher(
     watch_root: PathBuf,
     app: Arc<App<tb_fs_git::FsWorkspaceStore>>,
@@ -708,11 +737,10 @@ fn spawn_watcher(
     let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(16);
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         if let Ok(ev) = res {
-            let relevant = ev.paths.iter().any(|p| {
-                !p.components().any(|c| c.as_os_str() == ".git")
-                    && !p.to_string_lossy().contains(".2brain/engine")
-            });
-            if relevant {
+            if !is_mutating_fs_event(&ev.kind) {
+                return;
+            }
+            if ev.paths.iter().any(|p| is_relevant_watch_path(p)) {
                 let _ = tx.try_send(());
             }
         }
@@ -723,7 +751,7 @@ fn spawn_watcher(
     }
     let task = tokio::spawn(async move {
         while rx.recv().await.is_some() {
-            tokio::time::sleep(Duration::from_millis(50)).await;
+            tokio::time::sleep(Duration::from_millis(80)).await;
             while rx.try_recv().is_ok() {}
             let next_gen = app.generation().next();
             let root_clone = watch_root.clone();
@@ -737,4 +765,39 @@ fn spawn_watcher(
         }
     });
     (watcher, task)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use notify::EventKind;
+    use notify::event::{
+        AccessKind, AccessMode, CreateKind, DataChange, MetadataKind, ModifyKind, RemoveKind,
+        RenameMode,
+    };
+
+    #[test]
+    fn watcher_filter_ignores_read_access_and_atime_metadata_to_prevent_reload_storm() {
+        assert!(!is_mutating_fs_event(&EventKind::Access(AccessKind::Open(
+            AccessMode::Any
+        ))));
+        assert!(!is_mutating_fs_event(&EventKind::Access(
+            AccessKind::Close(AccessMode::Read)
+        )));
+        assert!(!is_mutating_fs_event(&EventKind::Modify(
+            ModifyKind::Metadata(MetadataKind::AccessTime)
+        )));
+
+        assert!(is_mutating_fs_event(&EventKind::Create(CreateKind::File)));
+        assert!(is_mutating_fs_event(&EventKind::Remove(RemoveKind::File)));
+        assert!(is_mutating_fs_event(&EventKind::Modify(ModifyKind::Data(
+            DataChange::Content
+        ))));
+        assert!(is_mutating_fs_event(&EventKind::Modify(ModifyKind::Name(
+            RenameMode::Both
+        ))));
+        assert!(is_mutating_fs_event(&EventKind::Access(AccessKind::Close(
+            AccessMode::Write
+        ))));
+    }
 }

@@ -42,5 +42,9 @@ Defect classes caught by adversarial review and fixed by structural invariants:
    - Enforce concurrent async MCP task quotas with an atomic `tokio::sync::Semaphore` permit held until the blocking worker finishes, never a non-atomic check-then-spawn counter.
    - Never coerce an ambiguous duplicate stem in `conflicts_with` / `supersedes` into a synthetic fallback `Locator`; emit an explicit `AmbiguousReference` contradiction warning naming all candidate poles.
 
+11. **Inotify Watcher Self-Trigger Prevention (`two-brain`):**
+   - Never reload snapshots on `notify::EventKind::Access(Open|Read|Close(NoWrite))` or `Modify(Metadata)` (`atime` updates); filter strictly to `Create`, `Remove`, `Modify(Data|Name|Any|Other)`, and `Access(Close(Write))` so snapshot reads cannot cause an infinite 100% CPU reload loop.
+
+
 
 
