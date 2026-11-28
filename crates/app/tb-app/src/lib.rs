@@ -7,6 +7,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::{Arc, Condvar, Mutex};
 
+pub mod ingest;
 pub mod mutations;
 pub use mutations::{
     BlockTarget, PromoteSource, WorkspaceMemberAction, validate_block_id, validate_member_role,

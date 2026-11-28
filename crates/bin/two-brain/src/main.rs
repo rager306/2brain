@@ -1,6 +1,7 @@
 //! Composition root producing the single `2brain` binary (MIT).
 
 mod bench;
+mod ingest;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -94,6 +95,46 @@ enum Command {
         #[arg(long = "iterations", default_value_t = 5)]
         iterations: usize,
         /// Emit machine-readable JSON output.
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Convert external sources (.md, .txt, .html, .csv, .json, .jsonl) into typed Markdown notes with fail-closed schema/link/dedup validation.
+    Ingest {
+        /// Path to the target workspace directory.
+        workspace: PathBuf,
+        /// Path to a source file or directory to ingest.
+        source: PathBuf,
+        /// Destination folder inside the target repo (default: `inbox`).
+        #[arg(long = "dest", default_value = "inbox")]
+        dest: String,
+        /// Target member repository name (defaults to workspace entry repo).
+        #[arg(long = "repo")]
+        repo: Option<String>,
+        /// Default frontmatter `type` when the source lacks one.
+        #[arg(long = "type")]
+        default_type: Option<String>,
+        /// Optional capture date (`YYYY-MM-DD`) stored in frontmatter `captured`.
+        #[arg(long = "date")]
+        date: Option<String>,
+        /// Input format (`auto`, `md`, `txt`, `html`, `csv`, `json`, `jsonl`).
+        #[arg(long = "format", default_value = "auto")]
+        format: String,
+        /// Downgrade unresolved outgoing `[[wikilinks]]` from hard error to warning.
+        #[arg(long = "allow-unresolved-links")]
+        allow_unresolved_links: bool,
+        /// Downgrade ambiguous stem `[[wikilinks]]` from hard error to warning.
+        #[arg(long = "allow-ambiguous-links")]
+        allow_ambiguous_links: bool,
+        /// Overwrite existing target notes via CAS `write_file`.
+        #[arg(long = "refresh")]
+        refresh: bool,
+        /// Reject notes whose top BM25 near-duplicate score meets or exceeds this threshold.
+        #[arg(long = "dedup-threshold")]
+        dedup_threshold: Option<f64>,
+        /// Validate and report without writing any files.
+        #[arg(long = "dry-run")]
+        dry_run: bool,
+        /// Emit machine-readable JSON report.
         #[arg(long = "json")]
         json: bool,
     },
@@ -250,6 +291,35 @@ fn main() {
             iterations,
             json,
         } => bench::run_bench(&path, iterations, json),
+        Command::Ingest {
+            workspace,
+            source,
+            dest,
+            repo,
+            default_type,
+            date,
+            format,
+            allow_unresolved_links,
+            allow_ambiguous_links,
+            refresh,
+            dedup_threshold,
+            dry_run,
+            json,
+        } => ingest::run_ingest(ingest::IngestCliArgs {
+            workspace,
+            source,
+            dest,
+            repo,
+            default_type,
+            date,
+            format,
+            allow_unresolved_links,
+            allow_ambiguous_links,
+            refresh,
+            dedup_threshold,
+            dry_run,
+            as_json: json,
+        }),
         Command::Mcp {
             socket,
             in_process,

@@ -65,6 +65,11 @@ Defect classes caught by adversarial review and fixed by structural invariants:
    - Break BM25 score ties deterministically by canonical `Locator` (not insertion-order `doc_id`) and compact incremental `SearchIndex` tombstones once dead slots cross compaction thresholds so long-running watchers never drift in ranking order or leak vocabulary.
    - Never trust locator membership alone when taking a pre-indexed fast path (`detect_structural_gaps` over `SearchIndex`); verify exact body digest parity (`body_matches`) and fall back to exact `u32` tokenization if any body digest differs or any `u16` posting hits `u16::MAX`.
 
+16. **Ingest Zero-TOCTOU Reads, Atomic Batch Commits & Lossless Safe Conversion (`tb-app`, `tb-fs-git`, `two-brain`):**
+   - Open ingest source files strictly via dirfd-relative `openat(..., OFlags::NOFOLLOW)`, verify `fstat` regular-file type, and bound reads with `Read::take(MAX_SOURCE_BYTES + 1)` — never `symlink_metadata` followed by pathname `fs::read`.
+   - Bind `--refresh` CAS `expected_hash` to the gated `VaultSnapshot` (never re-reading disk before commit) and execute multi-note ingest batches atomically under one `write.lock` + one Git commit with compensating rollback (`FsWorkspaceStore::commit_ingest_batch`).
+   - Reject malformed Markdown frontmatter and malformed CSV quoting fail-closed; resolve batch links against a merged post-batch `(path_index, stem_index)`; preserve unconsumed JSON fields; re-escape `<`/`>` and Markdown link punctuation after HTML entity decoding so active HTML cannot be reintroduced.
+
 
 
 

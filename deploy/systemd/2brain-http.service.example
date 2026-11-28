@@ -1,0 +1,47 @@
+# Hardened systemd unit template for serving 2brain MCP 2.0 over Streamable HTTP on localhost.
+#
+# Install:
+#   1. Copy to /etc/systemd/system/2brain-http.service
+#   2. Create /etc/2brain/http.env with mode 0600 containing:
+#        TWOBRAIN_HTTP_TOKEN=<32+ char random secret>
+#   3. Adjust User=, Group=, and /path/to/vault
+#   4. sudo systemctl daemon-reload && sudo systemctl enable --now 2brain-http.service
+#
+# Health probe:
+#   curl -sf http://127.0.0.1:8787/healthz
+
+[Unit]
+Description=2brain MCP 2.0 Streamable HTTP Server
+Documentation=https://github.com/rager306/2brain
+After=network-online.target 2brain-engine.service
+Wants=2brain-engine.service
+
+[Service]
+Type=simple
+User=2brain
+Group=2brain
+EnvironmentFile=/etc/2brain/http.env
+ExecStart=/usr/local/bin/2brain mcp /path/to/vault \
+    --http 127.0.0.1:8787 \
+    --allow-cognitive
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=10s
+
+# Sandboxing & resource bounds
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+MemoryMax=256M
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target

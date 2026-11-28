@@ -36,6 +36,15 @@ use thiserror::Error;
 
 static TEMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
+/// One atomic file write inside [`FsWorkspaceStore::commit_ingest_batch`].
+#[derive(Clone, Debug)]
+pub struct IngestWriteOp {
+    pub locator: Locator,
+    pub content: String,
+    /// `None` for create (fails if target exists); `Some(short_hash)` for CAS refresh.
+    pub expected_hash: Option<String>,
+}
+
 /// Confined filesystem and Git workspace store (single-repo or multi-member `workspace.yaml`).
 #[derive(Clone, Debug)]
 pub struct FsWorkspaceStore {
@@ -45,6 +54,103 @@ pub struct FsWorkspaceStore {
 }
 
 impl FsWorkspaceStore {
+    /// Atomically commit a batch of ingest writes for a single repository under one `write.lock`
+    /// and a single Git commit, with compensating rollback if any write or commit step fails.
+    pub fn commit_ingest_batch(
+        &self,
+        repo: &str,
+        items: &[IngestWriteOp],
+        commit_message: &str,
+    ) -> Result<Vec<MutationReceipt>, StoreError> {
+        if items.is_empty() {
+            return Ok(Vec::new());
+        }
+        for item in items {
+            if item.locator.repo != repo {
+                return Err(StoreError::InvalidEdit(format!(
+                    "ingest batch mixes repositories ('{}' vs '{repo}')",
+                    item.locator.repo
+                )));
+            }
+        }
+        let canonical_root = self.root_for(repo)?;
+        let _lock = acquire_workspace_write_lock(&self.write_lock, &canonical_root)?;
+
+        // Phase 1: Full pre-flight verification under write.lock (zero disk writes yet).
+        // Captures prior bytes for refresh targets so any failure can roll back cleanly.
+        let mut preflight: Vec<Option<Vec<u8>>> = Vec::with_capacity(items.len());
+        for item in items {
+            let target = canonical_root.join(&item.locator.path);
+            if let Some(ref expected) = item.expected_hash {
+                let prior = verify_live_cas(&canonical_root, &target, &item.locator, expected)?;
+                preflight.push(Some(prior));
+            } else {
+                if let Ok((parent_fd, file_name)) =
+                    open_confined_parent_dir(&canonical_root, &item.locator.path, false)
+                    && statat(&parent_fd, &file_name, AtFlags::SYMLINK_NOFOLLOW).is_ok()
+                {
+                    return Err(StoreError::AlreadyExists(format!(
+                        "{}/{}",
+                        item.locator.repo, item.locator.path
+                    )));
+                }
+                preflight.push(None);
+            }
+        }
+
+        // Phase 2: Write all files via confined dirfd + O_NOFOLLOW; rollback on first error.
+        let mut applied: Vec<(OwnedFd, std::ffi::OsString, Option<Vec<u8>>)> =
+            Vec::with_capacity(items.len());
+        for (item, prior) in items.iter().zip(preflight) {
+            let write_res: Result<(OwnedFd, std::ffi::OsString), StoreError> = (|| {
+                let create_parents = item.expected_hash.is_none();
+                let (parent_fd, file_name) =
+                    open_confined_parent_dir(&canonical_root, &item.locator.path, create_parents)?;
+                if item.expected_hash.is_none() {
+                    if statat(&parent_fd, &file_name, AtFlags::SYMLINK_NOFOLLOW).is_ok() {
+                        return Err(StoreError::AlreadyExists(format!(
+                            "{}/{}",
+                            item.locator.repo, item.locator.path
+                        )));
+                    }
+                } else {
+                    reject_symlink_leaf(&parent_fd, &file_name)?;
+                }
+                atomic_write_in_dirfd(&parent_fd, &file_name, item.content.as_bytes())?;
+                Ok((parent_fd, file_name))
+            })();
+            match write_res {
+                Ok((parent_fd, file_name)) => applied.push((parent_fd, file_name, prior)),
+                Err(write_err) => {
+                    return Err(rollback_applied_batch(applied, write_err));
+                }
+            }
+        }
+
+        // Phase 3: Single atomic Git commit across all written paths.
+        let rel_paths: Vec<&str> = items.iter().map(|i| i.locator.path.as_str()).collect();
+        let commit = match git_commit_paths(&canonical_root, &rel_paths, commit_message) {
+            Ok(c) => c,
+            Err(git_err) => {
+                return Err(rollback_applied_batch(applied, git_err));
+            }
+        };
+
+        Ok(items
+            .iter()
+            .map(|item| {
+                let bytes = item.content.as_bytes();
+                MutationReceipt {
+                    repo: item.locator.repo.clone(),
+                    path: item.locator.path.clone(),
+                    sha256: RevisionDigest::of_bytes(bytes).to_hex(),
+                    hash: WriteGuardHash::of_bytes(bytes).to_hex(),
+                    commit: commit.clone(),
+                }
+            })
+            .collect())
+    }
+
     #[must_use]
     pub fn single(repo_name: impl Into<String>, canonical_root: PathBuf) -> Self {
         let mut members = BTreeMap::new();
@@ -64,7 +170,39 @@ impl FsWorkspaceStore {
             write_lock: Arc::new(Mutex::new(())),
         }
     }
+}
 
+fn rollback_applied_batch(
+    applied: Vec<(OwnedFd, std::ffi::OsString, Option<Vec<u8>>)>,
+    cause: StoreError,
+) -> StoreError {
+    let mut rollback_failures = Vec::new();
+    for (parent_fd, file_name, prior) in applied.into_iter().rev() {
+        let res = match prior {
+            Some(bytes) => atomic_write_in_dirfd(&parent_fd, &file_name, &bytes),
+            None => unlinkat(&parent_fd, &file_name, AtFlags::empty()).map_err(|e| {
+                StoreError::Io(format!(
+                    "rollback unlink '{}': {e}",
+                    file_name.to_string_lossy()
+                ))
+            }),
+        };
+        if let Err(err) = res {
+            rollback_failures.push(format!("{}: {err}", file_name.to_string_lossy()));
+        }
+    }
+    if rollback_failures.is_empty() {
+        cause
+    } else {
+        StoreError::PostEffectFailure(format!(
+            "batch failed ({cause}) and rollback had {} failure(s): {}",
+            rollback_failures.len(),
+            rollback_failures.join("; ")
+        ))
+    }
+}
+
+impl FsWorkspaceStore {
     #[must_use]
     pub fn member_root(&self, repo: &str) -> Option<PathBuf> {
         self.members

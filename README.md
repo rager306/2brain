@@ -4,7 +4,7 @@ Clean-room, **MIT-licensed**, single-binary typed knowledge graph and cognitive 
 
 ## Highlights
 
-- **Single binary (`2brain`)**: combines the workspace daemon (`2brain daemon`), stdio & Streamable HTTP MCP 2.0 server (`2brain mcp`), durable outcome registry management (`2brain outcomes`), read-only benchmark profiler (`2brain bench`), and standalone graph/epistemic analytics CLI (`check`, `analyze`, `audit-claims`, `fragility`, `diff`).
+- **Single binary (`2brain`)**: combines the workspace daemon (`2brain daemon`), stdio & Streamable HTTP MCP 2.0 server (`2brain mcp`), clean-room fail-closed ingest pipeline (`2brain ingest`), durable outcome registry management (`2brain outcomes`), read-only benchmark profiler (`2brain bench`), and standalone graph/epistemic analytics CLI (`check`, `analyze`, `audit-claims`, `fragility`, `diff`).
 - **Hexagonal / Onion monorepo (13 crates)** with CI-enforced compile-time layer boundaries (`scripts/check_layer_deps.py`):
   - **`crates/domain/*`** (zero I/O, zero `tokio`, `miri`-verified):
     - `tb-contracts`: 5 distinct identities (`NodeId`, `TermId`, `TypeId`, `Generation`, `RevisionDigest`), `Assessment<T>`, typestate `WriteIntent<Unchecked -> ReadVerified -> CasVerified>`, `OutcomeState`.
@@ -55,7 +55,12 @@ cargo build --release -p two-brain --bin 2brain
 2brain mcp --in-process /path/to/vault --allow-cognitive
 
 # Serve MCP 2.0 over Streamable HTTP (loopback-only by default; non-loopback requires TWOBRAIN_HTTP_TOKEN or --http-token-file)
+# See deploy/systemd/2brain-http.service.example for a hardened systemd unit template
 2brain mcp /path/to/vault --http 127.0.0.1:8787 --allow-cognitive
+
+# Ingest external sources (.md, .txt, .html, .csv, .json, .jsonl) with fail-closed schema/link/dedup validation
+2brain ingest /path/to/vault ./imports/ --dest inbox --type note --dry-run
+2brain ingest /path/to/vault ./imports/article.html --dest inbox --date 2026-11-28
 
 # Run read-only workspace performance benchmark (cold load, incremental reload, BM25, cognitive suite, RSS)
 2brain bench /path/to/vault --iterations 5
