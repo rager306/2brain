@@ -261,6 +261,13 @@ pub fn plan_enrichment(
         if repo_filter.is_some_and(|r| loc.repo != r) {
             continue;
         }
+        if snapshot
+            .members
+            .get(&loc.repo)
+            .is_some_and(|m| m.role.eq_ignore_ascii_case("dependency"))
+        {
+            continue;
+        }
         let body = file.body();
         if body.trim().is_empty() {
             empty_body += 1;
@@ -343,13 +350,113 @@ pub fn heuristic_enrich(
     body: &str,
 ) -> (Vec<String>, Vec<String>) {
     const STOPWORDS: &[&str] = &[
-        "the", "and", "for", "with", "that", "this", "from", "are", "was", "were", "have", "has",
-        "had", "not", "but", "you", "your", "can", "will", "into", "over", "under", "about",
-        "when", "where", "what", "which", "who", "how", "why", "all", "any", "each", "more",
-        "most", "some", "than", "then", "them", "they", "their", "there", "here", "only", "also",
-        "very", "just", "such", "use", "used", "using", "should", "must", "may", "might", "could",
-        "would", "true", "false", "none", "null", "http", "https", "www", "com", "org", "note",
-        "notes", "file", "files", "see", "via", "per",
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "from",
+        "are",
+        "was",
+        "were",
+        "have",
+        "has",
+        "had",
+        "not",
+        "but",
+        "you",
+        "your",
+        "can",
+        "will",
+        "into",
+        "over",
+        "under",
+        "about",
+        "when",
+        "where",
+        "what",
+        "which",
+        "who",
+        "how",
+        "why",
+        "all",
+        "any",
+        "each",
+        "more",
+        "most",
+        "some",
+        "than",
+        "then",
+        "them",
+        "they",
+        "their",
+        "there",
+        "here",
+        "only",
+        "also",
+        "very",
+        "just",
+        "such",
+        "use",
+        "used",
+        "using",
+        "should",
+        "must",
+        "may",
+        "might",
+        "could",
+        "would",
+        "true",
+        "false",
+        "none",
+        "null",
+        "http",
+        "https",
+        "www",
+        "com",
+        "org",
+        "note",
+        "notes",
+        "file",
+        "files",
+        "see",
+        "via",
+        "per",
+        // Common Russian function words
+        "что",
+        "как",
+        "для",
+        "или",
+        "при",
+        "это",
+        "все",
+        "его",
+        "она",
+        "они",
+        "так",
+        "уже",
+        "без",
+        "под",
+        "над",
+        "про",
+        "где",
+        "когда",
+        "если",
+        "только",
+        "чтобы",
+        "также",
+        "через",
+        "между",
+        "после",
+        "перед",
+        "может",
+        "нужно",
+        "быть",
+        "было",
+        "будет",
+        "этого",
+        "этой",
     ];
 
     let mut scores: BTreeMap<String, usize> = BTreeMap::new();
@@ -692,49 +799,93 @@ pub fn build_enrichment_apply_plan(
 
 /// Build an in-memory enriched [`SearchIndex`] overlaying cached `(keywords, search_questions)`
 /// onto a [`VaultSnapshot`] WITHOUT modifying disk — used for paired G5 pre-apply evaluation.
+///
+/// Mirrors [`build_enrichment_apply_plan`] semantics: skips read-only `dependency` members,
+/// respects `overwrite_existing`, replaces (never double-counts) `keywords`/`search_questions`,
+/// and preserves `snapshot.search.default_reference_days()` for unconfounded freshness parity.
 #[must_use]
 pub fn build_simulated_enriched_index(
     snapshot: &VaultSnapshot,
     cache: &EnrichmentCache,
     model: &str,
     prompt_version: &str,
+    overwrite_existing: bool,
 ) -> (SearchIndex, usize) {
     let mut enriched_count = 0usize;
-    let mut docs_owned: Vec<(Locator, String, String, String, FreshnessMeta)> =
+    let mut docs_owned: Vec<(Locator, String, String, String, String, FreshnessMeta)> =
         Vec::with_capacity(snapshot.files.len());
 
-    for (loc, file) in &snapshot.files {
-        let body = file.body().to_owned();
-        let desc = file.description.clone().unwrap_or_default();
-        let note_hash = body_content_sha256(&body);
-        let mut enrich_parts = Vec::new();
-        if let Some(fm) = file.doc.frontmatter.as_ref() {
-            for key in ["keywords", "search_questions", "questions", "aliases"] {
-                match fm.get(key) {
+    let collect_fm_keys =
+        |fm: Option<&BTreeMap<String, FrontmatterValue>>, keys: &[&str]| -> Vec<String> {
+            let Some(fm) = fm else {
+                return Vec::new();
+            };
+            let mut out = Vec::new();
+            for key in keys {
+                match fm.get(*key) {
                     Some(FrontmatterValue::String(s)) if !s.trim().is_empty() => {
-                        enrich_parts.push(s.trim().to_owned());
+                        out.push(s.trim().to_owned());
                     }
                     Some(FrontmatterValue::Seq(items)) => {
                         for it in items {
                             if let FrontmatterValue::String(s) = it
                                 && !s.trim().is_empty()
                             {
-                                enrich_parts.push(s.trim().to_owned());
+                                out.push(s.trim().to_owned());
                             }
                         }
                     }
                     _ => {}
                 }
             }
-        }
-        if let Some(rec) = cache.get(&note_hash, model, prompt_version)
-            && (!rec.keywords.is_empty() || !rec.search_questions.is_empty())
-        {
-            enriched_count += 1;
-            enrich_parts.extend(rec.keywords.iter().cloned());
-            enrich_parts.extend(rec.search_questions.iter().cloned());
-        }
+            out
+        };
+
+    for (loc, file) in &snapshot.files {
+        let body = file.body().to_owned();
+        let desc = file.description.clone().unwrap_or_default();
         let fm = file.doc.frontmatter.as_ref();
+        let is_dependency = snapshot
+            .members
+            .get(&loc.repo)
+            .is_some_and(|m| m.role.eq_ignore_ascii_case("dependency"));
+        let body_non_empty = !body.trim().is_empty();
+        let frontmatter_valid = file.doc.frontmatter_error.is_none();
+        let note_hash = body_content_sha256(&body);
+        let has_existing = has_enrichment_fields(fm);
+        let cached_rec = if !is_dependency
+            && body_non_empty
+            && frontmatter_valid
+            && (overwrite_existing || !has_existing)
+        {
+            cache.get(&note_hash, model, prompt_version).and_then(|r| {
+                let kws = sanitize_list(&r.keywords, MAX_KEYWORDS);
+                let sqs = sanitize_list(&r.search_questions, MAX_SEARCH_QUESTIONS);
+                (!kws.is_empty() || !sqs.is_empty()).then_some((kws, sqs))
+            })
+        } else {
+            None
+        };
+
+        let mut kw_parts = collect_fm_keys(fm, &["aliases"]);
+        let mut sq_parts = collect_fm_keys(fm, &["questions"]);
+        if let Some((clean_kws, clean_sqs)) = cached_rec {
+            enriched_count += 1;
+            if clean_kws.is_empty() {
+                kw_parts.extend(collect_fm_keys(fm, &["keywords"]));
+            } else {
+                kw_parts.extend(clean_kws);
+            }
+            if clean_sqs.is_empty() {
+                sq_parts.extend(collect_fm_keys(fm, &["search_questions"]));
+            } else {
+                sq_parts.extend(clean_sqs);
+            }
+        } else {
+            kw_parts.extend(collect_fm_keys(fm, &["keywords"]));
+            sq_parts.extend(collect_fm_keys(fm, &["search_questions"]));
+        }
+
         let get_str = |keys: &[&str]| -> Option<&str> {
             let fm = fm?;
             for k in keys {
@@ -753,20 +904,29 @@ pub fn build_simulated_enriched_index(
             &loc.path,
             get_str(&["updated", "modified", "captured", "created", "date"]),
         );
-        docs_owned.push((loc.clone(), body, desc, enrich_parts.join(" "), freshness));
+        docs_owned.push((
+            loc.clone(),
+            body,
+            desc,
+            kw_parts.join(" "),
+            sq_parts.join(" "),
+            freshness,
+        ));
     }
 
-    let index = SearchIndex::build_rich(
+    let index = SearchIndex::build_rich_with_weights(
         docs_owned
             .iter()
-            .map(|(loc, body, desc, enr, fresh)| SearchDocInput {
+            .map(|(loc, body, desc, kw, sq, fresh)| SearchDocInput {
                 locator: loc.clone(),
                 body: body.as_str(),
                 description: desc.as_str(),
-                enrichment: enr.as_str(),
+                keywords: kw.as_str(),
+                search_questions: sq.as_str(),
                 freshness: *fresh,
             }),
-        None,
+        snapshot.search.default_reference_days(),
+        snapshot.search.weights(),
     );
     (index, enriched_count)
 }

@@ -2801,8 +2801,13 @@ impl<W: WorkspaceStore> App<W> {
         let initial_snap = self.snapshot();
         let target_repo = match args.get("repo").and_then(Value::as_str) {
             Some(r) => {
-                if !initial_snap.members.contains_key(r) {
+                let Some(meta) = initial_snap.members.get(r) else {
                     return Err(AppError::NotFound(format!("unknown repo '{r}'")));
+                };
+                if meta.role.eq_ignore_ascii_case("dependency") {
+                    return Err(AppError::InvalidArguments(format!(
+                        "policy/read_only_member: refusing to ingest into read-only dependency repo '{r}'"
+                    )));
                 }
                 r.to_owned()
             }

@@ -26,12 +26,14 @@ import urllib.error
 import urllib.request
 
 SCHEMA_VERSION = "2brain.enrichment-cache/v1"
-SYSTEM_PROMPT = (
-    "You enrich technical Markdown knowledge notes for BM25 retrieval. "
+DEFAULT_SYSTEM_PROMPT = (
+    "You enrich technical Markdown knowledge notes for bilingual BM25 retrieval. "
     "Return ONLY valid JSON with two string arrays: "
-    '{"keywords": ["5 to 8 concise domain terms"], '
+    '{"keywords": ["6 to 10 concise domain terms and plain-word synonyms"], '
     '"search_questions": ["2 to 4 natural questions this note answers"]}. '
-    "Do not invent facts absent from the note."
+    "If the note is written in a non-English language (e.g. Russian) or mixes languages, "
+    "include concise equivalents in BOTH the note's language and English so cross-lingual queries match. "
+    "Preserve negations/prohibitions accurately and never invent facts absent from the note."
 )
 
 
@@ -107,7 +109,12 @@ def _http_post_json(
 
 
 def call_openai_compatible(
-    base_url: str, api_key: str, model: str, item: dict[str, object], timeout: float
+    base_url: str,
+    api_key: str,
+    model: str,
+    item: dict[str, object],
+    timeout: float,
+    system_prompt: str,
 ) -> tuple[list[str], list[str]]:
     url = base_url.rstrip("/") + "/chat/completions"
     user_msg = (
@@ -120,7 +127,7 @@ def call_openai_compatible(
         "temperature": 0.0,
         "response_format": {"type": "json_object"},
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_msg},
         ],
     }
@@ -143,7 +150,12 @@ def call_openai_compatible(
 
 
 def call_anthropic_compatible(
-    base_url: str, api_key: str, model: str, item: dict[str, object], timeout: float
+    base_url: str,
+    api_key: str,
+    model: str,
+    item: dict[str, object],
+    timeout: float,
+    system_prompt: str,
 ) -> tuple[list[str], list[str]]:
     clean_base = base_url.rstrip("/")
     url = f"{clean_base}/messages" if clean_base.endswith("/v1") else f"{clean_base}/v1/messages"
@@ -157,7 +169,7 @@ def call_anthropic_compatible(
         "max_tokens": 1024,
         "stream": False,
         "temperature": 0.0,
-        "system": SYSTEM_PROMPT,
+        "system": system_prompt,
         "messages": [{"role": "user", "content": user_msg}],
     }
     body = _http_post_json(
@@ -225,6 +237,18 @@ def main() -> int:
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--suite", type=Path, default=None, help="Paired G5 evaluation suite JSON")
     parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument(
+        "--min-should-match",
+        type=int,
+        default=None,
+        help="Optional explicit BM25 min_should_match passed to `2brain enrich evaluate`",
+    )
+    parser.add_argument(
+        "--system-prompt-file",
+        type=Path,
+        default=None,
+        help="Optional external system prompt text file (overrides built-in bilingual default)",
+    )
     parser.add_argument("--apply", action="store_true", help="Write changes (default is dry-run)")
     parser.add_argument("--max-items", type=int, default=100)
     parser.add_argument("--timeout", type=float, default=30.0)
@@ -232,6 +256,11 @@ def main() -> int:
     if args.max_items < 0:
         print("error: --max-items must be >= 0", file=sys.stderr)
         return 2
+    system_prompt = (
+        args.system_prompt_file.read_text(encoding="utf-8").strip()
+        if args.system_prompt_file is not None
+        else DEFAULT_SYSTEM_PROMPT
+    )
 
     cache_path = args.cache or (args.workspace / ".2brain" / "cache" / "enrichment.jsonl")
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -333,7 +362,9 @@ def main() -> int:
                     fh.seek(-1, os.SEEK_END)
                     needs_leading_nl = fh.read(1) != b"\n"
                 for item in pending:
-                    kws, qs = caller(base_url, api_key, args.model, item, args.timeout)
+                    kws, qs = caller(
+                        base_url, api_key, args.model, item, args.timeout, system_prompt
+                    )
                     rec = {
                         "schema_version": SCHEMA_VERSION,
                         "repo": item["repo"],
@@ -367,6 +398,10 @@ def main() -> int:
             str(args.top_k),
             "--json",
         ]
+        if args.overwrite:
+            eval_cmd.append("--overwrite")
+        if args.min_should_match is not None:
+            eval_cmd.extend(["--min-should-match", str(args.min_should_match)])
         eval_payload = json.loads(run_cmd(eval_cmd))
         arm_input_path: Path | None = None
         try:

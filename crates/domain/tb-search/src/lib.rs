@@ -3,7 +3,11 @@
 //! Architecture:
 //! - Delta-varint [`PostingBlock`] with per-field frequencies and positions
 //! - Zero-alloc [`PositionCursor`] merge walk for body proximity scoring
-//! - Per-field BM25 (`k1 = 1.2`, `b = 0.75`; body weight `1.0`, description weight `3.0`)
+//! - Configurable 4-field BM25 (`k1 = 1.2`, `b = 0.75`; default weights: `body 1.0`,
+//!   `description 3.0`, `keywords/aliases 2.2`, `search_questions 1.4`) with sparse-field
+//!   non-empty-doc length normalization so partially populated fields are never penalized
+//! - Configurable type-aware [`FreshnessPolicy`] (durable types do not decay; transient types
+//!   decay with a configurable half-life)
 //! - Coverage bonus (`0.6`), body adjacency proximity (`0.3`, window `5`),
 //!   rare-IDF escape (`2.0`), post-ranking rare-term title multiplier (`1.0`),
 //!   exact-miss plural/singular `word_forms` fallback, and 240-char word-snapped excerpts
@@ -45,8 +49,55 @@ const BODY_WEIGHT: f64 = 1.0;
 /// Default weight of field 1 (frontmatter description).
 const DESCRIPTION_WEIGHT: f64 = 3.0;
 
-/// Default weight of field 2 (frontmatter enrichment: keywords, search_questions, aliases).
-const ENRICHMENT_WEIGHT: f64 = 2.0;
+/// Default weight of field 2 (frontmatter keywords & aliases).
+const KEYWORDS_WEIGHT: f64 = 2.2;
+
+/// Default weight of field 3 (frontmatter search_questions).
+const SEARCH_QUESTIONS_WEIGHT: f64 = 1.4;
+
+/// Configurable per-field BM25 weights (zero hardcoded ranking lock-in).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SearchWeights {
+    pub body: f64,
+    pub description: f64,
+    pub keywords: f64,
+    pub search_questions: f64,
+}
+
+impl Default for SearchWeights {
+    fn default() -> Self {
+        Self {
+            body: BODY_WEIGHT,
+            description: DESCRIPTION_WEIGHT,
+            keywords: KEYWORDS_WEIGHT,
+            search_questions: SEARCH_QUESTIONS_WEIGHT,
+        }
+    }
+}
+
+impl SearchWeights {
+    #[must_use]
+    pub fn sanitized(self) -> Self {
+        let clamp_w = |w: f64| if w.is_finite() && w >= 0.0 { w } else { 0.0 };
+        Self {
+            body: clamp_w(self.body),
+            description: clamp_w(self.description),
+            keywords: clamp_w(self.keywords),
+            search_questions: clamp_w(self.search_questions),
+        }
+    }
+
+    #[must_use]
+    pub fn as_array(self) -> [f64; 4] {
+        let clean = self.sanitized();
+        [
+            clean.body,
+            clean.description,
+            clean.keywords,
+            clean.search_questions,
+        ]
+    }
+}
 
 /// Half-life in days for transient notes (inbox, sessions, daily logs).
 const TRANSIENT_HALF_LIFE_DAYS: f64 = 120.0;
@@ -534,19 +585,28 @@ pub struct Bm25Index<const N: usize> {
     docs: Vec<DocSlot<N>>,
     doc_terms: Vec<Vec<u32>>,
     total_len: [u64; N],
+    non_empty_docs: [usize; N],
     live_docs: usize,
 }
 
 impl<const N: usize> Bm25Index<N> {
     #[must_use]
     pub fn new(weights: [f64; N]) -> Self {
+        let sanitized = std::array::from_fn(|i| {
+            if weights[i].is_finite() && weights[i] >= 0.0 {
+                weights[i]
+            } else {
+                0.0
+            }
+        });
         Self {
-            weights,
+            weights: sanitized,
             term_ids: HashMap::new(),
             postings: Vec::new(),
             docs: Vec::new(),
             doc_terms: Vec::new(),
             total_len: [0; N],
+            non_empty_docs: [0; N],
             live_docs: 0,
         }
     }
@@ -609,6 +669,9 @@ impl<const N: usize> Bm25Index<N> {
         self.docs[doc_id] = DocSlot { lens, alive: true };
         for (field, length) in lens.iter().enumerate() {
             self.total_len[field] += u64::from(*length);
+            if *length > 0 {
+                self.non_empty_docs[field] += 1;
+            }
         }
         self.live_docs += 1;
     }
@@ -630,6 +693,9 @@ impl<const N: usize> Bm25Index<N> {
         }
         for (field, length) in lens.iter().enumerate() {
             self.total_len[field] -= u64::from(*length);
+            if *length > 0 {
+                self.non_empty_docs[field] -= 1;
+            }
         }
         self.live_docs -= 1;
     }
@@ -838,8 +904,13 @@ impl<const N: usize> Bm25Index<N> {
     }
 
     fn average_lengths(&self) -> [f64; N] {
-        let documents = self.live_docs.max(1) as f64;
-        std::array::from_fn(|field| self.total_len[field] as f64 / documents)
+        // Normalize each field against the count of documents that actually populate it so
+        // sparse optional fields (e.g. partial enrichment on 1% of notes) are not penalized
+        // by a near-zero corpus-wide average length.
+        std::array::from_fn(|field| {
+            let docs = self.non_empty_docs[field].max(1) as f64;
+            self.total_len[field] as f64 / docs
+        })
     }
 
     fn idf(&self, document_frequency: usize) -> f64 {
@@ -867,6 +938,22 @@ impl Default for FreshnessMeta {
             status_mult: 1.0,
             is_transient: false,
             doc_epoch_days: None,
+        }
+    }
+}
+
+/// Configurable policy controlling transient half-life and floor for [`FreshnessMeta`].
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FreshnessPolicy {
+    pub transient_half_life_days: f64,
+    pub min_transient_time_factor: f64,
+}
+
+impl Default for FreshnessPolicy {
+    fn default() -> Self {
+        Self {
+            transient_half_life_days: TRANSIENT_HALF_LIFE_DAYS,
+            min_transient_time_factor: MIN_TRANSIENT_TIME_FACTOR,
         }
     }
 }
@@ -921,6 +1008,27 @@ impl FreshnessMeta {
 
     #[must_use]
     pub fn multiplier_as_of(&self, reference_epoch_days: Option<i64>) -> f64 {
+        self.multiplier_as_of_with_policy(reference_epoch_days, FreshnessPolicy::default())
+    }
+
+    #[must_use]
+    pub fn multiplier_as_of_with_policy(
+        &self,
+        reference_epoch_days: Option<i64>,
+        policy: FreshnessPolicy,
+    ) -> f64 {
+        let half_life = if policy.transient_half_life_days.is_finite()
+            && policy.transient_half_life_days > 0.0
+        {
+            policy.transient_half_life_days
+        } else {
+            TRANSIENT_HALF_LIFE_DAYS
+        };
+        let floor = if policy.min_transient_time_factor.is_finite() {
+            policy.min_transient_time_factor.clamp(0.01, 1.0)
+        } else {
+            MIN_TRANSIENT_TIME_FACTOR
+        };
         let time_factor = if self.is_transient {
             match (reference_epoch_days, self.doc_epoch_days) {
                 (Some(ref_d), Some(doc_d)) => {
@@ -928,9 +1036,7 @@ impl FreshnessMeta {
                     if age <= 0 {
                         1.0
                     } else {
-                        0.5_f64
-                            .powf((age as f64) / TRANSIENT_HALF_LIFE_DAYS)
-                            .max(MIN_TRANSIENT_TIME_FACTOR)
+                        0.5_f64.powf((age as f64) / half_life).max(floor)
                     }
                 }
                 _ => 1.0,
@@ -938,7 +1044,12 @@ impl FreshnessMeta {
         } else {
             1.0
         };
-        (self.status_mult * time_factor).clamp(0.01, 1.0)
+        let status_mult = if self.status_mult.is_finite() {
+            self.status_mult
+        } else {
+            1.0
+        };
+        (status_mult * time_factor).clamp(0.01, 1.0)
     }
 }
 
@@ -1011,15 +1122,18 @@ pub struct SearchDocInput<'a> {
     pub locator: Locator,
     pub body: &'a str,
     pub description: &'a str,
-    pub enrichment: &'a str,
+    pub keywords: &'a str,
+    pub search_questions: &'a str,
     pub freshness: FreshnessMeta,
 }
 
-/// Servable three-field (`body`, `description`, `enrichment`) BM25 index with type-aware freshness
-/// bound to canonical [`Locator`]s.
+/// Servable four-field (`body`, `description`, `keywords`, `search_questions`) BM25 index with
+/// type-aware freshness bound to canonical [`Locator`]s.
 #[derive(Debug, Clone)]
 pub struct SearchIndex {
-    index: Bm25Index<3>,
+    index: Bm25Index<4>,
+    weights: SearchWeights,
+    freshness_policy: FreshnessPolicy,
     locators: Vec<Locator>,
     body_hashes: Vec<u64>,
     freshness: Vec<FreshnessMeta>,
@@ -1055,18 +1169,28 @@ impl SearchIndex {
                     locator,
                     body,
                     description,
-                    enrichment: "",
+                    keywords: "",
+                    search_questions: "",
                     freshness: FreshnessMeta::default(),
                 }),
             None,
         )
     }
 
-    /// Build from rich documents carrying enrichment (`keywords`, `search_questions`) and
+    /// Build from rich documents carrying separate `keywords` and `search_questions` fields plus
     /// type-aware [`FreshnessMeta`], sorted deterministically by `Locator`.
     pub fn build_rich<'a>(
         docs: impl IntoIterator<Item = SearchDocInput<'a>>,
         default_reference_days: Option<i64>,
+    ) -> Self {
+        Self::build_rich_with_weights(docs, default_reference_days, SearchWeights::default())
+    }
+
+    /// Build from rich documents with explicit per-field [`SearchWeights`].
+    pub fn build_rich_with_weights<'a>(
+        docs: impl IntoIterator<Item = SearchDocInput<'a>>,
+        default_reference_days: Option<i64>,
+        weights: SearchWeights,
     ) -> Self {
         let mut collected: Vec<SearchDocInput<'a>> = docs.into_iter().collect();
         collected.sort_by(|a, b| a.locator.cmp(&b.locator));
@@ -1075,13 +1199,26 @@ impl SearchIndex {
         let mut body_hashes = Vec::with_capacity(collected.len());
         let mut freshness = Vec::with_capacity(collected.len());
         let mut locator_to_doc = HashMap::with_capacity(collected.len());
-        let mut index = Bm25Index::new(default_weights());
+        let clean_weights = weights.sanitized();
+        let mut index = Bm25Index::new(clean_weights.as_array());
         for doc in collected {
-            if doc.body.is_empty() && doc.description.is_empty() && doc.enrichment.is_empty() {
+            if doc.body.is_empty()
+                && doc.description.is_empty()
+                && doc.keywords.is_empty()
+                && doc.search_questions.is_empty()
+            {
                 continue;
             }
             let doc_id = locators.len();
-            index.add(doc_id, [doc.body, doc.description, doc.enrichment]);
+            index.add(
+                doc_id,
+                [
+                    doc.body,
+                    doc.description,
+                    doc.keywords,
+                    doc.search_questions,
+                ],
+            );
             locator_to_doc.insert(doc.locator.clone(), doc_id);
             locators.push(doc.locator);
             body_hashes.push(fnv1a64(doc.body.as_bytes()));
@@ -1089,12 +1226,37 @@ impl SearchIndex {
         }
         Self {
             index,
+            weights: clean_weights,
+            freshness_policy: FreshnessPolicy::default(),
             locators,
             body_hashes,
             freshness,
             locator_to_doc,
             default_reference_days,
         }
+    }
+
+    /// Return the default reference day configured for transient freshness decay.
+    #[must_use]
+    pub fn default_reference_days(&self) -> Option<i64> {
+        self.default_reference_days
+    }
+
+    /// Return the active per-field BM25 weights.
+    #[must_use]
+    pub fn weights(&self) -> SearchWeights {
+        self.weights
+    }
+
+    /// Return the active [`FreshnessPolicy`] used for transient age decay.
+    #[must_use]
+    pub fn freshness_policy(&self) -> FreshnessPolicy {
+        self.freshness_policy
+    }
+
+    /// Configure the [`FreshnessPolicy`] used by [`SearchIndex::query`] and [`SearchIndex::query_with_options`].
+    pub fn set_freshness_policy(&mut self, policy: FreshnessPolicy) {
+        self.freshness_policy = policy;
     }
 
     /// Update the default reference day used by [`SearchIndex::query`] for transient decay.
@@ -1108,27 +1270,36 @@ impl SearchIndex {
             locator,
             body,
             description,
-            enrichment: "",
+            keywords: "",
+            search_questions: "",
             freshness: FreshnessMeta::default(),
         });
     }
 
     /// Incrementally insert or replace a single rich document without re-tokenizing the corpus.
     pub fn upsert_rich_document(&mut self, doc: SearchDocInput<'_>) {
-        if doc.body.is_empty() && doc.description.is_empty() && doc.enrichment.is_empty() {
+        if doc.body.is_empty()
+            && doc.description.is_empty()
+            && doc.keywords.is_empty()
+            && doc.search_questions.is_empty()
+        {
             self.remove_document(&doc.locator);
             return;
         }
         let hash = fnv1a64(doc.body.as_bytes());
+        let fields = [
+            doc.body,
+            doc.description,
+            doc.keywords,
+            doc.search_questions,
+        ];
         if let Some(&doc_id) = self.locator_to_doc.get(&doc.locator) {
-            self.index
-                .add(doc_id, [doc.body, doc.description, doc.enrichment]);
+            self.index.add(doc_id, fields);
             self.body_hashes[doc_id] = hash;
             self.freshness[doc_id] = doc.freshness;
         } else {
             let doc_id = self.locators.len();
-            self.index
-                .add(doc_id, [doc.body, doc.description, doc.enrichment]);
+            self.index.add(doc_id, fields);
             self.locator_to_doc.insert(doc.locator.clone(), doc_id);
             self.locators.push(doc.locator);
             self.body_hashes.push(hash);
@@ -1272,7 +1443,7 @@ impl SearchIndex {
                     .get(hit.doc_id)
                     .copied()
                     .unwrap_or_default()
-                    .multiplier_as_of(reference_days)
+                    .multiplier_as_of_with_policy(reference_days, self.freshness_policy)
             } else {
                 1.0
             };
@@ -1532,15 +1703,6 @@ fn title_multiplier(coverage: f64) -> f64 {
     1.0 + TITLE_COVERAGE * coverage * coverage
 }
 
-fn default_weights<const N: usize>() -> [f64; N] {
-    std::array::from_fn(|field| match field {
-        0 => BODY_WEIGHT,
-        1 => DESCRIPTION_WEIGHT,
-        2 => ENRICHMENT_WEIGHT,
-        _ => BODY_WEIGHT,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1683,7 +1845,8 @@ mod tests {
                     locator: current_durable.clone(),
                     body: "Backoff jitter prevents thundering herds.",
                     description: "Retry pattern",
-                    enrichment: "exponential backoff circuit breaker how to stop retry storms",
+                    keywords: "exponential backoff circuit breaker",
+                    search_questions: "how to stop retry storms",
                     freshness: FreshnessMeta::from_fields(
                         Some("current"),
                         None,
@@ -1696,7 +1859,8 @@ mod tests {
                     locator: superseded_durable.clone(),
                     body: "Backoff jitter prevents thundering herds.",
                     description: "Retry pattern",
-                    enrichment: "",
+                    keywords: "",
+                    search_questions: "",
                     freshness: FreshnessMeta::from_fields(
                         Some("superseded"),
                         None,
@@ -1709,7 +1873,8 @@ mod tests {
                     locator: aged_transient.clone(),
                     body: "Backoff jitter prevents thundering herds.",
                     description: "Retry pattern",
-                    enrichment: "",
+                    keywords: "",
+                    search_questions: "",
                     freshness: FreshnessMeta::from_fields(
                         Some("current"),
                         None,
@@ -1722,7 +1887,8 @@ mod tests {
                     locator: explicit_durable_inbox.clone(),
                     body: "Backoff jitter prevents thundering herds.",
                     description: "Retry pattern",
-                    enrichment: "",
+                    keywords: "",
+                    search_questions: "",
                     freshness: FreshnessMeta::from_fields(
                         Some("current"),
                         Some("durable"),
@@ -1766,5 +1932,180 @@ mod tests {
                 .iter()
                 .all(|h| (h.freshness_multiplier - 1.0).abs() < 1e-12)
         );
+    }
+
+    #[test]
+    fn sparse_optional_enrichment_field_is_not_penalized_by_empty_corpus_docs() {
+        let target = Locator::new("vault", "patterns/target.md").unwrap();
+        let mut sparse_docs: Vec<(Locator, String, String, String)> = Vec::new();
+        sparse_docs.push((
+            target.clone(),
+            "Generic architecture note body.".to_owned(),
+            "Architecture note".to_owned(),
+            "anti-accretion governance gate".to_owned(),
+        ));
+        let filler_count = if cfg!(miri) { 16 } else { 200 };
+        for i in 0..filler_count {
+            sparse_docs.push((
+                Locator::new("vault", format!("filler/doc-{i:03}.md")).unwrap(),
+                format!("Unrelated note number {i} discussing ordinary workflows."),
+                "Filler note".to_owned(),
+                String::new(),
+            ));
+        }
+
+        let sparse_idx = SearchIndex::build_rich(
+            sparse_docs
+                .iter()
+                .map(|(loc, body, desc, kw)| SearchDocInput {
+                    locator: loc.clone(),
+                    body: body.as_str(),
+                    description: desc.as_str(),
+                    keywords: kw.as_str(),
+                    search_questions: if loc == &target {
+                        "How do you prevent governance accretion in agent repos?"
+                    } else {
+                        ""
+                    },
+                    freshness: FreshnessMeta::default(),
+                }),
+            None,
+        );
+
+        let hits = sparse_idx.query("anti-accretion governance", false, None, None, 5);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].locator, target);
+        // With sparse-field non-empty-doc avg length, field_len == avg_len (normalisation = 1.0),
+        // so the BM25 score stays strong instead of collapsing under an empty-doc penalty.
+        assert!(
+            hits[0].score > 8.0,
+            "sparse enrichment score collapsed to {}",
+            hits[0].score
+        );
+
+        // Verify separate keywords vs search_questions weights: keywords (2.2) outranks questions (1.4).
+        let kw_doc = Locator::new("vault", "kw.md").unwrap();
+        let sq_doc = Locator::new("vault", "sq.md").unwrap();
+        let field_idx = SearchIndex::build_rich(
+            [
+                SearchDocInput {
+                    locator: kw_doc.clone(),
+                    body: "neutral prose",
+                    description: "note",
+                    keywords: "quorum consensus",
+                    search_questions: "",
+                    freshness: FreshnessMeta::default(),
+                },
+                SearchDocInput {
+                    locator: sq_doc.clone(),
+                    body: "neutral prose",
+                    description: "note",
+                    keywords: "",
+                    search_questions: "quorum consensus",
+                    freshness: FreshnessMeta::default(),
+                },
+            ],
+            None,
+        );
+        let ranked = field_idx.query("quorum consensus", false, None, None, 2);
+        assert_eq!(ranked.len(), 2);
+        assert_eq!(ranked[0].locator, kw_doc);
+        assert!(ranked[0].score > ranked[1].score);
+
+        // Regression: NaN/Inf SearchWeights & FreshnessMeta::status_mult never poison scores,
+        // and SearchIndex::set_freshness_policy adjusts transient age decay dynamically.
+        let bad_w = SearchWeights {
+            body: f64::NAN,
+            description: f64::INFINITY,
+            keywords: -5.0,
+            search_questions: 1.5,
+        };
+        let mut safe_idx = SearchIndex::build_rich_with_weights(
+            [SearchDocInput {
+                locator: kw_doc.clone(),
+                body: "quorum",
+                description: "quorum",
+                keywords: "quorum",
+                search_questions: "quorum",
+                freshness: FreshnessMeta {
+                    status_mult: f64::NAN,
+                    is_transient: true,
+                    doc_epoch_days: Some(100),
+                },
+            }],
+            Some(160),
+            bad_w,
+        );
+        assert_eq!(safe_idx.weights().body, 0.0);
+        assert_eq!(safe_idx.weights().description, 0.0);
+        assert_eq!(safe_idx.weights().keywords, 0.0);
+        assert_eq!(safe_idx.weights().search_questions, 1.5);
+        let h_default = safe_idx.query("quorum", false, None, None, 1);
+        assert_eq!(h_default.len(), 1);
+        assert!(h_default[0].score.is_finite());
+        assert!(h_default[0].freshness_multiplier.is_finite());
+        // Shorten half-life from 120d to 30d -> age 60d decays from ~0.707 to 0.25.
+        safe_idx.set_freshness_policy(FreshnessPolicy {
+            transient_half_life_days: 30.0,
+            min_transient_time_factor: 0.1,
+        });
+        let h_fast = safe_idx.query("quorum", false, None, None, 1);
+        assert!((h_fast[0].freshness_multiplier - 0.25).abs() < 1e-6);
+
+        // Regression: incremental sparse-enrichment toggle matches full rebuild bit-for-bit.
+        let mut inc_sparse = SearchIndex::build_rich(
+            [
+                SearchDocInput {
+                    locator: kw_doc.clone(),
+                    body: "alpha",
+                    description: "note",
+                    keywords: "",
+                    search_questions: "",
+                    freshness: FreshnessMeta::default(),
+                },
+                SearchDocInput {
+                    locator: sq_doc.clone(),
+                    body: "beta",
+                    description: "note",
+                    keywords: "",
+                    search_questions: "",
+                    freshness: FreshnessMeta::default(),
+                },
+            ],
+            None,
+        );
+        inc_sparse.upsert_rich_document(SearchDocInput {
+            locator: kw_doc.clone(),
+            body: "alpha",
+            description: "note",
+            keywords: "quorum consensus",
+            search_questions: "how does quorum work",
+            freshness: FreshnessMeta::default(),
+        });
+        let full_sparse = SearchIndex::build_rich(
+            [
+                SearchDocInput {
+                    locator: kw_doc.clone(),
+                    body: "alpha",
+                    description: "note",
+                    keywords: "quorum consensus",
+                    search_questions: "how does quorum work",
+                    freshness: FreshnessMeta::default(),
+                },
+                SearchDocInput {
+                    locator: sq_doc,
+                    body: "beta",
+                    description: "note",
+                    keywords: "",
+                    search_questions: "",
+                    freshness: FreshnessMeta::default(),
+                },
+            ],
+            None,
+        );
+        let inc_h = inc_sparse.query("quorum consensus", false, None, None, 5);
+        let full_h = full_sparse.query("quorum consensus", false, None, None, 5);
+        assert_eq!(inc_h.len(), 1);
+        assert!((inc_h[0].score - full_h[0].score).abs() < 1e-12);
     }
 }

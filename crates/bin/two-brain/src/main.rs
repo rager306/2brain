@@ -478,6 +478,9 @@ enum ExperimentCommand {
         /// Top-k cutoff.
         #[arg(long = "top-k", default_value_t = 5)]
         top_k: usize,
+        /// Optional explicit BM25 `min_should_match` applied symmetrically to both arms (e.g. `1` for relaxed paraphrase recall).
+        #[arg(long = "min-should-match")]
+        min_should_match: Option<usize>,
         /// Disable SEM-48 negation guard (ablation only).
         #[arg(long = "no-negation-guard")]
         no_negation_guard: bool,
@@ -1821,6 +1824,7 @@ fn run_experiment_command(command: ExperimentCommand) {
             alpha,
             pool,
             top_k,
+            min_should_match,
             no_negation_guard,
             max_ram_mib,
             json,
@@ -1831,6 +1835,7 @@ fn run_experiment_command(command: ExperimentCommand) {
             alpha,
             pool,
             top_k,
+            min_should_match,
             !no_negation_guard,
             max_ram_mib,
             json,
@@ -1847,6 +1852,7 @@ fn run_hybrid_eval(
     _alpha: f64,
     _pool: usize,
     _top_k: usize,
+    _min_should_match: Option<usize>,
     _negation_guard: bool,
     _max_ram_mib: usize,
     _json: bool,
@@ -1866,6 +1872,7 @@ fn run_hybrid_eval(
     alpha: f64,
     pool: usize,
     top_k: usize,
+    min_should_match: Option<usize>,
     negation_guard: bool,
     max_ram_mib: usize,
     as_json: bool,
@@ -1988,9 +1995,62 @@ fn run_hybrid_eval(
     };
 
     let index_start = Instant::now();
+    // Embed rich note text (stem/title + description + keywords/aliases + search_questions + body)
+    // so both semantic similarity and SEM-48 negation cues reflect frontmatter metadata.
+    let rich_docs: Vec<(tb_contracts::Locator, String)> = snap
+        .files
+        .iter()
+        .map(|(loc, f)| {
+            let mut buf = String::new();
+            let stem = loc
+                .path
+                .rsplit('/')
+                .next()
+                .unwrap_or(&loc.path)
+                .trim_end_matches(".md")
+                .replace(['-', '_'], " ");
+            buf.push_str(&stem);
+            if let Some(ref desc) = f.description {
+                buf.push('\n');
+                buf.push_str(desc);
+            }
+            if let Some(ref fm) = f.doc.frontmatter {
+                for key in [
+                    "title",
+                    "keywords",
+                    "aliases",
+                    "search_questions",
+                    "questions",
+                ] {
+                    match fm.get(key) {
+                        Some(tb_syntax::FrontmatterValue::String(s)) if !s.trim().is_empty() => {
+                            buf.push('\n');
+                            buf.push_str(s.trim());
+                        }
+                        Some(tb_syntax::FrontmatterValue::Seq(items)) => {
+                            for it in items {
+                                if let tb_syntax::FrontmatterValue::String(s) = it
+                                    && !s.trim().is_empty()
+                                {
+                                    buf.push('\n');
+                                    buf.push_str(s.trim());
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            buf.push('\n');
+            buf.push_str(f.body());
+            (loc.clone(), buf)
+        })
+        .collect();
     let doc_vecs = match HybridDocVectors::build(
         &model,
-        snap.files.iter().map(|(loc, f)| (loc.clone(), f.body())),
+        rich_docs
+            .iter()
+            .map(|(loc, text)| (loc.clone(), text.as_str())),
         max_ram_bytes,
     ) {
         Ok(dv) => dv,
@@ -2013,25 +2073,41 @@ fn run_hybrid_eval(
     let mut outcomes = Vec::with_capacity(parsed_suite.tasks.len());
     let mut base_total_us = 0.0f64;
     let mut cand_total_us = 0.0f64;
+    let matches_spec = |spec: &str, loc: &tb_contracts::Locator| -> bool {
+        match spec.split_once("::") {
+            Some((r, p)) => loc.repo == r && loc.path == p,
+            None => loc.path == spec,
+        }
+    };
 
     for task in &parsed_suite.tasks {
         let t0 = Instant::now();
-        let base_hits = snap.search.query(&task.query, false, None, None, k);
+        let base_hits = snap
+            .search
+            .query(&task.query, false, min_should_match, None, k);
         base_total_us += t0.elapsed().as_secs_f64() * 1_000_000.0;
 
         let t1 = Instant::now();
         // Use the exact same `min_should_match` as baseline so `alpha=0.0` is an exact
         // identity and paired G5 evaluation is unconfounded.
-        let pool_hits =
-            snap.search
-                .query(&task.query, false, None, None, cfg.candidate_pool.max(k));
+        let pool_hits = snap.search.query(
+            &task.query,
+            false,
+            min_should_match,
+            None,
+            cfg.candidate_pool.max(k),
+        );
         let cand_hits = rerank_hits(&task.query, &pool_hits, &model, &doc_vecs, &cfg, k);
         cand_total_us += t1.elapsed().as_secs_f64() * 1_000_000.0;
 
         let eval_hits = |hits: &[tb_search::SearchHit]| -> (bool, bool, f64, u64) {
             let mut best_rr = 0.0f64;
             for (rank, h) in hits.iter().enumerate() {
-                if task.expected_paths.iter().any(|p| p == &h.locator.path) {
+                if task
+                    .expected_paths
+                    .iter()
+                    .any(|p| matches_spec(p, &h.locator))
+                {
                     best_rr = 1.0 / ((rank + 1) as f64);
                     break;
                 }
@@ -2040,7 +2116,7 @@ fn run_hybrid_eval(
             let crit = hits.first().is_some_and(|top| {
                 task.forbidden_top1_paths
                     .iter()
-                    .any(|f| f == &top.locator.path)
+                    .any(|f| matches_spec(f, &top.locator))
             });
             let tokens = 80u64 + (hits.len() as u64) * 120;
             (fulfilled, crit, best_rr, tokens)

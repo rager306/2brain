@@ -19,6 +19,7 @@ use tb_syntax::tokenize;
 use crate::SearchHit;
 
 const DEFAULT_MAX_RAM_BYTES: usize = 32 * 1024 * 1024; // 32 MiB default hard ceiling
+pub const MAX_EMBEDDING_DIM: usize = 1024;
 
 const NEGATION_TOKENS: &[&str] = &[
     "not",
@@ -98,8 +99,10 @@ impl StaticEmbeddingModel {
         use_char_ngram_fallback: bool,
         max_ram_bytes: usize,
     ) -> Result<Self, String> {
-        if dim == 0 || dim > 1024 {
-            return Err(format!("invalid embedding dim {dim} (expected 1..=1024)"));
+        if dim == 0 || dim > MAX_EMBEDDING_DIM {
+            return Err(format!(
+                "invalid embedding dim {dim} (expected 1..={MAX_EMBEDDING_DIM})"
+            ));
         }
         let est_bytes = vectors
             .len()
@@ -136,7 +139,7 @@ impl StaticEmbeddingModel {
     /// CI benchmarks, and Miri tests without external model downloads.
     #[must_use]
     pub fn deterministic_subword(dim: usize, synonym_clusters: &[&[&str]]) -> Self {
-        let d = dim.clamp(16, 512);
+        let d = dim.clamp(16, MAX_EMBEDDING_DIM);
         let mut vocab: HashMap<String, Vec<f32>> = HashMap::new();
         for (cluster_idx, cluster) in synonym_clusters.iter().enumerate() {
             let mut proto = vec![0.0f32; d];

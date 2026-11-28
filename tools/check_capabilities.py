@@ -21,13 +21,18 @@ STAGES = ("specified", "implemented", "wired", "tested", "rehearsed", "enabled")
 
 def collect_test_symbols(repo_root: Path) -> set[str]:
     symbols: set[str] = set()
-    rust_fn_re = re.compile(r"\bfn\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(")
+    # Require an actual #[test] or #[tokio::test(...)] attribute above Rust test functions
+    # rather than matching arbitrary non-test helper functions.
+    rust_test_re = re.compile(
+        r"#\[(?:tokio::)?test(?:\([^)]*\))?\](?:\s*#\[[^\]]*\])*\s*(?:pub\s+)?(?:async\s+)?fn\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(",
+        re.MULTILINE,
+    )
     py_fn_re = re.compile(r"\bdef\s+(test_[a-zA-Z0-9_]*)\s*\(")
     case_id_re = re.compile(r'"((?:SEM-\d+|AE\d+(?:-\d+)?|ADR-\d+))"')
 
     for rs_path in (repo_root / "crates").rglob("*.rs"):
         text = rs_path.read_text(encoding="utf-8", errors="ignore")
-        for m in rust_fn_re.finditer(text):
+        for m in rust_test_re.finditer(text):
             symbols.add(m.group(1))
 
     tools_dir = repo_root / "tools"

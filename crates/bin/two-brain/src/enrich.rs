@@ -8,8 +8,7 @@ use serde::Deserialize;
 use serde_json::json;
 use tb_app::enrich::{
     ENRICH_CACHE_SCHEMA_VERSION, EnrichmentCache, EnrichmentRecord, PlanStatus,
-    body_content_sha256, build_enrichment_apply_plan, build_simulated_enriched_index,
-    heuristic_enrich, plan_enrichment,
+    build_enrichment_apply_plan, build_simulated_enriched_index, heuristic_enrich, plan_enrichment,
 };
 use tb_cognition::{ExperimentPolicy, PairedTaskOutcome, evaluate_paired_experiment};
 
@@ -109,6 +108,12 @@ pub enum EnrichCommand {
         /// Top-k cutoff for retrieval evaluation (default: 5).
         #[arg(long = "top-k", default_value_t = 5)]
         top_k: usize,
+        /// Simulate overwriting existing `keywords`/`search_questions` frontmatter fields.
+        #[arg(long = "overwrite")]
+        overwrite: bool,
+        /// Optional explicit BM25 `min_should_match` applied symmetrically to both baseline and candidate.
+        #[arg(long = "min-should-match")]
+        min_should_match: Option<usize>,
         /// Emit machine-readable JSON report (compatible with `2brain experiment evaluate-arm`).
         #[arg(long = "json")]
         json: bool,
@@ -376,15 +381,23 @@ pub fn run_enrich_command(command: EnrichCommand) {
                     schema_version: ENRICH_CACHE_SCHEMA_VERSION.to_owned(),
                     repo: item.repo.clone(),
                     path: item.path.clone(),
-                    note_hash: body_content_sha256(file.body()),
+                    note_hash: item.note_hash.clone(),
                     model: model.clone(),
                     prompt_version: prompt_version.clone(),
                     keywords,
                     search_questions,
                 };
-                if rec.sanitize().is_ok() {
-                    loaded_cache.insert(rec);
-                    generated += 1;
+                match rec.sanitize() {
+                    Ok(()) => {
+                        loaded_cache.insert(rec);
+                        generated += 1;
+                    }
+                    Err(err) => {
+                        eprintln!(
+                            "warning: skipping invalid heuristic record for '{}/{}': {err}",
+                            item.repo, item.path
+                        );
+                    }
                 }
             }
             if let Err(err) = save_cache_atomic(&cache, &loaded_cache) {
@@ -503,6 +516,8 @@ pub fn run_enrich_command(command: EnrichCommand) {
             prompt_version,
             suite,
             top_k,
+            overwrite,
+            min_should_match,
             json: as_json,
         } => {
             let (_, snap) = load_workspace_or_exit(&workspace);
@@ -518,18 +533,35 @@ pub fn run_enrich_command(command: EnrichCommand) {
                 eprintln!("error parsing suite JSON: {e}");
                 std::process::exit(2);
             });
-            let (enriched_index, enriched_notes) =
-                build_simulated_enriched_index(&snap, &loaded_cache, &model, &prompt_version);
+            let (enriched_index, enriched_notes) = build_simulated_enriched_index(
+                &snap,
+                &loaded_cache,
+                &model,
+                &prompt_version,
+                overwrite,
+            );
             let k = top_k.max(1);
             let mut outcomes = Vec::with_capacity(parsed_suite.tasks.len());
+            let matches_spec = |spec: &str, loc: &tb_contracts::Locator| -> bool {
+                match spec.split_once("::") {
+                    Some((r, p)) => loc.repo == r && loc.path == p,
+                    None => loc.path == spec,
+                }
+            };
             for task in &parsed_suite.tasks {
-                let base_hits = snap.search.query(&task.query, false, None, None, k);
-                let cand_hits = enriched_index.query(&task.query, false, None, None, k);
+                let base_hits = snap
+                    .search
+                    .query(&task.query, false, min_should_match, None, k);
+                let cand_hits = enriched_index.query(&task.query, false, min_should_match, None, k);
 
                 let eval_hits = |hits: &[tb_search::SearchHit]| -> (bool, bool, f64, u64) {
                     let mut best_rr = 0.0f64;
                     for (rank, h) in hits.iter().enumerate() {
-                        if task.expected_paths.iter().any(|p| p == &h.locator.path) {
+                        if task
+                            .expected_paths
+                            .iter()
+                            .any(|p| matches_spec(p, &h.locator))
+                        {
                             best_rr = 1.0 / ((rank + 1) as f64);
                             break;
                         }
@@ -538,7 +570,7 @@ pub fn run_enrich_command(command: EnrichCommand) {
                     let crit = hits.first().is_some_and(|top| {
                         task.forbidden_top1_paths
                             .iter()
-                            .any(|f| f == &top.locator.path)
+                            .any(|f| matches_spec(f, &top.locator))
                     });
                     // Deterministic token proxy: query + retrieved hit excerpts/metadata (~120 tokens/hit).
                     let tokens = 80u64 + (hits.len() as u64) * 120;

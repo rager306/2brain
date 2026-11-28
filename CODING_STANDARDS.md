@@ -73,7 +73,7 @@ Defect classes caught by adversarial review and fixed by structural invariants:
 17. **MCP Ingest Target Derivation Parity, Replay-First Outcomes & Writable Default Repo (`tb-mcp`, `tb-app`, `two-brain`):**
    - Derive refresh target paths in `TwoBrainMcp::handle_ingest` via `tb_app::ingest::convert_source` (the exact same converter as `App::ingest_payload`) before enforcing SEM-02 prior-read checks and ledger invalidation so JSON/JSONL `slug`/`title` overrides can never bypass SEM-02.
    - Run snapshot-dependent admission and CAS checks inside `execute_with_outcomes` so `request_id` retries replay committed outcomes instead of failing on post-commit disk state, and bound durable outcome responses under the 64 KiB journal frame limit.
-   - Select the default writable ingest repository strictly from `own`/`primary`/`editable` members (failing closed on zero or ambiguous matches) so omitted `repo` arguments never land in a `dependency` member.
+   - Select the default writable ingest repository strictly from `own`/`primary`/`editable` members (failing closed on zero or ambiguous matches) AND refuse explicit `--repo <dependency>` targets across both `App::ingest_payload` and CLI `2brain ingest` so writes never land in a read-only `dependency` member.
 
 18. **Complete Revocation/Egress Coverage, Audit Pre-Check & Release-Time Context Fence (`tb-mcp`, `tb-journal`, `tb-app`):**
    - When repository restrictions or egress blocks are active (`--policy`), enforce them across EVERY MCP surface — tools (requiring explicit allowed `repo`, blocking workspace-wide tools), `skills/*`, `resources/*`, `prompts/*`, and scoped claim extraction in `tb_context` — never on a partial tool allowlist.
@@ -90,13 +90,6 @@ Defect classes caught by adversarial review and fixed by structural invariants:
    - Accumulate token totals with checked `u128` arithmetic so large counts can neither panic in debug nor wrap in release.
    - Never silently drop unresolved PPR seed locators (`SolverStopReason::UnresolvedSeeds`), and fall back to normalized content SHA-256 origin digests when explicit provenance metadata is omitted so unlabelled duplicate copies cannot amplify graph rank.
 
-
-
-
-
-
-
-
 21. **Session-Bounded Subscription Fan-Out, Honest Capability Advertising, Non-Inverted Polarity Guard & Safe Enrichment Splicing (`tb-mcp`, `tb-search`, `tb-app`, `two-brain`):**
     - Bind every per-session `resources/subscribe` fan-out task to a `Weak` subscription registry plus session `DropGuard`/`CancellationToken` so disconnected HTTP sessions never leak tasks or `Peer` handles; advertise `resources.subscribe` and accept `subscribe`/`listen` ONLY when a live `ResourceUpdateHub` is attached and egress is allowed.
     - In hybrid score fusion (`rerank_hits`), keep lexical weight fixed at `(1 - alpha) * norm_bm25` and zero ONLY the semantic boost (`+ semantic_weight * raw_cos`) on `SEM-48` negation polarity mismatches (including apostrophe contractions such as `don't`/`can't`), and filter non-finite scores/freshness multipliers before normalization.
@@ -106,3 +99,7 @@ Defect classes caught by adversarial review and fixed by structural invariants:
     - Reject `/`, `\`, `.`, and `..` in `Locator::new` repository slugs; check `"subscribe"` on the IPC daemon socket ONLY when `"read"` and `"mutation"` are absent so tool arguments can never hijack RPC dispatch; enforce write timeouts on every subscribe reply and cancel all active connections via `DropGuard` on server shutdown.
     - Serialize daemon resource-update delta publishing behind a shared monotonic `last_published` snapshot cursor (`current.generation > prev.generation`) invoked on watcher reloads and non-replayed mutations only, and disable duplicate local mutation echoes in socket-backed `TwoBrainMcp` (`with_remote_resource_updates`).
     - Probe and claim the daemon's `resources` event stream BEFORE advertising `resources.subscribe`, and never advertise or open a daemon subscriber slot when `EgressPolicy::is_egress_blocked()` is true.
+
+23. **Sparse-Field BM25 Normalization & Evaluation Simulation Parity (`tb-search`, `tb-app`, `two-brain`):**
+    - Normalize each BM25 field's average length against `non_empty_docs[field]` (never corpus-wide `live_docs`) so optional fields populated on a subset of notes (`keywords`, `search_questions`) do not suffer length-normalization collapse; keep `keywords`/`aliases` separate from `search_questions` with configurable `SearchWeights` and `FreshnessPolicy`.
+    - In `build_simulated_enriched_index`, mirror `build_enrichment_apply_plan` (skip `dependency` members, replace rather than double-count `keywords`/`search_questions`, preserve `snapshot.search.default_reference_days()` and `weights()`), and embed full note metadata (`title`, `description`, `keywords`, `search_questions`, `body`) into `HybridDocVectors` so both cosine similarity and `SEM-48` negation detection cover frontmatter.

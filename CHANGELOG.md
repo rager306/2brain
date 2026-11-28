@@ -2,6 +2,20 @@
 
 All notable changes to `2brain` (clean-room MIT single-binary typed knowledge graph and MCP 2.0 server) are documented in this file.
 
+## [Unreleased]
+
+### Fixed & Improved
+- **Sparse-field 4-field BM25 normalization & configurable weights/freshness (`tb-search`, `tb-fs-git`, `tb-app`):**
+  - Normalized BM25 field average lengths by `non_empty_docs[field]` instead of corpus-wide `live_docs`, eliminating the ~35x length-normalization penalty on partially enriched corpora (lifting real-vault paraphrase fulfillment `+28.6 pp` / `+0.286` MRR on the exact same cached enrichment).
+  - Split frontmatter enrichment into separate `keywords`/`aliases` (`2.2`) and `search_questions`/`questions` (`1.4`) fields behind configurable `SearchWeights` (sanitized against `NaN`/`Inf`/negatives) and wired `FreshnessPolicy` into `SearchIndex`.
+- **Enrichment simulation parity & read-only `dependency` refusal (`tb-app`, `two-brain`):**
+  - Aligned `build_simulated_enriched_index` with `build_enrichment_apply_plan` (preserves `default_reference_days()` and `weights()`, skips `dependency`/empty/malformed notes, replaces instead of double-counting `keywords`/`search_questions`, applies `sanitize_list`).
+  - Refused explicit `--repo <dependency>` across `App::ingest_payload` and CLI `2brain ingest`; added Russian stopwords to `heuristic_enrich`, `--min-should-match` and `repo::path` matching to `enrich evaluate` and `hybrid-eval`, and embedded full note metadata (`title`, `description`, `keywords`, `search_questions`, `body`) into `HybridDocVectors`.
+- **`error-fix` schema compatibility & YAML key safety (`tb-app`):**
+  - Replaced string-prefix merge checks in `ErrorFixAtom` with `Option<String>`, preserved safe unconsumed workspace schema keys (`extra_fields`) fail-closed (`[A-Za-z_][A-Za-z0-9_-]{0,63}`), and hardened `write_yaml_field` against frontmatter breakout.
+- **Tooling, capability checks & SLSA provenance (`scripts/`, `tools/`, `.github/workflows/release.yml`):**
+  - Added bilingual EN+RU prompt & `--system-prompt-file` to `scripts/enrich_llm.py`, script filtering (`--scripts`) / `--truncate-dim` / safetensors bounds validation to `tools/eval/export_model2vec.py`, tightened `tools/check_capabilities.py` to require `#[test]`/`#[tokio::test]` attributes, and moved `actions/attest-build-provenance@v4.2.2` into `build-artifacts` with least-privilege permissions.
+
 ## [v0.5.2] - 2026-11-28
 
 ### Highlights

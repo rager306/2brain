@@ -23,6 +23,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -59,6 +61,14 @@ jobs:
           tar -C "${TARGET_DIR}/${{ matrix.target }}/release" -czf "dist/2brain-${{ matrix.target }}.tar.gz" 2brain
           (cd dist && sha256sum "2brain-${{ matrix.target }}.tar.gz" "2brain-${{ matrix.target }}.cdx.json" > "2brain-${{ matrix.target }}.sha256")
           cat "dist/2brain-${{ matrix.target }}.sha256"
+      - name: Attest build provenance (SLSA)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/2brain-${{ matrix.target }}.tar.gz
+            dist/2brain-${{ matrix.target }}.cdx.json
+            dist/2brain-${{ matrix.target }}.sha256
       - name: Upload release bundle artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

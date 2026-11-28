@@ -798,11 +798,27 @@ fn render_note(fm: &BTreeMap<String, Value>, body: &str) -> String {
     out
 }
 
+fn is_safe_yaml_key(key: &str) -> bool {
+    let mut chars = key.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !(first.is_ascii_alphabetic() || first == '_') || key.len() > 64 {
+        return false;
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
 fn write_yaml_field(out: &mut String, key: &str, val: &Value) {
-    // YAML 1.2 is a strict superset of JSON; JSON-encoded scalars/arrays prevent injection or
-    // malformed YAML on colons, `#`, newlines, or leading `---`.
+    // YAML 1.2 is a strict superset of JSON; JSON-encoded keys (when non-identifier) and
+    // JSON-encoded values prevent frontmatter `---` breakout or injection on colons, `#`, or newlines.
     let encoded = serde_json::to_string(val).unwrap_or_else(|_| "\"\"".to_owned());
-    out.push_str(key);
+    if is_safe_yaml_key(key) {
+        out.push_str(key);
+    } else {
+        let encoded_key = serde_json::to_string(key).unwrap_or_else(|_| "\"invalid\"".to_owned());
+        out.push_str(&encoded_key);
+    }
     out.push_str(": ");
     out.push_str(&encoded);
     out.push('\n');
@@ -1545,15 +1561,16 @@ struct ErrorFixAtom {
     error_signature: String,
     signature_hash: String,
     symptom: String,
-    root_cause: String,
-    fix: String,
-    verification: String,
+    root_cause: Option<String>,
+    fix: Option<String>,
+    verification: Option<String>,
     component: Option<String>,
     occurrences: u64,
     keywords: Vec<String>,
     search_questions: Vec<String>,
     links: Vec<String>,
     slug_override: Option<String>,
+    extra_fields: BTreeMap<String, Value>,
 }
 
 fn convert_error_fix_source(
@@ -1586,10 +1603,19 @@ fn convert_error_fix_source(
                     .unwrap_or_else(|| "error-fix".to_owned()),
             ),
         );
-        let desc = truncate_chars(
-            &format!("Error-fix atom for {}: {}", atom.title, atom.fix),
-            180,
-        );
+        let root_cause = atom
+            .root_cause
+            .as_deref()
+            .unwrap_or("Investigated from recurring log signature; fill in root cause.");
+        let fix = atom
+            .fix
+            .as_deref()
+            .unwrap_or("Document verified remediation steps before marking resolved.");
+        let verification = atom
+            .verification
+            .as_deref()
+            .unwrap_or("Re-run failing command/test and confirm zero recurring error signatures.");
+        let desc = truncate_chars(&format!("Error-fix atom for {}: {fix}", atom.title), 180);
         fm.insert("description".to_owned(), Value::String(desc));
         fm.insert("status".to_owned(), Value::String("current".to_owned()));
         fm.insert("freshness".to_owned(), Value::String("durable".to_owned()));
@@ -1634,10 +1660,15 @@ fn convert_error_fix_source(
                 ),
             );
         }
+        // Preserve unconsumed JSON frontmatter fields (e.g. workspace-specific schema fields like
+        // `topics`, `provenance`, `source_url`) without clobbering canonical error-fix metadata.
+        for (k, v) in atom.extra_fields {
+            fm.entry(k).or_insert(v);
+        }
 
         let mut body = format!(
-            "# Error Fix: {}\n\n## Symptom\n\n{}\n\n## Root Cause\n\n{}\n\n## Fix\n\n{}\n\n## Verification\n\n{}",
-            atom.title, atom.symptom, atom.root_cause, atom.fix, atom.verification
+            "# Error Fix: {}\n\n## Symptom\n\n{}\n\n## Root Cause\n\n{root_cause}\n\n## Fix\n\n{fix}\n\n## Verification\n\n{verification}",
+            atom.title, atom.symptom
         );
         if !atom.links.is_empty() {
             body.push_str("\n\n## References\n\n");
@@ -1768,24 +1799,74 @@ fn parse_structured_error_fix(
                 .unwrap_or_default()
         };
 
+        const CONSUMED_ERROR_FIX_KEYS: &[&str] = &[
+            "error_signature",
+            "error",
+            "symptom",
+            "title",
+            "root_cause",
+            "fix",
+            "resolution",
+            "verification",
+            "component",
+            "occurrences",
+            "keywords",
+            "search_questions",
+            "links",
+            "slug",
+        ];
+        const RESERVED_CANONICAL_KEYS: &[&str] = &[
+            "type",
+            "description",
+            "status",
+            "freshness",
+            "error_signature",
+            "signature_hash",
+            "occurrences",
+            "component",
+            "source",
+            "captured",
+            "keywords",
+            "search_questions",
+        ];
+        let mut extra_fields = BTreeMap::new();
+        for (k, v) in obj {
+            if CONSUMED_ERROR_FIX_KEYS.contains(&k.as_str()) || v.is_null() {
+                continue;
+            }
+            if !is_safe_yaml_key(k) {
+                return Err(IngestError::InvalidJson {
+                    source_label: format!("{}[{}]", opts.source_label, idx),
+                    reason: format!(
+                        "unsafe frontmatter key '{k}': extra error-fix keys must match [A-Za-z_][A-Za-z0-9_-]{{0,63}}"
+                    ),
+                });
+            }
+            if RESERVED_CANONICAL_KEYS.contains(&k.as_str()) {
+                continue;
+            }
+            extra_fields.insert(k.clone(), v.clone());
+        }
+
         if let Some(existing) = by_sig.get_mut(&sig_hash) {
             existing.occurrences = existing.occurrences.saturating_add(occ);
-            if let Some(rc) = get_str("root_cause")
-                && existing
-                    .root_cause
-                    .starts_with("Investigated from recurring")
+            if existing.root_cause.is_none()
+                && let Some(rc) = get_str("root_cause")
             {
-                existing.root_cause = rc;
+                existing.root_cause = Some(rc);
             }
-            if let Some(fx) = get_str("fix").or_else(|| get_str("resolution"))
-                && existing.fix.starts_with("Document verified remediation")
+            if existing.fix.is_none()
+                && let Some(fx) = get_str("fix").or_else(|| get_str("resolution"))
             {
-                existing.fix = fx;
+                existing.fix = Some(fx);
             }
-            if let Some(vf) = get_str("verification")
-                && existing.verification.starts_with("Re-run failing command")
+            if existing.verification.is_none()
+                && let Some(vf) = get_str("verification")
             {
-                existing.verification = vf;
+                existing.verification = Some(vf);
+            }
+            for (k, v) in extra_fields {
+                existing.extra_fields.entry(k).or_insert(v);
             }
             for kw in str_list("keywords") {
                 if !existing
@@ -1813,16 +1894,9 @@ fn parse_structured_error_fix(
             }
         });
         let symptom = get_str("symptom").unwrap_or_else(|| format!("```\n{raw_sig}\n```"));
-        let root_cause = get_str("root_cause")
-            .unwrap_or_else(|| "Investigated from recurring log signature.".to_owned());
-        let fix = get_str("fix")
-            .or_else(|| get_str("resolution"))
-            .unwrap_or_else(|| {
-                "Document verified remediation steps before marking resolved.".to_owned()
-            });
-        let verification = get_str("verification").unwrap_or_else(|| {
-            "Re-run failing command/test and verify zero recurring error signatures.".to_owned()
-        });
+        let root_cause = get_str("root_cause");
+        let fix = get_str("fix").or_else(|| get_str("resolution"));
+        let verification = get_str("verification");
         let component = get_str("component");
         let slug_override = get_str("slug");
         let mut keywords = str_list("keywords");
@@ -1855,6 +1929,7 @@ fn parse_structured_error_fix(
                 search_questions,
                 links,
                 slug_override,
+                extra_fields,
             },
         );
     }
@@ -1889,19 +1964,19 @@ fn extract_error_fix_from_log(
         if let Some(ref hash) = last_sig_hash {
             if let Some(rest) = strip_annotation(line, &upper, &["FIX:", "RESOLUTION:"]) {
                 if let Some(atom) = by_sig.get_mut(hash) {
-                    atom.fix = rest.to_owned();
+                    atom.fix = Some(rest.to_owned());
                 }
                 continue;
             }
             if let Some(rest) = strip_annotation(line, &upper, &["ROOT_CAUSE:", "CAUSE:"]) {
                 if let Some(atom) = by_sig.get_mut(hash) {
-                    atom.root_cause = rest.to_owned();
+                    atom.root_cause = Some(rest.to_owned());
                 }
                 continue;
             }
             if let Some(rest) = strip_annotation(line, &upper, &["VERIFY:", "VERIFICATION:"]) {
                 if let Some(atom) = by_sig.get_mut(hash) {
-                    atom.verification = rest.to_owned();
+                    atom.verification = Some(rest.to_owned());
                 }
                 continue;
             }
@@ -1916,7 +1991,7 @@ fn extract_error_fix_from_log(
         let sig_hash = tb_contracts::RevisionDigest::of_bytes(norm_sig.as_bytes()).to_hex();
         last_sig_hash = Some(sig_hash.clone());
         if let Some(atom) = by_sig.get_mut(&sig_hash) {
-            atom.occurrences += 1;
+            atom.occurrences = atom.occurrences.saturating_add(1);
         } else {
             let title = truncate_chars(&norm_sig, 72);
             let keywords: Vec<String> = distinct_terms(&norm_sig)
@@ -1935,18 +2010,16 @@ fn extract_error_fix_from_log(
                     error_signature: norm_sig,
                     signature_hash: sig_hash,
                     symptom: format!("```text\n{line}\n```"),
-                    root_cause: "Recurring failure extracted from log; fill in root cause."
-                        .to_owned(),
-                    fix: "Document verified fix steps (or annotate log with `FIX: ...`)."
-                        .to_owned(),
-                    verification: "Re-run failing flow and confirm signature does not recur."
-                        .to_owned(),
+                    root_cause: None,
+                    fix: None,
+                    verification: None,
                     component: Some(stem_hint.to_owned()),
                     occurrences: 1,
                     keywords,
                     search_questions,
                     links: Vec::new(),
                     slug_override: None,
+                    extra_fields: BTreeMap::new(),
                 },
             );
         }
@@ -2305,5 +2378,25 @@ VERIFY: Run startup_race_test and confirm zero EADDRINUSE retries.
         assert_eq!(json_drafts.len(), 1);
         assert!(json_drafts[0].content.contains("occurrences: 5"));
         assert!(json_drafts[0].content.contains("Missing Cargo Lock"));
+
+        // Safe extra workspace schema keys are preserved, while YAML-injection / aliased keys fail closed.
+        let safe_extra =
+            br#"{"error_signature":"err: disk full","provenance":"ci-2026","topics":["[[ops]]"]}"#;
+        let safe_drafts = convert_source("err", IngestFormat::ErrorFix, safe_extra, &opts)
+            .expect("safe extra fields preserved");
+        assert!(safe_drafts[0].content.contains("provenance: \"ci-2026\""));
+        assert!(safe_drafts[0].content.contains("topics: [\"[[ops]]\"]"));
+
+        let evil_breakout =
+            br#"{"error_signature":"err: disk full","a: 1\n---\n# Injected\nx":"boom"}"#;
+        assert!(
+            convert_source("err", IngestFormat::ErrorFix, evil_breakout, &opts).is_err(),
+            "frontmatter breakout key must be rejected fail-closed"
+        );
+        let evil_alias = br#"{"error_signature":"err: disk full","status ":"hacked"}"#;
+        assert!(
+            convert_source("err", IngestFormat::ErrorFix, evil_alias, &opts).is_err(),
+            "whitespace-aliased key must be rejected fail-closed"
+        );
     }
 }

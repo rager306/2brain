@@ -83,8 +83,14 @@ pub fn run_ingest(args: IngestCliArgs) {
 
     let target_repo = match args.repo {
         Some(r) => {
-            if !snapshot.members.contains_key(&r) {
+            let Some(meta) = snapshot.members.get(&r) else {
                 eprintln!("error: target repo '{r}' is not a member of this workspace");
+                std::process::exit(2);
+            };
+            if meta.role.eq_ignore_ascii_case("dependency") {
+                eprintln!(
+                    "error: policy/read_only_member: refusing to ingest into read-only dependency repo '{r}'"
+                );
                 std::process::exit(2);
             }
             r

@@ -118,7 +118,10 @@
         "crates/app/tb-app/src/lib.rs",
         "crates/adapters/tb-fs-git/src/lib.rs"
       ],
-      "tests": ["AE24"]
+      "tests": [
+        "sparse_optional_enrichment_field_is_not_penalized_by_empty_corpus_docs",
+        "AE24"
+      ]
     },
     {
       "id": "U7",
@@ -293,16 +296,21 @@
         "rehearsed": true,
         "enabled": false
       },
-      "notes": "G5 paired experiment evaluator and diagnostic origin-dedup PPR solver shipped via '2brain experiment evaluate-arm|ppr'; optional serving arms remain disabled by default.",
+      "notes": "G5 paired experiment evaluator, diagnostic origin-dedup PPR solver, and feature-gated hybrid reranker (--features hybrid-rerank) shipped via '2brain experiment evaluate-arm|ppr|hybrid-eval'; optional serving arms remain disabled by default.",
       "paths": [
         "crates/domain/tb-cognition/src/experiment.rs",
+        "crates/domain/tb-search/src/hybrid.rs",
         "crates/bin/two-brain/src/main.rs",
+        "tools/eval/run_u14_experiments.py",
+        "tools/eval/export_model2vec.py",
         "tools/semantic/capture.py",
         "tools/semantic/scorer.py"
       ],
       "tests": [
         "ppr_deduplicates_ten_copy_origin_amplification_and_rejects_unresolved_seeds",
         "improved_ranking_with_worse_supported_answer_and_duplicate_or_nan_inputs_retain_baseline",
+        "hybrid_rerank_lifts_paraphrase_match_and_respects_ram_budget",
+        "sem48_negation_guard_prevents_embedding_inversion",
         "AE19-20"
       ]
     }

@@ -1396,13 +1396,14 @@ pub fn refresh_snapshot_incremental(
                     description,
                     declared_type,
                 };
-                let enrich = extract_enrichment_text(&indexed);
+                let (kw, sq) = extract_enrichment_fields(&indexed);
                 let fresh = extract_freshness_meta(&indexed);
                 search.upsert_rich_document(SearchDocInput {
                     locator: loc.clone(),
                     body: indexed.body(),
                     description: indexed.description.as_deref().unwrap_or(""),
-                    enrichment: &enrich,
+                    keywords: &kw,
+                    search_questions: &sq,
                     freshness: fresh,
                 });
                 files.insert(loc, indexed);
@@ -3071,33 +3072,39 @@ fn fm_string<'a>(
     None
 }
 
-fn extract_enrichment_text(file: &IndexedFile) -> String {
+fn extract_enrichment_fields(file: &IndexedFile) -> (String, String) {
     let Some(fm) = file.doc.frontmatter.as_ref() else {
-        return String::new();
+        return (String::new(), String::new());
     };
-    let mut parts: Vec<&str> = Vec::new();
-    for key in ["keywords", "search_questions", "questions", "aliases"] {
-        match fm.get(key) {
-            Some(tb_syntax::FrontmatterValue::String(s)) => {
-                let t = s.trim();
-                if !t.is_empty() {
-                    parts.push(t);
+    let collect_keys = |keys: &[&str]| -> String {
+        let mut parts: Vec<&str> = Vec::new();
+        for key in keys {
+            match fm.get(*key) {
+                Some(tb_syntax::FrontmatterValue::String(s)) => {
+                    let t = s.trim();
+                    if !t.is_empty() {
+                        parts.push(t);
+                    }
                 }
-            }
-            Some(tb_syntax::FrontmatterValue::Seq(items)) => {
-                for item in items {
-                    if let tb_syntax::FrontmatterValue::String(s) = item {
-                        let t = s.trim();
-                        if !t.is_empty() {
-                            parts.push(t);
+                Some(tb_syntax::FrontmatterValue::Seq(items)) => {
+                    for item in items {
+                        if let tb_syntax::FrontmatterValue::String(s) = item {
+                            let t = s.trim();
+                            if !t.is_empty() {
+                                parts.push(t);
+                            }
                         }
                     }
                 }
+                _ => {}
             }
-            _ => {}
         }
-    }
-    parts.join(" ")
+        parts.join(" ")
+    };
+    (
+        collect_keys(&["keywords", "aliases"]),
+        collect_keys(&["search_questions", "questions"]),
+    )
 }
 
 fn extract_freshness_meta(file: &IndexedFile) -> FreshnessMeta {
@@ -3124,16 +3131,20 @@ fn build_rich_search_index(
     files: &BTreeMap<Locator, IndexedFile>,
     reference_days: Option<i64>,
 ) -> SearchIndex {
-    let owned: Vec<(&IndexedFile, String, FreshnessMeta)> = files
+    let owned: Vec<(&IndexedFile, String, String, FreshnessMeta)> = files
         .values()
-        .map(|f| (f, extract_enrichment_text(f), extract_freshness_meta(f)))
+        .map(|f| {
+            let (kw, sq) = extract_enrichment_fields(f);
+            (f, kw, sq, extract_freshness_meta(f))
+        })
         .collect();
     SearchIndex::build_rich(
-        owned.iter().map(|(f, enrich, fresh)| SearchDocInput {
+        owned.iter().map(|(f, kw, sq, fresh)| SearchDocInput {
             locator: f.locator.clone(),
             body: f.body(),
             description: f.description.as_deref().unwrap_or(""),
-            enrichment: enrich.as_str(),
+            keywords: kw.as_str(),
+            search_questions: sq.as_str(),
             freshness: *fresh,
         }),
         reference_days,
