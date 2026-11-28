@@ -5,6 +5,16 @@ All notable changes to `2brain` (clean-room MIT single-binary typed knowledge gr
 ## [Unreleased]
 
 ### Added & Improved
+- **Wave 9 & 10A — Clean-room synthesis of Gortex, STITCH++, and CPU-Memorilla++ primitives (`tb-syntax`, `tb-search`, `tb-cognition`, `tb-app`, `tb-mcp`, `two-brain`, `tb-fs-git`):**
+  - **CommonMark inline code-span & indented fence correctness (`tb-syntax`):** Match exact closing backtick run lengths, skip backslash-escaped opening backticks (`\``), and recognize up to 3-space indented fenced code blocks so wikilinks inside inline code or indented fences are never misparsed as graph edges.
+  - **Unified MCP response budget & fast cold-start wakeup (`tb-mcp`, `tb-app`, `tb-cognition`, `two-brain`):**
+    - Added `budget.rs` (`max_response_bytes` / `max_tokens` with 40 KiB default) targeting the byte-heaviest array, stripping non-essential fields (`excerpt`/`raw`) before binary-search trimming, adjusting `next_offset`, and exempting `tb_content` and workflow/integrity-critical tools (`tb_task_*`, `tb_run_procedure`, `tb_mutation_outcome`, `tb_reconcile`, `tb_describe_tool`).
+    - Added `App::wakeup` (`2brain wakeup <path>` + `tb_wakeup` under `--allow-cognitive`), backed by O(E) single-seed `tb_cognition::fast_top_communities` (zero Brandes/null-model cost, zero `topology_cache` mutation, strict char-counted token budget including truncation notice).
+  - **Single-source agent distribution (`two-brain`, `skill/`, `docs/`):** Added `skill/2brain/SKILL.md`, `docs/llms.txt`, and `2brain guide [topic]` embedding `SKILL.md` at compile time via `include_str!`.
+  - **STITCH++-style typed stateful test harness (`tb-fs-git`):** Added `tests/stateful_stitch.rs` exercising randomized `Create`/`Edit`/`Delete`/`Rename`/`AddDep`/`RemoveDep`/`BadEditStaleHash` sequences with `require` vs `check` accounting, `StoreError::CasMismatch` / `AlreadyExists` precision, incremental-vs-full snapshot/diagnostics/search parity, and deterministic delta-debugging shrinking.
+  - **Pure-domain CPU-Memorilla++ primitives (`tb-search`, `tb-cognition`):**
+    - Added `query_class.rs` (`QueryClass`, continuous `alpha`, bilingual EN+RU `KeywordSoup` splitter, `ProseMode`, exact-ID / path-literal detection).
+    - Added `kernel_weights_iqr` (overflow-safe Nadaraya-Watson IQR bandwidth), `edge_provenance_weight`, `run_kernel_seeded_ppr` (fail-closed `NonFiniteDetected`, honest `"unverified:"` origin tags), and `select_orthogonal_slots` (input-order-invariant MMR/Jaccard + community diversity).
 - **Workspace-level `workspace.yaml` `search:` precedence & fail-closed manifest splicing (`tb-fs-git`):**
   - Promoted `workspace.yaml` `search:` (`weights` + `freshness`) as the top-priority workspace-wide search config (with `.2brain/repo.yaml` kept as single-repo / `own`-member fallback), wired into both live snapshots and `load_snapshot_at_git_ref`.
   - Generalized non-destructive YAML top-level splicing (`splice_yaml_top_level_section`) across `update_repo_deps` and `update_workspace_member`, handling zero-indented block sequences, multiline flow sequences, comments, `...` document end markers, scalar quoting, and post-splice YAML round-trip validation before atomic write.

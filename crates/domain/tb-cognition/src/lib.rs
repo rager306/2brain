@@ -43,8 +43,9 @@ pub use experience::{
 };
 pub use experiment::{
     EXPERIMENT_SCHEMA_VERSION, ExperimentEvaluation, ExperimentPolicy, ExperimentVerdict,
-    PairedTaskOutcome, PprConfig, PprRankEntry, PprSolverReport, SolverStopReason,
-    evaluate_paired_experiment, run_bounded_ppr_solver,
+    OrthogonalSlotCandidate, PairedTaskOutcome, PprConfig, PprRankEntry, PprSolverReport,
+    SelectedSlot, SolverStopReason, edge_provenance_weight, evaluate_paired_experiment,
+    kernel_weights_iqr, run_bounded_ppr_solver, run_kernel_seeded_ppr, select_orthogonal_slots,
 };
 pub use investigation::{
     CandidateRoute, ControllerDecision, InvestigationAttempt, InvestigationBudget,
@@ -271,6 +272,49 @@ pub fn brandes_betweenness(graph: &TypedLinkGraph, masked: Option<&[bool]>) -> V
         *v *= scale;
     }
     cb
+}
+
+/// Lightweight single-seed connected community summary `(community_id, size, anchor_locator)`
+/// for fast cold-start orientation (`wakeup`), avoiding O(V(V+E)) Brandes betweenness and
+/// configuration null-model swaps.
+#[must_use]
+pub fn fast_top_communities(
+    graph: &TypedLinkGraph,
+    limit: usize,
+) -> Vec<(usize, usize, Option<Locator>)> {
+    if limit == 0 || graph.node_count() == 0 {
+        return Vec::new();
+    }
+    let adj = build_masked_adj(graph, None);
+    let (labels, _) = detect_connected_communities(&adj, 0x51a7_c0de);
+    let mut members: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+    for (u, &c) in labels.iter().enumerate() {
+        members.entry(c).or_default().push(u);
+    }
+    let mut rows: Vec<(usize, usize, Option<Locator>)> = members
+        .into_iter()
+        .map(|(cid, nodes)| {
+            let best_node = nodes.iter().copied().max_by(|&a, &b| {
+                adj.neighbors[a]
+                    .len()
+                    .cmp(&adj.neighbors[b].len())
+                    .then_with(|| {
+                        let la = graph.locator(NodeId(a as u32));
+                        let lb = graph.locator(NodeId(b as u32));
+                        lb.cmp(&la)
+                    })
+            });
+            let anchor = best_node.and_then(|u| graph.locator(NodeId(u as u32)).cloned());
+            (cid, nodes.len(), anchor)
+        })
+        .collect();
+    rows.sort_by(|a, b| {
+        b.1.cmp(&a.1)
+            .then_with(|| a.2.cmp(&b.2))
+            .then_with(|| a.0.cmp(&b.0))
+    });
+    rows.truncate(limit);
+    rows
 }
 
 /// Run full CSR topology analysis: Brandes, Conceptual Gateways, Leiden-connected communities

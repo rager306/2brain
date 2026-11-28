@@ -18,6 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use tb_contracts::{Locator, NodeId};
 use tb_graph::TypedLinkGraph;
+use tb_syntax::EdgeKind;
 
 pub const EXPERIMENT_SCHEMA_VERSION: &str = "2brain.experiment-eval/v1";
 
@@ -600,6 +601,433 @@ pub fn evaluate_paired_experiment(
     }
 }
 
+/// Compute Nadaraya-Watson kernel weights `w_i = softmax(s_i / tau_iqr)` with robust
+/// interquartile-range bandwidth `tau = max(IQR(scores) / 1.35, 1e-6)` (CPU-Memorilla++).
+///
+/// Non-finite scores are clamped to `0.0`. Always returns a valid probability distribution
+/// summing to `1.0` (or empty vector for empty input).
+#[must_use]
+pub fn kernel_weights_iqr(scores: &[f64]) -> (Vec<f64>, f64) {
+    if scores.is_empty() {
+        return (Vec::new(), 1.0);
+    }
+    let clean: Vec<f64> = scores
+        .iter()
+        .map(|&s| if s.is_finite() { s } else { 0.0 })
+        .collect();
+    if clean.len() == 1 {
+        return (vec![1.0], 1.0);
+    }
+
+    let mut sorted = clean.clone();
+    sorted.sort_by(|a, b| a.total_cmp(b));
+    let q25 = sorted[sorted.len() / 4];
+    let q75 = sorted[(sorted.len() * 3) / 4];
+    // Compute differences via halved values to avoid f64 overflow on extreme finite inputs.
+    let iqr = ((q75 * 0.5) - (q25 * 0.5)).abs() * 2.0;
+    let max_s = *sorted.last().unwrap_or(&0.0);
+    let min_s = *sorted.first().unwrap_or(&0.0);
+    let full_range = ((max_s * 0.5) - (min_s * 0.5)).abs() * 2.0;
+    let spread = if iqr.is_finite() && iqr > 1e-9 {
+        iqr / 1.35
+    } else if full_range.is_finite() && full_range > 1e-9 {
+        full_range / 2.0
+    } else {
+        1.0
+    };
+    let tau = if spread.is_finite() {
+        spread.max(1e-6)
+    } else {
+        1.0
+    };
+
+    let mut weights = Vec::with_capacity(clean.len());
+    let mut sum = 0.0f64;
+    for &s in &clean {
+        let diff = ((s * 0.5) - (max_s * 0.5)) * 2.0;
+        let z = if diff.is_finite() {
+            (diff / tau).clamp(-60.0, 0.0)
+        } else {
+            -60.0
+        };
+        let e = z.exp();
+        weights.push(e);
+        sum += e;
+    }
+    if sum > 0.0 && sum.is_finite() {
+        for w in &mut weights {
+            *w /= sum;
+        }
+    } else {
+        let uniform = 1.0 / (clean.len() as f64);
+        weights.fill(uniform);
+    }
+    (weights, tau)
+}
+
+/// Edge provenance weight for CPU-Memorilla++ graph diffusion (`structural > navigational`).
+#[must_use]
+pub const fn edge_provenance_weight(kind: EdgeKind) -> f64 {
+    match kind {
+        EdgeKind::Field | EdgeKind::Contributing => 1.0,
+        EdgeKind::Navigational => 0.7,
+    }
+}
+
+/// Run provenance-weighted Personalized PageRank over `TypedLinkGraph` driven by a
+/// Nadaraya-Watson kernel restart distribution `w_i = softmax(score_i / tau_iqr)` over
+/// query-scored seeds (CPU-Memorilla++ multi-entity composed-facts diffusion).
+///
+/// Preserves CV4 fail-closed guarantees (`UnresolvedSeeds`, `InvalidConfig`, `NonFiniteDetected`,
+/// `diagnostic_only = true`) and conserves dangling mass back onto the query-conditioned restart
+/// vector.
+#[must_use]
+pub fn run_kernel_seeded_ppr(
+    graph: &TypedLinkGraph,
+    scored_seeds: &[(Locator, f64)],
+    cfg: &PprConfig,
+) -> (PprSolverReport, f64) {
+    let make_err = |stop_reason: SolverStopReason| {
+        (
+            PprSolverReport {
+                diagnostic_only: true,
+                residual_definition: "L1(r_{k+1} - r_k)".to_owned(),
+                damping: cfg.damping,
+                tolerance: cfg.tolerance,
+                max_iterations: cfg.max_iterations,
+                iterations_run: 0,
+                final_residual: None,
+                stop_reason,
+                unique_seed_origins: 0,
+                unverified_seed_origins: 0,
+                ranked: Vec::new(),
+            },
+            1.0,
+        )
+    };
+
+    if !cfg.damping.is_finite()
+        || cfg.damping <= 0.0
+        || cfg.damping >= 1.0
+        || !cfg.tolerance.is_finite()
+        || cfg.tolerance < 0.0
+        || cfg.max_iterations == 0
+    {
+        return make_err(SolverStopReason::InvalidConfig {
+            detail: "require 0 < damping < 1, finite tolerance >= 0, and max_iterations >= 1"
+                .to_owned(),
+        });
+    }
+
+    let n = graph.node_count();
+    if n == 0 || scored_seeds.is_empty() {
+        return make_err(SolverStopReason::EmptyGraphOrSeeds);
+    }
+
+    // Fail-closed on non-finite seed scores or unresolved locators (`CV4`, Rule #20).
+    let mut missing = Vec::new();
+    let mut best_by_idx: BTreeMap<usize, f64> = BTreeMap::new();
+    for (loc, score) in scored_seeds {
+        if !score.is_finite() {
+            return make_err(SolverStopReason::NonFiniteDetected);
+        }
+        let Some(nid) = graph.node_id(loc) else {
+            missing.push(loc.clone());
+            continue;
+        };
+        let idx = nid.0 as usize;
+        if idx >= n {
+            missing.push(loc.clone());
+            continue;
+        }
+        best_by_idx
+            .entry(idx)
+            .and_modify(|prev| {
+                if *score > *prev {
+                    *prev = *score;
+                }
+            })
+            .or_insert(*score);
+    }
+    if !missing.is_empty() {
+        missing.sort();
+        missing.dedup();
+        return make_err(SolverStopReason::UnresolvedSeeds { missing });
+    }
+
+    let seed_entries: Vec<(usize, f64)> = best_by_idx.into_iter().collect();
+    let unverified_seed_origins = seed_entries.len();
+    let raw_scores: Vec<f64> = seed_entries.iter().map(|(_, s)| *s).collect();
+    let (weights, tau) = kernel_weights_iqr(&raw_scores);
+
+    let mut teleport = vec![0.0f64; n];
+    for ((idx, _), &w) in seed_entries.iter().zip(&weights) {
+        teleport[*idx] = w;
+    }
+
+    // Build provenance-weighted undirected adjacency (`max` weight when parallel edges exist).
+    let mut adj: Vec<Vec<(usize, f64)>> = vec![Vec::new(); n];
+    let mut out_weight_sum = vec![0.0f64; n];
+    for u in 0..n {
+        let nid = NodeId(u as u32);
+        let mut wmap: BTreeMap<usize, f64> = BTreeMap::new();
+        let (outs, out_kinds) = graph.out_neighbors(nid);
+        for (&v, &k) in outs.iter().zip(out_kinds.iter()) {
+            let vi = v.0 as usize;
+            if vi < n && vi != u {
+                let w = edge_provenance_weight(k);
+                wmap.entry(vi)
+                    .and_modify(|prev| *prev = prev.max(w))
+                    .or_insert(w);
+            }
+        }
+        let (ins, in_kinds) = graph.in_neighbors(nid);
+        for (&v, &k) in ins.iter().zip(in_kinds.iter()) {
+            let vi = v.0 as usize;
+            if vi < n && vi != u {
+                let w = edge_provenance_weight(k);
+                wmap.entry(vi)
+                    .and_modify(|prev| *prev = prev.max(w))
+                    .or_insert(w);
+            }
+        }
+        let total_w: f64 = wmap.values().sum();
+        out_weight_sum[u] = total_w;
+        adj[u] = wmap.into_iter().collect();
+    }
+
+    let mut rank = teleport.clone();
+    let mut next = vec![0.0f64; n];
+    let mut iterations_run = 0usize;
+    let mut last_residual = f64::INFINITY;
+    let mut stop_reason = SolverStopReason::IterationCapReached;
+
+    for iter in 1..=cfg.max_iterations {
+        iterations_run = iter;
+        next.fill(0.0);
+        let mut dangling_mass = 0.0f64;
+
+        for (u, &ru) in rank.iter().enumerate() {
+            if !ru.is_finite() {
+                return (
+                    PprSolverReport {
+                        diagnostic_only: true,
+                        residual_definition: "L1(r_{k+1} - r_k)".to_owned(),
+                        damping: cfg.damping,
+                        tolerance: cfg.tolerance,
+                        max_iterations: cfg.max_iterations,
+                        iterations_run: iter,
+                        final_residual: None,
+                        stop_reason: SolverStopReason::NonFiniteDetected,
+                        unique_seed_origins: seed_entries.len(),
+                        unverified_seed_origins: 0,
+                        ranked: Vec::new(),
+                    },
+                    tau,
+                );
+            }
+            if out_weight_sum[u] <= 0.0 {
+                dangling_mass += ru;
+            } else {
+                let scale = cfg.damping * ru / out_weight_sum[u];
+                for &(v, w) in &adj[u] {
+                    next[v] += scale * w;
+                }
+            }
+        }
+
+        let teleport_weight = (1.0 - cfg.damping) + cfg.damping * dangling_mass;
+        let mut l1 = 0.0f64;
+        for i in 0..n {
+            next[i] += teleport_weight * teleport[i];
+            if !next[i].is_finite() {
+                return (
+                    PprSolverReport {
+                        diagnostic_only: true,
+                        residual_definition: "L1(r_{k+1} - r_k)".to_owned(),
+                        damping: cfg.damping,
+                        tolerance: cfg.tolerance,
+                        max_iterations: cfg.max_iterations,
+                        iterations_run: iter,
+                        final_residual: None,
+                        stop_reason: SolverStopReason::NonFiniteDetected,
+                        unique_seed_origins: seed_entries.len(),
+                        unverified_seed_origins,
+                        ranked: Vec::new(),
+                    },
+                    tau,
+                );
+            }
+            l1 += (next[i] - rank[i]).abs();
+        }
+        if !l1.is_finite() {
+            return (
+                PprSolverReport {
+                    diagnostic_only: true,
+                    residual_definition: "L1(r_{k+1} - r_k)".to_owned(),
+                    damping: cfg.damping,
+                    tolerance: cfg.tolerance,
+                    max_iterations: cfg.max_iterations,
+                    iterations_run: iter,
+                    final_residual: None,
+                    stop_reason: SolverStopReason::NonFiniteDetected,
+                    unique_seed_origins: seed_entries.len(),
+                    unverified_seed_origins,
+                    ranked: Vec::new(),
+                },
+                tau,
+            );
+        }
+        std::mem::swap(&mut rank, &mut next);
+        last_residual = l1;
+        if l1 <= cfg.tolerance {
+            stop_reason = SolverStopReason::Converged;
+            break;
+        }
+    }
+
+    let mut ranked: Vec<PprRankEntry> = rank
+        .into_iter()
+        .enumerate()
+        .filter_map(|(idx, score)| {
+            let loc = graph.locator(NodeId(idx as u32))?.clone();
+            Some(PprRankEntry {
+                origin_id: format!("unverified:{}/{}", loc.repo, loc.path),
+                locator: loc,
+                score,
+            })
+        })
+        .collect();
+    ranked.sort_by(|a, b| {
+        b.score
+            .total_cmp(&a.score)
+            .then_with(|| a.locator.cmp(&b.locator))
+    });
+    ranked.truncate(cfg.top_k);
+
+    (
+        PprSolverReport {
+            diagnostic_only: true,
+            residual_definition: "L1(r_{k+1} - r_k)".to_owned(),
+            damping: cfg.damping,
+            tolerance: cfg.tolerance,
+            max_iterations: cfg.max_iterations,
+            iterations_run,
+            final_residual: Some(last_residual),
+            stop_reason,
+            unique_seed_origins: seed_entries.len(),
+            unverified_seed_origins,
+            ranked,
+        },
+        tau,
+    )
+}
+
+/// Candidate input for submodular orthogonal slot selection (CPU-Memorilla++ discrete analog of
+/// orthogonal PCA slots without dense `d x d` covariance matrices).
+#[derive(Clone, Debug)]
+pub struct OrthogonalSlotCandidate {
+    pub locator: Locator,
+    pub relevance_score: f64,
+    pub community_id: usize,
+    pub terms: BTreeSet<String>,
+}
+
+/// Selected slot with its marginal submodular gain and overlap telemetry.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SelectedSlot {
+    pub locator: Locator,
+    pub relevance_score: f64,
+    pub marginal_gain: f64,
+    pub community_id: usize,
+    pub max_term_overlap: f64,
+}
+
+fn jaccard_overlap(a: &BTreeSet<String>, b: &BTreeSet<String>) -> f64 {
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    let inter = a.intersection(b).count();
+    let union = a.len() + b.len() - inter;
+    if union == 0 {
+        0.0
+    } else {
+        (inter as f64) / (union as f64)
+    }
+}
+
+/// Greedily select up to `max_slots` orthogonal, high-relevance slots maximizing marginal
+/// coverage: `relevance * (1.0 - lambda * max_term_overlap) * community_novelty_factor`.
+///
+/// `diversity_lambda` is clamped to `[0.0, 0.95]`. Deterministic tie-breaking by `Locator`.
+#[must_use]
+pub fn select_orthogonal_slots(
+    candidates: &[OrthogonalSlotCandidate],
+    max_slots: usize,
+    diversity_lambda: f64,
+) -> Vec<SelectedSlot> {
+    if candidates.is_empty() || max_slots == 0 {
+        return Vec::new();
+    }
+    let lambda = if diversity_lambda.is_finite() {
+        diversity_lambda.clamp(0.0, 0.95)
+    } else {
+        0.5
+    };
+
+    let mut chosen_indices: Vec<usize> = Vec::with_capacity(max_slots.min(candidates.len()));
+    let mut chosen_comms: BTreeSet<usize> = BTreeSet::new();
+    let mut out: Vec<SelectedSlot> = Vec::with_capacity(max_slots.min(candidates.len()));
+
+    while out.len() < max_slots && chosen_indices.len() < candidates.len() {
+        let mut best: Option<(usize, f64, f64, f64)> = None;
+        for (idx, cand) in candidates.iter().enumerate() {
+            if chosen_indices.contains(&idx) {
+                continue;
+            }
+            let rel = if cand.relevance_score.is_finite() && cand.relevance_score > 0.0 {
+                cand.relevance_score
+            } else {
+                0.0
+            };
+            let max_ov = chosen_indices
+                .iter()
+                .map(|&ci| jaccard_overlap(&cand.terms, &candidates[ci].terms))
+                .fold(0.0f64, f64::max);
+            let comm_mult = if chosen_comms.contains(&cand.community_id) {
+                0.80
+            } else {
+                1.0
+            };
+            let gain = rel * (1.0 - lambda * max_ov) * comm_mult;
+            let is_better = match best {
+                None => true,
+                Some((bi, bg, _, _)) => match gain.total_cmp(&bg) {
+                    std::cmp::Ordering::Greater => true,
+                    std::cmp::Ordering::Equal => cand.locator < candidates[bi].locator,
+                    std::cmp::Ordering::Less => false,
+                },
+            };
+            if is_better {
+                best = Some((idx, gain, max_ov, rel));
+            }
+        }
+        let Some((pick, gain, max_ov, rel)) = best else {
+            break;
+        };
+        chosen_indices.push(pick);
+        chosen_comms.insert(candidates[pick].community_id);
+        out.push(SelectedSlot {
+            locator: candidates[pick].locator.clone(),
+            relevance_score: rel,
+            marginal_gain: gain,
+            community_id: candidates[pick].community_id,
+            max_term_overlap: max_ov,
+        });
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use tb_syntax::EdgeKind;
@@ -727,5 +1155,133 @@ mod tests {
                 .iter()
                 .any(|n| n.contains("duplicate paired task_id"))
         );
+    }
+
+    #[test]
+    fn kernel_seeded_ppr_bridges_two_entities_and_orthogonal_slots_suppress_clones() {
+        let e1 = Locator::new("v", "entity-a.md").unwrap();
+        let e2 = Locator::new("v", "entity-b.md").unwrap();
+        let bridge = Locator::new("v", "bridge-synthesis.md").unwrap();
+        let leaf = Locator::new("v", "unrelated-leaf.md").unwrap();
+        let graph = TypedLinkGraph::build(
+            vec![e1.clone(), e2.clone(), bridge.clone(), leaf.clone()],
+            &[
+                (e1.clone(), bridge.clone(), EdgeKind::Field),
+                (e2.clone(), bridge.clone(), EdgeKind::Field),
+                (e1.clone(), leaf.clone(), EdgeKind::Navigational),
+            ],
+        );
+
+        let (report, tau) = run_kernel_seeded_ppr(
+            &graph,
+            &[(e1.clone(), 12.0), (e2.clone(), 10.0)],
+            &PprConfig::default(),
+        );
+        assert!(tau > 0.0 && tau.is_finite());
+        assert_eq!(report.stop_reason, SolverStopReason::Converged);
+        let bridge_score = report
+            .ranked
+            .iter()
+            .find(|r| r.locator == bridge)
+            .unwrap()
+            .score;
+        let leaf_score = report
+            .ranked
+            .iter()
+            .find(|r| r.locator == leaf)
+            .unwrap()
+            .score;
+        assert!(
+            bridge_score > leaf_score,
+            "structural bridge connecting both seeds ({bridge_score}) must outrank single navigational leaf ({leaf_score})"
+        );
+
+        // Orthogonal slot selection must prefer a slightly lower-scoring novel community over an
+        // exact duplicate in the same community.
+        let s1 = OrthogonalSlotCandidate {
+            locator: Locator::new("v", "a1.md").unwrap(),
+            relevance_score: 10.0,
+            community_id: 1,
+            terms: ["ppr", "graph", "diffusion"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+        };
+        let s1_clone = OrthogonalSlotCandidate {
+            locator: Locator::new("v", "a2.md").unwrap(),
+            relevance_score: 9.8,
+            community_id: 1,
+            terms: ["ppr", "graph", "diffusion"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+        };
+        let s2_novel = OrthogonalSlotCandidate {
+            locator: Locator::new("v", "b1.md").unwrap(),
+            relevance_score: 8.5,
+            community_id: 2,
+            terms: ["bm25", "freshness", "decay"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+        };
+        let chosen = select_orthogonal_slots(&[s1, s1_clone, s2_novel], 2, 0.7);
+        assert_eq!(chosen.len(), 2);
+        assert_eq!(chosen[0].locator.path, "a1.md");
+        assert_eq!(
+            chosen[1].locator.path, "b1.md",
+            "novel community slot must beat near-duplicate clone in same community"
+        );
+    }
+
+    #[test]
+    fn kernel_weights_iqr_handles_extreme_range_and_ppr_fails_closed_on_nan_and_slots_are_order_invariant()
+     {
+        // Extreme scores spanning near f64::MAX must not overflow IQR subtraction to infinity.
+        let (weights, tau) = kernel_weights_iqr(&[-1e308, 1e308]);
+        assert!(tau.is_finite() && tau > 0.0);
+        assert_eq!(weights.len(), 2);
+        assert!(weights.iter().all(|w| w.is_finite() && *w >= 0.0));
+        let sum: f64 = weights.iter().sum();
+        assert!((sum - 1.0).abs() < 1e-9);
+
+        // Non-finite seed score must fail closed with NonFiniteDetected.
+        let e1 = Locator::new("v", "a.md").unwrap();
+        let e2 = Locator::new("v", "b.md").unwrap();
+        let graph = TypedLinkGraph::build(
+            vec![e1.clone(), e2.clone()],
+            &[(e1.clone(), e2.clone(), EdgeKind::Field)],
+        );
+        let (bad_report, _) = run_kernel_seeded_ppr(
+            &graph,
+            &[(e1.clone(), f64::NAN), (e2.clone(), 1.0)],
+            &PprConfig::default(),
+        );
+        assert_eq!(bad_report.stop_reason, SolverStopReason::NonFiniteDetected);
+
+        // Input-order invariance on tied relevance scores (including non-finite sanitized to 0).
+        let c_b = OrthogonalSlotCandidate {
+            locator: Locator::new("v", "b.md").unwrap(),
+            relevance_score: 5.0,
+            community_id: 1,
+            terms: ["x"].into_iter().map(str::to_owned).collect(),
+        };
+        let c_a = OrthogonalSlotCandidate {
+            locator: Locator::new("v", "a.md").unwrap(),
+            relevance_score: 5.0,
+            community_id: 2,
+            terms: ["y"].into_iter().map(str::to_owned).collect(),
+        };
+        let c_nan = OrthogonalSlotCandidate {
+            locator: Locator::new("v", "c.md").unwrap(),
+            relevance_score: f64::NAN,
+            community_id: 3,
+            terms: ["z"].into_iter().map(str::to_owned).collect(),
+        };
+        let fwd = select_orthogonal_slots(&[c_b.clone(), c_a.clone(), c_nan.clone()], 3, 0.7);
+        let rev = select_orthogonal_slots(&[c_nan, c_a, c_b], 3, 0.7);
+        assert_eq!(fwd, rev);
+        assert_eq!(fwd[0].locator.path, "a.md");
+        assert!(fwd.iter().all(|s| s.relevance_score.is_finite()));
     }
 }

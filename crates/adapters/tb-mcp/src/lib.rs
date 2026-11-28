@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub mod budget;
 pub mod http;
 pub mod schemas;
 
@@ -173,6 +174,7 @@ fn is_cognitive_tool(name: &str) -> bool {
     matches!(
         name,
         "tb_orient"
+            | "tb_wakeup"
             | "tb_analyze_topology"
             | "tb_detect_gaps"
             | "tb_audit_bias"
@@ -712,6 +714,7 @@ impl TwoBrainMcp {
             if matches!(
                 name,
                 "tb_orient"
+                    | "tb_wakeup"
                     | "tb_analyze_topology"
                     | "tb_detect_gaps"
                     | "tb_audit_bias"
@@ -895,6 +898,19 @@ impl TwoBrainMcp {
             }
         }
         self.notify_mutated_uri_if_needed(name, args, &res);
+        // Apply unified response byte/token budget (exempting SEM-02 full reads and
+        // workflow/integrity-critical tools, and never altering error responses).
+        if !budget::is_budget_exempt_tool(name)
+            && res.is_error != Some(true)
+            && let Some(sc) = res.structured_content.take()
+        {
+            let resp_budget = budget::ResponseBudget::from_args(args);
+            let (bounded, was_trimmed) = budget::apply_response_budget(sc, resp_budget);
+            if was_trimmed && let Ok(txt) = serde_json::to_string(&bounded) {
+                res.content = vec![ContentBlock::text(txt)];
+            }
+            res.structured_content = Some(bounded);
+        }
         self.apply_payload_mode(res)
     }
 
@@ -989,6 +1005,7 @@ impl TwoBrainMcp {
                 map_app(self.dispatcher.call_read("record_decision", &normalized))
             }
             "tb_orient"
+            | "tb_wakeup"
             | "tb_analyze_topology"
             | "tb_detect_gaps"
             | "tb_audit_bias"
@@ -2328,6 +2345,10 @@ fn build_tool_catalog(policy: &LaunchPolicy) -> Vec<Tool> {
                 "Return a compact ~400-token structural contextual hint (communities, gateways, peel bridges, gaps).",
             ),
             make_tool(
+                "tb_wakeup",
+                "Return a deterministic ~500-token cold-start Markdown digest (scale, fast top communities, hubs, diagnostics).",
+            ),
+            make_tool(
                 "tb_analyze_topology",
                 "Run CSR Brandes betweenness, conceptual gateways, Leiden+NMI+Null Callon communities, and Peel-the-Onion.",
             ),
@@ -2440,7 +2461,8 @@ mod tests {
             allow_cognitive: true,
             ..LaunchPolicy::default()
         });
-        assert_eq!(cognitive.len(), 47);
+        assert_eq!(cognitive.len(), 48);
+        assert!(cognitive.iter().any(|t| t.name.as_ref() == "tb_wakeup"));
 
         let full_schema_cat = build_tool_catalog(&LaunchPolicy {
             full_schemas: true,

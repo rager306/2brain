@@ -21,6 +21,11 @@ use tb_syntax::tokenize;
 
 #[cfg(feature = "hybrid-rerank")]
 pub mod hybrid;
+pub mod query_class;
+
+pub use query_class::{
+    QueryChannelProfile, QueryClass, classify_query, query_channel_profile, split_keyword_soup,
+};
 
 /// BM25 term-frequency saturation.
 const K1: f64 = 1.2;

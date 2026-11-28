@@ -385,6 +385,12 @@ pub fn full_schema_for(name: &str) -> Arc<Map<String, Value>> {
                 "async_task": { "type": "boolean" }
             }
         }),
+        "tb_wakeup" => json!({
+            "type": "object",
+            "properties": {
+                "max_tokens": { "type": "integer", "minimum": 128, "maximum": 4000, "default": 500 }
+            }
+        }),
         "tb_analyze_topology" => json!({
             "type": "object",
             "properties": {

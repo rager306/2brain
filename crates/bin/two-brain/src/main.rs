@@ -4,6 +4,7 @@ mod backup;
 mod bench;
 mod enrich;
 mod eval_common;
+mod guide;
 mod ingest;
 
 use std::net::SocketAddr;
@@ -39,6 +40,25 @@ struct Cli {
 enum Command {
     /// Print build, architecture, and protocol surface details.
     Info,
+    /// Print offline agent guides and done-when checklists (`overview`, `llms`, `search`, `mutate`, `enrich`, `ingest`, `workflows`, `eval`).
+    Guide {
+        /// Guide topic (defaults to `overview`).
+        topic: Option<String>,
+        /// List available guide topics.
+        #[arg(long = "list")]
+        list: bool,
+    },
+    /// Emit a deterministic ~500-token Markdown digest of a workspace (scale, top communities, hubs, diagnostics).
+    Wakeup {
+        /// Path to the workspace directory.
+        path: PathBuf,
+        /// Token budget ceiling (default: 500).
+        #[arg(long = "max-tokens", default_value_t = 500)]
+        max_tokens: usize,
+        /// Emit machine-readable JSON output.
+        #[arg(long = "json")]
+        json: bool,
+    },
     /// Read-only parse, schema validation, CSR graph health, and description quality check on a workspace.
     Check {
         /// Path to the workspace directory.
@@ -507,6 +527,54 @@ fn main() {
                 "  protocol     MCP 2026-07-28 (stateless) + legacy + SEP-2640 skills + tasks"
             );
             println!("  layers       domain (0 I/O) -> app (ports) -> adapters -> cli");
+        }
+        Command::Guide { topic, list } => {
+            if list {
+                for &t in guide::AVAILABLE_TOPICS {
+                    println!("{t}");
+                }
+                return;
+            }
+            match guide::render_guide(topic.as_deref()) {
+                Ok((_, body)) => print!("{body}"),
+                Err(err) => {
+                    eprintln!("error: {err}");
+                    std::process::exit(2);
+                }
+            }
+        }
+        Command::Wakeup {
+            path,
+            max_tokens,
+            json,
+        } => {
+            let (store, snapshot) = match tb_fs_git::load_snapshot(&path) {
+                Ok(v) => v,
+                Err(err) => {
+                    eprintln!("error loading workspace '{}': {err}", path.display());
+                    std::process::exit(1);
+                }
+            };
+            let app = App::new(store, snapshot);
+            let out = match app.wakeup(max_tokens.clamp(128, 4_000)) {
+                Ok(v) => v,
+                Err(err) => {
+                    eprintln!("error building wakeup digest: {err}");
+                    std::process::exit(1);
+                }
+            };
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&out).expect("json serialization")
+                );
+            } else if let Some(md) = out
+                .get("wakeup")
+                .and_then(|w| w.get("digest"))
+                .and_then(serde_json::Value::as_str)
+            {
+                print!("{md}");
+            }
         }
         Command::Check {
             path,

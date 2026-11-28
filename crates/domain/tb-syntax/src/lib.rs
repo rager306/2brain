@@ -415,11 +415,7 @@ fn scan_body(
 }
 
 fn parse_opening_fence(line: &str) -> Option<(u8, usize)> {
-    let trimmed = line.trim_start_matches(' ');
-    let leading_spaces = line.len() - trimmed.len();
-    if leading_spaces > 3 {
-        return None;
-    }
+    let trimmed = line.trim_start_matches([' ', '\t']);
     let first = *trimmed.as_bytes().first()?;
     if first != b'`' && first != b'~' {
         return None;
@@ -435,10 +431,7 @@ fn parse_opening_fence(line: &str) -> Option<(u8, usize)> {
 }
 
 fn is_closing_fence(line: &str, fence_char: u8, min_len: usize) -> bool {
-    let trimmed = line.trim_start_matches(' ');
-    if line.len() - trimmed.len() > 3 {
-        return false;
-    }
+    let trimmed = line.trim_start_matches([' ', '\t']);
     let count = trimmed.bytes().take_while(|&b| b == fence_char).count();
     count >= min_len && trimmed[count..].trim().is_empty()
 }
@@ -488,24 +481,47 @@ fn parse_trailing_block_id(line: &str) -> Option<(&str, usize, usize)> {
     Some((id, caret_pos, trimmed_end.len()))
 }
 
+/// Find the end byte index (exclusive) of a CommonMark inline code span starting right after
+/// an opening run of `ticks` backticks at `after_open`. Returns `None` if no matching run of
+/// exact length `ticks` exists on this line (so an unmatched lone backtick never inverts
+/// subsequent inline code spans).
+fn find_matching_backtick_run(bytes: &[u8], after_open: usize, ticks: usize) -> Option<usize> {
+    let mut j = after_open;
+    while j < bytes.len() {
+        if bytes[j] == b'`' {
+            let run = bytes[j..].iter().take_while(|&&b| b == b'`').count();
+            if run == ticks {
+                return Some(j + run);
+            }
+            j += run;
+        } else {
+            j += 1;
+        }
+    }
+    None
+}
+
 fn scan_line_wikilinks(line: &str, line_abs_start: usize, line_no: usize, out: &mut Vec<WikiLink>) {
     let bytes = line.as_bytes();
     let mut i = 0usize;
-    let mut inline_code_ticks: Option<usize> = None;
 
     while i < bytes.len() {
-        if bytes[i] == b'`' {
-            let ticks = bytes[i..].iter().take_while(|&&b| b == b'`').count();
-            match inline_code_ticks {
-                Some(open) if open == ticks => inline_code_ticks = None,
-                None => inline_code_ticks = Some(ticks),
-                Some(_) => {}
-            }
-            i += ticks;
+        if bytes[i] == b'\\' && i + 1 < bytes.len() && bytes[i + 1] == b'`' {
+            // Backslash-escaped backtick does not open a CommonMark inline code span.
+            i += 2;
             continue;
         }
-        if inline_code_ticks.is_none()
-            && i + 1 < bytes.len()
+        if bytes[i] == b'`' {
+            let ticks = bytes[i..].iter().take_while(|&&b| b == b'`').count();
+            if let Some(span_end) = find_matching_backtick_run(bytes, i + ticks, ticks) {
+                i = span_end;
+            } else {
+                // Unmatched backtick run: literal text per CommonMark.
+                i += ticks;
+            }
+            continue;
+        }
+        if i + 1 < bytes.len()
             && bytes[i] == b'['
             && bytes[i + 1] == b'['
             && let Some(close_rel) = memmem::find(&bytes[i + 2..], b"]]")
@@ -646,6 +662,21 @@ mod tests {
             &parsed.anchors[1],
             Anchor::Block { id, .. } if id == "blk-42"
         ));
+    }
+
+    #[test]
+    fn unmatched_backtick_and_indented_fenced_blocks_do_not_leak_wikilinks() {
+        let doc = concat!(
+            "Stray `` double ticks before `[[ignored-inline]]` and [[real-link]].\n",
+            "- List item with nested code block:\n",
+            "    ```bash\n",
+            "    echo \"[[ignored-indented-fence]]\"\n",
+            "    ```\n",
+            "After fence [[after-fence]].\n"
+        );
+        let parsed = parse_document(doc.as_bytes()).unwrap();
+        let targets: Vec<&str> = parsed.wikilinks.iter().map(|w| w.target.as_str()).collect();
+        assert_eq!(targets, vec!["real-link", "after-fence"]);
     }
 
     #[test]

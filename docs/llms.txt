@@ -1,0 +1,28 @@
+# 2brain — Agent & LLM Reference (`/llms.txt`)
+
+> Single-binary MIT Rust typed knowledge graph (`[[wiki-links]]`, `^block-ids`, YAML schemas) + MCP 2.0 (`2026-07-28`) server. Pure zero-I/O Miri-clean domain core, fail-closed SEM-02 write gate, 4-field sparse-safe BM25 + type-aware freshness, CSR graph analytics.
+
+## Quick Orientation
+- `2brain wakeup <workspace> [--max-tokens 500] [--json]` — deterministic ~500-token digest (scale, top clusters, hubs, diagnostics).
+- `2brain check <workspace> [--audit-descriptions] [--json]` — full schema, link, UTF-8, symlink, and description quality audit.
+- `2brain guide [topic]` — offline agent guides (`overview`, `search`, `mutate`, `enrich`, `ingest`, `workflows`, `eval`).
+
+## Search & Retrieval
+- `tb_search`: 4-field sparse-safe BM25 (`body 1.0`, `description 3.0`, `keywords 2.2`, `search_questions 1.4`) + type-aware freshness (durable types do not decay; transient notes decay by half-life). Overridable via `workspace.yaml` (priority 1) or `.2brain/repo.yaml` `search:`.
+- `tb_grep`: exact literal substring match (use for identifiers, codes, URLs — SEM-09).
+- `tb_context` / `tb_neighborhood`: bounded multi-hop graph expansion.
+- Optional `--features hybrid-rerank`: pure-domain Model2Vec static embedding reranker with `SEM-48` negation polarity guard and hard RAM cap.
+
+## Safe Mutations (Fail-Closed)
+- Always call `tb_content` with no truncation (`truncated == false`) before calling mutating tools (`tb_edit_file`, `tb_write_file`, `tb_delete_file`, `tb_rename`).
+- Mutations require `--allow-mutations`, CAS SHA-256 match, and optional `--policy` + `--audit-log` (hash-chained JSONL).
+- `2brain backup <ws> --out <dir>` / `2brain restore <backup> --to <dir>` provide SHA-256 verified, symlink-safe snapshots.
+
+## Offline Enrichment & G5 Evaluation
+- `2brain enrich plan|heuristic|evaluate|apply` backed by deterministic `(note_hash, model, prompt_version)` JSONL cache.
+- `scripts/enrich_llm.py` (`--concurrency`, `--retries`, `--suite`) drives external OpenAI/Anthropic-compatible models strictly outside the MCP serving path and refuses `--apply` unless `2brain experiment evaluate-arm` returns `promote_candidate`.
+- `scripts/extract_error_fixes.py` extracts recurring error signatures from logs/JSONL into `2brain ingest --format error-fix`.
+
+## Durable Workflows & Cognitive Analytics
+- `2brain analyze` (Louvain/Leiden communities, Peel-the-Onion, structural gaps), `2brain audit-claims` (D03/R14 temporal contradictions), `2brain fragility` (articulation points), `2brain diff` (historical Git snapshot diff).
+- `2brain task` (D08 `TaskPacket` CAS checkpoints) and `2brain procedure` (D09/D10 `ProcedureSpec` + `RunReceipt`).

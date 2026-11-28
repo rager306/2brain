@@ -30,7 +30,7 @@ use tb_cognition::{
     TopologyReport, analyze_fragility as run_fragility, analyze_topology as run_topology,
     audit_contradictions as run_contradictions, audit_response_bias as run_bias_audit,
     build_orient_hint, detect_structural_gaps as run_gaps, diff_snapshots as run_diff,
-    is_claim_relevant,
+    fast_top_communities, is_claim_relevant,
 };
 use tb_contracts::{
     Assessment, CasVerified, EvidenceReceipt, Generation, Locator, RevisionDigest, WriteIntent,
@@ -1798,6 +1798,120 @@ impl<W: WorkspaceStore> App<W> {
         Ok(json!({ "orient": hint, "generation": gen_before.0, "cached": false }))
     }
 
+    /// Build a deterministic `~500`-token Markdown wakeup digest of the workspace
+    /// (scale, top communities, top hubs, and diagnostic hotspots) for cold-start orientation.
+    pub fn wakeup(&self, max_tokens: usize) -> Result<Value, AppError> {
+        let snap = self.snapshot();
+        let gen_before = snap.generation;
+        let shape = snap.graph.shape();
+        let hubs = snap.graph.hubs(5);
+        let communities = fast_top_communities(&snap.graph, 4);
+
+        let error_diags = snap
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == tb_schema::Severity::Error)
+            .count();
+        let warn_diags = snap
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == tb_schema::Severity::Warning)
+            .count();
+
+        let members_list: Vec<&str> = snap.members.keys().map(String::as_str).collect();
+        let mut md = String::new();
+        let _ = std::fmt::Write::write_fmt(
+            &mut md,
+            format_args!(
+                "# 2brain Wakeup Digest (gen {})\n\n## Scale\n- members: {} ({})\n- notes: {} | types: {} | edges: {} (structural: {}, navigational: {})\n- components: {} (largest: {}, isolated: {}) | diagnostics: {} errors, {} warnings\n",
+                gen_before.0,
+                members_list.len(),
+                members_list.join(", "),
+                snap.files.len(),
+                snap.registry.len(),
+                shape.edge_count,
+                shape.edges_structural,
+                shape.edges_navigational,
+                shape.components,
+                shape.largest_component,
+                shape.isolated,
+                error_diags,
+                warn_diags,
+            ),
+        );
+
+        if !communities.is_empty() {
+            md.push_str("\n## Top Communities\n");
+            for (cid, size, anchor) in &communities {
+                let rep = anchor.as_ref().map(|l| l.path.as_str()).unwrap_or("-");
+                let _ = std::fmt::Write::write_fmt(
+                    &mut md,
+                    format_args!("- C{cid} ({size} notes) — anchor `{rep}`\n"),
+                );
+            }
+        }
+
+        if !hubs.is_empty() {
+            md.push_str("\n## Top Hubs\n");
+            for h in hubs.iter().take(5) {
+                let _ = std::fmt::Write::write_fmt(
+                    &mut md,
+                    format_args!(
+                        "- `{}` (in: {}, structural: {}, nav: {})\n",
+                        h.locator.path,
+                        h.inbound_total,
+                        h.inbound_structural,
+                        h.inbound_navigational
+                    ),
+                );
+            }
+        }
+
+        if !snap.diagnostics.is_empty() {
+            md.push_str("\n## Attention (Diagnostics)\n");
+            for d in snap.diagnostics.iter().take(5) {
+                let _ = std::fmt::Write::write_fmt(
+                    &mut md,
+                    format_args!("- [{}] `{}`: {}\n", d.code, d.path, d.message),
+                );
+            }
+        }
+
+        const TRUNC_NOTICE: &str = "\n_… digest truncated to fit token budget …_\n";
+        let max_chars = max_tokens.saturating_mul(4);
+        let notice_chars = TRUNC_NOTICE.chars().count();
+        let (digest, truncated) = if md.chars().count() > max_chars {
+            let body_char_budget = max_chars.saturating_sub(notice_chars);
+            let cut_bound = md
+                .char_indices()
+                .nth(body_char_budget)
+                .map_or(md.len(), |(idx, _)| idx);
+            let cut = md[..cut_bound]
+                .rfind('\n')
+                .filter(|&pos| pos >= cut_bound / 2)
+                .unwrap_or(cut_bound);
+            let mut out = md[..cut].to_owned();
+            out.push_str(TRUNC_NOTICE);
+            (out, true)
+        } else {
+            (md, false)
+        };
+        let estimated_tokens = digest.chars().count().div_ceil(4);
+
+        if self.snapshot.load().generation != gen_before {
+            return Err(AppError::SnapshotStale);
+        }
+        Ok(json!({
+            "wakeup": {
+                "generation": gen_before.0,
+                "max_tokens": max_tokens,
+                "estimated_tokens": estimated_tokens,
+                "truncated": truncated,
+                "digest": digest,
+            }
+        }))
+    }
+
     /// `tb_analyze_topology`: generation-fenced Brandes, Gateways, Leiden+NMI+Null, Callon, Peel.
     pub fn analyze_topology(&self, peel_top_k: usize, limit: usize) -> Result<Value, AppError> {
         let snap = self.snapshot();
@@ -2560,6 +2674,10 @@ impl<W: WorkspaceStore + 'static> AppDispatcher for App<W> {
                     .and_then(Value::as_u64)
                     .unwrap_or(5_000);
                 self.watch(since, timeout_ms)
+            }
+            "wakeup" => {
+                let max_tokens = opt_usize("max_tokens", 500).clamp(128, 4_000);
+                self.wakeup(max_tokens)
             }
             other => Err(AppError::InvalidArguments(format!(
                 "unknown read verb '{other}'"
