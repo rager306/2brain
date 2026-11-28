@@ -7,12 +7,11 @@
 use std::fmt::Write as _;
 use std::fs::{self, File};
 use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use fs4::fs_std::FileExt;
-use rustix::fs::{AtFlags, Mode, OFlags, openat, statat};
+use rustix::fs::{AtFlags, Mode, OFlags, fstat, openat, statat};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -114,9 +113,11 @@ impl FileAuditLog {
         }
         lock_file.lock_exclusive()?;
         // Verify lock inode identity under the lock so unlinked/replaced lock files fail closed.
+        let lock_stat = fstat(&lock_file)
+            .map_err(|e| io::Error::other(format!("fstat audit lock after locking: {e}")))?;
         let path_stat = statat(&parent_fd, lock_name.as_str(), AtFlags::SYMLINK_NOFOLLOW)
             .map_err(|e| io::Error::other(format!("stat audit lock after locking: {e}")))?;
-        if path_stat.st_dev != lock_meta.dev() || path_stat.st_ino != lock_meta.ino() {
+        if path_stat.st_dev != lock_stat.st_dev || path_stat.st_ino != lock_stat.st_ino {
             return Err(io::Error::new(
                 io::ErrorKind::PermissionDenied,
                 "audit lock file was replaced while acquiring lock",

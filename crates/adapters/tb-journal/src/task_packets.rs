@@ -13,13 +13,12 @@
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use fs4::fs_std::FileExt;
-use rustix::fs::{AtFlags, Mode, OFlags, fsync, openat, renameat, statat, unlinkat};
+use rustix::fs::{AtFlags, Mode, OFlags, fstat, fsync, openat, renameat, statat, unlinkat};
 use tb_app::{AppError, TaskScopeGuard, TaskStorePort};
 use tb_contracts::{TASK_PACKET_SCHEMA_VERSION, TaskPacket};
 
@@ -74,12 +73,11 @@ impl FileTaskStore {
             .map_err(|e| AppError::Io(format!("lock tasks.lock: {e}")))?;
 
         // Verify post-lock path identity matches locked fd (Rule #18).
-        let fd_meta = lock_file
-            .metadata()
-            .map_err(|e| AppError::Io(format!("fstat tasks.lock: {e}")))?;
+        let fd_st =
+            fstat(&lock_file).map_err(|e| AppError::Io(format!("fstat tasks.lock: {e}")))?;
         let path_st = statat(dir_fd.as_fd(), "tasks.lock", AtFlags::SYMLINK_NOFOLLOW)
             .map_err(|e| AppError::Io(format!("statat tasks.lock: {e}")))?;
-        if fd_meta.dev() != path_st.st_dev || fd_meta.ino() != path_st.st_ino {
+        if fd_st.st_dev != path_st.st_dev || fd_st.st_ino != path_st.st_ino {
             return Err(AppError::Io(
                 "tasks.lock inode changed concurrently while acquiring lock".into(),
             ));
