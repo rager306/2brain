@@ -10,9 +10,14 @@ publish.workspace = true
 name = "2brain"
 path = "src/main.rs"
 
+[features]
+default = []
+hybrid-rerank = ["tb-search/hybrid-rerank"]
+
 [dependencies]
 tb-contracts = { workspace = true }
 tb-syntax = { workspace = true }
+tb-search = { workspace = true }
 tb-cognition = { workspace = true }
 tb-app = { workspace = true }
 tb-fs-git = { workspace = true }

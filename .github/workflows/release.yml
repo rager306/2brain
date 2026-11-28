@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Optional version tag label for dry-run artifact build"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-artifacts:
+    name: Auditable Release + CycloneDX SBOM (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive_ext: tar.gz
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - name: Install supply-chain tools (cargo-auditable, cargo-cyclonedx, cargo-deny)
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-auditable,cargo-cyclonedx,cargo-deny
+      - name: Verify MIT-compatible licenses and dependency bans
+        run: cargo deny -L error check licenses bans sources
+      - name: Build auditable release binary
+        run: cargo auditable build --release --locked --target "${{ matrix.target }}" -p two-brain --bin 2brain
+      - name: Generate CycloneDX 1.5 SBOM
+        run: |
+          mkdir -p dist
+          cargo cyclonedx --manifest-path Cargo.toml --format json --spec-version 1.5 --describe binaries
+          cp crates/bin/two-brain/*.cdx.json "dist/2brain-${{ matrix.target }}.cdx.json"
+      - name: Package binary tarball and SHA-256 checksums
+        run: |
+          TARGET_DIR="$(cargo metadata --format-version=1 --no-deps | python3 -c 'import sys,json; print(json.load(sys.stdin)["target_directory"])')"
+          BIN="${TARGET_DIR}/${{ matrix.target }}/release/2brain"
+          chmod +x "$BIN"
+          tar -C "${TARGET_DIR}/${{ matrix.target }}/release" -czf "dist/2brain-${{ matrix.target }}.tar.gz" 2brain
+          (cd dist && sha256sum "2brain-${{ matrix.target }}.tar.gz" "2brain-${{ matrix.target }}.cdx.json" > "2brain-${{ matrix.target }}.sha256")
+          cat "dist/2brain-${{ matrix.target }}.sha256"
+      - name: Upload release bundle artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ matrix.target }}
+          path: dist/
+          retention-days: 14
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: build-artifacts
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download built artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Consolidate SHA256SUMS
+        run: |
+          cd release-assets
+          cat *.sha256 > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" release-assets/* --clobber
+          else
+            gh release create "$TAG_NAME" release-assets/* \
+              --title "2brain $TAG_NAME" \
+              --generate-notes
+          fi

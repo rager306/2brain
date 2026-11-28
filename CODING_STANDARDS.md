@@ -96,3 +96,8 @@ Defect classes caught by adversarial review and fixed by structural invariants:
 
 
 
+
+21. **Session-Bounded Subscription Fan-Out, Honest Capability Advertising, Non-Inverted Polarity Guard & Safe Enrichment Splicing (`tb-mcp`, `tb-search`, `tb-app`, `two-brain`):**
+    - Bind every per-session `resources/subscribe` fan-out task to a `Weak` subscription registry plus session `DropGuard`/`CancellationToken` so disconnected HTTP sessions never leak tasks or `Peer` handles; advertise `resources.subscribe` and accept `subscribe`/`listen` ONLY when a live `ResourceUpdateHub` is attached and egress is allowed.
+    - In hybrid score fusion (`rerank_hits`), keep lexical weight fixed at `(1 - alpha) * norm_bm25` and zero ONLY the semantic boost (`+ semantic_weight * raw_cos`) on `SEM-48` negation polarity mismatches (including apostrophe contractions such as `don't`/`can't`), and filter non-finite scores/freshness multipliers before normalization.
+    - When splicing frontmatter (`apply_enrichment_to_note`), replace only the keys actually supplied, handle multiline flow arrays and quoted keys, match `tb-syntax`'s strict `---` closing delimiter, refuse read-only `dependency` members, and persist offline cache/plan files via dirfd-relative `openat(O_CREAT|O_EXCL|O_NOFOLLOW)` + `sync_all` + `renameat` + `fsync(dir_fd)`.

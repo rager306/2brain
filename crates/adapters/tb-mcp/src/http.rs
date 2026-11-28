@@ -153,7 +153,7 @@ impl TwoBrainMcp {
         let shared_handler = self;
         let mcp_service: Arc<StreamableHttpService<TwoBrainMcp, LocalSessionManager>> =
             Arc::new(StreamableHttpService::new(
-                move || Ok(shared_handler.clone()),
+                move || Ok(shared_handler.for_session()),
                 Arc::new(LocalSessionManager::default()),
                 rmcp_cfg,
             ));

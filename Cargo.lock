@@ -1565,6 +1565,7 @@ dependencies = [
  "tb-ipc",
  "tb-journal",
  "tb-mcp",
+ "tb-search",
  "tb-skills",
  "tb-syntax",
  "tempfile",

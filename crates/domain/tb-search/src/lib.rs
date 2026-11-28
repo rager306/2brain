@@ -15,6 +15,9 @@ use serde::{Deserialize, Serialize};
 use tb_contracts::Locator;
 use tb_syntax::tokenize;
 
+#[cfg(feature = "hybrid-rerank")]
+pub mod hybrid;
+
 /// BM25 term-frequency saturation.
 const K1: f64 = 1.2;
 

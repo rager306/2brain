@@ -15,10 +15,15 @@ jobs:
   gate:
     name: Format, Layers, Clippy, Tests & Licenses
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
+        with:
+          toolchain: stable
           components: rustfmt, clippy
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -26,8 +31,10 @@ jobs:
         run: python3 scripts/check_layer_deps.py
       - name: Clippy (-D warnings)
         run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Clippy (--all-features -D warnings)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Run workspace test suite
-        run: cargo test --workspace
+        run: cargo test --workspace --all-features
       - name: Validate truthful capability registry (U1/R23)
         run: python3 tools/check_capabilities.py
       - name: Run isolated black-box semantic acceptance suite (21 cases + SEM-48)
@@ -36,6 +43,6 @@ jobs:
           BIN="$(cargo metadata --format-version=1 --no-deps | python3 -c 'import sys,json; print(json.load(sys.stdin)["target_directory"])')/debug/2brain"
           python3 tools/semantic/run_semantic_suite.py --bin "$BIN"
       - name: Check MIT-compatible licenses (cargo-deny)
-        uses: EmbarkStudios/cargo-deny-action@v2
+        uses: EmbarkStudios/cargo-deny-action@bb119f768ea239e765aeaef5769558d4f21213aa # v2
         with:
           command: check licenses bans sources

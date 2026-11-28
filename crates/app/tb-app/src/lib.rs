@@ -7,6 +7,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::{Arc, Condvar, Mutex};
 
+pub mod enrich;
 pub mod ingest;
 pub mod mutations;
 pub mod procedures;

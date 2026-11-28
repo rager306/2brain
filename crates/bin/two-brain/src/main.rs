@@ -2,6 +2,7 @@
 
 mod backup;
 mod bench;
+mod enrich;
 mod ingest;
 
 use std::net::SocketAddr;
@@ -18,7 +19,8 @@ use tb_contracts::{
 use tb_ipc::IpcClient;
 use tb_journal::{FileOutcomeStore, FileTaskStore};
 use tb_mcp::{
-    AuditRecorder, EgressPolicy, HttpServerConfig, LaunchPolicy, PayloadMode, TwoBrainMcp,
+    AuditRecorder, EgressPolicy, HttpServerConfig, LaunchPolicy, PayloadMode, ResourceUpdateHub,
+    TwoBrainMcp,
 };
 
 #[derive(Debug, Parser)]
@@ -150,7 +152,12 @@ enum Command {
         #[arg(long = "json")]
         json: bool,
     },
-    /// Convert external sources (.md, .txt, .html, .csv, .json, .jsonl) into typed Markdown notes with fail-closed schema/link/dedup validation.
+    /// Offline note enrichment (`keywords`, `search_questions`) with deterministic `(note_hash, model, prompt_version)` cache and G5 evaluation.
+    Enrich {
+        #[command(subcommand)]
+        command: enrich::EnrichCommand,
+    },
+    /// Convert external sources (.md, .txt, .html, .csv, .json, .jsonl, error-fix logs) into typed Markdown notes with fail-closed schema/link/dedup validation.
     Ingest {
         /// Path to the target workspace directory.
         workspace: PathBuf,
@@ -168,7 +175,7 @@ enum Command {
         /// Optional capture date (`YYYY-MM-DD`) stored in frontmatter `captured`.
         #[arg(long = "date")]
         date: Option<String>,
-        /// Input format (`auto`, `md`, `txt`, `html`, `csv`, `json`, `jsonl`).
+        /// Input format (`auto`, `md`, `txt`, `html`, `csv`, `json`, `jsonl`, `error-fix`).
         #[arg(long = "format", default_value = "auto")]
         format: String,
         /// Downgrade unresolved outgoing `[[wikilinks]]` from hard error to warning.
@@ -452,6 +459,35 @@ enum ExperimentCommand {
         #[arg(long = "json")]
         json: bool,
     },
+    /// Run isolated U14 hybrid reranker experiment (requires `--features hybrid-rerank`) under the G5 paired gate.
+    HybridEval {
+        /// Path to the workspace directory.
+        workspace: PathBuf,
+        /// Path to a paired query suite JSON (`tasks` with `expected_paths` and `forbidden_top1_paths` for SEM-48).
+        #[arg(long = "suite")]
+        suite: PathBuf,
+        /// Optional JSON static embedding table (`{dim, vectors: {token: [f32; dim]}}`); defaults to deterministic subword projection.
+        #[arg(long = "model-vectors")]
+        model_vectors: Option<PathBuf>,
+        /// Semantic blend weight alpha in [0.0, 1.0].
+        #[arg(long = "alpha", default_value_t = 0.25)]
+        alpha: f64,
+        /// BM25 candidate pool size to rerank.
+        #[arg(long = "pool", default_value_t = 32)]
+        pool: usize,
+        /// Top-k cutoff.
+        #[arg(long = "top-k", default_value_t = 5)]
+        top_k: usize,
+        /// Disable SEM-48 negation guard (ablation only).
+        #[arg(long = "no-negation-guard")]
+        no_negation_guard: bool,
+        /// Hard RAM ceiling in MiB for model + document vectors.
+        #[arg(long = "max-ram-mib", default_value_t = 32)]
+        max_ram_mib: usize,
+        /// Emit machine-readable JSON report.
+        #[arg(long = "json")]
+        json: bool,
+    },
 }
 
 fn main() {
@@ -616,6 +652,7 @@ fn main() {
             iterations,
             json,
         } => bench::run_bench(&path, iterations, json),
+        Command::Enrich { command } => enrich::run_enrich_command(command),
         Command::Ingest {
             workspace,
             source,
@@ -1151,7 +1188,7 @@ fn run_daemon_start(workspace: &std::path::Path) {
     let runtime = build_runtime();
     let watch_root = canonical.clone();
     let result = runtime.block_on(async move {
-        let (_watcher, refresh_task) = spawn_watcher(watch_root, Arc::clone(&app));
+        let (_watcher, refresh_task) = spawn_watcher(watch_root, Arc::clone(&app), None);
         let disp: Arc<dyn AppDispatcher> = app;
         let res = tb_ipc::serve_unix_socket(&sock_path, disp).await;
         refresh_task.abort();
@@ -1703,6 +1740,305 @@ fn run_experiment_command(command: ExperimentCommand) {
                 }
             }
         }
+        ExperimentCommand::HybridEval {
+            workspace,
+            suite,
+            model_vectors,
+            alpha,
+            pool,
+            top_k,
+            no_negation_guard,
+            max_ram_mib,
+            json,
+        } => run_hybrid_eval(
+            &workspace,
+            &suite,
+            model_vectors.as_deref(),
+            alpha,
+            pool,
+            top_k,
+            !no_negation_guard,
+            max_ram_mib,
+            json,
+        ),
+    }
+}
+
+#[cfg(not(feature = "hybrid-rerank"))]
+#[allow(clippy::too_many_arguments)]
+fn run_hybrid_eval(
+    _workspace: &std::path::Path,
+    _suite: &std::path::Path,
+    _model_vectors: Option<&std::path::Path>,
+    _alpha: f64,
+    _pool: usize,
+    _top_k: usize,
+    _negation_guard: bool,
+    _max_ram_mib: usize,
+    _json: bool,
+) {
+    eprintln!(
+        "error: '2brain experiment hybrid-eval' requires building with `--features hybrid-rerank` (U14 optional experiment arm is disabled in default serving builds)"
+    );
+    std::process::exit(2);
+}
+
+#[cfg(feature = "hybrid-rerank")]
+#[allow(clippy::too_many_arguments)]
+fn run_hybrid_eval(
+    workspace: &std::path::Path,
+    suite: &std::path::Path,
+    model_vectors: Option<&std::path::Path>,
+    alpha: f64,
+    pool: usize,
+    top_k: usize,
+    negation_guard: bool,
+    max_ram_mib: usize,
+    as_json: bool,
+) {
+    use tb_search::hybrid::{
+        HybridDocVectors, HybridRerankConfig, StaticEmbeddingModel, rerank_hits,
+    };
+
+    #[derive(serde::Deserialize)]
+    struct HybridSuite {
+        experiment_id: String,
+        rollback_ref: String,
+        #[serde(default = "default_h_tasks")]
+        min_tasks: usize,
+        #[serde(default = "default_h_fams")]
+        min_families: usize,
+        #[serde(default)]
+        min_utility_gain: f64,
+        #[serde(default = "default_h_overhead")]
+        max_token_overhead_ratio: f64,
+        #[serde(default)]
+        synonym_clusters: Vec<Vec<String>>,
+        tasks: Vec<HybridTask>,
+    }
+    #[derive(serde::Deserialize)]
+    struct HybridTask {
+        task_id: String,
+        family: String,
+        query: String,
+        expected_paths: Vec<String>,
+        #[serde(default)]
+        forbidden_top1_paths: Vec<String>,
+        #[serde(default = "default_h_budget")]
+        budget_cap_tokens: u64,
+    }
+    #[derive(serde::Deserialize)]
+    struct ModelVectorsJson {
+        dim: usize,
+        vectors: std::collections::BTreeMap<String, Vec<f32>>,
+        #[serde(default = "default_true")]
+        use_char_ngram_fallback: bool,
+    }
+    fn default_h_tasks() -> usize {
+        4
+    }
+    fn default_h_fams() -> usize {
+        2
+    }
+    fn default_h_overhead() -> f64 {
+        1.15
+    }
+    fn default_h_budget() -> u64 {
+        4000
+    }
+    fn default_true() -> bool {
+        true
+    }
+
+    let (_, snap) = match tb_fs_git::load_snapshot(workspace) {
+        Ok(pair) => pair,
+        Err(err) => {
+            eprintln!("error loading workspace '{}': {err}", workspace.display());
+            std::process::exit(1);
+        }
+    };
+    let suite_raw = match std::fs::read_to_string(suite) {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("error reading suite '{}': {err}", suite.display());
+            std::process::exit(2);
+        }
+    };
+    let parsed_suite: HybridSuite = match serde_json::from_str(&suite_raw) {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("error parsing hybrid suite JSON: {err}");
+            std::process::exit(2);
+        }
+    };
+
+    let max_ram_bytes = max_ram_mib.saturating_mul(1024 * 1024);
+    let model = if let Some(vec_path) = model_vectors {
+        let raw = match std::fs::read_to_string(vec_path) {
+            Ok(s) => s,
+            Err(err) => {
+                eprintln!(
+                    "error reading model vectors '{}': {err}",
+                    vec_path.display()
+                );
+                std::process::exit(2);
+            }
+        };
+        let mv: ModelVectorsJson = match serde_json::from_str(&raw) {
+            Ok(v) => v,
+            Err(err) => {
+                eprintln!("error parsing model vectors JSON: {err}");
+                std::process::exit(2);
+            }
+        };
+        match StaticEmbeddingModel::from_vectors(
+            mv.dim,
+            mv.vectors,
+            mv.use_char_ngram_fallback,
+            max_ram_bytes,
+        ) {
+            Ok(m) => m,
+            Err(err) => {
+                eprintln!("model validation error: {err}");
+                std::process::exit(2);
+            }
+        }
+    } else {
+        let cluster_refs: Vec<Vec<&str>> = parsed_suite
+            .synonym_clusters
+            .iter()
+            .map(|c| c.iter().map(String::as_str).collect())
+            .collect();
+        let slice_refs: Vec<&[&str]> = cluster_refs.iter().map(Vec::as_slice).collect();
+        StaticEmbeddingModel::deterministic_subword(128, &slice_refs)
+    };
+
+    let index_start = Instant::now();
+    let doc_vecs = match HybridDocVectors::build(
+        &model,
+        snap.files.iter().map(|(loc, f)| (loc.clone(), f.body())),
+        max_ram_bytes,
+    ) {
+        Ok(dv) => dv,
+        Err(err) => {
+            eprintln!("hybrid RAM budget exceeded: {err}");
+            std::process::exit(1);
+        }
+    };
+    let vector_build_ms = index_start.elapsed().as_secs_f64() * 1000.0;
+    let total_ram_bytes = model.estimated_ram_bytes() + doc_vecs.estimated_ram_bytes();
+
+    let cfg = HybridRerankConfig {
+        alpha,
+        candidate_pool: pool,
+        negation_guard,
+        max_ram_bytes,
+    };
+    let k = top_k.max(1);
+
+    let mut outcomes = Vec::with_capacity(parsed_suite.tasks.len());
+    let mut base_total_us = 0.0f64;
+    let mut cand_total_us = 0.0f64;
+
+    for task in &parsed_suite.tasks {
+        let t0 = Instant::now();
+        let base_hits = snap.search.query(&task.query, false, None, None, k);
+        base_total_us += t0.elapsed().as_secs_f64() * 1_000_000.0;
+
+        let t1 = Instant::now();
+        // Use the exact same `min_should_match` as baseline so `alpha=0.0` is an exact
+        // identity and paired G5 evaluation is unconfounded.
+        let pool_hits =
+            snap.search
+                .query(&task.query, false, None, None, cfg.candidate_pool.max(k));
+        let cand_hits = rerank_hits(&task.query, &pool_hits, &model, &doc_vecs, &cfg, k);
+        cand_total_us += t1.elapsed().as_secs_f64() * 1_000_000.0;
+
+        let eval_hits = |hits: &[tb_search::SearchHit]| -> (bool, bool, f64, u64) {
+            let mut best_rr = 0.0f64;
+            for (rank, h) in hits.iter().enumerate() {
+                if task.expected_paths.iter().any(|p| p == &h.locator.path) {
+                    best_rr = 1.0 / ((rank + 1) as f64);
+                    break;
+                }
+            }
+            let fulfilled = best_rr > 0.0;
+            let crit = hits.first().is_some_and(|top| {
+                task.forbidden_top1_paths
+                    .iter()
+                    .any(|f| f == &top.locator.path)
+            });
+            let tokens = 80u64 + (hits.len() as u64) * 120;
+            (fulfilled, crit, best_rr, tokens)
+        };
+
+        let (b_ok, b_crit, b_rr, b_tok) = eval_hits(&base_hits);
+        let (c_ok, c_crit, c_rr, c_tok) = eval_hits(&cand_hits);
+        outcomes.push(tb_cognition::PairedTaskOutcome {
+            task_id: task.task_id.clone(),
+            family: task.family.clone(),
+            budget_cap_tokens: task.budget_cap_tokens,
+            baseline_fulfilled: b_ok,
+            candidate_fulfilled: c_ok,
+            baseline_critical_violation: b_crit,
+            candidate_critical_violation: c_crit,
+            baseline_rank_score: b_rr,
+            candidate_rank_score: c_rr,
+            baseline_tokens: b_tok,
+            candidate_tokens: c_tok,
+        });
+    }
+
+    let policy = tb_cognition::ExperimentPolicy {
+        experiment_id: parsed_suite.experiment_id,
+        arm_name: format!(
+            "hybrid-rerank(dim={},alpha={alpha:.2},neg_guard={negation_guard})",
+            model.dim()
+        ),
+        rollback_ref: parsed_suite.rollback_ref,
+        min_tasks: parsed_suite.min_tasks,
+        min_families: parsed_suite.min_families,
+        min_utility_gain: parsed_suite.min_utility_gain,
+        max_token_overhead_ratio: parsed_suite.max_token_overhead_ratio,
+        min_null_z_score: None,
+    };
+    let evaluation = tb_cognition::evaluate_paired_experiment(&policy, &outcomes, None);
+
+    if as_json {
+        let payload = serde_json::json!({
+            "feature": "hybrid-rerank",
+            "dim": model.dim(),
+            "vocab_len": model.vocab_len(),
+            "docs_indexed": doc_vecs.len(),
+            "vector_build_ms": vector_build_ms,
+            "estimated_ram_bytes": total_ram_bytes,
+            "max_ram_bytes": max_ram_bytes,
+            "baseline_mean_query_us": base_total_us / (parsed_suite.tasks.len().max(1) as f64),
+            "candidate_mean_query_us": cand_total_us / (parsed_suite.tasks.len().max(1) as f64),
+            "policy": policy,
+            "outcomes": outcomes,
+            "evaluation": evaluation,
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&payload).expect("json serialization")
+        );
+    } else {
+        println!(
+            "hybrid-eval arm='{}' verdict={:?} tasks={} ram_kb={:.1} build_ms={:.2} base_rate={:?} cand_rate={:?} base_mrr={:?} cand_mrr={:?}",
+            evaluation.arm_name,
+            evaluation.verdict,
+            evaluation.task_count,
+            (total_ram_bytes as f64) / 1024.0,
+            vector_build_ms,
+            evaluation.baseline_fulfillment_rate,
+            evaluation.candidate_fulfillment_rate,
+            evaluation.baseline_mean_rank,
+            evaluation.candidate_mean_rank
+        );
+        for note in &evaluation.notes {
+            println!("  note: {note}");
+        }
     }
 }
 
@@ -1760,8 +2096,11 @@ fn run_mcp_in_process(
     let app = Arc::new(App::with_outcomes(store, snapshot, outcomes));
     let disp: Arc<dyn AppDispatcher> = Arc::clone(&app) as Arc<dyn AppDispatcher>;
     let task_store: Arc<dyn TaskStorePort> = Arc::new(FileTaskStore::for_workspace(&canonical));
+    let resource_hub = ResourceUpdateHub::new();
     let server = match TwoBrainMcp::try_new_with_audit(disp, policy, audit) {
-        Ok(s) => s.with_task_store(task_store),
+        Ok(s) => s
+            .with_task_store(task_store)
+            .with_resource_updates(resource_hub.clone()),
         Err(err) => {
             eprintln!("mcp init error: {err}");
             std::process::exit(1);
@@ -1769,7 +2108,8 @@ fn run_mcp_in_process(
     };
     let runtime = build_runtime();
     let result = runtime.block_on(async move {
-        let (_watcher, refresh_task) = spawn_watcher(canonical, Arc::clone(&app));
+        let (_watcher, refresh_task) =
+            spawn_watcher(canonical, Arc::clone(&app), Some(resource_hub));
         let res = match http_cfg {
             Some(cfg) => server.serve_http(cfg).await,
             None => server.serve_stdio().await,
@@ -1825,9 +2165,30 @@ fn is_relevant_watch_path(path: &std::path::Path) -> bool {
         || path.is_dir()
 }
 
+fn diff_changed_locators(
+    prev: &tb_app::VaultSnapshot,
+    fresh: &tb_app::VaultSnapshot,
+) -> Vec<tb_contracts::Locator> {
+    let mut changed = Vec::new();
+    for (loc, f_new) in &fresh.files {
+        match prev.files.get(loc) {
+            Some(f_old) if f_old.sha256 == f_new.sha256 => {}
+            _ => changed.push(loc.clone()),
+        }
+    }
+    for loc in prev.files.keys() {
+        if !fresh.files.contains_key(loc) {
+            changed.push(loc.clone());
+        }
+    }
+    changed.sort();
+    changed
+}
+
 fn spawn_watcher(
     watch_root: PathBuf,
     app: Arc<App<tb_fs_git::FsWorkspaceStore>>,
+    resource_hub: Option<ResourceUpdateHub>,
 ) -> (
     Option<notify::RecommendedWatcher>,
     tokio::task::JoinHandle<()>,
@@ -1883,6 +2244,7 @@ fn spawn_watcher(
             // scan sets the flag again and re-notifies `wake` for a follow-up full pass.
             let force_full = overflowed.swap(false, Ordering::SeqCst);
             let prev = app.snapshot();
+            let prev_for_diff = Arc::clone(&prev);
             let next_gen = prev.generation.next();
             let root_clone = watch_root.clone();
             let res = tokio::task::spawn_blocking(move || {
@@ -1894,7 +2256,17 @@ fn spawn_watcher(
             })
             .await;
             if let Ok(Ok(fresh)) = res {
+                let updated_locs = if resource_hub.is_some() {
+                    diff_changed_locators(&prev_for_diff, &fresh)
+                } else {
+                    Vec::new()
+                };
                 app.swap_snapshot(fresh);
+                if let Some(ref hub) = resource_hub {
+                    for loc in &updated_locs {
+                        hub.notify_locator(loc);
+                    }
+                }
             }
         }
     });
@@ -1933,5 +2305,43 @@ mod tests {
         assert!(is_mutating_fs_event(&EventKind::Access(AccessKind::Close(
             AccessMode::Write
         ))));
+    }
+
+    #[test]
+    fn diff_changed_locators_detects_added_modified_and_removed_notes() {
+        let make_indexed = |path: &str, body: &str| {
+            let loc = tb_contracts::Locator::new("vault", path).unwrap();
+            let doc = tb_syntax::parse_document(body.as_bytes()).unwrap();
+            (
+                loc.clone(),
+                tb_app::IndexedFile {
+                    locator: loc,
+                    sha256: tb_contracts::RevisionDigest::of_bytes(body.as_bytes()),
+                    short_hash: "1111222233334444".to_owned(),
+                    size_bytes: body.len(),
+                    raw_text: body.to_owned(),
+                    doc,
+                    description: None,
+                    declared_type: None,
+                },
+            )
+        };
+        let mut prev = tb_app::VaultSnapshot::empty();
+        let (la, fa) = make_indexed("a.md", "unchanged");
+        let (lb, fb) = make_indexed("b.md", "v1");
+        let (lc, fc) = make_indexed("c.md", "removed");
+        prev.files.insert(la.clone(), fa.clone());
+        prev.files.insert(lb.clone(), fb);
+        prev.files.insert(lc.clone(), fc);
+
+        let mut fresh = tb_app::VaultSnapshot::empty();
+        let (_, fb2) = make_indexed("b.md", "v2");
+        let (ld, fd) = make_indexed("d.md", "added");
+        fresh.files.insert(la, fa);
+        fresh.files.insert(lb.clone(), fb2);
+        fresh.files.insert(ld.clone(), fd);
+
+        let diff = diff_changed_locators(&prev, &fresh);
+        assert_eq!(diff, vec![lb, lc, ld]);
     }
 }

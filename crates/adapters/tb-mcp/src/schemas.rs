@@ -461,7 +461,7 @@ pub fn full_schema_for(name: &str) -> Arc<Map<String, Value>> {
             "properties": {
                 "content": { "type": "string", "description": "Inline UTF-8 payload to convert and ingest (max 2 MiB)" },
                 "stem": { "type": "string", "description": "Base filename stem or title used to derive target slug" },
-                "format": { "type": "string", "enum": ["md", "txt", "html", "csv", "json", "jsonl"], "default": "md" },
+                "format": { "type": "string", "enum": ["md", "txt", "html", "csv", "json", "jsonl", "error-fix"], "default": "md" },
                 "dest": { "type": "string", "default": "inbox", "description": "Destination folder inside target repo" },
                 "repo": { "type": "string", "description": "Target member repo (required when refresh=true)" },
                 "type": { "type": "string", "description": "Default frontmatter type when source omits one" },

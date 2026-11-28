@@ -4,9 +4,10 @@
 //! `read_receipt` fail-closed SEM-02 write gate.
 
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub mod http;
@@ -19,13 +20,15 @@ use rmcp::model::{
     ContentBlock, CreateTaskResult, ElicitRequest, ElicitRequestParams, ElicitationSchema,
     GetPromptRequestParams, GetPromptResponse, GetPromptResult, GetSkillRequestParams,
     GetSkillResult, GetTaskParams, GetTaskResult, Implementation, InputRequest, ListPromptsResult,
-    ListResourcesResult, ListSkillsResult, ListToolsResult, PaginatedRequestParams, Prompt,
-    PromptArgument, PromptMessage, ProtocolVersion, ReadResourceDirectoryRequestParams,
-    ReadResourceDirectoryResult, ReadResourceRequestParams, ReadResourceResponse,
-    ReadResourceResult, Resource, ResourceContents, Role, ServerCapabilities, ServerConfig, Skill,
-    SkillFrontmatter, SkillResource, SkillResources, Tool, UpdateTaskParams,
+    ListResourceTemplatesResult, ListResourcesResult, ListSkillsResult, ListToolsResult,
+    PaginatedRequestParams, Prompt, PromptArgument, PromptMessage, ProtocolVersion,
+    ReadResourceDirectoryRequestParams, ReadResourceDirectoryResult, ReadResourceRequestParams,
+    ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ResourceTemplate,
+    ResourceUpdatedNotificationParam, Role, ServerCapabilities, ServerConfig, Skill,
+    SkillFrontmatter, SkillResource, SkillResources, SubscribeRequestParams, SubscriptionFilter,
+    Tool, UnsubscribeRequestParams, UpdateTaskParams,
 };
-use rmcp::service::RequestContext;
+use rmcp::service::{Peer, RequestContext, SubscriptionContext};
 use rmcp::task_manager::{TaskExit, TaskManager, TaskOptions};
 use rmcp::{ErrorData as McpError, RoleServer, ServerHandler, ServiceExt};
 use serde_json::{Map, Value, json};
@@ -34,10 +37,11 @@ use tb_app::{
     AppDispatcher, AppError, Postcondition, ProcedureSpec, ProcedureStep, TaskScopeGuard,
     TaskStorePort, VaultSnapshot,
 };
-use tb_contracts::TaskPacket;
+use tb_contracts::{Locator, TaskPacket};
 use tb_skills::SkillCatalog;
 use thiserror::Error;
-use tokio::sync::Semaphore;
+use tokio::sync::{Semaphore, broadcast};
+use tokio_util::sync::{CancellationToken, DropGuard};
 
 /// Protocol versions supported: MCP 2.0 stateless (`2026-07-28`) plus legacy handshakes.
 const SUPPORTED_PROTOCOL_VERSIONS: &[ProtocolVersion] = &[
@@ -52,6 +56,92 @@ const SERVER_INSTRUCTIONS: &str = "Read-only access to a 2brain v2 workspace (MI
 
 const READ_RECEIPT_TTL_SECS: u64 = 900;
 const MAX_CONCURRENT_TASKS: usize = 8;
+const MAX_RESOURCE_SUBSCRIPTIONS: usize = 1024;
+const RESOURCE_EVENT_BUFFER: usize = 256;
+
+/// Broadcast hub connecting workspace watchers and mutations to MCP resource subscribers
+/// (`resources/subscribe` and MCP 2.0 `subscriptions/listen` -> `notifications/resources/updated`).
+#[derive(Clone, Debug)]
+pub struct ResourceUpdateHub {
+    tx: broadcast::Sender<String>,
+}
+
+impl Default for ResourceUpdateHub {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ResourceUpdateHub {
+    #[must_use]
+    pub fn new() -> Self {
+        let (tx, _rx) = broadcast::channel(RESOURCE_EVENT_BUFFER);
+        Self { tx }
+    }
+
+    /// Publish an updated resource URI (`2brain://<repo>/<path>`).
+    pub fn notify_uri(&self, uri: impl Into<String>) {
+        let _ = self.tx.send(uri.into());
+    }
+
+    /// Publish an updated workspace note locator as `2brain://<repo>/<path>`.
+    pub fn notify_locator(&self, locator: &Locator) {
+        self.notify_uri(note_resource_uri(locator));
+    }
+
+    #[must_use]
+    pub fn subscribe(&self) -> broadcast::Receiver<String> {
+        self.tx.subscribe()
+    }
+}
+
+/// Format a workspace [`Locator`] as its canonical MCP resource URI (`2brain://<repo>/<path>`).
+#[must_use]
+pub fn note_resource_uri(locator: &Locator) -> String {
+    format!("2brain://{}/{}", locator.repo, locator.path)
+}
+
+/// Parse and validate a `2brain://<repo>/<path>` resource URI into a canonical [`Locator`].
+pub fn parse_note_resource_uri(uri: &str) -> Result<Locator, String> {
+    let rest = uri
+        .strip_prefix("2brain://")
+        .ok_or_else(|| format!("unsupported resource URI scheme in '{uri}'"))?;
+    let (repo, path) = rest.split_once('/').ok_or_else(|| {
+        format!("malformed resource URI '{uri}' (expected 2brain://<repo>/<path>)")
+    })?;
+    if repo == "workflow" {
+        return Err(format!(
+            "'{uri}' is a static workflow resource, not a subscribable note"
+        ));
+    }
+    Locator::new(repo, path).map_err(|e| format!("invalid resource URI '{uri}': {e}"))
+}
+
+#[derive(Default)]
+struct LegacySubscriptionStore {
+    /// Session-scoped URI -> subscribed server peer.
+    by_uri: HashMap<String, Peer<RoleServer>>,
+}
+
+impl LegacySubscriptionStore {
+    fn add(&mut self, uri: String, peer: Peer<RoleServer>) -> Result<(), String> {
+        if !self.by_uri.contains_key(&uri) && self.by_uri.len() >= MAX_RESOURCE_SUBSCRIPTIONS {
+            return Err(format!(
+                "policy/subscription_quota: at most {MAX_RESOURCE_SUBSCRIPTIONS} active resource subscriptions permitted"
+            ));
+        }
+        self.by_uri.insert(uri, peer);
+        Ok(())
+    }
+
+    fn remove(&mut self, uri: &str) {
+        self.by_uri.remove(uri);
+    }
+
+    fn peer_for(&self, uri: &str) -> Option<Peer<RoleServer>> {
+        self.by_uri.get(uri).cloned()
+    }
+}
 
 fn is_mutating_tool(name: &str) -> bool {
     matches!(
@@ -353,6 +443,11 @@ pub struct TwoBrainMcp {
     task_slots: Arc<Semaphore>,
     audit: Option<Arc<dyn AuditRecorder>>,
     task_store: Option<Arc<dyn TaskStorePort>>,
+    resource_updates: Option<ResourceUpdateHub>,
+    legacy_subscriptions: Arc<Mutex<LegacySubscriptionStore>>,
+    legacy_fanout_started: Arc<AtomicBool>,
+    session_cancel: CancellationToken,
+    _session_guard: Arc<DropGuard>,
 }
 
 impl TwoBrainMcp {
@@ -370,6 +465,8 @@ impl TwoBrainMcp {
     ) -> Result<Self, McpServerError> {
         let tools = Arc::new(build_tool_catalog(&policy));
         let signer = ReceiptSigner::try_ephemeral()?;
+        let session_cancel = CancellationToken::new();
+        let session_guard = Arc::new(session_cancel.clone().drop_guard());
         Ok(Self {
             dispatcher,
             policy,
@@ -380,6 +477,11 @@ impl TwoBrainMcp {
             task_slots: Arc::new(Semaphore::new(MAX_CONCURRENT_TASKS)),
             audit,
             task_store: None,
+            resource_updates: None,
+            legacy_subscriptions: Arc::new(Mutex::new(LegacySubscriptionStore::default())),
+            legacy_fanout_started: Arc::new(AtomicBool::new(false)),
+            session_cancel,
+            _session_guard: session_guard,
         })
     }
 
@@ -388,6 +490,108 @@ impl TwoBrainMcp {
     pub fn with_task_store(mut self, task_store: Arc<dyn TaskStorePort>) -> Self {
         self.task_store = Some(task_store);
         self
+    }
+
+    /// Attach a [`ResourceUpdateHub`] so filesystem watchers and mutations push
+    /// `notifications/resources/updated` to subscribed MCP clients.
+    #[must_use]
+    pub fn with_resource_updates(mut self, hub: ResourceUpdateHub) -> Self {
+        self.resource_updates = Some(hub);
+        self
+    }
+
+    /// Create a session-isolated clone sharing dispatcher/policy/hub while giving each
+    /// HTTP session its own `LegacySubscriptionStore`, `CancellationToken`, and fan-out lifecycle.
+    #[must_use]
+    pub fn for_session(&self) -> Self {
+        let session_cancel = CancellationToken::new();
+        let session_guard = Arc::new(session_cancel.clone().drop_guard());
+        let mut cloned = self.clone();
+        cloned.legacy_subscriptions = Arc::new(Mutex::new(LegacySubscriptionStore::default()));
+        cloned.legacy_fanout_started = Arc::new(AtomicBool::new(false));
+        cloned.session_cancel = session_cancel;
+        cloned._session_guard = session_guard;
+        cloned
+    }
+
+    fn ensure_legacy_fanout_running(&self) {
+        let Some(ref hub) = self.resource_updates else {
+            return;
+        };
+        if self.legacy_fanout_started.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        let mut rx = hub.subscribe();
+        let weak_subs: Weak<Mutex<LegacySubscriptionStore>> =
+            Arc::downgrade(&self.legacy_subscriptions);
+        let cancel = self.session_cancel.clone();
+        let egress = self.policy.egress.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    () = cancel.cancelled() => break,
+                    recv = rx.recv() => match recv {
+                        Ok(uri) => {
+                            // Defense-in-depth: never emit notifications for a revoked repository.
+                            if let Some(ref pol) = egress {
+                                if pol.is_egress_blocked() {
+                                    continue;
+                                }
+                                if let Ok(loc) = parse_note_resource_uri(&uri)
+                                    && pol.is_repo_revoked(&loc.repo)
+                                {
+                                    continue;
+                                }
+                            }
+                            let Some(subs) = weak_subs.upgrade() else {
+                                break;
+                            };
+                            let peer = subs.lock().ok().and_then(|s| s.peer_for(&uri));
+                            let Some(peer) = peer else {
+                                continue;
+                            };
+                            if peer
+                                .notify_resource_updated(ResourceUpdatedNotificationParam::new(
+                                    uri.clone(),
+                                ))
+                                .await
+                                .is_err()
+                                && let Ok(mut guard) = subs.lock()
+                            {
+                                guard.remove(&uri);
+                            }
+                        }
+                        Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+            }
+        });
+    }
+
+    fn notify_mutated_uri_if_needed(
+        &self,
+        name: &str,
+        args: &Map<String, Value>,
+        res: &CallToolResult,
+    ) {
+        if res.is_error == Some(true) || !is_mutating_tool(name) {
+            return;
+        }
+        let Some(ref hub) = self.resource_updates else {
+            return;
+        };
+        if let (Some(repo), Some(path)) = (opt_str(args, "repo"), opt_str(args, "path"))
+            && let Ok(loc) = Locator::new(repo, path)
+        {
+            hub.notify_locator(&loc);
+        }
+        if name == "tb_rename"
+            && let (Some(repo), Some(new_path)) = (opt_str(args, "repo"), opt_str(args, "new_path"))
+            && let Ok(loc) = Locator::new(repo, new_path)
+        {
+            hub.notify_locator(&loc);
+        }
     }
 
     #[must_use]
@@ -675,6 +879,7 @@ impl TwoBrainMcp {
                 eprintln!("2brain audit log write error: {audit_err}");
             }
         }
+        self.notify_mutated_uri_if_needed(name, args, &res);
         self.apply_payload_mode(res)
     }
 
@@ -1288,10 +1493,16 @@ impl TwoBrainMcp {
 
 impl ServerHandler for TwoBrainMcp {
     fn get_info(&self) -> ServerConfig {
-        let capabilities = ServerCapabilities::builder()
+        let base = ServerCapabilities::builder()
             .enable_tools()
             .enable_prompts()
-            .enable_resources()
+            .enable_resources();
+        let with_sub = if self.resource_updates.is_some() {
+            base.enable_resources_subscribe()
+        } else {
+            base
+        };
+        let capabilities = with_sub
             .enable_skills_with_directory_read()
             .enable_tasks()
             .build();
@@ -1530,6 +1741,20 @@ impl ServerHandler for TwoBrainMcp {
         Ok(ListResourcesResult::with_all_items(resources))
     }
 
+    async fn list_resource_templates(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourceTemplatesResult, McpError> {
+        self.require_egress_allowed()?;
+        let tmpl = ResourceTemplate::new("2brain://{repo}/{path}", "Workspace note")
+            .with_mime_type("text/markdown")
+            .with_description(
+                "Subscribable typed Markdown note inside a 2brain workspace member repository",
+            );
+        Ok(ListResourceTemplatesResult::with_all_items(vec![tmpl]))
+    }
+
     async fn read_resource(
         &self,
         request: ReadResourceRequestParams,
@@ -1553,6 +1778,40 @@ impl ServerHandler for TwoBrainMcp {
                 ],
             )));
         }
+        if uri.starts_with("2brain://") {
+            let loc =
+                parse_note_resource_uri(uri).map_err(|e| McpError::invalid_params(e, None))?;
+            if let Some(ref egress) = self.policy.egress
+                && egress.is_repo_revoked(&loc.repo)
+            {
+                return Err(McpError::invalid_request(
+                    format!(
+                        "policy/revoked: access to repository '{}' is revoked by launch policy",
+                        loc.repo
+                    ),
+                    None,
+                ));
+            }
+            let args = json!({ "repo": loc.repo, "path": loc.path })
+                .as_object()
+                .expect("object")
+                .clone();
+            let val = self
+                .dispatcher
+                .call_read("content", &args)
+                .map_err(|e| match e {
+                    AppError::NotFound(msg) => McpError::resource_not_found(msg, None),
+                    other => McpError::internal_error(other.to_string(), None),
+                })?;
+            let text = val
+                .get("content")
+                .and_then(|c| c.get("text"))
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            return Ok(ReadResourceResponse::Complete(ReadResourceResult::new(
+                vec![ResourceContents::text(text, uri).with_mime_type("text/markdown")],
+            )));
+        }
         if uri.starts_with("skill://") {
             let catalog = self.skill_catalog();
             if let Some(sf) = catalog.read_file(uri) {
@@ -1571,6 +1830,146 @@ impl ServerHandler for TwoBrainMcp {
             format!("unknown resource '{uri}'"),
             None,
         ))
+    }
+
+    fn accepted_subscription_filter(
+        &self,
+        requested: &SubscriptionFilter,
+    ) -> Option<SubscriptionFilter> {
+        // Fail closed when no live watcher hub is attached or external egress is blocked.
+        self.resource_updates.as_ref()?;
+        if let Some(ref egress) = self.policy.egress
+            && egress.is_egress_blocked()
+        {
+            return None;
+        }
+        let mut accepted_uris = Vec::new();
+        if let Some(ref uris) = requested.resource_subscriptions {
+            for uri in uris {
+                let Ok(loc) = parse_note_resource_uri(uri) else {
+                    continue;
+                };
+                if let Some(ref egress) = self.policy.egress
+                    && egress.is_repo_revoked(&loc.repo)
+                {
+                    continue;
+                }
+                if accepted_uris.len() < MAX_RESOURCE_SUBSCRIPTIONS && !accepted_uris.contains(uri)
+                {
+                    accepted_uris.push(uri.clone());
+                }
+            }
+        }
+        let mut filter = SubscriptionFilter::new();
+        if !accepted_uris.is_empty() {
+            filter.resource_subscriptions = Some(accepted_uris);
+        }
+        Some(filter)
+    }
+
+    async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
+        self.require_egress_allowed()?;
+        let Some(ref hub) = self.resource_updates else {
+            return Err(McpError::invalid_request(
+                "subscriptions/listen is unavailable without an active workspace watcher",
+                None,
+            ));
+        };
+        let accepted: HashSet<String> = context
+            .accepted()
+            .resource_subscriptions
+            .clone()
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        if accepted.is_empty() {
+            context.cancelled().await;
+            return Ok(());
+        }
+        let mut rx = hub.subscribe();
+        loop {
+            tokio::select! {
+                () = context.cancelled() => break,
+                recv = rx.recv() => match recv {
+                    Ok(uri) => {
+                        if !accepted.contains(&uri) {
+                            continue;
+                        }
+                        if let Some(ref egress) = self.policy.egress {
+                            if egress.is_egress_blocked() {
+                                break;
+                            }
+                            if let Ok(loc) = parse_note_resource_uri(&uri)
+                                && egress.is_repo_revoked(&loc.repo)
+                            {
+                                continue;
+                            }
+                        }
+                        if context.sink().notify_resource_updated(uri).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[allow(deprecated)]
+    async fn subscribe(
+        &self,
+        request: SubscribeRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        self.require_egress_allowed()?;
+        if self.resource_updates.is_none() {
+            return Err(McpError::invalid_request(
+                "resources/subscribe is unavailable without an active workspace watcher",
+                None,
+            ));
+        }
+        let loc =
+            parse_note_resource_uri(&request.uri).map_err(|e| McpError::invalid_params(e, None))?;
+        if let Some(ref egress) = self.policy.egress
+            && egress.is_repo_revoked(&loc.repo)
+        {
+            return Err(McpError::invalid_request(
+                format!(
+                    "policy/revoked: subscription to repository '{}' is revoked by launch policy",
+                    loc.repo
+                ),
+                None,
+            ));
+        }
+        let canonical_uri = note_resource_uri(&loc);
+        {
+            let mut guard = self
+                .legacy_subscriptions
+                .lock()
+                .map_err(|_| McpError::internal_error("subscription registry poisoned", None))?;
+            guard
+                .add(canonical_uri, context.peer.clone())
+                .map_err(|e| McpError::invalid_request(e, None))?;
+        }
+        self.ensure_legacy_fanout_running();
+        Ok(())
+    }
+
+    #[allow(deprecated)]
+    async fn unsubscribe(
+        &self,
+        request: UnsubscribeRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        let key = parse_note_resource_uri(&request.uri)
+            .map(|loc| note_resource_uri(&loc))
+            .unwrap_or(request.uri);
+        if let Ok(mut guard) = self.legacy_subscriptions.lock() {
+            guard.remove(&key);
+        }
+        Ok(())
     }
 
     async fn list_skills(
@@ -2447,5 +2846,188 @@ mod tests {
             refused.structured_content.unwrap()["reason_code"],
             "launch_grant"
         );
+    }
+
+    #[test]
+    fn resource_subscriptions_parse_uris_advertise_capability_and_enforce_revocation() {
+        let app: Arc<dyn AppDispatcher> = Arc::new(App::new(DummyStore, VaultSnapshot::empty()));
+        let hub = ResourceUpdateHub::new();
+        let mut rx = hub.subscribe();
+
+        let srv = TwoBrainMcp::new(
+            app,
+            LaunchPolicy {
+                egress: Some(EgressPolicy {
+                    revoked_repos: vec!["secret".to_owned()],
+                    egress_destination: "local".to_owned(),
+                    allow_external_egress: false,
+                    ..EgressPolicy::default()
+                }),
+                ..LaunchPolicy::default()
+            },
+        )
+        .with_resource_updates(hub.clone());
+
+        // Capability advertises `resources.subscribe = true`.
+        let info = srv.get_info();
+        assert_eq!(
+            info.capabilities
+                .resources
+                .as_ref()
+                .and_then(|r| r.subscribe),
+            Some(true)
+        );
+
+        // URI parsing validates locators and rejects traversal / workflow static URIs.
+        let ok_loc = parse_note_resource_uri("2brain://vault/notes/a.md").unwrap();
+        assert_eq!(ok_loc.repo, "vault");
+        assert_eq!(ok_loc.path, "notes/a.md");
+        assert!(parse_note_resource_uri("2brain://vault/../etc/passwd").is_err());
+        assert!(parse_note_resource_uri("2brain://workflow/answer-shape").is_err());
+
+        // Subscription filter strips revoked repos and malformed URIs while keeping allowed ones.
+        let mut req = SubscriptionFilter::new();
+        req.resource_subscriptions = Some(vec![
+            "2brain://vault/notes/a.md".to_owned(),
+            "2brain://secret/private.md".to_owned(),
+            "2brain://vault/../escape.md".to_owned(),
+        ]);
+        let accepted = srv.accepted_subscription_filter(&req).unwrap();
+        assert_eq!(
+            accepted.resource_subscriptions,
+            Some(vec!["2brain://vault/notes/a.md".to_owned()])
+        );
+
+        // Broadcast hub delivers canonical `2brain://<repo>/<path>` URI updates.
+        hub.notify_locator(&ok_loc);
+        assert_eq!(rx.try_recv().unwrap(), "2brain://vault/notes/a.md");
+
+        // Without an attached watcher hub, `resources.subscribe` is NOT advertised and
+        // `accepted_subscription_filter` fails closed with `None`.
+        let no_hub = TwoBrainMcp::new(
+            Arc::new(App::new(DummyStore, VaultSnapshot::empty())),
+            LaunchPolicy::default(),
+        );
+        assert_ne!(
+            no_hub
+                .get_info()
+                .capabilities
+                .resources
+                .as_ref()
+                .and_then(|r| r.subscribe),
+            Some(true)
+        );
+        assert!(no_hub.accepted_subscription_filter(&req).is_none());
+
+        // Blocked external egress also fails closed (`None`).
+        let blocked = TwoBrainMcp::new(
+            Arc::new(App::new(DummyStore, VaultSnapshot::empty())),
+            LaunchPolicy {
+                egress: Some(EgressPolicy {
+                    egress_destination: "cloud-llm".to_owned(),
+                    allow_external_egress: false,
+                    ..EgressPolicy::default()
+                }),
+                ..LaunchPolicy::default()
+            },
+        )
+        .with_resource_updates(hub);
+        assert!(blocked.accepted_subscription_filter(&req).is_none());
+    }
+
+    #[tokio::test]
+    async fn resources_subscribe_pushes_notification_over_mcp_wire() {
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+        let app: Arc<dyn AppDispatcher> = Arc::new(App::new(DummyStore, VaultSnapshot::empty()));
+        let hub = ResourceUpdateHub::new();
+        let server =
+            TwoBrainMcp::new(app, LaunchPolicy::default()).with_resource_updates(hub.clone());
+
+        let (client_io, server_io) = tokio::io::duplex(16 * 1024);
+        let server_task = tokio::spawn(async move {
+            let running = server.serve(server_io).await.expect("serve duplex");
+            let _ = running.waiting().await;
+        });
+
+        let (client_read, mut client_write) = tokio::io::split(client_io);
+        let mut lines = BufReader::new(client_read).lines();
+
+        // 1. Legacy 2025-11-25 initialize handshake + initialized notification.
+        let init_req = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-11-25",
+                "capabilities": {},
+                "clientInfo": { "name": "sub-test", "version": "1.0" }
+            }
+        });
+        client_write
+            .write_all(format!("{init_req}\n").as_bytes())
+            .await
+            .unwrap();
+        let init_resp = lines.next_line().await.unwrap().unwrap();
+        assert!(
+            init_resp.contains("\"subscribe\":true"),
+            "init: {init_resp}"
+        );
+
+        let inited = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+        });
+        client_write
+            .write_all(format!("{inited}\n").as_bytes())
+            .await
+            .unwrap();
+
+        // 2. Subscribe to `2brain://vault/notes/live.md`.
+        let sub_req = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "resources/subscribe",
+            "params": { "uri": "2brain://vault/notes/live.md" }
+        });
+        client_write
+            .write_all(format!("{sub_req}\n").as_bytes())
+            .await
+            .unwrap();
+        let sub_resp = lines.next_line().await.unwrap().unwrap();
+        assert!(sub_resp.contains("\"id\":2"), "sub resp: {sub_resp}");
+
+        // Yield once so background fanout task is actively awaiting the broadcast receiver.
+        tokio::task::yield_now().await;
+
+        // 3. Emit watcher update for an unsubscribed note (ignored) and the subscribed note (pushed).
+        hub.notify_locator(&Locator::new("vault", "notes/other.md").unwrap());
+        hub.notify_locator(&Locator::new("vault", "notes/live.md").unwrap());
+
+        let notif_line = tokio::time::timeout(std::time::Duration::from_secs(3), lines.next_line())
+            .await
+            .expect("timed out waiting for notifications/resources/updated")
+            .unwrap()
+            .unwrap();
+        let notif: Value = serde_json::from_str(&notif_line).unwrap();
+        assert_eq!(notif["method"], "notifications/resources/updated");
+        assert_eq!(notif["params"]["uri"], "2brain://vault/notes/live.md");
+
+        // 4. Unsubscribe cleanly.
+        let unsub_req = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "resources/unsubscribe",
+            "params": { "uri": "2brain://vault/notes/live.md" }
+        });
+        client_write
+            .write_all(format!("{unsub_req}\n").as_bytes())
+            .await
+            .unwrap();
+        let unsub_resp = lines.next_line().await.unwrap().unwrap();
+        assert!(unsub_resp.contains("\"id\":3"), "unsub resp: {unsub_resp}");
+
+        drop(client_write);
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(2), server_task).await;
     }
 }

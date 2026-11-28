@@ -145,6 +145,7 @@ pub enum IngestFormat {
     Csv,
     Json,
     Jsonl,
+    ErrorFix,
 }
 
 impl IngestFormat {
@@ -158,6 +159,7 @@ impl IngestFormat {
             "csv" => Some(Self::Csv),
             "json" => Some(Self::Json),
             "jsonl" | "ndjson" => Some(Self::Jsonl),
+            "errfix" => Some(Self::ErrorFix),
             _ => None,
         }
     }
@@ -172,6 +174,7 @@ impl IngestFormat {
             "csv" => Ok(Some(Self::Csv)),
             "json" => Ok(Some(Self::Json)),
             "jsonl" | "ndjson" => Ok(Some(Self::Jsonl)),
+            "error-fix" | "error_fix" | "errfix" => Ok(Some(Self::ErrorFix)),
             other => Err(IngestError::UnsupportedFormat(other.to_owned())),
         }
     }
@@ -179,7 +182,7 @@ impl IngestFormat {
 
 #[derive(Debug, Error)]
 pub enum IngestError {
-    #[error("unsupported ingest format '{0}' (expected auto|md|txt|html|csv|json|jsonl)")]
+    #[error("unsupported ingest format '{0}' (expected auto|md|txt|html|csv|json|jsonl|error-fix)")]
     UnsupportedFormat(String),
     #[error("source '{source_label}' contains invalid UTF-8 bytes (SEM-04)")]
     InvalidUtf8 { source_label: String },
@@ -403,6 +406,7 @@ pub fn convert_source(
             let refs: Vec<&Value> = parsed.iter().collect();
             convert_json_records(&refs, stem_hint, &dest, format, opts)
         }
+        IngestFormat::ErrorFix => convert_error_fix_source(&normalized, stem_hint, &dest, opts),
     }
 }
 
@@ -1465,6 +1469,504 @@ fn build_dedup_probe(body: &str, description: &str) -> String {
         .join(" ")
 }
 
+/// Normalize volatile log tokens (timestamps, hex addresses, PIDs, UUIDs, large numbers) so
+/// recurring occurrences of the same root failure collapse onto one deterministic signature.
+#[must_use]
+pub fn normalize_error_signature(raw: &str) -> String {
+    let mut tokens: Vec<String> = Vec::new();
+    for tok in raw.split_whitespace() {
+        let stripped = tok.trim_matches(|c: char| matches!(c, '[' | ']' | '(' | ')' | ',' | ';'));
+        if stripped.is_empty() {
+            continue;
+        }
+        if is_iso_timestamp_like(stripped) || is_clock_time(stripped) {
+            continue;
+        }
+        if stripped.starts_with("0x") || stripped.starts_with("0X") {
+            tokens.push("<hex>".to_owned());
+            continue;
+        }
+        if is_uuid_like(stripped) {
+            tokens.push("<uuid>".to_owned());
+            continue;
+        }
+        if let Some(prefix) = stripped
+            .strip_prefix("pid=")
+            .or_else(|| stripped.strip_prefix("PID="))
+            && prefix.chars().all(|c| c.is_ascii_digit())
+        {
+            tokens.push("pid=<n>".to_owned());
+            continue;
+        }
+        if stripped.len() >= 2 && stripped.chars().all(|c| c.is_ascii_digit()) {
+            tokens.push("<n>".to_owned());
+            continue;
+        }
+        tokens.push(stripped.to_ascii_lowercase());
+    }
+    let joined = tokens.join(" ");
+    truncate_chars(&joined, 180)
+}
+
+fn is_iso_timestamp_like(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() >= 10
+        && b[0..4].iter().all(u8::is_ascii_digit)
+        && b[4] == b'-'
+        && b[5..7].iter().all(u8::is_ascii_digit)
+        && b[7] == b'-'
+        && b[8..10].iter().all(u8::is_ascii_digit)
+}
+
+fn is_clock_time(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() >= 8
+        && b[0..2].iter().all(u8::is_ascii_digit)
+        && b[2] == b':'
+        && b[3..5].iter().all(u8::is_ascii_digit)
+        && b[5] == b':'
+        && b[6..8].iter().all(u8::is_ascii_digit)
+}
+
+fn is_uuid_like(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 36
+        && b[8] == b'-'
+        && b[13] == b'-'
+        && b[18] == b'-'
+        && b[23] == b'-'
+        && b.iter()
+            .enumerate()
+            .all(|(i, c)| matches!(i, 8 | 13 | 18 | 23) || c.is_ascii_hexdigit())
+}
+
+struct ErrorFixAtom {
+    title: String,
+    error_signature: String,
+    signature_hash: String,
+    symptom: String,
+    root_cause: String,
+    fix: String,
+    verification: String,
+    component: Option<String>,
+    occurrences: u64,
+    keywords: Vec<String>,
+    search_questions: Vec<String>,
+    links: Vec<String>,
+    slug_override: Option<String>,
+}
+
+fn convert_error_fix_source(
+    normalized: &str,
+    stem_hint: &str,
+    dest_dir: &str,
+    opts: &ConvertOptions,
+) -> Result<Vec<IngestDraft>, IngestError> {
+    let trimmed = normalized.trim();
+    let atoms = if trimmed.starts_with('{') || trimmed.starts_with('[') {
+        parse_structured_error_fix(trimmed, stem_hint, opts)?
+    } else {
+        extract_error_fix_from_log(trimmed, stem_hint)?
+    };
+    if atoms.is_empty() {
+        return Err(IngestError::EmptySource {
+            source_label: opts.source_label.clone(),
+        });
+    }
+
+    let mut drafts = Vec::with_capacity(atoms.len());
+    let mut used_paths: HashSet<String> = HashSet::new();
+    for (idx, atom) in atoms.into_iter().enumerate() {
+        let mut fm = BTreeMap::new();
+        fm.insert(
+            "type".to_owned(),
+            Value::String(
+                opts.default_type
+                    .clone()
+                    .unwrap_or_else(|| "error-fix".to_owned()),
+            ),
+        );
+        let desc = truncate_chars(
+            &format!("Error-fix atom for {}: {}", atom.title, atom.fix),
+            180,
+        );
+        fm.insert("description".to_owned(), Value::String(desc));
+        fm.insert("status".to_owned(), Value::String("current".to_owned()));
+        fm.insert("freshness".to_owned(), Value::String("durable".to_owned()));
+        fm.insert(
+            "error_signature".to_owned(),
+            Value::String(atom.error_signature.clone()),
+        );
+        fm.insert(
+            "signature_hash".to_owned(),
+            Value::String(atom.signature_hash.clone()),
+        );
+        fm.insert(
+            "occurrences".to_owned(),
+            Value::Number(serde_json::Number::from(atom.occurrences)),
+        );
+        if let Some(ref comp) = atom.component {
+            fm.insert("component".to_owned(), Value::String(comp.clone()));
+        }
+        if !opts.source_label.is_empty() {
+            fm.insert(
+                "source".to_owned(),
+                Value::String(opts.source_label.clone()),
+            );
+        }
+        if let Some(ref date) = opts.captured_date {
+            fm.insert("captured".to_owned(), Value::String(date.clone()));
+        }
+        if !atom.keywords.is_empty() {
+            fm.insert(
+                "keywords".to_owned(),
+                Value::Array(atom.keywords.into_iter().map(Value::String).collect()),
+            );
+        }
+        if !atom.search_questions.is_empty() {
+            fm.insert(
+                "search_questions".to_owned(),
+                Value::Array(
+                    atom.search_questions
+                        .into_iter()
+                        .map(Value::String)
+                        .collect(),
+                ),
+            );
+        }
+
+        let mut body = format!(
+            "# Error Fix: {}\n\n## Symptom\n\n{}\n\n## Root Cause\n\n{}\n\n## Fix\n\n{}\n\n## Verification\n\n{}",
+            atom.title, atom.symptom, atom.root_cause, atom.fix, atom.verification
+        );
+        if !atom.links.is_empty() {
+            body.push_str("\n\n## References\n\n");
+            for link in &atom.links {
+                if link.starts_with("[[") && link.ends_with("]]") {
+                    body.push_str("- ");
+                    body.push_str(link);
+                    body.push('\n');
+                } else {
+                    body.push_str("- [[");
+                    body.push_str(link);
+                    body.push_str("]]\n");
+                }
+            }
+        }
+
+        let slug_base = atom.slug_override.unwrap_or_else(|| {
+            format!(
+                "error-fix-{}-{}",
+                slugify(&atom.title),
+                &atom.signature_hash[..8]
+            )
+        });
+        let mut locator = build_target_locator(&opts.repo, dest_dir, &slug_base)?;
+        if !used_paths.insert(locator.path.clone()) {
+            let mut suffix = 2usize;
+            loop {
+                let candidate =
+                    build_target_locator(&opts.repo, dest_dir, &format!("{slug_base}-{suffix}"))?;
+                if used_paths.insert(candidate.path.clone()) {
+                    locator = candidate;
+                    break;
+                }
+                suffix += 1;
+            }
+        }
+        let content = render_note(&fm, &body);
+        drafts.push(IngestDraft {
+            locator,
+            source_label: format!("{}[{}]", opts.source_label, idx),
+            format: IngestFormat::ErrorFix,
+            content,
+        });
+    }
+    Ok(drafts)
+}
+
+fn parse_structured_error_fix(
+    trimmed: &str,
+    stem_hint: &str,
+    opts: &ConvertOptions,
+) -> Result<Vec<ErrorFixAtom>, IngestError> {
+    let values: Vec<Value> = if trimmed.starts_with('[') {
+        match serde_json::from_str::<Value>(trimmed) {
+            Ok(Value::Array(arr)) => arr,
+            Ok(_) => {
+                return Err(IngestError::InvalidJson {
+                    source_label: opts.source_label.clone(),
+                    reason: "expected JSON array of error-fix objects".to_owned(),
+                });
+            }
+            Err(err) => {
+                return Err(IngestError::InvalidJson {
+                    source_label: opts.source_label.clone(),
+                    reason: err.to_string(),
+                });
+            }
+        }
+    } else if let Ok(v) = serde_json::from_str::<Value>(trimmed) {
+        vec![v]
+    } else {
+        let mut parsed = Vec::new();
+        for (idx, line) in trimmed.lines().enumerate() {
+            let l = line.trim();
+            if l.is_empty() {
+                continue;
+            }
+            let v: Value = serde_json::from_str(l).map_err(|e| IngestError::InvalidJson {
+                source_label: format!("{}:{}", opts.source_label, idx + 1),
+                reason: e.to_string(),
+            })?;
+            parsed.push(v);
+        }
+        parsed
+    };
+
+    let mut by_sig: BTreeMap<String, ErrorFixAtom> = BTreeMap::new();
+    for (idx, val) in values.iter().enumerate() {
+        let Some(obj) = val.as_object() else {
+            return Err(IngestError::InvalidJson {
+                source_label: format!("{}[{}]", opts.source_label, idx),
+                reason: "each error-fix record must be a JSON object".to_owned(),
+            });
+        };
+        let get_str = |k: &str| {
+            obj.get(k)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+        };
+        let raw_sig = get_str("error_signature")
+            .or_else(|| get_str("error"))
+            .or_else(|| get_str("symptom"))
+            .ok_or_else(|| IngestError::InvalidJson {
+                source_label: format!("{}[{}]", opts.source_label, idx),
+                reason: "error-fix object requires 'error_signature', 'error', or 'symptom'"
+                    .to_owned(),
+            })?;
+        let norm_sig = normalize_error_signature(&raw_sig);
+        let sig_hash = tb_contracts::RevisionDigest::of_bytes(norm_sig.as_bytes()).to_hex();
+        let occ = obj
+            .get("occurrences")
+            .and_then(Value::as_u64)
+            .map_or(1, |n| n.max(1));
+
+        let str_list = |k: &str| -> Vec<String> {
+            obj.get(k)
+                .and_then(Value::as_array)
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(Value::as_str)
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+
+        if let Some(existing) = by_sig.get_mut(&sig_hash) {
+            existing.occurrences = existing.occurrences.saturating_add(occ);
+            if let Some(rc) = get_str("root_cause")
+                && existing
+                    .root_cause
+                    .starts_with("Investigated from recurring")
+            {
+                existing.root_cause = rc;
+            }
+            if let Some(fx) = get_str("fix").or_else(|| get_str("resolution"))
+                && existing.fix.starts_with("Document verified remediation")
+            {
+                existing.fix = fx;
+            }
+            if let Some(vf) = get_str("verification")
+                && existing.verification.starts_with("Re-run failing command")
+            {
+                existing.verification = vf;
+            }
+            for kw in str_list("keywords") {
+                if !existing
+                    .keywords
+                    .iter()
+                    .any(|k| k.eq_ignore_ascii_case(&kw))
+                {
+                    existing.keywords.push(kw);
+                }
+            }
+            for lnk in str_list("links") {
+                if !existing.links.contains(&lnk) {
+                    existing.links.push(lnk);
+                }
+            }
+            continue;
+        }
+
+        let title = get_str("title").unwrap_or_else(|| {
+            let short = truncate_chars(&raw_sig, 72);
+            if short.is_empty() {
+                humanize_stem(stem_hint)
+            } else {
+                short
+            }
+        });
+        let symptom = get_str("symptom").unwrap_or_else(|| format!("```\n{raw_sig}\n```"));
+        let root_cause = get_str("root_cause")
+            .unwrap_or_else(|| "Investigated from recurring log signature.".to_owned());
+        let fix = get_str("fix")
+            .or_else(|| get_str("resolution"))
+            .unwrap_or_else(|| {
+                "Document verified remediation steps before marking resolved.".to_owned()
+            });
+        let verification = get_str("verification").unwrap_or_else(|| {
+            "Re-run failing command/test and verify zero recurring error signatures.".to_owned()
+        });
+        let component = get_str("component");
+        let slug_override = get_str("slug");
+        let mut keywords = str_list("keywords");
+        if keywords.is_empty() {
+            keywords = distinct_terms(&norm_sig)
+                .into_iter()
+                .filter(|t| t.chars().count() >= 4)
+                .take(6)
+                .collect();
+        }
+        let mut search_questions = str_list("search_questions");
+        if search_questions.is_empty() {
+            search_questions.push(format!("How to fix {title}?"));
+        }
+        let links = str_list("links");
+
+        by_sig.insert(
+            sig_hash.clone(),
+            ErrorFixAtom {
+                title,
+                error_signature: norm_sig,
+                signature_hash: sig_hash,
+                symptom,
+                root_cause,
+                fix,
+                verification,
+                component,
+                occurrences: occ,
+                keywords,
+                search_questions,
+                links,
+                slug_override,
+            },
+        );
+    }
+    Ok(by_sig.into_values().collect())
+}
+
+fn is_error_log_line(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    lower.contains("error")
+        || lower.contains("panic")
+        || lower.contains("fatal")
+        || lower.contains("exception")
+        || lower.contains("failed:")
+        || lower.contains("err:")
+}
+
+fn extract_error_fix_from_log(
+    text: &str,
+    stem_hint: &str,
+) -> Result<Vec<ErrorFixAtom>, IngestError> {
+    let mut by_sig: BTreeMap<String, ErrorFixAtom> = BTreeMap::new();
+    let mut last_sig_hash: Option<String> = None;
+
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        // Attach optional inline annotations (`FIX: ...`, `ROOT_CAUSE: ...`, `VERIFY: ...`)
+        // to the immediately preceding error signature.
+        let upper = line.to_ascii_uppercase();
+        if let Some(ref hash) = last_sig_hash {
+            if let Some(rest) = strip_annotation(line, &upper, &["FIX:", "RESOLUTION:"]) {
+                if let Some(atom) = by_sig.get_mut(hash) {
+                    atom.fix = rest.to_owned();
+                }
+                continue;
+            }
+            if let Some(rest) = strip_annotation(line, &upper, &["ROOT_CAUSE:", "CAUSE:"]) {
+                if let Some(atom) = by_sig.get_mut(hash) {
+                    atom.root_cause = rest.to_owned();
+                }
+                continue;
+            }
+            if let Some(rest) = strip_annotation(line, &upper, &["VERIFY:", "VERIFICATION:"]) {
+                if let Some(atom) = by_sig.get_mut(hash) {
+                    atom.verification = rest.to_owned();
+                }
+                continue;
+            }
+        }
+        if !is_error_log_line(line) {
+            continue;
+        }
+        let norm_sig = normalize_error_signature(line);
+        if norm_sig.is_empty() {
+            continue;
+        }
+        let sig_hash = tb_contracts::RevisionDigest::of_bytes(norm_sig.as_bytes()).to_hex();
+        last_sig_hash = Some(sig_hash.clone());
+        if let Some(atom) = by_sig.get_mut(&sig_hash) {
+            atom.occurrences += 1;
+        } else {
+            let title = truncate_chars(&norm_sig, 72);
+            let keywords: Vec<String> = distinct_terms(&norm_sig)
+                .into_iter()
+                .filter(|t| t.chars().count() >= 4)
+                .take(6)
+                .collect();
+            let search_questions = vec![
+                format!("How to fix error: {}?", truncate_chars(&norm_sig, 96)),
+                format!("What causes {}?", humanize_stem(stem_hint)),
+            ];
+            by_sig.insert(
+                sig_hash.clone(),
+                ErrorFixAtom {
+                    title,
+                    error_signature: norm_sig,
+                    signature_hash: sig_hash,
+                    symptom: format!("```text\n{line}\n```"),
+                    root_cause: "Recurring failure extracted from log; fill in root cause."
+                        .to_owned(),
+                    fix: "Document verified fix steps (or annotate log with `FIX: ...`)."
+                        .to_owned(),
+                    verification: "Re-run failing flow and confirm signature does not recur."
+                        .to_owned(),
+                    component: Some(stem_hint.to_owned()),
+                    occurrences: 1,
+                    keywords,
+                    search_questions,
+                    links: Vec::new(),
+                    slug_override: None,
+                },
+            );
+        }
+    }
+
+    Ok(by_sig.into_values().collect())
+}
+
+fn strip_annotation<'a>(line: &'a str, upper: &str, prefixes: &[&str]) -> Option<&'a str> {
+    for p in prefixes {
+        if upper.starts_with(p) {
+            let rest = line[p.len()..].trim();
+            if !rest.is_empty() {
+                return Some(rest);
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1758,5 +2260,50 @@ mod tests {
         assert_eq!(report.summary.weak, 1);
         assert_eq!(report.summary.stale, 1);
         assert_eq!(report.findings.len(), 3);
+    }
+
+    #[test]
+    fn error_fix_ingest_deduplicates_recurring_log_signatures_and_parses_structured_records() {
+        let opts = ConvertOptions {
+            repo: "vault".to_owned(),
+            dest_dir: "knowledge/errors".to_owned(),
+            default_type: None,
+            captured_date: Some("2026-11-28".to_owned()),
+            source_label: "ci-build.log".to_owned(),
+        };
+
+        let raw_log = b"\
+2026-11-28T10:01:02Z ERROR pid=1234 failed to open socket at 0x7f1a2b3c: EADDRINUSE
+2026-11-28T10:02:19Z ERROR pid=9876 failed to open socket at 0xdeadbeef: EADDRINUSE
+ROOT_CAUSE: Stale Unix socket left behind after ungraceful shutdown.
+FIX: Acquire exclusive fs4 socket lock before unlinking stale socket path.
+VERIFY: Run startup_race_test and confirm zero EADDRINUSE retries.
+2026-11-28T10:03:00Z INFO startup complete
+";
+        let drafts = convert_source("ci-build", IngestFormat::ErrorFix, raw_log, &opts)
+            .expect("log error-fix conversion");
+        assert_eq!(
+            drafts.len(),
+            1,
+            "identical normalized error lines must collapse into one atom"
+        );
+        let content = &drafts[0].content;
+        assert!(content.contains("type: \"error-fix\""));
+        assert!(content.contains("freshness: \"durable\""));
+        assert!(content.contains("occurrences: 2"));
+        assert!(content.contains("Acquire exclusive fs4 socket lock"));
+        assert!(content.contains("## Verification"));
+
+        let parsed = parse_document(content.as_bytes()).expect("valid utf8");
+        assert!(parsed.frontmatter_error.is_none());
+
+        // Structured JSONL error-fix input with duplicate signatures merges occurrences.
+        let jsonl = br#"{"title":"Missing Cargo Lock","error_signature":"error: failed to select a version for foo","root_cause":"Offline cache miss","fix":"Run cargo fetch before offline deny","occurrences":2,"keywords":["cargo","lockfile"]}
+{"error_signature":"error: failed to select a version for foo","occurrences":3}"#;
+        let json_drafts = convert_source("err", IngestFormat::ErrorFix, jsonl, &opts)
+            .expect("structured error-fix conversion");
+        assert_eq!(json_drafts.len(), 1);
+        assert!(json_drafts[0].content.contains("occurrences: 5"));
+        assert!(json_drafts[0].content.contains("Missing Cargo Lock"));
     }
 }

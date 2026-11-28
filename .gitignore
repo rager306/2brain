@@ -1,6 +1,8 @@
 /.cargo-target
 /.cargo-target-clif
 /target
+/dist
+*.cdx.json
 *.swp
 .DS_Store
 __pycache__/

@@ -34,3 +34,15 @@ miri crate="tb-contracts":
 # Release build of the single `2brain` binary
 build-release:
     cargo build --release -p two-brain --bin 2brain
+
+# Tier 3: auditable release binary + binary audit + CycloneDX 1.5 SBOM + SHA-256 checksums
+release-artifacts:
+    cargo deny --offline -L error check licenses bans sources
+    cargo auditable build --release --locked -p two-brain --bin 2brain
+    cargo audit --no-fetch bin "$(cargo metadata --format-version=1 --no-deps | python3 -c 'import sys,json; print(json.load(sys.stdin)["target_directory"])')/release/2brain"
+    mkdir -p dist
+    cargo cyclonedx --manifest-path Cargo.toml --format json --spec-version 1.5 --describe binaries
+    cp crates/bin/two-brain/*.cdx.json dist/2brain.cdx.json
+    cp "$(cargo metadata --format-version=1 --no-deps | python3 -c 'import sys,json; print(json.load(sys.stdin)["target_directory"])')/release/2brain" dist/2brain
+    (cd dist && sha256sum 2brain 2brain.cdx.json > SHA256SUMS.txt)
+    cat dist/SHA256SUMS.txt
