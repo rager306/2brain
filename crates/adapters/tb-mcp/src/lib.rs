@@ -304,14 +304,17 @@ impl TwoBrainMcp {
             "tb_edit_file" => self.handle_guarded_mutation("edit_file", args),
             "tb_delete_file" => self.handle_guarded_mutation("delete_file", args),
             "tb_rename" => self.handle_guarded_mutation("rename", args),
-            "tb_assign_block_id" | "tb_rename_block_id" | "tb_rename_type" | "tb_inline"
-            | "tb_promote" | "tb_batch" => {
+            "tb_assign_block_id" => self.handle_guarded_mutation("assign_block_id", args),
+            "tb_rename_block_id" => self.handle_guarded_mutation("rename_block_id", args),
+            "tb_inline" => self.handle_guarded_mutation("inline", args),
+            "tb_promote" => self.handle_guarded_mutation("promote", args),
+            "tb_rename_type" => {
                 if !self.policy.allow_mutations {
                     return err_text("policy/launch_grant: mutations are disabled");
                 }
-                let verb = name.strip_prefix("tb_").unwrap_or(name);
-                map_mutation(self.dispatcher.call_mutation(verb, args))
+                map_mutation(self.dispatcher.call_mutation("rename_type", args))
             }
+            "tb_batch" => self.handle_batch(args),
             "tb_add_dep" | "tb_remove_dep" => {
                 if !self.policy.allow_mutations || !self.policy.allow_composition {
                     return err_text(
@@ -409,6 +412,69 @@ impl TwoBrainMcp {
             return err_text("policy/launch_grant: mutations are disabled");
         }
         map_mutation(self.dispatcher.call_mutation("create_file", args))
+    }
+
+    /// Enforce SEM-02 prior-read gate for every existing-file operation in `tb_batch`
+    /// BEFORE executing step 0, and invalidate all modified `(repo, path)` ledger entries.
+    fn handle_batch(&self, args: &Map<String, Value>) -> CallToolResult {
+        if !self.policy.allow_mutations {
+            return err_text("policy/launch_grant: mutations are disabled");
+        }
+        let Some(ops) = args.get("operations").and_then(Value::as_array) else {
+            return err_text("policy/arguments: 'operations' array is required");
+        };
+        let mut to_invalidate: Vec<(String, String)> = Vec::new();
+        for (idx, item) in ops.iter().enumerate() {
+            let Some(obj) = item.as_object() else {
+                return err_text(format!(
+                    "policy/arguments: operation[{idx}] must be an object"
+                ));
+            };
+            let op_name = obj
+                .get("op")
+                .or_else(|| obj.get("tool"))
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let verb = op_name.strip_prefix("tb_").unwrap_or(op_name);
+            if matches!(
+                verb,
+                "write_file" | "edit_file" | "delete_file" | "rename" | "assign_block_id"
+            ) {
+                let repo = match req_str(obj, "repo") {
+                    Ok(r) => r,
+                    Err(e) => return err_text(format!("operation[{idx}]: {e}")),
+                };
+                let path = match req_str(obj, "path") {
+                    Ok(p) => p,
+                    Err(e) => return err_text(format!("operation[{idx}]: {e}")),
+                };
+                let expected_hash = match req_str(obj, "expected_hash") {
+                    Ok(h) => h,
+                    Err(e) => return err_text(format!("operation[{idx}]: {e}")),
+                };
+                if let Some(receipt) = opt_str(obj, "read_receipt") {
+                    if let Err(reason) = self.signer.verify(receipt, repo, path, expected_hash) {
+                        return err_text(format!("operation[{idx}]: {reason}"));
+                    }
+                } else if let Ok(ledger) = self.ledger.lock() {
+                    if let Err(reason) = ledger.verify_write(repo, path, expected_hash) {
+                        return err_text(format!("operation[{idx}]: {reason}"));
+                    }
+                } else {
+                    return err_text("internal: read ledger lock poisoned");
+                }
+                to_invalidate.push((repo.to_owned(), path.to_owned()));
+            }
+        }
+        let res = self.dispatcher.call_mutation("batch", args);
+        if res.is_ok()
+            && let Ok(mut ledger) = self.ledger.lock()
+        {
+            for (repo, path) in &to_invalidate {
+                ledger.invalidate(repo, path);
+            }
+        }
+        map_mutation(res)
     }
 
     fn handle_guarded_mutation(&self, verb: &str, args: &Map<String, Value>) -> CallToolResult {
@@ -1178,6 +1244,36 @@ mod tests {
         assert!(
             Arc::clone(&server.task_slots).try_acquire_owned().is_ok(),
             "releasing a finished worker permit must re-open admission"
+        );
+    }
+
+    #[test]
+    fn batch_write_without_prior_read_is_refused_by_sem02_gate() {
+        let app = Arc::new(App::new(DummyStore, VaultSnapshot::empty()));
+        let server = TwoBrainMcp::new(
+            app,
+            LaunchPolicy {
+                allow_mutations: true,
+                ..LaunchPolicy::default()
+            },
+        );
+        let args = json!({
+            "operations": [
+                {
+                    "op": "write_file",
+                    "repo": "vault",
+                    "path": "a.md",
+                    "expected_hash": "1122334455667788",
+                    "content": "hacked\n"
+                }
+            ]
+        });
+        let res = server.dispatch_tool("tb_batch", args.as_object().unwrap());
+        assert_eq!(res.is_error, Some(true));
+        let txt = format!("{res:?}");
+        assert!(
+            txt.contains("policy/prior_read"),
+            "expected SEM-02 policy/prior_read refusal on batch write, got {txt}"
         );
     }
 }

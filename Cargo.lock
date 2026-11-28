@@ -1144,6 +1144,7 @@ dependencies = [
  "ignore",
  "rustix 1.1.6",
  "saphyr",
+ "serde_json",
  "tb-app",
  "tb-contracts",
  "tb-graph",

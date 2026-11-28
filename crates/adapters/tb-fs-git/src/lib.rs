@@ -10,7 +10,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use fs4::fs_std::FileExt;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
@@ -20,7 +20,11 @@ use rustix::fs::{
 };
 use rustix::io::Errno;
 use saphyr::{LoadableYamlNode, Scalar, Yaml};
-use tb_app::{IndexedFile, MemberMeta, MutationReceipt, StoreError, VaultSnapshot, WorkspaceStore};
+use serde_json::{Value, json};
+use tb_app::{
+    IndexedFile, MemberMeta, MutationReceipt, StoreError, VaultSnapshot, WorkspaceMemberAction,
+    WorkspaceStore,
+};
 use tb_contracts::{
     CasVerified, EvidenceReceipt, Generation, Locator, RevisionDigest, WriteGuardHash, WriteIntent,
 };
@@ -32,10 +36,11 @@ use thiserror::Error;
 
 static TEMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
-/// Confined filesystem and Git workspace store (read-only + atomic CAS mutations).
+/// Confined filesystem and Git workspace store (single-repo or multi-member `workspace.yaml`).
 #[derive(Clone, Debug)]
 pub struct FsWorkspaceStore {
-    members: BTreeMap<String, PathBuf>,
+    workspace_root: PathBuf,
+    members: Arc<RwLock<BTreeMap<String, PathBuf>>>,
     write_lock: Arc<Mutex<()>>,
 }
 
@@ -43,22 +48,79 @@ impl FsWorkspaceStore {
     #[must_use]
     pub fn single(repo_name: impl Into<String>, canonical_root: PathBuf) -> Self {
         let mut members = BTreeMap::new();
-        members.insert(repo_name.into(), canonical_root);
+        members.insert(repo_name.into(), canonical_root.clone());
         Self {
-            members,
+            workspace_root: canonical_root,
+            members: Arc::new(RwLock::new(members)),
             write_lock: Arc::new(Mutex::new(())),
         }
     }
 
     #[must_use]
-    pub fn member_root(&self, repo: &str) -> Option<&Path> {
-        self.members.get(repo).map(PathBuf::as_path)
+    pub fn multi(workspace_root: PathBuf, members: BTreeMap<String, PathBuf>) -> Self {
+        Self {
+            workspace_root,
+            members: Arc::new(RwLock::new(members)),
+            write_lock: Arc::new(Mutex::new(())),
+        }
     }
 
-    fn root_for(&self, repo: &str) -> Result<&PathBuf, StoreError> {
+    #[must_use]
+    pub fn member_root(&self, repo: &str) -> Option<PathBuf> {
         self.members
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .get(repo)
-            .ok_or_else(|| StoreError::NotFound(format!("unknown member '{repo}'")))
+            .cloned()
+    }
+
+    fn root_for(&self, repo: &str) -> Result<PathBuf, StoreError> {
+        let stored = self
+            .member_root(repo)
+            .ok_or_else(|| StoreError::NotFound(format!("unknown member '{repo}'")))?;
+        // Revalidate every component from `workspace_root` to `stored` with `O_NOFOLLOW`
+        // so a post-load member-dir symlink swap can never redirect writes outside the workspace.
+        let rel = stored.strip_prefix(&self.workspace_root).map_err(|_| {
+            StoreError::SymlinkEscape(format!("member '{repo}' root escapes workspace boundary"))
+        })?;
+        let mut dir_fd = open(
+            &self.workspace_root,
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| StoreError::Io(format!("open workspace root: {e}")))?;
+        for comp in rel.components() {
+            match comp {
+                Component::CurDir => {}
+                Component::Normal(seg) => {
+                    dir_fd = openat(
+                        &dir_fd,
+                        seg,
+                        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+                        Mode::empty(),
+                    )
+                    .map_err(|errno| {
+                        if errno == Errno::LOOP || errno == Errno::NOTDIR {
+                            StoreError::SymlinkEscape(format!(
+                                "member '{repo}' path component '{}' is a symlink or non-directory",
+                                seg.to_string_lossy()
+                            ))
+                        } else {
+                            StoreError::Io(format!(
+                                "openat member '{repo}' segment '{}': {errno}",
+                                seg.to_string_lossy()
+                            ))
+                        }
+                    })?;
+                }
+                _ => {
+                    return Err(StoreError::SymlinkEscape(format!(
+                        "member '{repo}' contains disallowed path component"
+                    )));
+                }
+            }
+        }
+        Ok(stored)
     }
 }
 
@@ -66,7 +128,7 @@ impl WorkspaceStore for FsWorkspaceStore {
     fn read_exact(&self, locator: &Locator) -> Result<(Vec<u8>, EvidenceReceipt), StoreError> {
         let canonical_root = self.root_for(&locator.repo)?;
         let candidate = canonical_root.join(&locator.path);
-        let bytes = match confined_read_bytes(canonical_root, &candidate) {
+        let bytes = match confined_read_bytes(&canonical_root, &candidate) {
             Ok(Some(b)) => b,
             Ok(None) => {
                 return Err(StoreError::NotFound(format!(
@@ -114,11 +176,17 @@ impl WorkspaceStore for FsWorkspaceStore {
         &self,
         next_generation: Generation,
     ) -> Result<Option<VaultSnapshot>, StoreError> {
-        let Some(root) = self.members.values().next() else {
-            return Ok(None);
-        };
-        let snap = load_snapshot_with_generation(root, next_generation)
+        let (fresh_store, snap) = load_snapshot_inner(&self.workspace_root, next_generation)
             .map_err(|e| StoreError::Io(e.to_string()))?;
+        let fresh_members = fresh_store
+            .members
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        *self
+            .members
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = fresh_members;
         Ok(Some(snap))
     }
 
@@ -128,7 +196,7 @@ impl WorkspaceStore for FsWorkspaceStore {
         git_ref: &str,
     ) -> Result<VaultSnapshot, StoreError> {
         let canonical_root = self.root_for(repo)?;
-        load_snapshot_at_git_ref(canonical_root, git_ref).map_err(|e| match e {
+        load_snapshot_at_git_ref(&canonical_root, git_ref).map_err(|e| match e {
             FsError::InvalidGitRef(msg) => StoreError::InvalidEdit(msg),
             FsError::SymlinkEscape(p) => StoreError::SymlinkEscape(p.display().to_string()),
             FsError::Io { path, source } => StoreError::Io(format!("{}: {source}", path.display())),
@@ -142,8 +210,9 @@ impl WorkspaceStore for FsWorkspaceStore {
         commit_message: &str,
     ) -> Result<MutationReceipt, StoreError> {
         let canonical_root = self.root_for(&locator.repo)?;
-        let _lock = acquire_workspace_write_lock(&self.write_lock, canonical_root)?;
-        let (parent_fd, file_name) = open_confined_parent_dir(canonical_root, &locator.path, true)?;
+        let _lock = acquire_workspace_write_lock(&self.write_lock, &canonical_root)?;
+        let (parent_fd, file_name) =
+            open_confined_parent_dir(&canonical_root, &locator.path, true)?;
         if statat(&parent_fd, &file_name, AtFlags::SYMLINK_NOFOLLOW).is_ok() {
             return Err(StoreError::AlreadyExists(format!(
                 "{}/{}",
@@ -152,7 +221,7 @@ impl WorkspaceStore for FsWorkspaceStore {
         }
         atomic_write_in_dirfd(&parent_fd, &file_name, content.as_bytes())?;
         let commit = match git_commit_paths(
-            canonical_root,
+            &canonical_root,
             &[locator.path.as_str()],
             commit_message,
         ) {
@@ -184,15 +253,15 @@ impl WorkspaceStore for FsWorkspaceStore {
         commit_message: &str,
     ) -> Result<MutationReceipt, StoreError> {
         let canonical_root = self.root_for(&locator.repo)?;
-        let _lock = acquire_workspace_write_lock(&self.write_lock, canonical_root)?;
+        let _lock = acquire_workspace_write_lock(&self.write_lock, &canonical_root)?;
         let target = canonical_root.join(&locator.path);
-        let prior_bytes = verify_live_cas(canonical_root, &target, locator, expected_hash)?;
+        let prior_bytes = verify_live_cas(&canonical_root, &target, locator, expected_hash)?;
         let (parent_fd, file_name) =
-            open_confined_parent_dir(canonical_root, &locator.path, false)?;
+            open_confined_parent_dir(&canonical_root, &locator.path, false)?;
         reject_symlink_leaf(&parent_fd, &file_name)?;
         atomic_write_in_dirfd(&parent_fd, &file_name, content.as_bytes())?;
         let commit = match git_commit_paths(
-            canonical_root,
+            &canonical_root,
             &[locator.path.as_str()],
             commit_message,
         ) {
@@ -225,9 +294,9 @@ impl WorkspaceStore for FsWorkspaceStore {
         commit_message: &str,
     ) -> Result<MutationReceipt, StoreError> {
         let canonical_root = self.root_for(&locator.repo)?;
-        let _lock = acquire_workspace_write_lock(&self.write_lock, canonical_root)?;
+        let _lock = acquire_workspace_write_lock(&self.write_lock, &canonical_root)?;
         let target = canonical_root.join(&locator.path);
-        let live_bytes = verify_live_cas(canonical_root, &target, locator, expected_hash)?;
+        let live_bytes = verify_live_cas(&canonical_root, &target, locator, expected_hash)?;
         let live_text = std::str::from_utf8(&live_bytes)
             .map_err(|_| StoreError::InvalidUtf8(format!("{}/{}", locator.repo, locator.path)))?;
         if old_str.is_empty() || !live_text.contains(old_str) {
@@ -237,11 +306,11 @@ impl WorkspaceStore for FsWorkspaceStore {
         }
         let updated = live_text.replacen(old_str, new_str, 1);
         let (parent_fd, file_name) =
-            open_confined_parent_dir(canonical_root, &locator.path, false)?;
+            open_confined_parent_dir(&canonical_root, &locator.path, false)?;
         reject_symlink_leaf(&parent_fd, &file_name)?;
         atomic_write_in_dirfd(&parent_fd, &file_name, updated.as_bytes())?;
         let commit = match git_commit_paths(
-            canonical_root,
+            &canonical_root,
             &[locator.path.as_str()],
             commit_message,
         ) {
@@ -272,15 +341,15 @@ impl WorkspaceStore for FsWorkspaceStore {
         commit_message: &str,
     ) -> Result<Option<String>, StoreError> {
         let canonical_root = self.root_for(&locator.repo)?;
-        let _lock = acquire_workspace_write_lock(&self.write_lock, canonical_root)?;
+        let _lock = acquire_workspace_write_lock(&self.write_lock, &canonical_root)?;
         let target = canonical_root.join(&locator.path);
-        let prior_bytes = verify_live_cas(canonical_root, &target, locator, expected_hash)?;
+        let prior_bytes = verify_live_cas(&canonical_root, &target, locator, expected_hash)?;
         let (parent_fd, file_name) =
-            open_confined_parent_dir(canonical_root, &locator.path, false)?;
+            open_confined_parent_dir(&canonical_root, &locator.path, false)?;
         reject_symlink_leaf(&parent_fd, &file_name)?;
         unlinkat(&parent_fd, &file_name, AtFlags::empty())
             .map_err(|e| StoreError::Io(format!("unlinkat {}: {e}", locator.path)))?;
-        match git_commit_paths(canonical_root, &[locator.path.as_str()], commit_message) {
+        match git_commit_paths(&canonical_root, &[locator.path.as_str()], commit_message) {
             Ok(c) => Ok(c),
             Err(git_err) => match atomic_write_in_dirfd(&parent_fd, &file_name, &prior_bytes) {
                 Ok(()) => Err(git_err),
@@ -304,13 +373,13 @@ impl WorkspaceStore for FsWorkspaceStore {
             ));
         }
         let canonical_root = self.root_for(&from.repo)?;
-        let _lock = acquire_workspace_write_lock(&self.write_lock, canonical_root)?;
+        let _lock = acquire_workspace_write_lock(&self.write_lock, &canonical_root)?;
         let src = canonical_root.join(&from.path);
-        let live_bytes = verify_live_cas(canonical_root, &src, from, expected_hash)?;
+        let live_bytes = verify_live_cas(&canonical_root, &src, from, expected_hash)?;
         let (src_parent_fd, src_name) =
-            open_confined_parent_dir(canonical_root, &from.path, false)?;
+            open_confined_parent_dir(&canonical_root, &from.path, false)?;
         reject_symlink_leaf(&src_parent_fd, &src_name)?;
-        let (dst_parent_fd, dst_name) = open_confined_parent_dir(canonical_root, &to.path, true)?;
+        let (dst_parent_fd, dst_name) = open_confined_parent_dir(&canonical_root, &to.path, true)?;
         if statat(&dst_parent_fd, &dst_name, AtFlags::SYMLINK_NOFOLLOW).is_ok() {
             return Err(StoreError::AlreadyExists(format!(
                 "{}/{}",
@@ -332,7 +401,7 @@ impl WorkspaceStore for FsWorkspaceStore {
             }
         })?;
         let commit = match git_commit_paths(
-            canonical_root,
+            &canonical_root,
             &[from.path.as_str(), to.path.as_str()],
             commit_message,
         ) {
@@ -353,6 +422,301 @@ impl WorkspaceStore for FsWorkspaceStore {
             hash: WriteGuardHash::of_bytes(&live_bytes).to_hex(),
             commit,
         })
+    }
+
+    fn git_commit_preview(
+        &self,
+        repo: &str,
+        commit_ref: &str,
+        limit: usize,
+    ) -> Result<Value, StoreError> {
+        validate_git_ref(commit_ref).map_err(|e| StoreError::InvalidEdit(e.to_string()))?;
+        let canonical_root = self.root_for(repo)?;
+        let rev_spec = format!("{commit_ref}^{{commit}}");
+        let show = Command::new("git")
+            .arg("-C")
+            .arg(&canonical_root)
+            .args([
+                "show",
+                "--name-status",
+                "--format=%H%x00%s%x00%ci",
+                "--end-of-options",
+                &rev_spec,
+            ])
+            .output()
+            .map_err(|e| StoreError::Io(format!("git show failed: {e}")))?;
+        if !show.status.success() {
+            let stderr = String::from_utf8_lossy(&show.stderr).trim().to_owned();
+            return Err(StoreError::InvalidEdit(format!(
+                "cannot inspect git commit '{commit_ref}': {stderr}"
+            )));
+        }
+        let stdout = String::from_utf8_lossy(&show.stdout);
+        let mut lines = stdout.lines();
+        let meta_line = lines.next().unwrap_or("");
+        let mut meta_parts = meta_line.split('\0');
+        let commit_sha = meta_parts.next().unwrap_or("").to_owned();
+        let subject = meta_parts.next().unwrap_or("").to_owned();
+        let date = meta_parts.next().unwrap_or("").to_owned();
+
+        let mut affected = Vec::new();
+        for line in lines {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if let Some((status, path)) = trimmed.split_once('\t') {
+                affected.push(json!({ "status": status, "path": path }));
+                if affected.len() >= limit {
+                    break;
+                }
+            }
+        }
+
+        let status_out = Command::new("git")
+            .arg("-C")
+            .arg(&canonical_root)
+            .args(["status", "--porcelain"])
+            .output()
+            .ok();
+        let dirty_files: Vec<String> = status_out
+            .filter(|o| o.status.success())
+            .map(|o| {
+                String::from_utf8_lossy(&o.stdout)
+                    .lines()
+                    .filter_map(|l| l.get(3..).map(str::to_owned))
+                    .take(limit)
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(json!({
+            "repo": repo,
+            "commit": commit_sha,
+            "subject": subject,
+            "date": date,
+            "affected_files": affected,
+            "dirty_working_tree_files": dirty_files,
+        }))
+    }
+
+    fn update_repo_deps(&self, repo: &str, dep_name: &str, add: bool) -> Result<Value, StoreError> {
+        let canonical_root = self.root_for(repo)?;
+        let _lock = acquire_workspace_write_lock(&self.write_lock, &canonical_root)?;
+        let rel = ".2brain/repo.yaml";
+        let manifest_path = canonical_root.join(rel);
+        let existing_bytes = match confined_read_bytes(&canonical_root, &manifest_path) {
+            Ok(Some(b)) => Some(b),
+            Ok(None) => None,
+            Err(FsError::SymlinkEscape(p)) => {
+                return Err(StoreError::SymlinkEscape(p.display().to_string()));
+            }
+            Err(FsError::Io { path, source }) => {
+                return Err(StoreError::Io(format!("{}: {source}", path.display())));
+            }
+            Err(FsError::InvalidGitRef(msg)) => return Err(StoreError::InvalidEdit(msg)),
+        };
+
+        let mut name = repo.to_owned();
+        let mut description: Option<String> = None;
+        let mut deps: Vec<String> = Vec::new();
+        if let Some(ref bytes) = existing_bytes
+            && let Ok(text) = std::str::from_utf8(bytes)
+            && let Ok(docs) = Yaml::load_from_str(text)
+            && let Some(Yaml::Mapping(map)) = docs.first()
+        {
+            for (k, v) in map {
+                let Yaml::Value(Scalar::String(ks)) = k else {
+                    continue;
+                };
+                match ks.as_ref() {
+                    "name" => {
+                        if let Yaml::Value(Scalar::String(vs)) = v {
+                            name = vs.to_string();
+                        }
+                    }
+                    "description" => {
+                        if let Yaml::Value(Scalar::String(vs)) = v {
+                            description = Some(vs.to_string());
+                        }
+                    }
+                    "deps" => {
+                        if let Yaml::Sequence(seq) = v {
+                            for item in seq {
+                                match item {
+                                    Yaml::Value(Scalar::String(s)) => deps.push(s.to_string()),
+                                    Yaml::Mapping(m) => {
+                                        for (mk, mv) in m {
+                                            if let (
+                                                Yaml::Value(Scalar::String(mks)),
+                                                Yaml::Value(Scalar::String(mvs)),
+                                            ) = (mk, mv)
+                                                && mks.as_ref() == "name"
+                                            {
+                                                deps.push(mvs.to_string());
+                                            }
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let changed = if add {
+            if deps.iter().any(|d| d == dep_name) {
+                false
+            } else {
+                deps.push(dep_name.to_owned());
+                deps.sort();
+                deps.dedup();
+                true
+            }
+        } else {
+            let before = deps.len();
+            deps.retain(|d| d != dep_name);
+            deps.len() != before
+        };
+
+        let mut rendered = format!("name: {name}\n");
+        if let Some(desc) = description {
+            let escaped = desc.replace('\\', "\\\\").replace('"', "\\\"");
+            rendered.push_str(&format!("description: \"{escaped}\"\n"));
+        }
+        if !deps.is_empty() {
+            rendered.push_str("deps:\n");
+            for d in &deps {
+                rendered.push_str(&format!("  - name: {d}\n"));
+            }
+        }
+
+        let (parent_fd, file_name) = open_confined_parent_dir(&canonical_root, rel, true)?;
+        reject_symlink_leaf(&parent_fd, &file_name)?;
+        atomic_write_in_dirfd(&parent_fd, &file_name, rendered.as_bytes())?;
+        let action_word = if add { "add" } else { "remove" };
+        let commit = git_commit_paths(
+            &canonical_root,
+            &[rel],
+            &format!("2brain: {action_word} dep {dep_name}"),
+        )?;
+
+        Ok(json!({
+            "repo": repo,
+            "dep": dep_name,
+            "changed": changed,
+            "deps": deps,
+            "commit": commit,
+        }))
+    }
+
+    fn update_workspace_member(&self, action: WorkspaceMemberAction) -> Result<Value, StoreError> {
+        let _lock = acquire_workspace_write_lock(&self.write_lock, &self.workspace_root)?;
+        let ws_path = self.workspace_root.join("workspace.yaml");
+        let mut entries = match confined_read_bytes(&self.workspace_root, &ws_path) {
+            Ok(Some(bytes)) => {
+                let text = std::str::from_utf8(&bytes)
+                    .map_err(|_| StoreError::InvalidUtf8("workspace.yaml".into()))?;
+                parse_workspace_yaml_entries(text)
+            }
+            Ok(None) => {
+                // Bootstrap workspace.yaml from current single primary member.
+                let cur = self
+                    .members
+                    .read()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                cur.iter()
+                    .map(|(name, path)| {
+                        let rel = path
+                            .strip_prefix(&self.workspace_root)
+                            .ok()
+                            .map(|p| {
+                                let s = p.to_string_lossy().replace('\\', "/");
+                                if s.is_empty() { ".".to_owned() } else { s }
+                            })
+                            .unwrap_or_else(|| ".".to_owned());
+                        WorkspaceManifestEntry {
+                            name: name.clone(),
+                            path: rel,
+                            role: "own".to_owned(),
+                        }
+                    })
+                    .collect()
+            }
+            Err(FsError::SymlinkEscape(p)) => {
+                return Err(StoreError::SymlinkEscape(p.display().to_string()));
+            }
+            Err(FsError::Io { path, source }) => {
+                return Err(StoreError::Io(format!("{}: {source}", path.display())));
+            }
+            Err(FsError::InvalidGitRef(msg)) => return Err(StoreError::InvalidEdit(msg)),
+        };
+
+        match &action {
+            WorkspaceMemberAction::Add { name, path, role } => {
+                if entries.iter().any(|e| e.name == *name) {
+                    return Err(StoreError::AlreadyExists(format!(
+                        "workspace member '{name}' already exists"
+                    )));
+                }
+                let candidate = resolve_confined_member_path(&self.workspace_root, path)?;
+                if !candidate.is_dir() {
+                    return Err(StoreError::NotFound(format!(
+                        "member path '{}' is not an existing directory",
+                        path
+                    )));
+                }
+                entries.push(WorkspaceManifestEntry {
+                    name: name.clone(),
+                    path: path.clone(),
+                    role: role.clone(),
+                });
+            }
+            WorkspaceMemberAction::Remove { name } => {
+                let before = entries.len();
+                entries.retain(|e| e.name != *name);
+                if entries.len() == before {
+                    return Err(StoreError::NotFound(format!(
+                        "workspace member '{name}' not found"
+                    )));
+                }
+                if entries.is_empty() {
+                    return Err(StoreError::InvalidEdit(
+                        "cannot remove the last workspace member".into(),
+                    ));
+                }
+            }
+            WorkspaceMemberAction::SetRole { name, role } => {
+                let Some(entry) = entries.iter_mut().find(|e| e.name == *name) else {
+                    return Err(StoreError::NotFound(format!(
+                        "workspace member '{name}' not found"
+                    )));
+                };
+                entry.role = role.clone();
+            }
+        }
+
+        let mut rendered = String::from("members:\n");
+        for e in &entries {
+            rendered.push_str(&format!(
+                "  - name: {}\n    path: {}\n    role: {}\n",
+                e.name, e.path, e.role
+            ));
+        }
+        let (parent_fd, file_name) =
+            open_confined_parent_dir(&self.workspace_root, "workspace.yaml", false)?;
+        reject_symlink_leaf(&parent_fd, &file_name)?;
+        atomic_write_in_dirfd(&parent_fd, &file_name, rendered.as_bytes())?;
+
+        Ok(json!({
+            "members": entries
+                .iter()
+                .map(|e| json!({ "name": e.name, "path": e.path, "role": e.role }))
+                .collect::<Vec<_>>()
+        }))
     }
 }
 
@@ -632,6 +996,140 @@ pub fn load_snapshot_with_generation(
     load_snapshot_inner(root, generation).map(|(_, snap)| snap)
 }
 
+#[derive(Clone, Debug)]
+struct WorkspaceManifestEntry {
+    name: String,
+    path: String,
+    role: String,
+}
+
+fn parse_workspace_yaml_entries(raw: &str) -> Vec<WorkspaceManifestEntry> {
+    let Ok(docs) = Yaml::load_from_str(raw) else {
+        return Vec::new();
+    };
+    let Some(Yaml::Mapping(root)) = docs.first() else {
+        return Vec::new();
+    };
+    let mut entries = Vec::new();
+    for (k, v) in root {
+        let Yaml::Value(Scalar::String(ks)) = k else {
+            continue;
+        };
+        if ks.as_ref() != "members" {
+            continue;
+        }
+        let Yaml::Sequence(seq) = v else {
+            continue;
+        };
+        for item in seq {
+            let Yaml::Mapping(m) = item else {
+                continue;
+            };
+            let mut name = None;
+            let mut path = None;
+            let mut role = "own".to_owned();
+            for (mk, mv) in m {
+                let (Yaml::Value(Scalar::String(mks)), Yaml::Value(Scalar::String(mvs))) = (mk, mv)
+                else {
+                    continue;
+                };
+                match mks.as_ref() {
+                    "name" => name = Some(mvs.to_string()),
+                    "path" => path = Some(mvs.to_string()),
+                    "role" => role = mvs.to_string(),
+                    _ => {}
+                }
+            }
+            if let (Some(n), Some(p)) = (name, path)
+                && !n.is_empty()
+                && !p.is_empty()
+            {
+                entries.push(WorkspaceManifestEntry {
+                    name: n,
+                    path: p,
+                    role,
+                });
+            }
+        }
+    }
+    entries
+}
+
+fn resolve_confined_member_path(
+    workspace_root: &Path,
+    rel_or_dot: &str,
+) -> Result<PathBuf, StoreError> {
+    let p = Path::new(rel_or_dot);
+    if p.is_absolute() {
+        return Err(StoreError::InvalidEdit(format!(
+            "member path '{rel_or_dot}' must be relative to workspace root"
+        )));
+    }
+    for c in p.components() {
+        if matches!(
+            c,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        ) {
+            return Err(StoreError::SymlinkEscape(format!(
+                "member path '{rel_or_dot}' escapes workspace root"
+            )));
+        }
+    }
+    let joined = workspace_root.join(p);
+    let canonical = fs::canonicalize(&joined)
+        .map_err(|e| StoreError::NotFound(format!("member path '{rel_or_dot}': {e}")))?;
+    if !canonical.starts_with(workspace_root) {
+        return Err(StoreError::SymlinkEscape(format!(
+            "member path '{rel_or_dot}' escapes workspace root via symlink"
+        )));
+    }
+    Ok(canonical)
+}
+
+fn read_repo_deps(canonical_root: &Path) -> Vec<String> {
+    let manifest = canonical_root.join(".2brain/repo.yaml");
+    let Ok(Some(bytes)) = confined_read_bytes(canonical_root, &manifest) else {
+        return Vec::new();
+    };
+    let Ok(text) = std::str::from_utf8(&bytes) else {
+        return Vec::new();
+    };
+    let Ok(docs) = Yaml::load_from_str(text) else {
+        return Vec::new();
+    };
+    let Some(Yaml::Mapping(map)) = docs.first() else {
+        return Vec::new();
+    };
+    let mut deps = Vec::new();
+    for (k, v) in map {
+        if let (Yaml::Value(Scalar::String(ks)), Yaml::Sequence(seq)) = (k, v)
+            && ks.as_ref() == "deps"
+        {
+            for item in seq {
+                match item {
+                    Yaml::Value(Scalar::String(s)) => deps.push(s.to_string()),
+                    Yaml::Mapping(m) => {
+                        for (mk, mv) in m {
+                            if let (
+                                Yaml::Value(Scalar::String(mks)),
+                                Yaml::Value(Scalar::String(mvs)),
+                            ) = (mk, mv)
+                                && mks.as_ref() == "name"
+                            {
+                                deps.push(mvs.to_string());
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    deps.sort();
+    deps.dedup();
+    deps
+}
+
 fn load_snapshot_inner(
     root: &Path,
     generation: Generation,
@@ -644,219 +1142,269 @@ fn load_snapshot_inner(
     let mut all_diags: Vec<Diagnostic> = Vec::new();
     let mut utf8_errors = 0usize;
 
-    let repo_name = read_repo_name(&canonical_root)?.unwrap_or_else(|| {
-        canonical_root
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("workspace")
-            .to_owned()
-    });
-    let gitignore = load_ignore_rules(
-        &canonical_root,
-        &repo_name,
-        &mut all_diags,
-        &mut utf8_errors,
-    )?;
-
-    let mut registry = SchemaRegistry::new();
-    let type_dir = canonical_root.join("type");
-    if let Some(real_type_dir) = confined_dir(&canonical_root, &type_dir)? {
-        let mut type_entries: Vec<PathBuf> = fs::read_dir(&real_type_dir)
-            .map_err(|source| FsError::Io {
-                path: real_type_dir.clone(),
-                source,
-            })?
-            .filter_map(|e| e.ok().map(|entry| entry.path()))
-            .collect();
-        type_entries.sort();
-
-        for path in type_entries {
-            let Some(fname) = path.file_name().and_then(|n| n.to_str()) else {
-                continue;
-            };
-            let Some(stem) = fname.strip_suffix(".type.yaml") else {
-                continue;
-            };
-            if gitignore
-                .matched_path_or_any_parents(&path, false)
-                .is_ignore()
-            {
-                continue;
-            }
-            let rel_posix = rel_posix_path(&canonical_root, &path);
-            match confined_read_bytes(&canonical_root, &path) {
-                Ok(Some(bytes)) => match std::str::from_utf8(&bytes) {
-                    Ok(raw) => match parse_type_def(&repo_name, stem, raw) {
-                        Ok(def) => registry.insert(def),
-                        Err(err) => all_diags.push(Diagnostic {
-                            repo: repo_name.clone(),
-                            path: rel_posix,
-                            byte_start: 0,
-                            code: "invalid-type-def".to_owned(),
-                            severity: Severity::Error,
-                            message: err.to_string(),
-                        }),
-                    },
-                    Err(_) => all_diags.push(Diagnostic {
-                        repo: repo_name.clone(),
-                        path: rel_posix,
+    // Discover members: multi-member `workspace.yaml` if present, otherwise single primary repo.
+    let mut member_specs: Vec<(String, PathBuf, String)> = Vec::new();
+    let ws_yaml = canonical_root.join("workspace.yaml");
+    if let Ok(Some(bytes)) = confined_read_bytes(&canonical_root, &ws_yaml)
+        && let Ok(text) = std::str::from_utf8(&bytes)
+    {
+        for entry in parse_workspace_yaml_entries(text) {
+            match resolve_confined_member_path(&canonical_root, &entry.path) {
+                Ok(member_dir) if member_dir.is_dir() => {
+                    member_specs.push((entry.name, member_dir, entry.role));
+                }
+                Ok(_) | Err(_) => {
+                    all_diags.push(Diagnostic {
+                        repo: entry.name,
+                        path: "workspace.yaml".to_owned(),
                         byte_start: 0,
-                        code: "invalid-utf8".to_owned(),
+                        code: "invalid-workspace-member".to_owned(),
                         severity: Severity::Error,
-                        message: "type definition contains invalid UTF-8 bytes".to_owned(),
-                    }),
-                },
-                Ok(None) => {}
-                Err(FsError::SymlinkEscape(_)) => all_diags.push(Diagnostic {
-                    repo: repo_name.clone(),
-                    path: rel_posix,
-                    byte_start: 0,
-                    code: "symlink-escape".to_owned(),
-                    severity: Severity::Error,
-                    message: "type definition symlink escapes member root".to_owned(),
-                }),
-                Err(FsError::Io { source, .. }) => all_diags.push(Diagnostic {
-                    repo: repo_name.clone(),
-                    path: rel_posix,
-                    byte_start: 0,
-                    code: "type-read-error".to_owned(),
-                    severity: Severity::Error,
-                    message: format!("failed to read type definition: {source}"),
-                }),
-                Err(FsError::InvalidGitRef(msg)) => all_diags.push(Diagnostic {
-                    repo: repo_name.clone(),
-                    path: rel_posix,
-                    byte_start: 0,
-                    code: "type-read-error".to_owned(),
-                    severity: Severity::Error,
-                    message: msg,
-                }),
+                        message: format!(
+                            "workspace member path '{}' is missing or escapes workspace root",
+                            entry.path
+                        ),
+                    });
+                }
             }
         }
     }
 
-    let mut stack = vec![canonical_root.clone()];
+    if member_specs.is_empty() {
+        let repo_name = read_repo_name(&canonical_root)?.unwrap_or_else(|| {
+            canonical_root
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("workspace")
+                .to_owned()
+        });
+        member_specs.push((repo_name, canonical_root.clone(), "primary".to_owned()));
+    }
+
+    let mut registry = SchemaRegistry::new();
     let mut files: BTreeMap<Locator, IndexedFile> = BTreeMap::new();
     let mut path_index: BTreeMap<(String, String), Locator> = BTreeMap::new();
     let mut stem_index: BTreeMap<(String, String), Vec<Locator>> = BTreeMap::new();
+    let mut members: BTreeMap<String, MemberMeta> = BTreeMap::new();
+    let mut store_members: BTreeMap<String, PathBuf> = BTreeMap::new();
 
-    while let Some(dir) = stack.pop() {
-        let mut dir_entries: Vec<fs::DirEntry> = Vec::new();
-        for entry in fs::read_dir(&dir).map_err(|source| FsError::Io {
-            path: dir.clone(),
-            source,
-        })? {
-            dir_entries.push(entry.map_err(|source| FsError::Io {
-                path: dir.clone(),
-                source,
-            })?);
-        }
-        dir_entries.sort_by_key(|e| e.file_name());
+    for (repo_name, member_root, role) in member_specs {
+        store_members.insert(repo_name.clone(), member_root.clone());
+        let gitignore =
+            load_ignore_rules(&member_root, &repo_name, &mut all_diags, &mut utf8_errors)?;
 
-        for entry in dir_entries {
-            let path = entry.path();
-            let name = entry.file_name();
-            let name_str = name.to_string_lossy();
-            if name_str == ".git" {
-                continue;
-            }
-            if dir == canonical_root.join(".2brain") && name_str == "engine" {
-                continue;
-            }
-            let Ok(ft) = entry.file_type() else {
-                continue;
-            };
-            let is_dir = ft.is_dir();
-            if gitignore
-                .matched_path_or_any_parents(&path, is_dir)
-                .is_ignore()
-            {
-                continue;
-            }
-            if ft.is_symlink() {
-                if !is_confined(&canonical_root, &path)? {
-                    continue;
-                }
-                if path.is_dir() {
-                    continue;
-                }
-            }
-            if is_dir {
-                stack.push(path);
-            } else if path.extension().and_then(|e| e.to_str()) == Some("md") {
-                let Ok(rel) = path.strip_prefix(&canonical_root) else {
+        let type_dir = member_root.join("type");
+        if let Some(real_type_dir) = confined_dir(&member_root, &type_dir)? {
+            let mut type_entries: Vec<PathBuf> = fs::read_dir(&real_type_dir)
+                .map_err(|source| FsError::Io {
+                    path: real_type_dir.clone(),
+                    source,
+                })?
+                .filter_map(|e| e.ok().map(|entry| entry.path()))
+                .collect();
+            type_entries.sort();
+
+            for path in type_entries {
+                let Some(fname) = path.file_name().and_then(|n| n.to_str()) else {
                     continue;
                 };
-                let rel_posix = rel.to_string_lossy().replace('\\', "/");
-                let Ok(loc) = Locator::new(&repo_name, &rel_posix) else {
+                let Some(stem) = fname.strip_suffix(".type.yaml") else {
                     continue;
                 };
-                let bytes = match confined_read_bytes(&canonical_root, &path) {
-                    Ok(Some(b)) => b,
-                    Ok(None) | Err(FsError::SymlinkEscape(_)) => continue,
-                    Err(err) => return Err(err),
-                };
-                if bytes.iter().take(8192).any(|&b| b == 0) {
+                if gitignore
+                    .matched_path_or_any_parents(&path, false)
+                    .is_ignore()
+                {
                     continue;
                 }
-                let sha256 = RevisionDigest::of_bytes(&bytes);
-                let short_hash = WriteGuardHash::of_bytes(&bytes).to_hex();
-                match parse_document(&bytes) {
-                    Ok(doc) => {
-                        let diags = registry.validate_document(&repo_name, &rel_posix, &doc);
-                        all_diags.extend(diags);
-                        let raw_text = String::from_utf8(bytes).unwrap_or_default();
-                        let description =
-                            doc.frontmatter
-                                .as_ref()
-                                .and_then(|fm| match fm.get("description") {
-                                    Some(FrontmatterValue::String(s)) => Some(s.clone()),
-                                    _ => None,
-                                });
-                        let declared_type =
-                            doc.frontmatter
-                                .as_ref()
-                                .and_then(|fm| match fm.get("type") {
-                                    Some(FrontmatterValue::String(s)) => Some(s.clone()),
-                                    _ => None,
-                                });
-                        if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                            stem_index
-                                .entry((repo_name.clone(), stem.to_owned()))
-                                .or_default()
-                                .push(loc.clone());
-                        }
-                        path_index.insert((repo_name.clone(), rel_posix.clone()), loc.clone());
-                        if let Some(no_ext) = rel_posix.strip_suffix(".md") {
-                            path_index.insert((repo_name.clone(), no_ext.to_owned()), loc.clone());
-                        }
-                        files.insert(
-                            loc.clone(),
-                            IndexedFile {
-                                locator: loc,
-                                sha256,
-                                short_hash,
-                                size_bytes: raw_text.len(),
-                                raw_text,
-                                doc,
-                                description,
-                                declared_type,
-                            },
-                        );
-                    }
-                    Err(_) => {
-                        all_diags.push(Diagnostic {
+                let rel_posix = rel_posix_path(&member_root, &path);
+                match confined_read_bytes(&member_root, &path) {
+                    Ok(Some(bytes)) => match std::str::from_utf8(&bytes) {
+                        Ok(raw) => match parse_type_def(&repo_name, stem, raw) {
+                            Ok(def) => registry.insert(def),
+                            Err(err) => all_diags.push(Diagnostic {
+                                repo: repo_name.clone(),
+                                path: rel_posix,
+                                byte_start: 0,
+                                code: "invalid-type-def".to_owned(),
+                                severity: Severity::Error,
+                                message: err.to_string(),
+                            }),
+                        },
+                        Err(_) => all_diags.push(Diagnostic {
                             repo: repo_name.clone(),
                             path: rel_posix,
                             byte_start: 0,
                             code: "invalid-utf8".to_owned(),
                             severity: Severity::Error,
-                            message: "file contains invalid UTF-8 bytes".to_owned(),
-                        });
+                            message: "type definition contains invalid UTF-8 bytes".to_owned(),
+                        }),
+                    },
+                    Ok(None) => {}
+                    Err(FsError::SymlinkEscape(_)) => all_diags.push(Diagnostic {
+                        repo: repo_name.clone(),
+                        path: rel_posix,
+                        byte_start: 0,
+                        code: "symlink-escape".to_owned(),
+                        severity: Severity::Error,
+                        message: "type definition symlink escapes member root".to_owned(),
+                    }),
+                    Err(FsError::Io { source, .. }) => all_diags.push(Diagnostic {
+                        repo: repo_name.clone(),
+                        path: rel_posix,
+                        byte_start: 0,
+                        code: "type-read-error".to_owned(),
+                        severity: Severity::Error,
+                        message: format!("failed to read type definition: {source}"),
+                    }),
+                    Err(FsError::InvalidGitRef(msg)) => all_diags.push(Diagnostic {
+                        repo: repo_name.clone(),
+                        path: rel_posix,
+                        byte_start: 0,
+                        code: "type-read-error".to_owned(),
+                        severity: Severity::Error,
+                        message: msg,
+                    }),
+                }
+            }
+        }
+
+        let mut stack = vec![member_root.clone()];
+        while let Some(dir) = stack.pop() {
+            let mut dir_entries: Vec<fs::DirEntry> = Vec::new();
+            for entry in fs::read_dir(&dir).map_err(|source| FsError::Io {
+                path: dir.clone(),
+                source,
+            })? {
+                dir_entries.push(entry.map_err(|source| FsError::Io {
+                    path: dir.clone(),
+                    source,
+                })?);
+            }
+            dir_entries.sort_by_key(|e| e.file_name());
+
+            for entry in dir_entries {
+                let path = entry.path();
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy();
+                if name_str == ".git" {
+                    continue;
+                }
+                if dir == member_root.join(".2brain") && name_str == "engine" {
+                    continue;
+                }
+                let Ok(ft) = entry.file_type() else {
+                    continue;
+                };
+                let is_dir = ft.is_dir();
+                if gitignore
+                    .matched_path_or_any_parents(&path, is_dir)
+                    .is_ignore()
+                {
+                    continue;
+                }
+                if ft.is_symlink() {
+                    if !is_confined(&member_root, &path)? {
+                        continue;
+                    }
+                    if path.is_dir() {
+                        continue;
+                    }
+                }
+                if is_dir {
+                    stack.push(path);
+                } else if path.extension().and_then(|e| e.to_str()) == Some("md") {
+                    let Ok(rel) = path.strip_prefix(&member_root) else {
+                        continue;
+                    };
+                    let rel_posix = rel.to_string_lossy().replace('\\', "/");
+                    let Ok(loc) = Locator::new(&repo_name, &rel_posix) else {
+                        continue;
+                    };
+                    let bytes = match confined_read_bytes(&member_root, &path) {
+                        Ok(Some(b)) => b,
+                        Ok(None) | Err(FsError::SymlinkEscape(_)) => continue,
+                        Err(err) => return Err(err),
+                    };
+                    if bytes.iter().take(8192).any(|&b| b == 0) {
+                        continue;
+                    }
+                    let sha256 = RevisionDigest::of_bytes(&bytes);
+                    let short_hash = WriteGuardHash::of_bytes(&bytes).to_hex();
+                    match parse_document(&bytes) {
+                        Ok(doc) => {
+                            let diags = registry.validate_document(&repo_name, &rel_posix, &doc);
+                            all_diags.extend(diags);
+                            let raw_text = String::from_utf8(bytes).unwrap_or_default();
+                            let description = doc.frontmatter.as_ref().and_then(|fm| {
+                                match fm.get("description") {
+                                    Some(FrontmatterValue::String(s)) => Some(s.clone()),
+                                    _ => None,
+                                }
+                            });
+                            let declared_type =
+                                doc.frontmatter
+                                    .as_ref()
+                                    .and_then(|fm| match fm.get("type") {
+                                        Some(FrontmatterValue::String(s)) => Some(s.clone()),
+                                        _ => None,
+                                    });
+                            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                                stem_index
+                                    .entry((repo_name.clone(), stem.to_owned()))
+                                    .or_default()
+                                    .push(loc.clone());
+                            }
+                            path_index.insert((repo_name.clone(), rel_posix.clone()), loc.clone());
+                            if let Some(no_ext) = rel_posix.strip_suffix(".md") {
+                                path_index
+                                    .insert((repo_name.clone(), no_ext.to_owned()), loc.clone());
+                            }
+                            files.insert(
+                                loc.clone(),
+                                IndexedFile {
+                                    locator: loc,
+                                    sha256,
+                                    short_hash,
+                                    size_bytes: raw_text.len(),
+                                    raw_text,
+                                    doc,
+                                    description,
+                                    declared_type,
+                                },
+                            );
+                        }
+                        Err(_) => {
+                            all_diags.push(Diagnostic {
+                                repo: repo_name.clone(),
+                                path: rel_posix,
+                                byte_start: 0,
+                                code: "invalid-utf8".to_owned(),
+                                severity: Severity::Error,
+                                message: "file contains invalid UTF-8 bytes".to_owned(),
+                            });
+                        }
                     }
                 }
             }
         }
+
+        let mut deps = read_repo_deps(&member_root);
+        for d in registry.deps_of(&repo_name) {
+            if !deps.contains(&d) {
+                deps.push(d);
+            }
+        }
+        deps.sort();
+        members.insert(
+            repo_name.clone(),
+            MemberMeta {
+                repo: repo_name,
+                root: member_root.display().to_string(),
+                role,
+                deps,
+            },
+        );
     }
 
     for matches in stem_index.values_mut() {
@@ -868,14 +1416,15 @@ fn load_snapshot_inner(
     for (loc, file) in &files {
         locators.push(loc.clone());
         for link in &file.doc.wikilinks {
-            if let Some(target_repo) = &link.repo
-                && target_repo != &repo_name
-            {
+            let target_repo = link.repo.as_deref().unwrap_or(&loc.repo);
+            if !members.contains_key(target_repo) {
                 continue;
             }
-            if let Some(target_loc) = path_index.get(&(repo_name.clone(), link.target.clone())) {
+            if let Some(target_loc) = path_index.get(&(target_repo.to_owned(), link.target.clone()))
+            {
                 edges.push((loc.clone(), target_loc.clone(), link.kind));
-            } else if let Some(matches) = stem_index.get(&(repo_name.clone(), link.target.clone()))
+            } else if let Some(matches) =
+                stem_index.get(&(target_repo.to_owned(), link.target.clone()))
                 && matches.len() == 1
             {
                 edges.push((loc.clone(), matches[0].clone(), link.kind));
@@ -892,18 +1441,7 @@ fn load_snapshot_inner(
         )
     }));
 
-    let mut members = BTreeMap::new();
-    members.insert(
-        repo_name.clone(),
-        MemberMeta {
-            repo: repo_name.clone(),
-            root: canonical_root.display().to_string(),
-            role: "primary".to_owned(),
-            deps: registry.deps_of(&repo_name),
-        },
-    );
-
-    let store = FsWorkspaceStore::single(repo_name, canonical_root);
+    let store = FsWorkspaceStore::multi(canonical_root, store_members);
     let snapshot = VaultSnapshot {
         generation,
         members,
@@ -2325,6 +2863,236 @@ mod tests {
         assert!(
             conflicts.iter().any(|c| c["kind"] == "ambiguous_reference"),
             "expected explicit ambiguous_reference warning, got {conflicts:?}"
+        );
+    }
+
+    #[test]
+    fn wave_a_structural_mutations_preview_reconcile_watch_and_deps_work_end_to_end() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("type")).unwrap();
+        fs::write(
+            root.join("type/draft.type.yaml"),
+            "fields:\n  status:\n    type: string\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("target.md"),
+            "---\ntype: draft\nstatus: current\n---\n\nImportant core paragraph.\n",
+        )
+        .unwrap();
+        fs::write(root.join("caller.md"), "Refer to [[target]].\n").unwrap();
+
+        let (store, snap) = load_snapshot(root).unwrap();
+        let repo = snap.members.keys().next().unwrap().clone();
+        let app = Arc::new(tb_app::App::new(store, snap));
+        let target_loc = Locator::new(&repo, "target.md").unwrap();
+        let caller_loc = Locator::new(&repo, "caller.md").unwrap();
+
+        // 1. preview_mutation catches stale CAS and validates clean edit.
+        let h0 = app.snapshot().files[&target_loc].short_hash.clone();
+        let bad_preview = app
+            .preview_mutation(
+                json!({
+                    "op": "edit_file",
+                    "repo": repo,
+                    "path": "target.md",
+                    "expected_hash": "deadbeefdeadbeef",
+                    "old_str": "Important",
+                    "new_str": "Updated"
+                })
+                .as_object()
+                .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(bad_preview["preview_mutation"]["would_succeed"], false);
+
+        // 2. assign_block_id -> rename_block_id (rewriting inbound wikilink).
+        app.assign_block_id(
+            &target_loc,
+            &h0,
+            "fact-1",
+            tb_app::BlockTarget::MatchText("Important"),
+            None,
+        )
+        .unwrap();
+        let h_caller = app.snapshot().files[&caller_loc].short_hash.clone();
+        app.write_file(
+            &caller_loc,
+            &h_caller,
+            "Refer to [[target#^fact-1|fact]].\n",
+            None,
+        )
+        .unwrap();
+        let h1 = app.snapshot().files[&target_loc].short_hash.clone();
+        let rb = app
+            .rename_block_id(&target_loc, &h1, "fact-1", "core-1", None)
+            .unwrap();
+        assert_eq!(
+            rb.payload["rename_block_id"]["updated_references"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            app.snapshot().files[&caller_loc]
+                .raw_text
+                .contains("^core-1")
+        );
+
+        // 3. promote block into new note, then inline it back into caller.
+        let h2 = app.snapshot().files[&target_loc].short_hash.clone();
+        app.promote_block(
+            &target_loc,
+            &h2,
+            tb_app::PromoteSource::BlockId("core-1"),
+            "promoted.md",
+            Some("draft"),
+            None,
+        )
+        .unwrap();
+        assert!(
+            app.snapshot()
+                .files
+                .contains_key(&Locator::new(&repo, "promoted.md").unwrap())
+        );
+        let h3 = app.snapshot().files[&target_loc].short_hash.clone();
+        app.inline_note(&target_loc, &h3, "promoted", None).unwrap();
+        assert!(
+            app.snapshot().files[&target_loc]
+                .raw_text
+                .contains("Important core paragraph.")
+        );
+
+        // 4. rename_type updates schema file + instance frontmatter.
+        let rt = app.rename_type(&repo, "draft", "note", None).unwrap();
+        assert!(
+            !rt.payload["rename_type"]["updated_instances"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            app.snapshot()
+                .registry
+                .iter()
+                .any(|t| t.repo == repo && t.name == "note")
+        );
+        assert!(
+            !app.snapshot()
+                .registry
+                .iter()
+                .any(|t| t.repo == repo && t.name == "draft")
+        );
+
+        // 5. batch + add_dep + remove_dep + reconcile + watch wakeup.
+        let batch = app
+            .batch_mutations(
+                &[json!({
+                    "op": "create_file",
+                    "repo": repo,
+                    "path": "batched.md",
+                    "content": "hello batch\n"
+                })],
+                None,
+            )
+            .unwrap();
+        assert_eq!(batch.payload["batch"]["completed"], 1);
+
+        let added = app.mutate_dep(&repo, "shared-lib", true, None).unwrap();
+        assert_eq!(added.payload["add_dep"]["changed"], true);
+        let removed = app.mutate_dep(&repo, "shared-lib", false, None).unwrap();
+        assert_eq!(removed.payload["remove_dep"]["changed"], true);
+
+        let rec = app
+            .reconcile(&Locator::new(&repo, "batched.md").unwrap(), None, None)
+            .unwrap();
+        assert_eq!(rec["reconcile"]["status"], "matched");
+
+        let app_bg = Arc::clone(&app);
+        let gen_before = app.generation().0;
+        let waiter = std::thread::spawn(move || app_bg.watch(Some(gen_before), 3_000).unwrap());
+        std::thread::sleep(std::time::Duration::from_millis(40));
+        app.create_file(&Locator::new(&repo, "wake.md").unwrap(), "wake\n", None)
+            .unwrap();
+        let watch_res = waiter.join().unwrap();
+        assert_eq!(watch_res["watch"]["changed"], true);
+        assert!(watch_res["watch"]["generation"].as_u64().unwrap() > gen_before);
+    }
+
+    #[test]
+    fn multi_member_workspace_yaml_resolves_cross_repo_links_and_member_mutations() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("alpha")).unwrap();
+        fs::create_dir_all(root.join("beta")).unwrap();
+        fs::create_dir_all(root.join("gamma")).unwrap();
+        fs::write(
+            root.join("workspace.yaml"),
+            "members:\n  - name: alpha\n    path: alpha\n    role: own\n  - name: beta\n    path: beta\n    role: dependency\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("alpha/a.md"),
+            "Links across repo to [[b::beta]].\n",
+        )
+        .unwrap();
+        fs::write(root.join("beta/b.md"), "Target in beta.\n").unwrap();
+        fs::write(root.join("gamma/g.md"), "Note in gamma.\n").unwrap();
+
+        let (store, snap) = load_snapshot(root).unwrap();
+        assert_eq!(snap.members.len(), 2);
+        assert_eq!(snap.graph.edge_count(), 1);
+        let app = tb_app::App::new(store, snap);
+
+        app.mutate_workspace_member(
+            WorkspaceMemberAction::Add {
+                name: "gamma".into(),
+                path: "gamma".into(),
+                role: "dependency".into(),
+            },
+            None,
+        )
+        .unwrap();
+        assert_eq!(app.snapshot().members.len(), 3);
+        assert!(
+            app.snapshot()
+                .files
+                .contains_key(&Locator::new("gamma", "g.md").unwrap())
+        );
+
+        app.mutate_workspace_member(
+            WorkspaceMemberAction::SetRole {
+                name: "gamma".into(),
+                role: "own".into(),
+            },
+            None,
+        )
+        .unwrap();
+        assert_eq!(app.snapshot().members["gamma"].role, "own");
+
+        app.mutate_workspace_member(
+            WorkspaceMemberAction::Remove {
+                name: "gamma".into(),
+            },
+            None,
+        )
+        .unwrap();
+        assert_eq!(app.snapshot().members.len(), 2);
+
+        // Post-load symlink swap of a member directory must fail closed with SymlinkEscape.
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("pwn.md"), "outside\n").unwrap();
+        fs::remove_dir_all(root.join("beta")).unwrap();
+        std::os::unix::fs::symlink(outside.path(), root.join("beta")).unwrap();
+        let err = app
+            .store()
+            .read_exact(&Locator::new("beta", "pwn.md").unwrap())
+            .unwrap_err();
+        assert!(
+            matches!(err, StoreError::SymlinkEscape(_)),
+            "expected SymlinkEscape after member dir symlink swap, got {err:?}"
         );
     }
 }

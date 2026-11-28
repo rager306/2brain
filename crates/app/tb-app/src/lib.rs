@@ -5,7 +5,13 @@
 //! `crates/adapters/*` and are wired once in `crates/bin/two-brain`.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
+
+pub mod mutations;
+pub use mutations::{
+    BlockTarget, PromoteSource, WorkspaceMemberAction, validate_block_id, validate_member_role,
+    validate_slug,
+};
 
 use arc_swap::ArcSwap;
 use serde::{Deserialize, Serialize};
@@ -196,6 +202,37 @@ pub trait WorkspaceStore: Send + Sync {
     ) -> Result<MutationReceipt, StoreError> {
         Err(StoreError::Unsupported(
             "rename_file_cas unsupported".into(),
+        ))
+    }
+
+    /// Read-only preview of files affected by reverting a Git commit (`tb_rollback_preview`).
+    fn git_commit_preview(
+        &self,
+        _repo: &str,
+        _commit_ref: &str,
+        _limit: usize,
+    ) -> Result<Value, StoreError> {
+        Err(StoreError::Unsupported(
+            "git_commit_preview unsupported".into(),
+        ))
+    }
+
+    /// Add or remove a repository dependency in `.2brain/repo.yaml` (`tb_add_dep`/`tb_remove_dep`).
+    fn update_repo_deps(
+        &self,
+        _repo: &str,
+        _dep_name: &str,
+        _add: bool,
+    ) -> Result<Value, StoreError> {
+        Err(StoreError::Unsupported(
+            "update_repo_deps unsupported".into(),
+        ))
+    }
+
+    /// Update `workspace.yaml` membership (`tb_add/remove/set_workspace_member*`).
+    fn update_workspace_member(&self, _action: WorkspaceMemberAction) -> Result<Value, StoreError> {
+        Err(StoreError::Unsupported(
+            "update_workspace_member unsupported".into(),
         ))
     }
 }
@@ -396,28 +433,33 @@ pub struct App<W: WorkspaceStore> {
     outcomes: Arc<dyn OutcomePort>,
     orient_cache: Mutex<Option<(Generation, OrientHint)>>,
     topology_cache: Mutex<Option<(Generation, usize, usize, TopologyReport)>>,
+    watch_notify: (Mutex<u64>, Condvar),
 }
 
 impl<W: WorkspaceStore> App<W> {
     #[must_use]
     pub fn new(store: W, initial: VaultSnapshot) -> Self {
+        let gen0 = initial.generation.0;
         Self {
             store,
             snapshot: ArcSwap::from_pointee(initial),
             outcomes: Arc::new(DisabledOutcomePort),
             orient_cache: Mutex::new(None),
             topology_cache: Mutex::new(None),
+            watch_notify: (Mutex::new(gen0), Condvar::new()),
         }
     }
 
     #[must_use]
     pub fn with_outcomes(store: W, initial: VaultSnapshot, outcomes: Arc<dyn OutcomePort>) -> Self {
+        let gen0 = initial.generation.0;
         Self {
             store,
             snapshot: ArcSwap::from_pointee(initial),
             outcomes,
             orient_cache: Mutex::new(None),
             topology_cache: Mutex::new(None),
+            watch_notify: (Mutex::new(gen0), Condvar::new()),
         }
     }
 
@@ -432,7 +474,13 @@ impl<W: WorkspaceStore> App<W> {
     }
 
     pub fn swap_snapshot(&self, next: VaultSnapshot) {
+        let next_gen = next.generation.0;
         self.snapshot.store(Arc::new(next));
+        let (lock, cvar) = &self.watch_notify;
+        if let Ok(mut guard) = lock.lock() {
+            *guard = next_gen;
+            cvar.notify_all();
+        }
     }
 
     #[must_use]
@@ -2097,12 +2145,24 @@ impl<W: WorkspaceStore + 'static> AppDispatcher for App<W> {
                 opt_str("repo"),
                 opt_usize("limit", 20),
             ),
-            "preview_mutation" | "reconcile" | "rollback_preview" | "watch" => Ok(json!({
-                verb: {
-                    "status": "ok",
-                    "generation": self.generation().0,
-                }
-            })),
+            "preview_mutation" => self.preview_mutation(args),
+            "reconcile" => {
+                let loc = self.parse_locator_arg(args)?;
+                self.reconcile(&loc, opt_str("expected_hash"), opt_str("request_id"))
+            }
+            "rollback_preview" => self.rollback_preview(
+                opt_str("repo"),
+                opt_str("commit").unwrap_or("HEAD"),
+                opt_usize("limit", 50),
+            ),
+            "watch" => {
+                let since = args.get("since_generation").and_then(Value::as_u64);
+                let timeout_ms = args
+                    .get("timeout_ms")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(5_000);
+                self.watch(since, timeout_ms)
+            }
             other => Err(AppError::InvalidArguments(format!(
                 "unknown read verb '{other}'"
             ))),
@@ -2170,8 +2230,105 @@ impl<W: WorkspaceStore + 'static> AppDispatcher for App<W> {
                     .map_err(|e| AppError::InvalidArguments(e.to_string()))?;
                 self.rename_file(&from, &to, expected_hash, request_id)
             }
+            "assign_block_id" => {
+                let loc = self.parse_locator_arg(args)?;
+                let expected_hash = req_str("expected_hash")?;
+                let block_id = req_str("block_id")?;
+                let target = if let Some(ln) = args.get("line").and_then(Value::as_u64) {
+                    BlockTarget::Line(ln as usize)
+                } else if let Some(m) = opt_str("match_text") {
+                    BlockTarget::MatchText(m)
+                } else if let Some(h) = opt_str("heading") {
+                    BlockTarget::Heading(h)
+                } else {
+                    BlockTarget::LastLine
+                };
+                self.assign_block_id(&loc, expected_hash, block_id, target, request_id)
+            }
+            "rename_block_id" => {
+                let loc = self.parse_locator_arg(args)?;
+                let expected_hash = req_str("expected_hash")?;
+                let old_id = req_str("old_id")?;
+                let new_id = req_str("new_id")?;
+                self.rename_block_id(&loc, expected_hash, old_id, new_id, request_id)
+            }
+            "rename_type" => {
+                let repo = opt_str("repo")
+                    .map(str::to_owned)
+                    .or_else(|| self.default_repo_name())
+                    .ok_or_else(|| AppError::NotFound("no workspace member".into()))?;
+                let old_name = req_str("old_name")?;
+                let new_name = req_str("new_name")?;
+                self.rename_type(&repo, old_name, new_name, request_id)
+            }
+            "inline" => {
+                let loc = self.parse_locator_arg(args)?;
+                let expected_hash = req_str("expected_hash")?;
+                let target = req_str("target")?;
+                self.inline_note(&loc, expected_hash, target, request_id)
+            }
+            "promote" => {
+                let loc = self.parse_locator_arg(args)?;
+                let expected_hash = req_str("expected_hash")?;
+                let new_path = req_str("new_path")?;
+                let source = if let Some(b) = opt_str("block_id") {
+                    PromoteSource::BlockId(b)
+                } else if let Some(h) = opt_str("heading") {
+                    PromoteSource::Heading(h)
+                } else {
+                    return Err(AppError::InvalidArguments(
+                        "promote requires either 'block_id' or 'heading'".into(),
+                    ));
+                };
+                self.promote_block(
+                    &loc,
+                    expected_hash,
+                    source,
+                    new_path,
+                    opt_str("new_type"),
+                    request_id,
+                )
+            }
+            "batch" => {
+                let ops = args
+                    .get("operations")
+                    .and_then(Value::as_array)
+                    .ok_or_else(|| {
+                        AppError::InvalidArguments("'operations' array is required".into())
+                    })?;
+                self.batch_mutations(ops, request_id)
+            }
+            "add_dep" | "remove_dep" => {
+                let repo = opt_str("repo")
+                    .map(str::to_owned)
+                    .or_else(|| self.default_repo_name())
+                    .ok_or_else(|| AppError::NotFound("no workspace member".into()))?;
+                let dep = req_str("dep").or_else(|_| req_str("name"))?;
+                self.mutate_dep(&repo, dep, verb == "add_dep", request_id)
+            }
+            "add_workspace_member" => {
+                let name = validate_slug("name", req_str("name")?)?;
+                let path = req_str("path")?.to_owned();
+                let role = validate_member_role(opt_str("role").unwrap_or("own"))?;
+                self.mutate_workspace_member(
+                    WorkspaceMemberAction::Add { name, path, role },
+                    request_id,
+                )
+            }
+            "remove_workspace_member" => {
+                let name = validate_slug("name", req_str("name")?)?;
+                self.mutate_workspace_member(WorkspaceMemberAction::Remove { name }, request_id)
+            }
+            "set_workspace_member_role" => {
+                let name = validate_slug("name", req_str("name")?)?;
+                let role = validate_member_role(req_str("role")?)?;
+                self.mutate_workspace_member(
+                    WorkspaceMemberAction::SetRole { name, role },
+                    request_id,
+                )
+            }
             other => Err(AppError::Unsupported(format!(
-                "mutation verb '{other}' not yet implemented"
+                "unknown mutation verb '{other}'"
             ))),
         }
     }

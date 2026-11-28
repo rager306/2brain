@@ -45,6 +45,13 @@ Defect classes caught by adversarial review and fixed by structural invariants:
 11. **Inotify Watcher Self-Trigger Prevention (`two-brain`):**
    - Never reload snapshots on `notify::EventKind::Access(Open|Read|Close(NoWrite))` or `Modify(Metadata)` (`atime` updates); filter strictly to `Create`, `Remove`, `Modify(Data|Name|Any|Other)`, and `Access(Close(Write))` so snapshot reads cannot cause an infinite 100% CPU reload loop.
 
+12. **Span-Exact Rewrites, Multi-Step Partial-Effect Honesty, Batch SEM-02 Gate & Live Member Revalidation (`tb-app`, `tb-mcp`, `tb-fs-git`):**
+   - Rewrite wikilink anchors strictly by exact parsed `(byte_start, byte_end)` spans whose resolved target equals the renamed locator — never global string replacement across unrelated links sharing a block ID.
+   - In multi-step mutations (`promote_block`, `rename_block_id`, `rename_type`, `batch_mutations`), never drop dependent errors with `.is_ok()` and never return a rejectable pre-effect error (`CasMismatch`/`InvalidArguments`) once an earlier step has durably mutated disk; compensate if possible or return `AppError::OutcomeUnknown` naming every uncompensated/failed locator.
+   - Enforce the SEM-02 prior-read gate (`ReadLedger` or stateless HMAC `read_receipt`) on every existing-file operation inside `tb_batch` before executing step 0, and invalidate all modified `(repo, path)` ledger entries afterward.
+   - Revalidate every workspace member root relative to `workspace_root` with `O_NOFOLLOW` directory traversal on every operation (`root_for`) so a post-load member-dir symlink swap cannot redirect writes outside the workspace.
+
+
 
 
 
