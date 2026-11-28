@@ -5,9 +5,12 @@
 //! `usage.json`, `fs4` inter-process `registry.lock`, ground-truth
 //! `prune_tombstones_to`, and exact-frame replay.
 
+pub mod audit_log;
 mod outcome_digest;
 mod outcome_journal;
 mod outcome_registry;
+
+pub use audit_log::{AuditEntryInput, AuditEvent, FileAuditLog, verify_audit_chain};
 
 use std::io;
 use std::path::{Path, PathBuf};

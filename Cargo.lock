@@ -1345,6 +1345,7 @@ name = "tb-journal"
 version = "0.5.1"
 dependencies = [
  "fs4",
+ "rustix 1.1.6",
  "serde",
  "serde_json",
  "sha2",

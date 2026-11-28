@@ -489,6 +489,16 @@ pub fn classify_error_with_hint(msg: &str) -> (&'static str, &'static str) {
             "launch_grant",
             "Restart '2brain mcp' with the required capability flag (--allow-mutations, --allow-composition, --allow-workspace-shape, --allow-ingest, or --allow-cognitive).",
         )
+    } else if msg.contains("policy/revoked") {
+        (
+            "revoked",
+            "Access to this repository is revoked or excluded by the active --policy file; choose an allowed member or update policy.",
+        )
+    } else if msg.contains("policy/egress") {
+        (
+            "egress_denied",
+            "External egress is blocked by the active --policy file (AE24/R24); switch to a local destination or update egress_policy.",
+        )
     } else if msg.contains("policy/prior_read") {
         (
             "prior_read",

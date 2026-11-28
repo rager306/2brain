@@ -13,7 +13,9 @@ use notify::{RecursiveMode, Watcher};
 use tb_app::{App, AppDispatcher};
 use tb_ipc::IpcClient;
 use tb_journal::FileOutcomeStore;
-use tb_mcp::{HttpServerConfig, LaunchPolicy, TwoBrainMcp};
+use tb_mcp::{
+    AuditRecorder, EgressPolicy, HttpServerConfig, LaunchPolicy, PayloadMode, TwoBrainMcp,
+};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -196,9 +198,12 @@ enum Command {
         /// Tool payload representation (`both`, `text`, or `structured`).
         #[arg(long = "payload", default_value = "both")]
         payload: String,
-        /// Optional JSON policy file path.
+        /// Optional JSON policy file path (revoked_repos, allowed_repos, egress_destination, allow_external_egress, audit_log_path).
         #[arg(long = "policy")]
         policy: Option<PathBuf>,
+        /// Optional hash-chained JSONL audit log path for mutations and policy refusals.
+        #[arg(long = "audit-log")]
+        audit_log: Option<PathBuf>,
         /// Print MCP protocol surface and launch information, then exit.
         #[arg(long = "info")]
         info: bool,
@@ -236,6 +241,35 @@ enum OutcomesCommand {
         max_bytes: u64,
         /// Path to the workspace directory.
         workspace: PathBuf,
+    },
+    /// Show enabled state and live journal/tombstone usage for a workspace's outcome registry.
+    Status {
+        /// Path to the workspace directory.
+        workspace: PathBuf,
+        /// Emit machine-readable JSON output.
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Run crash-safe startup recovery on pre-effect outcome journals.
+    Recover {
+        /// Path to the workspace directory.
+        workspace: PathBuf,
+    },
+    /// Compact terminal outcome journals older than `--max-age-secs` into tombstones.
+    Compact {
+        /// Path to the workspace directory.
+        workspace: PathBuf,
+        /// Retention age in seconds before compacting terminal journals (default: 7 days).
+        #[arg(long = "max-age-secs", default_value_t = 7 * 24 * 60 * 60)]
+        max_age_secs: u64,
+    },
+    /// Prune oldest tombstones until total tombstone bytes <= `--max-bytes`.
+    Prune {
+        /// Path to the workspace directory.
+        workspace: PathBuf,
+        /// Maximum tombstone bytes to retain.
+        #[arg(long = "max-bytes")]
+        max_bytes: u64,
     },
 }
 
@@ -302,6 +336,90 @@ fn main() {
                     root.display()
                 );
             }
+            OutcomesCommand::Status { workspace, json } => {
+                let root = tb_journal::outcome_registry_root(&workspace);
+                let reg = tb_journal::open_registry(&root);
+                let enabled = reg.is_enabled();
+                let (records, bytes) = if enabled {
+                    match reg.usage() {
+                        Ok(u) => u,
+                        Err(err) => {
+                            eprintln!("error reading outcome usage: {err}");
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    (0, 0)
+                };
+                if json {
+                    let payload = serde_json::json!({
+                        "root": root.display().to_string(),
+                        "enabled": enabled,
+                        "live_records": records,
+                        "total_bytes": bytes,
+                    });
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&payload).expect("json serialization")
+                    );
+                } else {
+                    println!(
+                        "outcomes status ({}): enabled={enabled} live_records={records} total_bytes={bytes}",
+                        root.display()
+                    );
+                }
+            }
+            OutcomesCommand::Recover { workspace } => {
+                match tb_journal::recover_outcome_registry(&workspace) {
+                    Ok(rec) => println!(
+                        "recovered outcome registry: rejected={} unresolved={} corrupt={}",
+                        rec.rejected, rec.unresolved, rec.corrupt
+                    ),
+                    Err(err) => {
+                        eprintln!("error recovering outcome registry: {err}");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            OutcomesCommand::Compact {
+                workspace,
+                max_age_secs,
+            } => {
+                let root = tb_journal::outcome_registry_root(&workspace);
+                let reg = tb_journal::open_registry(&root);
+                if !reg.is_enabled() {
+                    println!("outcome registry is not enabled at {}", root.display());
+                    return;
+                }
+                match reg.compact(Duration::from_secs(max_age_secs)) {
+                    Ok(n) => println!("compacted {n} terminal journal(s) at {}", root.display()),
+                    Err(err) => {
+                        eprintln!("error compacting outcome registry: {err}");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            OutcomesCommand::Prune {
+                workspace,
+                max_bytes,
+            } => {
+                let root = tb_journal::outcome_registry_root(&workspace);
+                let reg = tb_journal::open_registry(&root);
+                if !reg.is_enabled() {
+                    println!("outcome registry is not enabled at {}", root.display());
+                    return;
+                }
+                match reg.prune_tombstones_to(max_bytes) {
+                    Ok((removed, freed)) => println!(
+                        "pruned {removed} tombstone(s), freed {freed} byte(s) at {}",
+                        root.display()
+                    ),
+                    Err(err) => {
+                        eprintln!("error pruning outcome tombstones: {err}");
+                        std::process::exit(1);
+                    }
+                }
+            }
         },
         Command::Bench {
             path,
@@ -355,9 +473,37 @@ fn main() {
             tools,
             payload,
             policy: policy_file,
+            audit_log,
             info,
         } => {
-            let _ = (principal, payload, policy_file);
+            let payload_mode = match PayloadMode::parse(&payload) {
+                Ok(m) => m,
+                Err(err) => {
+                    eprintln!("error: {err}");
+                    std::process::exit(2);
+                }
+            };
+            let egress = match policy_file {
+                Some(ref path) => match load_egress_policy(path) {
+                    Ok(p) => Some(p),
+                    Err(err) => {
+                        eprintln!("error loading --policy '{}': {err}", path.display());
+                        std::process::exit(2);
+                    }
+                },
+                None => None,
+            };
+            let audit_path = audit_log.or_else(|| {
+                egress
+                    .as_ref()
+                    .and_then(|e| e.audit_log_path.as_ref())
+                    .map(PathBuf::from)
+            });
+            let audit: Option<Arc<dyn AuditRecorder>> = audit_path.map(|p| {
+                Arc::new(FileAuditAdapter {
+                    log: tb_journal::FileAuditLog::new(p),
+                }) as Arc<dyn AuditRecorder>
+            });
             let effective_mutations =
                 allow_mutations || allow_composition || allow_workspace_shape || allow_ingest;
             let policy = LaunchPolicy {
@@ -368,6 +514,9 @@ fn main() {
                 outcome_registry,
                 allow_cognitive,
                 full_schemas: tools.eq_ignore_ascii_case("full"),
+                payload_mode,
+                principal,
+                egress,
             };
             if info {
                 println!(
@@ -406,7 +555,7 @@ fn main() {
                 None => None,
             };
             if let Some(workspace) = in_process {
-                run_mcp_in_process(&workspace, policy, http_cfg);
+                run_mcp_in_process(&workspace, policy, http_cfg, audit);
             } else if let Some(target) = socket {
                 let resolved_sock = if target.is_dir() {
                     match std::fs::canonicalize(&target) {
@@ -419,7 +568,7 @@ fn main() {
                 } else {
                     target
                 };
-                run_mcp_over_socket(&resolved_sock, policy, http_cfg);
+                run_mcp_over_socket(&resolved_sock, policy, http_cfg, audit);
             } else {
                 eprintln!(
                     "error: pass <socket-or-workspace> or --in-process <workspace> to '2brain mcp'"
@@ -862,13 +1011,54 @@ fn resolve_http_token(token_file: Option<&std::path::Path>) -> Result<Option<Str
     }
 }
 
+struct FileAuditAdapter {
+    log: tb_journal::FileAuditLog,
+}
+
+impl AuditRecorder for FileAuditAdapter {
+    fn check_ready(&self) -> Result<(), String> {
+        self.log
+            .check_ready()
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+
+    fn record(
+        &self,
+        principal: &str,
+        tool: &str,
+        repo: &str,
+        path: &str,
+        outcome: &str,
+        reason_code: &str,
+    ) -> Result<(), String> {
+        self.log
+            .append(&tb_journal::AuditEntryInput {
+                principal,
+                tool,
+                repo,
+                path,
+                outcome,
+                reason_code,
+            })
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+}
+
+fn load_egress_policy(path: &std::path::Path) -> Result<EgressPolicy, String> {
+    let raw = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&raw).map_err(|e| e.to_string())
+}
+
 fn run_mcp_over_socket(
     socket: &std::path::Path,
     policy: LaunchPolicy,
     http_cfg: Option<HttpServerConfig>,
+    audit: Option<Arc<dyn AuditRecorder>>,
 ) {
     let client: Arc<dyn AppDispatcher> = Arc::new(IpcClient::new(socket.to_path_buf()));
-    let server = match TwoBrainMcp::try_new(client, policy) {
+    let server = match TwoBrainMcp::try_new_with_audit(client, policy, audit) {
         Ok(s) => s,
         Err(err) => {
             eprintln!("mcp init error: {err}");
@@ -890,6 +1080,7 @@ fn run_mcp_in_process(
     workspace: &std::path::Path,
     policy: LaunchPolicy,
     http_cfg: Option<HttpServerConfig>,
+    audit: Option<Arc<dyn AuditRecorder>>,
 ) {
     let canonical = match std::fs::canonicalize(workspace) {
         Ok(c) => c,
@@ -909,7 +1100,7 @@ fn run_mcp_in_process(
     let outcomes = Arc::new(FileOutcomeStore::for_workspace(&canonical));
     let app = Arc::new(App::with_outcomes(store, snapshot, outcomes));
     let disp: Arc<dyn AppDispatcher> = Arc::clone(&app) as Arc<dyn AppDispatcher>;
-    let server = match TwoBrainMcp::try_new(disp, policy) {
+    let server = match TwoBrainMcp::try_new_with_audit(disp, policy, audit) {
         Ok(s) => s,
         Err(err) => {
             eprintln!("mcp init error: {err}");

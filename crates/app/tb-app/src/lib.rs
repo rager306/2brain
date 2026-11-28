@@ -1412,7 +1412,9 @@ impl<W: WorkspaceStore> App<W> {
 
         let mut any_note_truncated = truncated_by_limit;
         let mut fragments = Vec::new();
+        let mut selected_locators: BTreeSet<Locator> = BTreeSet::new();
         let mut neighbor_set: BTreeSet<Locator> = BTreeSet::new();
+        let mut used_chars = 0usize;
 
         for hit in all_hits.into_iter().take(max_notes) {
             if let Some(file) = snap.files.get(&hit.locator) {
@@ -1434,17 +1436,20 @@ impl<W: WorkspaceStore> App<W> {
                     any_note_truncated = true;
                     excerpt(body, &terms, max_chars)
                 };
+                used_chars = used_chars.saturating_add(window.chars().count());
                 if let Some(sub) = snap.graph.neighborhood(&hit.locator, 1, Direction::Both, 6) {
                     for loc in sub.nodes {
-                        if loc != hit.locator {
+                        if loc != hit.locator && repo.is_none_or(|r| loc.repo == r) {
                             neighbor_set.insert(loc);
                         }
                     }
                 }
+                selected_locators.insert(file.locator.clone());
                 fragments.push(json!({
                     "repo": file.locator.repo,
                     "path": file.locator.path,
                     "sha256": file.sha256.to_hex(),
+                    "role": "primary",
                     "score": hit.score,
                     "weak": hit.weak,
                     "description": file.description,
@@ -1453,10 +1458,134 @@ impl<W: WorkspaceStore> App<W> {
             }
         }
 
-        // KTD5 / U5 Release Admission Gate: verify generation did not advance during assembly.
-        if self.snapshot.load().generation != gen_before {
-            return Err(AppError::SnapshotStale);
+        // Issue #7 D03/D04/R14: scope claim extraction strictly to authorized `repo` (when set)
+        // so revoked/cross-repo paths never leak into companion discovery or conflict summaries.
+        let scoped_claims: Vec<ClaimRecord> = extract_claims(&snap)
+            .into_iter()
+            .filter(|c| repo.is_none_or(|r| c.locator.repo == r))
+            .map(|mut c| {
+                if let Some(r) = repo {
+                    c.conflicts_with.retain(|loc| loc.repo == r);
+                    c.supersedes.retain(|loc| loc.repo == r);
+                    c.ambiguous_references
+                        .retain(|amb| amb.candidates.iter().all(|loc| loc.repo == r));
+                }
+                c
+            })
+            .collect();
+
+        // Pass 1: discover claim keys and both ends of conflict/supersession relations touching
+        // selected fragments (plus opposite-polarity peers sharing a claim_key).
+        let mut selected_claim_keys: HashSet<String> = HashSet::new();
+        let mut companion_candidates: BTreeSet<Locator> = BTreeSet::new();
+        for claim in &scoped_claims {
+            let touches_selected = selected_locators.contains(&claim.locator)
+                || claim
+                    .conflicts_with
+                    .iter()
+                    .any(|c| selected_locators.contains(c))
+                || claim
+                    .supersedes
+                    .iter()
+                    .any(|s| selected_locators.contains(s));
+            if touches_selected {
+                if let Some(ref k) = claim.claim_key {
+                    selected_claim_keys.insert(k.clone());
+                }
+                if !selected_locators.contains(&claim.locator) {
+                    companion_candidates.insert(claim.locator.clone());
+                }
+                for c in &claim.conflicts_with {
+                    if !selected_locators.contains(c) {
+                        companion_candidates.insert(c.clone());
+                    }
+                }
+                for s in &claim.supersedes {
+                    if !selected_locators.contains(s) {
+                        companion_candidates.insert(s.clone());
+                    }
+                }
+            }
         }
+        if !selected_claim_keys.is_empty() {
+            for claim in &scoped_claims {
+                if claim
+                    .claim_key
+                    .as_deref()
+                    .is_some_and(|k| selected_claim_keys.contains(k))
+                    && !selected_locators.contains(&claim.locator)
+                {
+                    companion_candidates.insert(claim.locator.clone());
+                }
+            }
+        }
+
+        // Pull in decisive companion notes (conflict poles / superseding notes) under the budget.
+        let mut omitted_companions = 0usize;
+        for comp_loc in &companion_candidates {
+            if fragments.len() >= max_notes {
+                omitted_companions += 1;
+                any_note_truncated = true;
+                continue;
+            }
+            if let Some(file) = snap.files.get(comp_loc) {
+                let (_, live_receipt) = self
+                    .store
+                    .read_exact(&file.locator)
+                    .map_err(|_| AppError::SnapshotStale)?;
+                if live_receipt.sha256 != file.sha256 {
+                    return Err(AppError::SnapshotStale);
+                }
+                let body = file.body();
+                let text_chars = body.chars().count();
+                let window = if text_chars <= max_chars {
+                    body.to_owned()
+                } else {
+                    any_note_truncated = true;
+                    excerpt(body, &terms, max_chars)
+                };
+                used_chars = used_chars.saturating_add(window.chars().count());
+                selected_locators.insert(file.locator.clone());
+                fragments.push(json!({
+                    "repo": file.locator.repo,
+                    "path": file.locator.path,
+                    "sha256": file.sha256.to_hex(),
+                    "role": "exception_or_pole",
+                    "score": 0.0,
+                    "weak": false,
+                    "description": file.description,
+                    "text": window,
+                }));
+            }
+        }
+
+        // Pass 2: assemble complete relevant claims from BOTH ends of resolved relations and
+        // matching claim_keys before running contradiction audit.
+        let relevant_claims: Vec<ClaimRecord> = scoped_claims
+            .into_iter()
+            .filter(|c| {
+                selected_locators.contains(&c.locator)
+                    || companion_candidates.contains(&c.locator)
+                    || c.claim_key
+                        .as_deref()
+                        .is_some_and(|k| selected_claim_keys.contains(k))
+            })
+            .collect();
+
+        let contradiction_report = run_contradictions(&relevant_claims, None, 25);
+        let conflict_summaries: Vec<String> = contradiction_report
+            .conflicts
+            .iter()
+            .map(|c| format!("[{}] ({:?}) {}", c.conflict_id, c.kind, c.explanation))
+            .collect();
+        let supersession_summaries: Vec<String> = relevant_claims
+            .iter()
+            .filter(|c| !c.supersedes.is_empty())
+            .map(|c| {
+                let targets: Vec<&str> = c.supersedes.iter().map(|l| l.path.as_str()).collect();
+                format!("{} supersedes [{}]", c.locator.path, targets.join(", "))
+            })
+            .collect();
 
         let support_assessment: Assessment<usize> = if fragments.is_empty() {
             Assessment::AssessedEmpty
@@ -1468,18 +1597,72 @@ impl<W: WorkspaceStore> App<W> {
         let missingness_assessment: Assessment<bool> = if any_note_truncated {
             Assessment::Incomplete {
                 partial: true,
-                reason: "bounded by max_notes or max_chars_per_note".to_owned(),
+                reason: if omitted_companions > 0 {
+                    format!(
+                        "bounded by max_notes/max_chars_per_note ({omitted_companions} claim companion note(s) omitted)"
+                    )
+                } else {
+                    "bounded by max_notes or max_chars_per_note".to_owned()
+                },
             }
         } else {
-            Assessment::Unassessed
+            Assessment::AssessedEmpty
         };
-        let conflicts_assessment: Assessment<Vec<String>> = Assessment::Unassessed;
-        let supersession_assessment: Assessment<Vec<String>> = Assessment::Unassessed;
+        let conflicts_assessment: Assessment<Vec<String>> = if !conflict_summaries.is_empty() {
+            if omitted_companions > 0 {
+                Assessment::Incomplete {
+                    partial: conflict_summaries,
+                    reason: format!(
+                        "{omitted_companions} companion claim note(s) exceeded max_notes"
+                    ),
+                }
+            } else {
+                Assessment::Available {
+                    items: conflict_summaries,
+                }
+            }
+        } else if omitted_companions > 0 {
+            Assessment::Incomplete {
+                partial: Vec::new(),
+                reason: format!("{omitted_companions} companion claim note(s) exceeded max_notes"),
+            }
+        } else {
+            Assessment::AssessedEmpty
+        };
+        let supersession_assessment: Assessment<Vec<String>> = if !supersession_summaries.is_empty()
+        {
+            Assessment::Available {
+                items: supersession_summaries,
+            }
+        } else {
+            Assessment::AssessedEmpty
+        };
 
-        Ok(json!({
+        let estimated_tokens = used_chars.div_ceil(4);
+        let criterion_satisfied = !fragments.is_empty();
+        let payload = json!({
             "context": {
                 "query": query,
                 "generation": gen_before.0,
+                "projection_manifest": {
+                    "generation": gen_before.0,
+                    "indexed_files": snap.files.len(),
+                    "node_count": snap.graph.node_count(),
+                    "edge_count": snap.graph.edge_count(),
+                },
+                "budget": {
+                    "max_notes": max_notes,
+                    "used_notes": fragments.len(),
+                    "max_chars_per_note": max_chars,
+                    "used_chars": used_chars,
+                    "estimated_tokens": estimated_tokens,
+                },
+                "criterion": {
+                    "version": "2brain.criterion/v1",
+                    "min_support": 1,
+                    "satisfied": criterion_satisfied,
+                    "omitted_companions": omitted_companions,
+                },
                 "fragments": fragments,
                 "related_neighbors": neighbor_set.into_iter().take(10).collect::<Vec<_>>(),
                 "why": {
@@ -1490,7 +1673,13 @@ impl<W: WorkspaceStore> App<W> {
                 },
                 "retention": { "retained": false },
             }
-        }))
+        });
+
+        // KTD5 / U5 Release Admission Gate: final generation check immediately before release.
+        if self.snapshot.load().generation != gen_before {
+            return Err(AppError::SnapshotStale);
+        }
+        Ok(payload)
     }
 
     /// `tb_mutation_outcome`

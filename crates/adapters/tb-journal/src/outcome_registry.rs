@@ -824,7 +824,6 @@ impl Registry {
     /// Uses the O(1) CRC-checked `usage.json` snapshot when `usage.dirty` is
     /// absent and the snapshot validates; otherwise performs an authoritative
     /// rebuild from disk and atomically publishes a fresh `usage.json`.
-    #[cfg(test)]
     pub fn usage(&self) -> Result<(usize, u64), RegistryError> {
         let root = outcomes_dir(&self.root);
         if !root.exists() {

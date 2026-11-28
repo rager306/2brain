@@ -49,6 +49,30 @@ const SERVER_INSTRUCTIONS: &str = "Read-only access to a 2brain v2 workspace (MI
 const READ_RECEIPT_TTL_SECS: u64 = 900;
 const MAX_CONCURRENT_TASKS: usize = 8;
 
+fn is_mutating_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "tb_create_file"
+            | "tb_write_file"
+            | "tb_edit_file"
+            | "tb_delete_file"
+            | "tb_rename"
+            | "tb_assign_block_id"
+            | "tb_rename_block_id"
+            | "tb_rename_type"
+            | "tb_inline"
+            | "tb_promote"
+            | "tb_batch"
+            | "tb_add_dep"
+            | "tb_remove_dep"
+            | "tb_add_workspace_member"
+            | "tb_remove_workspace_member"
+            | "tb_set_workspace_member_role"
+            | "tb_ingest"
+            | "tb_record_decision"
+    )
+}
+
 fn is_cognitive_tool(name: &str) -> bool {
     matches!(
         name,
@@ -70,8 +94,91 @@ pub enum McpServerError {
     Transport(String),
 }
 
+/// Output representation for MCP tool results (`--payload both|text|structured`).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum PayloadMode {
+    #[default]
+    Both,
+    Text,
+    Structured,
+}
+
+impl PayloadMode {
+    pub fn parse(raw: &str) -> Result<Self, String> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "both" => Ok(Self::Both),
+            "text" => Ok(Self::Text),
+            "structured" => Ok(Self::Structured),
+            other => Err(format!(
+                "invalid --payload '{other}' (expected both|text|structured)"
+            )),
+        }
+    }
+}
+
+/// Fail-closed repository revocation & provider egress boundary policy (`--policy <file>`, Issue #7 R24 / AE24).
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+pub struct EgressPolicy {
+    /// If non-empty, ONLY these repository slugs may be read or mutated.
+    pub allowed_repos: Vec<String>,
+    /// Repositories explicitly revoked (always denied, takes precedence over `allowed_repos`).
+    pub revoked_repos: Vec<String>,
+    /// Named destination label (e.g. `"local"`, `"cloud-llm"`). Defaults to `"local"`.
+    pub egress_destination: String,
+    /// When `false` (default), non-local destinations are blocked fail-closed.
+    pub allow_external_egress: bool,
+    /// Optional path to a hash-chained JSONL audit log file.
+    pub audit_log_path: Option<String>,
+}
+
+impl EgressPolicy {
+    #[must_use]
+    pub fn is_repo_revoked(&self, repo: &str) -> bool {
+        if self.revoked_repos.iter().any(|r| r == repo) {
+            return true;
+        }
+        !self.allowed_repos.is_empty() && !self.allowed_repos.iter().any(|r| r == repo)
+    }
+
+    #[must_use]
+    pub fn has_repo_restrictions(&self) -> bool {
+        !self.revoked_repos.is_empty() || !self.allowed_repos.is_empty()
+    }
+
+    #[must_use]
+    pub fn is_egress_blocked(&self) -> bool {
+        let dest = self.egress_destination.trim();
+        !dest.is_empty() && !dest.eq_ignore_ascii_case("local") && !self.allow_external_egress
+    }
+
+    #[must_use]
+    pub fn destination_label(&self) -> &str {
+        let dest = self.egress_destination.trim();
+        if dest.is_empty() { "local" } else { dest }
+    }
+}
+
+/// Driven port for appending hash-chained audit records from MCP mutations and policy refusals.
+pub trait AuditRecorder: Send + Sync {
+    /// Fail-closed preflight check before executing a mutation (ensures log is lockable and intact).
+    fn check_ready(&self) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn record(
+        &self,
+        principal: &str,
+        tool: &str,
+        repo: &str,
+        path: &str,
+        outcome: &str,
+        reason_code: &str,
+    ) -> Result<(), String>;
+}
+
 /// Launch-time capability grants (fail-closed by default).
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct LaunchPolicy {
     pub allow_mutations: bool,
     pub allow_composition: bool,
@@ -80,6 +187,9 @@ pub struct LaunchPolicy {
     pub outcome_registry: bool,
     pub allow_cognitive: bool,
     pub full_schemas: bool,
+    pub payload_mode: PayloadMode,
+    pub principal: Option<String>,
+    pub egress: Option<EgressPolicy>,
 }
 
 #[derive(Clone, Debug)]
@@ -234,6 +344,7 @@ pub struct TwoBrainMcp {
     tools: Arc<Vec<Tool>>,
     tasks: TaskManager,
     task_slots: Arc<Semaphore>,
+    audit: Option<Arc<dyn AuditRecorder>>,
 }
 
 impl TwoBrainMcp {
@@ -241,7 +352,15 @@ impl TwoBrainMcp {
         dispatcher: Arc<dyn AppDispatcher>,
         policy: LaunchPolicy,
     ) -> Result<Self, McpServerError> {
-        let tools = Arc::new(build_tool_catalog(policy));
+        Self::try_new_with_audit(dispatcher, policy, None)
+    }
+
+    pub fn try_new_with_audit(
+        dispatcher: Arc<dyn AppDispatcher>,
+        policy: LaunchPolicy,
+        audit: Option<Arc<dyn AuditRecorder>>,
+    ) -> Result<Self, McpServerError> {
+        let tools = Arc::new(build_tool_catalog(&policy));
         let signer = ReceiptSigner::try_ephemeral()?;
         Ok(Self {
             dispatcher,
@@ -251,6 +370,7 @@ impl TwoBrainMcp {
             tools,
             tasks: TaskManager::new(),
             task_slots: Arc::new(Semaphore::new(MAX_CONCURRENT_TASKS)),
+            audit,
         })
     }
 
@@ -273,14 +393,226 @@ impl TwoBrainMcp {
     }
 
     fn skill_catalog(&self) -> SkillCatalog {
-        if let Some(snap) = self.dispatcher.local_snapshot() {
+        // When repository restrictions are active, never project vault-authored skills from
+        // potentially revoked repositories; serve only built-in core skills.
+        let restricted = self
+            .policy
+            .egress
+            .as_ref()
+            .is_some_and(EgressPolicy::has_repo_restrictions);
+        if !restricted && let Some(snap) = self.dispatcher.local_snapshot() {
             SkillCatalog::from_snapshot(&snap)
         } else {
             SkillCatalog::from_snapshot(&VaultSnapshot::empty())
         }
     }
 
+    fn require_egress_allowed(&self) -> Result<(), McpError> {
+        if let Some(ref egress) = self.policy.egress
+            && egress.is_egress_blocked()
+        {
+            return Err(McpError::invalid_request(
+                format!(
+                    "policy/egress: external egress to '{}' is denied by launch policy",
+                    egress.destination_label()
+                ),
+                None,
+            ));
+        }
+        Ok(())
+    }
+
+    fn check_egress_and_revocation(
+        &self,
+        name: &str,
+        args: &Map<String, Value>,
+    ) -> Result<(), String> {
+        let Some(ref egress) = self.policy.egress else {
+            return Ok(());
+        };
+        // Static schema discovery never discloses vault content.
+        if matches!(name, "tb_describe_tool" | "tb_search_tools") {
+            return Ok(());
+        }
+        if egress.is_egress_blocked() {
+            return Err(format!(
+                "policy/egress: external egress to '{}' is denied by launch policy",
+                egress.destination_label()
+            ));
+        }
+        for key in ["repo", "from_repo", "to_repo", "source_repo", "target_repo"] {
+            if let Some(repo) = opt_str(args, key)
+                && egress.is_repo_revoked(repo)
+            {
+                return Err(format!(
+                    "policy/revoked: access to repository '{repo}' is revoked by launch policy"
+                ));
+            }
+        }
+        if name == "tb_batch"
+            && let Some(ops) = args.get("operations").and_then(Value::as_array)
+        {
+            for (idx, op) in ops.iter().enumerate() {
+                let Some(obj) = op.as_object() else {
+                    continue;
+                };
+                if egress.has_repo_restrictions() && opt_str(obj, "repo").is_none() {
+                    return Err(format!(
+                        "policy/revoked: operation[{idx}] must specify an explicit allowed 'repo'"
+                    ));
+                }
+                for key in ["repo", "from_repo", "to_repo"] {
+                    if let Some(repo) = opt_str(obj, key)
+                        && egress.is_repo_revoked(repo)
+                    {
+                        return Err(format!(
+                            "policy/revoked: operation[{idx}] targets revoked repository '{repo}'"
+                        ));
+                    }
+                }
+            }
+        }
+        if egress.has_repo_restrictions() {
+            // Deny workspace-wide tools that aggregate across all repositories without per-repo isolation.
+            if matches!(
+                name,
+                "tb_orient"
+                    | "tb_analyze_topology"
+                    | "tb_detect_gaps"
+                    | "tb_audit_bias"
+                    | "tb_audit_contradictions"
+                    | "tb_fragility_report"
+                    | "tb_diff_graphs"
+                    | "tb_list_decisions"
+                    | "tb_record_decision"
+                    | "tb_hubs"
+                    | "tb_members"
+                    | "tb_resolve_member"
+                    | "tb_watch"
+                    | "tb_reconcile"
+                    | "tb_rollback_preview"
+                    | "tb_preview_mutation"
+                    | "tb_add_workspace_member"
+                    | "tb_remove_workspace_member"
+                    | "tb_set_workspace_member_role"
+            ) {
+                return Err(format!(
+                    "policy/revoked: workspace-wide tool '{name}' is blocked while repository access restrictions are active"
+                ));
+            }
+            if name != "tb_batch" && opt_str(args, "repo").is_none() {
+                return Err(format!(
+                    "policy/revoked: tool '{name}' requires an explicit allowed 'repo' while repository access restrictions are active"
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn apply_payload_mode(&self, mut res: CallToolResult) -> CallToolResult {
+        match self.policy.payload_mode {
+            PayloadMode::Both => res,
+            PayloadMode::Text => {
+                res.structured_content = None;
+                res
+            }
+            PayloadMode::Structured => {
+                if res.structured_content.is_some() {
+                    res.content.clear();
+                }
+                res
+            }
+        }
+    }
+
+    fn record_audit_if_needed(
+        &self,
+        name: &str,
+        args: &Map<String, Value>,
+        res: &CallToolResult,
+    ) -> Result<(), String> {
+        let Some(ref audit) = self.audit else {
+            return Ok(());
+        };
+        let is_error = res.is_error == Some(true);
+        let reason_code = res
+            .structured_content
+            .as_ref()
+            .and_then(|v| v.get("reason_code"))
+            .and_then(Value::as_str)
+            .unwrap_or(if is_error { "error" } else { "ok" });
+        let is_policy_denial = matches!(
+            reason_code,
+            "launch_grant" | "revoked" | "egress_denied" | "prior_read" | "path_scope"
+        );
+        if !is_mutating_tool(name) && !is_policy_denial {
+            return Ok(());
+        }
+        let principal = self.policy.principal.as_deref().unwrap_or("anonymous");
+        let repo = opt_str(args, "repo").unwrap_or("");
+        let path = opt_str(args, "path")
+            .or_else(|| opt_str(args, "stem"))
+            .unwrap_or("");
+        let outcome = if is_error { "denied" } else { "allowed" };
+        audit.record(principal, name, repo, path, outcome, reason_code)
+    }
+
     fn dispatch_tool(&self, name: &str, args: &Map<String, Value>) -> CallToolResult {
+        let pre_err = if let Err(reason) = self.check_egress_and_revocation(name, args) {
+            Some(reason)
+        } else if is_mutating_tool(name)
+            && let Some(ref audit) = self.audit
+            && let Err(audit_err) = audit.check_ready()
+        {
+            Some(format!(
+                "policy/audit_unavailable: refusing unaudited mutation because audit log is not ready: {audit_err}"
+            ))
+        } else {
+            None
+        };
+
+        let mut res = if let Some(reason) = pre_err {
+            err_text(reason)
+        } else {
+            self.dispatch_tool_inner(name, args)
+        };
+        // Attach disclosure boundary metadata to `tb_context` when egress policy is configured.
+        if name == "tb_context"
+            && res.is_error != Some(true)
+            && let Some(ref egress) = self.policy.egress
+            && let Some(ctx) = res
+                .structured_content
+                .as_mut()
+                .and_then(|v| v.get_mut("context"))
+                .and_then(Value::as_object_mut)
+        {
+            ctx.insert(
+                "disclosure_boundary".to_owned(),
+                json!({
+                    "destination": egress.destination_label(),
+                    "external_egress_allowed": egress.allow_external_egress,
+                    "principal": self.policy.principal,
+                }),
+            );
+            if let Some(ref sc) = res.structured_content
+                && let Ok(txt) = serde_json::to_string(sc)
+            {
+                res.content = vec![ContentBlock::text(txt)];
+            }
+        }
+        if let Err(audit_err) = self.record_audit_if_needed(name, args, &res) {
+            if is_mutating_tool(name) && res.is_error != Some(true) {
+                res = err_text(format!(
+                    "outcome_unknown: mutation completed but durable audit append failed: {audit_err}"
+                ));
+            } else {
+                eprintln!("2brain audit log write error: {audit_err}");
+            }
+        }
+        self.apply_payload_mode(res)
+    }
+
+    fn dispatch_tool_inner(&self, name: &str, args: &Map<String, Value>) -> CallToolResult {
         match name {
             "tb_describe_tool" => match req_str(args, "name") {
                 Ok(tool_name) => match self.tools.iter().find(|t| t.name.as_ref() == tool_name) {
@@ -872,6 +1204,7 @@ impl ServerHandler for TwoBrainMcp {
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<GetPromptResponse, McpError> {
+        self.require_egress_allowed()?;
         let text = match request.name.as_str() {
             "recall" => {
                 "Orient via tb_overview/tb_types, search via tb_search/tb_grep, read whole via tb_content, answer with citations."
@@ -899,6 +1232,7 @@ impl ServerHandler for TwoBrainMcp {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
+        self.require_egress_allowed()?;
         let mut resources = vec![
             Resource::new("2brain://workflow/answer-shape", "Answer shape")
                 .with_mime_type("text/markdown")
@@ -925,6 +1259,7 @@ impl ServerHandler for TwoBrainMcp {
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, McpError> {
+        self.require_egress_allowed()?;
         let uri = request.uri.as_str();
         if uri == "2brain://workflow/answer-shape" {
             return Ok(ReadResourceResponse::Complete(ReadResourceResult::new(
@@ -967,6 +1302,7 @@ impl ServerHandler for TwoBrainMcp {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListSkillsResult, McpError> {
+        self.require_egress_allowed()?;
         let catalog = self.skill_catalog();
         let skills: Vec<Skill> = catalog.list().map(to_rmcp_skill).collect();
         Ok(ListSkillsResult::with_all_items(skills))
@@ -977,6 +1313,7 @@ impl ServerHandler for TwoBrainMcp {
         request: GetSkillRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<GetSkillResult, McpError> {
+        self.require_egress_allowed()?;
         let catalog = self.skill_catalog();
         let Some(entry) = catalog.get(&request.uri) else {
             return Err(McpError::resource_not_found(
@@ -994,6 +1331,7 @@ impl ServerHandler for TwoBrainMcp {
         request: ReadResourceDirectoryRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceDirectoryResult, McpError> {
+        self.require_egress_allowed()?;
         let catalog = self.skill_catalog();
         let Some(files) = catalog.read_directory(&request.uri) else {
             return Err(McpError::resource_not_found(
@@ -1111,7 +1449,7 @@ fn make_tool(name: &'static str, description: &'static str) -> Tool {
 }
 
 /// Build the exact 38 read-only or 54 full tool catalogue based on launch policy.
-fn build_tool_catalog(policy: LaunchPolicy) -> Vec<Tool> {
+fn build_tool_catalog(policy: &LaunchPolicy) -> Vec<Tool> {
     let mut tools = vec![
         make_tool(
             "tb_anchors",
@@ -1359,10 +1697,10 @@ mod tests {
 
     #[test]
     fn tool_surface_counts_match_38_readonly_and_54_full() {
-        let ro = build_tool_catalog(LaunchPolicy::default());
+        let ro = build_tool_catalog(&LaunchPolicy::default());
         assert_eq!(ro.len(), 38);
 
-        let full = build_tool_catalog(LaunchPolicy {
+        let full = build_tool_catalog(&LaunchPolicy {
             allow_mutations: true,
             allow_composition: true,
             allow_workspace_shape: true,
@@ -1370,23 +1708,24 @@ mod tests {
             outcome_registry: false,
             allow_cognitive: false,
             full_schemas: false,
+            ..LaunchPolicy::default()
         });
         assert_eq!(full.len(), 54);
 
-        let with_ingest = build_tool_catalog(LaunchPolicy {
+        let with_ingest = build_tool_catalog(&LaunchPolicy {
             allow_mutations: true,
             allow_ingest: true,
             ..LaunchPolicy::default()
         });
         assert!(with_ingest.iter().any(|t| t.name.as_ref() == "tb_ingest"));
 
-        let cognitive = build_tool_catalog(LaunchPolicy {
+        let cognitive = build_tool_catalog(&LaunchPolicy {
             allow_cognitive: true,
             ..LaunchPolicy::default()
         });
         assert_eq!(cognitive.len(), 47);
 
-        let full_schema_cat = build_tool_catalog(LaunchPolicy {
+        let full_schema_cat = build_tool_catalog(&LaunchPolicy {
             full_schemas: true,
             ..LaunchPolicy::default()
         });
@@ -1696,6 +2035,85 @@ mod tests {
         assert_eq!(
             blocked.structured_content.unwrap()["reason_code"],
             "prior_read"
+        );
+    }
+
+    #[test]
+    fn egress_policy_enforces_revocation_external_egress_payload_mode_and_audit_log() {
+        struct RecordingAudit(Arc<Mutex<Vec<(String, String, String)>>>);
+        impl AuditRecorder for RecordingAudit {
+            fn record(
+                &self,
+                principal: &str,
+                tool: &str,
+                _repo: &str,
+                _path: &str,
+                outcome: &str,
+                reason_code: &str,
+            ) -> Result<(), String> {
+                self.0.lock().unwrap().push((
+                    principal.to_owned(),
+                    tool.to_owned(),
+                    format!("{outcome}:{reason_code}"),
+                ));
+                Ok(())
+            }
+        }
+
+        let app: Arc<dyn AppDispatcher> = Arc::new(App::new(DummyStore, VaultSnapshot::empty()));
+        let recorded = Arc::new(Mutex::new(Vec::new()));
+        let audit: Arc<dyn AuditRecorder> = Arc::new(RecordingAudit(Arc::clone(&recorded)));
+
+        // 1. Revoked repo fails closed with `revoked` and emits an audit event.
+        let srv = TwoBrainMcp::try_new_with_audit(
+            Arc::clone(&app),
+            LaunchPolicy {
+                principal: Some("agent-1".to_owned()),
+                payload_mode: PayloadMode::Structured,
+                egress: Some(EgressPolicy {
+                    revoked_repos: vec!["secret".to_owned()],
+                    egress_destination: "local".to_owned(),
+                    allow_external_egress: false,
+                    ..EgressPolicy::default()
+                }),
+                ..LaunchPolicy::default()
+            },
+            Some(audit),
+        )
+        .unwrap();
+        let res = srv.dispatch_tool(
+            "tb_content",
+            json!({ "repo": "secret", "path": "a.md" })
+                .as_object()
+                .unwrap(),
+        );
+        assert_eq!(res.is_error, Some(true));
+        assert!(
+            res.content.is_empty(),
+            "PayloadMode::Structured clears text"
+        );
+        assert_eq!(res.structured_content.unwrap()["reason_code"], "revoked");
+        assert_eq!(recorded.lock().unwrap().len(), 1);
+        assert_eq!(recorded.lock().unwrap()[0].2, "denied:revoked");
+
+        // 2. External egress when allow_external_egress=false fails closed.
+        let ext_srv = TwoBrainMcp::new(
+            app,
+            LaunchPolicy {
+                payload_mode: PayloadMode::Text,
+                egress: Some(EgressPolicy {
+                    egress_destination: "cloud-llm".to_owned(),
+                    allow_external_egress: false,
+                    ..EgressPolicy::default()
+                }),
+                ..LaunchPolicy::default()
+            },
+        );
+        let ext_res = ext_srv.dispatch_tool("tb_overview", &Map::new());
+        assert_eq!(ext_res.is_error, Some(true));
+        assert!(
+            ext_res.structured_content.is_none(),
+            "PayloadMode::Text clears structured"
         );
     }
 }

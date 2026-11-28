@@ -75,6 +75,11 @@ Defect classes caught by adversarial review and fixed by structural invariants:
    - Run snapshot-dependent admission and CAS checks inside `execute_with_outcomes` so `request_id` retries replay committed outcomes instead of failing on post-commit disk state, and bound durable outcome responses under the 64 KiB journal frame limit.
    - Select the default writable ingest repository strictly from `own`/`primary`/`editable` members (failing closed on zero or ambiguous matches) so omitted `repo` arguments never land in a `dependency` member.
 
+18. **Complete Revocation/Egress Coverage, Audit Pre-Check & Release-Time Context Fence (`tb-mcp`, `tb-journal`, `tb-app`):**
+   - When repository restrictions or egress blocks are active (`--policy`), enforce them across EVERY MCP surface — tools (requiring explicit allowed `repo`, blocking workspace-wide tools), `skills/*`, `resources/*`, `prompts/*`, and scoped claim extraction in `tb_context` — never on a partial tool allowlist.
+   - Validate audit log readiness (`check_ready`, inode identity after locking, trailing-newline check) BEFORE dispatching any mutation so a corrupt/symlinked audit log fails closed rather than allowing unaudited writes.
+   - Run the `tb_context` `Generation` release admission fence immediately before returning the completed response (after companion-pole retrieval, bidirectional claim assembly, and contradiction assessment).
+
 
 
 
