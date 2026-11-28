@@ -1555,7 +1555,9 @@ dependencies = [
  "clap",
  "notify",
  "rustix 1.1.6",
+ "serde",
  "serde_json",
+ "sha2",
  "tb-app",
  "tb-cognition",
  "tb-contracts",
@@ -1564,6 +1566,7 @@ dependencies = [
  "tb-journal",
  "tb-mcp",
  "tb-skills",
+ "tempfile",
  "tokio",
 ]
 

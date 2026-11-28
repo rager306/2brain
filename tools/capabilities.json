@@ -1,0 +1,268 @@
+{
+  "schema_version": "2brain.capabilities/v1",
+  "description": "Truthful Issue #7 capability evidence registry (U1/R23/AE23). Every true flag is pinned to real files and executable tests.",
+  "units": [
+    {
+      "id": "U1",
+      "title": "Freeze shared contracts and capability evidence",
+      "requirements": ["R1", "R23"],
+      "states": {
+        "specified": true,
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
+        "enabled": true
+      },
+      "paths": [
+        "crates/domain/tb-contracts/src/lib.rs",
+        "tools/capabilities.json",
+        "tools/check_capabilities.py"
+      ],
+      "tests": ["SEM-18"]
+    },
+    {
+      "id": "U2",
+      "title": "Independent black-box capture and offline semantic scoring",
+      "requirements": ["R22"],
+      "states": {
+        "specified": true,
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
+        "enabled": true
+      },
+      "paths": [
+        "tools/semantic/capture.py",
+        "tools/semantic/scorer.py",
+        "tools/semantic/run_semantic_suite.py"
+      ],
+      "tests": ["SEM-01", "SEM-48"]
+    },
+    {
+      "id": "U3",
+      "title": "Conditional evidence hydration and exact receipts",
+      "requirements": ["R2", "R3"],
+      "states": {
+        "specified": true,
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
+        "enabled": true
+      },
+      "paths": [
+        "crates/domain/tb-contracts/src/lib.rs",
+        "crates/app/tb-app/src/lib.rs",
+        "crates/adapters/tb-mcp/src/lib.rs"
+      ],
+      "tests": ["SEM-01", "SEM-02", "SEM-03", "SEM-04"]
+    },
+    {
+      "id": "U4",
+      "title": "Sufficient task context with conflicts, supersession, and typed criteria",
+      "requirements": ["R4", "R7", "R8", "R14", "R26"],
+      "states": {
+        "specified": true,
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
+        "enabled": true
+      },
+      "paths": [
+        "crates/domain/tb-cognition/src/claims.rs",
+        "crates/app/tb-app/src/lib.rs"
+      ],
+      "tests": ["AE04-08"]
+    },
+    {
+      "id": "U5",
+      "title": "Budgets, progressive disclosure, revocation, and egress boundary",
+      "requirements": ["R6", "R9", "R21", "R24"],
+      "states": {
+        "specified": true,
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
+        "enabled": true
+      },
+      "paths": [
+        "crates/adapters/tb-mcp/src/lib.rs",
+        "crates/adapters/tb-journal/src/audit_log.rs",
+        "crates/bin/two-brain/src/main.rs"
+      ],
+      "tests": [
+        "egress_policy_enforces_revocation_external_egress_payload_mode_and_audit_log",
+        "audit_log_chains_events_and_detects_tampering",
+        "SEM-09",
+        "AE24"
+      ]
+    },
+    {
+      "id": "U6",
+      "title": "Generation-fenced incremental invalidation and release-time revocation checks",
+      "requirements": ["R5", "R24"],
+      "states": {
+        "specified": true,
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
+        "enabled": true
+      },
+      "paths": [
+        "crates/domain/tb-search/src/lib.rs",
+        "crates/app/tb-app/src/lib.rs",
+        "crates/adapters/tb-fs-git/src/lib.rs"
+      ],
+      "tests": ["AE24"]
+    },
+    {
+      "id": "U7",
+      "title": "Reproducible graph findings, topology, fragility, and diff graphs",
+      "requirements": ["R10", "R11"],
+      "states": {
+        "specified": true,
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
+        "enabled": true
+      },
+      "paths": [
+        "crates/domain/tb-cognition/src/lib.rs",
+        "crates/domain/tb-cognition/src/evolution.rs"
+      ],
+      "tests": [
+        "planted_barbell_identifies_bridge_gateway_communities_and_peel",
+        "dual_layer_gap_detector_finds_disconnected_lexical_twins_and_respects_negative_memory"
+      ]
+    },
+    {
+      "id": "U8",
+      "title": "Persistent review decisions and bounded investigation controller",
+      "requirements": ["R12", "R13"],
+      "states": {
+        "specified": true,
+        "implemented": false,
+        "wired": false,
+        "tested": false,
+        "rehearsed": false,
+        "enabled": false
+      },
+      "notes": "Review decisions shipped; bounded investigation controller queued in Track 3.",
+      "paths": [],
+      "tests": []
+    },
+    {
+      "id": "U9",
+      "title": "Durable ADR-0009 outcome registry, recovery, compaction, and pruning",
+      "requirements": ["R16"],
+      "states": {
+        "specified": true,
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
+        "enabled": true
+      },
+      "paths": [
+        "crates/adapters/tb-journal/src/outcome_registry.rs",
+        "crates/adapters/tb-journal/src/outcome_journal.rs",
+        "crates/bin/two-brain/src/main.rs"
+      ],
+      "tests": ["ADR-0009"]
+    },
+    {
+      "id": "U10",
+      "title": "Durable TaskPacket handoff and optimistic revision concurrency",
+      "requirements": ["R17"],
+      "states": {
+        "specified": true,
+        "implemented": false,
+        "wired": false,
+        "tested": false,
+        "rehearsed": false,
+        "enabled": false
+      },
+      "notes": "Queued in Track 3.",
+      "paths": [],
+      "tests": []
+    },
+    {
+      "id": "U11",
+      "title": "Granted ProcedureSpec, independent Postcondition verification, and RunReceipt",
+      "requirements": ["R15"],
+      "states": {
+        "specified": true,
+        "implemented": false,
+        "wired": false,
+        "tested": false,
+        "rehearsed": false,
+        "enabled": false
+      },
+      "notes": "Queued in Track 3.",
+      "paths": [],
+      "tests": []
+    },
+    {
+      "id": "U12",
+      "title": "Verified SHA-256 backup/restore and operator readiness",
+      "requirements": ["R25"],
+      "states": {
+        "specified": true,
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
+        "enabled": true
+      },
+      "paths": [
+        "crates/bin/two-brain/src/backup.rs",
+        "crates/bin/two-brain/src/main.rs",
+        "deploy/systemd/2brain-http.service.example"
+      ],
+      "tests": [
+        "backup_and_restore_roundtrip_verifies_sha256_and_loads_workspace",
+        "restore_fails_closed_on_tampered_file_and_extra_untracked_file",
+        "backup_refuses_symlinks_and_non_empty_output_dir",
+        "AE25"
+      ]
+    },
+    {
+      "id": "U13",
+      "title": "Verified experience promotion against family-separated holdout",
+      "requirements": ["R18"],
+      "states": {
+        "specified": true,
+        "implemented": false,
+        "wired": false,
+        "tested": false,
+        "rehearsed": false,
+        "enabled": false
+      },
+      "notes": "Deferred until sufficient verified episodes exist for G5 holdout evaluation.",
+      "paths": [],
+      "tests": []
+    },
+    {
+      "id": "U14",
+      "title": "Optional retrieval/selection and cognitive/EBM research experiments",
+      "requirements": ["R19", "R20"],
+      "states": {
+        "specified": true,
+        "implemented": false,
+        "wired": false,
+        "tested": false,
+        "rehearsed": false,
+        "enabled": false
+      },
+      "notes": "Deferred to G5 experiment promotion track.",
+      "paths": [],
+      "tests": []
+    }
+  ]
+}

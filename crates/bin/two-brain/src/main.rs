@@ -1,5 +1,6 @@
 //! Composition root producing the single `2brain` binary (MIT).
 
+mod backup;
 mod bench;
 mod ingest;
 
@@ -97,6 +98,28 @@ enum Command {
     Outcomes {
         #[command(subcommand)]
         command: OutcomesCommand,
+    },
+    /// Create a SHA-256 verified backup snapshot of a workspace (refuses symlinks and non-empty targets).
+    Backup {
+        /// Path to the source workspace directory.
+        workspace: PathBuf,
+        /// Empty or non-existent output directory for the backup bundle.
+        #[arg(long = "out")]
+        out: PathBuf,
+        /// Emit machine-readable JSON summary.
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Verify a backup's SHA-256 manifest and restore it into a new/empty directory, validating workspace load.
+    Restore {
+        /// Path to the backup directory containing `manifest.sha256.json`.
+        backup: PathBuf,
+        /// Empty or non-existent target directory to restore into.
+        #[arg(long = "to")]
+        to: PathBuf,
+        /// Emit machine-readable JSON summary.
+        #[arg(long = "json")]
+        json: bool,
     },
     /// Read-only performance benchmark on a workspace (cold load, incremental refresh, BM25, cognitive suite, RSS).
     Bench {
@@ -421,6 +444,12 @@ fn main() {
                 }
             }
         },
+        Command::Backup {
+            workspace,
+            out,
+            json,
+        } => backup::run_backup(&workspace, &out, json),
+        Command::Restore { backup, to, json } => backup::run_restore(&backup, &to, json),
         Command::Bench {
             path,
             iterations,
