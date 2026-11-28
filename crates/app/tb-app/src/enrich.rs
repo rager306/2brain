@@ -815,32 +815,6 @@ pub fn build_simulated_enriched_index(
     let mut docs_owned: Vec<(Locator, String, String, String, String, FreshnessMeta)> =
         Vec::with_capacity(snapshot.files.len());
 
-    let collect_fm_keys =
-        |fm: Option<&BTreeMap<String, FrontmatterValue>>, keys: &[&str]| -> Vec<String> {
-            let Some(fm) = fm else {
-                return Vec::new();
-            };
-            let mut out = Vec::new();
-            for key in keys {
-                match fm.get(*key) {
-                    Some(FrontmatterValue::String(s)) if !s.trim().is_empty() => {
-                        out.push(s.trim().to_owned());
-                    }
-                    Some(FrontmatterValue::Seq(items)) => {
-                        for it in items {
-                            if let FrontmatterValue::String(s) = it
-                                && !s.trim().is_empty()
-                            {
-                                out.push(s.trim().to_owned());
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            out
-        };
-
     for (loc, file) in &snapshot.files {
         let body = file.body().to_owned();
         let desc = file.description.clone().unwrap_or_default();
@@ -867,43 +841,38 @@ pub fn build_simulated_enriched_index(
             None
         };
 
-        let mut kw_parts = collect_fm_keys(fm, &["aliases"]);
-        let mut sq_parts = collect_fm_keys(fm, &["questions"]);
+        let mut kw_parts = crate::search_doc::collect_frontmatter_strings(fm, &["aliases"]);
+        let mut sq_parts = crate::search_doc::collect_frontmatter_strings(fm, &["questions"]);
         if let Some((clean_kws, clean_sqs)) = cached_rec {
             enriched_count += 1;
             if clean_kws.is_empty() {
-                kw_parts.extend(collect_fm_keys(fm, &["keywords"]));
+                kw_parts.extend(crate::search_doc::collect_frontmatter_strings(
+                    fm,
+                    &["keywords"],
+                ));
             } else {
                 kw_parts.extend(clean_kws);
             }
             if clean_sqs.is_empty() {
-                sq_parts.extend(collect_fm_keys(fm, &["search_questions"]));
+                sq_parts.extend(crate::search_doc::collect_frontmatter_strings(
+                    fm,
+                    &["search_questions"],
+                ));
             } else {
                 sq_parts.extend(clean_sqs);
             }
         } else {
-            kw_parts.extend(collect_fm_keys(fm, &["keywords"]));
-            sq_parts.extend(collect_fm_keys(fm, &["search_questions"]));
+            kw_parts.extend(crate::search_doc::collect_frontmatter_strings(
+                fm,
+                &["keywords"],
+            ));
+            sq_parts.extend(crate::search_doc::collect_frontmatter_strings(
+                fm,
+                &["search_questions"],
+            ));
         }
 
-        let get_str = |keys: &[&str]| -> Option<&str> {
-            let fm = fm?;
-            for k in keys {
-                if let Some(FrontmatterValue::String(s)) = fm.get(*k)
-                    && !s.trim().is_empty()
-                {
-                    return Some(s.trim());
-                }
-            }
-            None
-        };
-        let freshness = FreshnessMeta::from_fields(
-            get_str(&["status"]),
-            get_str(&["freshness"]),
-            file.declared_type.as_deref().or_else(|| get_str(&["type"])),
-            &loc.path,
-            get_str(&["updated", "modified", "captured", "created", "date"]),
-        );
+        let freshness = crate::search_doc::extract_freshness_meta(file);
         docs_owned.push((
             loc.clone(),
             body,
@@ -914,7 +883,7 @@ pub fn build_simulated_enriched_index(
         ));
     }
 
-    let index = SearchIndex::build_rich_with_weights(
+    let mut index = SearchIndex::build_rich_with_weights(
         docs_owned
             .iter()
             .map(|(loc, body, desc, kw, sq, fresh)| SearchDocInput {
@@ -928,6 +897,7 @@ pub fn build_simulated_enriched_index(
         snapshot.search.default_reference_days(),
         snapshot.search.weights(),
     );
+    index.set_freshness_policy(snapshot.search.freshness_policy());
     (index, enriched_count)
 }
 

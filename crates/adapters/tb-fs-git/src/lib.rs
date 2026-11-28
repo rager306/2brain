@@ -21,6 +21,7 @@ use rustix::fs::{
 use rustix::io::Errno;
 use saphyr::{LoadableYamlNode, Scalar, Yaml};
 use serde_json::{Value, json};
+use tb_app::search_doc::{extract_enrichment_fields, extract_freshness_meta};
 use tb_app::{
     IndexedFile, MemberMeta, MutationReceipt, ReviewDecision, StoreError, VaultSnapshot,
     WorkspaceMemberAction, WorkspaceStore,
@@ -30,7 +31,7 @@ use tb_contracts::{
 };
 use tb_graph::{GraphHealth, GraphShape, HubRow, TypedLinkGraph};
 use tb_schema::{Diagnostic, SchemaRegistry, Severity, parse_type_def};
-use tb_search::{FreshnessMeta, SearchDocInput, SearchIndex};
+use tb_search::{FreshnessMeta, FreshnessPolicy, SearchDocInput, SearchIndex, SearchWeights};
 use tb_syntax::{EdgeKind, FrontmatterValue, ParsedDocument, parse_document};
 use thiserror::Error;
 
@@ -657,52 +658,47 @@ impl WorkspaceStore for FsWorkspaceStore {
             Err(FsError::InvalidGitRef(msg)) => return Err(StoreError::InvalidEdit(msg)),
         };
 
-        let mut name = repo.to_owned();
-        let mut description: Option<String> = None;
+        let existing_text: Option<String> = match existing_bytes {
+            Some(bytes) => {
+                let text = String::from_utf8(bytes)
+                    .map_err(|_| StoreError::InvalidUtf8(".2brain/repo.yaml".into()))?;
+                Some(text)
+            }
+            None => None,
+        };
+
         let mut deps: Vec<String> = Vec::new();
-        if let Some(ref bytes) = existing_bytes
-            && let Ok(text) = std::str::from_utf8(bytes)
-            && let Ok(docs) = Yaml::load_from_str(text)
-            && let Some(Yaml::Mapping(map)) = docs.first()
-        {
-            for (k, v) in map {
-                let Yaml::Value(Scalar::String(ks)) = k else {
-                    continue;
-                };
-                match ks.as_ref() {
-                    "name" => {
-                        if let Yaml::Value(Scalar::String(vs)) = v {
-                            name = vs.to_string();
-                        }
-                    }
-                    "description" => {
-                        if let Yaml::Value(Scalar::String(vs)) = v {
-                            description = Some(vs.to_string());
-                        }
-                    }
-                    "deps" => {
-                        if let Yaml::Sequence(seq) = v {
-                            for item in seq {
-                                match item {
-                                    Yaml::Value(Scalar::String(s)) => deps.push(s.to_string()),
-                                    Yaml::Mapping(m) => {
-                                        for (mk, mv) in m {
-                                            if let (
-                                                Yaml::Value(Scalar::String(mks)),
-                                                Yaml::Value(Scalar::String(mvs)),
-                                            ) = (mk, mv)
-                                                && mks.as_ref() == "name"
-                                            {
-                                                deps.push(mvs.to_string());
-                                            }
+        if let Some(ref text) = existing_text {
+            let docs = Yaml::load_from_str(text).map_err(|err| {
+                StoreError::InvalidEdit(format!("malformed .2brain/repo.yaml: {err}"))
+            })?;
+            if let Some(Yaml::Mapping(map)) = docs.first() {
+                for (k, v) in map {
+                    let Yaml::Value(Scalar::String(ks)) = k else {
+                        continue;
+                    };
+                    if ks.as_ref() == "deps"
+                        && let Yaml::Sequence(seq) = v
+                    {
+                        for item in seq {
+                            match item {
+                                Yaml::Value(Scalar::String(s)) => deps.push(s.to_string()),
+                                Yaml::Mapping(m) => {
+                                    for (mk, mv) in m {
+                                        if let (
+                                            Yaml::Value(Scalar::String(mks)),
+                                            Yaml::Value(Scalar::String(mvs)),
+                                        ) = (mk, mv)
+                                            && mks.as_ref() == "name"
+                                        {
+                                            deps.push(mvs.to_string());
                                         }
                                     }
-                                    _ => {}
                                 }
+                                _ => {}
                             }
                         }
                     }
-                    _ => {}
                 }
             }
         }
@@ -722,17 +718,7 @@ impl WorkspaceStore for FsWorkspaceStore {
             deps.len() != before
         };
 
-        let mut rendered = format!("name: {name}\n");
-        if let Some(desc) = description {
-            let escaped = desc.replace('\\', "\\\\").replace('"', "\\\"");
-            rendered.push_str(&format!("description: \"{escaped}\"\n"));
-        }
-        if !deps.is_empty() {
-            rendered.push_str("deps:\n");
-            for d in &deps {
-                rendered.push_str(&format!("  - name: {d}\n"));
-            }
-        }
+        let rendered = splice_repo_yaml_deps(existing_text.as_deref(), repo, &deps);
 
         let (parent_fd, file_name) = open_confined_parent_dir(&canonical_root, rel, true)?;
         reject_symlink_leaf(&parent_fd, &file_name)?;
@@ -1444,7 +1430,12 @@ pub fn refresh_snapshot_incremental(
 
     let today_days = current_utc_epoch_days();
     if search.needs_compaction() {
-        search = build_rich_search_index(&files, today_days);
+        search = build_rich_search_index(
+            &files,
+            today_days,
+            prev.search.weights(),
+            prev.search.freshness_policy(),
+        );
     } else {
         search.set_default_reference_days(today_days);
     }
@@ -1907,7 +1898,14 @@ fn load_snapshot_inner(
     }
 
     let graph = TypedLinkGraph::build(locators, &edges);
-    let search = build_rich_search_index(&files, current_utc_epoch_days());
+    let (search_weights, freshness_policy) =
+        resolve_workspace_search_config(&canonical_root, &members, &mut all_diags)?;
+    let search = build_rich_search_index(
+        &files,
+        current_utc_epoch_days(),
+        search_weights,
+        freshness_policy,
+    );
 
     let store = FsWorkspaceStore::multi(canonical_root, store_members);
     let snapshot = VaultSnapshot {
@@ -2268,7 +2266,31 @@ pub fn load_snapshot_at_git_ref(root: &Path, git_ref: &str) -> Result<VaultSnaps
     }
 
     let graph = TypedLinkGraph::build(locators, &edges);
-    let search = build_rich_search_index(&files, current_utc_epoch_days());
+    let (search_weights, freshness_policy) = match blobs.get(".2brain/repo.yaml") {
+        Some(bytes) => match std::str::from_utf8(bytes) {
+            Ok(raw) => {
+                parse_search_config_from_yaml(&repo_name, raw, &mut all_diags).unwrap_or_default()
+            }
+            Err(_) => {
+                all_diags.push(Diagnostic {
+                    repo: repo_name.clone(),
+                    path: ".2brain/repo.yaml".to_owned(),
+                    byte_start: 0,
+                    code: "invalid-utf8".to_owned(),
+                    severity: Severity::Error,
+                    message: "repo manifest contains invalid UTF-8 bytes".to_owned(),
+                });
+                (SearchWeights::default(), FreshnessPolicy::default())
+            }
+        },
+        None => (SearchWeights::default(), FreshnessPolicy::default()),
+    };
+    let search = build_rich_search_index(
+        &files,
+        current_utc_epoch_days(),
+        search_weights,
+        freshness_policy,
+    );
 
     let mut members = BTreeMap::new();
     members.insert(
@@ -3057,79 +3079,327 @@ fn current_utc_epoch_days() -> Option<i64> {
         .map(|d| (d.as_secs() / 86_400) as i64)
 }
 
-fn fm_string<'a>(
-    fm: &'a BTreeMap<String, tb_syntax::FrontmatterValue>,
-    keys: &[&str],
-) -> Option<&'a str> {
-    for &k in keys {
-        if let Some(tb_syntax::FrontmatterValue::String(s)) = fm.get(k) {
-            let t = s.trim();
-            if !t.is_empty() {
-                return Some(t);
+fn is_top_level_deps_key(line: &str) -> bool {
+    let Some(rest) = line.strip_prefix("deps:") else {
+        return false;
+    };
+    rest.is_empty()
+        || rest.starts_with(' ')
+        || rest.starts_with('\t')
+        || rest.starts_with('#')
+        || rest.starts_with('[')
+}
+
+/// Non-destructively splice the top-level `deps:` section in `.2brain/repo.yaml`,
+/// preserving unrelated keys (such as `search:`, comments, and custom metadata).
+fn splice_repo_yaml_deps(
+    existing_text: Option<&str>,
+    fallback_name: &str,
+    deps: &[String],
+) -> String {
+    let mut deps_block = String::new();
+    if !deps.is_empty() {
+        deps_block.push_str("deps:\n");
+        for d in deps {
+            deps_block.push_str(&format!("  - name: {d}\n"));
+        }
+    }
+
+    let Some(text) = existing_text else {
+        let mut out = format!("name: {fallback_name}\n");
+        out.push_str(&deps_block);
+        return out;
+    };
+    if text.trim().is_empty() {
+        let mut out = format!("name: {fallback_name}\n");
+        out.push_str(&deps_block);
+        return out;
+    }
+
+    let mut out_lines: Vec<String> = Vec::new();
+    let mut skipping_deps = false;
+    let mut replaced_in_place = false;
+    for raw_line in text.lines() {
+        let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
+        if skipping_deps {
+            let is_nested_or_blank =
+                line.is_empty() || line.starts_with(' ') || line.starts_with('\t');
+            if is_nested_or_blank {
+                continue;
+            }
+            skipping_deps = false;
+        }
+        if is_top_level_deps_key(line) {
+            skipping_deps = true;
+            if !replaced_in_place && !deps_block.is_empty() {
+                for dl in deps_block.lines() {
+                    out_lines.push(dl.to_owned());
+                }
+                replaced_in_place = true;
+            }
+            continue;
+        }
+        out_lines.push(line.to_owned());
+    }
+
+    if !replaced_in_place && !deps_block.is_empty() {
+        for dl in deps_block.lines() {
+            out_lines.push(dl.to_owned());
+        }
+    }
+
+    let mut rendered = out_lines.join("\n");
+    if !rendered.is_empty() && !rendered.ends_with('\n') {
+        rendered.push('\n');
+    }
+    rendered
+}
+
+fn repo_config_warning(repo: &str, code: &str, message: impl Into<String>) -> Diagnostic {
+    Diagnostic {
+        repo: repo.to_owned(),
+        path: ".2brain/repo.yaml".to_owned(),
+        byte_start: 0,
+        code: code.to_owned(),
+        severity: Severity::Warning,
+        message: message.into(),
+    }
+}
+
+fn yaml_finite_f64(val: &Yaml<'_>) -> Option<f64> {
+    let parsed = match val {
+        Yaml::Value(Scalar::FloatingPoint(f)) => Some(f.into_inner()),
+        Yaml::Value(Scalar::Integer(i)) => Some(*i as f64),
+        Yaml::Value(Scalar::String(s)) => s.trim().parse::<f64>().ok(),
+        _ => None,
+    }?;
+    parsed.is_finite().then_some(parsed)
+}
+
+fn parse_search_config_from_yaml(
+    repo: &str,
+    raw: &str,
+    diags: &mut Vec<Diagnostic>,
+) -> Option<(SearchWeights, FreshnessPolicy)> {
+    let mut weights = SearchWeights::default();
+    let mut policy = FreshnessPolicy::default();
+    let docs = match Yaml::load_from_str(raw) {
+        Ok(docs) => docs,
+        Err(err) => {
+            diags.push(repo_config_warning(
+                repo,
+                "invalid-repo-config",
+                format!("failed to parse .2brain/repo.yaml: {err}"),
+            ));
+            return None;
+        }
+    };
+    let first_doc = docs.into_iter().next()?;
+    let Yaml::Mapping(root) = first_doc else {
+        diags.push(repo_config_warning(
+            repo,
+            "invalid-repo-config",
+            ".2brain/repo.yaml root must be a YAML mapping",
+        ));
+        return None;
+    };
+    let search_val = root.iter().find_map(|(k, v)| {
+        matches!(k, Yaml::Value(Scalar::String(s)) if s == "search").then_some(v)
+    })?;
+    let Yaml::Mapping(search_map) = search_val else {
+        diags.push(repo_config_warning(
+            repo,
+            "invalid-repo-config",
+            "search section in .2brain/repo.yaml must be a YAML mapping",
+        ));
+        return Some((weights, policy));
+    };
+
+    for (k, v) in search_map {
+        let Yaml::Value(Scalar::String(section)) = k else {
+            diags.push(repo_config_warning(
+                repo,
+                "invalid-repo-config",
+                "search section contains a non-string key",
+            ));
+            continue;
+        };
+        match section.as_ref() {
+            "weights" => {
+                let Yaml::Mapping(wmap) = v else {
+                    diags.push(repo_config_warning(
+                        repo,
+                        "invalid-repo-config",
+                        "search.weights must be a YAML mapping",
+                    ));
+                    continue;
+                };
+                for (wk, wv) in wmap {
+                    let Yaml::Value(Scalar::String(field)) = wk else {
+                        diags.push(repo_config_warning(
+                            repo,
+                            "invalid-repo-config",
+                            "search.weights contains a non-string key",
+                        ));
+                        continue;
+                    };
+                    let Some(num) = yaml_finite_f64(wv).filter(|n| *n >= 0.0) else {
+                        diags.push(repo_config_warning(
+                            repo,
+                            "invalid-repo-config",
+                            format!(
+                                "search.weights.{field} must be a finite number >= 0.0; keeping default"
+                            ),
+                        ));
+                        continue;
+                    };
+                    match field.as_ref() {
+                        "body" => weights.body = num,
+                        "description" => weights.description = num,
+                        "keywords" => weights.keywords = num,
+                        "search_questions" => weights.search_questions = num,
+                        other => diags.push(repo_config_warning(
+                            repo,
+                            "invalid-repo-config",
+                            format!("unknown search.weights field '{other}'"),
+                        )),
+                    }
+                }
+            }
+            "freshness" => {
+                let Yaml::Mapping(fmap) = v else {
+                    diags.push(repo_config_warning(
+                        repo,
+                        "invalid-repo-config",
+                        "search.freshness must be a YAML mapping",
+                    ));
+                    continue;
+                };
+                for (fk, fv) in fmap {
+                    let Yaml::Value(Scalar::String(field)) = fk else {
+                        diags.push(repo_config_warning(
+                            repo,
+                            "invalid-repo-config",
+                            "search.freshness contains a non-string key",
+                        ));
+                        continue;
+                    };
+                    match field.as_ref() {
+                        "transient_half_life_days" => {
+                            if let Some(num) = yaml_finite_f64(fv).filter(|n| *n > 0.0) {
+                                policy.transient_half_life_days = num;
+                            } else {
+                                diags.push(repo_config_warning(
+                                    repo,
+                                    "invalid-repo-config",
+                                    "search.freshness.transient_half_life_days must be a finite number > 0.0; keeping default",
+                                ));
+                            }
+                        }
+                        "min_transient_time_factor" => {
+                            if let Some(num) =
+                                yaml_finite_f64(fv).filter(|n| (0.01..=1.0).contains(n))
+                            {
+                                policy.min_transient_time_factor = num;
+                            } else {
+                                diags.push(repo_config_warning(
+                                    repo,
+                                    "invalid-repo-config",
+                                    "search.freshness.min_transient_time_factor must be a finite number in [0.01, 1.0]; keeping default",
+                                ));
+                            }
+                        }
+                        other => diags.push(repo_config_warning(
+                            repo,
+                            "invalid-repo-config",
+                            format!("unknown search.freshness field '{other}'"),
+                        )),
+                    }
+                }
+            }
+            other => diags.push(repo_config_warning(
+                repo,
+                "invalid-repo-config",
+                format!("unknown search config section '{other}'"),
+            )),
+        }
+    }
+    Some((weights.sanitized(), policy.sanitized()))
+}
+
+fn read_repo_search_config(
+    canonical_root: &Path,
+    repo: &str,
+    diags: &mut Vec<Diagnostic>,
+) -> Result<Option<(SearchWeights, FreshnessPolicy)>, FsError> {
+    let manifest_path = canonical_root.join(".2brain/repo.yaml");
+    let Some(bytes) = confined_read_bytes(canonical_root, &manifest_path)? else {
+        return Ok(None);
+    };
+    let Ok(raw) = std::str::from_utf8(&bytes) else {
+        diags.push(Diagnostic {
+            repo: repo.to_owned(),
+            path: ".2brain/repo.yaml".to_owned(),
+            byte_start: 0,
+            code: "invalid-utf8".to_owned(),
+            severity: Severity::Error,
+            message: "repo manifest contains invalid UTF-8 bytes".to_owned(),
+        });
+        return Ok(None);
+    };
+    Ok(parse_search_config_from_yaml(repo, raw, diags))
+}
+
+fn resolve_workspace_search_config(
+    canonical_root: &Path,
+    members: &BTreeMap<String, MemberMeta>,
+    diags: &mut Vec<Diagnostic>,
+) -> Result<(SearchWeights, FreshnessPolicy), FsError> {
+    let root_repo = members
+        .values()
+        .find(|m| Path::new(&m.root) == canonical_root)
+        .map(|m| m.repo.as_str())
+        .unwrap_or("workspace");
+    if let Some(cfg) = read_repo_search_config(canonical_root, root_repo, diags)? {
+        return Ok(cfg);
+    }
+
+    let mut chosen: Option<(String, SearchWeights, FreshnessPolicy)> = None;
+    for member in members.values() {
+        if member.role == "dependency" {
+            continue;
+        }
+        let member_root = Path::new(&member.root);
+        if member_root == canonical_root {
+            continue;
+        }
+        if let Some((weights, policy)) = read_repo_search_config(member_root, &member.repo, diags)?
+        {
+            if let Some((ref first_repo, _, _)) = chosen {
+                diags.push(repo_config_warning(
+                    &member.repo,
+                    "duplicate-search-config",
+                    format!(
+                        "ignoring search config in member '{}'; already configured by '{}'",
+                        member.repo, first_repo
+                    ),
+                ));
+            } else {
+                chosen = Some((member.repo.clone(), weights, policy));
             }
         }
     }
-    None
-}
 
-fn extract_enrichment_fields(file: &IndexedFile) -> (String, String) {
-    let Some(fm) = file.doc.frontmatter.as_ref() else {
-        return (String::new(), String::new());
-    };
-    let collect_keys = |keys: &[&str]| -> String {
-        let mut parts: Vec<&str> = Vec::new();
-        for key in keys {
-            match fm.get(*key) {
-                Some(tb_syntax::FrontmatterValue::String(s)) => {
-                    let t = s.trim();
-                    if !t.is_empty() {
-                        parts.push(t);
-                    }
-                }
-                Some(tb_syntax::FrontmatterValue::Seq(items)) => {
-                    for item in items {
-                        if let tb_syntax::FrontmatterValue::String(s) = item {
-                            let t = s.trim();
-                            if !t.is_empty() {
-                                parts.push(t);
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-        parts.join(" ")
-    };
-    (
-        collect_keys(&["keywords", "aliases"]),
-        collect_keys(&["search_questions", "questions"]),
-    )
-}
-
-fn extract_freshness_meta(file: &IndexedFile) -> FreshnessMeta {
-    let Some(fm) = file.doc.frontmatter.as_ref() else {
-        return FreshnessMeta::from_fields(
-            None,
-            None,
-            file.declared_type.as_deref(),
-            &file.locator.path,
-            None,
-        );
-    };
-    let status = fm_string(fm, &["status"]);
-    let freshness = fm_string(fm, &["freshness"]);
-    let doc_type = file
-        .declared_type
-        .as_deref()
-        .or_else(|| fm_string(fm, &["type"]));
-    let date_str = fm_string(fm, &["updated", "modified", "captured", "created", "date"]);
-    FreshnessMeta::from_fields(status, freshness, doc_type, &file.locator.path, date_str)
+    Ok(chosen
+        .map(|(_, w, p)| (w, p))
+        .unwrap_or_else(|| (SearchWeights::default(), FreshnessPolicy::default())))
 }
 
 fn build_rich_search_index(
     files: &BTreeMap<Locator, IndexedFile>,
     reference_days: Option<i64>,
+    weights: SearchWeights,
+    freshness_policy: FreshnessPolicy,
 ) -> SearchIndex {
     let owned: Vec<(&IndexedFile, String, String, FreshnessMeta)> = files
         .values()
@@ -3138,7 +3408,7 @@ fn build_rich_search_index(
             (f, kw, sq, extract_freshness_meta(f))
         })
         .collect();
-    SearchIndex::build_rich(
+    let mut idx = SearchIndex::build_rich_with_weights(
         owned.iter().map(|(f, kw, sq, fresh)| SearchDocInput {
             locator: f.locator.clone(),
             body: f.body(),
@@ -3148,7 +3418,10 @@ fn build_rich_search_index(
             freshness: *fresh,
         }),
         reference_days,
-    )
+        weights,
+    );
+    idx.set_freshness_policy(freshness_policy);
+    idx
 }
 
 #[cfg(test)]
@@ -3798,6 +4071,161 @@ mod tests {
                 .raw_text
                 .contains("v3_symlink_sync"),
             "symlink alias must reflect target edit after incremental refresh"
+        );
+    }
+
+    #[test]
+    fn repo_yaml_search_config_overrides_bm25_weights_and_freshness_policy() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join(".2brain")).unwrap();
+        fs::write(
+            root.join(".2brain/repo.yaml"),
+            "name: custom\nsearch:\n  weights:\n    body: 1.0\n    description: 0.5\n    keywords: 5.0\n    search_questions: 2.0\n  freshness:\n    transient_half_life_days: 30\n    min_transient_time_factor: 0.2\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("desc-hit.md"),
+            "---\ndescription: quorum consensus note\n---\n\nneutral body\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("kw-hit.md"),
+            "---\ndescription: neutral note\nkeywords: [\"quorum consensus\"]\n---\n\nneutral body\n",
+        )
+        .unwrap();
+
+        let (_, snap) = load_snapshot(root).expect("load workspace with search config");
+        assert_eq!(snap.search.weights().keywords, 5.0);
+        assert_eq!(snap.search.weights().description, 0.5);
+        assert_eq!(
+            snap.search.freshness_policy().transient_half_life_days,
+            30.0
+        );
+        assert_eq!(
+            snap.search.freshness_policy().min_transient_time_factor,
+            0.2
+        );
+
+        let hits = snap.search.query("quorum consensus", false, None, None, 2);
+        assert_eq!(hits.len(), 2);
+        assert_eq!(
+            hits[0].locator.path, "kw-hit.md",
+            "custom keywords weight (5.0) must outrank description weight (0.5)"
+        );
+    }
+
+    #[test]
+    fn update_repo_deps_preserves_search_config_and_comments() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join(".2brain")).unwrap();
+        let initial = "# custom manifest\nname: main\ndescription: \"Main vault\"\nsearch:\n  weights:\n    keywords: 4.5\n  freshness:\n    transient_half_life_days: 45\n";
+        fs::write(root.join(".2brain/repo.yaml"), initial).unwrap();
+        fs::write(root.join("note.md"), "# Note\n").unwrap();
+
+        let (store, _) = load_snapshot(root).unwrap();
+        store.update_repo_deps("main", "lib-a", true).unwrap();
+        let after_add = fs::read_to_string(root.join(".2brain/repo.yaml")).unwrap();
+        assert!(
+            after_add.contains("keywords: 4.5"),
+            "add_dep must preserve search.weights"
+        );
+        assert!(
+            after_add.contains("transient_half_life_days: 45"),
+            "add_dep must preserve search.freshness"
+        );
+        assert!(after_add.contains("- name: lib-a"));
+
+        store.update_repo_deps("main", "lib-a", false).unwrap();
+        let after_rm = fs::read_to_string(root.join(".2brain/repo.yaml")).unwrap();
+        assert!(
+            after_rm.contains("keywords: 4.5"),
+            "remove_dep must preserve search.weights"
+        );
+        assert!(!after_rm.contains("lib-a"));
+
+        let (_, snap) = load_snapshot(root).unwrap();
+        assert_eq!(snap.search.weights().keywords, 4.5);
+        assert_eq!(
+            snap.search.freshness_policy().transient_half_life_days,
+            45.0
+        );
+    }
+
+    #[test]
+    fn invalid_repo_search_config_emits_diagnostics_and_preserves_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join(".2brain")).unwrap();
+        fs::write(
+            root.join(".2brain/repo.yaml"),
+            "name: bad\nsearch:\n  weights:\n    body: -1.0\n    description: .nan\n    keywords: \"inf\"\n    search_questions: 2.5\n  freshness:\n    transient_half_life_days: 0\n    min_transient_time_factor: 2.0\n",
+        )
+        .unwrap();
+        fs::write(root.join("note.md"), "# Note\n").unwrap();
+
+        let (_, snap) = load_snapshot(root).unwrap();
+        let defaults = SearchWeights::default();
+        assert_eq!(
+            snap.search.weights().body,
+            defaults.body,
+            "negative weight must preserve default instead of coercing to 0.0"
+        );
+        assert_eq!(snap.search.weights().description, defaults.description);
+        assert_eq!(snap.search.weights().keywords, defaults.keywords);
+        assert_eq!(snap.search.weights().search_questions, 2.5);
+        assert_eq!(
+            snap.search.freshness_policy(),
+            FreshnessPolicy::default(),
+            "invalid freshness fields must preserve defaults"
+        );
+        let cfg_diags: Vec<_> = snap
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "invalid-repo-config")
+            .collect();
+        assert!(
+            cfg_diags.len() >= 5,
+            "expected diagnostics for each invalid field, got: {cfg_diags:?}"
+        );
+    }
+
+    #[test]
+    fn multi_member_workspace_reads_own_member_search_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let own_dir = root.join("own-vault");
+        let dep_dir = root.join("dep-lib");
+        fs::create_dir_all(own_dir.join(".2brain")).unwrap();
+        fs::create_dir_all(dep_dir.join(".2brain")).unwrap();
+        fs::write(
+            root.join("workspace.yaml"),
+            "members:\n  - name: own-vault\n    path: own-vault\n    role: own\n  - name: dep-lib\n    path: dep-lib\n    role: dependency\n",
+        )
+        .unwrap();
+        fs::write(
+            own_dir.join(".2brain/repo.yaml"),
+            "name: own-vault\nsearch:\n  weights:\n    keywords: 6.0\n  freshness:\n    transient_half_life_days: 15\n",
+        )
+        .unwrap();
+        fs::write(
+            dep_dir.join(".2brain/repo.yaml"),
+            "name: dep-lib\nsearch:\n  weights:\n    keywords: 99.0\n",
+        )
+        .unwrap();
+        fs::write(own_dir.join("a.md"), "# Own\n").unwrap();
+        fs::write(dep_dir.join("b.md"), "# Dep\n").unwrap();
+
+        let (_, snap) = load_snapshot(root).unwrap();
+        assert_eq!(
+            snap.search.weights().keywords,
+            6.0,
+            "own member search config must be honored and dependency member ignored"
+        );
+        assert_eq!(
+            snap.search.freshness_policy().transient_half_life_days,
+            15.0
         );
     }
 }

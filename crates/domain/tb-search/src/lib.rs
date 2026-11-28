@@ -949,6 +949,27 @@ pub struct FreshnessPolicy {
     pub min_transient_time_factor: f64,
 }
 
+impl FreshnessPolicy {
+    /// Return a sanitized copy with finite positive half-life and `[0.01, 1.0]` floor.
+    #[must_use]
+    pub fn sanitized(self) -> Self {
+        Self {
+            transient_half_life_days: if self.transient_half_life_days.is_finite()
+                && self.transient_half_life_days > 0.0
+            {
+                self.transient_half_life_days
+            } else {
+                TRANSIENT_HALF_LIFE_DAYS
+            },
+            min_transient_time_factor: if self.min_transient_time_factor.is_finite() {
+                self.min_transient_time_factor.clamp(0.01, 1.0)
+            } else {
+                MIN_TRANSIENT_TIME_FACTOR
+            },
+        }
+    }
+}
+
 impl Default for FreshnessPolicy {
     fn default() -> Self {
         Self {
@@ -1017,18 +1038,9 @@ impl FreshnessMeta {
         reference_epoch_days: Option<i64>,
         policy: FreshnessPolicy,
     ) -> f64 {
-        let half_life = if policy.transient_half_life_days.is_finite()
-            && policy.transient_half_life_days > 0.0
-        {
-            policy.transient_half_life_days
-        } else {
-            TRANSIENT_HALF_LIFE_DAYS
-        };
-        let floor = if policy.min_transient_time_factor.is_finite() {
-            policy.min_transient_time_factor.clamp(0.01, 1.0)
-        } else {
-            MIN_TRANSIENT_TIME_FACTOR
-        };
+        let policy = policy.sanitized();
+        let half_life = policy.transient_half_life_days;
+        let floor = policy.min_transient_time_factor;
         let time_factor = if self.is_transient {
             match (reference_epoch_days, self.doc_epoch_days) {
                 (Some(ref_d), Some(doc_d)) => {
@@ -1256,7 +1268,7 @@ impl SearchIndex {
 
     /// Configure the [`FreshnessPolicy`] used by [`SearchIndex::query`] and [`SearchIndex::query_with_options`].
     pub fn set_freshness_policy(&mut self, policy: FreshnessPolicy) {
-        self.freshness_policy = policy;
+        self.freshness_policy = policy.sanitized();
     }
 
     /// Update the default reference day used by [`SearchIndex::query`] for transient decay.

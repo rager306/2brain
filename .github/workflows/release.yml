@@ -32,6 +32,9 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             archive_ext: tar.gz
+          - os: macos-14
+            target: aarch64-apple-darwin
+            archive_ext: tar.gz
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -51,16 +54,27 @@ jobs:
       - name: Generate CycloneDX 1.5 SBOM
         run: |
           mkdir -p dist
-          cargo cyclonedx --manifest-path Cargo.toml --format json --spec-version 1.5 --describe binaries
+          cargo cyclonedx --manifest-path Cargo.toml --target "${{ matrix.target }}" --format json --spec-version 1.5 --describe binaries
           cp crates/bin/two-brain/*.cdx.json "dist/2brain-${{ matrix.target }}.cdx.json"
       - name: Package binary tarball and SHA-256 checksums
+        env:
+          TARGET_TRIPLE: ${{ matrix.target }}
         run: |
           TARGET_DIR="$(cargo metadata --format-version=1 --no-deps | python3 -c 'import sys,json; print(json.load(sys.stdin)["target_directory"])')"
-          BIN="${TARGET_DIR}/${{ matrix.target }}/release/2brain"
+          BIN="${TARGET_DIR}/${TARGET_TRIPLE}/release/2brain"
           chmod +x "$BIN"
-          tar -C "${TARGET_DIR}/${{ matrix.target }}/release" -czf "dist/2brain-${{ matrix.target }}.tar.gz" 2brain
-          (cd dist && sha256sum "2brain-${{ matrix.target }}.tar.gz" "2brain-${{ matrix.target }}.cdx.json" > "2brain-${{ matrix.target }}.sha256")
-          cat "dist/2brain-${{ matrix.target }}.sha256"
+          COPYFILE_DISABLE=1 tar -C "${TARGET_DIR}/${TARGET_TRIPLE}/release" -czf "dist/2brain-${TARGET_TRIPLE}.tar.gz" 2brain
+          python3 - <<'PY'
+          import hashlib, os, pathlib
+          target = os.environ["TARGET_TRIPLE"]
+          dist = pathlib.Path("dist")
+          lines = []
+          for name in (f"2brain-{target}.tar.gz", f"2brain-{target}.cdx.json"):
+              digest = hashlib.sha256((dist / name).read_bytes()).hexdigest()
+              lines.append(f"{digest}  {name}")
+          (dist / f"2brain-{target}.sha256").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          print("\n".join(lines))
+          PY
       - name: Attest build provenance (SLSA)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2

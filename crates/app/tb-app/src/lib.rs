@@ -11,6 +11,7 @@ pub mod enrich;
 pub mod ingest;
 pub mod mutations;
 pub mod procedures;
+pub mod search_doc;
 pub use mutations::{
     BlockTarget, PromoteSource, WorkspaceMemberAction, validate_block_id, validate_member_role,
     validate_slug,
@@ -2957,7 +2958,7 @@ impl<W: WorkspaceStore> App<W> {
 
             let mut ops = Vec::with_capacity(drafts.len());
             for (d, rep) in drafts.iter().zip(reports.iter()) {
-                let expected_hash = if rep.action == "refresh" {
+                let expected_hash = if rep.action == ingest::IngestAction::Refresh {
                     let caller_hash = expected_hashes.get(&d.locator.path).ok_or_else(|| {
                         AppError::InvalidArguments(format!(
                             "policy/freshness: refresh target '{}' requires expected_hash (or expected_hashes[\"{}\"])",

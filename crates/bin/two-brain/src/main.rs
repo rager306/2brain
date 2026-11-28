@@ -3,6 +3,7 @@
 mod backup;
 mod bench;
 mod enrich;
+mod eval_common;
 mod ingest;
 
 use std::net::SocketAddr;
@@ -1877,55 +1878,17 @@ fn run_hybrid_eval(
     max_ram_mib: usize,
     as_json: bool,
 ) {
+    use crate::eval_common::{EvalSuite, evaluate_search_hits};
     use tb_search::hybrid::{
         HybridDocVectors, HybridRerankConfig, StaticEmbeddingModel, rerank_hits,
     };
 
-    #[derive(serde::Deserialize)]
-    struct HybridSuite {
-        experiment_id: String,
-        rollback_ref: String,
-        #[serde(default = "default_h_tasks")]
-        min_tasks: usize,
-        #[serde(default = "default_h_fams")]
-        min_families: usize,
-        #[serde(default)]
-        min_utility_gain: f64,
-        #[serde(default = "default_h_overhead")]
-        max_token_overhead_ratio: f64,
-        #[serde(default)]
-        synonym_clusters: Vec<Vec<String>>,
-        tasks: Vec<HybridTask>,
-    }
-    #[derive(serde::Deserialize)]
-    struct HybridTask {
-        task_id: String,
-        family: String,
-        query: String,
-        expected_paths: Vec<String>,
-        #[serde(default)]
-        forbidden_top1_paths: Vec<String>,
-        #[serde(default = "default_h_budget")]
-        budget_cap_tokens: u64,
-    }
     #[derive(serde::Deserialize)]
     struct ModelVectorsJson {
         dim: usize,
         vectors: std::collections::BTreeMap<String, Vec<f32>>,
         #[serde(default = "default_true")]
         use_char_ngram_fallback: bool,
-    }
-    fn default_h_tasks() -> usize {
-        4
-    }
-    fn default_h_fams() -> usize {
-        2
-    }
-    fn default_h_overhead() -> f64 {
-        1.15
-    }
-    fn default_h_budget() -> u64 {
-        4000
     }
     fn default_true() -> bool {
         true
@@ -1945,7 +1908,7 @@ fn run_hybrid_eval(
             std::process::exit(2);
         }
     };
-    let parsed_suite: HybridSuite = match serde_json::from_str(&suite_raw) {
+    let parsed_suite: EvalSuite = match serde_json::from_str(&suite_raw) {
         Ok(s) => s,
         Err(err) => {
             eprintln!("error parsing hybrid suite JSON: {err}");
@@ -1996,55 +1959,11 @@ fn run_hybrid_eval(
 
     let index_start = Instant::now();
     // Embed rich note text (stem/title + description + keywords/aliases + search_questions + body)
-    // so both semantic similarity and SEM-48 negation cues reflect frontmatter metadata.
+    // via shared `tb_app::search_doc::render_hybrid_doc_text`.
     let rich_docs: Vec<(tb_contracts::Locator, String)> = snap
         .files
         .iter()
-        .map(|(loc, f)| {
-            let mut buf = String::new();
-            let stem = loc
-                .path
-                .rsplit('/')
-                .next()
-                .unwrap_or(&loc.path)
-                .trim_end_matches(".md")
-                .replace(['-', '_'], " ");
-            buf.push_str(&stem);
-            if let Some(ref desc) = f.description {
-                buf.push('\n');
-                buf.push_str(desc);
-            }
-            if let Some(ref fm) = f.doc.frontmatter {
-                for key in [
-                    "title",
-                    "keywords",
-                    "aliases",
-                    "search_questions",
-                    "questions",
-                ] {
-                    match fm.get(key) {
-                        Some(tb_syntax::FrontmatterValue::String(s)) if !s.trim().is_empty() => {
-                            buf.push('\n');
-                            buf.push_str(s.trim());
-                        }
-                        Some(tb_syntax::FrontmatterValue::Seq(items)) => {
-                            for it in items {
-                                if let tb_syntax::FrontmatterValue::String(s) = it
-                                    && !s.trim().is_empty()
-                                {
-                                    buf.push('\n');
-                                    buf.push_str(s.trim());
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            buf.push('\n');
-            buf.push_str(f.body());
-            (loc.clone(), buf)
-        })
+        .map(|(loc, f)| (loc.clone(), tb_app::search_doc::render_hybrid_doc_text(f)))
         .collect();
     let doc_vecs = match HybridDocVectors::build(
         &model,
@@ -2073,12 +1992,6 @@ fn run_hybrid_eval(
     let mut outcomes = Vec::with_capacity(parsed_suite.tasks.len());
     let mut base_total_us = 0.0f64;
     let mut cand_total_us = 0.0f64;
-    let matches_spec = |spec: &str, loc: &tb_contracts::Locator| -> bool {
-        match spec.split_once("::") {
-            Some((r, p)) => loc.repo == r && loc.path == p,
-            None => loc.path == spec,
-        }
-    };
 
     for task in &parsed_suite.tasks {
         let t0 = Instant::now();
@@ -2100,30 +2013,8 @@ fn run_hybrid_eval(
         let cand_hits = rerank_hits(&task.query, &pool_hits, &model, &doc_vecs, &cfg, k);
         cand_total_us += t1.elapsed().as_secs_f64() * 1_000_000.0;
 
-        let eval_hits = |hits: &[tb_search::SearchHit]| -> (bool, bool, f64, u64) {
-            let mut best_rr = 0.0f64;
-            for (rank, h) in hits.iter().enumerate() {
-                if task
-                    .expected_paths
-                    .iter()
-                    .any(|p| matches_spec(p, &h.locator))
-                {
-                    best_rr = 1.0 / ((rank + 1) as f64);
-                    break;
-                }
-            }
-            let fulfilled = best_rr > 0.0;
-            let crit = hits.first().is_some_and(|top| {
-                task.forbidden_top1_paths
-                    .iter()
-                    .any(|f| matches_spec(f, &top.locator))
-            });
-            let tokens = 80u64 + (hits.len() as u64) * 120;
-            (fulfilled, crit, best_rr, tokens)
-        };
-
-        let (b_ok, b_crit, b_rr, b_tok) = eval_hits(&base_hits);
-        let (c_ok, c_crit, c_rr, c_tok) = eval_hits(&cand_hits);
+        let (b_ok, b_crit, b_rr, b_tok) = evaluate_search_hits(&snap, task, &base_hits);
+        let (c_ok, c_crit, c_rr, c_tok) = evaluate_search_hits(&snap, task, &cand_hits);
         outcomes.push(tb_cognition::PairedTaskOutcome {
             task_id: task.task_id.clone(),
             family: task.family.clone(),

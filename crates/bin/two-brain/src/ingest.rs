@@ -18,8 +18,8 @@ use std::path::{Component, Path, PathBuf};
 use rustix::fs::{Mode, OFlags, openat};
 use serde_json::json;
 use tb_app::ingest::{
-    ConvertOptions, IngestDraft, IngestFormat, IngestGateOptions, IngestGateReport, convert_source,
-    evaluate_ingest_draft,
+    ConvertOptions, IngestAction, IngestDraft, IngestFormat, IngestGateOptions, IngestGateReport,
+    convert_source, evaluate_ingest_draft,
 };
 use tb_fs_git::IngestWriteOp;
 
@@ -184,7 +184,7 @@ pub fn run_ingest(args: IngestCliArgs) {
         // right before write) and commit the entire batch atomically under one write.lock + commit.
         let mut ops = Vec::with_capacity(drafts.len());
         for (draft, rep) in drafts.iter().zip(reports.iter()) {
-            let expected_hash = if rep.action == "refresh" {
+            let expected_hash = if rep.action == IngestAction::Refresh {
                 match snapshot.files.get(&draft.locator) {
                     Some(existing) => Some(existing.short_hash.clone()),
                     None => {

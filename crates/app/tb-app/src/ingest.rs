@@ -253,6 +253,26 @@ pub struct DuplicateCandidate {
     pub matched_terms: usize,
 }
 
+/// Typed verdict action for a single [`IngestDraft`] (serializes as `"create"`, `"refresh"`, `"conflict"`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IngestAction {
+    Create,
+    Refresh,
+    Conflict,
+}
+
+impl std::fmt::Display for IngestAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let label = match self {
+            Self::Create => "create",
+            Self::Refresh => "refresh",
+            Self::Conflict => "conflict",
+        };
+        f.write_str(label)
+    }
+}
+
 /// Gate verdict for a single [`IngestDraft`].
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct IngestGateReport {
@@ -260,7 +280,7 @@ pub struct IngestGateReport {
     pub source: String,
     pub format: IngestFormat,
     pub admitted: bool,
-    pub action: String,
+    pub action: IngestAction,
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
     pub schema_diagnostics: Vec<Diagnostic>,
@@ -432,16 +452,16 @@ pub fn evaluate_ingest_draft(
     let exists = snapshot.files.contains_key(&draft.locator);
     let action = if exists {
         if opts.refresh_existing {
-            "refresh".to_owned()
+            IngestAction::Refresh
         } else {
             errors.push(format!(
                 "target '{}' already exists (pass --refresh to overwrite via CAS)",
                 draft.locator.path
             ));
-            "conflict".to_owned()
+            IngestAction::Conflict
         }
     } else {
-        "create".to_owned()
+        IngestAction::Create
     };
 
     // 1. Parse document strictly.

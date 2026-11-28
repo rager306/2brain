@@ -4,13 +4,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use clap::Subcommand;
-use serde::Deserialize;
 use serde_json::json;
 use tb_app::enrich::{
     ENRICH_CACHE_SCHEMA_VERSION, EnrichmentCache, EnrichmentRecord, PlanStatus,
     build_enrichment_apply_plan, build_simulated_enriched_index, heuristic_enrich, plan_enrichment,
 };
 use tb_cognition::{ExperimentPolicy, PairedTaskOutcome, evaluate_paired_experiment};
+
+use crate::eval_common::{EvalSuite, evaluate_search_hits};
 
 #[derive(Debug, Subcommand)]
 pub enum EnrichCommand {
@@ -118,46 +119,6 @@ pub enum EnrichCommand {
         #[arg(long = "json")]
         json: bool,
     },
-}
-
-#[derive(Debug, Deserialize)]
-struct EvalSuite {
-    experiment_id: String,
-    rollback_ref: String,
-    #[serde(default = "default_min_tasks")]
-    min_tasks: usize,
-    #[serde(default = "default_min_families")]
-    min_families: usize,
-    #[serde(default)]
-    min_utility_gain: f64,
-    #[serde(default = "default_max_overhead")]
-    max_token_overhead_ratio: f64,
-    tasks: Vec<EvalTask>,
-}
-
-#[derive(Debug, Deserialize)]
-struct EvalTask {
-    task_id: String,
-    family: String,
-    query: String,
-    expected_paths: Vec<String>,
-    #[serde(default)]
-    forbidden_top1_paths: Vec<String>,
-    #[serde(default = "default_budget_cap")]
-    budget_cap_tokens: u64,
-}
-
-fn default_min_tasks() -> usize {
-    4
-}
-fn default_min_families() -> usize {
-    2
-}
-fn default_max_overhead() -> f64 {
-    1.15
-}
-fn default_budget_cap() -> u64 {
-    4000
 }
 
 fn load_cache(path: &Path) -> Result<EnrichmentCache, String> {
@@ -542,43 +503,14 @@ pub fn run_enrich_command(command: EnrichCommand) {
             );
             let k = top_k.max(1);
             let mut outcomes = Vec::with_capacity(parsed_suite.tasks.len());
-            let matches_spec = |spec: &str, loc: &tb_contracts::Locator| -> bool {
-                match spec.split_once("::") {
-                    Some((r, p)) => loc.repo == r && loc.path == p,
-                    None => loc.path == spec,
-                }
-            };
             for task in &parsed_suite.tasks {
                 let base_hits = snap
                     .search
                     .query(&task.query, false, min_should_match, None, k);
                 let cand_hits = enriched_index.query(&task.query, false, min_should_match, None, k);
 
-                let eval_hits = |hits: &[tb_search::SearchHit]| -> (bool, bool, f64, u64) {
-                    let mut best_rr = 0.0f64;
-                    for (rank, h) in hits.iter().enumerate() {
-                        if task
-                            .expected_paths
-                            .iter()
-                            .any(|p| matches_spec(p, &h.locator))
-                        {
-                            best_rr = 1.0 / ((rank + 1) as f64);
-                            break;
-                        }
-                    }
-                    let fulfilled = best_rr > 0.0;
-                    let crit = hits.first().is_some_and(|top| {
-                        task.forbidden_top1_paths
-                            .iter()
-                            .any(|f| matches_spec(f, &top.locator))
-                    });
-                    // Deterministic token proxy: query + retrieved hit excerpts/metadata (~120 tokens/hit).
-                    let tokens = 80u64 + (hits.len() as u64) * 120;
-                    (fulfilled, crit, best_rr, tokens)
-                };
-
-                let (b_ok, b_crit, b_rr, b_tok) = eval_hits(&base_hits);
-                let (c_ok, c_crit, c_rr, c_tok) = eval_hits(&cand_hits);
+                let (b_ok, b_crit, b_rr, b_tok) = evaluate_search_hits(&snap, task, &base_hits);
+                let (c_ok, c_crit, c_rr, c_tok) = evaluate_search_hits(&snap, task, &cand_hits);
                 outcomes.push(PairedTaskOutcome {
                     task_id: task.task_id.clone(),
                     family: task.family.clone(),

@@ -57,8 +57,19 @@ def _extract_json_object(text: str, note_path: object) -> dict[str, object]:
         cleaned = "\n".join(lines).strip()
     try:
         parsed = json.loads(cleaned)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"LLM response for {note_path} was not valid JSON: {exc}") from exc
+    except json.JSONDecodeError as first_exc:
+        brace = cleaned.find("{")
+        if brace != -1:
+            try:
+                parsed, _ = json.JSONDecoder().raw_decode(cleaned, brace)
+            except json.JSONDecodeError:
+                raise RuntimeError(
+                    f"LLM response for {note_path} was not valid JSON: {first_exc}"
+                ) from first_exc
+        else:
+            raise RuntimeError(
+                f"LLM response for {note_path} was not valid JSON: {first_exc}"
+            ) from first_exc
     if not isinstance(parsed, dict):
         raise RuntimeError(f"LLM response for {note_path} was not a JSON object")
     return parsed
@@ -166,7 +177,7 @@ def call_anthropic_compatible(
     )
     payload = {
         "model": model,
-        "max_tokens": 1024,
+        "max_tokens": 4096,
         "stream": False,
         "temperature": 0.0,
         "system": system_prompt,
@@ -252,9 +263,13 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true", help="Write changes (default is dry-run)")
     parser.add_argument("--max-items", type=int, default=100)
     parser.add_argument("--timeout", type=float, default=30.0)
+    parser.add_argument("--retries", type=int, default=2, help="Per-note retries on transient LLM/JSON failure")
     args = parser.parse_args()
     if args.max_items < 0:
         print("error: --max-items must be >= 0", file=sys.stderr)
+        return 2
+    if args.retries < 0:
+        print("error: --retries must be >= 0", file=sys.stderr)
         return 2
     system_prompt = (
         args.system_prompt_file.read_text(encoding="utf-8").strip()
@@ -362,9 +377,25 @@ def main() -> int:
                     fh.seek(-1, os.SEEK_END)
                     needs_leading_nl = fh.read(1) != b"\n"
                 for item in pending:
-                    kws, qs = caller(
-                        base_url, api_key, args.model, item, args.timeout, system_prompt
-                    )
+                    last_err: Exception | None = None
+                    kws: list[str] = []
+                    qs: list[str] = []
+                    for attempt in range(args.retries + 1):
+                        try:
+                            kws, qs = caller(
+                                base_url, api_key, args.model, item, args.timeout, system_prompt
+                            )
+                            last_err = None
+                            break
+                        except RuntimeError as exc:
+                            last_err = exc
+                            if attempt < args.retries:
+                                print(
+                                    f"[enrich] retry {attempt + 1}/{args.retries} for {item['path']}: {exc}",
+                                    file=sys.stderr,
+                                )
+                    if last_err is not None:
+                        raise last_err
                     rec = {
                         "schema_version": SCHEMA_VERSION,
                         "repo": item["repo"],
