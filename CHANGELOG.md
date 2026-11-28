@@ -19,7 +19,7 @@ All notable changes to `2brain` (clean-room MIT single-binary typed knowledge gr
 - **`error-fix` schema compatibility & YAML key safety (`tb-app`):**
   - Replaced string-prefix merge checks in `ErrorFixAtom` with `Option<String>`, preserved safe unconsumed workspace schema keys (`extra_fields`) fail-closed (`[A-Za-z_][A-Za-z0-9_-]{0,63}`), and hardened `write_yaml_field` against frontmatter breakout.
 - **Cross-platform prebuilt releases, SLSA provenance & tooling (`scripts/`, `tools/`, `.github/workflows/release.yml`):**
-  - Expanded `.github/workflows/release.yml` to build both `x86_64-unknown-linux-gnu` (`ubuntu-latest`) and `aarch64-apple-darwin` (`macos-14`) with `--target` CycloneDX 1.5 SBOMs, `COPYFILE_DISABLE=1` tarballs, portable Python SHA-256 manifests, and per-target SLSA provenance (`actions/attest-build-provenance@v4.2.2`).
+  - Expanded `.github/workflows/release.yml` to build both `x86_64-unknown-linux-gnu` (`ubuntu-latest`) and `aarch64-apple-darwin` (`macos-latest`) with `--target` CycloneDX 1.5 SBOMs, `COPYFILE_DISABLE=1` tarballs, portable Python SHA-256 manifests, and per-target SLSA provenance (`actions/attest-build-provenance@v4.2.2`).
   - Hardened `scripts/enrich_llm.py` (`max_tokens: 4096`, bounded `--retries`, bilingual EN+RU prompt, `--system-prompt-file`), hardened `tools/eval/export_model2vec.py`, and tightened `tools/check_capabilities.py` to require `#[test]`/`#[tokio::test]` attributes.
 
 ### Prebuilt Assets (`x86_64-unknown-linux-gnu`, `aarch64-apple-darwin`)
