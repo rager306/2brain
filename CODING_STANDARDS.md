@@ -51,6 +51,12 @@ Defect classes caught by adversarial review and fixed by structural invariants:
    - Enforce the SEM-02 prior-read gate (`ReadLedger` or stateless HMAC `read_receipt`) on every existing-file operation inside `tb_batch` before executing step 0, and invalidate all modified `(repo, path)` ledger entries afterward.
    - Revalidate every workspace member root relative to `workspace_root` with `O_NOFOLLOW` directory traversal on every operation (`root_for`) so a post-load member-dir symlink swap cannot redirect writes outside the workspace.
 
+13. **IPC Envelope Field Isolation, Strict JSONL Logs & Commit Boundaries (`tb-ipc`, `tb-mcp`, `tb-fs-git`):**
+   - Never use top-level IPC envelope field names (`id`, `method`, `verb`) as unaliased tool arguments across `IpcClient`; translate `id` -> `target_id` before crossing IPC so frame fields cannot clobber payload keys.
+   - Never silently skip malformed JSONL lines in `review-decisions.jsonl`; fail closed on both read and pre-append validation so corrupted Negative Memory cannot silently restore dismissed items.
+   - In SEP-2663 tasks that commit state (`tb_record_decision`), check cancellation before dispatch and never turn an already-committed write into `TaskExit::Cancelled`.
+
+
 
 
 

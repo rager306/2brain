@@ -9,15 +9,18 @@ use std::fmt::Write as _;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub mod schemas;
+
 use rmcp::model::{
     CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
-    ContentBlock, CreateTaskResult, GetPromptRequestParams, GetPromptResponse, GetPromptResult,
-    GetSkillRequestParams, GetSkillResult, GetTaskParams, GetTaskResult, Implementation,
-    ListPromptsResult, ListResourcesResult, ListSkillsResult, ListToolsResult,
-    PaginatedRequestParams, Prompt, PromptArgument, PromptMessage, ProtocolVersion,
-    ReadResourceDirectoryRequestParams, ReadResourceDirectoryResult, ReadResourceRequestParams,
-    ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, Role, ServerCapabilities,
-    ServerConfig, Skill, SkillFrontmatter, SkillResource, SkillResources, Tool, UpdateTaskParams,
+    ContentBlock, CreateTaskResult, ElicitRequest, ElicitRequestParams, ElicitationSchema,
+    GetPromptRequestParams, GetPromptResponse, GetPromptResult, GetSkillRequestParams,
+    GetSkillResult, GetTaskParams, GetTaskResult, Implementation, InputRequest, ListPromptsResult,
+    ListResourcesResult, ListSkillsResult, ListToolsResult, PaginatedRequestParams, Prompt,
+    PromptArgument, PromptMessage, ProtocolVersion, ReadResourceDirectoryRequestParams,
+    ReadResourceDirectoryResult, ReadResourceRequestParams, ReadResourceResponse,
+    ReadResourceResult, Resource, ResourceContents, Role, ServerCapabilities, ServerConfig, Skill,
+    SkillFrontmatter, SkillResource, SkillResources, Tool, UpdateTaskParams,
 };
 use rmcp::service::RequestContext;
 use rmcp::task_manager::{TaskExit, TaskManager, TaskOptions};
@@ -53,6 +56,8 @@ fn is_cognitive_tool(name: &str) -> bool {
             | "tb_audit_contradictions"
             | "tb_fragility_report"
             | "tb_diff_graphs"
+            | "tb_record_decision"
+            | "tb_list_decisions"
     )
 }
 
@@ -70,6 +75,7 @@ pub struct LaunchPolicy {
     pub allow_workspace_shape: bool,
     pub outcome_registry: bool,
     pub allow_cognitive: bool,
+    pub full_schemas: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -274,7 +280,11 @@ impl TwoBrainMcp {
         match name {
             "tb_describe_tool" => match req_str(args, "name") {
                 Ok(tool_name) => match self.tools.iter().find(|t| t.name.as_ref() == tool_name) {
-                    Some(t) => ok_json(json!({ "describe_tool": t })),
+                    Some(t) => {
+                        let mut described = t.clone();
+                        described.input_schema = schemas::full_schema_for(tool_name);
+                        ok_json(json!({ "describe_tool": described }))
+                    }
                     None => err_text(format!("unknown tool '{tool_name}'")),
                 },
                 Err(e) => err_text(e),
@@ -335,13 +345,30 @@ impl TwoBrainMcp {
                 let verb = name.strip_prefix("tb_").unwrap_or(name);
                 map_mutation(self.dispatcher.call_mutation(verb, args))
             }
+            "tb_record_decision" => {
+                if !self.policy.allow_cognitive {
+                    return err_text(
+                        "policy/launch_grant: cognitive analytics tools require --allow-cognitive",
+                    );
+                }
+                // Translate `id` -> `target_id` before crossing IPC so the daemon's numeric
+                // frame `id` field never collides with the decision target identifier.
+                let mut normalized = args.clone();
+                if !normalized.contains_key("target_id")
+                    && let Some(id_val) = normalized.get("id").cloned()
+                {
+                    normalized.insert("target_id".into(), id_val);
+                }
+                map_app(self.dispatcher.call_read("record_decision", &normalized))
+            }
             "tb_orient"
             | "tb_analyze_topology"
             | "tb_detect_gaps"
             | "tb_audit_bias"
             | "tb_audit_contradictions"
             | "tb_fragility_report"
-            | "tb_diff_graphs" => {
+            | "tb_diff_graphs"
+            | "tb_list_decisions" => {
                 if !self.policy.allow_cognitive {
                     return err_text(
                         "policy/launch_grant: cognitive analytics tools require --allow-cognitive",
@@ -572,6 +599,8 @@ impl ServerHandler for TwoBrainMcp {
             };
             let this = self.clone();
             let task_name = name.clone();
+            let needs_decision_elicitation =
+                name == "tb_record_decision" && opt_str(&args, "decision").is_none();
             let task = self.tasks.spawn(
                 TaskOptions::new().with_status_message(format!("running {task_name}")),
                 move |ctx| {
@@ -580,9 +609,45 @@ impl ServerHandler for TwoBrainMcp {
                             drop(permit);
                             return Err(TaskExit::Cancelled);
                         }
+                        let mut effective_args = args;
+                        if needs_decision_elicitation {
+                            let id_label = effective_args
+                                .get("target_id")
+                                .or_else(|| effective_args.get("id"))
+                                .and_then(Value::as_str)
+                                .unwrap_or("target");
+                            let elicit_req = build_review_decision_elicitation(id_label)
+                                .map_err(|e| TaskExit::Error(McpError::internal_error(e, None)))?;
+                            ctx.set_status_message(format!(
+                                "awaiting review decision for {id_label}"
+                            ));
+                            let response = ctx.request_input("review_decision", elicit_req).await?;
+                            let payload = response.get("content").unwrap_or(&response);
+                            if response.get("action").and_then(Value::as_str) == Some("cancel")
+                                || response.get("action").and_then(Value::as_str) == Some("decline")
+                            {
+                                drop(permit);
+                                return Err(TaskExit::Cancelled);
+                            }
+                            let Some(dec) = payload.get("decision").and_then(Value::as_str) else {
+                                drop(permit);
+                                return Ok(err_text(
+                                    "policy/arguments: elicitation response missing 'decision'",
+                                ));
+                            };
+                            effective_args.insert("decision".into(), json!(dec));
+                            if let Some(rat) = payload.get("rationale").and_then(Value::as_str) {
+                                effective_args.insert("rationale".into(), json!(rat));
+                            }
+                        }
+                        if ctx.is_cancel_requested() {
+                            drop(permit);
+                            return Err(TaskExit::Cancelled);
+                        }
+                        let is_mutating_task = name == "tb_record_decision";
                         let res = tokio::task::spawn_blocking(move || {
                             let _slot = permit;
-                            this.dispatch_tool(&name, &args)
+                            this.dispatch_tool(&name, &effective_args)
                         })
                         .await
                         .map_err(|e| {
@@ -591,7 +656,9 @@ impl ServerHandler for TwoBrainMcp {
                                 None,
                             ))
                         })?;
-                        if ctx.is_cancel_requested() {
+                        // Commit boundary: once a mutating task (tb_record_decision) has
+                        // durably persisted its decision, never misreport it as Cancelled.
+                        if !is_mutating_task && ctx.is_cancel_requested() {
                             return Err(TaskExit::Cancelled);
                         }
                         Ok(res)
@@ -828,7 +895,41 @@ fn ok_json(value: Value) -> CallToolResult {
 }
 
 fn err_text(msg: impl Into<String>) -> CallToolResult {
-    CallToolResult::error(vec![ContentBlock::text(msg.into())])
+    let text = msg.into();
+    let (reason_code, recovery_hint) = schemas::classify_error_with_hint(&text);
+    let mut res = CallToolResult::error(vec![ContentBlock::text(text.clone())]);
+    res.structured_content = Some(json!({
+        "error": text,
+        "reason_code": reason_code,
+        "recovery_hint": recovery_hint,
+    }));
+    res
+}
+
+fn build_review_decision_elicitation(id_label: &str) -> Result<InputRequest, String> {
+    let schema: ElicitationSchema = serde_json::from_value(json!({
+        "type": "object",
+        "properties": {
+            "decision": {
+                "type": "string",
+                "enum": ["accept", "dismiss", "defer"],
+                "description": "Resolution for this ResearchQuestion or Contradiction"
+            },
+            "rationale": {
+                "type": "string",
+                "description": "Short rationale persisted in Negative Memory (D11)"
+            }
+        },
+        "required": ["decision"]
+    }))
+    .map_err(|e| format!("invalid elicitation schema: {e}"))?;
+    Ok(InputRequest::Elicitation(ElicitRequest::new(
+        ElicitRequestParams::FormElicitationParams {
+            meta: None,
+            message: format!("Confirm D11 review decision for '{id_label}'"),
+            requested_schema: schema,
+        },
+    )))
 }
 
 fn map_app(res: Result<Value, AppError>) -> CallToolResult {
@@ -1075,7 +1176,21 @@ fn build_tool_catalog(policy: LaunchPolicy) -> Vec<Tool> {
                 "tb_diff_graphs",
                 "Compare two Git snapshots (G(T1) -> G(T2)) for topological drift and Change-Driven Decay.",
             ),
+            make_tool(
+                "tb_record_decision",
+                "Persist a D07/D11 review decision (accept/dismiss/defer) into workspace Negative Memory (supports SEP-2663 elicitation).",
+            ),
+            make_tool(
+                "tb_list_decisions",
+                "List persisted D07/D11 review decisions from workspace Negative Memory.",
+            ),
         ]);
+    }
+
+    if policy.full_schemas {
+        for tool in &mut tools {
+            tool.input_schema = schemas::full_schema_for(tool.name.as_ref());
+        }
     }
 
     tools
@@ -1112,6 +1227,7 @@ mod tests {
             allow_workspace_shape: true,
             outcome_registry: false,
             allow_cognitive: false,
+            full_schemas: false,
         });
         assert_eq!(full.len(), 54);
 
@@ -1119,7 +1235,21 @@ mod tests {
             allow_cognitive: true,
             ..LaunchPolicy::default()
         });
-        assert_eq!(cognitive.len(), 45);
+        assert_eq!(cognitive.len(), 47);
+
+        let full_schema_cat = build_tool_catalog(LaunchPolicy {
+            full_schemas: true,
+            ..LaunchPolicy::default()
+        });
+        let content_tool = full_schema_cat
+            .iter()
+            .find(|t| t.name.as_ref() == "tb_content")
+            .unwrap();
+        assert!(
+            content_tool.input_schema["properties"]
+                .get("path")
+                .is_some()
+        );
     }
 
     #[test]
@@ -1275,5 +1405,79 @@ mod tests {
             txt.contains("policy/prior_read"),
             "expected SEM-02 policy/prior_read refusal on batch write, got {txt}"
         );
+        let sc = res.structured_content.expect("structured error expected");
+        assert_eq!(sc["reason_code"], "prior_read");
+        assert!(sc["recovery_hint"].as_str().unwrap().contains("tb_content"));
+    }
+
+    #[test]
+    fn describe_tool_returns_full_schema_even_in_concise_mode() {
+        let app = Arc::new(App::new(DummyStore, VaultSnapshot::empty()));
+        let server = TwoBrainMcp::new(app, LaunchPolicy::default());
+        let args = json!({ "name": "tb_search" });
+        let res = server.dispatch_tool("tb_describe_tool", args.as_object().unwrap());
+        assert_ne!(res.is_error, Some(true));
+        let sc = res.structured_content.unwrap();
+        assert!(
+            sc["describe_tool"]["inputSchema"]["properties"]
+                .get("query")
+                .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn sep2663_elicitation_pauses_in_input_required_and_resumes_on_update() {
+        let app = Arc::new(App::new(DummyStore, VaultSnapshot::empty()));
+        let server = TwoBrainMcp::new(
+            app,
+            LaunchPolicy {
+                allow_cognitive: true,
+                ..LaunchPolicy::default()
+            },
+        );
+        let req = build_review_decision_elicitation("q_12345678").expect("valid elicitation");
+        let task = server.tasks.spawn(
+            TaskOptions::new().with_status_message("awaiting decision"),
+            move |ctx| {
+                Box::pin(async move {
+                    let ans = ctx.request_input("review_decision", req).await?;
+                    Ok(ok_json(json!({ "accepted": ans })))
+                })
+            },
+        );
+
+        // Wait briefly for task to enter InputRequired state.
+        let mut saw_input_required = false;
+        for _ in 0..40 {
+            let d = server.tasks.get_task(&task.task_id).unwrap();
+            if d.task.status == rmcp::model::TaskStatus::InputRequired {
+                saw_input_required = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(saw_input_required, "task must pause in InputRequired state");
+
+        // Fulfill elicitation via tasks/update.
+        let mut responses = rmcp::model::InputResponses::new();
+        responses.insert(
+            "review_decision".to_owned(),
+            json!({ "action": "accept", "content": { "decision": "dismiss", "rationale": "intentional" } }),
+        );
+        server
+            .tasks
+            .update_task(&task.task_id, responses)
+            .expect("update_task must succeed");
+
+        let mut completed = false;
+        for _ in 0..40 {
+            let d = server.tasks.get_task(&task.task_id).unwrap();
+            if d.task.status == rmcp::model::TaskStatus::Completed {
+                completed = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(completed, "task must complete after elicitation response");
     }
 }

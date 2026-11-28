@@ -128,6 +128,17 @@ pub struct MutationReceipt {
     pub commit: Option<String>,
 }
 
+/// Persistent Negative Memory record (`D07 ResearchQuestion` / `D11 ReviewDecision`).
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ReviewDecision {
+    pub id: String,
+    pub target_kind: String,
+    pub decision: String,
+    pub rationale: String,
+    pub decided_at: String,
+    pub principal: Option<String>,
+}
+
 /// Driven port for workspace filesystem and Git access.
 pub trait WorkspaceStore: Send + Sync {
     fn read_exact(&self, locator: &Locator) -> Result<(Vec<u8>, EvidenceReceipt), StoreError>;
@@ -233,6 +244,21 @@ pub trait WorkspaceStore: Send + Sync {
     fn update_workspace_member(&self, _action: WorkspaceMemberAction) -> Result<Value, StoreError> {
         Err(StoreError::Unsupported(
             "update_workspace_member unsupported".into(),
+        ))
+    }
+
+    /// Load persistent `D07`/`D11` review decisions (Negative Memory).
+    fn load_review_decisions(&self) -> Result<Vec<ReviewDecision>, StoreError> {
+        Ok(Vec::new())
+    }
+
+    /// Append one persistent `D07`/`D11` review decision to the workspace decision log.
+    fn record_review_decision(
+        &self,
+        _decision: ReviewDecision,
+    ) -> Result<ReviewDecision, StoreError> {
+        Err(StoreError::Unsupported(
+            "record_review_decision unsupported".into(),
         ))
     }
 }
@@ -1456,11 +1482,33 @@ impl<W: WorkspaceStore> App<W> {
         Ok(json!({ "mutation_outcome": obs }))
     }
 
+    /// Merge caller-supplied suppressed question IDs with persisted `D07`/`D11` Negative Memory.
+    fn merged_suppressed_questions(
+        &self,
+        caller_suppressed: &HashSet<String>,
+    ) -> Result<HashSet<String>, AppError> {
+        let mut merged = caller_suppressed.clone();
+        // Keep only the latest decision per question id so an `accept` can supersede an earlier `dismiss`.
+        let mut latest: BTreeMap<String, String> = BTreeMap::new();
+        for d in self.store.load_review_decisions()? {
+            if d.target_kind == "question" {
+                latest.insert(d.id, d.decision);
+            }
+        }
+        for (qid, dec) in latest {
+            if matches!(dec.as_str(), "dismiss" | "defer") {
+                merged.insert(qid);
+            }
+        }
+        Ok(merged)
+    }
+
     /// `tb_orient`: generation-fenced ~400-token Structural Contextual Hint.
     pub fn orient(&self, suppressed_question_ids: &HashSet<String>) -> Result<Value, AppError> {
         let snap = self.snapshot();
         let gen_before = snap.generation;
-        if suppressed_question_ids.is_empty()
+        let effective_suppressed = self.merged_suppressed_questions(suppressed_question_ids)?;
+        if effective_suppressed.is_empty()
             && let Ok(guard) = self.orient_cache.lock()
             && let Some((cached_gen, hint)) = guard.as_ref()
             && *cached_gen == gen_before
@@ -1474,13 +1522,13 @@ impl<W: WorkspaceStore> App<W> {
             &snap.graph,
             &snap.search,
             snap.files.iter().map(|(loc, f)| (loc, f.body())),
-            suppressed_question_ids,
+            &effective_suppressed,
         );
         // Generation fence: refuse to cache or release analytics computed against a superseded snapshot.
         if self.snapshot.load().generation != gen_before {
             return Err(AppError::SnapshotStale);
         }
-        if suppressed_question_ids.is_empty()
+        if effective_suppressed.is_empty()
             && let Ok(mut guard) = self.orient_cache.lock()
         {
             *guard = Some((gen_before, hint.clone()));
@@ -1531,11 +1579,12 @@ impl<W: WorkspaceStore> App<W> {
     ) -> Result<Value, AppError> {
         let snap = self.snapshot();
         let gen_before = snap.generation;
+        let effective_suppressed = self.merged_suppressed_questions(suppressed_question_ids)?;
         let report = run_gaps(
             &snap.graph,
             &snap.search,
             snap.files.iter().map(|(loc, f)| (loc, f.body())),
-            suppressed_question_ids,
+            &effective_suppressed,
             limit.clamp(1, 30),
         );
         if self.snapshot.load().generation != gen_before {
@@ -1649,6 +1698,81 @@ impl<W: WorkspaceStore> App<W> {
             "from_ref": from_ref,
             "to_ref": to_ref.unwrap_or("WORKING_TREE"),
             "generation": gen_fence.map(|g| g.0),
+        }))
+    }
+
+    /// `tb_record_decision`: persist a `D07`/`D11` review decision (Negative Memory) and
+    /// invalidate cached orient hints so dismissed questions disappear immediately.
+    pub fn record_decision(
+        &self,
+        id: &str,
+        target_kind: &str,
+        decision: &str,
+        rationale: &str,
+        principal: Option<&str>,
+    ) -> Result<Value, AppError> {
+        let id = id.trim();
+        if id.is_empty() || id.len() > 128 {
+            return Err(AppError::InvalidArguments(
+                "decision 'id' must be 1..=128 characters".into(),
+            ));
+        }
+        let target_kind = match target_kind.trim().to_ascii_lowercase().as_str() {
+            "question" => "question",
+            "conflict" => "conflict",
+            other => {
+                return Err(AppError::InvalidArguments(format!(
+                    "invalid target_kind '{other}': expected 'question' or 'conflict'"
+                )));
+            }
+        };
+        let decision = match decision.trim().to_ascii_lowercase().as_str() {
+            "accept" => "accept",
+            "dismiss" => "dismiss",
+            "defer" => "defer",
+            other => {
+                return Err(AppError::InvalidArguments(format!(
+                    "invalid decision '{other}': expected 'accept', 'dismiss', or 'defer'"
+                )));
+            }
+        };
+        let unix_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let rec = ReviewDecision {
+            id: id.to_owned(),
+            target_kind: target_kind.to_owned(),
+            decision: decision.to_owned(),
+            rationale: rationale.trim().to_owned(),
+            decided_at: format!("unix:{unix_secs}"),
+            principal: principal.map(str::to_owned),
+        };
+        let saved = self.store.record_review_decision(rec)?;
+        if let Ok(mut guard) = self.orient_cache.lock() {
+            *guard = None;
+        }
+        Ok(json!({ "record_decision": saved }))
+    }
+
+    /// `tb_list_decisions`: list persisted `D07`/`D11` review decisions (latest per id).
+    pub fn list_decisions(&self, target_kind: Option<&str>) -> Result<Value, AppError> {
+        let all = self.store.load_review_decisions()?;
+        let mut latest: BTreeMap<(String, String), ReviewDecision> = BTreeMap::new();
+        for d in all {
+            if let Some(tk) = target_kind
+                && !d.target_kind.eq_ignore_ascii_case(tk)
+            {
+                continue;
+            }
+            latest.insert((d.target_kind.clone(), d.id.clone()), d);
+        }
+        let items: Vec<ReviewDecision> = latest.into_values().collect();
+        Ok(json!({
+            "list_decisions": {
+                "count": items.len(),
+                "decisions": items,
+            }
         }))
     }
 
@@ -2144,6 +2268,14 @@ impl<W: WorkspaceStore + 'static> AppDispatcher for App<W> {
                 opt_str("to_ref"),
                 opt_str("repo"),
                 opt_usize("limit", 20),
+            ),
+            "list_decisions" => self.list_decisions(opt_str("target_kind")),
+            "record_decision" => self.record_decision(
+                req_str("target_id").or_else(|_| req_str("id"))?,
+                req_str("target_kind")?,
+                req_str("decision")?,
+                opt_str("rationale").unwrap_or(""),
+                opt_str("principal"),
             ),
             "preview_mutation" => self.preview_mutation(args),
             "reconcile" => {

@@ -230,7 +230,7 @@ fn main() {
             policy: policy_file,
             info,
         } => {
-            let _ = (principal, tools, payload, policy_file);
+            let _ = (principal, payload, policy_file);
             let effective_mutations = allow_mutations || allow_composition || allow_workspace_shape;
             let policy = LaunchPolicy {
                 allow_mutations: effective_mutations,
@@ -238,6 +238,7 @@ fn main() {
                 allow_workspace_shape,
                 outcome_registry,
                 allow_cognitive,
+                full_schemas: tools.eq_ignore_ascii_case("full"),
             };
             if info {
                 println!(
@@ -245,7 +246,7 @@ fn main() {
                     env!("CARGO_PKG_VERSION")
                 );
                 println!(
-                    "  tools        54 core (38 read-only, 16 mutating) + 7 opt-in cognitive (--allow-cognitive)"
+                    "  tools        54 core (38 read-only, 16 mutating) + 9 opt-in cognitive (--allow-cognitive)"
                 );
                 println!(
                     "  protocol     MCP 2026-07-28 (stateless) + legacy + SEP-2640 skills + SEP-2663 tasks"

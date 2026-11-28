@@ -22,8 +22,8 @@ use rustix::io::Errno;
 use saphyr::{LoadableYamlNode, Scalar, Yaml};
 use serde_json::{Value, json};
 use tb_app::{
-    IndexedFile, MemberMeta, MutationReceipt, StoreError, VaultSnapshot, WorkspaceMemberAction,
-    WorkspaceStore,
+    IndexedFile, MemberMeta, MutationReceipt, ReviewDecision, StoreError, VaultSnapshot,
+    WorkspaceMemberAction, WorkspaceStore,
 };
 use tb_contracts::{
     CasVerified, EvidenceReceipt, Generation, Locator, RevisionDigest, WriteGuardHash, WriteIntent,
@@ -718,6 +718,79 @@ impl WorkspaceStore for FsWorkspaceStore {
                 .collect::<Vec<_>>()
         }))
     }
+
+    fn load_review_decisions(&self) -> Result<Vec<ReviewDecision>, StoreError> {
+        let rel = ".2brain/engine/review-decisions.jsonl";
+        let path = self.workspace_root.join(rel);
+        let bytes = match confined_read_bytes(&self.workspace_root, &path) {
+            Ok(Some(b)) => b,
+            Ok(None) => return Ok(Vec::new()),
+            Err(FsError::SymlinkEscape(p)) => {
+                return Err(StoreError::SymlinkEscape(p.display().to_string()));
+            }
+            Err(FsError::Io { path, source }) => {
+                return Err(StoreError::Io(format!("{}: {source}", path.display())));
+            }
+            Err(FsError::InvalidGitRef(msg)) => return Err(StoreError::InvalidEdit(msg)),
+        };
+        parse_review_decisions_strict(rel, &bytes)
+    }
+
+    fn record_review_decision(
+        &self,
+        decision: ReviewDecision,
+    ) -> Result<ReviewDecision, StoreError> {
+        let _lock = acquire_workspace_write_lock(&self.write_lock, &self.workspace_root)?;
+        let rel = ".2brain/engine/review-decisions.jsonl";
+        let (parent_fd, file_name) = open_confined_parent_dir(&self.workspace_root, rel, true)?;
+        reject_symlink_leaf(&parent_fd, &file_name)?;
+        let mut existing =
+            match confined_read_bytes(&self.workspace_root, &self.workspace_root.join(rel)) {
+                Ok(Some(b)) => b,
+                Ok(None) => Vec::new(),
+                Err(FsError::SymlinkEscape(p)) => {
+                    return Err(StoreError::SymlinkEscape(p.display().to_string()));
+                }
+                Err(FsError::Io { path, source }) => {
+                    return Err(StoreError::Io(format!("{}: {source}", path.display())));
+                }
+                Err(FsError::InvalidGitRef(msg)) => return Err(StoreError::InvalidEdit(msg)),
+            };
+        if !existing.is_empty() {
+            let _ = parse_review_decisions_strict(rel, &existing)?;
+        }
+        let line = serde_json::to_string(&decision)
+            .map_err(|e| StoreError::Io(format!("serialize review decision: {e}")))?;
+        if !existing.is_empty() && !existing.ends_with(b"\n") {
+            existing.push(b'\n');
+        }
+        existing.extend_from_slice(line.as_bytes());
+        existing.push(b'\n');
+        atomic_write_in_dirfd(&parent_fd, &file_name, &existing)?;
+        Ok(decision)
+    }
+}
+
+fn parse_review_decisions_strict(
+    rel: &str,
+    bytes: &[u8],
+) -> Result<Vec<ReviewDecision>, StoreError> {
+    let text = std::str::from_utf8(bytes).map_err(|_| StoreError::InvalidUtf8(rel.to_owned()))?;
+    let mut out = Vec::new();
+    for (idx, line) in text.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let rec = serde_json::from_str::<ReviewDecision>(trimmed).map_err(|e| {
+            StoreError::Io(format!(
+                "malformed review decision in {rel} at line {}: {e}",
+                idx + 1
+            ))
+        })?;
+        out.push(rec);
+    }
+    Ok(out)
 }
 
 struct WorkspaceWriteLock<'a> {
@@ -3093,6 +3166,85 @@ mod tests {
         assert!(
             matches!(err, StoreError::SymlinkEscape(_)),
             "expected SymlinkEscape after member dir symlink swap, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn persistent_negative_memory_suppresses_dismissed_gap_across_restarts() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        // Two disconnected notes with rich shared rare technical vocabulary -> produces a structural gap.
+        fs::write(
+            root.join("alpha.md"),
+            "Deterministic quasar telemetry calibration hypergraph lattice synchronization protocol.\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("beta.md"),
+            "Deterministic quasar telemetry calibration hypergraph lattice synchronization benchmark.\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("other1.md"),
+            "Unrelated cooking recipe banana bread.\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("other2.md"),
+            "Unrelated gardening tomato soil compost.\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("other3.md"),
+            "Unrelated sailing wind compass harbor.\n",
+        )
+        .unwrap();
+
+        let (store1, snap1) = load_snapshot(root).unwrap();
+        let app1 = tb_app::App::new(store1, snap1);
+        let before = app1
+            .detect_gaps(&std::collections::HashSet::new(), 10)
+            .unwrap();
+        let gaps_before = before["detect_gaps"]["gaps"].as_array().unwrap();
+        assert!(
+            !gaps_before.is_empty(),
+            "expected at least one structural gap"
+        );
+        let qid = gaps_before[0]["question_id"].as_str().unwrap().to_owned();
+
+        // Persist dismissal in Negative Memory.
+        app1.record_decision(
+            &qid,
+            "question",
+            "dismiss",
+            "intentional separation",
+            Some("tester"),
+        )
+        .unwrap();
+
+        // Reload a completely fresh App instance (simulating daemon restart).
+        let (store2, snap2) = load_snapshot(root).unwrap();
+        let app2 = tb_app::App::new(store2, snap2);
+        let after = app2
+            .detect_gaps(&std::collections::HashSet::new(), 10)
+            .unwrap();
+        let gaps_after = after["detect_gaps"]["gaps"].as_array().unwrap();
+        assert!(
+            !gaps_after.iter().any(|g| g["question_id"] == qid),
+            "dismissed question '{qid}' must stay suppressed across restart"
+        );
+        let listed = app2.list_decisions(Some("question")).unwrap();
+        assert_eq!(listed["list_decisions"]["count"], 1);
+
+        // Corrupted JSONL line must fail closed instead of silently restoring dismissed questions.
+        let log_path = root.join(".2brain/engine/review-decisions.jsonl");
+        let mut raw = fs::read(&log_path).unwrap();
+        raw.extend_from_slice(b"{not valid json\n");
+        fs::write(&log_path, raw).unwrap();
+        assert!(app2.list_decisions(None).is_err());
+        assert!(
+            app2.record_decision("q_next", "question", "dismiss", "nope", None)
+                .is_err()
         );
     }
 }
