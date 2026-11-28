@@ -14,7 +14,7 @@ A 2brain workspace is either:
 ### 1.1. Repository Manifest (`.2brain/repo.yaml`)
 
 ```yaml
-type: tb.engine.repo::tb-engine   # optional self-descriptor
+type: 2brain.repo                 # optional self-descriptor
 name: vault                       # canonical repository identifier (slug)
 description: "..."                # optional human description
 deps:                             # optional dependency list

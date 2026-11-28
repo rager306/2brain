@@ -8,7 +8,7 @@
 //!
 //! The serving path reserves an id under the write lock, records terminal states,
 //! and reads the saved terminal frame back for a retry. The operator enables the
-//! fence with `tb-engine outcomes enable <entry>`.
+//! fence with `2brain outcomes enable <entry>`.
 //! The frame, its CRC-32 and the request digest live in `outcome_journal` and
 //! `outcome_digest`; nothing here re-encodes a frame or hashes anything itself.
 //!

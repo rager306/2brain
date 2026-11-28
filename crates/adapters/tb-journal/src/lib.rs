@@ -1,9 +1,9 @@
 //! Driven adapter: crash-safe durable outcome registry (`ADR-0009`, G4).
 //!
-//! Ported directly from our clean post-fork implementation (`outcome_journal`,
-//! `outcome_digest`, `outcome_registry`) with framed IEEE CRC-32 journals,
-//! write-ahead `usage.dirty`, atomic CRC-32 `usage.json`, `fs4` inter-process
-//! `registry.lock`, ground-truth `prune_tombstones_to`, and exact-frame replay.
+//! Implements `outcome_journal`, `outcome_digest`, and `outcome_registry` with
+//! framed IEEE CRC-32 journals, write-ahead `usage.dirty`, atomic CRC-32
+//! `usage.json`, `fs4` inter-process `registry.lock`, ground-truth
+//! `prune_tombstones_to`, and exact-frame replay.
 
 mod outcome_digest;
 mod outcome_journal;

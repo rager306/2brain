@@ -1,6 +1,6 @@
 //! Pure-domain BM25 lexical search + literal grep over in-memory documents (0 I/O, Miri-clean).
 //!
-//! Ported from our clean post-fork BM25 engine:
+//! Architecture:
 //! - Delta-varint [`PostingBlock`] with per-field frequencies and positions
 //! - Zero-alloc [`PositionCursor`] merge walk for body proximity scoring
 //! - Per-field BM25 (`k1 = 1.2`, `b = 0.75`; body weight `1.0`, description weight `3.0`)
