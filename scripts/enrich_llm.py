@@ -16,14 +16,22 @@ Workflow (Backlog P1-6):
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+import math
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import urllib.error
 import urllib.request
+
+class NonRetryableError(RuntimeError):
+    """Permanent client/auth error (e.g. HTTP 400/401/403/404) that must not be retried."""
 
 SCHEMA_VERSION = "2brain.enrichment-cache/v1"
 DEFAULT_SYSTEM_PROMPT = (
@@ -106,7 +114,10 @@ def _http_post_json(
                 err_body = exc.read(512).decode("utf-8", errors="replace").strip()
             except OSError:
                 pass
-        raise RuntimeError(f"{label} HTTP {exc.code}: {err_body or exc.reason}") from exc
+        msg = f"{label} HTTP {exc.code}: {err_body or exc.reason}"
+        if exc.code in (400, 401, 403, 404, 422):
+            raise NonRetryableError(msg) from exc
+        raise RuntimeError(msg) from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise RuntimeError(f"{label} request failed: {exc}") from exc
 
@@ -215,6 +226,13 @@ def _open_cache_append_nofollow(cache_path: Path):
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
     fd = os.open(str(cache_path), flags, 0o600)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            raise OSError(f"cache path is not a regular file: {cache_path}")
+    except Exception:
+        os.close(fd)
+        raise
     return os.fdopen(fd, "r+b")
 
 
@@ -263,13 +281,39 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true", help="Write changes (default is dry-run)")
     parser.add_argument("--max-items", type=int, default=100)
     parser.add_argument("--timeout", type=float, default=30.0)
-    parser.add_argument("--retries", type=int, default=2, help="Per-note retries on transient LLM/JSON failure")
+    parser.add_argument(
+        "--retries", type=int, default=2, help="Per-note retries on transient LLM/JSON failure"
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        help="Number of concurrent LLM worker threads for --mode llm (default: 1)",
+    )
+    parser.add_argument(
+        "--backoff-base",
+        type=float,
+        default=1.0,
+        help="Base seconds for exponential retry backoff on transient LLM failures",
+    )
     args = parser.parse_args()
     if args.max_items < 0:
         print("error: --max-items must be >= 0", file=sys.stderr)
         return 2
     if args.retries < 0:
         print("error: --retries must be >= 0", file=sys.stderr)
+        return 2
+    if args.concurrency < 1 or args.concurrency > 32:
+        print("error: --concurrency must be in [1, 32]", file=sys.stderr)
+        return 2
+    if not math.isfinite(args.backoff_base) or args.backoff_base < 0.0:
+        print("error: --backoff-base must be a finite number >= 0", file=sys.stderr)
+        return 2
+    if not math.isfinite(args.timeout) or args.timeout <= 0.0:
+        print("error: --timeout must be a finite number > 0", file=sys.stderr)
+        return 2
+    if not args.model.strip() or not args.prompt_version.strip():
+        print("error: --model and --prompt-version must be non-empty", file=sys.stderr)
         return 2
     system_prompt = (
         args.system_prompt_file.read_text(encoding="utf-8").strip()
@@ -357,59 +401,114 @@ def main() -> int:
         if args.only_missing:
             plan_cmd.append("--only-missing")
         plan = json.loads(run_cmd(plan_cmd))
-        pending = [i for i in plan["items"] if i["status"] == "pending"]
+        scoped_items = plan["items"]
         if args.path_prefix:
-            pending = [
+            scoped_items = [
                 i
-                for i in pending
+                for i in scoped_items
                 if any(str(i.get("path", "")).startswith(p) for p in args.path_prefix)
             ]
-        pending = pending[: args.max_items]
+        scoped_cached = sum(1 for i in scoped_items if i["status"] == "cached")
+        scoped_already = sum(1 for i in scoped_items if i["status"] == "already_enriched")
+        all_pending = [i for i in scoped_items if i["status"] == "pending"]
+        scoped_pending = len(all_pending)
+        cache_eligible = scoped_cached + scoped_pending
+        hit_rate = (100.0 * scoped_cached / cache_eligible) if cache_eligible else 100.0
+        # Deduplicate identical pending note_hash bodies so we never waste duplicate LLM calls.
+        seen_hashes: set[str] = set()
+        pending: list[dict[str, object]] = []
+        for item in all_pending:
+            nh = str(item.get("note_hash", ""))
+            if nh and nh in seen_hashes:
+                continue
+            if nh:
+                seen_hashes.add(nh)
+            pending.append(item)
+            if len(pending) >= args.max_items:
+                break
         print(
             f"[enrich] llm({provider}/{args.model}) plan: total={plan['total_notes']} "
-            f"cached={plan['cached_hits']} pending={plan['pending_misses']} processing={len(pending)}"
+            f"scoped={len(scoped_items)} already_enriched={scoped_already} "
+            f"cached={scoped_cached}/{cache_eligible} ({hit_rate:.1f}% hit) "
+            f"pending_scoped={scoped_pending} processing={len(pending)} concurrency={args.concurrency}"
         )
         if pending:
+            stderr_lock = threading.Lock()
+
+            def _enrich_one(item: dict[str, object]) -> dict[str, object]:
+                last_err: Exception | None = None
+                for attempt in range(args.retries + 1):
+                    try:
+                        kws, qs = caller(
+                            base_url, api_key, args.model, item, args.timeout, system_prompt
+                        )
+                        return {
+                            "schema_version": SCHEMA_VERSION,
+                            "repo": item["repo"],
+                            "path": item["path"],
+                            "note_hash": item["note_hash"],
+                            "model": args.model,
+                            "prompt_version": args.prompt_version,
+                            "keywords": kws,
+                            "search_questions": qs,
+                        }
+                    except NonRetryableError:
+                        raise
+                    except RuntimeError as exc:
+                        last_err = exc
+                        if attempt < args.retries:
+                            delay = args.backoff_base * (2**attempt)
+                            with stderr_lock:
+                                print(
+                                    f"[enrich] retry {attempt + 1}/{args.retries} for {item['path']} "
+                                    f"(sleep {delay:.1f}s): {exc}",
+                                    file=sys.stderr,
+                                )
+                            if delay > 0:
+                                time.sleep(delay)
+                assert last_err is not None
+                raise last_err
+
             with _open_cache_append_nofollow(cache_path) as fh:
                 fh.seek(0, os.SEEK_END)
                 needs_leading_nl = False
                 if fh.tell() > 0:
                     fh.seek(-1, os.SEEK_END)
                     needs_leading_nl = fh.read(1) != b"\n"
-                for item in pending:
-                    last_err: Exception | None = None
-                    kws: list[str] = []
-                    qs: list[str] = []
-                    for attempt in range(args.retries + 1):
-                        try:
-                            kws, qs = caller(
-                                base_url, api_key, args.model, item, args.timeout, system_prompt
-                            )
-                            last_err = None
-                            break
-                        except RuntimeError as exc:
-                            last_err = exc
-                            if attempt < args.retries:
-                                print(
-                                    f"[enrich] retry {attempt + 1}/{args.retries} for {item['path']}: {exc}",
-                                    file=sys.stderr,
-                                )
-                    if last_err is not None:
-                        raise last_err
-                    rec = {
-                        "schema_version": SCHEMA_VERSION,
-                        "repo": item["repo"],
-                        "path": item["path"],
-                        "note_hash": item["note_hash"],
-                        "model": args.model,
-                        "prompt_version": args.prompt_version,
-                        "keywords": kws,
-                        "search_questions": qs,
-                    }
+
+                def _append_record(rec: dict[str, object]) -> None:
+                    nonlocal needs_leading_nl
+                    line = (json.dumps(rec, ensure_ascii=False) + "\n").encode("utf-8")
                     prefix = b"\n" if needs_leading_nl else b""
-                    needs_leading_nl = False
-                    fh.write(prefix + (json.dumps(rec, ensure_ascii=False) + "\n").encode("utf-8"))
+                    fh.write(prefix + line)
                     fh.flush()
+                    os.fsync(fh.fileno())
+                    needs_leading_nl = False
+
+                errors: list[str] = []
+                if args.concurrency == 1:
+                    for item in pending:
+                        try:
+                            rec = _enrich_one(item)
+                        except Exception as exc:  # noqa: BLE001
+                            errors.append(f"{item['path']}: {exc}")
+                            continue
+                        _append_record(rec)
+                else:
+                    with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
+                        futures = {pool.submit(_enrich_one, item): item for item in pending}
+                        for fut in as_completed(futures):
+                            item = futures[fut]
+                            try:
+                                rec = fut.result()
+                            except Exception as exc:  # noqa: BLE001
+                                errors.append(f"{item['path']}: {exc}")
+                                continue
+                            _append_record(rec)
+                if errors:
+                    for err in errors:
+                        print(f"error: {err}", file=sys.stderr)
+                    return 1
 
     if args.suite is not None:
         eval_cmd = [

@@ -672,7 +672,18 @@ impl WorkspaceStore for FsWorkspaceStore {
             let docs = Yaml::load_from_str(text).map_err(|err| {
                 StoreError::InvalidEdit(format!("malformed .2brain/repo.yaml: {err}"))
             })?;
-            if let Some(Yaml::Mapping(map)) = docs.first() {
+            if let Some(first) = docs.first() {
+                let Yaml::Mapping(map) = first else {
+                    return Err(StoreError::InvalidEdit(
+                        ".2brain/repo.yaml root must be a YAML mapping".into(),
+                    ));
+                };
+                if text.trim_start().starts_with('{') {
+                    return Err(StoreError::InvalidEdit(
+                        "flow-style root YAML mapping in .2brain/repo.yaml is not supported for in-place edits"
+                            .into(),
+                    ));
+                }
                 for (k, v) in map {
                     let Yaml::Value(Scalar::String(ks)) = k else {
                         continue;
@@ -719,6 +730,7 @@ impl WorkspaceStore for FsWorkspaceStore {
         };
 
         let rendered = splice_repo_yaml_deps(existing_text.as_deref(), repo, &deps);
+        validate_rendered_yaml_mapping(".2brain/repo.yaml", &rendered)?;
 
         let (parent_fd, file_name) = open_confined_parent_dir(&canonical_root, rel, true)?;
         reject_symlink_leaf(&parent_fd, &file_name)?;
@@ -742,13 +754,44 @@ impl WorkspaceStore for FsWorkspaceStore {
     fn update_workspace_member(&self, action: WorkspaceMemberAction) -> Result<Value, StoreError> {
         let _lock = acquire_workspace_write_lock(&self.write_lock, &self.workspace_root)?;
         let ws_path = self.workspace_root.join("workspace.yaml");
-        let mut entries = match confined_read_bytes(&self.workspace_root, &ws_path) {
+        let existing_text: Option<String> = match confined_read_bytes(
+            &self.workspace_root,
+            &ws_path,
+        ) {
             Ok(Some(bytes)) => {
-                let text = std::str::from_utf8(&bytes)
+                let text = String::from_utf8(bytes)
                     .map_err(|_| StoreError::InvalidUtf8("workspace.yaml".into()))?;
-                parse_workspace_yaml_entries(text)
+                let docs = Yaml::load_from_str(&text).map_err(|err| {
+                    StoreError::InvalidEdit(format!("malformed workspace.yaml: {err}"))
+                })?;
+                if let Some(first) = docs.first()
+                    && !matches!(first, Yaml::Mapping(_))
+                {
+                    return Err(StoreError::InvalidEdit(
+                        "workspace.yaml root must be a YAML mapping".into(),
+                    ));
+                }
+                if text.trim_start().starts_with('{') {
+                    return Err(StoreError::InvalidEdit(
+                            "flow-style root YAML mapping in workspace.yaml is not supported for in-place edits"
+                                .into(),
+                        ));
+                }
+                Some(text)
             }
-            Ok(None) => {
+            Ok(None) => None,
+            Err(FsError::SymlinkEscape(p)) => {
+                return Err(StoreError::SymlinkEscape(p.display().to_string()));
+            }
+            Err(FsError::Io { path, source }) => {
+                return Err(StoreError::Io(format!("{}: {source}", path.display())));
+            }
+            Err(FsError::InvalidGitRef(msg)) => return Err(StoreError::InvalidEdit(msg)),
+        };
+
+        let mut entries: Vec<WorkspaceManifestEntry> = match existing_text.as_deref() {
+            Some(text) => parse_workspace_yaml_entries(text),
+            None => {
                 // Bootstrap workspace.yaml from current single primary member.
                 let cur = self
                     .members
@@ -772,13 +815,6 @@ impl WorkspaceStore for FsWorkspaceStore {
                     })
                     .collect()
             }
-            Err(FsError::SymlinkEscape(p)) => {
-                return Err(StoreError::SymlinkEscape(p.display().to_string()));
-            }
-            Err(FsError::Io { path, source }) => {
-                return Err(StoreError::Io(format!("{}: {source}", path.display())));
-            }
-            Err(FsError::InvalidGitRef(msg)) => return Err(StoreError::InvalidEdit(msg)),
         };
 
         match &action {
@@ -825,13 +861,22 @@ impl WorkspaceStore for FsWorkspaceStore {
             }
         }
 
-        let mut rendered = String::from("members:\n");
+        let mut members_block = String::from("members:\n");
         for e in &entries {
-            rendered.push_str(&format!(
+            members_block.push_str(&format!(
                 "  - name: {}\n    path: {}\n    role: {}\n",
-                e.name, e.path, e.role
+                yaml_safe_scalar(&e.name),
+                yaml_safe_scalar(&e.path),
+                yaml_safe_scalar(&e.role)
             ));
         }
+        let rendered = match existing_text.as_deref() {
+            Some(text) if !text.trim().is_empty() => {
+                splice_yaml_top_level_section(text, "members", &members_block)
+            }
+            _ => members_block,
+        };
+        validate_rendered_yaml_mapping("workspace.yaml", &rendered)?;
         let (parent_fd, file_name) =
             open_confined_parent_dir(&self.workspace_root, "workspace.yaml", false)?;
         reject_symlink_leaf(&parent_fd, &file_name)?;
@@ -1605,32 +1650,76 @@ fn load_snapshot_inner(
     // Discover members: multi-member `workspace.yaml` if present, otherwise single primary repo.
     let mut member_specs: Vec<(String, PathBuf, String)> = Vec::new();
     let ws_yaml = canonical_root.join("workspace.yaml");
-    if let Ok(Some(bytes)) = confined_read_bytes(&canonical_root, &ws_yaml)
-        && let Ok(text) = std::str::from_utf8(&bytes)
-    {
-        for entry in parse_workspace_yaml_entries(text) {
-            match resolve_confined_member_path(&canonical_root, &entry.path) {
-                Ok(member_dir) if member_dir.is_dir() => {
-                    member_specs.push((entry.name, member_dir, entry.role));
-                }
-                Ok(_) | Err(_) => {
+    let mut ws_yaml_valid_text: Option<String> = None;
+    let mut ws_manifest_invalid = false;
+    if let Some(bytes) = confined_read_bytes(&canonical_root, &ws_yaml)? {
+        match String::from_utf8(bytes) {
+            Ok(text) => match Yaml::load_from_str(&text) {
+                Ok(docs) => match docs.first() {
+                    Some(Yaml::Mapping(_)) => {
+                        for entry in parse_workspace_yaml_entries(&text) {
+                            match resolve_confined_member_path(&canonical_root, &entry.path) {
+                                Ok(member_dir) if member_dir.is_dir() => {
+                                    member_specs.push((entry.name, member_dir, entry.role));
+                                }
+                                Ok(_) | Err(_) => {
+                                    all_diags.push(Diagnostic {
+                                        repo: entry.name,
+                                        path: "workspace.yaml".to_owned(),
+                                        byte_start: 0,
+                                        code: "invalid-workspace-member".to_owned(),
+                                        severity: Severity::Error,
+                                        message: format!(
+                                            "workspace member path '{}' is missing or escapes workspace root",
+                                            entry.path
+                                        ),
+                                    });
+                                }
+                            }
+                        }
+                        ws_yaml_valid_text = Some(text);
+                    }
+                    None => {}
+                    Some(_) => {
+                        ws_manifest_invalid = true;
+                        all_diags.push(Diagnostic {
+                            repo: "workspace".to_owned(),
+                            path: "workspace.yaml".to_owned(),
+                            byte_start: 0,
+                            code: "invalid-workspace-manifest".to_owned(),
+                            severity: Severity::Error,
+                            message: "workspace.yaml root must be a YAML mapping".to_owned(),
+                        });
+                    }
+                },
+                Err(err) => {
+                    ws_manifest_invalid = true;
                     all_diags.push(Diagnostic {
-                        repo: entry.name,
+                        repo: "workspace".to_owned(),
                         path: "workspace.yaml".to_owned(),
                         byte_start: 0,
-                        code: "invalid-workspace-member".to_owned(),
+                        code: "invalid-workspace-manifest".to_owned(),
                         severity: Severity::Error,
-                        message: format!(
-                            "workspace member path '{}' is missing or escapes workspace root",
-                            entry.path
-                        ),
+                        message: format!("failed to parse workspace.yaml: {err}"),
                     });
                 }
+            },
+            Err(_) => {
+                ws_manifest_invalid = true;
+                utf8_errors += 1;
+                all_diags.push(Diagnostic {
+                    repo: "workspace".to_owned(),
+                    path: "workspace.yaml".to_owned(),
+                    byte_start: 0,
+                    code: "invalid-utf8".to_owned(),
+                    severity: Severity::Error,
+                    message: "workspace.yaml contains invalid UTF-8 bytes".to_owned(),
+                });
             }
         }
     }
 
-    if member_specs.is_empty() {
+    if member_specs.is_empty() && !ws_manifest_invalid {
         let repo_name = read_repo_name(&canonical_root)?.unwrap_or_else(|| {
             canonical_root
                 .file_name()
@@ -1898,8 +1987,12 @@ fn load_snapshot_inner(
     }
 
     let graph = TypedLinkGraph::build(locators, &edges);
-    let (search_weights, freshness_policy) =
-        resolve_workspace_search_config(&canonical_root, &members, &mut all_diags)?;
+    let (search_weights, freshness_policy) = resolve_workspace_search_config(
+        &canonical_root,
+        ws_yaml_valid_text.as_deref(),
+        &members,
+        &mut all_diags,
+    )?;
     let search = build_rich_search_index(
         &files,
         current_utc_epoch_days(),
@@ -2077,7 +2170,8 @@ pub fn load_snapshot_at_git_ref(root: &Path, git_ref: &str) -> Result<VaultSnaps
             if rel_path.starts_with(".git/") || rel_path.starts_with(".2brain/engine/") {
                 continue;
             }
-            let wanted = rel_path == ".2brain/repo.yaml"
+            let wanted = rel_path == "workspace.yaml"
+                || rel_path == ".2brain/repo.yaml"
                 || rel_path == ".2brain/ignore"
                 || (rel_path.starts_with("type/")
                     && rel_path.ends_with(".type.yaml")
@@ -2266,10 +2360,29 @@ pub fn load_snapshot_at_git_ref(root: &Path, git_ref: &str) -> Result<VaultSnaps
     }
 
     let graph = TypedLinkGraph::build(locators, &edges);
-    let (search_weights, freshness_policy) = match blobs.get(".2brain/repo.yaml") {
+    let ws_search = match blobs.get("workspace.yaml") {
         Some(bytes) => match std::str::from_utf8(bytes) {
             Ok(raw) => {
-                parse_search_config_from_yaml(&repo_name, raw, &mut all_diags).unwrap_or_default()
+                parse_search_config_from_yaml(&repo_name, "workspace.yaml", raw, &mut all_diags)
+            }
+            Err(_) => {
+                all_diags.push(Diagnostic {
+                    repo: repo_name.clone(),
+                    path: "workspace.yaml".to_owned(),
+                    byte_start: 0,
+                    code: "invalid-utf8".to_owned(),
+                    severity: Severity::Error,
+                    message: "workspace.yaml contains invalid UTF-8 bytes".to_owned(),
+                });
+                None
+            }
+        },
+        None => None,
+    };
+    let repo_search = match blobs.get(".2brain/repo.yaml") {
+        Some(bytes) => match std::str::from_utf8(bytes) {
+            Ok(raw) => {
+                parse_search_config_from_yaml(&repo_name, ".2brain/repo.yaml", raw, &mut all_diags)
             }
             Err(_) => {
                 all_diags.push(Diagnostic {
@@ -2280,11 +2393,12 @@ pub fn load_snapshot_at_git_ref(root: &Path, git_ref: &str) -> Result<VaultSnaps
                     severity: Severity::Error,
                     message: "repo manifest contains invalid UTF-8 bytes".to_owned(),
                 });
-                (SearchWeights::default(), FreshnessPolicy::default())
+                None
             }
         },
-        None => (SearchWeights::default(), FreshnessPolicy::default()),
+        None => None,
     };
+    let (search_weights, freshness_policy) = ws_search.or(repo_search).unwrap_or_default();
     let search = build_rich_search_index(
         &files,
         current_utc_epoch_days(),
@@ -3079,8 +3193,60 @@ fn current_utc_epoch_days() -> Option<i64> {
         .map(|d| (d.as_secs() / 86_400) as i64)
 }
 
-fn is_top_level_deps_key(line: &str) -> bool {
-    let Some(rest) = line.strip_prefix("deps:") else {
+fn yaml_safe_scalar(val: &str) -> String {
+    let is_plain_safe = !val.is_empty()
+        && !matches!(
+            val.to_ascii_lowercase().as_str(),
+            "true" | "false" | "null" | "~" | "yes" | "no" | "on" | "off"
+        )
+        && !val.starts_with('-')
+        && val
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.' | b'/'));
+    if is_plain_safe {
+        val.to_owned()
+    } else {
+        serde_json::to_string(val).unwrap_or_else(|_| "\"\"".to_owned())
+    }
+}
+
+fn validate_rendered_yaml_mapping(manifest_rel: &str, rendered: &str) -> Result<(), StoreError> {
+    let docs = Yaml::load_from_str(rendered).map_err(|err| {
+        StoreError::InvalidEdit(format!(
+            "refusing to write invalid YAML for {manifest_rel}: {err}"
+        ))
+    })?;
+    if !matches!(docs.first(), Some(Yaml::Mapping(_))) {
+        return Err(StoreError::InvalidEdit(format!(
+            "refusing to write non-mapping YAML for {manifest_rel}"
+        )));
+    }
+    Ok(())
+}
+
+fn is_top_level_yaml_key(line: &str, key: &str) -> bool {
+    if line.starts_with(' ') || line.starts_with('\t') || line.starts_with('#') {
+        return false;
+    }
+    let trimmed_rest = if let Some(r) = line.strip_prefix(key) {
+        r
+    } else if let Some(r) = line
+        .strip_prefix('"')
+        .and_then(|s| s.strip_prefix(key))
+        .and_then(|s| s.strip_prefix('"'))
+    {
+        r
+    } else if let Some(r) = line
+        .strip_prefix('\'')
+        .and_then(|s| s.strip_prefix(key))
+        .and_then(|s| s.strip_prefix('\''))
+    {
+        r
+    } else {
+        return false;
+    };
+    let after_space = trimmed_rest.trim_start_matches([' ', '\t']);
+    let Some(rest) = after_space.strip_prefix(':') else {
         return false;
     };
     rest.is_empty()
@@ -3088,6 +3254,131 @@ fn is_top_level_deps_key(line: &str) -> bool {
         || rest.starts_with('\t')
         || rest.starts_with('#')
         || rest.starts_with('[')
+        || rest.starts_with('{')
+}
+
+fn is_yaml_doc_end_marker(line: &str) -> bool {
+    let Some(rest) = line.strip_prefix("...") else {
+        return false;
+    };
+    rest.is_empty() || rest.starts_with(' ') || rest.starts_with('\t') || rest.starts_with('#')
+}
+
+fn flow_bracket_delta(line: &str) -> isize {
+    let mut delta: isize = 0;
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut escaped = false;
+    for ch in line.chars() {
+        if in_double {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_double = false;
+            }
+            continue;
+        }
+        if in_single {
+            if ch == '\'' {
+                in_single = false;
+            }
+            continue;
+        }
+        match ch {
+            '#' => break,
+            '"' => in_double = true,
+            '\'' => in_single = true,
+            '[' | '{' => delta += 1,
+            ']' | '}' => delta -= 1,
+            _ => {}
+        }
+    }
+    delta
+}
+
+/// Non-destructively splice a top-level YAML key/block (`deps:` or `members:`) inside an
+/// existing block-YAML manifest, preserving all unrelated keys (`search:`, comments, custom
+/// metadata), zero-indented block sequences, multiline flow values, and `...` end markers.
+fn splice_yaml_top_level_section(
+    existing_text: &str,
+    key: &str,
+    replacement_block: &str,
+) -> String {
+    let mut out_lines: Vec<String> = Vec::new();
+    let mut pending_trivia: Vec<String> = Vec::new();
+    let mut skipping = false;
+    let mut flow_depth: usize = 0;
+    let mut replaced_in_place = false;
+
+    for raw_line in existing_text.lines() {
+        let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
+        if skipping {
+            if flow_depth > 0 {
+                let next = (flow_depth as isize + flow_bracket_delta(line)).max(0) as usize;
+                flow_depth = next;
+                pending_trivia.clear();
+                continue;
+            }
+            if line.is_empty() || line.starts_with('#') {
+                pending_trivia.push(line.to_owned());
+                continue;
+            }
+            let is_block_continuation = line.starts_with(' ')
+                || line.starts_with('\t')
+                || line == "-"
+                || line.starts_with("- ")
+                || line.starts_with("-\t");
+            if is_block_continuation {
+                pending_trivia.clear();
+                continue;
+            }
+            // Reached the next top-level key or document marker; preserve trivia preceding it.
+            out_lines.append(&mut pending_trivia);
+            skipping = false;
+        }
+
+        if is_yaml_doc_end_marker(line) {
+            if !replaced_in_place && !replacement_block.is_empty() {
+                for dl in replacement_block.lines() {
+                    out_lines.push(dl.to_owned());
+                }
+                replaced_in_place = true;
+            }
+            out_lines.push(line.to_owned());
+            continue;
+        }
+
+        if is_top_level_yaml_key(line, key) {
+            skipping = true;
+            flow_depth = flow_bracket_delta(line).max(0) as usize;
+            if !replaced_in_place && !replacement_block.is_empty() {
+                for dl in replacement_block.lines() {
+                    out_lines.push(dl.to_owned());
+                }
+                replaced_in_place = true;
+            }
+            continue;
+        }
+        out_lines.push(line.to_owned());
+    }
+
+    if skipping {
+        out_lines.append(&mut pending_trivia);
+    }
+
+    if !replaced_in_place && !replacement_block.is_empty() {
+        for dl in replacement_block.lines() {
+            out_lines.push(dl.to_owned());
+        }
+    }
+
+    let mut rendered = out_lines.join("\n");
+    if !rendered.is_empty() && !rendered.ends_with('\n') {
+        rendered.push('\n');
+    }
+    rendered
 }
 
 /// Non-destructively splice the top-level `deps:` section in `.2brain/repo.yaml`,
@@ -3101,64 +3392,31 @@ fn splice_repo_yaml_deps(
     if !deps.is_empty() {
         deps_block.push_str("deps:\n");
         for d in deps {
-            deps_block.push_str(&format!("  - name: {d}\n"));
+            deps_block.push_str(&format!("  - name: {}\n", yaml_safe_scalar(d)));
         }
     }
 
-    let Some(text) = existing_text else {
-        let mut out = format!("name: {fallback_name}\n");
-        out.push_str(&deps_block);
-        return out;
-    };
-    if text.trim().is_empty() {
-        let mut out = format!("name: {fallback_name}\n");
-        out.push_str(&deps_block);
-        return out;
-    }
-
-    let mut out_lines: Vec<String> = Vec::new();
-    let mut skipping_deps = false;
-    let mut replaced_in_place = false;
-    for raw_line in text.lines() {
-        let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
-        if skipping_deps {
-            let is_nested_or_blank =
-                line.is_empty() || line.starts_with(' ') || line.starts_with('\t');
-            if is_nested_or_blank {
-                continue;
-            }
-            skipping_deps = false;
+    match existing_text {
+        Some(text) if !text.trim().is_empty() => {
+            splice_yaml_top_level_section(text, "deps", &deps_block)
         }
-        if is_top_level_deps_key(line) {
-            skipping_deps = true;
-            if !replaced_in_place && !deps_block.is_empty() {
-                for dl in deps_block.lines() {
-                    out_lines.push(dl.to_owned());
-                }
-                replaced_in_place = true;
-            }
-            continue;
-        }
-        out_lines.push(line.to_owned());
-    }
-
-    if !replaced_in_place && !deps_block.is_empty() {
-        for dl in deps_block.lines() {
-            out_lines.push(dl.to_owned());
+        _ => {
+            let mut out = format!("name: {}\n", yaml_safe_scalar(fallback_name));
+            out.push_str(&deps_block);
+            out
         }
     }
-
-    let mut rendered = out_lines.join("\n");
-    if !rendered.is_empty() && !rendered.ends_with('\n') {
-        rendered.push('\n');
-    }
-    rendered
 }
 
-fn repo_config_warning(repo: &str, code: &str, message: impl Into<String>) -> Diagnostic {
+fn manifest_config_warning(
+    repo: &str,
+    manifest_rel: &str,
+    code: &str,
+    message: impl Into<String>,
+) -> Diagnostic {
     Diagnostic {
         repo: repo.to_owned(),
-        path: ".2brain/repo.yaml".to_owned(),
+        path: manifest_rel.to_owned(),
         byte_start: 0,
         code: code.to_owned(),
         severity: Severity::Warning,
@@ -3178,6 +3436,7 @@ fn yaml_finite_f64(val: &Yaml<'_>) -> Option<f64> {
 
 fn parse_search_config_from_yaml(
     repo: &str,
+    manifest_rel: &str,
     raw: &str,
     diags: &mut Vec<Diagnostic>,
 ) -> Option<(SearchWeights, FreshnessPolicy)> {
@@ -3186,20 +3445,22 @@ fn parse_search_config_from_yaml(
     let docs = match Yaml::load_from_str(raw) {
         Ok(docs) => docs,
         Err(err) => {
-            diags.push(repo_config_warning(
+            diags.push(manifest_config_warning(
                 repo,
+                manifest_rel,
                 "invalid-repo-config",
-                format!("failed to parse .2brain/repo.yaml: {err}"),
+                format!("failed to parse {manifest_rel}: {err}"),
             ));
             return None;
         }
     };
     let first_doc = docs.into_iter().next()?;
     let Yaml::Mapping(root) = first_doc else {
-        diags.push(repo_config_warning(
+        diags.push(manifest_config_warning(
             repo,
+            manifest_rel,
             "invalid-repo-config",
-            ".2brain/repo.yaml root must be a YAML mapping",
+            format!("{manifest_rel} root must be a YAML mapping"),
         ));
         return None;
     };
@@ -3207,18 +3468,20 @@ fn parse_search_config_from_yaml(
         matches!(k, Yaml::Value(Scalar::String(s)) if s == "search").then_some(v)
     })?;
     let Yaml::Mapping(search_map) = search_val else {
-        diags.push(repo_config_warning(
+        diags.push(manifest_config_warning(
             repo,
+            manifest_rel,
             "invalid-repo-config",
-            "search section in .2brain/repo.yaml must be a YAML mapping",
+            format!("search section in {manifest_rel} must be a YAML mapping"),
         ));
         return Some((weights, policy));
     };
 
     for (k, v) in search_map {
         let Yaml::Value(Scalar::String(section)) = k else {
-            diags.push(repo_config_warning(
+            diags.push(manifest_config_warning(
                 repo,
+                manifest_rel,
                 "invalid-repo-config",
                 "search section contains a non-string key",
             ));
@@ -3227,8 +3490,9 @@ fn parse_search_config_from_yaml(
         match section.as_ref() {
             "weights" => {
                 let Yaml::Mapping(wmap) = v else {
-                    diags.push(repo_config_warning(
+                    diags.push(manifest_config_warning(
                         repo,
+                        manifest_rel,
                         "invalid-repo-config",
                         "search.weights must be a YAML mapping",
                     ));
@@ -3236,16 +3500,18 @@ fn parse_search_config_from_yaml(
                 };
                 for (wk, wv) in wmap {
                     let Yaml::Value(Scalar::String(field)) = wk else {
-                        diags.push(repo_config_warning(
+                        diags.push(manifest_config_warning(
                             repo,
+                            manifest_rel,
                             "invalid-repo-config",
                             "search.weights contains a non-string key",
                         ));
                         continue;
                     };
                     let Some(num) = yaml_finite_f64(wv).filter(|n| *n >= 0.0) else {
-                        diags.push(repo_config_warning(
+                        diags.push(manifest_config_warning(
                             repo,
+                            manifest_rel,
                             "invalid-repo-config",
                             format!(
                                 "search.weights.{field} must be a finite number >= 0.0; keeping default"
@@ -3258,8 +3524,9 @@ fn parse_search_config_from_yaml(
                         "description" => weights.description = num,
                         "keywords" => weights.keywords = num,
                         "search_questions" => weights.search_questions = num,
-                        other => diags.push(repo_config_warning(
+                        other => diags.push(manifest_config_warning(
                             repo,
+                            manifest_rel,
                             "invalid-repo-config",
                             format!("unknown search.weights field '{other}'"),
                         )),
@@ -3268,8 +3535,9 @@ fn parse_search_config_from_yaml(
             }
             "freshness" => {
                 let Yaml::Mapping(fmap) = v else {
-                    diags.push(repo_config_warning(
+                    diags.push(manifest_config_warning(
                         repo,
+                        manifest_rel,
                         "invalid-repo-config",
                         "search.freshness must be a YAML mapping",
                     ));
@@ -3277,8 +3545,9 @@ fn parse_search_config_from_yaml(
                 };
                 for (fk, fv) in fmap {
                     let Yaml::Value(Scalar::String(field)) = fk else {
-                        diags.push(repo_config_warning(
+                        diags.push(manifest_config_warning(
                             repo,
+                            manifest_rel,
                             "invalid-repo-config",
                             "search.freshness contains a non-string key",
                         ));
@@ -3289,8 +3558,9 @@ fn parse_search_config_from_yaml(
                             if let Some(num) = yaml_finite_f64(fv).filter(|n| *n > 0.0) {
                                 policy.transient_half_life_days = num;
                             } else {
-                                diags.push(repo_config_warning(
+                                diags.push(manifest_config_warning(
                                     repo,
+                                    manifest_rel,
                                     "invalid-repo-config",
                                     "search.freshness.transient_half_life_days must be a finite number > 0.0; keeping default",
                                 ));
@@ -3302,23 +3572,26 @@ fn parse_search_config_from_yaml(
                             {
                                 policy.min_transient_time_factor = num;
                             } else {
-                                diags.push(repo_config_warning(
+                                diags.push(manifest_config_warning(
                                     repo,
+                                    manifest_rel,
                                     "invalid-repo-config",
                                     "search.freshness.min_transient_time_factor must be a finite number in [0.01, 1.0]; keeping default",
                                 ));
                             }
                         }
-                        other => diags.push(repo_config_warning(
+                        other => diags.push(manifest_config_warning(
                             repo,
+                            manifest_rel,
                             "invalid-repo-config",
                             format!("unknown search.freshness field '{other}'"),
                         )),
                     }
                 }
             }
-            other => diags.push(repo_config_warning(
+            other => diags.push(manifest_config_warning(
                 repo,
+                manifest_rel,
                 "invalid-repo-config",
                 format!("unknown search config section '{other}'"),
             )),
@@ -3327,31 +3600,38 @@ fn parse_search_config_from_yaml(
     Some((weights.sanitized(), policy.sanitized()))
 }
 
-fn read_repo_search_config(
+fn read_manifest_search_config(
     canonical_root: &Path,
+    manifest_rel: &str,
     repo: &str,
     diags: &mut Vec<Diagnostic>,
 ) -> Result<Option<(SearchWeights, FreshnessPolicy)>, FsError> {
-    let manifest_path = canonical_root.join(".2brain/repo.yaml");
+    let manifest_path = canonical_root.join(manifest_rel);
     let Some(bytes) = confined_read_bytes(canonical_root, &manifest_path)? else {
         return Ok(None);
     };
     let Ok(raw) = std::str::from_utf8(&bytes) else {
         diags.push(Diagnostic {
             repo: repo.to_owned(),
-            path: ".2brain/repo.yaml".to_owned(),
+            path: manifest_rel.to_owned(),
             byte_start: 0,
             code: "invalid-utf8".to_owned(),
             severity: Severity::Error,
-            message: "repo manifest contains invalid UTF-8 bytes".to_owned(),
+            message: format!("{manifest_rel} contains invalid UTF-8 bytes"),
         });
         return Ok(None);
     };
-    Ok(parse_search_config_from_yaml(repo, raw, diags))
+    Ok(parse_search_config_from_yaml(
+        repo,
+        manifest_rel,
+        raw,
+        diags,
+    ))
 }
 
 fn resolve_workspace_search_config(
     canonical_root: &Path,
+    ws_yaml_valid_text: Option<&str>,
     members: &BTreeMap<String, MemberMeta>,
     diags: &mut Vec<Diagnostic>,
 ) -> Result<(SearchWeights, FreshnessPolicy), FsError> {
@@ -3360,24 +3640,35 @@ fn resolve_workspace_search_config(
         .find(|m| Path::new(&m.root) == canonical_root)
         .map(|m| m.repo.as_str())
         .unwrap_or("workspace");
-    if let Some(cfg) = read_repo_search_config(canonical_root, root_repo, diags)? {
-        return Ok(cfg);
-    }
 
-    let mut chosen: Option<(String, SearchWeights, FreshnessPolicy)> = None;
+    // Priority 1: workspace-level `workspace.yaml` `search:` section (already read & validated once).
+    let ws_cfg = ws_yaml_valid_text
+        .and_then(|raw| parse_search_config_from_yaml(root_repo, "workspace.yaml", raw, diags));
+
+    // Always validate root and member `.2brain/repo.yaml` confinement, UTF-8, and YAML syntax
+    // even when `workspace.yaml` already supplied the winning `search:` config.
+    let root_cfg =
+        read_manifest_search_config(canonical_root, ".2brain/repo.yaml", root_repo, diags)?;
+
+    let mut member_chosen: Option<(String, SearchWeights, FreshnessPolicy)> = None;
     for member in members.values() {
-        if member.role == "dependency" {
-            continue;
-        }
         let member_root = Path::new(&member.root);
         if member_root == canonical_root {
             continue;
         }
-        if let Some((weights, policy)) = read_repo_search_config(member_root, &member.repo, diags)?
+        let member_cfg =
+            read_manifest_search_config(member_root, ".2brain/repo.yaml", &member.repo, diags)?;
+        if member.role == "dependency" {
+            continue;
+        }
+        if let Some((weights, policy)) = member_cfg
+            && ws_cfg.is_none()
+            && root_cfg.is_none()
         {
-            if let Some((ref first_repo, _, _)) = chosen {
-                diags.push(repo_config_warning(
+            if let Some((ref first_repo, _, _)) = member_chosen {
+                diags.push(manifest_config_warning(
                     &member.repo,
+                    ".2brain/repo.yaml",
                     "duplicate-search-config",
                     format!(
                         "ignoring search config in member '{}'; already configured by '{}'",
@@ -3385,13 +3676,14 @@ fn resolve_workspace_search_config(
                     ),
                 ));
             } else {
-                chosen = Some((member.repo.clone(), weights, policy));
+                member_chosen = Some((member.repo.clone(), weights, policy));
             }
         }
     }
 
-    Ok(chosen
-        .map(|(_, w, p)| (w, p))
+    Ok(ws_cfg
+        .or(root_cfg)
+        .or_else(|| member_chosen.map(|(_, w, p)| (w, p)))
         .unwrap_or_else(|| (SearchWeights::default(), FreshnessPolicy::default())))
 }
 
@@ -4227,5 +4519,128 @@ mod tests {
             snap.search.freshness_policy().transient_half_life_days,
             15.0
         );
+    }
+
+    #[test]
+    fn workspace_yaml_search_config_overrides_member_repo_yaml_and_survives_member_edits() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let own_dir = root.join("own-vault");
+        let extra_dir = root.join("extra-lib");
+        fs::create_dir_all(own_dir.join(".2brain")).unwrap();
+        fs::create_dir_all(extra_dir.join(".2brain")).unwrap();
+        fs::write(
+            root.join("workspace.yaml"),
+            "# workspace config\nmembers:\n  - name: own-vault\n    path: own-vault\n    role: own\nsearch:\n  weights:\n    keywords: 7.25\n  freshness:\n    transient_half_life_days: 20\n",
+        )
+        .unwrap();
+        fs::write(
+            own_dir.join(".2brain/repo.yaml"),
+            "name: own-vault\nsearch:\n  weights:\n    keywords: 3.0\n",
+        )
+        .unwrap();
+        fs::write(own_dir.join("a.md"), "# Own\n").unwrap();
+        fs::write(extra_dir.join("b.md"), "# Extra\n").unwrap();
+
+        let (store, snap) = load_snapshot(root).unwrap();
+        assert_eq!(
+            snap.search.weights().keywords,
+            7.25,
+            "workspace.yaml search config must take precedence over member repo.yaml"
+        );
+        assert_eq!(
+            snap.search.freshness_policy().transient_half_life_days,
+            20.0
+        );
+
+        store
+            .update_workspace_member(WorkspaceMemberAction::Add {
+                name: "extra-lib".to_owned(),
+                path: "extra-lib".to_owned(),
+                role: "dependency".to_owned(),
+            })
+            .unwrap();
+        let ws_after = fs::read_to_string(root.join("workspace.yaml")).unwrap();
+        assert!(ws_after.contains("# workspace config"));
+        assert!(ws_after.contains("keywords: 7.25"));
+        assert!(ws_after.contains("transient_half_life_days: 20"));
+
+        let (_, snap2) = load_snapshot(root).unwrap();
+        assert_eq!(snap2.search.weights().keywords, 7.25);
+        assert_eq!(snap2.members.len(), 2);
+    }
+
+    #[test]
+    fn splice_yaml_handles_zero_indent_sequences_flow_and_doc_end_marker() {
+        let zero_indent = "members:\n- name: a\n  path: a\n# keep search comment\nsearch:\n  weights:\n    keywords: 4.0\n...\n";
+        let spliced = splice_yaml_top_level_section(
+            zero_indent,
+            "members",
+            "members:\n  - name: a\n    path: a\n  - name: b\n    path: b\n",
+        );
+        validate_rendered_yaml_mapping("workspace.yaml", &spliced).unwrap();
+        assert!(spliced.contains("# keep search comment"));
+        assert!(spliced.contains("keywords: 4.0"));
+        assert!(spliced.contains("- name: b"));
+        assert!(!spliced.contains("\n- name: a"));
+
+        let flow_seq = "members: [\n  {name: a, path: a}\n]\nsearch:\n  weights:\n    body: 2.0\n";
+        let spliced_flow = splice_yaml_top_level_section(
+            flow_seq,
+            "members",
+            "members:\n  - name: a\n    path: a\n",
+        );
+        validate_rendered_yaml_mapping("workspace.yaml", &spliced_flow).unwrap();
+        assert!(spliced_flow.contains("body: 2.0"));
+        assert!(!spliced_flow.contains("\n]\n"));
+
+        let doc_end = "name: v\nsearch:\n  weights:\n    body: 1.5\n...\n";
+        let with_deps = splice_repo_yaml_deps(Some(doc_end), "v", &["dep-x".to_owned()]);
+        validate_rendered_yaml_mapping(".2brain/repo.yaml", &with_deps).unwrap();
+        let deps_pos = with_deps.find("deps:").unwrap();
+        let end_pos = with_deps.find("...").unwrap();
+        assert!(
+            deps_pos < end_pos,
+            "inserted deps must precede `...` marker"
+        );
+    }
+
+    #[test]
+    fn malformed_workspace_yaml_emits_error_and_validates_member_repo_yaml_under_ws_search() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::write(root.join("workspace.yaml"), "members: [\nunclosed").unwrap();
+        fs::write(root.join("secret.md"), "# Secret\n").unwrap();
+
+        let (_, snap) = load_snapshot(root).unwrap();
+        assert!(
+            snap.files.is_empty(),
+            "malformed workspace.yaml must not silently fall back to scanning root as primary"
+        );
+        assert!(
+            snap.diagnostics.iter().any(|d| d.path == "workspace.yaml"
+                && d.code == "invalid-workspace-manifest"
+                && d.severity == Severity::Error),
+            "expected error diagnostic for malformed workspace.yaml, got: {:?}",
+            snap.diagnostics
+        );
+
+        // Even when workspace.yaml provides `search:`, an escaping symlink in a member's
+        // `.2brain/repo.yaml` must still be caught fail-closed.
+        let dir2 = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let outside_file = outside.path().join("leak.yaml");
+        fs::write(&outside_file, "name: leak\n").unwrap();
+        let root2 = dir2.path();
+        let own = root2.join("own");
+        fs::create_dir_all(own.join(".2brain")).unwrap();
+        fs::write(
+            root2.join("workspace.yaml"),
+            "members:\n  - name: own\n    path: own\n    role: own\nsearch:\n  weights:\n    keywords: 5.0\n",
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(&outside_file, own.join(".2brain/repo.yaml")).unwrap();
+        let err = load_snapshot(root2).expect_err("escaping member repo.yaml must fail closed");
+        assert!(matches!(err, FsError::SymlinkEscape(_)), "got: {err:?}");
     }
 }

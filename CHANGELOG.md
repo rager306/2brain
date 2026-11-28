@@ -4,6 +4,16 @@ All notable changes to `2brain` (clean-room MIT single-binary typed knowledge gr
 
 ## [Unreleased]
 
+### Added & Improved
+- **Workspace-level `workspace.yaml` `search:` precedence & fail-closed manifest splicing (`tb-fs-git`):**
+  - Promoted `workspace.yaml` `search:` (`weights` + `freshness`) as the top-priority workspace-wide search config (with `.2brain/repo.yaml` kept as single-repo / `own`-member fallback), wired into both live snapshots and `load_snapshot_at_git_ref`.
+  - Generalized non-destructive YAML top-level splicing (`splice_yaml_top_level_section`) across `update_repo_deps` and `update_workspace_member`, handling zero-indented block sequences, multiline flow sequences, comments, `...` document end markers, scalar quoting, and post-splice YAML round-trip validation before atomic write.
+  - Hardened `load_snapshot_inner` so escaping/malformed `workspace.yaml` fails closed with explicit diagnostics instead of falling back to single-repo `"primary"` scanning, and always validates member `.2brain/repo.yaml` confinement even when `workspace.yaml` provides `search:`.
+- **CI & tooling hardening (`.github/workflows/`, `scripts/`):**
+  - Upgraded GitHub Actions pins in `ci.yml` and `release.yml` to Node 24 releases (`checkout@v7.0.1`, `upload-artifact@v7.0.2`, `download-artifact@v8.0.2`) and added a dedicated `macos-check` (`macos-latest`) job to `ci.yml`.
+  - Added `--concurrency`, exponential backoff (skipping permanent 4xx errors), `note_hash` deduplication, `fsync` + `S_ISREG` cache safety, and accurate cache-eligible hit-rate reporting to `scripts/enrich_llm.py`.
+  - Added declarative recurring-error extractor `scripts/extract_error_fixes.py` (`--rules`, `--selftest`, `O_NOFOLLOW` + `S_ISREG`, level-aware JSONL filtering) driving `2brain ingest --format error-fix`.
+
 ## [v0.5.3] - 2026-11-28
 
 ### Highlights
