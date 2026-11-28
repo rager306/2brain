@@ -154,7 +154,8 @@ def call_anthropic_compatible(
     )
     payload = {
         "model": model,
-        "max_tokens": 512,
+        "max_tokens": 1024,
+        "stream": False,
         "temperature": 0.0,
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": user_msg}],
