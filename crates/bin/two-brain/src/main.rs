@@ -1160,6 +1160,65 @@ fn run_check(path: &std::path::Path, audit_descriptions: bool, limit: usize, as_
     }
 }
 
+fn publish_snapshot_delta(
+    app: &App<tb_fs_git::FsWorkspaceStore>,
+    last_published: &std::sync::Mutex<Arc<tb_app::VaultSnapshot>>,
+    events: &tb_ipc::IpcEventHub,
+) {
+    let changed = {
+        let Ok(mut guard) = last_published.lock() else {
+            return;
+        };
+        let current = app.snapshot();
+        if current.generation <= guard.generation || Arc::ptr_eq(&guard, &current) {
+            return;
+        }
+        let delta = diff_changed_locators(&guard, &current);
+        *guard = current;
+        delta
+    };
+    if !changed.is_empty() {
+        events.publish_locators(&changed);
+    }
+}
+
+struct EventNotifyingDispatcher {
+    app: Arc<App<tb_fs_git::FsWorkspaceStore>>,
+    last_published: Arc<std::sync::Mutex<Arc<tb_app::VaultSnapshot>>>,
+    events: tb_ipc::IpcEventHub,
+}
+
+impl AppDispatcher for EventNotifyingDispatcher {
+    fn call_read(
+        &self,
+        verb: &str,
+        args: &serde_json::Map<String, serde_json::Value>,
+    ) -> Result<serde_json::Value, tb_app::AppError> {
+        self.app.call_read(verb, args)
+    }
+
+    fn call_mutation(
+        &self,
+        verb: &str,
+        args: &serde_json::Map<String, serde_json::Value>,
+    ) -> Result<tb_app::IdempotentOutcome, tb_app::AppError> {
+        let res = self.app.call_mutation(verb, args);
+        let may_have_mutated = match &res {
+            Ok(outcome) => !outcome.replayed,
+            Err(tb_app::AppError::OutcomeUnknown(_)) => true,
+            Err(_) => false,
+        };
+        if may_have_mutated {
+            publish_snapshot_delta(&self.app, &self.last_published, &self.events);
+        }
+        res
+    }
+
+    fn local_snapshot(&self) -> Option<Arc<tb_app::VaultSnapshot>> {
+        self.app.local_snapshot()
+    }
+}
+
 fn run_daemon_start(workspace: &std::path::Path) {
     let canonical = match std::fs::canonicalize(workspace) {
         Ok(c) => c,
@@ -1184,13 +1243,28 @@ fn run_daemon_start(workspace: &std::path::Path) {
     let outcomes = Arc::new(FileOutcomeStore::for_workspace(&canonical));
     let app = Arc::new(App::with_outcomes(store, snapshot, outcomes));
     let sock_path = tb_ipc::socket_path_for(&canonical);
+    let event_hub = tb_ipc::IpcEventHub::new();
+    let last_published = Arc::new(std::sync::Mutex::new(app.snapshot()));
 
     let runtime = build_runtime();
     let watch_root = canonical.clone();
     let result = runtime.block_on(async move {
-        let (_watcher, refresh_task) = spawn_watcher(watch_root, Arc::clone(&app), None);
-        let disp: Arc<dyn AppDispatcher> = app;
-        let res = tb_ipc::serve_unix_socket(&sock_path, disp).await;
+        let watch_app = Arc::clone(&app);
+        let watch_last = Arc::clone(&last_published);
+        let watch_hub = event_hub.clone();
+        let (_watcher, refresh_task) = spawn_watcher(
+            watch_root,
+            Arc::clone(&app),
+            Some(Arc::new(move |_loc: &tb_contracts::Locator| {
+                publish_snapshot_delta(&watch_app, &watch_last, &watch_hub);
+            })),
+        );
+        let disp: Arc<dyn AppDispatcher> = Arc::new(EventNotifyingDispatcher {
+            app,
+            last_published,
+            events: event_hub.clone(),
+        });
+        let res = tb_ipc::serve_unix_socket_with_events(&sock_path, disp, Some(event_hub)).await;
         refresh_task.abort();
         res
     });
@@ -2042,6 +2116,13 @@ fn run_hybrid_eval(
     }
 }
 
+fn locator_allowed_by_egress(egress: Option<&EgressPolicy>, loc: &tb_contracts::Locator) -> bool {
+    match egress {
+        Some(pol) => !pol.is_egress_blocked() && !pol.is_repo_revoked(&loc.repo),
+        None => true,
+    }
+}
+
 fn run_mcp_over_socket(
     socket: &std::path::Path,
     policy: LaunchPolicy,
@@ -2050,6 +2131,11 @@ fn run_mcp_over_socket(
     task_store: Option<Arc<dyn TaskStorePort>>,
 ) {
     let client: Arc<dyn AppDispatcher> = Arc::new(IpcClient::new(socket.to_path_buf()));
+    let egress_blocked = policy
+        .egress
+        .as_ref()
+        .is_some_and(EgressPolicy::is_egress_blocked);
+    let egress_for_bridge = policy.egress.clone();
     let mut server = match TwoBrainMcp::try_new_with_audit(client, policy, audit) {
         Ok(s) => s,
         Err(err) => {
@@ -2061,10 +2147,42 @@ fn run_mcp_over_socket(
         server = server.with_task_store(ts);
     }
     let runtime = build_runtime();
-    let result = match http_cfg {
-        Some(cfg) => runtime.block_on(server.serve_http(cfg)),
-        None => runtime.block_on(server.serve_stdio()),
-    };
+    let sock_for_bridge = socket.to_path_buf();
+    let result = runtime.block_on(async move {
+        let bridge_cancel = tokio_util::sync::CancellationToken::new();
+        // Probe & claim one live daemon event stream BEFORE advertising `resources.subscribe`
+        // so older daemons, exhausted quotas, or blocked-egress policies stay honest fail-closed.
+        let bridge_task = if egress_blocked {
+            None
+        } else if let Ok(initial_stream) =
+            tb_ipc::connect_resource_event_stream(&sock_for_bridge).await
+        {
+            let resource_hub = ResourceUpdateHub::new();
+            server = server.with_remote_resource_updates(resource_hub.clone());
+            let hub_for_bridge = resource_hub.clone();
+            Some(tb_ipc::spawn_resource_event_bridge_with_initial(
+                sock_for_bridge,
+                Some(initial_stream),
+                bridge_cancel.clone(),
+                move |loc| {
+                    if locator_allowed_by_egress(egress_for_bridge.as_ref(), &loc) {
+                        hub_for_bridge.notify_locator(&loc);
+                    }
+                },
+            ))
+        } else {
+            None
+        };
+        let res = match http_cfg {
+            Some(cfg) => server.serve_http(cfg).await,
+            None => server.serve_stdio().await,
+        };
+        bridge_cancel.cancel();
+        if let Some(task) = bridge_task {
+            let _ = task.await;
+        }
+        res
+    });
     if let Err(err) = result {
         eprintln!("mcp server error: {err}");
         std::process::exit(1);
@@ -2096,20 +2214,33 @@ fn run_mcp_in_process(
     let app = Arc::new(App::with_outcomes(store, snapshot, outcomes));
     let disp: Arc<dyn AppDispatcher> = Arc::clone(&app) as Arc<dyn AppDispatcher>;
     let task_store: Arc<dyn TaskStorePort> = Arc::new(FileTaskStore::for_workspace(&canonical));
-    let resource_hub = ResourceUpdateHub::new();
-    let server = match TwoBrainMcp::try_new_with_audit(disp, policy, audit) {
-        Ok(s) => s
-            .with_task_store(task_store)
-            .with_resource_updates(resource_hub.clone()),
+    let egress_blocked = policy
+        .egress
+        .as_ref()
+        .is_some_and(EgressPolicy::is_egress_blocked);
+    let resource_hub = if egress_blocked {
+        None
+    } else {
+        Some(ResourceUpdateHub::new())
+    };
+    let mut server = match TwoBrainMcp::try_new_with_audit(disp, policy, audit) {
+        Ok(s) => s.with_task_store(task_store),
         Err(err) => {
             eprintln!("mcp init error: {err}");
             std::process::exit(1);
         }
     };
+    if let Some(ref hub) = resource_hub {
+        server = server.with_resource_updates(hub.clone());
+    }
     let runtime = build_runtime();
     let result = runtime.block_on(async move {
-        let (_watcher, refresh_task) =
-            spawn_watcher(canonical, Arc::clone(&app), Some(resource_hub));
+        let watcher_cb: Option<LocatorNotifyCallback> = resource_hub.map(|hub| {
+            Arc::new(move |loc: &tb_contracts::Locator| {
+                hub.notify_locator(loc);
+            }) as LocatorNotifyCallback
+        });
+        let (_watcher, refresh_task) = spawn_watcher(canonical, Arc::clone(&app), watcher_cb);
         let res = match http_cfg {
             Some(cfg) => server.serve_http(cfg).await,
             None => server.serve_stdio().await,
@@ -2185,10 +2316,12 @@ fn diff_changed_locators(
     changed
 }
 
+type LocatorNotifyCallback = Arc<dyn Fn(&tb_contracts::Locator) + Send + Sync>;
+
 fn spawn_watcher(
     watch_root: PathBuf,
     app: Arc<App<tb_fs_git::FsWorkspaceStore>>,
-    resource_hub: Option<ResourceUpdateHub>,
+    on_locator_changed: Option<LocatorNotifyCallback>,
 ) -> (
     Option<notify::RecommendedWatcher>,
     tokio::task::JoinHandle<()>,
@@ -2256,15 +2389,15 @@ fn spawn_watcher(
             })
             .await;
             if let Ok(Ok(fresh)) = res {
-                let updated_locs = if resource_hub.is_some() {
+                let updated_locs = if on_locator_changed.is_some() {
                     diff_changed_locators(&prev_for_diff, &fresh)
                 } else {
                     Vec::new()
                 };
                 app.swap_snapshot(fresh);
-                if let Some(ref hub) = resource_hub {
+                if let Some(ref notify_cb) = on_locator_changed {
                     for loc in &updated_locs {
-                        hub.notify_locator(loc);
+                        notify_cb(loc);
                     }
                 }
             }
@@ -2343,5 +2476,95 @@ mod tests {
 
         let diff = diff_changed_locators(&prev, &fresh);
         assert_eq!(diff, vec![lb, lc, ld]);
+    }
+
+    #[tokio::test]
+    async fn socket_bridge_enforces_egress_revocation_and_forwards_daemon_mutations() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = dir.path().join("ws");
+        std::fs::create_dir_all(ws.join(".2brain")).unwrap();
+        std::fs::write(ws.join(".2brain/repo.yaml"), "name: allowed\n").unwrap();
+        std::fs::write(
+            ws.join("note.md"),
+            "---\ndescription: initial note\n---\n\nhello\n",
+        )
+        .unwrap();
+
+        let (store, snap) = tb_fs_git::load_snapshot(&ws).unwrap();
+        let app = Arc::new(App::new(store, snap));
+        let event_hub = tb_ipc::IpcEventHub::new();
+        let last_published = Arc::new(std::sync::Mutex::new(app.snapshot()));
+        let disp: Arc<dyn AppDispatcher> = Arc::new(EventNotifyingDispatcher {
+            app: Arc::clone(&app),
+            last_published,
+            events: event_hub.clone(),
+        });
+        let sock = dir.path().join("daemon.sock");
+        let sock_srv = sock.clone();
+        let hub_srv = event_hub.clone();
+        let srv = tokio::spawn(async move {
+            let _ = tb_ipc::serve_unix_socket_with_events(&sock_srv, disp, Some(hub_srv)).await;
+        });
+        for _ in 0..40 {
+            if sock.exists() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+
+        let egress = EgressPolicy {
+            allowed_repos: vec!["allowed".to_owned()],
+            revoked_repos: vec!["secret".to_owned()],
+            egress_destination: "local".to_owned(),
+            allow_external_egress: false,
+            audit_log_path: None,
+        };
+        let mcp_hub = ResourceUpdateHub::new();
+        let mut mcp_rx = mcp_hub.subscribe();
+        let cancel = tokio_util::sync::CancellationToken::new();
+        let hub_cb = mcp_hub.clone();
+        let egress_cb = Some(egress.clone());
+        let bridge =
+            tb_ipc::spawn_resource_event_bridge(sock.clone(), cancel.clone(), move |loc| {
+                if locator_allowed_by_egress(egress_cb.as_ref(), &loc) {
+                    hub_cb.notify_locator(&loc);
+                }
+            });
+
+        tokio::time::sleep(Duration::from_millis(120)).await;
+
+        // 1. Revoked repo event published by daemon must NEVER cross the bridge filter.
+        event_hub.publish_locator(tb_contracts::Locator::new("secret", "classified.md").unwrap());
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        assert!(
+            mcp_rx.try_recv().is_err(),
+            "revoked repository event must be dropped fail-closed"
+        );
+
+        // 2. Real mutation over IpcClient triggers EventNotifyingDispatcher -> daemon push -> bridge -> ResourceUpdateHub.
+        let ipc_client = IpcClient::new(sock.clone());
+        let create_args = serde_json::json!({
+            "repo": "allowed",
+            "path": "pushed.md",
+            "content": "---\ndescription: pushed over ipc\n---\n\nbody\n"
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+        tokio::task::spawn_blocking(move || ipc_client.call_mutation("create_file", &create_args))
+            .await
+            .expect("blocking task joined")
+            .expect("create_file over IPC succeeds");
+
+        let got_uri = tokio::time::timeout(Duration::from_secs(2), mcp_rx.recv())
+            .await
+            .expect("expected pushed resource notification")
+            .expect("broadcast ok");
+        assert_eq!(got_uri, "2brain://allowed/pushed.md");
+
+        cancel.cancel();
+        let _ = tokio::time::timeout(Duration::from_secs(2), bridge).await;
+        srv.abort();
+        let _ = srv.await;
     }
 }

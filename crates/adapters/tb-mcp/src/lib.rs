@@ -444,6 +444,7 @@ pub struct TwoBrainMcp {
     audit: Option<Arc<dyn AuditRecorder>>,
     task_store: Option<Arc<dyn TaskStorePort>>,
     resource_updates: Option<ResourceUpdateHub>,
+    local_mutation_notifications: bool,
     legacy_subscriptions: Arc<Mutex<LegacySubscriptionStore>>,
     legacy_fanout_started: Arc<AtomicBool>,
     session_cancel: CancellationToken,
@@ -478,6 +479,7 @@ impl TwoBrainMcp {
             audit,
             task_store: None,
             resource_updates: None,
+            local_mutation_notifications: true,
             legacy_subscriptions: Arc::new(Mutex::new(LegacySubscriptionStore::default())),
             legacy_fanout_started: Arc::new(AtomicBool::new(false)),
             session_cancel,
@@ -492,11 +494,21 @@ impl TwoBrainMcp {
         self
     }
 
-    /// Attach a [`ResourceUpdateHub`] so filesystem watchers and mutations push
+    /// Attach a [`ResourceUpdateHub`] so filesystem watchers and local mutations push
     /// `notifications/resources/updated` to subscribed MCP clients.
     #[must_use]
     pub fn with_resource_updates(mut self, hub: ResourceUpdateHub) -> Self {
         self.resource_updates = Some(hub);
+        self.local_mutation_notifications = true;
+        self
+    }
+
+    /// Attach a daemon-backed [`ResourceUpdateHub`] where the daemon IPC stream is the single
+    /// authoritative event publisher (disables redundant local mutation echo).
+    #[must_use]
+    pub fn with_remote_resource_updates(mut self, hub: ResourceUpdateHub) -> Self {
+        self.resource_updates = Some(hub);
+        self.local_mutation_notifications = false;
         self
     }
 
@@ -575,7 +587,10 @@ impl TwoBrainMcp {
         args: &Map<String, Value>,
         res: &CallToolResult,
     ) {
-        if res.is_error == Some(true) || !is_mutating_tool(name) {
+        if !self.local_mutation_notifications
+            || res.is_error == Some(true)
+            || !is_mutating_tool(name)
+        {
             return;
         }
         let Some(ref hub) = self.resource_updates else {
@@ -1497,7 +1512,13 @@ impl ServerHandler for TwoBrainMcp {
             .enable_tools()
             .enable_prompts()
             .enable_resources();
-        let with_sub = if self.resource_updates.is_some() {
+        let subscribe_available = self.resource_updates.is_some()
+            && !self
+                .policy
+                .egress
+                .as_ref()
+                .is_some_and(EgressPolicy::is_egress_blocked);
+        let with_sub = if subscribe_available {
             base.enable_resources_subscribe()
         } else {
             base

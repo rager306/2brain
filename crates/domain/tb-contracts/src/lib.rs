@@ -61,6 +61,11 @@ impl Locator {
                 "repo and path must be non-empty".into(),
             ));
         }
+        if repo.contains('/') || repo.contains('\\') || repo == "." || repo == ".." {
+            return Err(ContractError::InvalidLocator(format!(
+                "repo must be a single clean slug without path separators: {repo}"
+            )));
+        }
         if path.starts_with('/') || path.split('/').any(|seg| seg == ".." || seg == ".") {
             return Err(ContractError::InvalidLocator(format!(
                 "path must be clean relative POSIX: {path}"

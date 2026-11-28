@@ -44,6 +44,68 @@ def run_cmd(cmd: list[str]) -> str:
     return proc.stdout
 
 
+def _extract_json_object(text: str, note_path: object) -> dict[str, object]:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        cleaned = "\n".join(lines).strip()
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"LLM response for {note_path} was not valid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise RuntimeError(f"LLM response for {note_path} was not a JSON object")
+    return parsed
+
+
+def _parse_enrichment_fields(parsed: dict[str, object], note_path: object) -> tuple[list[str], list[str]]:
+    raw_kw = parsed.get("keywords", [])
+    raw_sq = parsed.get("search_questions", [])
+    if not isinstance(raw_kw, list) or not isinstance(raw_sq, list):
+        raise RuntimeError(
+            f"LLM response for {note_path} must return JSON arrays for keywords and search_questions"
+        )
+    keywords = [str(x).strip() for x in raw_kw if isinstance(x, str) and x.strip()]
+    questions = [str(x).strip() for x in raw_sq if isinstance(x, str) and x.strip()]
+    return keywords[:16], questions[:8]
+
+
+def _http_post_json(
+    url: str, payload: dict[str, object], headers: dict[str, str], timeout: float, label: str
+) -> dict[str, object]:
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        with exc:
+            err_body = ""
+            try:
+                err_body = exc.read(512).decode("utf-8", errors="replace").strip()
+            except OSError:
+                pass
+        raise RuntimeError(f"{label} HTTP {exc.code}: {err_body or exc.reason}") from exc
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise RuntimeError(f"{label} request failed: {exc}") from exc
+
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"{label} returned invalid JSON body: {exc}") from exc
+    if not isinstance(body, dict):
+        raise RuntimeError(f"{label} returned non-object JSON payload")
+    return body
+
+
 def call_openai_compatible(
     base_url: str, api_key: str, model: str, item: dict[str, object], timeout: float
 ) -> tuple[list[str], list[str]]:
@@ -62,34 +124,74 @@ def call_openai_compatible(
             {"role": "user", "content": user_msg},
         ],
     }
-    req = urllib.request.Request(
+    body = _http_post_json(
         url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
-        method="POST",
+        payload,
+        {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        timeout,
+        f"OpenAI-compatible API ({item.get('path')})",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"LLM API request failed for {item.get('path')}: {exc}") from exc
+    choices = body.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        raise RuntimeError(f"OpenAI-compatible response for {item.get('path')} missing choices[0]")
+    msg = choices[0].get("message")
+    content = msg.get("content") if isinstance(msg, dict) else None
+    if not isinstance(content, str) or not content.strip():
+        raise RuntimeError(f"empty assistant message content for {item.get('path')}")
+    parsed = _extract_json_object(content, item.get("path"))
+    return _parse_enrichment_fields(parsed, item.get("path"))
 
-    content = body["choices"][0]["message"]["content"]
-    parsed = json.loads(content)
-    if not isinstance(parsed, dict):
-        raise RuntimeError(f"LLM response for {item.get('path')} was not a JSON object")
-    raw_kw = parsed.get("keywords", [])
-    raw_sq = parsed.get("search_questions", [])
-    if not isinstance(raw_kw, list) or not isinstance(raw_sq, list):
-        raise RuntimeError(
-            f"LLM response for {item.get('path')} must return JSON arrays for keywords and search_questions"
-        )
-    keywords = [str(x).strip() for x in raw_kw if isinstance(x, str) and x.strip()]
-    questions = [str(x).strip() for x in raw_sq if isinstance(x, str) and x.strip()]
-    return keywords[:16], questions[:8]
+
+def call_anthropic_compatible(
+    base_url: str, api_key: str, model: str, item: dict[str, object], timeout: float
+) -> tuple[list[str], list[str]]:
+    clean_base = base_url.rstrip("/")
+    url = f"{clean_base}/messages" if clean_base.endswith("/v1") else f"{clean_base}/v1/messages"
+    user_msg = (
+        f"Title: {item.get('title', '')}\n"
+        f"Description: {item.get('description') or ''}\n\n"
+        f"Body excerpt:\n{item.get('body_excerpt', '')}"
+    )
+    payload = {
+        "model": model,
+        "max_tokens": 512,
+        "temperature": 0.0,
+        "system": SYSTEM_PROMPT,
+        "messages": [{"role": "user", "content": user_msg}],
+    }
+    body = _http_post_json(
+        url,
+        payload,
+        {
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "Authorization": f"Bearer {api_key}",
+            "anthropic-version": "2023-06-01",
+        },
+        timeout,
+        f"Anthropic-compatible API ({item.get('path')})",
+    )
+    blocks = body.get("content")
+    if not isinstance(blocks, list):
+        raise RuntimeError(f"Anthropic-compatible response for {item.get('path')} missing content list")
+    text_parts = [
+        b["text"]
+        for b in blocks
+        if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)
+    ]
+    content = "\n".join(text_parts).strip()
+    if not content:
+        raise RuntimeError(f"empty text content from LLM for {item.get('path')}")
+    parsed = _extract_json_object(content, item.get("path"))
+    return _parse_enrichment_fields(parsed, item.get("path"))
+
+
+def _open_cache_append_nofollow(cache_path: Path):
+    flags = os.O_RDWR | os.O_CREAT | os.O_APPEND
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(str(cache_path), flags, 0o600)
+    return os.fdopen(fd, "r+b")
 
 
 def main() -> int:
@@ -103,9 +205,21 @@ def main() -> int:
         help="Path to enrichment JSONL cache (default: <workspace>/.2brain/cache/enrichment.jsonl)",
     )
     parser.add_argument("--mode", choices=["heuristic", "llm"], default="heuristic")
+    parser.add_argument(
+        "--provider",
+        choices=["auto", "openai", "anthropic"],
+        default="auto",
+        help="LLM API protocol for --mode llm (auto detects OPENAI_API_KEY vs ANTHROPIC_AUTH_TOKEN/ANTHROPIC_API_KEY)",
+    )
     parser.add_argument("--model", default="heuristic-v1")
     parser.add_argument("--prompt-version", default="v1")
     parser.add_argument("--repo", default=None)
+    parser.add_argument(
+        "--path-prefix",
+        action="append",
+        default=[],
+        help="Optional path prefix filter for --mode llm (repeatable)",
+    )
     parser.add_argument("--only-missing", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--suite", type=Path, default=None, help="Paired G5 evaluation suite JSON")
@@ -114,6 +228,9 @@ def main() -> int:
     parser.add_argument("--max-items", type=int, default=100)
     parser.add_argument("--timeout", type=float, default=30.0)
     args = parser.parse_args()
+    if args.max_items < 0:
+        print("error: --max-items must be >= 0", file=sys.stderr)
+        return 2
 
     cache_path = args.cache or (args.workspace / ".2brain" / "cache" / "enrichment.jsonl")
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -142,11 +259,41 @@ def main() -> int:
             f"hits={heur_out['cache_hits']} total={heur_out['total_cache_entries']}"
         )
     else:
-        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-        base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").strip()
-        if not api_key:
-            print("error: OPENAI_API_KEY is required for --mode llm", file=sys.stderr)
-            return 2
+        openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        anthropic_key = (
+            os.environ.get("ANTHROPIC_AUTH_TOKEN", "").strip()
+            or os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        )
+        provider = args.provider
+        if provider == "auto":
+            if openai_key:
+                provider = "openai"
+            elif anthropic_key:
+                provider = "anthropic"
+            else:
+                print(
+                    "error: set OPENAI_API_KEY or ANTHROPIC_AUTH_TOKEN/ANTHROPIC_API_KEY for --mode llm",
+                    file=sys.stderr,
+                )
+                return 2
+        if provider == "openai":
+            if not openai_key:
+                print("error: OPENAI_API_KEY is required for --provider openai", file=sys.stderr)
+                return 2
+            api_key = openai_key
+            base_url = os.environ.get("OPENAI_BASE_URL", "").strip() or "https://api.openai.com/v1"
+            caller = call_openai_compatible
+        else:
+            if not anthropic_key:
+                print(
+                    "error: ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY is required for --provider anthropic",
+                    file=sys.stderr,
+                )
+                return 2
+            api_key = anthropic_key
+            base_url = os.environ.get("ANTHROPIC_BASE_URL", "").strip() or "https://api.anthropic.com"
+            caller = call_anthropic_compatible
+
         plan_cmd = [
             args.bin,
             "enrich",
@@ -165,24 +312,27 @@ def main() -> int:
         if args.only_missing:
             plan_cmd.append("--only-missing")
         plan = json.loads(run_cmd(plan_cmd))
-        pending = [i for i in plan["items"] if i["status"] == "pending"][: args.max_items]
+        pending = [i for i in plan["items"] if i["status"] == "pending"]
+        if args.path_prefix:
+            pending = [
+                i
+                for i in pending
+                if any(str(i.get("path", "")).startswith(p) for p in args.path_prefix)
+            ]
+        pending = pending[: args.max_items]
         print(
-            f"[enrich] llm plan: total={plan['total_notes']} cached={plan['cached_hits']} "
-            f"pending={plan['pending_misses']} processing={len(pending)}"
+            f"[enrich] llm({provider}/{args.model}) plan: total={plan['total_notes']} "
+            f"cached={plan['cached_hits']} pending={plan['pending_misses']} processing={len(pending)}"
         )
         if pending:
-            needs_leading_nl = False
-            if cache_path.exists() and cache_path.stat().st_size > 0:
-                with cache_path.open("rb") as rf:
-                    rf.seek(-1, os.SEEK_END)
-                    needs_leading_nl = rf.read(1) != b"\n"
-            with cache_path.open("a", encoding="utf-8") as fh:
-                if needs_leading_nl:
-                    fh.write("\n")
+            with _open_cache_append_nofollow(cache_path) as fh:
+                fh.seek(0, os.SEEK_END)
+                needs_leading_nl = False
+                if fh.tell() > 0:
+                    fh.seek(-1, os.SEEK_END)
+                    needs_leading_nl = fh.read(1) != b"\n"
                 for item in pending:
-                    kws, qs = call_openai_compatible(
-                        base_url, api_key, args.model, item, args.timeout
-                    )
+                    kws, qs = caller(base_url, api_key, args.model, item, args.timeout)
                     rec = {
                         "schema_version": SCHEMA_VERSION,
                         "repo": item["repo"],
@@ -193,7 +343,10 @@ def main() -> int:
                         "keywords": kws,
                         "search_questions": qs,
                     }
-                    fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                    prefix = b"\n" if needs_leading_nl else b""
+                    needs_leading_nl = False
+                    fh.write(prefix + (json.dumps(rec, ensure_ascii=False) + "\n").encode("utf-8"))
+                    fh.flush()
 
     if args.suite is not None:
         eval_cmd = [
@@ -214,22 +367,24 @@ def main() -> int:
             "--json",
         ]
         eval_payload = json.loads(run_cmd(eval_cmd))
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tf:
-            json.dump(
-                {
-                    "policy": eval_payload["policy"],
-                    "outcomes": eval_payload["outcomes"],
-                    "null_z_score": None,
-                },
-                tf,
-            )
-            arm_input_path = Path(tf.name)
+        arm_input_path: Path | None = None
         try:
+            with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tf:
+                arm_input_path = Path(tf.name)
+                json.dump(
+                    {
+                        "policy": eval_payload["policy"],
+                        "outcomes": eval_payload["outcomes"],
+                        "null_z_score": None,
+                    },
+                    tf,
+                )
             arm_out = json.loads(
                 run_cmd([args.bin, "experiment", "evaluate-arm", str(arm_input_path), "--json"])
             )
         finally:
-            arm_input_path.unlink(missing_ok=True)
+            if arm_input_path is not None:
+                arm_input_path.unlink(missing_ok=True)
         verdict = arm_out["verdict"]
         print(
             f"[enrich] G5 evaluate-arm verdict={verdict} tasks={arm_out['task_count']} "
