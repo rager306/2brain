@@ -583,6 +583,165 @@ def capture_adr0009_durable_outcomes(binary: Path) -> dict[str, Any]:
         }
 
 
+def capture_ae15_granted_procedures(binary: Path) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="tb-ae15-") as td:
+        ws = Path(td) / "vault"
+        (ws / "notes").mkdir(parents=True)
+        (ws / "notes" / "seed.md").write_text("---\ndescription: Seed\n---\nSeed.\n", encoding="utf-8")
+        init_git_repo(ws)
+
+        bad_post_spec = {
+            "schema_version": "2brain.procedure/v1",
+            "id": "proc-wrong-artifact",
+            "title": "Commit note missing expected artifact",
+            "required_grants": ["mutations", "procedures"],
+            "dry_run": False,
+            "steps": [
+                {
+                    "op": "create_file",
+                    "repo": "vault",
+                    "path": "notes/proc_out.md",
+                    "content": "---\ndescription: Produced note\n---\nActual body without token.\n",
+                }
+            ],
+            "postconditions": [
+                {
+                    "kind": "contains_text",
+                    "repo": "vault",
+                    "path": "notes/proc_out.md",
+                    "needle": "REQUIRED_PROOF_TOKEN",
+                }
+            ],
+        }
+        good_spec = {
+            "schema_version": "2brain.procedure/v1",
+            "id": "proc-verified",
+            "title": "Commit note matching all postconditions",
+            "required_grants": ["mutations", "procedures"],
+            "dry_run": False,
+            "steps": [
+                {
+                    "op": "create_file",
+                    "repo": "vault",
+                    "path": "notes/proc_good.md",
+                    "content": "---\ndescription: Verified note\n---\nIncludes REQUIRED_PROOF_TOKEN.\n",
+                }
+            ],
+            "postconditions": [
+                {"kind": "file_exists", "repo": "vault", "path": "notes/proc_good.md"},
+                {
+                    "kind": "contains_text",
+                    "repo": "vault",
+                    "path": "notes/proc_good.md",
+                    "needle": "REQUIRED_PROOF_TOKEN",
+                },
+            ],
+        }
+
+        # Session WITHOUT --allow-mutations: non-dry-run refused fail-closed!
+        sess_ro = McpStdioSession(binary, ["--in-process", str(ws), "--allow-workflows"])
+        try:
+            p_denied = sess_ro.call_tool("tb_run_procedure", {"spec": bad_post_spec})
+        finally:
+            sess_ro.close()
+
+        # Session WITH --allow-workflows --allow-mutations:
+        # 1) dry_run preview MUST create zero files even when full write grants are held!
+        # 2) wrong-artifact commit MUST report operation_outcome=committed & postcondition_outcome=failed.
+        # 3) matching postconditions MUST report verified_success=true.
+        sess_rw = McpStdioSession(binary, ["--in-process", str(ws), "--allow-workflows", "--allow-mutations"])
+        try:
+            p_preview = sess_rw.call_tool("tb_run_procedure", {"spec": bad_post_spec, "dry_run": True})
+            preview_created_file = (ws / "notes" / "proc_out.md").exists()
+            p_failed_post = sess_rw.call_tool("tb_run_procedure", {"spec": bad_post_spec})
+            p_verified = sess_rw.call_tool("tb_run_procedure", {"spec": good_spec})
+        finally:
+            sess_rw.close()
+
+        return {
+            "case_id": "AE15",
+            "family": "granted_procedures",
+            "seed_meta": {"preview_created_file": preview_created_file},
+            "observations": [p_preview, p_denied, p_failed_post, p_verified],
+        }
+
+
+def capture_ae17_task_handoff(binary: Path) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="tb-ae17-") as td:
+        ws = Path(td) / "vault"
+        (ws / "notes").mkdir(parents=True)
+        (ws / "notes" / "seed.md").write_text("---\ndescription: Seed\n---\nSeed.\n", encoding="utf-8")
+
+        # Client 1 creates TaskPacket with critical publish=false
+        sess1 = McpStdioSession(
+            binary,
+            ["--in-process", str(ws), "--allow-workflows", "--principal", "client-alpha"],
+        )
+        try:
+            pkt1 = {
+                "schema_version": "2brain.task-packet/v1",
+                "task_id": "handoff-42",
+                "revision": 0,
+                "title": "Audit release without publishing",
+                "status": "open",
+                "criterion_revision": "2brain.criterion/v1",
+                "scope_repos": ["vault"],
+                "obligations": [{"key": "publish", "value": "false", "critical": True}],
+                "budget": {"max_actions": 8, "spent_actions": 1, "max_tokens": 5000, "spent_tokens": 400},
+                "completed_steps": ["read_notes"],
+                "unchecked_steps": ["verify_backup"],
+                "rejected_routes": ["fp-exhausted-1"],
+                "pending_operations": [],
+                "evidence_digests": {},
+                "updated_by": "client-alpha",
+                "updated_unix": 0,
+            }
+            c_create = sess1.call_tool("tb_task_checkpoint", {"expected_revision": 0, "packet": pkt1})
+        finally:
+            sess1.close()
+
+        # Client 2 (fresh process!) resumes, advances rev 1->2, then Client 1 stale rev=1 is rejected!
+        sess2 = McpStdioSession(
+            binary,
+            ["--in-process", str(ws), "--allow-workflows", "--principal", "client-beta"],
+        )
+        try:
+            c_resume = sess2.call_tool("tb_task_resume", {"task_id": "handoff-42"})
+            resumed = ((c_resume.get("structured") or {}).get("task_packet") or {}).copy()
+            # Advance cleanly
+            next_pkt = json.loads(json.dumps(resumed))
+            next_pkt["budget"]["spent_actions"] = 2
+            next_pkt["budget"]["spent_tokens"] = 850
+            next_pkt["updated_by"] = "client-beta"
+            c_advance = sess2.call_tool(
+                "tb_task_checkpoint",
+                {"expected_revision": 1, "packet": next_pkt},
+            )
+            # Stale writer using rev=1 MUST fail
+            stale_pkt = json.loads(json.dumps(resumed))
+            stale_pkt["title"] = "Stale overwrite"
+            c_stale = sess2.call_tool(
+                "tb_task_checkpoint",
+                {"expected_revision": 1, "packet": stale_pkt},
+            )
+            # Dropping critical publish=false at rev=2 MUST fail
+            drop_pkt = json.loads(json.dumps(next_pkt))
+            drop_pkt["obligations"] = []
+            c_drop = sess2.call_tool(
+                "tb_task_checkpoint",
+                {"expected_revision": 2, "packet": drop_pkt},
+            )
+        finally:
+            sess2.close()
+
+        return {
+            "case_id": "AE17",
+            "family": "task_handoff_concurrency",
+            "seed_meta": {},
+            "observations": [c_create, c_resume, c_advance, c_stale, c_drop],
+        }
+
+
 CASES = [
     capture_sem01_unicode_receipt,
     capture_sem02_write_guard,
@@ -591,6 +750,8 @@ CASES = [
     capture_sem09_bounded_search,
     capture_sem18_scope_and_symlink,
     capture_ae04_ae08_context_conflicts,
+    capture_ae15_granted_procedures,
+    capture_ae17_task_handoff,
     capture_ae24_revocation_egress_audit,
     capture_ae25_backup_restore,
     capture_adr0009_durable_outcomes,

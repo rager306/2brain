@@ -30,7 +30,11 @@ use rmcp::task_manager::{TaskExit, TaskManager, TaskOptions};
 use rmcp::{ErrorData as McpError, RoleServer, ServerHandler, ServiceExt};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
-use tb_app::{AppDispatcher, AppError, VaultSnapshot};
+use tb_app::{
+    AppDispatcher, AppError, Postcondition, ProcedureSpec, ProcedureStep, TaskScopeGuard,
+    TaskStorePort, VaultSnapshot,
+};
+use tb_contracts::TaskPacket;
 use tb_skills::SkillCatalog;
 use thiserror::Error;
 use tokio::sync::Semaphore;
@@ -70,6 +74,8 @@ fn is_mutating_tool(name: &str) -> bool {
             | "tb_set_workspace_member_role"
             | "tb_ingest"
             | "tb_record_decision"
+            | "tb_task_checkpoint"
+            | "tb_run_procedure"
     )
 }
 
@@ -184,6 +190,7 @@ pub struct LaunchPolicy {
     pub allow_composition: bool,
     pub allow_workspace_shape: bool,
     pub allow_ingest: bool,
+    pub allow_workflows: bool,
     pub outcome_registry: bool,
     pub allow_cognitive: bool,
     pub full_schemas: bool,
@@ -345,6 +352,7 @@ pub struct TwoBrainMcp {
     tasks: TaskManager,
     task_slots: Arc<Semaphore>,
     audit: Option<Arc<dyn AuditRecorder>>,
+    task_store: Option<Arc<dyn TaskStorePort>>,
 }
 
 impl TwoBrainMcp {
@@ -371,7 +379,15 @@ impl TwoBrainMcp {
             tasks: TaskManager::new(),
             task_slots: Arc::new(Semaphore::new(MAX_CONCURRENT_TASKS)),
             audit,
+            task_store: None,
         })
+    }
+
+    /// Attach a durable [`TaskStorePort`] for `--allow-workflows` (`tb_task_checkpoint`, `tb_task_resume`, `tb_task_list`).
+    #[must_use]
+    pub fn with_task_store(mut self, task_store: Arc<dyn TaskStorePort>) -> Self {
+        self.task_store = Some(task_store);
+        self
     }
 
     #[must_use]
@@ -500,10 +516,60 @@ impl TwoBrainMcp {
                     "policy/revoked: workspace-wide tool '{name}' is blocked while repository access restrictions are active"
                 ));
             }
-            if name != "tb_batch" && opt_str(args, "repo").is_none() {
+            if name != "tb_batch"
+                && !matches!(
+                    name,
+                    "tb_run_procedure" | "tb_task_checkpoint" | "tb_task_resume" | "tb_task_list"
+                )
+                && opt_str(args, "repo").is_none()
+            {
                 return Err(format!(
                     "policy/revoked: tool '{name}' requires an explicit allowed 'repo' while repository access restrictions are active"
                 ));
+            }
+        }
+        if name == "tb_run_procedure"
+            && let Some(spec_val) = args.get("spec")
+            && let Ok(spec) = serde_json::from_value::<ProcedureSpec>(spec_val.clone())
+        {
+            for step in &spec.steps {
+                let repo = match step {
+                    ProcedureStep::CreateFile { repo, .. }
+                    | ProcedureStep::WriteFile { repo, .. }
+                    | ProcedureStep::EditFile { repo, .. } => repo.as_str(),
+                };
+                if egress.is_repo_revoked(repo) {
+                    return Err(format!(
+                        "policy/revoked: procedure step targets revoked repository '{repo}'"
+                    ));
+                }
+            }
+            for pc in &spec.postconditions {
+                let repo = match pc {
+                    Postcondition::FileExists { repo, .. }
+                    | Postcondition::ContainsText { repo, .. }
+                    | Postcondition::NotContainsText { repo, .. }
+                    | Postcondition::Sha256Matches { repo, .. }
+                    | Postcondition::ZeroDiagnostics { repo, .. }
+                    | Postcondition::LinkResolves { repo, .. } => repo.as_str(),
+                };
+                if egress.is_repo_revoked(repo) {
+                    return Err(format!(
+                        "policy/revoked: procedure postcondition targets revoked repository '{repo}'"
+                    ));
+                }
+            }
+        }
+        if name == "tb_task_checkpoint"
+            && let Some(pkt_val) = args.get("packet")
+            && let Ok(pkt) = serde_json::from_value::<TaskPacket>(pkt_val.clone())
+        {
+            for repo in &pkt.scope_repos {
+                if egress.is_repo_revoked(repo) {
+                    return Err(format!(
+                        "policy/revoked: task packet scope references revoked repository '{repo}'"
+                    ));
+                }
             }
         }
         Ok(())
@@ -662,6 +728,10 @@ impl TwoBrainMcp {
             }
             "tb_batch" => self.handle_batch(args),
             "tb_ingest" => self.handle_ingest(args),
+            "tb_task_checkpoint" => self.handle_task_checkpoint(args),
+            "tb_task_resume" => self.handle_task_resume(args),
+            "tb_task_list" => self.handle_task_list(),
+            "tb_run_procedure" => self.handle_run_procedure(args),
             "tb_add_dep" | "tb_remove_dep" => {
                 if !self.policy.allow_mutations || !self.policy.allow_composition {
                     return err_text(
@@ -776,6 +846,212 @@ impl TwoBrainMcp {
             return err_text("policy/launch_grant: mutations are disabled");
         }
         map_mutation(self.dispatcher.call_mutation("create_file", args))
+    }
+
+    fn handle_task_checkpoint(&self, args: &Map<String, Value>) -> CallToolResult {
+        if !self.policy.allow_workflows {
+            return err_text(
+                "policy/launch_grant: task/procedure workflow tools require --allow-workflows",
+            );
+        }
+        let Some(ref store) = self.task_store else {
+            return err_text("unsupported: task packet store is not configured for this server");
+        };
+        let Some(pkt_val) = args.get("packet") else {
+            return err_text("policy/arguments: 'packet' object is required");
+        };
+        let mut packet: TaskPacket = match serde_json::from_value(pkt_val.clone()) {
+            Ok(p) => p,
+            Err(e) => return err_text(format!("policy/arguments: invalid task packet: {e}")),
+        };
+        if let Some(ref egress) = self.policy.egress {
+            if egress.has_repo_restrictions() && packet.scope_repos.is_empty() {
+                return err_text(
+                    "policy/revoked: task packet must declare explicit allowed 'scope_repos' while repository restrictions are active",
+                );
+            }
+            for repo in &packet.scope_repos {
+                if egress.is_repo_revoked(repo) {
+                    return err_text(format!(
+                        "policy/revoked: task packet scope references revoked repository '{repo}'"
+                    ));
+                }
+            }
+        }
+        if packet.updated_by.trim().is_empty()
+            && let Some(ref p) = self.policy.principal
+        {
+            packet.updated_by = p.clone();
+        }
+        let expected_rev = args
+            .get("expected_revision")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        // Critical obligations (e.g. publish=false) may NEVER be dropped by an MCP caller.
+        let scope_guard = self.policy.egress.as_ref().map(|e| TaskScopeGuard {
+            allowed_repos: e.allowed_repos.clone(),
+            revoked_repos: e.revoked_repos.clone(),
+        });
+        let res = if expected_rev == 0 {
+            store.create_task(packet)
+        } else {
+            let task_id = packet.task_id.clone();
+            store.checkpoint_task(&task_id, expected_rev, packet, false, scope_guard.as_ref())
+        };
+        map_app(res.map(|saved| json!({ "task_packet": saved })))
+    }
+
+    fn handle_task_resume(&self, args: &Map<String, Value>) -> CallToolResult {
+        if !self.policy.allow_workflows {
+            return err_text(
+                "policy/launch_grant: task/procedure workflow tools require --allow-workflows",
+            );
+        }
+        let Some(ref store) = self.task_store else {
+            return err_text("unsupported: task packet store is not configured for this server");
+        };
+        let task_id = match req_str(args, "task_id") {
+            Ok(id) => id,
+            Err(e) => return err_text(e),
+        };
+        let pkt = match store.load_task(task_id) {
+            Ok(p) => p,
+            Err(e) => return err_text(e.to_string()),
+        };
+        if let Some(ref egress) = self.policy.egress {
+            if egress.has_repo_restrictions() && pkt.scope_repos.is_empty() {
+                return err_text(
+                    "policy/revoked: cannot resume unscoped task packet while repository restrictions are active",
+                );
+            }
+            for repo in &pkt.scope_repos {
+                if egress.is_repo_revoked(repo) {
+                    return err_text(format!(
+                        "policy/revoked: resumed task '{}' references revoked repository '{repo}'",
+                        pkt.task_id
+                    ));
+                }
+            }
+        }
+        ok_json(json!({ "task_packet": pkt }))
+    }
+
+    fn handle_task_list(&self) -> CallToolResult {
+        if !self.policy.allow_workflows {
+            return err_text(
+                "policy/launch_grant: task/procedure workflow tools require --allow-workflows",
+            );
+        }
+        let Some(ref store) = self.task_store else {
+            return err_text("unsupported: task packet store is not configured for this server");
+        };
+        let tasks = match store.list_tasks() {
+            Ok(t) => t,
+            Err(e) => return err_text(e.to_string()),
+        };
+        let visible: Vec<TaskPacket> = if let Some(ref egress) = self.policy.egress {
+            if egress.has_repo_restrictions() {
+                tasks
+                    .into_iter()
+                    .filter(|p| {
+                        !p.scope_repos.is_empty()
+                            && p.scope_repos.iter().all(|r| !egress.is_repo_revoked(r))
+                    })
+                    .collect()
+            } else {
+                tasks
+            }
+        } else {
+            tasks
+        };
+        ok_json(json!({ "tasks": visible, "count": visible.len() }))
+    }
+
+    fn handle_run_procedure(&self, args: &Map<String, Value>) -> CallToolResult {
+        if !self.policy.allow_workflows {
+            return err_text(
+                "policy/launch_grant: task/procedure workflow tools require --allow-workflows",
+            );
+        }
+        let Some(spec_val) = args.get("spec") else {
+            return err_text("policy/arguments: 'spec' object is required");
+        };
+        let mut spec: ProcedureSpec = match serde_json::from_value(spec_val.clone()) {
+            Ok(s) => s,
+            Err(e) => return err_text(format!("policy/arguments: invalid procedure spec: {e}")),
+        };
+        if args.get("dry_run").and_then(Value::as_bool) == Some(true) {
+            spec.dry_run = true;
+        }
+        // Fail-closed: non-dry-run procedure mutations always require --allow-mutations too.
+        if !spec.dry_run && !self.policy.allow_mutations {
+            return err_text(
+                "policy/launch_grant: executing non-dry-run procedures requires both --allow-workflows and --allow-mutations",
+            );
+        }
+
+        // Enforce SEM-02 prior-read for every WriteFile / EditFile step before executing.
+        let receipts_map = args.get("read_receipts").and_then(Value::as_object);
+        let mut to_invalidate: Vec<(String, String)> = Vec::new();
+        if !spec.dry_run {
+            for (idx, step) in spec.steps.iter().enumerate() {
+                match step {
+                    ProcedureStep::WriteFile {
+                        repo,
+                        path,
+                        expected_hash,
+                        ..
+                    }
+                    | ProcedureStep::EditFile {
+                        repo,
+                        path,
+                        expected_hash,
+                        ..
+                    } => {
+                        let key = format!("{repo}/{path}");
+                        let receipt = receipts_map
+                            .and_then(|m| m.get(&key).or_else(|| m.get(path)))
+                            .and_then(Value::as_str);
+                        if let Some(r) = receipt {
+                            if let Err(e) = self.signer.verify(r, repo, path, expected_hash) {
+                                return err_text(format!("step[{idx}]: {e}"));
+                            }
+                        } else if let Ok(ledger) = self.ledger.lock()
+                            && let Err(e) = ledger.verify_write(repo, path, expected_hash)
+                        {
+                            return err_text(format!("step[{idx}]: {e}"));
+                        }
+                        to_invalidate.push((repo.clone(), path.clone()));
+                    }
+                    ProcedureStep::CreateFile { repo, path, .. } => {
+                        to_invalidate.push((repo.clone(), path.clone()));
+                    }
+                }
+            }
+        }
+
+        // Derive grants STRICTLY from launch policy (never trust client-supplied held_grants).
+        let mut held_grants: Vec<&str> = vec!["workflows", "procedures"];
+        if self.policy.allow_mutations {
+            held_grants.push("mutations");
+        }
+        let mut fwd = Map::new();
+        fwd.insert(
+            "spec".to_owned(),
+            serde_json::to_value(&spec).unwrap_or(Value::Null),
+        );
+        fwd.insert("held_grants".to_owned(), json!(held_grants));
+
+        let res = map_mutation(self.dispatcher.call_mutation("run_procedure", &fwd));
+        if !spec.dry_run
+            && !to_invalidate.is_empty()
+            && let Ok(mut ledger) = self.ledger.lock()
+        {
+            for (repo, path) in to_invalidate {
+                ledger.invalidate(&repo, &path);
+            }
+        }
+        res
     }
 
     /// Enforce SEM-02 prior-read gate for every existing-file operation in `tb_batch`
@@ -1666,6 +1942,27 @@ fn build_tool_catalog(policy: &LaunchPolicy) -> Vec<Tool> {
         ]);
     }
 
+    if policy.allow_workflows {
+        tools.extend([
+            make_tool(
+                "tb_task_checkpoint",
+                "Create or CAS-update a durable D08 TaskPacket preserving critical obligations and spent budget.",
+            ),
+            make_tool(
+                "tb_task_resume",
+                "Resume a durable D08 TaskPacket by task_id with repository revocation re-checks.",
+            ),
+            make_tool(
+                "tb_task_list",
+                "List persisted D08 TaskPackets visible under current repository access policy.",
+            ),
+            make_tool(
+                "tb_run_procedure",
+                "Run or dry-run a granted D09 ProcedureSpec with independent postcondition checks and D10 RunReceipt.",
+            ),
+        ]);
+    }
+
     if policy.full_schemas {
         for tool in &mut tools {
             tool.input_schema = schemas::full_schema_for(tool.name.as_ref());
@@ -2114,6 +2411,41 @@ mod tests {
         assert!(
             ext_res.structured_content.is_none(),
             "PayloadMode::Text clears structured"
+        );
+    }
+
+    #[test]
+    fn workflow_tools_are_opt_in_and_enforce_launch_grants() {
+        let app: Arc<dyn AppDispatcher> = Arc::new(App::new(DummyStore, VaultSnapshot::empty()));
+        let default_srv = TwoBrainMcp::new(Arc::clone(&app), LaunchPolicy::default());
+        assert_eq!(default_srv.tools.len(), 38);
+
+        let wf_srv = TwoBrainMcp::new(
+            app,
+            LaunchPolicy {
+                allow_workflows: true,
+                ..LaunchPolicy::default()
+            },
+        );
+        assert_eq!(wf_srv.tools.len(), 42);
+
+        // Non-dry-run procedure without --allow-mutations MUST fail closed.
+        let proc_args = json!({
+            "spec": {
+                "schema_version": "2brain.procedure/v1",
+                "id": "p1",
+                "title": "Test",
+                "required_grants": [],
+                "dry_run": false,
+                "steps": [{ "op": "create_file", "repo": "vault", "path": "a.md", "content": "x" }],
+                "postconditions": []
+            }
+        });
+        let refused = wf_srv.dispatch_tool("tb_run_procedure", proc_args.as_object().unwrap());
+        assert_eq!(refused.is_error, Some(true));
+        assert_eq!(
+            refused.structured_content.unwrap()["reason_code"],
+            "launch_grant"
         );
     }
 }

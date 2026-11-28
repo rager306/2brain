@@ -9,8 +9,10 @@ pub mod audit_log;
 mod outcome_digest;
 mod outcome_journal;
 mod outcome_registry;
+pub mod task_packets;
 
 pub use audit_log::{AuditEntryInput, AuditEvent, FileAuditLog, verify_audit_chain};
+pub use task_packets::{FileTaskStore, tasks_dir_for_workspace};
 
 use std::io;
 use std::path::{Path, PathBuf};

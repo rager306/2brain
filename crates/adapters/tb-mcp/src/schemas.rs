@@ -475,6 +475,34 @@ pub fn full_schema_for(name: &str) -> Arc<Map<String, Value>> {
                 "request_id": { "type": "string", "description": "Optional idempotency key for ADR-0009 outcome registry" }
             }
         }),
+        "tb_task_checkpoint" => json!({
+            "type": "object",
+            "required": ["packet"],
+            "properties": {
+                "expected_revision": { "type": "integer", "minimum": 0, "description": "0 (or omit) to create a new TaskPacket; >=1 for optimistic CAS update" },
+                "packet": { "type": "object", "description": "D08 TaskPacket JSON object (schema_version='2brain.task-packet/v1'); critical obligations cannot be dropped over MCP" }
+            }
+        }),
+        "tb_task_resume" => json!({
+            "type": "object",
+            "required": ["task_id"],
+            "properties": {
+                "task_id": { "type": "string", "description": "Task identifier ([a-zA-Z0-9_-]{1,64})" }
+            }
+        }),
+        "tb_task_list" => json!({
+            "type": "object",
+            "properties": {}
+        }),
+        "tb_run_procedure" => json!({
+            "type": "object",
+            "required": ["spec"],
+            "properties": {
+                "spec": { "type": "object", "description": "D09 ProcedureSpec JSON object (schema_version='2brain.procedure/v1')" },
+                "dry_run": { "type": "boolean", "description": "Optional override to force dry-run preview (never weakens spec.dry_run=true)" },
+                "read_receipts": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Optional map of 'repo/path' -> stateless read_receipt for write/edit steps" }
+            }
+        }),
         _ => json!({ "type": "object", "properties": {} }),
     };
 

@@ -9,9 +9,15 @@ use std::sync::{Arc, Condvar, Mutex};
 
 pub mod ingest;
 pub mod mutations;
+pub mod procedures;
 pub use mutations::{
     BlockTarget, PromoteSource, WorkspaceMemberAction, validate_block_id, validate_member_role,
     validate_slug,
+};
+pub use procedures::{
+    OperationStepResult, PROCEDURE_SCHEMA_VERSION, Postcondition, PostconditionResult,
+    ProcedureSpec, ProcedureStep, RUN_RECEIPT_SCHEMA_VERSION, RunReceipt, TaskScopeGuard,
+    TaskStorePort,
 };
 
 use arc_swap::ArcSwap;
@@ -2666,6 +2672,38 @@ impl<W: WorkspaceStore + 'static> AppDispatcher for App<W> {
                 )
             }
             "ingest" => self.ingest_payload(args, request_id),
+            "run_procedure" => {
+                let spec_val = args.get("spec").ok_or_else(|| {
+                    AppError::InvalidArguments("'spec' object is required".into())
+                })?;
+                let spec: ProcedureSpec =
+                    serde_json::from_value(spec_val.clone()).map_err(|e| {
+                        AppError::InvalidArguments(format!("invalid procedure spec: {e}"))
+                    })?;
+                let grant_strings: Vec<String> = args
+                    .get("held_grants")
+                    .and_then(Value::as_array)
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_owned)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let grant_refs: Vec<&str> = grant_strings.iter().map(String::as_str).collect();
+                let receipt = self.run_procedure(&spec, &grant_refs)?;
+                Ok(IdempotentOutcome {
+                    payload: json!({ "run_receipt": receipt }),
+                    outcome_state: Some(if receipt.dry_run {
+                        "preview"
+                    } else if receipt.operation_outcome == "committed" {
+                        "committed"
+                    } else {
+                        "failed"
+                    }),
+                    replayed: false,
+                })
+            }
             other => Err(AppError::Unsupported(format!(
                 "unknown mutation verb '{other}'"
             ))),

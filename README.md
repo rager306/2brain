@@ -4,7 +4,7 @@ Clean-room, **MIT-licensed**, single-binary typed knowledge graph and cognitive 
 
 ## Highlights
 
-- **Single binary (`2brain`)**: combines the workspace daemon (`2brain daemon`), stdio & Streamable HTTP MCP 2.0 server (`2brain mcp`), clean-room fail-closed ingest pipeline (`2brain ingest`), durable outcome registry management (`2brain outcomes`), read-only benchmark profiler (`2brain bench`), and standalone graph/epistemic analytics CLI (`check`, `analyze`, `audit-claims`, `fragility`, `diff`).
+- **Single binary (`2brain`)**: combines the workspace daemon (`2brain daemon`), stdio & Streamable HTTP MCP 2.0 server (`2brain mcp` with `--policy`, `--payload`, `--audit-log`, `--allow-cognitive`, `--allow-ingest`, `--allow-workflows`), clean-room fail-closed ingest pipeline (`2brain ingest`), SHA-256 verified backup/restore (`2brain backup` / `2brain restore`), durable outcome registry management (`2brain outcomes`), cross-client `TaskPacket` handoff (`2brain task`), granted procedures with independent postconditions (`2brain procedure`), read-only benchmark profiler (`2brain bench`), and standalone graph/epistemic analytics CLI (`check`, `analyze`, `audit-claims`, `fragility`, `diff`).
 - **Hexagonal / Onion monorepo (13 crates)** with CI-enforced compile-time layer boundaries (`scripts/check_layer_deps.py`):
   - **`crates/domain/*`** (zero I/O, zero `tokio`, `miri`-verified):
     - `tb-contracts`: 5 distinct identities (`NodeId`, `TermId`, `TypeId`, `Generation`, `RevisionDigest`), `Assessment<T>`, typestate `WriteIntent<Unchecked -> ReadVerified -> CasVerified>`, `OutcomeState`.
@@ -62,6 +62,14 @@ cargo build --release -p two-brain --bin 2brain
 2brain ingest /path/to/vault ./imports/ --dest inbox --type note --dry-run
 2brain ingest /path/to/vault ./imports/article.html --dest inbox --date 2026-11-28
 
+# Verified SHA-256 workspace backup and atomic staged restore
+2brain backup /path/to/vault --out /path/to/backup-dir
+2brain restore /path/to/backup-dir --to /path/to/restored-vault
+
+# Durable D08 TaskPacket handoff and D09/D10 granted procedures
+2brain task create /path/to/vault --id release-prep --title "Audit release" --scope-repo vault --obligation publish=false
+2brain procedure run /path/to/vault ./procedure.json --dry-run --grant mutations --grant procedures
+
 # Run read-only workspace performance benchmark (cold load, incremental reload, BM25, cognitive suite, RSS)
 2brain bench /path/to/vault --iterations 5
 ```
@@ -72,8 +80,12 @@ cargo build --release -p two-brain --bin 2brain
 # Formatting, 13-crate layer boundaries, clippy -D warnings, tests, MIT license audit
 just gate
 
-# Miri UB check across all 6 pure-domain crates
+# Miri UB check across pure-domain crates
 just miri
+
+# Truthful capability registry validation & isolated black-box semantic suite (12 cases + SEM-48 control)
+python3 tools/check_capabilities.py
+python3 tools/semantic/run_semantic_suite.py --bin target/release/2brain
 ```
 
 Architecture and protocol specifications live in [`spec/`](spec/). Engineering invariants learned from adversarial review live in [`CODING_STANDARDS.md`](CODING_STANDARDS.md).

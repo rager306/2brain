@@ -246,6 +246,38 @@ def score_adr0009(case: dict[str, Any]) -> dict[str, Any]:
     return a.finalize("fulfilled", "honest")
 
 
+def score_ae15(case: dict[str, Any]) -> dict[str, Any]:
+    a = CaseAssessment("AE15", case.get("family", ""))
+    p_preview, p_denied, p_failed_post, p_verified = case["observations"]
+    r_prev = (p_preview.get("structured") or {}).get("run_receipt") or {}
+    r_fail = (p_failed_post.get("structured") or {}).get("run_receipt") or {}
+    r_ok = (p_verified.get("structured") or {}).get("run_receipt") or {}
+
+    a.check("preview_succeeds_without_mutation", p_preview.get("is_error") is False and r_prev.get("operation_outcome") == "preview")
+    a.check("preview_created_zero_files", case["seed_meta"].get("preview_created_file") is False)
+    a.check("missing_mutation_grant_refused", p_denied.get("is_error") is True and (p_denied.get("structured") or {}).get("reason_code") == "launch_grant")
+    a.check("wrong_artifact_committed_but_postcondition_failed", r_fail.get("operation_outcome") == "committed" and r_fail.get("postcondition_outcome") == "failed")
+    a.check("wrong_artifact_not_verified_success", r_fail.get("verified_success") is False)
+    a.check("good_procedure_verified_success", r_ok.get("operation_outcome") == "committed" and r_ok.get("postcondition_outcome") == "verified" and r_ok.get("verified_success") is True)
+    a.check("receipt_sha256_present", len(r_ok.get("receipt_sha256") or "") == 64)
+    return a.finalize("fulfilled", "honest")
+
+
+def score_ae17(case: dict[str, Any]) -> dict[str, Any]:
+    a = CaseAssessment("AE17", case.get("family", ""))
+    c_create, c_resume, c_advance, c_stale, c_drop = case["observations"]
+    resumed = (c_resume.get("structured") or {}).get("task_packet") or {}
+    adv = (c_advance.get("structured") or {}).get("task_packet") or {}
+
+    a.check("create_rev_1", ((c_create.get("structured") or {}).get("task_packet") or {}).get("revision") == 1)
+    a.check("resume_preserves_publish_false", any(o.get("key") == "publish" and o.get("value") == "false" for o in resumed.get("obligations", [])))
+    a.check("resume_preserves_spent_budget", (resumed.get("budget") or {}).get("spent_actions") == 1)
+    a.check("client2_advances_to_rev_2", c_advance.get("is_error") is False and adv.get("revision") == 2)
+    a.check("stale_writer_rejected", c_stale.get("is_error") is True)
+    a.check("dropping_critical_obligation_rejected", c_drop.get("is_error") is True)
+    return a.finalize("fulfilled", "honest")
+
+
 SCORERS = {
     "SEM-01": score_sem01,
     "SEM-02": score_sem02,
@@ -254,6 +286,8 @@ SCORERS = {
     "SEM-09": score_sem09,
     "SEM-18": score_sem18,
     "AE04-08": score_ae04_ae08,
+    "AE15": score_ae15,
+    "AE17": score_ae17,
     "AE24": score_ae24,
     "AE25": score_ae25,
     "ADR-0009": score_adr0009,

@@ -12,6 +12,12 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+pub mod task;
+pub use task::{
+    PendingOperationRef, TASK_PACKET_SCHEMA_VERSION, TaskBudget, TaskObligation, TaskPacket,
+    TaskStatus,
+};
+
 /// Compact interned graph node identifier (zero-overhead `u32`).
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 #[repr(transparent)]

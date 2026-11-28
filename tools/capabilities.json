@@ -147,15 +147,22 @@
       "requirements": ["R12", "R13"],
       "states": {
         "specified": true,
-        "implemented": false,
-        "wired": false,
-        "tested": false,
-        "rehearsed": false,
-        "enabled": false
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
+        "enabled": true
       },
-      "notes": "Review decisions shipped; bounded investigation controller queued in Track 3.",
-      "paths": [],
-      "tests": []
+      "paths": [
+        "crates/domain/tb-cognition/src/investigation.rs",
+        "crates/domain/tb-cognition/src/lib.rs",
+        "crates/app/tb-app/src/lib.rs"
+      ],
+      "tests": [
+        "controller_selects_cheapest_route_and_terminates_when_criterion_met",
+        "stagnation_locks_route_until_material_dependency_changes",
+        "resume_retains_budget_and_cancellation_preserves_pending_reconciliation"
+      ]
     },
     {
       "id": "U9",
@@ -182,15 +189,23 @@
       "requirements": ["R17"],
       "states": {
         "specified": true,
-        "implemented": false,
-        "wired": false,
-        "tested": false,
-        "rehearsed": false,
-        "enabled": false
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
+        "enabled": true
       },
-      "notes": "Queued in Track 3.",
-      "paths": [],
-      "tests": []
+      "paths": [
+        "crates/domain/tb-contracts/src/task.rs",
+        "crates/adapters/tb-journal/src/task_packets.rs",
+        "crates/adapters/tb-mcp/src/lib.rs",
+        "crates/bin/two-brain/src/main.rs"
+      ],
+      "tests": [
+        "task_packet_enforces_critical_obligations_and_monotonic_budget",
+        "task_store_handoff_preserves_obligations_and_rejects_stale_writer",
+        "AE17"
+      ]
     },
     {
       "id": "U11",
@@ -198,15 +213,22 @@
       "requirements": ["R15"],
       "states": {
         "specified": true,
-        "implemented": false,
-        "wired": false,
-        "tested": false,
-        "rehearsed": false,
-        "enabled": false
+        "implemented": true,
+        "wired": true,
+        "tested": true,
+        "rehearsed": true,
+        "enabled": true
       },
-      "notes": "Queued in Track 3.",
-      "paths": [],
-      "tests": []
+      "paths": [
+        "crates/app/tb-app/src/procedures.rs",
+        "crates/adapters/tb-mcp/src/lib.rs",
+        "crates/bin/two-brain/src/main.rs"
+      ],
+      "tests": [
+        "procedure_enforces_grants_preview_and_separates_commit_from_postcondition",
+        "workflow_tools_are_opt_in_and_enforce_launch_grants",
+        "AE15"
+      ]
     },
     {
       "id": "U12",

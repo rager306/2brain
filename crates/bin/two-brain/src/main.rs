@@ -11,9 +11,12 @@ use std::time::{Duration, Instant};
 
 use clap::{Parser, Subcommand};
 use notify::{RecursiveMode, Watcher};
-use tb_app::{App, AppDispatcher};
+use tb_app::{App, AppDispatcher, ProcedureSpec, TaskStorePort};
+use tb_contracts::{
+    TASK_PACKET_SCHEMA_VERSION, TaskBudget, TaskObligation, TaskPacket, TaskStatus,
+};
 use tb_ipc::IpcClient;
-use tb_journal::FileOutcomeStore;
+use tb_journal::{FileOutcomeStore, FileTaskStore};
 use tb_mcp::{
     AuditRecorder, EgressPolicy, HttpServerConfig, LaunchPolicy, PayloadMode, TwoBrainMcp,
 };
@@ -121,6 +124,16 @@ enum Command {
         #[arg(long = "json")]
         json: bool,
     },
+    /// Create, inspect, list, and CAS-checkpoint durable D08 TaskPackets for cross-client handoff.
+    Task {
+        #[command(subcommand)]
+        command: TaskCommand,
+    },
+    /// Execute or preview a declarative D09 ProcedureSpec with independent postconditions and D10 RunReceipt.
+    Procedure {
+        #[command(subcommand)]
+        command: ProcedureCommand,
+    },
     /// Read-only performance benchmark on a workspace (cold load, incremental refresh, BM25, cognitive suite, RSS).
     Bench {
         /// Path to the workspace directory.
@@ -206,6 +219,9 @@ enum Command {
         /// Enable the fail-closed inline `tb_ingest` MCP tool (implies --allow-mutations).
         #[arg(long = "allow-ingest")]
         allow_ingest: bool,
+        /// Enable the 4 opt-in D08/D09/D10 workflow tools (tb_task_checkpoint, tb_task_resume, tb_task_list, tb_run_procedure).
+        #[arg(long = "allow-workflows")]
+        allow_workflows: bool,
         /// Acknowledge durable outcome-registry tracking for request_id mutations.
         #[arg(long = "outcome-registry")]
         outcome_registry: bool,
@@ -293,6 +309,94 @@ enum OutcomesCommand {
         /// Maximum tombstone bytes to retain.
         #[arg(long = "max-bytes")]
         max_bytes: u64,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum TaskCommand {
+    /// Create a new durable D08 TaskPacket (revision 1).
+    Create {
+        /// Path to the workspace directory.
+        workspace: PathBuf,
+        /// Task identifier (`[a-zA-Z0-9_-]{1,64}`).
+        #[arg(long = "id")]
+        id: String,
+        /// Human-readable task title.
+        #[arg(long = "title")]
+        title: String,
+        /// Declared scope repositories (repeatable).
+        #[arg(long = "scope-repo")]
+        scope_repos: Vec<String>,
+        /// Critical obligations in `key=value` form (repeatable, e.g. `--obligation publish=false`).
+        #[arg(long = "obligation")]
+        obligations: Vec<String>,
+        /// Maximum action budget.
+        #[arg(long = "max-actions", default_value_t = 16)]
+        max_actions: u32,
+        /// Maximum token budget.
+        #[arg(long = "max-tokens", default_value_t = 32_000)]
+        max_tokens: u64,
+        /// Principal/client label creating this task.
+        #[arg(long = "by", default_value = "cli")]
+        by: String,
+        /// Emit machine-readable JSON output.
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Show a persisted D08 TaskPacket by id.
+    Show {
+        /// Path to the workspace directory.
+        workspace: PathBuf,
+        /// Task identifier.
+        id: String,
+        /// Emit machine-readable JSON output.
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// List persisted D08 TaskPackets in a workspace.
+    List {
+        /// Path to the workspace directory.
+        workspace: PathBuf,
+        /// Emit machine-readable JSON output.
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Optimistically CAS-checkpoint a D08 TaskPacket from a JSON file (`--expected-revision`).
+    Checkpoint {
+        /// Path to the workspace directory.
+        workspace: PathBuf,
+        /// Expected current revision for optimistic concurrency check.
+        #[arg(long = "expected-revision")]
+        expected_revision: u64,
+        /// Path to a JSON file containing the updated TaskPacket.
+        #[arg(long = "packet")]
+        packet_file: PathBuf,
+        /// Explicitly allow dropping critical obligations (default: false).
+        #[arg(long = "allow-drop-critical")]
+        allow_drop_critical: bool,
+        /// Emit machine-readable JSON output.
+        #[arg(long = "json")]
+        json: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ProcedureCommand {
+    /// Execute or dry-run a declarative D09 ProcedureSpec JSON file and emit a D10 RunReceipt.
+    Run {
+        /// Path to the workspace directory.
+        workspace: PathBuf,
+        /// Path to a `2brain.procedure/v1` JSON specification file.
+        spec: PathBuf,
+        /// Preview steps without mutating disk (cannot weaken `dry_run: true` in spec).
+        #[arg(long = "dry-run")]
+        dry_run: bool,
+        /// Explicit authority grants held by caller (repeatable, e.g. `--grant mutations --grant procedures`).
+        #[arg(long = "grant")]
+        grants: Vec<String>,
+        /// Emit machine-readable JSON RunReceipt.
+        #[arg(long = "json")]
+        json: bool,
     },
 }
 
@@ -450,6 +554,8 @@ fn main() {
             json,
         } => backup::run_backup(&workspace, &out, json),
         Command::Restore { backup, to, json } => backup::run_restore(&backup, &to, json),
+        Command::Task { command } => run_task_command(command),
+        Command::Procedure { command } => run_procedure_command(command),
         Command::Bench {
             path,
             iterations,
@@ -496,6 +602,7 @@ fn main() {
             allow_composition,
             allow_workspace_shape,
             allow_ingest,
+            allow_workflows,
             outcome_registry,
             allow_cognitive,
             principal,
@@ -540,6 +647,7 @@ fn main() {
                 allow_composition,
                 allow_workspace_shape,
                 allow_ingest,
+                allow_workflows,
                 outcome_registry,
                 allow_cognitive,
                 full_schemas: tools.eq_ignore_ascii_case("full"),
@@ -553,7 +661,7 @@ fn main() {
                     env!("CARGO_PKG_VERSION")
                 );
                 println!(
-                    "  tools        54 core (38 read-only, 16 mutating) + 9 cognitive (--allow-cognitive) + 1 ingest (--allow-ingest)"
+                    "  tools        54 core (38 read-only, 16 mutating) + 9 cognitive (--allow-cognitive) + 1 ingest (--allow-ingest) + 4 workflow (--allow-workflows)"
                 );
                 println!(
                     "  protocol     MCP 2026-07-28 (stateless) + legacy + SEP-2640 skills + SEP-2663 tasks"
@@ -586,18 +694,22 @@ fn main() {
             if let Some(workspace) = in_process {
                 run_mcp_in_process(&workspace, policy, http_cfg, audit);
             } else if let Some(target) = socket {
-                let resolved_sock = if target.is_dir() {
+                let (resolved_sock, task_store) = if target.is_dir() {
                     match std::fs::canonicalize(&target) {
-                        Ok(canonical) => tb_ipc::socket_path_for(&canonical),
+                        Ok(canonical) => (
+                            tb_ipc::socket_path_for(&canonical),
+                            Some(Arc::new(FileTaskStore::for_workspace(&canonical))
+                                as Arc<dyn TaskStorePort>),
+                        ),
                         Err(err) => {
                             eprintln!("error resolving workspace '{}': {err}", target.display());
                             std::process::exit(2);
                         }
                     }
                 } else {
-                    target
+                    (target, None)
                 };
-                run_mcp_over_socket(&resolved_sock, policy, http_cfg, audit);
+                run_mcp_over_socket(&resolved_sock, policy, http_cfg, audit, task_store);
             } else {
                 eprintln!(
                     "error: pass <socket-or-workspace> or --in-process <workspace> to '2brain mcp'"
@@ -1080,20 +1192,280 @@ fn load_egress_policy(path: &std::path::Path) -> Result<EgressPolicy, String> {
     serde_json::from_str(&raw).map_err(|e| e.to_string())
 }
 
+fn run_task_command(command: TaskCommand) {
+    match command {
+        TaskCommand::Create {
+            workspace,
+            id,
+            title,
+            scope_repos,
+            obligations,
+            max_actions,
+            max_tokens,
+            by,
+            json,
+        } => {
+            let store = FileTaskStore::for_workspace(&workspace);
+            let mut parsed_obs = Vec::with_capacity(obligations.len());
+            for raw in &obligations {
+                let Some((k, v)) = raw.split_once('=') else {
+                    eprintln!("error: invalid --obligation '{raw}' (expected key=value)");
+                    std::process::exit(2);
+                };
+                parsed_obs.push(TaskObligation {
+                    key: k.trim().to_owned(),
+                    value: v.trim().to_owned(),
+                    critical: true,
+                });
+            }
+            let pkt = TaskPacket {
+                schema_version: TASK_PACKET_SCHEMA_VERSION.to_owned(),
+                task_id: id,
+                revision: 0,
+                title,
+                status: TaskStatus::Open,
+                criterion_revision: "2brain.criterion/v1".to_owned(),
+                scope_repos,
+                obligations: parsed_obs,
+                budget: TaskBudget {
+                    max_actions,
+                    spent_actions: 0,
+                    max_tokens,
+                    spent_tokens: 0,
+                },
+                completed_steps: Vec::new(),
+                unchecked_steps: Vec::new(),
+                rejected_routes: Vec::new(),
+                pending_operations: Vec::new(),
+                evidence_digests: std::collections::BTreeMap::new(),
+                updated_by: by,
+                updated_unix: 0,
+            };
+            match store.create_task(pkt) {
+                Ok(saved) => {
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&saved).expect("json serialization")
+                        );
+                    } else {
+                        println!(
+                            "created task '{}' rev={} status={:?} obligations={}",
+                            saved.task_id,
+                            saved.revision,
+                            saved.status,
+                            saved.obligations.len()
+                        );
+                    }
+                }
+                Err(err) => {
+                    eprintln!("error creating task: {err}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        TaskCommand::Show {
+            workspace,
+            id,
+            json,
+        } => {
+            let store = FileTaskStore::for_workspace(&workspace);
+            match store.load_task(&id) {
+                Ok(pkt) => {
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&pkt).expect("json serialization")
+                        );
+                    } else {
+                        println!(
+                            "task '{}' rev={} status={:?} by={} spent={}/{} actions, {}/{} tokens",
+                            pkt.task_id,
+                            pkt.revision,
+                            pkt.status,
+                            pkt.updated_by,
+                            pkt.budget.spent_actions,
+                            pkt.budget.max_actions,
+                            pkt.budget.spent_tokens,
+                            pkt.budget.max_tokens
+                        );
+                    }
+                }
+                Err(err) => {
+                    eprintln!("error loading task '{id}': {err}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        TaskCommand::List { workspace, json } => {
+            let store = FileTaskStore::for_workspace(&workspace);
+            match store.list_tasks() {
+                Ok(tasks) => {
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&tasks).expect("json serialization")
+                        );
+                    } else if tasks.is_empty() {
+                        println!("no task packets in {}", workspace.display());
+                    } else {
+                        for pkt in tasks {
+                            println!(
+                                "{}  rev={}  status={:?}  by={}  title={}",
+                                pkt.task_id, pkt.revision, pkt.status, pkt.updated_by, pkt.title
+                            );
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprintln!("error listing tasks: {err}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        TaskCommand::Checkpoint {
+            workspace,
+            expected_revision,
+            packet_file,
+            allow_drop_critical,
+            json,
+        } => {
+            let raw = match std::fs::read_to_string(&packet_file) {
+                Ok(s) => s,
+                Err(err) => {
+                    eprintln!("error reading '{}': {err}", packet_file.display());
+                    std::process::exit(2);
+                }
+            };
+            let pkt: TaskPacket = match serde_json::from_str(&raw) {
+                Ok(p) => p,
+                Err(err) => {
+                    eprintln!("error parsing task packet JSON: {err}");
+                    std::process::exit(2);
+                }
+            };
+            let task_id = pkt.task_id.clone();
+            let store = FileTaskStore::for_workspace(&workspace);
+            match store.checkpoint_task(&task_id, expected_revision, pkt, allow_drop_critical, None)
+            {
+                Ok(saved) => {
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&saved).expect("json serialization")
+                        );
+                    } else {
+                        println!(
+                            "checkpointed task '{}' rev={} status={:?}",
+                            saved.task_id, saved.revision, saved.status
+                        );
+                    }
+                }
+                Err(err) => {
+                    eprintln!("error checkpointing task '{task_id}': {err}");
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+}
+
+fn run_procedure_command(command: ProcedureCommand) {
+    match command {
+        ProcedureCommand::Run {
+            workspace,
+            spec: spec_path,
+            dry_run,
+            grants,
+            json,
+        } => {
+            let raw = match std::fs::read_to_string(&spec_path) {
+                Ok(s) => s,
+                Err(err) => {
+                    eprintln!(
+                        "error reading procedure spec '{}': {err}",
+                        spec_path.display()
+                    );
+                    std::process::exit(2);
+                }
+            };
+            let mut spec: ProcedureSpec = match serde_json::from_str(&raw) {
+                Ok(s) => s,
+                Err(err) => {
+                    eprintln!("error parsing procedure spec JSON: {err}");
+                    std::process::exit(2);
+                }
+            };
+            if dry_run {
+                spec.dry_run = true;
+            }
+            let canonical = match std::fs::canonicalize(&workspace) {
+                Ok(c) => c,
+                Err(err) => {
+                    eprintln!("error resolving workspace '{}': {err}", workspace.display());
+                    std::process::exit(1);
+                }
+            };
+            let _ = tb_journal::recover_outcome_registry(&canonical);
+            let (store, snapshot) = match tb_fs_git::load_snapshot(&canonical) {
+                Ok(pair) => pair,
+                Err(err) => {
+                    eprintln!("error loading workspace '{}': {err}", canonical.display());
+                    std::process::exit(1);
+                }
+            };
+            let outcomes = Arc::new(FileOutcomeStore::for_workspace(&canonical));
+            let app = App::with_outcomes(store, snapshot, outcomes);
+            let grant_refs: Vec<&str> = grants.iter().map(String::as_str).collect();
+            match app.run_procedure(&spec, &grant_refs) {
+                Ok(receipt) => {
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&receipt).expect("json serialization")
+                        );
+                    } else {
+                        println!(
+                            "procedure '{}' dry_run={} operation={} postconditions={} verified_success={} receipt={}",
+                            receipt.procedure_id,
+                            receipt.dry_run,
+                            receipt.operation_outcome,
+                            receipt.postcondition_outcome,
+                            receipt.verified_success,
+                            &receipt.receipt_sha256[..16]
+                        );
+                    }
+                    if !receipt.dry_run && !receipt.verified_success {
+                        std::process::exit(1);
+                    }
+                }
+                Err(err) => {
+                    eprintln!("procedure error: {err}");
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+}
+
 fn run_mcp_over_socket(
     socket: &std::path::Path,
     policy: LaunchPolicy,
     http_cfg: Option<HttpServerConfig>,
     audit: Option<Arc<dyn AuditRecorder>>,
+    task_store: Option<Arc<dyn TaskStorePort>>,
 ) {
     let client: Arc<dyn AppDispatcher> = Arc::new(IpcClient::new(socket.to_path_buf()));
-    let server = match TwoBrainMcp::try_new_with_audit(client, policy, audit) {
+    let mut server = match TwoBrainMcp::try_new_with_audit(client, policy, audit) {
         Ok(s) => s,
         Err(err) => {
             eprintln!("mcp init error: {err}");
             std::process::exit(1);
         }
     };
+    if let Some(ts) = task_store {
+        server = server.with_task_store(ts);
+    }
     let runtime = build_runtime();
     let result = match http_cfg {
         Some(cfg) => runtime.block_on(server.serve_http(cfg)),
@@ -1129,8 +1501,9 @@ fn run_mcp_in_process(
     let outcomes = Arc::new(FileOutcomeStore::for_workspace(&canonical));
     let app = Arc::new(App::with_outcomes(store, snapshot, outcomes));
     let disp: Arc<dyn AppDispatcher> = Arc::clone(&app) as Arc<dyn AppDispatcher>;
+    let task_store: Arc<dyn TaskStorePort> = Arc::new(FileTaskStore::for_workspace(&canonical));
     let server = match TwoBrainMcp::try_new_with_audit(disp, policy, audit) {
-        Ok(s) => s,
+        Ok(s) => s.with_task_store(task_store),
         Err(err) => {
             eprintln!("mcp init error: {err}");
             std::process::exit(1);

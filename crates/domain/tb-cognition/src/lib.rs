@@ -23,6 +23,7 @@ use tb_syntax::tokenize;
 
 pub mod claims;
 pub mod evolution;
+pub mod investigation;
 
 pub use claims::{
     AmbiguousClaimRef, ClaimRecord, ContradictionAuditReport, ContradictionItem, ContradictionKind,
@@ -32,6 +33,10 @@ pub use claims::{
 pub use evolution::{
     BetweennessMover, DecayCandidate, EdgeDiffEntry, FragilityReport, HubFragilityEntry,
     SnapshotDiffReport, SnapshotNodeMeta, TopologyDelta, analyze_fragility, diff_snapshots,
+};
+pub use investigation::{
+    CandidateRoute, ControllerDecision, InvestigationAttempt, InvestigationBudget,
+    InvestigationSession, TerminationReason, route_fingerprint,
 };
 
 /// One node's Brandes centrality and conceptual gateway metrics.

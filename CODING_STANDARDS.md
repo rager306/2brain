@@ -80,6 +80,11 @@ Defect classes caught by adversarial review and fixed by structural invariants:
    - Validate audit log readiness (`check_ready`, inode identity after locking, trailing-newline check) BEFORE dispatching any mutation so a corrupt/symlinked audit log fails closed rather than allowing unaudited writes.
    - Run the `tb_context` `Generation` release admission fence immediately before returning the completed response (after companion-pole retrieval, bidirectional claim assembly, and contradiction assessment).
 
+19. **Descriptor-Relative Persistence, Atomic Staging, Locked Scope Authorization & Honest Postconditions (`tb-journal`, `tb-app`, `tb-mcp`, `tb-cognition`, `two-brain`):**
+   - Perform temporary-file creation, atomic publication, and directory syncs strictly relative to the locked/trusted directory descriptor (`openat(..., O_CREAT|O_EXCL|O_NOFOLLOW)` with unique names + `renameat` + `fsync(dir_fd)`), and stage workspace restores inside a private `0o700` sibling directory that cleans up on failure before atomic rename so failed restores never leave half-populated targets.
+   - Authorize BOTH the persisted `TaskPacket` scope and the proposed scope inside the same locked checkpoint transaction (`TaskScopeGuard`), and NEVER allow an MCP caller to drop critical obligations (`allow_drop_critical` must never be taken from MCP request arguments).
+   - Separate post-effect `OutcomeUnknown` (`operation_outcome: "unknown"`) from definite `failed` rejections in `RunReceipt`, require a successfully reloaded snapshot plus verified file/link existence for `ZeroDiagnostics` and `LinkResolves` postconditions (marking unavailable evidence `"unverified"`), and block `InvestigationSession::decide_next` on `pending_reconciliation` unconditionally before criterion evaluation or route selection.
+
 
 
 

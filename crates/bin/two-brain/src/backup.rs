@@ -15,13 +15,16 @@
 //!   `tb_fs_git::load_snapshot`.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rustix::fs::{FileType, Mode, OFlags, fstat, openat};
+use rustix::fs::{
+    AtFlags, FileType, Mode, OFlags, fstat, fsync, mkdirat, openat, renameat, unlinkat,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -29,6 +32,29 @@ use sha2::{Digest, Sha256};
 const BACKUP_SCHEMA_VERSION: &str = "2brain.backup/v1";
 const MAX_SINGLE_FILE_BYTES: u64 = 256 * 1024 * 1024; // 256 MiB safety cap per file
 const MAX_TOTAL_FILES: usize = 100_000;
+static STAGE_NONCE: AtomicU64 = AtomicU64::new(1);
+
+struct StagingGuard {
+    path: Option<PathBuf>,
+}
+
+impl StagingGuard {
+    fn new(path: PathBuf) -> Self {
+        Self { path: Some(path) }
+    }
+
+    fn disarm(&mut self) {
+        self.path = None;
+    }
+}
+
+impl Drop for StagingGuard {
+    fn drop(&mut self) {
+        if let Some(ref p) = self.path {
+            let _ = fs::remove_dir_all(p);
+        }
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BackupFileEntry {
@@ -152,10 +178,8 @@ pub fn backup_workspace(workspace: &Path, out_dir: &Path) -> Result<BackupSummar
         ));
     }
     ensure_empty_or_new_dir(&resolved_out)?;
-
-    let data_dir = resolved_out.join("data");
-    fs::create_dir_all(&data_dir)
-        .map_err(|e| format!("create backup data dir '{}': {e}", data_dir.display()))?;
+    let out_fd = open_dir_nofollow_abs(&resolved_out)?;
+    let data_fd = mkdir_and_open_nofollow(out_fd.as_fd(), "data")?;
 
     let root_fd = open_dir_nofollow_abs(&canonical_ws)?;
     let mut entries = Vec::new();
@@ -165,10 +189,11 @@ pub fn backup_workspace(workspace: &Path, out_dir: &Path) -> Result<BackupSummar
         root_fd.as_fd(),
         &canonical_ws,
         "",
-        &data_dir,
+        data_fd.as_fd(),
         &mut entries,
         &mut total_bytes,
     )?;
+    let _ = fsync(data_fd.as_fd());
 
     entries.sort_by(|a, b| a.path.cmp(&b.path));
     let manifest_digest = compute_manifest_digest(&entries);
@@ -189,24 +214,32 @@ pub fn backup_workspace(workspace: &Path, out_dir: &Path) -> Result<BackupSummar
 
     let manifest_bytes =
         serde_json::to_vec_pretty(&manifest).map_err(|e| format!("serialize manifest: {e}"))?;
-    let tmp_path = resolved_out.join(".manifest.sha256.json.tmp");
-    let final_path = resolved_out.join("manifest.sha256.json");
-    {
-        let mut f = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&tmp_path)
-            .map_err(|e| format!("create temp manifest '{}': {e}", tmp_path.display()))?;
+    let nonce = STAGE_NONCE.fetch_add(1, Ordering::Relaxed);
+    let tmp_name = format!(".manifest.sha256.json.tmp.{}.{nonce}", std::process::id());
+    let write_res = (|| -> Result<(), String> {
+        let mut f = create_file_nofollow(out_fd.as_fd(), &tmp_name)?;
         f.write_all(&manifest_bytes)
             .map_err(|e| format!("write temp manifest: {e}"))?;
         f.write_all(b"\n")
             .map_err(|e| format!("write temp manifest newline: {e}"))?;
         f.sync_all()
             .map_err(|e| format!("sync temp manifest: {e}"))?;
+        Ok(())
+    })();
+    if let Err(err) = write_res {
+        let _ = unlinkat(out_fd.as_fd(), tmp_name.as_str(), AtFlags::empty());
+        return Err(err);
     }
-    fs::rename(&tmp_path, &final_path)
-        .map_err(|e| format!("publish manifest '{}': {e}", final_path.display()))?;
+    if let Err(e) = renameat(
+        out_fd.as_fd(),
+        tmp_name.as_str(),
+        out_fd.as_fd(),
+        "manifest.sha256.json",
+    ) {
+        let _ = unlinkat(out_fd.as_fd(), tmp_name.as_str(), AtFlags::empty());
+        return Err(format!("publish manifest: {e}"));
+    }
+    let _ = fsync(out_fd.as_fd());
 
     Ok(BackupSummary {
         workspace: canonical_ws.display().to_string(),
@@ -324,19 +357,48 @@ pub fn restore_workspace(backup_dir: &Path, target_dir: &Path) -> Result<Restore
         }
     }
 
-    // Fail-closed: target must be new or empty before writing anything.
-    ensure_empty_or_new_dir(&resolved_target)?;
+    // Fail-closed: verify target is either absent or an empty non-symlink directory,
+    // then stage into a private 0o700 sibling directory so any error leaves target untouched.
+    let target_existed_empty = check_target_absent_or_empty(&resolved_target)?;
+    let target_parent = resolved_target.parent().ok_or_else(|| {
+        format!(
+            "restore target '{}' has no parent directory",
+            resolved_target.display()
+        )
+    })?;
+    fs::create_dir_all(target_parent)
+        .map_err(|e| format!("create parent dir '{}': {e}", target_parent.display()))?;
+    let parent_fd = open_dir_nofollow_abs(target_parent)?;
+    let nonce = STAGE_NONCE.fetch_add(1, Ordering::Relaxed);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let stage_name = format!(
+        ".2brain-restore-stage.{}.{nanos}.{nonce}",
+        std::process::id()
+    );
+    mkdirat(
+        parent_fd.as_fd(),
+        stage_name.as_str(),
+        Mode::from_raw_mode(0o700),
+    )
+    .map_err(|e| format!("create private restore staging dir '{stage_name}': {e}"))?;
+    let stage_path = target_parent.join(&stage_name);
+    let mut stage_guard = StagingGuard::new(stage_path.clone());
+    let stage_fd = openat(
+        parent_fd.as_fd(),
+        stage_name.as_str(),
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW,
+        Mode::empty(),
+    )
+    .map_err(|e| format!("open private restore staging dir '{stage_name}': {e}"))?;
 
-    // Copy verified payload into target and re-hash on write.
+    // Copy verified payload strictly descriptor-relative into the private staging dir.
     let mut restored_bytes: u64 = 0;
     for entry in &sorted_entries {
-        let dest_path = resolved_target.join(&entry.path);
-        if let Some(parent) = dest_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("create target dir '{}': {e}", parent.display()))?;
-        }
         let (written_bytes, written_hex) =
-            copy_verified_rel_file(data_fd.as_fd(), &entry.path, &dest_path)?;
+            copy_verified_rel_file_fd(data_fd.as_fd(), stage_fd.as_fd(), &entry.path)?;
         if written_bytes != entry.bytes || written_hex != entry.sha256 {
             return Err(format!(
                 "post-copy verification failed for '{}' (expected {}:{}, got {}:{})",
@@ -345,14 +407,47 @@ pub fn restore_workspace(backup_dir: &Path, target_dir: &Path) -> Result<Restore
         }
         restored_bytes = restored_bytes.saturating_add(written_bytes);
     }
+    let _ = fsync(stage_fd.as_fd());
 
-    // Prove the restored directory actually loads cleanly as a 2brain workspace.
-    let (_, snap) = tb_fs_git::load_snapshot(&resolved_target).map_err(|e| {
+    // Prove the staged directory loads cleanly as a 2brain workspace BEFORE publishing.
+    let (_, snap) = tb_fs_git::load_snapshot(&stage_path).map_err(|e| {
+        format!("restored files verified, but workspace load failed during staging: {e}")
+    })?;
+    drop(stage_fd);
+
+    // Atomically publish staged workspace into target.
+    let target_name = resolved_target
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| {
+            format!(
+                "invalid restore target name '{}'",
+                resolved_target.display()
+            )
+        })?;
+    if target_existed_empty {
+        // rmdir fails atomically if target became non-empty concurrently.
+        fs::remove_dir(&resolved_target).map_err(|e| {
+            format!(
+                "refusing restore: target '{}' is no longer an empty directory ({e})",
+                resolved_target.display()
+            )
+        })?;
+    }
+    renameat(
+        parent_fd.as_fd(),
+        stage_name.as_str(),
+        parent_fd.as_fd(),
+        target_name,
+    )
+    .map_err(|e| {
         format!(
-            "restored files verified, but workspace load failed at '{}': {e}",
+            "publish restored workspace to '{}': {e}",
             resolved_target.display()
         )
     })?;
+    let _ = fsync(parent_fd.as_fd());
+    stage_guard.disarm();
 
     Ok(RestoreSummary {
         backup_dir: canonical_backup.display().to_string(),
@@ -499,7 +594,7 @@ fn copy_dir_recursive(
     dir_fd: BorrowedFd<'_>,
     disk_dir: &Path,
     rel_prefix: &str,
-    dest_root: &Path,
+    dest_dir_fd: BorrowedFd<'_>,
     entries: &mut Vec<BackupFileEntry>,
     total_bytes: &mut u64,
 ) -> Result<(), String> {
@@ -542,14 +637,16 @@ fn copy_dir_recursive(
                 Mode::empty(),
             )
             .map_err(|e| format!("open subdirectory '{rel}' (O_NOFOLLOW): {e}"))?;
+            let dest_sub_fd = mkdir_and_open_nofollow(dest_dir_fd, &name)?;
             copy_dir_recursive(
                 sub_fd.as_fd(),
                 &child_disk,
                 &rel,
-                dest_root,
+                dest_sub_fd.as_fd(),
                 entries,
                 total_bytes,
             )?;
+            let _ = fsync(dest_sub_fd.as_fd());
             continue;
         }
 
@@ -581,17 +678,8 @@ fn copy_dir_recursive(
             ));
         }
 
-        let dest_path = dest_root.join(&rel);
-        if let Some(parent) = dest_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("create backup dir '{}': {e}", parent.display()))?;
-        }
         let mut src = File::from(fd);
-        let mut dst = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&dest_path)
-            .map_err(|e| format!("create backup file '{rel}': {e}"))?;
+        let mut dst = create_file_nofollow(dest_dir_fd, &name)?;
 
         let (bytes, sha256) = stream_copy_and_hash(&mut src, &mut dst, &rel)?;
         dst.sync_all()
@@ -716,30 +804,89 @@ fn read_regular_file_nofollow(
     Ok(buf)
 }
 
-fn copy_verified_rel_file(
+fn check_target_absent_or_empty(dir: &Path) -> Result<bool, String> {
+    match fs::symlink_metadata(dir) {
+        Ok(meta) => {
+            if meta.file_type().is_symlink() {
+                return Err(format!("refusing symlink directory '{}'", dir.display()));
+            }
+            if !meta.is_dir() {
+                return Err(format!(
+                    "target '{}' exists and is not a directory",
+                    dir.display()
+                ));
+            }
+            let mut rd = fs::read_dir(dir)
+                .map_err(|e| format!("read directory '{}': {e}", dir.display()))?;
+            if rd.next().transpose().map_err(|e| e.to_string())?.is_some() {
+                return Err(format!(
+                    "refusing non-empty destination directory '{}'",
+                    dir.display()
+                ));
+            }
+            Ok(true)
+        }
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(err) => Err(format!("inspect destination '{}': {err}", dir.display())),
+    }
+}
+
+fn mkdir_and_open_nofollow(parent_fd: BorrowedFd<'_>, name: &str) -> Result<OwnedFd, String> {
+    match mkdirat(parent_fd, name, Mode::from_raw_mode(0o755)) {
+        Ok(()) => {}
+        Err(e) if e == rustix::io::Errno::EXIST => {}
+        Err(e) => return Err(format!("mkdirat '{name}': {e}")),
+    }
+    openat(
+        parent_fd,
+        name,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW,
+        Mode::empty(),
+    )
+    .map_err(|e| format!("open dir '{name}' (O_NOFOLLOW): {e}"))
+}
+
+fn create_file_nofollow(parent_fd: BorrowedFd<'_>, name: &str) -> Result<File, String> {
+    let fd = openat(
+        parent_fd,
+        name,
+        OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW,
+        Mode::from_raw_mode(0o600),
+    )
+    .map_err(|e| format!("create file '{name}' (O_CREAT|O_EXCL|O_NOFOLLOW): {e}"))?;
+    Ok(File::from(fd))
+}
+
+fn copy_verified_rel_file_fd(
     data_root_fd: BorrowedFd<'_>,
+    stage_root_fd: BorrowedFd<'_>,
     rel_path: &str,
-    dest_path: &Path,
 ) -> Result<(u64, String), String> {
     let parts: Vec<&str> = rel_path.split('/').collect();
     let (file_name, dirs) = parts
         .split_last()
         .ok_or_else(|| format!("empty relative path '{rel_path}'"))?;
-    let mut owned: Option<OwnedFd> = None;
+    let mut src_owned: Option<OwnedFd> = None;
+    let mut dst_owned: Option<OwnedFd> = None;
     for dir in dirs {
-        let cur = owned.as_ref().map_or(data_root_fd, AsFd::as_fd);
-        let next = openat(
-            cur,
+        let cur_src = src_owned.as_ref().map_or(data_root_fd, AsFd::as_fd);
+        let next_src = openat(
+            cur_src,
             *dir,
             OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW,
             Mode::empty(),
         )
         .map_err(|e| format!("open backup dir '{dir}' for '{rel_path}': {e}"))?;
-        owned = Some(next);
+        src_owned = Some(next_src);
+
+        let cur_dst = dst_owned.as_ref().map_or(stage_root_fd, AsFd::as_fd);
+        let next_dst = mkdir_and_open_nofollow(cur_dst, dir)?;
+        dst_owned = Some(next_dst);
     }
-    let parent_fd = owned.as_ref().map_or(data_root_fd, AsFd::as_fd);
+    let parent_src_fd = src_owned.as_ref().map_or(data_root_fd, AsFd::as_fd);
+    let parent_dst_fd = dst_owned.as_ref().map_or(stage_root_fd, AsFd::as_fd);
     let fd = openat(
-        parent_fd,
+        parent_src_fd,
         *file_name,
         OFlags::RDONLY | OFlags::NOFOLLOW,
         Mode::empty(),
@@ -750,14 +897,10 @@ fn copy_verified_rel_file(
         return Err(format!("backup entry '{rel_path}' is not a regular file"));
     }
     let mut src = File::from(fd);
-    let mut dst = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(dest_path)
-        .map_err(|e| format!("create restored file '{}': {e}", dest_path.display()))?;
+    let mut dst = create_file_nofollow(parent_dst_fd, file_name)?;
     let res = stream_copy_and_hash(&mut src, &mut dst, rel_path)?;
     dst.sync_all()
-        .map_err(|e| format!("sync restored file '{}': {e}", dest_path.display()))?;
+        .map_err(|e| format!("sync restored file '{rel_path}': {e}"))?;
     Ok(res)
 }
 
