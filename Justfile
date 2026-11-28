@@ -4,16 +4,28 @@ export COLUMNS := "120"
 
 default: gate-fast
 
+# Fast crate-scoped inner edit loop (R3: use before full workspace gate)
+check crate="two-brain":
+    cargo check -p {{crate}} --all-targets
+
+# Fast crate-scoped test loop (optional nextest filter substring)
+test crate="tb-app" filter="":
+    @if [ -n "{{filter}}" ]; then \
+        cargo nextest run -p {{crate}} -E 'test({{filter}})'; \
+    else \
+        cargo nextest run -p {{crate}}; \
+    fi
+
 # Fast local check (<10s)
 gate-fast:
     cargo fmt --all -- --check
     python3 scripts/check_layer_deps.py
     cargo clippy --workspace --all-targets -- -D warnings
 
-# Full Tier-1 verification gate
+# Full Tier-1 verification gate (run once at commit/milestone boundaries)
 gate: gate-fast
     cargo nextest run --workspace
-    cargo deny --offline check licenses bans sources
+    cargo deny --offline -L error check licenses bans sources
 
 # Miri UB check on pure domain crates (0 I/O)
 miri crate="tb-contracts":
